@@ -146,22 +146,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		if err != nil {
 			return err
 		}
-		original := g.repo
-		g.repo = root
-		defer func() { g.repo = original }()
-		_, graphErr = g.inputGraph()
-		// The device lane owns the packages it tests, not every dependent
-		// of the device runtime: the lane's full plan plus the packages the
-		// changed kernels' functions own.
+		graph, err := g.inputGraph()
+		graphErr = err
 		if graphErr == nil {
-			devicePackages = slices.Clone(automationcheck.DeviceLanePackages[1:])
-			if devicePlan, planErr := automationcheck.DevicePlan(root, g.paths); planErr == nil {
-				for _, packagePath := range devicePlan.Packages {
-					devicePackages = append(devicePackages, strings.TrimPrefix(packagePath, "./"))
-				}
-			}
-			slices.Sort(devicePackages)
-			devicePackages = slices.Compact(devicePackages)
+			devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
 		}
 		structural, baseManifest, candidateManifest, structuralErr = g.deriveManifestImpact()
 		if structuralErr != nil {
@@ -172,10 +160,6 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if analysisErr != nil {
 		return plannedPipeline{}, analysisErr
 	}
-	// The analysis graph contains paths inside the temporary immutable
-	// worktree. Keep its derived package selection, but reload a live graph for
-	// later package-cache execution after that worktree is removed.
-	g.packageGraph = nil
 	definitions := g.pipelineChecks(devicePackages...)
 	definitions, err = g.batchAcceptanceChecks(definitions, verificationBatch)
 	if err != nil {
@@ -210,19 +194,6 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		))
 	}
 	impact := automationcheck.OwnershipImpact(definitions, surface)
-	// Symbol reachability uncertain (interface dispatch, reflection): the
-	// linker's rule still decides package-owned checks, since a check's
-	// tests can observe only packages in their dependency closure.
-	if len(surface.Unknown) != 0 && structuralErr == nil && !requiresManifestBootstrap(g.paths) && reachabilityOnlyUncertainty(structural) {
-		changed := changedPackages(structural)
-		if resolver, resolverErr := g.dependencyResolver(); resolverErr == nil {
-			impact = automationcheck.OwnershipByDependency(definitions, changed, resolver)
-			g.audit = append(g.audit, fmt.Sprintf("impact fallback: dependency closure over changed packages %s excluded %d owned check(s) under %d uncertainties",
-				strings.Join(changed, ","), len(impact.Exclusions), len(surface.Unknown)))
-		} else {
-			g.audit = append(g.audit, "impact fallback unavailable; owned checks defaulted to run: "+resolverErr.Error())
-		}
-	}
 	// The shell's assets are not Go symbols: a changed web UI path triggers
 	// the browser lane that the symbol closure could not select.
 	if automationcheck.WebUIPaths(g.paths) {
@@ -275,7 +246,7 @@ func (g *gateContext) inputGraph() (packageInputGraph, error) {
 	if g.packageGraph != nil {
 		return *g.packageGraph, nil
 	}
-	graph, err := loadPackageInputGraph(g.repo)
+	graph, err := loadPackageInputGraph(g.sourceRoot())
 	if err == nil {
 		g.packageGraph = &graph
 	}
@@ -294,7 +265,7 @@ func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, erro
 	if err != nil {
 		return codeprofile.FunctionImpact{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return codeprofile.FunctionImpact{}, err
 	}
@@ -314,7 +285,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.repo, "./cmd/...", "./internal/...")
+	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
@@ -655,14 +626,26 @@ func (g *gateContext) prepareWithStore(store *overgodb.Store) error {
 	return nil
 }
 
-func requireNoPendingGateState(repo, storePath string) error {
-	store, err := overgodb.Open(filepath.Join(repo, storePath))
-	if err != nil {
-		return fmt.Errorf("gate: inspect lifecycle authority: %w", err)
+// admitPendingGateState runs only while the caller owns the gate mutation lock.
+func admitPendingGateState(repo, storePath string, store *overgodb.Store) error {
+	if err := requireNoPendingGateStateWithStore(repo, store); !errors.Is(err, errGateLifecyclePending) {
+		return err
 	}
-	defer store.Close()
-	return requireNoPendingGateStateWithStore(repo, store)
+	recovered, err := recordSelectedUnbatchableFailure(repo, storePath, "")
+	if err != nil {
+		return fmt.Errorf("gate: recover abandoned lifecycle: %w", err)
+	}
+	if err := store.Refresh(context.Background()); err != nil {
+		return err
+	}
+	if err := requireNoPendingGateStateWithStore(repo, store); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "gate: admission recovered lifecycle %s; acceptance remains required\n", recovered)
+	return nil
 }
+
+var errGateLifecyclePending = errors.New("gate: unresolved lifecycle")
 
 // requireNoPendingGateStateWithStore checks recovery authority without
 // reopening the canonical store. Callers that continue into plan binding or
@@ -694,7 +677,7 @@ func requireNoPendingGateStateWithStore(repo string, store *overgodb.Store) erro
 		return fmt.Errorf("gate: invalid lifecycle locator: %w", err)
 	}
 	if heartbeat.State == runrecord.HeartbeatRunning || heartbeat.State == runrecord.HeartbeatRecordDebt {
-		return errors.New("gate: unresolved gate lifecycle locator; run `go run ./cmd/gate -record-failure` before another gate")
+		return fmt.Errorf("%w: unresolved gate lifecycle locator; run `go run ./cmd/gate -record-failure` before another gate", errGateLifecyclePending)
 	}
 	return nil
 }
@@ -755,14 +738,14 @@ func requireNoOutstandingGateLifecycle(ctx context.Context, store *overgodb.Stor
 			return fmt.Errorf("gate: load lifecycle authority: %w", err)
 		}
 		if lifecycle.State != runrecord.GateFinalized {
-			return errors.New("gate: OvergoDB records an unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`")
+			return fmt.Errorf("%w: OvergoDB records an unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`", errGateLifecyclePending)
 		}
 		if !complete[lifecycle.ID] {
 			return errors.New("gate: lifecycle authority is not one complete typed gate finalization")
 		}
 	}
 	if len(unresolved) == 1 {
-		return errors.New("gate: OvergoDB records 1 unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`")
+		return fmt.Errorf("%w: OvergoDB records 1 unresolved prepared lifecycle; run `go run ./cmd/gate -record-failure`", errGateLifecyclePending)
 	}
 	if len(unresolved) != 0 {
 		// The refusal carries its own deterministic remediation: one exact

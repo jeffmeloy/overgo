@@ -45,32 +45,21 @@
       let data;
       try {
         data = await overgo.api.get("/analyze/tensors");
-      } catch (err) {
-        clear(panel);
-        panel.appendChild(overgo.errorBanner(overgo.friendlyError(err)));
-        return;
-      }
+      } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
       const rows = data.tensors || [];
       clear(panel);
 
       panel.appendChild(el("div", { class: "section-title", text: "Tensor value statistics" }));
-      panel.appendChild(el("div", {
-        class: "note",
-        text: data.count + " tensors · distribution-free (L-moments + energy) · sampled ≤ " +
-          fmt.grouped(data.policy.max_samples_per_tensor) + " values/tensor · click a row for nearest-shape tensors",
-      }));
+      panel.appendChild(el("div", { class: "note", text: data.count + " tensors · distribution-free (L-moments + energy) · sampled ≤ " +
+        fmt.grouped(data.policy.max_samples_per_tensor) + " values/tensor · click a row for nearest-shape tensors" }));
 
       let sortKey = "name";
       let sortAsc = true;
 
-      const table = el("table", { class: "mono", style: "width:100%;border-collapse:collapse;font-size:12px" });
+      const table = el("table", { class: "mono tensor-table" });
       const head = el("tr", {});
       for (const col of COLUMNS) {
-        const th = el("th", {
-          text: col.label,
-          style: "text-align:" + (col.num ? "right" : "left") +
-            ";padding:6px 8px;border-bottom:1px solid var(--line-soft);cursor:pointer;white-space:nowrap",
-        });
+        const th = el("th", { text: col.label, class: "cell head" + (col.num ? " num" : "") });
         th.addEventListener("click", () => {
           if (sortKey === col.key) sortAsc = !sortAsc;
           else { sortKey = col.key; sortAsc = col.num ? false : true; }
@@ -83,7 +72,7 @@
       table.appendChild(body);
       panel.appendChild(table);
 
-      const detail = el("div", { style: "margin-top:14px" });
+      const detail = el("div", { class: "mt-14" });
       panel.appendChild(detail);
 
       async function showNeighbors(name) {
@@ -99,17 +88,17 @@
         }
         clear(detail);
         detail.appendChild(el("div", { class: "section-title", text: "Nearest to " + name + " — by distribution shape (" + (data.metric || "rank") + ", d in [0,1])" }));
-        const list = el("div", { style: "display:flex;flex-direction:column;gap:4px" });
+        const list = el("div", { class: "stack" });
         for (const n of (data.neighbors || [])) {
           const row = el("div", {
-            style: "display:flex;gap:12px;align-items:center;font-size:12px;padding:4px 8px;border:1px solid var(--line-soft);border-radius:8px;cursor:pointer",
+            class: "neighbour-row",
           });
           row.addEventListener("click", () => showNeighbors(n.name));
           row.append(
-            el("span", { style: "flex:1", text: n.name }),
-            el("span", { style: "opacity:.7", text: "d=" + n.distance.toFixed(4) }),
-            el("span", { style: "opacity:.7", text: "τ₃=" + n.l_moments.Tau3.toFixed(3) }),
-            el("span", { style: "opacity:.7", text: "H=" + n.values.normalized_energy_entropy.toFixed(3) }),
+            el("span", { class: "grow", text: n.name }),
+            el("span", { class: "faint", text: "d=" + n.distance.toFixed(4) }),
+            el("span", { class: "faint", text: "τ₃=" + n.l_moments.Tau3.toFixed(3) }),
+            el("span", { class: "faint", text: "H=" + n.values.normalized_energy_entropy.toFixed(3) }),
           );
           list.appendChild(row);
         }
@@ -118,15 +107,11 @@
 
       function bar(fraction) {
         const clamped = Math.max(0, Math.min(1, fraction));
-        const wrap = el("div", {
-          style: "display:flex;align-items:center;gap:6px;justify-content:flex-end",
-        });
-        const track = el("div", {
-          style: "width:64px;height:8px;border-radius:4px;background:var(--bg2);overflow:hidden",
-        });
-        track.appendChild(el("div", {
-          style: "height:100%;width:" + (clamped * 100).toFixed(1) + "%;background:var(--acc)",
-        }));
+        const wrap = el("div", { class: "meter" });
+        const track = el("div", { class: "meter-track" });
+        const fill = el("div", { class: "meter-fill" });
+        fill.style.width = (clamped * 100).toFixed(1) + "%"; // the one measured size, set as a property
+        track.appendChild(fill);
         wrap.append(el("span", { text: clamped.toFixed(3) }), track);
         return wrap;
       }
@@ -140,10 +125,10 @@
         });
         clear(body);
         for (const t of sorted) {
-          const tr = el("tr", { style: "cursor:pointer" });
+          const tr = el("tr", { class: "clickable" });
           tr.addEventListener("click", () => showNeighbors(t.name));
-          tr.appendChild(el("td", { text: t.name, style: "padding:5px 8px;border-bottom:1px solid var(--line-soft)" }));
-          tr.appendChild(el("td", { text: t.storage, style: "padding:5px 8px;border-bottom:1px solid var(--line-soft)" }));
+          tr.appendChild(el("td", { text: t.name, class: "cell" }));
+          tr.appendChild(el("td", { text: t.storage, class: "cell" }));
           const cells = [
             fmt.compact(t.elements),
             sci(t.median),
@@ -155,19 +140,18 @@
             effrankText(t),
           ];
           for (const value of cells) {
-            tr.appendChild(el("td", {
-              text: value,
-              style: "padding:5px 8px;text-align:right;border-bottom:1px solid var(--line-soft)",
-            }));
+            tr.appendChild(el("td", { text: value, class: "cell num", }));
           }
-          const entropyCell = el("td", { style: "padding:5px 8px;border-bottom:1px solid var(--line-soft)" });
+          const entropyCell = el("td", { class: "cell" });
           entropyCell.appendChild(bar(t.values.normalized_energy_entropy));
           tr.appendChild(entropyCell);
           body.appendChild(tr);
         }
         for (const th of head.children) {
           const c = COLUMNS[Array.prototype.indexOf.call(head.children, th)];
-          th.textContent = c.label + (c.key === sortKey ? (sortAsc ? " ▲" : " ▼") : "");
+          let marker = "";
+          if (c.key === sortKey) marker = sortAsc ? " ▲" : " ▼";
+          th.textContent = c.label + marker;
         }
       }
       draw();

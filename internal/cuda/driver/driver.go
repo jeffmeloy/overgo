@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+
+	"overgo/internal/processcontrol"
 )
 
 // Device: CUDA device ordinal
@@ -38,11 +40,28 @@ type Dim3 struct {
 // runtime and diagnostics
 type DeviceInfo struct {
 	Ordinal                int    `json:"ordinal"`
+	UUID                   string `json:"uuid"`
 	Name                   string `json:"name"`
 	TotalMemoryBytes       uint64 `json:"totalMemoryBytes"`
 	ComputeCapabilityMajor int    `json:"computeCapabilityMajor"`
 	ComputeCapabilityMinor int    `json:"computeCapabilityMinor"`
 	MultiprocessorCount    int    `json:"multiprocessorCount"`
+}
+
+// ReserveDevice reserves one physical device for this measurement process tree.
+// Call before creating contexts. Independent shared consumers prevent admission.
+func (l *Library) ReserveDevice(ordinal int) (DeviceInfo, error) {
+	if err := l.Init(); err != nil {
+		return DeviceInfo{}, err
+	}
+	info, err := l.DeviceInfo(ordinal)
+	if err != nil {
+		return DeviceInfo{}, err
+	}
+	if err := processcontrol.ClaimResource(info.UUID); err != nil {
+		return DeviceInfo{}, err
+	}
+	return info, nil
 }
 
 // MemoryStats: reports allocations made through one Library instance; is

@@ -8,11 +8,7 @@
     const controls = new Map();
     let baseline = JSON.stringify(initial || {});
 
-    function applicable(field) {
-      if (!field.when) return true;
-      const controller = controls.get(field.when.field);
-      return !!controller && controller.input.value === field.when.equals;
-    }
+    function applicable(field) { if (!field.when) return true; const controller = controls.get(field.when.field); return !!controller && controller.input.value === field.when.equals; }
 
     function readField(field, input) {
       if (!applicable(field) || input.value === "") return undefined;
@@ -24,10 +20,7 @@
 
     function value() {
       const result = {};
-      for (const [name, control] of controls) {
-        const current = readField(control.field, control.input);
-        if (current !== undefined) result[name] = current;
-      }
+      for (const [name, control] of controls) { const current = readField(control.field, control.input); if (current !== undefined) result[name] = current; }
       return result;
     }
 
@@ -43,7 +36,7 @@
     function buildInput(field) {
       let input;
       if (field.type === "enum" || field.type === "boolean") {
-        input = el("select", { class: "text" }, el("option", { value: "", text: "Select" }));
+        input = el("select", { class: "text", "aria-label": field.label }, el("option", { value: "", text: "Select" }));
         const options = field.type === "boolean" ?
           [{ value: "true", label: "True" }, { value: "false", label: "False" }] : field.options;
         for (const option of options || []) input.appendChild(el("option", { value: option.value, text: option.label }));
@@ -51,7 +44,7 @@
         input = el("textarea", { class: "text", rows: "4", placeholder: "One value per line" });
       } else {
         input = el("input", {
-          class: "text", type: field.type === "integer" || field.type === "number" ? "number" : "text",
+          class: "text", "aria-label": field.label, type: field.type === "integer" || field.type === "number" ? "number" : "text",
           step: field.type === "integer" ? "1" : (field.type === "number" ? "any" : null),
           pattern: field.pattern || null, min: field.minimum, max: field.maximum,
           "data-identity-kind": field.identity_kind || null,
@@ -86,11 +79,7 @@
 
     function dirty() { return JSON.stringify(value()) !== baseline; }
     function markSaved() { baseline = JSON.stringify(value()); }
-    function beforeUnload(event) {
-      if (!dirty()) return;
-      event.preventDefault();
-      event.returnValue = "";
-    }
+    function beforeUnload(event) { if (!dirty()) return; event.preventDefault(); event.returnValue = ""; }
     window.addEventListener("beforeunload", beforeUnload);
 
     return {

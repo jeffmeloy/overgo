@@ -15,7 +15,7 @@ func TestReplayGUI(t *testing.T) {
 	handler.publishResponseInteraction(t.Context(), "resp_trace", artifact.ID{}, []inference.ChatMessage{
 		{Role: inference.ChatRoleUser, Content: "question"},
 		{Role: inference.ChatRoleAssistant, Content: "answer"},
-	})
+	}, runrecord.OutcomeSucceeded)
 	response := serveTestRequest(handler, http.MethodGet, "/interactions/replay?response=resp_trace", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("replay status=%d body=%s", response.Code, response.Body.String())

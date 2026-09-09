@@ -1,13 +1,80 @@
 package modelswap
 
 import (
+	"bufio"
 	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestModelSwapRoutesLiveEnvelopeBeforeEOF(t *testing.T) {
+	supervisor, err := New(&fakeLauncher{}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Close()
+	wanted := Servable{Name: "native", Model: "exact-model", Location: "weights"}
+	proxy := &Proxy{Supervisor: supervisor, Resolver: mapResolver{"exact-model": wanted}}
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	request := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", reader)
+	request.Header.Set("Content-Type", "application/x-ndjson; charset=utf-8")
+	first := "{\"model\":\"exact-model\",\"source\":{}}\n"
+	done := make(chan error, 1)
+	go func() {
+		_, err := io.WriteString(writer, first)
+		done <- err
+	}()
+	routed := make(chan Servable, 1)
+	routeError := make(chan error, 1)
+	go func() {
+		servable, err := proxy.routeServable(request)
+		if err != nil {
+			routeError <- err
+			return
+		}
+		routed <- servable
+	}()
+	select {
+	case got := <-routed:
+		if got != wanted || request.ContentLength != -1 {
+			t.Fatalf("route=%+v length=%d", got, request.ContentLength)
+		}
+	case err := <-routeError:
+		t.Fatal(err)
+	case <-time.After(time.Second):
+		t.Fatal("routing waited for a live stream to end")
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	replay := bufio.NewReader(request.Body)
+	if line, err := replay.ReadString('\n'); err != nil || line != first {
+		t.Fatalf("opening envelope changed: %q %v", line, err)
+	}
+	next := "{\"sequence\":0}\n"
+	go func() {
+		_, err := io.WriteString(writer, next)
+		done <- err
+	}()
+	if line, err := replay.ReadString('\n'); err != nil || line != next {
+		t.Fatalf("continuation changed: %q %v", line, err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if err := request.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writer.Write([]byte("closed")); err == nil {
+		t.Fatal("replay lost original body close ownership")
+	}
+}
 
 type mapResolver map[string]Servable
 
@@ -123,6 +190,14 @@ func TestModelSwapProxy(t *testing.T) {
 	}
 	if running, ok := supervisor.Status(); !ok || running.Name != "alpha" {
 		t.Fatalf("running after query-param swap = (%+v, %t)", running, ok)
+	}
+	missing, err := http.Get(front.URL + "/health?swap=missing-model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing.Body.Close()
+	if missing.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("explicit unknown swap silently served current model: HTTP %d", missing.StatusCode)
 	}
 
 	// A model query parameter is the server's own vocabulary (analysis

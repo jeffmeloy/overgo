@@ -51,6 +51,11 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if currentTree != g.acceptedTree {
 		return false, errors.New("commit admission: planned content changed after acceptance")
 	}
+	if g.candidateRoot != "" {
+		if err := requireCandidateWorktreeUnchanged(g.candidateRoot, g.acceptedTree); err != nil {
+			return false, err
+		}
+	}
 	if err := validateManifestCommitAdmission(*g.manifestPlan, g.terminal); err != nil {
 		return false, err
 	}
@@ -129,6 +134,16 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if !open || item.ID+"/"+step.ID != g.planRef {
 		_ = completionStore.Close()
 		return false, errors.New("commit admission: completion authority no longer selects the gated row")
+	}
+	if step.VerificationBatch != nil {
+		for _, checkpoint := range step.VerificationBatch.Checkpoints {
+			if err := runrecord.VerifyCompletionAcceptanceEvidence(
+				g.stepEvidence[checkpoint.GateCheckName()], g.planRef, checkpoint.Verify,
+			); err != nil {
+				_ = completionStore.Close()
+				return false, fmt.Errorf("commit admission: checkpoint %s verifier binding: %w", checkpoint.ID, err)
+			}
+		}
 	}
 	planHead, err = command(g.repo, "git", "rev-parse", "HEAD")
 	if err != nil {

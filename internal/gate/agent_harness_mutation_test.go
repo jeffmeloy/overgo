@@ -121,7 +121,7 @@ func mutationSessionDrift(t *testing.T) bool {
 	return err != nil
 }
 func mutationTrajectoryOmission(t *testing.T) bool {
-	base, err := runrecord.NewInteractionTrace(runrecord.Interaction{Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "recipe"), Model: testutil.ArtifactID(t, artifact.KindModel, "model")}, testutil.ArtifactID(t, artifact.KindEvidence, "request"), []runrecord.InteractionMessage{{Role: "user", Content: "task"}}, nil)
+	base, err := runrecord.NewInteractionTrace(runrecord.Interaction{Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "recipe"), Model: testutil.ArtifactID(t, artifact.KindModel, "model")}, testutil.ArtifactID(t, artifact.KindEvidence, "request"), []runrecord.InteractionMessage{{Role: "user", Content: "task"}}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

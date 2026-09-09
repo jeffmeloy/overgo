@@ -186,12 +186,7 @@ func runDelegatedStep(
 	if sessionName == "" || toolName == "" {
 		return errors.New("agent-loop: delegated step requires -session and -tool")
 	}
-	// A delegated step runs under the session's durable log: a recorded
-	// step replays, a stale invocation is refused, and a new step is logged.
-	session, err := runtime.Coordinator.OpenDurableSession(ctx, sessionName)
-	if err != nil {
-		return err
-	}
+	session := &agentloop.Session{ID: sessionName}
 	result, err := runtime.Coordinator.Propose(ctx, session, toolName, arguments)
 	if err != nil {
 		return err

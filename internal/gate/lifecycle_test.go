@@ -2,6 +2,7 @@ package gate
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,15 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
+
+func requireNoPendingGateState(repo, storePath string) error {
+	store, err := overgodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		return fmt.Errorf("gate: inspect lifecycle authority: %w", err)
+	}
+	defer store.Close()
+	return requireNoPendingGateStateWithStore(repo, store)
+}
 
 func TestGateDebtReconciliation(t *testing.T) {
 	repo, storePath := newLifecycleRepo(t), "store"

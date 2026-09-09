@@ -71,6 +71,9 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	if ctx == nil || command.Path == "" {
 		return nil, errors.New("processcontrol: nil context or empty command path")
 	}
+	if err := inheritedResources(); err != nil {
+		return nil, fmt.Errorf("processcontrol: inherited physical resources: %w", err)
+	}
 	run := exec.Command(command.Path, command.Args...)
 	run.Dir = command.Dir
 	run.Env = command.Env
@@ -84,6 +87,9 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	if err != nil {
 		return nil, fmt.Errorf("processcontrol: stderr pipe: %w", err)
 	}
+	resourceMu.Lock()
+	defer resourceMu.Unlock()
+	run.Env = resourceEnvironment(run.Environ())
 	if err := run.Start(); err != nil {
 		return nil, fmt.Errorf("processcontrol: start %s: %w", command.Path, err)
 	}

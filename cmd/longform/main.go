@@ -84,10 +84,7 @@ type options struct {
 }
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	clioptions.MainNamed("longform", func() error { return run(os.Args[1:], os.Stdout) })
 }
 
 func parseOptions(args []string) (options, error) {
@@ -343,23 +340,38 @@ func run(args []string, output io.Writer) error {
 	if options.ValidateBaselines {
 		return validateSelectedBaselines(output, targets, surface)
 	}
-	cuda, err := driver.Open()
-	if err != nil {
-		return err
-	}
-	defer cuda.Close()
-	if err := cuda.Init(); err != nil {
-		return err
-	}
-	options.deviceInfo, err = cuda.DeviceInfo(options.Device)
-	if err != nil {
-		return err
-	}
-	return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
+	return withPublisher(options, func(publish publishModel) error {
+		cuda, err := driver.Open()
+		if err != nil {
+			return err
+		}
+		defer cuda.Close()
+		options.deviceInfo, err = cuda.ReserveDevice(options.Device)
+		if err != nil {
+			return err
+		}
+		return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
+	})
 }
 
 type measureModel func(context.Context, io.Writer, options, target, string, string, longform.Floors, int) (longform.Result, error)
-type publishModel func(context.Context, string, artifact.ID, longform.Result) (artifact.ID, error)
+type publishModel func(context.Context, artifact.ID, longform.Result) (artifact.ID, error)
+
+// Admit the writer before measurement. Idle handles hold no process lock;
+// publication refreshes and waits through the existing transaction owner.
+func withPublisher(options options, execute func(publishModel) error) (err error) {
+	if !options.Publish {
+		return execute(nil)
+	}
+	store, err := overgodb.Open(options.Repository)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, store.Close()) }()
+	return execute(func(ctx context.Context, model artifact.ID, result longform.Result) (artifact.ID, error) {
+		return longform.Publish(ctx, store, model, result)
+	})
+}
 
 func runTargets(ctx context.Context, output io.Writer, options options, targets []target, commit, surface string, measure measureModel, publish publishModel) error {
 	floors := longform.DeclaredFloors()
@@ -426,7 +438,7 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			failures = append(failures, fmt.Errorf("%s: %s", name, result.Verdict))
 		}
 		if options.Publish {
-			record, err := publish(ctx, options.Repository, target.weights, result)
+			record, err := publish(ctx, target.weights, result)
 			if err != nil {
 				return err
 			}
@@ -437,9 +449,8 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 	return errors.Join(failures...)
 }
 
-// measure loads one model, runs the SHORT shape and the ladder, and
-// closes it before anything else touches the store: the runner holds
-// the device and the store's reader for the whole run.
+// measure owns one model residency through the short shape and full ladder.
+// The runner closes before its result is published.
 func measure(ctx context.Context, output io.Writer, options options, target target, commit, surface string, floors longform.Floors, ceiling int) (longform.Result, error) {
 	runner, err := clioptions.OpenRunner(ctx, options.Repository, target.entry.Location, clioptions.BuildOpenOptions(options.Device, nil, 1))
 	if err != nil {
@@ -563,15 +574,6 @@ func nextRungMemory(previous, current driver.MemoryStats) uint64 {
 		next = max(next, now+2*growth)
 	}
 	return next
-}
-
-func publish(ctx context.Context, repository string, model artifact.ID, result longform.Result) (artifact.ID, error) {
-	store, err := overgodb.Open(repository)
-	if err != nil {
-		return artifact.ID{}, err
-	}
-	record, publishErr := longform.Publish(ctx, store, model, result)
-	return record, errors.Join(publishErr, store.Close())
 }
 
 // report prints the short shape, every rung, the judged verdict, and

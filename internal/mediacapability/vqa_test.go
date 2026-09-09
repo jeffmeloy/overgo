@@ -68,7 +68,7 @@ func TestTextOutputPublishesPlainText(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if content.Descriptor.ID.Kind() != artifact.KindOutput || content.Descriptor.MediaType != textMediaType || string(content.Data) != "there" {
+	if content.Descriptor.ID.Kind() != artifact.KindOutput || content.Descriptor.MediaType != modelrecipe.TextAnswerMediaType || string(content.Data) != "there" {
 		t.Fatalf("text output = %+v %q", content.Descriptor, content.Data)
 	}
 }

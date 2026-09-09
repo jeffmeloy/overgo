@@ -433,8 +433,7 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			}
 		}
 	}
-	identities := auditIdentityLiterals(os.Stdout, candidates)
-	fmt.Printf("closure-scan: scoped sites=%d classified=%d identities=%d stale=0\n", len(candidates), classified, identities)
+	fmt.Printf("closure-scan: scoped sites=%d classified=%d stale=0\n", len(candidates), classified)
 	return nil
 }
 
@@ -1553,9 +1552,6 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 		}).DeclarationKey()]
 		if !ok {
 			return fmt.Errorf("triage row %s not found by scan in %s (stale triage?)", row.Name, row.File)
-		}
-		if err := refuseIdentityTriage(found); err != nil {
-			return err
 		}
 		valueJSON := found.ValueJSON()
 		binding, err := found.Binding()

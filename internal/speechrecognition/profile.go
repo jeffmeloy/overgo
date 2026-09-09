@@ -25,6 +25,7 @@ type ExecutionProfile struct {
 	Frontend   audiodsp.FrontendConfig       `json:"frontend"`
 	Grouping   audiodsp.GroupedFeatureConfig `json:"grouping"`
 	Encoder    Declaration                   `json:"encoder"`
+	Transducer *TransducerBinding            `json:"transducer,omitzero"`
 	BlankToken int                           `json:"blank_token"`
 	Language   string                        `json:"language,omitzero"`
 	ID         artifact.ID                   `json:"-"`
@@ -40,11 +41,8 @@ var executionProfileCodec = artifact.JSONDocumentCodec(
 )
 
 // NewExecutionProfile identifies one immutable speech recognition execution declaration.
-func NewExecutionProfile(frontend audiodsp.FrontendConfig, grouping audiodsp.GroupedFeatureConfig, encoder Declaration, blankToken int, language string) (ExecutionProfile, error) {
-	return executionProfileCodec.NewInitial(ExecutionProfile{
-		Frontend: frontend, Grouping: grouping, Encoder: encoder,
-		BlankToken: blankToken, Language: language,
-	})
+func NewExecutionProfile(profile ExecutionProfile) (ExecutionProfile, error) {
+	return executionProfileCodec.NewInitial(profile)
 }
 
 // RequireExecutionProfile loads one exact speech recognition execution declaration.
@@ -74,19 +72,29 @@ func canonicalizeExecutionProfile(profile *ExecutionProfile) error {
 		profile.Language != strings.TrimSpace(profile.Language) || strings.ContainsAny(profile.Language, "\r\n") {
 		return errors.New("speech recognition: invalid execution profile")
 	}
+	if binding := profile.Transducer; binding != nil {
+		if profile.Grouping != (audiodsp.GroupedFeatureConfig{StackFrames: 1}) ||
+			binding.Blank != profile.BlankToken || binding.Bands != int(profile.Frontend.Geometry.FeatureBins) {
+			return errors.New("speech recognition: recurrent decoder requires ungrouped matching features and blank")
+		}
+	}
 	return nil
 }
 
 func cloneExecutionProfile(profile ExecutionProfile) ExecutionProfile {
-	profile.Frontend.ResampleTaps = slices.Clone(profile.Frontend.ResampleTaps)
-	if profile.Frontend.Normalize != nil {
-		normalize := *profile.Frontend.Normalize
-		profile.Frontend.Normalize = &normalize
-	}
-	if profile.Frontend.Log.DynamicRange != nil {
-		dynamicRange := *profile.Frontend.Log.DynamicRange
-		profile.Frontend.Log.DynamicRange = &dynamicRange
+	profile.Frontend = profile.Frontend.Clone()
+	if profile.Transducer != nil {
+		binding := *profile.Transducer
+		binding.Subsampling = slices.Clone(binding.Subsampling)
+		binding.Recurrent = slices.Clone(binding.Recurrent)
+		profile.Transducer = &binding
 	}
 	profile.Encoder.Blocks = slices.Clone(profile.Encoder.Blocks)
+	for i := range profile.Encoder.Blocks {
+		if binding := profile.Encoder.Blocks[i].Attention.ProjectedRelative; binding != nil {
+			value := *binding
+			profile.Encoder.Blocks[i].Attention.ProjectedRelative = &value
+		}
+	}
 	return profile
 }

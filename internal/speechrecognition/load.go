@@ -26,12 +26,19 @@ type attention struct {
 	query, key, value, out      linear
 	relative                    []float32
 	heads, width, block, radius int
+	position                    linear
+	contentBias, positionBias   []float32
+	positionBase                float64
+	leftContext, maxPositions   int
 }
 type convolution struct {
 	norm                                norm
 	in, out                             linear
 	kernel, scale, bias, mean, variance []float32
+	kernelBias                          []float32
 	channels, kernelSize, stride        int
+	causal                              bool
+	layerNorm                           norm
 }
 type block struct {
 	first, second feedForward
@@ -43,6 +50,7 @@ type block struct {
 // Encoder owns immutable promoted weights and validated tensor-derived geometry.
 // A Workspace is required per concurrent call. No source handles are retained.
 type Encoder struct {
+	scaleInputByWidth        bool
 	input, output, feedback  linear
 	blocks                   []block
 	feedbackAfter            int
@@ -50,6 +58,7 @@ type Encoder struct {
 	ffScale                  float32
 	lnEpsilon, bnEpsilon     float64
 	weightBytes, memoryBytes uint64
+	inputProjection          []float32
 }
 
 // InputWidth returns the declared feature width consumed by each frame.
@@ -118,7 +127,11 @@ func (l *loader) shape(ctx context.Context, name string, rank int) ([]int, error
 }
 
 func (l *loader) linear(ctx context.Context, b AffineBinding, input int) (linear, error) {
-	d, err := l.shape(ctx, b.Weight, 2)
+	rank := 2
+	if t, ok := l.source.Tensors[b.Weight]; ok && len(t.Shape) == 3 && t.Shape[2] == 1 {
+		rank = 3 // A unit-width pointwise convolution is the same affine operation.
+	}
+	d, err := l.shape(ctx, b.Weight, rank)
 	if err != nil {
 		return linear{}, err
 	}
@@ -177,7 +190,7 @@ func LoadEncoder(ctx context.Context, source *safetensors.Source, d Declaration,
 		return nil, errors.New("encoder: feedback weights without a feedback boundary")
 	}
 	l := loader{source: source, values: make(map[string][]float32), budget: memoryBytes}
-	e := &Encoder{memoryBytes: memoryBytes, feedbackAfter: d.FeedbackAfter, activation: d.Activation, ffScale: d.FeedForwardScale, lnEpsilon: d.LayerNormEpsilon, bnEpsilon: d.BatchNormEpsilon}
+	e := &Encoder{memoryBytes: memoryBytes, feedbackAfter: d.FeedbackAfter, activation: d.Activation, ffScale: d.FeedForwardScale, lnEpsilon: d.LayerNormEpsilon, bnEpsilon: d.BatchNormEpsilon, scaleInputByWidth: d.ScaleInputByWidth}
 	var err error
 	if e.input, err = l.linear(ctx, d.Input, 0); err != nil {
 		return nil, err
@@ -236,19 +249,11 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 	if a.out, err = l.linear(ctx, b.Attention.Out, a.query.out); err != nil {
 		return x, err
 	}
-	if a.query.out%b.Attention.Heads != 0 || a.key.out != a.query.out || a.value.out != a.query.out || a.out.out != h || len(a.query.bias) != 0 || len(a.key.bias) != 0 || len(a.value.bias) != 0 {
-		return x, errors.New("attention requires equal-width bias-free query/key/value projections")
+	if a.query.out%b.Attention.Heads != 0 || a.key.out != a.query.out || a.value.out != a.query.out || a.out.out != h {
+		return x, errors.New("attention requires equal-width query/key/value projections")
 	}
 	a.heads, a.width, a.block = b.Attention.Heads, a.query.out/b.Attention.Heads, b.Attention.BlockFrames
-	d, err := l.shape(ctx, b.Attention.Relative, 2)
-	if err != nil {
-		return x, err
-	}
-	if d[0]%2 != 1 || d[1] != a.width || a.block-1 > d[0]/2 {
-		return x, errors.New("relative position table does not cover block distances")
-	}
-	a.radius = d[0] / 2
-	if a.relative, err = l.tensor(ctx, b.Attention.Relative, d...); err != nil {
+	if err = l.relativeAttention(ctx, a, b.Attention); err != nil {
 		return x, err
 	}
 	c := &x.convolution
@@ -256,6 +261,13 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 		return x, errors.New("invalid convolution stride")
 	}
 	c.stride = b.Convolution.Stride
+	c.causal = b.Convolution.Causal
+	if b.Convolution.LayerNorm.Weight == "" && b.Convolution.LayerNorm.Bias != "" {
+		return x, errors.New("convolution: layer normalization bias without weight")
+	}
+	if c.causal && c.stride != 1 {
+		return x, errors.New("causal residual convolution requires unit stride")
+	}
 	if c.norm, err = l.norm(ctx, b.Convolution.Norm, h); err != nil {
 		return x, err
 	}
@@ -272,7 +284,7 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 	if c.out.out != h {
 		return x, errors.New("convolution residual width differs")
 	}
-	d, err = l.shape(ctx, b.Convolution.Kernel, 3)
+	d, err := l.shape(ctx, b.Convolution.Kernel, 3)
 	if err != nil {
 		return x, err
 	}
@@ -281,6 +293,18 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 	}
 	c.kernelSize = d[2]
 	if c.kernel, err = l.tensor(ctx, b.Convolution.Kernel, d...); err != nil {
+		return x, err
+	}
+	if b.Convolution.KernelBias != "" {
+		if c.kernelBias, err = l.tensor(ctx, b.Convolution.KernelBias, c.channels); err != nil {
+			return x, err
+		}
+	}
+	if b.Convolution.LayerNorm.Weight != "" {
+		if b.Convolution.BatchNorm.Weight != "" || b.Convolution.BatchNorm.Bias != "" || b.Convolution.Mean != "" || b.Convolution.Variance != "" {
+			return x, errors.New("convolution normalization declarations conflict")
+		}
+		c.layerNorm, err = l.norm(ctx, b.Convolution.LayerNorm, c.channels)
 		return x, err
 	}
 	bn, err := l.norm(ctx, b.Convolution.BatchNorm, c.channels)
@@ -300,4 +324,38 @@ func (l *loader) block(ctx context.Context, b BlockBinding, h int) (block, error
 		}
 	}
 	return x, nil
+}
+
+func (l *loader) relativeAttention(ctx context.Context, a *attention, b AttentionBinding) error {
+	if p := b.ProjectedRelative; p != nil {
+		if b.Relative != "" || !checked.PositiveFinite64(p.Base) || p.LeftContext < 0 || p.MaxPositions <= 0 || a.query.in%2 != 0 {
+			return errors.New("invalid projected relative attention declaration")
+		}
+		var err error
+		if a.position, err = l.linear(ctx, p.Projection, a.query.in); err != nil {
+			return err
+		}
+		if a.position.out != a.query.out || len(a.position.bias) != 0 {
+			return errors.New("relative key projection shape or bias differs")
+		}
+		if a.contentBias, err = l.tensor(ctx, p.ContentBias, a.heads, a.width); err != nil {
+			return err
+		}
+		if a.positionBias, err = l.tensor(ctx, p.PositionBias, a.heads, a.width); err != nil {
+			return err
+		}
+		a.positionBase, a.leftContext = p.Base, p.LeftContext
+		a.maxPositions = p.MaxPositions
+		return nil
+	}
+	d, err := l.shape(ctx, b.Relative, 2)
+	if err != nil {
+		return err
+	}
+	if d[0]%2 != 1 || d[1] != a.width || a.block-1 > d[0]/2 {
+		return errors.New("relative position table does not cover block distances")
+	}
+	a.radius = d[0] / 2
+	a.relative, err = l.tensor(ctx, b.Relative, d...)
+	return err
 }

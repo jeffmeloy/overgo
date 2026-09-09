@@ -3,9 +3,6 @@ package runrecord
 import (
 	"bytes"
 	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -16,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/testutil"
 )
 
@@ -453,21 +451,17 @@ func TestCapabilityEpisodeProjectionAuthorityRatchet(t *testing.T) {
 		t.Fatal("projection ratchet cannot locate its source")
 	}
 	repositoryRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	allowed := filepath.Clean(filepath.Join(repositoryRoot, "internal", "runrecord", "dataset_projection_adapter.go"))
-	fset := token.NewFileSet()
-	err := filepath.WalkDir(repositoryRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	snapshot, err := repoanalysis.DiscoverGo(repositoryRoot, "internal", "cmd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, source := range snapshot.Files {
+		if source.Test || source.Path == "internal/runrecord/dataset_projection_adapter.go" {
+			continue
 		}
-		if entry.IsDir() && (entry.Name() == ".git" || entry.Name() == "vendor") {
-			return filepath.SkipDir
-		}
-		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") || filepath.Clean(path) == allowed {
-			return nil
-		}
-		parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
+		parsed, parseErr := source.Syntax()
 		if parseErr != nil {
-			return parseErr
+			t.Fatal(parseErr)
 		}
 		aliases := map[string]bool{}
 		for _, spec := range parsed.Imports {
@@ -499,15 +493,10 @@ func TestCapabilityEpisodeProjectionAuthorityRatchet(t *testing.T) {
 				}
 			}
 			if forbidden[name] {
-				position := fset.Position(call.Pos())
-				t.Errorf("dataset projection authority bypass at %s:%d: %s", path, position.Line, name)
+				t.Errorf("dataset projection authority bypass at %s:%d: %s", source.Path, source.Line(call.Pos()), name)
 			}
 			return true
 		})
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 

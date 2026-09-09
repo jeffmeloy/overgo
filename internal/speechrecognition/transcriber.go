@@ -5,21 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
+	"overgo/internal/adaptertrain"
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
 	"overgo/internal/checked"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
 	"overgo/internal/hfrepo"
+	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
-	"overgo/internal/scratch"
+	"overgo/internal/speechactivity"
 	"overgo/internal/strictjson"
+	"overgo/internal/trainingdata"
+	"overgo/internal/trainingprogram"
 )
 
 // TranscriptionSchema identifies persisted typed transcription output.
@@ -46,18 +51,19 @@ type RunBinding struct {
 	Split       artifact.ID
 }
 
-// TranscriptionWorkspace owns all reusable mutable storage for one caller.
+// transcriptionWorkspace owns all reusable mutable storage for one caller.
 // Its zero value is ready to use and must not be shared concurrently.
-type TranscriptionWorkspace struct {
-	Frontend audiodsp.Workspace
-	Encoder  Workspace
-	frameIDs []int
-	tokens   []int
+type transcriptionWorkspace struct {
+	Frontend   audiodsp.Workspace
+	Encoder    Workspace
+	Transducer TransducerWorkspace
+	frameIDs   []int
+	tokens     []int
 }
 
-// Transcriber owns immutable, validated CPU execution state. It is safe to
+// transcriptionModel owns immutable, validated CPU execution state. It is safe to
 // share when each concurrent caller supplies a distinct workspace.
-type Transcriber struct {
+type transcriptionModel struct {
 	repository artifact.Repository
 	model      artifact.ID
 	recipe     recipe.Definition
@@ -65,26 +71,13 @@ type Transcriber struct {
 	profile    ExecutionProfile
 	frontend   *audiodsp.Frontend
 	encoder    *Encoder
+	transducer *Transducer
+	stream     *audiodsp.StreamFrontend
+	memory     uint64
 	tokenizer  *hfbpe.Tokenizer
 }
 
-// LoadTranscriber resolves an exact stored transcription recipe and all of its
-// content-addressed model dependencies once, before serving any clip.
-func LoadTranscriber(ctx context.Context, repository artifact.Repository, definitionID artifact.ID, memoryBytes uint64) (*Transcriber, error) {
-	if ctx == nil || repository == nil || definitionID.Kind() != artifact.KindRecipe || memoryBytes == 0 {
-		return nil, errors.New("speech recognition: invalid transcriber load")
-	}
-	definition, err := recipe.RequireDefinition(ctx, repository, definitionID)
-	if err != nil {
-		return nil, err
-	}
-	if _, err = modelrecipe.CompileCapability(definition); err != nil {
-		return nil, err
-	}
-	return loadTranscriber(ctx, repository, definition, memoryBytes)
-}
-
-func loadTranscriber(ctx context.Context, repository artifact.Repository, definition recipe.Definition, memoryBytes uint64) (*Transcriber, error) {
+func loadTranscriber(ctx context.Context, repository artifact.Repository, definition recipe.Definition, memoryBytes uint64) (*transcriptionModel, error) {
 	if definition.Task != recipe.TaskTranscription {
 		return nil, errors.New("speech recognition: recipe is not transcription")
 	}
@@ -93,6 +86,11 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 		return nil, err
 	}
 	expectedDefinition, err := modelrecipe.TranscriptionDefinition(modelID, contractID, profileID, tokenizerID, inventoryID)
+	baseDefinition := expectedDefinition
+	checkpointID, adapted := definition.PrimaryDependency(recipe.DependencyCheckpoint)
+	if err == nil && adapted {
+		expectedDefinition, err = modelrecipe.AdaptedTranscriptionDefinition(baseDefinition, checkpointID)
+	}
 	if err != nil || expectedDefinition.ID != definition.ID {
 		return nil, errors.Join(errors.New("speech recognition: transcription recipe topology differs"), err)
 	}
@@ -147,26 +145,97 @@ func loadTranscriber(ctx context.Context, repository artifact.Repository, defini
 	if err != nil || !found || storedManifest.ID != inventory.Manifest.ID || !slices.Equal(storedManifest.Components, inventory.Manifest.Components) {
 		return nil, errors.Join(errors.New("speech recognition: stored model manifest differs"), err)
 	}
-	encoder, err := LoadEncoder(ctx, hf.Tensors, profile.Encoder, memoryBytes)
+	var encoder *Encoder
+	var transducer *Transducer
+	var stream *audiodsp.StreamFrontend
+	if profile.Transducer == nil {
+		encoder, err = LoadEncoder(ctx, hf.Tensors, profile.Encoder, memoryBytes)
+		if err == nil && (encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize()) {
+			err = errors.New("speech recognition: processor geometry differs from encoder")
+		}
+	} else {
+		if adapted {
+			return nil, errors.New("speech recognition: CTC projection checkpoint cannot adapt a recurrent decoder")
+		}
+		transducer, err = LoadTransducer(ctx, hf.Tensors, profile.Encoder, *profile.Transducer, memoryBytes)
+		if err == nil {
+			encoder = transducer.encoder
+			stream, err = audiodsp.NewStreamFrontend(profile.Frontend, memoryBytes)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
-	if encoder.InputWidth() != width || profile.BlankToken >= encoder.VocabularySize() {
-		return nil, errors.New("speech recognition: processor geometry differs from encoder")
+	if adapted {
+		encoder, err = loadCheckpointProjection(ctx, repository, checkpointID, baseDefinition, profileID, encoder)
+		if err != nil {
+			return nil, err
+		}
 	}
 	tokenizer, err := hfbpe.Load(modelPath)
 	if err != nil {
 		return nil, err
 	}
-	return &Transcriber{
+	return &transcriptionModel{
 		repository: repository, model: modelID, recipe: definition, contract: contract, profile: profile,
-		frontend: frontend, encoder: encoder, tokenizer: tokenizer,
+		frontend: frontend, encoder: encoder, transducer: transducer, stream: stream, memory: memoryBytes, tokenizer: tokenizer,
 	}, nil
 }
 
-// Transcribe admits, decodes, executes, and persists one bounded offline clip.
-// The returned values are the existing public transcription and run contracts.
-func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *TranscriptionWorkspace, binding RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
+func loadCheckpointProjection(ctx context.Context, repository artifact.Repository, id artifact.ID, base recipe.Definition, profile artifact.ID, encoder *Encoder) (*Encoder, error) {
+	content, err := artifact.RequireTypedContent(ctx, repository, id)
+	if err != nil {
+		return nil, err
+	}
+	checkpoint, err := trainingprogram.ParseCheckpoint(content.Data)
+	parameters, ok := checked.MulInt(encoder.output.in, encoder.output.in)
+	if err != nil || checkpoint.ID() != id || checkpoint.Model != base.Model || !ok || checkpoint.ParameterCount != parameters ||
+		!slices.Contains(checkpoint.Processors, profile) ||
+		!slices.Contains(checkpoint.Lineage, trainingprogram.LineageParent{Artifact: base.ID, Relation: artifact.RelationDependsOn}) {
+		return nil, errors.Join(errors.New("speech recognition: adapter checkpoint authority differs"), err)
+	}
+	var transformID artifact.ID
+	for _, processor := range checkpoint.Processors {
+		content, err := artifact.RequireTypedContent(ctx, repository, processor)
+		if err != nil {
+			return nil, err
+		}
+		// Training may bind source admission and other processing facts. Serving
+		// requires exactly one target transform, not a fixed processor count.
+		if content.Descriptor.Schema == trainingdata.TextTransformSchema {
+			if transformID.Valid() {
+				return nil, errors.New("speech recognition: ambiguous target transformation")
+			}
+			transformID = processor
+		}
+	}
+	if _, err := trainingdata.RequireTextTransform(ctx, repository, transformID); err != nil {
+		return nil, err
+	}
+	parents, err := repository.Parents(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	expectedParents := append(checkpoint.ArtifactLineage(), artifact.Lineage{Child: id, Parent: checkpoint.Weights, Relation: artifact.RelationContains})
+	for _, edge := range expectedParents {
+		if !slices.Contains(parents, edge) {
+			return nil, errors.New("speech recognition: checkpoint lineage is incomplete")
+		}
+	}
+	directory, err := artifact.AvailablePath(ctx, repository, id, artifact.LocationDirectory)
+	if err != nil {
+		return nil, err
+	}
+	loaded, err := trainingprogram.LoadCheckpoint(directory)
+	if err != nil || loaded.ID() != id {
+		return nil, errors.Join(errors.New("speech recognition: checkpoint publication differs"), err)
+	}
+	return encoder.WithOutputProjection(ctx, directory, adaptertrain.InputProjectionBinding{
+		BaseRecipe: base.ID, TargetTransform: transformID,
+	}, checkpoint.Weights)
+}
+
+func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []byte, origin dataset.AudioPayloadOrigin, policy dataset.AudioInspectionPolicy, workspace *transcriptionWorkspace, binding RunBinding, detector *speechactivity.Detector, activityWorkspace *speechactivity.DetectionWorkspace) (recipecontract.Transcription, runrecord.Run, error) {
 	if transcriber == nil || ctx == nil || workspace == nil || binding.Key == "" ||
 		binding.Dataset.Valid() != binding.Split.Valid() ||
 		binding.Dataset.Valid() && (binding.Dataset.Kind() != artifact.KindDataset || binding.Split.Kind() != artifact.KindDatasetShard) {
@@ -184,61 +253,96 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile,
 		inspection.SignalID, inspection.PolicyID, inspection.DecisionID,
 	)
+	for _, dependency := range transcriber.recipe.Dependencies {
+		if dependency.Role == recipe.DependencyModel {
+			inputs = uniqueIDs(append(inputs, dependency.Artifact)...)
+		}
+	}
 	if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted {
-		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
+		run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
 			AudioAdmissionFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(ErrAudioAdmissionRefused, runErr)
 	}
 	if inspection.Signal.Format != transcriber.contract.Format {
-		run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
+		run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
 			AudioFormatFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
 		return recipecontract.Transcription{}, run, errors.Join(errors.New("speech recognition: decoded audio format differs"), runErr)
 	}
-	prepareStart := time.Now()
-	features, frames, _, err := transcriber.frontend.ProcessGrouped(ctx, inspection.Samples, int(inspection.Signal.Format.SampleRate), &workspace.Frontend, transcriber.profile.Grouping)
-	prepareDuration := elapsedNanoseconds(prepareStart)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-prepare-failed", started,
-			[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}, {Phase: runrecord.PhasePrepare, DurationNS: prepareDuration}}, err)
+	phases := completedTranscriptionPhases(decodeDuration, 0, 0, 0)
+	spans := []recipecontract.SampleSpan{{End: uint64(len(inspection.Samples))}}
+	var activityID artifact.ID
+	if detector != nil {
+		activityStart := time.Now()
+		activity, id, detectErr := detector.DetectDecoded(ctx, inspection.Signal.Source,
+			media.DecodedAudio{Format: inspection.Signal.Format, Samples: inspection.Samples}, activityWorkspace)
+		phases[1].DurationNS += elapsedNanoseconds(activityStart)
+		if detectErr != nil {
+			return transcriber.failedExecution(ctx, binding, inputs, "transcription-activity-failed", started, phases, detectErr)
+		}
+		activityID = id
+		inputs = uniqueIDs(append(inputs, activityID)...)
+		spans = make([]recipecontract.SampleSpan, len(activity.Segments))
+		for i, segment := range activity.Segments {
+			spans[i] = segment.Span
+		}
+		if len(spans) == 0 {
+			return transcriber.failedExecution(ctx, binding, inputs, AudioAdmissionFailure, started, phases, ErrAudioAdmissionRefused)
+		}
 	}
-	prefillStart := time.Now()
-	_, logits, outputFrames, err := transcriber.encoder.Forward(ctx, features, frames, &workspace.Encoder, nil)
-	prefillDuration := elapsedNanoseconds(prefillStart)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-inference-failed", started,
-			[]runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}, {Phase: runrecord.PhasePrepare, DurationNS: prepareDuration}, {Phase: runrecord.PhasePrefill, DurationNS: prefillDuration}}, err)
+	pieces := make([]transcriptionPiece, 0, len(spans))
+	var assembled strings.Builder
+	for _, span := range spans {
+		if span.Start >= span.End || span.End > uint64(len(inspection.Samples)) {
+			return transcriber.failedExecution(ctx, binding, inputs, "transcription-span-invalid", started, phases, errors.New("speech recognition: segment outside admitted samples"))
+		}
+		samples := inspection.Samples[span.Start:span.End]
+		text, measured, failure, decodeErr := transcriber.decodeText(ctx, samples, int(inspection.Signal.Format.SampleRate), workspace)
+		for i, metric := range measured {
+			phases[i].DurationNS += metric.DurationNS
+		}
+		if decodeErr != nil {
+			return transcriber.failedExecution(ctx, binding, inputs, failure, started, phases, decodeErr)
+		}
+		if detector == nil {
+			assembled.WriteString(text)
+		} else {
+			text = strings.TrimSpace(text)
+			pieces = append(pieces, transcriptionPiece{Span: span, SamplesSHA256: media.SamplesSHA256(samples), Text: text})
+			if text != "" {
+				if assembled.Len() != 0 {
+					assembled.WriteByte(' ')
+				}
+				assembled.WriteString(text)
+			}
+		}
 	}
 	postStart := time.Now()
-	workspace.frameIDs = scratch.Resize(workspace.frameIDs, outputFrames)
-	workspace.tokens = scratch.Resize(workspace.tokens, outputFrames)
-	tokens, err := GreedyCTC(ctx, workspace.frameIDs, workspace.tokens, logits, outputFrames, transcriber.encoder.VocabularySize(), transcriber.profile.BlankToken)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
-			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
-	}
-	text, err := transcriber.tokenizer.DecodeStrict(tokens)
-	if err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
-			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
-	}
-	result := recipecontract.Transcription{Source: inspection.Signal.Source, Text: text, Language: transcriber.profile.Language}
+	result := recipecontract.Transcription{Source: inspection.Signal.Source, Text: assembled.String(), Language: transcriber.profile.Language}
 	if err = result.Validate(); err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started,
-			completedTranscriptionPhases(decodeDuration, prepareDuration, prefillDuration, elapsedNanoseconds(postStart)), err)
+		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started, phases, err)
 	}
 	output, err := artifact.JSONContent(transcriptionContract, result)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
-	postDuration := elapsedNanoseconds(postStart)
-	phases := []runrecord.PhaseMetric{
-		{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration},
-		{Phase: runrecord.PhasePrepare, DurationNS: prepareDuration},
-		{Phase: runrecord.PhasePrefill, DurationNS: prefillDuration},
-		{Phase: runrecord.PhasePostprocess, DurationNS: postDuration},
+	contents := []artifact.Content{output}
+	outputs := []artifact.ID{output.Descriptor.ID}
+	var lineage []artifact.Lineage
+	if detector != nil {
+		segments, err := artifact.JSONContent(segmentedTranscriptionContract, segmentedTranscription{
+			Source: result.Source, Activity: activityID, Pieces: pieces,
+		})
+		if err != nil {
+			return recipecontract.Transcription{}, runrecord.Run{}, err
+		}
+		contents = append(contents, segments)
+		inputs = uniqueIDs(append(inputs, segments.Descriptor.ID)...)
+		lineage = artifact.DependencyLineage(segments.Descriptor.ID, transcriber.recipe.ID, activityID, result.Source.Audio, result.Source.Profile)
+		lineage = append(lineage, artifact.DependencyLineage(output.Descriptor.ID, segments.Descriptor.ID)...)
 	}
+	phases[3].DurationNS += elapsedNanoseconds(postStart)
 	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, runrecord.OutcomeSucceeded, inputs,
-		[]artifact.ID{output.Descriptor.ID}, "", binding.CodeCommit, binding.Environment,
+		outputs, "", binding.CodeCommit, binding.Environment,
 		elapsedNanoseconds(started), phases)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
@@ -247,7 +351,7 @@ func (transcriber *Transcriber) Transcribe(ctx context.Context, data []byte, ori
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
-	batch, err := artifact.NewDocumentBatch(binding.Key, []artifact.Content{output, runContent}, run.Lineage(), nil)
+	batch, err := artifact.NewDocumentBatch(binding.Key, append(contents, runContent), append(lineage, run.Lineage()...), nil)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
@@ -283,8 +387,13 @@ func RequireTranscription(ctx context.Context, reader artifact.Reader, id artifa
 	return transcription, nil
 }
 
-func (transcriber *Transcriber) persistRun(ctx context.Context, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
-	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, outcome, inputs, outputs, failure,
+func persistSpeechRun(ctx context.Context, repository artifact.Repository, definition artifact.ID, binding RunBinding, outcome runrecord.Outcome, inputs, outputs []artifact.ID, failure string, measured uint64, phases []runrecord.PhaseMetric) (runrecord.Run, error) {
+	// A failure can precede later stages. Omit those unexecuted stages;
+	// zero durations are not measurements and remain invalid run evidence.
+	if outcome == runrecord.OutcomeFailed {
+		phases = slices.DeleteFunc(slices.Clone(phases), func(metric runrecord.PhaseMetric) bool { return metric.DurationNS == 0 })
+	}
+	run, err := runrecord.NewBoundRun(definition, outcome, inputs, outputs, failure,
 		binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {
 		return runrecord.Run{}, err
@@ -293,17 +402,17 @@ func (transcriber *Transcriber) persistRun(ctx context.Context, binding RunBindi
 	if err != nil {
 		return runrecord.Run{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, transcriber.repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return runrecord.Run{}, err
 	}
 	return run, nil
 }
 
-func (transcriber *Transcriber) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started time.Time, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
+func (transcriber *transcriptionModel) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started time.Time, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
 	if ctx.Err() != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, executionErr
 	}
-	run, runErr := transcriber.persistRun(ctx, binding, runrecord.OutcomeFailed, inputs, nil,
+	run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
 		failure, elapsedNanoseconds(started), phases)
 	return recipecontract.Transcription{}, run, errors.Join(executionErr, runErr)
 }

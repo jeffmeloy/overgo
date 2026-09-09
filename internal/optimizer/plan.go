@@ -1,3 +1,4 @@
+// Package optimizer owns Muon parameter groups, updates and portable optimizer state.
 package optimizer
 
 import (
@@ -7,6 +8,9 @@ import (
 	"fmt"
 	"hash"
 	"math"
+
+	"overgo/internal/binaryschema"
+	"overgo/internal/checked"
 )
 
 const planIdentityDomain = "overgo.optimizer.plan.v2"
@@ -101,6 +105,24 @@ func newPlan(parameterCount int, groups []Group) Plan {
 func (p Plan) ParameterCount() int { return p.parameterCount }
 func (p Plan) GroupCount() int     { return len(p.groups) }
 func (p Plan) Identity() string    { return p.identity }
+
+// HostStateBytes returns the complete CPU optimizer's numeric storage: momentum
+// and reusable Newton-Schulz scratch. Caller-owned weights and gradients are
+// excluded. This is an allocation admission bound, not a process-peak estimate.
+func (p Plan) HostStateBytes() (uint64, error) {
+	if p.identity == "" {
+		return 0, errors.New("optimizer plan: host storage requires a compiled plan")
+	}
+	elements, ok := checked.Add64(uint64(p.parameterCount), uint64(p.maxMatrix), uint64(p.maxMatrix), uint64(p.maxSquare), uint64(p.maxSquare))
+	if !ok {
+		return 0, errors.New("optimizer plan: host state count overflows")
+	}
+	bytes, ok := checked.Bytes(elements, binaryschema.Uint64Bytes)
+	if !ok || bytes > uint64(math.MaxInt) {
+		return 0, errors.New("optimizer plan: host state bytes overflow")
+	}
+	return bytes, nil
+}
 
 func (p Plan) Group(index int) (Group, bool) {
 	if index < 0 || index >= len(p.groups) {

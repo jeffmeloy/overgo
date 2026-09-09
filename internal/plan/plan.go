@@ -56,18 +56,6 @@ type Step struct {
 	// VerificationBatch declares subordinate acceptance obligations. It does
 	// not confer completion or permission to omit any full-gate check.
 	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
-	// Conditions: typed skip/cancel/wait predicates over recorded parent
-	// outcomes and events; frontier evaluates them (see conditions.go).
-	Conditions *StepConditions `json:"conditions,omitempty"`
-	// AcceptsRefusal: dependencies whose skip or cancel satisfies this row;
-	// every other refused dependency holds it (see refusal.go).
-	AcceptsRefusal []string `json:"accepts_refusal,omitempty"`
-	// Refusal: the recorded skip or cancel of this row.
-	Refusal *RowRefusal `json:"refusal,omitempty"`
-	// SlotCost: the units this row charges on the lane it is assigned to;
-	// Labels: its lane label demands (see capacity.go).
-	SlotCost *SlotCost          `json:"slot_cost,omitempty"`
-	Labels   []LabelRequirement `json:"labels,omitempty"`
 }
 
 // Item is one rung of the ladder.
@@ -81,12 +69,14 @@ type Item struct {
 
 // Plan is the whole campaign surface.
 type Plan struct {
-	Campaign string       `json:"campaign"`
-	Doctrine string       `json:"doctrine"`
-	Census   *artifact.ID `json:"census_evidence,omitempty"`
-	// Lanes: the declared lanes rows are charged on; absent, no assignment.
-	Lanes []LaneCapacity `json:"lanes,omitempty"`
-	Items []Item         `json:"items"`
+	Campaign string `json:"campaign"`
+	Doctrine string `json:"doctrine"`
+	// Lane names the worktree this plan dispatches for: under the unassigned
+	// role it is the role, so the lane's own rows come first, unowned rows
+	// after, and another lane's rows never.
+	Lane   string       `json:"lane,omitzero"`
+	Census *artifact.ID `json:"census_evidence,omitempty"`
+	Items  []Item       `json:"items"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -151,8 +141,8 @@ func validatePlanGraph(d Plan) error {
 	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
 		return errors.New("plan: census authority is not evidence")
 	}
-	if err := validateLanes(d.Lanes); err != nil {
-		return err
+	if d.Lane != "" && !validAutomationText(d.Lane) {
+		return errors.New("plan: invalid lane")
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
@@ -182,15 +172,6 @@ func validatePlanGraph(d Plan) error {
 				return fmt.Errorf("plan step %s/%s has an invalid verifier", item.ID, step.ID)
 			}
 			if err := validateVerificationBatch(step.VerificationBatch); err != nil {
-				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
-			}
-			if err := validateStepConditions(step); err != nil {
-				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
-			}
-			if err := validateRefusal(step); err != nil {
-				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
-			}
-			if err := validateStepSlot(step); err != nil {
 				return fmt.Errorf("plan step %s/%s: %w", item.ID, step.ID, err)
 			}
 		}
@@ -282,10 +263,7 @@ func dependenciesSatisfied(d Plan, step Step, authority CompletionAuthority) boo
 			for _, candidate := range item.Steps {
 				if candidate.ID == stepID {
 					present = true
-					// A refused dependency satisfies only a row that declares
-					// it accepts the refusal.
-					satisfied = candidate.Status == StatusDone ||
-						refused(candidate.Status) && slices.Contains(step.AcceptsRefusal, reference)
+					satisfied = candidate.Status == StatusDone
 					break
 				}
 			}
@@ -315,7 +293,7 @@ func ValidateCampaignCensusAuthority(d Plan) error {
 }
 
 func validStatus(status string) bool {
-	return status == StatusOpen || status == StatusDone || refused(status) || strings.HasPrefix(status, "blocked")
+	return status == StatusOpen || status == StatusDone || strings.HasPrefix(status, "blocked")
 }
 
 // Current returns the role-owned open step, then the first unowned step.
@@ -330,6 +308,11 @@ func Current(d Plan, role string, authority CompletionAuthority) (Item, Step, bo
 
 func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, Step, bool) {
 	role = normalizedRole(role)
+	// The plan's lane is the role nobody named: the rule reads the plan, so a
+	// worktree and the gate's candidate tree dispatch the same rows.
+	if role == UnassignedRole && d.Lane != "" {
+		role = d.Lane
+	}
 	if role != UnassignedRole {
 		if item, step, ok := currentOwned(d, role, authority); ok {
 			return item, step, true
@@ -346,8 +329,6 @@ func currentOwned(d Plan, owner string, authority CompletionAuthority) (Item, St
 		blocked := false
 		for _, s := range it.Steps {
 			if s.Status != StatusOpen {
-				// A refused row is retained, never a rung to open.
-				blocked = blocked || refused(s.Status)
 				continue
 			}
 			// depends_on is enforced, not descriptive: a step whose

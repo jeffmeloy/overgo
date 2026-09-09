@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -161,7 +162,13 @@ func measuredGuardRecord(t *testing.T, store *overgodb.Store, text string) longf
 	if err := json.Unmarshal(content.Data, &result); err != nil {
 		t.Fatal(err)
 	}
-	claim, _, body, err := longform.Claim(result)
+	// Validate original bytes; newer optional fields change a reserialization.
+	body, _, err := artifact.Identify(artifact.KindEvidence, bytes.NewReader(content.Data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim, _, _, err := longform.Claim(result)
+	claim.Evidence = []artifact.ID{body}
 	if err != nil || body != record.Claims[0].Evidence[0] || !reflect.DeepEqual(claim, record.Claims[0]) || result.Inputs.Model != record.Model {
 		t.Fatalf("counterexample provenance differs: %v", err)
 	}
@@ -349,7 +356,7 @@ func TestGuardEvidenceContract(t *testing.T) {
 			return fresh, nil
 		}
 		published := false
-		publish := func(_ context.Context, _ string, _ artifact.ID, result longform.Result) (artifact.ID, error) {
+		publish := func(_ context.Context, _ artifact.ID, result longform.Result) (artifact.ID, error) {
 			published = true
 			if result.Verdict.Passed || len(result.Verdict.Reasons) == 0 {
 				t.Fatal("failure was hidden")

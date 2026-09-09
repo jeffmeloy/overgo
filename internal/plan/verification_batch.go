@@ -45,8 +45,10 @@ func validateVerificationBatch(batch *VerificationBatch) error {
 		!validAutomationDetail(batch.Rationale) || !validAutomationDetail(batch.ReopenWhen) {
 		return errors.New("verification batch requires scope, checkpoints, rationale and reopen condition")
 	}
-	if err := validateBatchFlush(batch.Flush); err != nil {
-		return err
+	if batch.Flush != nil {
+		if _, err := batch.Flush.Interval(); err != nil {
+			return err
+		}
 	}
 	paths := map[string]bool{}
 	for _, candidate := range batch.Scope {

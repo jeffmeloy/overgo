@@ -1,0 +1,121 @@
+{
+  "SourceSamples": 28589568,
+  "Scanned": 3,
+  "Selected": 3,
+  "Clips": [
+    {
+      "Start": 0,
+      "End": 320000,
+      "File": "tmp/speaker-reference/clip-0.wav",
+      "SHA256": "5331997a68c91376764f572a5bd33c8ec310b7e60209d716f376cb6a46783635",
+      "Segments": [
+        {
+          "Speaker": "C",
+          "Start": 70240,
+          "End": 75840
+        },
+        {
+          "Speaker": "D",
+          "Start": 76368,
+          "End": 82224
+        },
+        {
+          "Speaker": "B",
+          "Start": 263920,
+          "End": 272560
+        }
+      ]
+    },
+    {
+      "Start": 320000,
+      "End": 640000,
+      "File": "tmp/speaker-reference/clip-20.wav",
+      "SHA256": "8a6f043585e8343dc030e700ad819b866d7e632886736512e289aa7f9a12921a",
+      "Segments": [
+        {
+          "Speaker": "A",
+          "Start": 66544,
+          "End": 136752
+        },
+        {
+          "Speaker": "D",
+          "Start": 144128,
+          "End": 151296
+        },
+        {
+          "Speaker": "D",
+          "Start": 199904,
+          "End": 210144
+        },
+        {
+          "Speaker": "A",
+          "Start": 255056,
+          "End": 264496
+        },
+        {
+          "Speaker": "B",
+          "Start": 271616,
+          "End": 299008
+        },
+        {
+          "Speaker": "A",
+          "Start": 284800,
+          "End": 296240
+        },
+        {
+          "Speaker": "D",
+          "Start": 303872,
+          "End": 320000
+        },
+        {
+          "Speaker": "C",
+          "Start": 315136,
+          "End": 320000
+        }
+      ]
+    },
+    {
+      "Start": 640000,
+      "End": 960000,
+      "File": "tmp/speaker-reference/clip-40.wav",
+      "SHA256": "6111223fe1d9ba8b3b59f7dfe354e8959b70f5e340e23415e1fd393b4f133df8",
+      "Segments": [
+        {
+          "Speaker": "D",
+          "Start": 0,
+          "End": 61664
+        },
+        {
+          "Speaker": "C",
+          "Start": 0,
+          "End": 688
+        },
+        {
+          "Speaker": "A",
+          "Start": 26112,
+          "End": 66384
+        },
+        {
+          "Speaker": "D",
+          "Start": 78848,
+          "End": 101024
+        },
+        {
+          "Speaker": "A",
+          "Start": 92672,
+          "End": 113808
+        },
+        {
+          "Speaker": "D",
+          "Start": 119248,
+          "End": 320000
+        },
+        {
+          "Speaker": "A",
+          "Start": 298432,
+          "End": 305088
+        }
+      ]
+    }
+  ]
+}

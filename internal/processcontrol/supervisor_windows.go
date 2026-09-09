@@ -39,10 +39,9 @@ const (
 	// jobObjectLimitKillOnJobClose is JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE:
 	// closing the last job handle terminates every process in the job.
 	jobObjectLimitKillOnJobClose = 0x2000
-	// processAccessForJob combines PROCESS_SET_QUOTA (0x0100) and
-	// PROCESS_TERMINATE (0x0001), the rights AssignProcessToJobObject
-	// requires on the target process handle.
-	processAccessForJob = 0x0101
+	// processAccessForJob combines PROCESS_SET_QUOTA, PROCESS_TERMINATE and
+	// PROCESS_DUP_HANDLE: job assignment plus resource-handle retention.
+	processAccessForJob = 0x0141
 	// terminatedTreeExitCode is the exit status TerminateJobObject
 	// stamps on every process it kills.
 	terminatedTreeExitCode = 1
@@ -117,6 +116,13 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 		return processTree{}, fmt.Errorf("open process %d: %w", command.Process.Pid, callErr)
 	}
 	assigned, _, callErr := procAssignProcessToJob.Call(job, process)
+	if assigned != 0 {
+		if err := retainChildResources(process); err != nil {
+			_, _, _ = procCloseHandle.Call(process)
+			_, _, _ = procCloseHandle.Call(job)
+			return processTree{}, err
+		}
+	}
 	_, _, _ = procCloseHandle.Call(process)
 	if assigned == 0 {
 		_, _, _ = procCloseHandle.Call(job)

@@ -15,6 +15,7 @@ import (
 type chunkSource struct {
 	chunks               [][]float32
 	count, chunk, offset int
+	frameOrigin          int
 }
 
 func (s *chunkSource) at(index int) float64 {
@@ -122,12 +123,13 @@ func (p *Frontend) prepare(ctx context.Context, chunks [][]float32, sampleRate i
 	if !ok {
 		return chunkSource{}, 0, errors.New("audio frontend: frame count overflows")
 	}
+	source.frameOrigin = -p.config.PadLeft
 	return source, frames, nil
 }
 
 func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
-	start := frame*p.hop - p.config.PadLeft + p.config.WindowOffset
-	for index, window := range p.window {
+	start := source.frameOrigin + frame*p.hop + p.config.WindowOffset
+	for index := range p.window {
 		position := start + index
 		var value float64
 		if position >= 0 && position < source.count {
@@ -140,7 +142,36 @@ func (p *Frontend) spectrum(source *chunkSource, frame int, w *Workspace) {
 			}
 			value = source.at(position)
 		}
-		w.window[index] = value * window
+		if coefficient := p.config.WaveformPreemphasis; coefficient != nil && position > 0 && position < source.count {
+			// Match waveform arithmetic before zero/reflect padding. A padding
+			// zero must not acquire the previous signal sample's contribution.
+			previous := source.at(position - 1)
+			if p.config.PreemphasisFloat32 {
+				value = float64(float32(value) - float32(float32(*coefficient)*float32(previous)))
+			} else {
+				value -= *coefficient * previous
+			}
+		}
+		w.window[index] = value
+	}
+	if condition := p.config.Condition; condition != nil {
+		var mean float64
+		for index := range w.window {
+			w.window[index] *= condition.Gain
+			mean += w.window[index]
+		}
+		if condition.RemoveMean {
+			mean /= float64(p.windowSize)
+			for index := range w.window {
+				w.window[index] -= mean
+			}
+		}
+		for index := len(w.window) - 1; index >= 0; index-- {
+			w.window[index] -= condition.Preemphasis * w.window[max(0, index-1)]
+		}
+	}
+	for index, window := range p.window {
+		w.window[index] *= window
 	}
 	for bin := range p.bins {
 		var real, imaginary float64

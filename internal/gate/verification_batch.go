@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/plan"
@@ -35,6 +36,7 @@ func planVerificationBatch(repo, reference string) (*plan.VerificationBatch, err
 }
 
 func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batch *plan.VerificationBatch) ([]automationcheck.Check, error) {
+	g.verificationBatch = batch
 	if batch == nil {
 		return checks, nil
 	}
@@ -43,13 +45,10 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 		return nil, errors.New("acceptance: batch requires the parent integration check")
 	}
 	parent := &checks[index].Descriptor
-	// Declared flush bounds are validated here; the flush itself is decided
-	// by the parent acceptance over durable obligations.
-	if batch.Flush != nil {
-		if _, err := plan.NewBatchAccumulator(*batch.Flush); err != nil {
-			return nil, fmt.Errorf("acceptance: %w", err)
-		}
-	}
+	// Declared flush bounds: accepted checkpoints accumulate per key; the
+	// decision and its reason join the audit so gate cost per flushed batch is
+	// attributable. Absent declaration -> no accumulation.
+	var pending plan.BatchState
 	// Checkpoint memo slots: computed once from the declared verifies so the
 	// verification loop can reuse accepted checkpoint evidence across runs.
 	memos, err := g.checkpointMemoInputs(batch)
@@ -57,21 +56,36 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 		return nil, fmt.Errorf("acceptance: %w", err)
 	}
 	g.checkpointMemos = memos
-	g.verificationBatch = batch
 	g.audit = append(g.audit, fmt.Sprintf("checkpoint memo: key=%s checkpoints=%d", checkpointMemoKey(g.planRef, batch), len(memos)))
 	var added []automationcheck.Check
 	for _, checkpoint := range batch.Checkpoints {
+		evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
+			testevidence.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
+		)
+		if err != nil {
+			return nil, err
+		}
+		// Bind the declared verifier even when execution reuses a checkpoint.
+		// This is a contract, not a passing verdict: terminal evidence must
+		// independently satisfy the manifest's commit barrier.
+		g.stepEvidence[checkpoint.GateCheckName()] = evidence
 		check := gateCheck(checkpoint.GateCheckName(), runrecord.PhaseTest, func() (bool, error) {
-			evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
-				testevidence.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
-			)
-			if err != nil {
-				return false, err
-			}
 			if err := g.verifyAcceptedCandidate(checkpoint.Verify, false); err != nil {
 				return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
 			}
-			g.stepEvidence[checkpoint.GateCheckName()] = evidence
+			if batch.Flush != nil {
+				bytes := int64(len(evidence))
+				state, flush, reason, err := batch.Flush.Advance(pending, &bytes, time.Now(), false)
+				if err != nil {
+					return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
+				}
+				g.audit = append(g.audit, fmt.Sprintf("batch flush: checkpoint=%s key=%s size=%d bytes=%d flush=%t reason=%q",
+					checkpoint.ID, state.Key, state.Size, state.Bytes, flush, reason))
+				pending = state
+				if flush {
+					pending = plan.BatchState{}
+				}
+			}
 			return false, nil
 		})
 		// Run subordinate verifiers serially: each owns the temporary worktree

@@ -66,7 +66,7 @@ func TestAudioTaskDefinitionsDeriveContractsFromArtifacts(t *testing.T) {
 		t.Run(string(task), func(t *testing.T) {
 			spec := audioTaskSpecs[task]
 			module, found := catalog.Module(spec.module)
-			if !found || len(module.Tasks) != 1 || module.Tasks[0] != task ||
+			if !found || !slices.Contains(module.Tasks, task) ||
 				len(module.Outputs) != 1 || module.Outputs[0].Data != output {
 				t.Fatalf("audio module = %+v, %t", module, found)
 			}
@@ -133,6 +133,29 @@ func TestTranscriptionRecipeBindsArtifactLineage(t *testing.T) {
 	loaded, err := RequireAudioContract(t.Context(), store, contract.ID)
 	if err != nil || loaded.ID != contract.ID {
 		t.Fatalf("loaded audio contract = %+v, %v", loaded, err)
+	}
+	checkpoint := audioParentContent(t, artifact.KindCheckpoint, "adapter")
+	adapted, err := AdaptedTranscriptionDefinition(definition, checkpoint.Descriptor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CompileCapability(adapted); err != nil {
+		t.Fatal(err)
+	}
+	if actual, ok := adapted.PrimaryDependency(recipe.DependencyCheckpoint); !ok || actual != checkpoint.Descriptor.ID {
+		t.Fatal("adapted recipe lost checkpoint authority")
+	}
+	if _, err := AdaptedTranscriptionDefinition(adapted, checkpoint.Descriptor.ID); err == nil {
+		t.Fatal("already adapted base accepted")
+	}
+	if _, err := AdaptedTranscriptionDefinition(definition, artifact.ID{}); err == nil {
+		t.Fatal("absent checkpoint accepted")
+	}
+	altered := definition
+	altered.Nodes = slices.Clone(definition.Nodes)
+	altered.Nodes[0].Placement = recipe.PlacementDevice
+	if _, err := AdaptedTranscriptionDefinition(altered, checkpoint.Descriptor.ID); err == nil {
+		t.Fatal("mutated base topology accepted")
 	}
 }
 

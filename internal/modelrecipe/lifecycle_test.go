@@ -274,6 +274,51 @@ func TestRetireActiveCapabilityRequiresFailedEvidence(t *testing.T) {
 	if err != nil || !published || status != recipe.StatusSuperseded {
 		t.Fatalf("retired status = (%s, %v, %v)", status, published, err)
 	}
+	// Retirement keeps the alias (rollback supersedes it); successor-less
+	// release removes it once; second release refused.
+	if _, bound, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, recipe.TaskInference)); err != nil || !bound {
+		t.Fatalf("retired alias bound = (%v, %v)", bound, err)
+	}
+	if err := ReleaseRetiredAlias(ctx, store, modelID, recipe.TaskInference); err != nil {
+		t.Fatal(err)
+	}
+	if _, bound, err := artifact.ResolveAlias(ctx, store, activeAlias(modelID, recipe.TaskInference)); err != nil || bound {
+		t.Fatalf("released alias bound = (%v, %v)", bound, err)
+	}
+	if err := ReleaseRetiredAlias(ctx, store, modelID, recipe.TaskInference); err == nil || !strings.Contains(err.Error(), "no active alias") {
+		t.Fatalf("releasing a released alias: %v", err)
+	}
+}
+
+// TestReleaseRetiredAliasRefusesActiveRecipe: release precondition; an
+// active alias stays bound.
+func TestReleaseRetiredAliasRefusesActiveRecipe(t *testing.T) {
+	ctx := t.Context()
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	modelID := testutil.ArtifactID(t, artifact.KindModel, "release-model")
+	testutil.PublishArtifact(t, store, modelID)
+	active, err := inferenceFixture(modelID, recipe.PlacementHost, DecodeSessionRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PublishCandidate(ctx, store, "fixture/release/candidate", active); err != nil {
+		t.Fatal(err)
+	}
+	if err := ActivateCapability(
+		ctx, store, active, publishVerification(t, store, active.ID, "fixture/release/verification"), recipe.EvidenceVerified, "fixture activation",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := ReleaseRetiredAlias(ctx, store, modelID, recipe.TaskInference); err == nil || !strings.Contains(err.Error(), "not retired") {
+		t.Fatalf("releasing an active alias: %v", err)
+	}
+	if activation, ok, err := ActiveRecord(ctx, store, modelID, recipe.TaskInference); err != nil || !ok || activation.Definition.ID != active.ID {
+		t.Fatalf("activation after the refused release = (%+v, %v, %v)", activation, ok, err)
+	}
 }
 
 func TestActiveRecordSurfacesTierAndRejectsRefusedAlias(t *testing.T) {

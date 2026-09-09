@@ -6,6 +6,8 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 	raw := ListingAuthorities()
 	templated := raw
 	templated.Execution.Prompting = PromptingChatTemplate
+	hosted := raw
+	hosted.Execution.Prompting = PromptingHostedChat
 	suite := MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "test/mmlu/v1", Source: "store/mmlu",
 		Normalization: "sum", Aggregation: AggregationAccuracy,
@@ -26,12 +28,27 @@ func TestPromptingIsAPlanAuthority(t *testing.T) {
 	if rawPlan.Identity() == templatedPlan.Identity() || rawPlan.Execution() == templatedPlan.Execution() {
 		t.Fatal("prompting protocol did not change the plan identity")
 	}
+	// Hosted chat: its own execution policy and scorer authority (the
+	// opener rides the user message), distinct from the templated plan.
+	hostedPlan, err := BindMultipleChoice(compiled, hosted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hostedPlan.Identity() == templatedPlan.Identity() || hostedPlan.Execution() == templatedPlan.Execution() || hostedPlan.Identity() == rawPlan.Identity() {
+		t.Fatal("hosted prompting did not change the plan identity")
+	}
+	// The scorer authority is the protocol's own: a hosted record binds a
+	// scorer distinct from the templated and the likelihood scorers, so it
+	// can never be read as either.
+	if hostedPlan.body.Scorer == templatedPlan.body.Scorer || hostedPlan.body.Scorer == rawPlan.body.Scorer || templatedPlan.body.Scorer == rawPlan.body.Scorer {
+		t.Fatalf("scorer authorities coincide: hosted %s templated %s raw %s", hostedPlan.body.Scorer, templatedPlan.body.Scorer, rawPlan.body.Scorer)
+	}
 	invalid := raw
 	invalid.Execution.Prompting = "few-shot"
 	if _, err := BindMultipleChoice(compiled, invalid); err == nil {
 		t.Fatal("unknown prompting protocol was bound")
 	}
-	if PromptingRawCompletion.Label() != "raw-completion" || PromptingChatTemplate.Label() != "chat-template" {
-		t.Fatalf("labels = %q, %q", PromptingRawCompletion.Label(), PromptingChatTemplate.Label())
+	if PromptingRawCompletion.Label() != "raw-completion" || PromptingChatTemplate.Label() != "chat-template" || PromptingHostedChat.Label() != "hosted-chat" {
+		t.Fatalf("labels = %q, %q, %q", PromptingRawCompletion.Label(), PromptingChatTemplate.Label(), PromptingHostedChat.Label())
 	}
 }

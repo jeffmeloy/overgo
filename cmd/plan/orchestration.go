@@ -278,40 +278,11 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if err := plan.ValidateFrontierLeases(frontier, leases); err != nil {
 		return err
 	}
-	// Conditions over recorded facts: completed parents' outcomes, retained
-	// outcomes and refusals; blocked rows name the dependency holding them.
-	dispositions, err := plan.Dispositions(document, frontier, plan.DocumentConditionFacts(document, authority))
-	if err != nil {
-		return err
-	}
 	if len(frontier) != 0 {
 		fmt.Fprintln(output, plan.FormatFrontier(frontier))
 	}
-	if lines := plan.FormatDispositions(dispositions); lines != "" {
-		fmt.Fprintln(output, lines)
-	}
-	if lines := plan.FormatBlocked(plan.BlockedRows(document, frontier, authority)); lines != "" {
-		fmt.Fprintln(output, lines)
-	}
-	// Declared lanes: every ready row is charged in frontier order or
-	// waits with the reason.
-	if len(document.Lanes) != 0 {
-		assignments, err := plan.AssignSlots(document.Lanes, nil, plan.FrontierDemands(document, frontier))
-		if err != nil {
-			return err
-		}
-		if lines := plan.FormatSlotAssignments(assignments); lines != "" {
-			fmt.Fprintln(output, lines)
-		}
-	}
-	proceeding := 0
-	for _, row := range dispositions {
-		if row.Disposition == plan.DispositionProceed {
-			proceeding++
-		}
-	}
-	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d proceeding, %d isolated lease(s), %d legacy unreadable lease(s)\n",
-		len(frontier), proceeding, len(leases), legacyUnreadable)
+	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d legacy unreadable lease(s)\n",
+		len(frontier), len(leases), legacyUnreadable)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -58,7 +59,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 		commitOrdinal(t, segmentedStore, ordinal)
 		commitOrdinal(t, plainStore, ordinal)
 		if ordinal%(commits/3) == commits/3-1 {
-			if err := segmentedStore.sealActiveSegment(); err != nil {
+			if err := segmentedStore.sealActiveSegment(t.Context()); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -94,7 +95,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	}
 	defer reader.Close()
 	commitOrdinal(t, writer, commits)
-	if err := writer.sealActiveSegment(); err != nil {
+	if err := writer.sealActiveSegment(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	commitOrdinal(t, writer, commits+1)
@@ -133,7 +134,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer legacy.Close()
-	if err := legacy.sealActiveSegment(); err == nil || !strings.Contains(err.Error(), "inline") {
+	if err := legacy.sealActiveSegment(t.Context()); err == nil || !strings.Contains(err.Error(), "inline") {
 		t.Fatalf("legacy inline store sealed: %v", err)
 	}
 }
@@ -166,4 +167,8 @@ func querySurfaceDigestBounded(t *testing.T, store *Store, commits int) string {
 	head, sequence := store.Head()
 	out += fmt.Sprintf("head/%s/%d\n", head, sequence)
 	return out
+}
+
+func (s *Store) sealActiveSegment(ctx context.Context) error {
+	return s.writeTransaction(ctx, s.sealLocked)
 }

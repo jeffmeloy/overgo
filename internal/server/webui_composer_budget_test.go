@@ -5,19 +5,29 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"overgo/internal/webuilane"
 )
 
 // Composer ratchet (professional GUI campaign, gui-simplify/one-composer):
 // every surface that asks the served model for something goes through the
 // one composer and the one thread renderer in composer.js, over the one
-// event vocabulary this package declares. The ceilings below are the
-// measured values when the row landed; they only tighten.
+// event vocabulary this package declares. Transport duplication stays bounded.
+// Source size remains reported by the census; the structural redesign is
+// accepted through conversation journeys, not a newline ceiling that counts
+// documentation and discourages accessible navigation and lifecycle handling.
 const (
-	webuiStreamReaderCeiling = 1    // response.body.getReader(): boot.js sseEvents, the one stream reader
-	webuiRawFetchCeiling     = 4    // fetch(: boot.js api client only
-	webuiAPIStreamCeiling    = 1    // api.stream(: chat
-	webuiJavaScriptCeiling   = 4697 // total lines under webui/
+	webuiStreamReaderCeiling = 1 // response.body.getReader(): boot.js sseEvents, the one stream reader
+	webuiRawFetchCeiling     = 4 // fetch(: boot.js api client only
+	webuiAPIStreamCeiling    = 1 // api.stream(: chat
 )
+
+// webuiReviewCeiling: the review criteria webuilane.ReviewMeasures counts, each at its
+// measured value when the census landed (webui-quality-census); they only tighten.
+var webuiReviewCeiling = webuilane.Review{
+	SilentFallbacks: 0, WindowDialogs: 0, UnnamedControls: 0, UnnamedButtons: 0,
+	InlineStyles: 0, NestedTernaries: 0, TimerLiterals: 0, DebtMarkers: 0,
+}
 
 func webuiJavaScript(t *testing.T) map[string]string {
 	t.Helper()
@@ -93,8 +103,45 @@ func TestWebUIComposerBudget(t *testing.T) {
 	if streams > webuiAPIStreamCeiling {
 		t.Errorf("api.stream sites = %d, ceiling %d", streams, webuiAPIStreamCeiling)
 	}
-	if lines > webuiJavaScriptCeiling {
-		t.Errorf("webui JavaScript lines = %d, ceiling %d", lines, webuiJavaScriptCeiling)
-	}
 	t.Logf("composer budget: readers=%d fetch=%d api.stream=%d lines=%d", readers, fetches, streams, lines)
+}
+
+// TestWebUIReviewRatchet holds the client to the review criteria at their
+// measured values: a source that adds a silent fallback, a dialog, an
+// unnamed control, inline styling, a nested ternary, a timer literal or a
+// debt marker fails here, and each ceiling only tightens as rows pay it.
+func TestWebUIReviewRatchet(t *testing.T) {
+	var review webuilane.Review
+	largest := 0
+	for name, source := range webuiJavaScript(t) {
+		measured := webuilane.ReviewMeasures(source)
+		if measured.SilentFallbacks+measured.WindowDialogs+measured.UnnamedControls+measured.UnnamedButtons > 0 {
+			t.Logf("%s: %+v", name, measured)
+		}
+		review = webuilane.Review{
+			SilentFallbacks: review.SilentFallbacks + measured.SilentFallbacks, WindowDialogs: review.WindowDialogs + measured.WindowDialogs,
+			UnnamedControls: review.UnnamedControls + measured.UnnamedControls, UnnamedButtons: review.UnnamedButtons + measured.UnnamedButtons,
+			InlineStyles: review.InlineStyles + measured.InlineStyles, NestedTernaries: review.NestedTernaries + measured.NestedTernaries,
+			TimerLiterals: review.TimerLiterals + measured.TimerLiterals, DebtMarkers: review.DebtMarkers + measured.DebtMarkers,
+		}
+		largest = max(largest, strings.Count(source, "\n"))
+	}
+	for _, check := range []struct {
+		name           string
+		value, ceiling int
+	}{
+		{"silent fallbacks", review.SilentFallbacks, webuiReviewCeiling.SilentFallbacks},
+		{"window dialogs", review.WindowDialogs, webuiReviewCeiling.WindowDialogs},
+		{"unnamed controls", review.UnnamedControls, webuiReviewCeiling.UnnamedControls},
+		{"unnamed buttons", review.UnnamedButtons, webuiReviewCeiling.UnnamedButtons},
+		{"inline styles", review.InlineStyles, webuiReviewCeiling.InlineStyles},
+		{"nested ternaries", review.NestedTernaries, webuiReviewCeiling.NestedTernaries},
+		{"timer literals", review.TimerLiterals, webuiReviewCeiling.TimerLiterals},
+		{"debt markers", review.DebtMarkers, webuiReviewCeiling.DebtMarkers},
+	} {
+		if check.value > check.ceiling {
+			t.Errorf("%s = %d, ceiling %d", check.name, check.value, check.ceiling)
+		}
+	}
+	t.Logf("review ratchet: %+v largest=%d", review, largest)
 }

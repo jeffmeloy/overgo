@@ -19,6 +19,15 @@ var ErrAudioBackpressure = errors.New("audio stream: chunk already executing")
 // use a slot after returning. Model-specific numerical work is outside this owner.
 type AudioStreamProcessor func(context.Context, int, workflowruntime.AudioStreamWork) (workflowruntime.AudioStreamResult, error)
 
+// AudioStreamLease binds synchronous processing to an already admitted model
+// slot. Release must be idempotent. The admitting owner retains its existing
+// residency policy; a stream does not create another director or worker.
+type AudioStreamLease struct {
+	Processor AudioStreamProcessor
+	Slot      int
+	Release   func() error
+}
+
 // AudioStreamSession admits one chunk at a time without a worker, queue or
 // accumulated waveform. Close joins the active call before releasing residency;
 // a timed-out Close leaves release owned by that call's cleanup. Do not copy it.
@@ -26,7 +35,7 @@ type AudioStreamSession struct {
 	mu     sync.Mutex
 	cursor *workflowruntime.AudioStreamCursor
 	reader artifact.Reader
-	lease  *SessionLease[AudioStreamProcessor]
+	lease  AudioStreamLease
 	cancel context.CancelCauseFunc
 	done   chan struct{}
 	closed bool
@@ -34,17 +43,23 @@ type AudioStreamSession struct {
 
 // OpenAudioStream validates restart authority and leases existing bounded model
 // residency. The caller must Close even if it never submits a chunk.
-func OpenAudioStream(ctx context.Context, reader artifact.Reader, director *ModelSessionDirector[struct{}, AudioStreamProcessor, struct{}], source recipecontract.AudioReference, resume artifact.ID) (*AudioStreamSession, error) {
+func OpenAudioStream(ctx context.Context, reader artifact.Reader, acquire func(context.Context) (AudioStreamLease, error), source recipecontract.AudioReference, resume artifact.ID) (*AudioStreamSession, error) {
+	if ctx == nil || reader == nil || acquire == nil {
+		return nil, ErrSessionUnavailable
+	}
 	cursor, err := workflowruntime.LoadAudioStream(ctx, reader, source, resume)
 	if err != nil {
 		return nil, err
 	}
-	lease, err := director.Lease(ctx, -1)
+	lease, err := acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if lease.Model() == nil {
-		return nil, errors.Join(ErrSessionUnavailable, lease.Release())
+	if lease.Processor == nil || lease.Release == nil {
+		if lease.Release != nil {
+			return nil, errors.Join(ErrSessionUnavailable, lease.Release())
+		}
+		return nil, ErrSessionUnavailable
 	}
 	return &AudioStreamSession{cursor: cursor, reader: reader, lease: lease}, nil
 }
@@ -60,7 +75,7 @@ func (s *AudioStreamSession) Process(ctx context.Context, chunk workflowruntime.
 		return result, err
 	}
 	s.mu.Lock()
-	if s.closed || s.lease == nil {
+	if s.closed || s.lease.Processor == nil {
 		s.mu.Unlock()
 		return result, ErrSessionUnavailable
 	}
@@ -96,7 +111,7 @@ func (s *AudioStreamSession) Process(ctx context.Context, chunk workflowruntime.
 			return result, errors.Join(errors.New("audio stream: chunk artifact is absent"), err)
 		}
 	}
-	result, err = s.lease.Model()(callCtx, s.lease.ID, work)
+	result, err = s.lease.Processor(callCtx, s.lease.Slot, work)
 	if err != nil {
 		return workflowruntime.AudioStreamResult{}, err
 	}
@@ -157,7 +172,7 @@ func (s *AudioStreamSession) Close(ctx context.Context) error {
 			return ctx.Err()
 		}
 	}
-	if lease == nil {
+	if lease.Release == nil {
 		return ErrSessionUnavailable
 	}
 	return lease.Release()

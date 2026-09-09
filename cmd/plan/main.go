@@ -35,6 +35,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -46,6 +47,7 @@ import (
 	"overgo/internal/planverify"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
+	"overgo/internal/webuilane"
 )
 
 func main() {
@@ -54,7 +56,6 @@ func main() {
 	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
 	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
 	history := flag.String("history", "", "print attempt history from the store: aggregates and recent attempts (pass a plan item id, or all)")
-	diagnose := flag.String("diagnose", "", "diagnose one row from its records: -diagnose <item>/<step> prints its state, attempts, failure evidence tails and the next action")
 	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
@@ -76,13 +77,13 @@ func main() {
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
+	assign := flag.Bool("assign", false, "record an open item's owning lane: -assign <item-id> -owner <lane>; another lane never dispatches it")
+	owner := flag.String("owner", "", "with -assign: the owning lane")
+	setLane := flag.String("set-lane", "", "record the lane this plan dispatches for (the unassigned role's role)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
-	refuse := flag.Bool("refuse", false, "record a skip or cancel on an open row: -refuse <item>/<step> -disposition skip|cancel -reason <text>")
-	disposition := flag.String("disposition", "", "with -refuse: skip or cancel")
-	reason := flag.String("reason", "", "with -refuse: the recorded reason")
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
 	_ = flag.String("force", "", "retired with -advance")
@@ -91,7 +92,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{move: *move, retitle: *retitle, refuse: *refuse, disposition: *disposition, reason: *reason, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, diagnose: *diagnose, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -99,19 +100,20 @@ func main() {
 
 type cli struct {
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
-	move, retitle, refuse                                                            bool
-	disposition, reason                                                              string
+	move, retitle                                                                    bool
 	frontier                                                                         bool
 	judgeEfficiency                                                                  string
 	pruneDone                                                                        bool
 	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
+	assign                                                                           bool
+	owner, setLane                                                                   string
 	prepareMerge                                                                     string
 	planProjection                                                                   string
 	grantExploration, chargeExploration, recordExperiment                            string
 	localitySchedule                                                                 string
 	leaseReport                                                                      bool
 	retireLegacyLeases                                                               int
-	history, diagnose                                                                string
+	history                                                                          string
 	admitProposal                                                                    string
 	capacity                                                                         plan.Resources
 }
@@ -154,8 +156,6 @@ func run(c cli, args []string) error {
 		return recordExperimentTransition(".", c.recordExperiment, os.Stdout)
 	case c.admitProposal != "":
 		return admitProposal(".", c.admitProposal, os.Stdout)
-	case c.diagnose != "":
-		return diagnoseRow(".", c.diagnose, os.Stdout)
 	case c.history != "":
 		return printAttemptHistory(c.history, os.Stdout)
 	case c.leaseReport:
@@ -187,16 +187,21 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -retitle <item-id> -title <title>")
 		}
 		return retitleItem(".", args[0], c.title, role)
+	case c.assign:
+		if len(args) != 1 || strings.TrimSpace(c.owner) == "" {
+			return errors.New("usage: plan -assign <item-id> -owner <lane>")
+		}
+		return mutatePlan(".", role, "assigned item "+args[0]+" to "+strings.TrimSpace(c.owner), func(document plan.Plan) (plan.Plan, error) { return assignOwner(document, args[0], c.owner) })
+	case c.setLane != "":
+		return mutatePlan(".", role, "set lane "+strings.TrimSpace(c.setLane), func(document plan.Plan) (plan.Plan, error) { return setPlanLane(document, c.setLane) })
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
 		}
-		return setStepVerify(".", args[0], args[1], c.verifyCmd, role)
-	case c.refuse:
-		if len(args) != 1 {
-			return errors.New("usage: plan -refuse <item>/<step> -disposition skip|cancel -reason <text>")
+		if browserVerifyOutsideLane(c.verifyCmd) {
+			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -require in the verify")
 		}
-		return refuseRow(".", args[0], c.disposition, c.reason, role)
+		return setStepVerify(".", args[0], args[1], c.verifyCmd, role)
 	case c.stop:
 		return recordStop(strings.Join(args, " "))
 	case c.contain != "":
@@ -521,6 +526,50 @@ func retitleItem(root, id, title, role string) error {
 	})
 }
 
+// mutatePlan applies one pure plan mutation, saves it and prints what changed and the next action.
+func mutatePlan(root, role, what string, mutation func(plan.Plan) (plan.Plan, error)) error {
+	return withPlanMutation(root, false, func(document plan.Plan) error {
+		updated, err := mutation(document)
+		if err != nil {
+			return err
+		}
+		updatedAuthority, err := resolveCompletionAuthority(root, updated)
+		if err != nil {
+			return err
+		}
+		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+			return err
+		}
+		action, _ := nextAction(updated, role, updatedAuthority)
+		fmt.Printf("%s; next: %s\n", what, action)
+		return nil
+	})
+}
+
+// assignOwner is the pure core of -assign: the named open item takes the owner. No I/O.
+func assignOwner(document plan.Plan, id, owner string) (plan.Plan, error) {
+	owner = strings.TrimSpace(owner)
+	if owner == "" {
+		return plan.Plan{}, errors.New("assign: the owner is empty")
+	}
+	index := slices.IndexFunc(document.Items, func(item plan.Item) bool { return item.ID == id })
+	if index < 0 {
+		return plan.Plan{}, fmt.Errorf("assign: no item %q", id)
+	}
+	document.Items = slices.Clone(document.Items)
+	document.Items[index].Owner = owner
+	return document, nil
+}
+
+// setPlanLane is the pure core of -set-lane. No I/O.
+func setPlanLane(document plan.Plan, lane string) (plan.Plan, error) {
+	if lane = strings.TrimSpace(lane); lane == "" {
+		return plan.Plan{}, errors.New("set-lane: the lane is empty")
+	}
+	document.Lane = lane
+	return document, nil
+}
+
 // rescopeItem is the pure core of retitleItem. No I/O.
 func rescopeItem(document plan.Plan, id, title string) (plan.Plan, error) {
 	title = strings.TrimSpace(title)
@@ -771,6 +820,11 @@ RULES skill.md; only this task; port-first; park off-scope findings with cmd/fin
 	}
 }
 
+// browserVerifyOutsideLane: a verify naming a browser acceptance test without the lane runner that makes it run.
+func browserVerifyOutsideLane(command string) bool {
+	return strings.Contains(command, webuilane.BrowserTestPrefix) && !strings.Contains(command, "cmd/webui-lane")
+}
+
 // runVerify executes the step's verify command; its exit code is the verdict.
 func runVerify(it plan.Item, st plan.Step) error {
 	if strings.TrimSpace(st.Verify) == "" {
@@ -779,13 +833,13 @@ func runVerify(it plan.Item, st plan.Step) error {
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {
 			fmt.Fprintf(os.Stderr, "plan verify %s/%s checkpoint %s: %s\n", it.ID, st.ID, checkpoint.ID, checkpoint.Verify)
-			if _, err := planverify.Execute(context.Background(), ".", checkpoint.Verify); err != nil {
+			if _, err := planverify.Execute(context.Background(), ".", checkpoint.Verify, nil); err != nil {
 				return fmt.Errorf("verify %s/%s checkpoint %s: %w", it.ID, st.ID, checkpoint.ID, err)
 			}
 		}
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
-	class, err := planverify.Execute(context.Background(), ".", st.Verify)
+	class, err := planverify.Execute(context.Background(), ".", st.Verify, nil)
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w -- run the named oracle against its real prerequisite or record a recorded stop", it.ID, st.ID, err)
 	}

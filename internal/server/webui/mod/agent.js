@@ -66,9 +66,7 @@
           el("div", { class: "row" }, create, note));
       }
 
-      function activeAgent() {
-        return inventory.find((item) => item.name === selected);
-      }
+      function activeAgent() { return inventory.find((item) => item.name === selected); }
 
       const showError = overgo.reporter(status);
 
@@ -103,10 +101,7 @@
       }
 
       publish.addEventListener("click", async () => {
-        if (!definitionForm.validate()) {
-          status.textContent = "Complete every required definition field";
-          return;
-        }
+        if (!definitionForm.validate()) { status.textContent = "Complete every required definition field"; return; }
         try {
           const created = await api.post("/agents/definitions", definitionForm.value());
           await api.post("/agents/activate", { definition: created.id });
@@ -136,7 +131,7 @@
               const parts = chatComposer.attachmentParts();
               const history = (sessions.get(selected) || []).slice();
               history.push(parts.length
-                ? { role: "user", content: [{ type: "text", text: content }, ...parts] }
+                ? { role: "user", content: [...parts, { type: "text", text: content }] }
                 : { role: "user", content });
               chatThread.add("user", overgo.userLine(content, attachments));
               chatComposer.clearInput();
@@ -173,10 +168,7 @@
               const listing = await api.get("/agent/sessions");
               sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
                 const resume = el("button", { class: "btn alt", text: "Resume" });
-                resume.addEventListener("click", () => {
-                  session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id;
-                  renderEvidence(session.value);
-                });
+                resume.addEventListener("click", () => { session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id; renderEvidence(session.value); });
                 return el("div", { class: "card" },
                   el("span", { class: "mono", text: item.id }),
                   " steps " + item.steps + " / " + item.bound + (item.inspected ? " / inspected " : " / uninspected "),
@@ -187,10 +179,7 @@
           toolSurface = overgo.toolStep(toolsHost, {
             agent: () => selected, session: () => session.value.trim(), thread: () => chatThread,
             controls: [session, listSessions], onError: showError,
-            onStep: (result) => {
-              status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction);
-              renderEvidence(session.value.trim());
-            },
+            onStep: (result) => { status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction); renderEvidence(session.value.trim()); },
           });
           toolsHost.appendChild(sessionListHost);
         }
@@ -218,7 +207,7 @@
 
       function renderAutomations() {
         const agent = activeAgent();
-        const select = el("select", { class: "text" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
+        const select = el("select", { class: "text", "aria-label": "automation" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
         const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", placeholder }));
         const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
@@ -279,9 +268,7 @@
         } catch (err) { showError(err); }
       }
 
-      function renderAll() {
-        renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations();
-      }
+      function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations(); }
 
       tools = (await api.get("/agent/tools")).tools || [];
       inventory = await api.get("/agents");
@@ -294,7 +281,7 @@
       }, { signal: stream.signal }).catch((err) => {
         if (err.name !== "AbortError") showError(err);
       });
-      return () => { stream.abort(); definitionForm.dispose(); };
+      return () => { stream.abort(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); };
     },
   });
 })();

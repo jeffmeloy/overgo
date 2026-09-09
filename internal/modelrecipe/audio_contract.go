@@ -17,6 +17,9 @@ const (
 
 	// ModuleTranscribeAudio identifies neutral audio-to-text execution.
 	ModuleTranscribeAudio recipe.ModuleID = "model.transcribe-audio"
+	// ModuleTranscribeSegments traverses declared activity intervals with the
+	// transcription model, preserving their original sample coordinates.
+	ModuleTranscribeSegments recipe.ModuleID = "model.transcribe-audio-segments"
 	// ModuleAlignAudio identifies sample-exact transcript alignment.
 	ModuleAlignAudio recipe.ModuleID = "model.align-audio"
 	// ModuleDiarizeAudio identifies speaker-turn extraction.
@@ -152,30 +155,91 @@ var audioTaskSpecs = map[recipe.Task]audioTaskSpec{
 func audioTaskModules() []recipe.Module {
 	modules := make([]recipe.Module, 0, len(audioTaskSpecs))
 	for task, spec := range audioTaskSpecs {
+		tasks := []recipe.Task{task}
+		if task == recipe.TaskActivityDetection {
+			tasks = append(tasks, recipe.TaskTranscription)
+		}
 		modules = append(modules, recipe.Module{
-			ID: spec.module, Tasks: []recipe.Task{task}, Placements: []recipe.Placement{recipe.PlacementHost},
+			ID: spec.module, Tasks: tasks, Placements: []recipe.Placement{recipe.PlacementHost},
 			Inputs: spec.inputs, Outputs: []recipe.Port{spec.output},
 		})
 	}
+	modules = append(modules, recipe.Module{
+		ID: ModuleTranscribeSegments, Tasks: []recipe.Task{recipe.TaskTranscription}, Placements: []recipe.Placement{recipe.PlacementHost},
+		Inputs:  []recipe.Port{{Name: "segments", Data: recipe.DataActivitySegments, Cardinality: recipe.CardinalityOne}},
+		Outputs: []recipe.Port{audioTaskSpecs[recipe.TaskTranscription].output},
+	})
 	return modules
 }
 
 // TranscriptionDefinition binds generic host transcription to its exact model,
 // decoded-audio contract, processor declaration, tokenizer, and tensor catalog.
 func TranscriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID artifact.ID) (recipe.Definition, error) {
+	return transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, artifact.ID{})
+}
+
+// ActivityDefinition binds speech activity execution to its exact model,
+// processor declaration and tensor inventory. The processor owns the declared
+// frontend and offline or causal boundary policy; this topology is shared.
+func ActivityDefinition(modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	return speechAnalysisDefinition(recipe.TaskActivityDetection, "activity", modelID, processorID, inventoryID)
+}
+
+// DiarizationDefinition binds speaker-turn extraction to its exact model,
+// operation profile and tensor inventory without transcription dependencies.
+func DiarizationDefinition(modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	return speechAnalysisDefinition(recipe.TaskDiarization, "diarize", modelID, processorID, inventoryID)
+}
+
+func speechAnalysisDefinition(task recipe.Task, nodeID recipe.NodeID, modelID, processorID, inventoryID artifact.ID) (recipe.Definition, error) {
+	spec := audioTaskSpecs[task]
+	node := recipe.Node{ID: nodeID, Module: spec.module, Placement: recipe.PlacementHost, Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache}
+	return recipe.NewDefinitionWithDependencies(task,
+		[]recipe.Dependency{{Role: recipe.DependencyModel, Artifact: modelID}, {Role: recipe.DependencyProcessorProfile, Artifact: processorID}, {Role: recipe.DependencyTensorInventory, Artifact: inventoryID}},
+		[]recipe.Node{node}, nil,
+		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
+		[]recipe.Output{{Name: spec.output.Name, Data: spec.output.Data, Source: recipe.Endpoint{Node: node.ID, Port: spec.output.Name}}})
+}
+
+// AdaptedTranscriptionDefinition adds one exact checkpoint to the canonical
+// base transcription topology. It does not activate or promote the recipe.
+func AdaptedTranscriptionDefinition(base recipe.Definition, checkpoint artifact.ID) (recipe.Definition, error) {
+	if err := base.ValidateIdentity(); err != nil {
+		return recipe.Definition{}, err
+	}
+	roles := [...]recipe.DependencyRole{recipe.DependencyModel, recipe.DependencyProfile, recipe.DependencyProcessorProfile, recipe.DependencyTokenizer, recipe.DependencyTensorInventory}
+	var ids [len(roles)]artifact.ID
+	for index, role := range roles {
+		var found bool
+		ids[index], found = base.PrimaryDependency(role)
+		if !found {
+			return recipe.Definition{}, errors.New("adapted transcription: base dependency is absent")
+		}
+	}
+	expected, err := TranscriptionDefinition(ids[0], ids[1], ids[2], ids[3], ids[4])
+	if err != nil || expected.ID != base.ID || checkpoint.Kind() != artifact.KindCheckpoint {
+		return recipe.Definition{}, errors.New("adapted transcription: base topology or checkpoint differs")
+	}
+	return transcriptionDefinition(ids[0], ids[1], ids[2], ids[3], ids[4], checkpoint)
+}
+
+func transcriptionDefinition(modelID, contractID, processorID, tokenizerID, tensorInventoryID, checkpoint artifact.ID) (recipe.Definition, error) {
 	node := recipe.Node{
 		ID: "transcribe", Module: ModuleTranscribeAudio, Placement: recipe.PlacementHost,
 		Session: recipe.SessionCapacity, Residency: recipe.ResidencyHostCache,
 	}
+	dependencies := []recipe.Dependency{
+		{Role: recipe.DependencyModel, Artifact: modelID},
+		{Role: recipe.DependencyProfile, Artifact: contractID},
+		{Role: recipe.DependencyProcessorProfile, Artifact: processorID},
+		{Role: recipe.DependencyTokenizer, Artifact: tokenizerID},
+		{Role: recipe.DependencyTensorInventory, Artifact: tensorInventoryID},
+	}
+	if checkpoint.Valid() {
+		dependencies = append(dependencies, recipe.Dependency{Role: recipe.DependencyCheckpoint, Artifact: checkpoint})
+	}
 	return recipe.NewDefinitionWithDependencies(
-		recipe.TaskTranscription,
-		[]recipe.Dependency{
-			{Role: recipe.DependencyModel, Artifact: modelID},
-			{Role: recipe.DependencyProfile, Artifact: contractID},
-			{Role: recipe.DependencyProcessorProfile, Artifact: processorID},
-			{Role: recipe.DependencyTokenizer, Artifact: tokenizerID},
-			{Role: recipe.DependencyTensorInventory, Artifact: tensorInventoryID},
-		},
+		recipe.TaskTranscription, dependencies,
 		[]recipe.Node{node}, nil,
 		[]recipe.Input{{Name: "audio", Data: recipe.DataAudio, Target: recipe.Endpoint{Node: node.ID, Port: "audio"}}},
 		[]recipe.Output{{Name: "transcription", Data: recipe.DataTranscription, Source: recipe.Endpoint{Node: node.ID, Port: "transcription"}}},

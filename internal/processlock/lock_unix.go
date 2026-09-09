@@ -3,10 +3,13 @@
 package processlock
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"syscall"
+	"time"
 )
 
 // Lock is an exclusive file lock released by Close or process exit.
@@ -22,7 +25,10 @@ func Acquire(path string, mode fs.FileMode) (*Lock, error) {
 	}
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		_ = file.Close()
-		return nil, err
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			err = errors.Join(ErrBusy, err)
+		}
+		return nil, &os.PathError{Op: "lock", Path: path, Err: err}
 	}
 	return &Lock{file: file}, nil
 }
@@ -39,4 +45,29 @@ func (lock *Lock) Close() error {
 		return fmt.Errorf("unlock: %w", unlockErr)
 	}
 	return closeErr
+}
+
+// AcquireContext waits for exclusive access until ctx ends.
+func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, error) {
+	// flock has no context-aware wait. Bound retry latency without busy-spinning;
+	// this cadence affects scheduling only, never ownership or stale-lock expiry.
+	const retryInterval = time.Millisecond
+	var contention error
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, errors.Join(err, contention)
+		}
+		lock, err := Acquire(path, mode)
+		if !errors.Is(err, ErrBusy) {
+			return lock, err
+		}
+		contention = ErrBusy
+		timer := time.NewTimer(retryInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, errors.Join(ctx.Err(), contention)
+		case <-timer.C:
+		}
+	}
 }

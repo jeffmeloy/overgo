@@ -561,12 +561,12 @@ func (h *Handler) decodeMultimodalJSON(
 	return h.decodeJSONWithLimit(response, request, target, maxMultimodalRequestBytes)
 }
 
-func (h *Handler) decodeJSONWithLimit(
-	response http.ResponseWriter,
-	request *http.Request,
-	target any,
-	limit int64,
-) bool {
+func (h *Handler) decodeJSONWithLimit(response http.ResponseWriter, request *http.Request, target any, limit int64) bool {
+	return decodeJSONBounded(response, request, target, limit)
+}
+
+// decodeJSONBounded: the bounded strict decode every JSON route shares (the idle shell decodes the same way).
+func decodeJSONBounded(response http.ResponseWriter, request *http.Request, target any, limit int64) bool {
 	// Retain header-less non-browser API calls. Browser JSON requests must
 	// declare their media type; explicit non-JSON types are never decoded.
 	contentTypes := request.Header.Values("Content-Type")

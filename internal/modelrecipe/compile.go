@@ -767,6 +767,12 @@ func mustCatalog() *recipe.Catalog {
 			Inputs:     []recipe.Port{{Name: "session", Data: recipe.DataSessionPlan, Cardinality: recipe.CardinalityOne}},
 			Outputs:    []recipe.Port{{Name: "answer", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
 		},
+		recipe.Module{
+			ID: ModuleRemoteRelay, Tasks: []recipe.Task{recipe.TaskInference},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs:     []recipe.Port{{Name: "prompt", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+			Outputs:    []recipe.Port{{Name: "text", Data: recipe.DataText, Cardinality: recipe.CardinalityOne}},
+		},
 	)
 	catalog, err := recipe.NewCatalog(modules...)
 	if err != nil {

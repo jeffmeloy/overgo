@@ -263,15 +263,11 @@ func projectMergePlan(
 }
 
 func uniqueMergeBase(root, localRevision, incomingRevision string) (string, error) {
-	output, err := gitOutput(root, "merge-base", "--all", localRevision, incomingRevision)
+	base, err := plan.CompletionMergeBase(context.Background(), root, localRevision, incomingRevision)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("prepare-merge: %w", err)
 	}
-	bases := strings.Fields(string(output))
-	if len(bases) != 1 {
-		return "", fmt.Errorf("prepare-merge requires exactly one merge base, found %d", len(bases))
-	}
-	return bases[0], nil
+	return base, nil
 }
 
 func resolveMergeAuthorities(

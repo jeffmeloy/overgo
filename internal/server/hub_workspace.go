@@ -50,10 +50,17 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		log.Printf("catalog: persist identity memo: %v", err)
 	}
 	evidence := h.catalogEvidence(request.Context(), h.workspaceSuiteNames(request.Context()))
+	writeJSON(response, http.StatusOK, map[string]any{
+		"models": catalogListing(entries, evidence), "truncated": truncated, "coverage": h.catalogCoverage(request.Context()),
+	})
+}
+
+// catalogListing: the wire rows for catalogued entries with their evidence; the idle shell lists the same rows without evidence.
+func catalogListing(entries []discovery.CatalogEntry, evidence evaluation.EvidenceIndex) []catalogModel {
 	listed := make([]catalogModel, 0, len(entries))
 	for _, entry := range entries {
 		model := catalogModel{
-			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present,
+			Model: idText(entry.Model), Location: entry.Location, Present: entry.Present, KeyEnvironment: entry.KeyEnvironment,
 		}
 		if summary, measured := evidence.BenchmarksByLocation[entry.Location]; measured {
 			model.Benchmark = &summary
@@ -70,9 +77,7 @@ func (h *Handler) catalogModels(response http.ResponseWriter, request *http.Requ
 		}
 		listed = append(listed, model)
 	}
-	writeJSON(response, http.StatusOK, map[string]any{
-		"models": listed, "truncated": truncated, "coverage": h.catalogCoverage(request.Context()),
-	})
+	return listed
 }
 
 // catalogCoverage reports the registered denominators beside the
@@ -107,13 +112,16 @@ func (h *Handler) catalogCoverage(ctx context.Context) map[string]any {
 // with absence rendered empty. The flat recipe/tier/stale fields mirror the
 // inference capability for consumers of the original inference-only shape.
 type catalogModel struct {
-	Model        string              `json:"model"`
-	Recipe       string              `json:"recipe"`
-	Tier         string              `json:"tier,omitzero"`
-	Location     string              `json:"location"`
-	Present      bool                `json:"present"`
-	Stale        string              `json:"stale,omitzero"`
-	Capabilities []catalogCapability `json:"capabilities,omitempty"`
+	Model    string `json:"model"`
+	Recipe   string `json:"recipe"`
+	Tier     string `json:"tier,omitzero"`
+	Location string `json:"location"`
+	Present  bool   `json:"present"`
+	Stale    string `json:"stale,omitzero"`
+	// KeyEnvironment names the variable a hosted model's provider key
+	// lives in, so the page can take the key when the entry is refused.
+	KeyEnvironment string              `json:"key_environment,omitzero"`
+	Capabilities   []catalogCapability `json:"capabilities,omitempty"`
 	// Benchmark and Evals surface the model's committed evidence beside
 	// its entry: perf from the latest benchmark claim, quality from the
 	// latest evaluation per derived suite.

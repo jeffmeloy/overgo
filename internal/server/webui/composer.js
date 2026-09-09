@@ -5,6 +5,10 @@
   "use strict";
   const overgo = window.overgo;
   const { el, clear, fmt } = overgo;
+  const threadScrollers = new WeakMap();
+  const resizeThreads = () => document.querySelectorAll('.chat-log').forEach(log => { const scroll = threadScrollers.get(log); if (scroll) scroll(); });
+  window.addEventListener("resize", resizeThreads);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeThreads);
 
   // ---- adapters: served protocols to the event vocabulary ----
 
@@ -23,17 +27,43 @@
   // artifactOf: the artifact identity an artifact content URL names, for provenance.
   function artifactOf(url) { return new URL(url, location.origin).searchParams.get("id") || ""; }
 
-  // media: a generation result whose data[] carries artifact URLs.
-  async function* media(kind, result, caption) {
-    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url) };
+  // media: a generation result whose data[] carries artifact URLs; record names the run and
+  // capability behind them so a card can replay the stored request.
+  async function* media(kind, result, caption, record) {
+    for (const item of (result && result.data) || []) yield { type: "media", kind, url: item.url, caption, artifact: artifactOf(item.url), ...record };
     yield { type: "done" };
+  }
+
+  // run: one request of a declared capability through the generic run route, answered as the
+  // operation's outputs (artifact URLs) once it completes, or thrown as its failure.
+  async function run(capability, input, signal, sources, lifecycle) {
+    let accepted;
+    try { accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input, sources: sources || [] }, { signal }); }
+    catch (err) { err.operationUnconfirmed = !err.status && err.name !== 'AbortError'; throw err; }
+    if (!accepted || typeof accepted.operation !== 'string' || !accepted.operation) { const err = new Error('The operation was submitted without a receipt. Check Activity before trying again.'); err.operationUnconfirmed = true; throw err; }
+    if (lifecycle && lifecycle.accepted) await lifecycle.accepted(accepted.operation);
+    const completed = await overgo.waitOperation(accepted.operation, lifecycle && lifecycle.observe, signal);
+    if (completed.state !== "completed") { const err = new Error(completed.failure || completed.state); err.operationState = completed.state; throw err; }
+    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
+  }
+
+  // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
+  // run; each output names its parent, and one identical to the parent says the store memoized it.
+  async function* replay(capability, input, signal, parent, label, lifecycle) {
+    let completed;
+    try { completed = await run(capability, input, signal, null, lifecycle); }
+    catch (err) { if (err.operationState === 'cancelled') { yield { type: 'cancelled' }; return; } throw err; }
+    for await (const event of media(outputKind(capability.task), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
+      if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
+      yield event;
+    }
   }
 
   // generation: one run of a declared capability through the generic run route:
   // the operation's outputs land as media events, each an artifact with provenance,
   // or as the assistant's text when the task answers in text; the output's kind
   // follows the server's task vocabulary, not a model list.
-  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" ? "text" : task.startsWith("video") ? "video" : "image";
+  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" || task === "transcription" ? "text" : task.startsWith("video") ? "video" : "image";
   // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
@@ -42,12 +72,16 @@
     const textControl = bodyControl(capability.controls);
     if (textControl) { input[textControl.name] = text; missing.delete(textControl.name); }
     if (missing.size) { yield { type: "error", message: [...missing].join(", ") + " required" }; return; }
-    const accepted = await overgo.api.post("/generation/run", { task: capability.task, recipe: capability.recipe, input }, { signal });
-    const completed = await overgo.waitOperation(accepted.operation, null, signal);
-    if (completed.state !== "completed") { yield { type: "error", message: completed.failure || completed.state }; return; }
-    const outputs = (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) }));
-    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), { data: outputs }, text); return; }
-    for (const output of outputs) yield { type: "token", text: await (await overgo.api.blob(output.url)).text() };
+    let completed;
+    try { completed = await run(capability, input, signal, selection.sources, selection.lifecycle); } catch (err) {
+      if (err.name === "AbortError") throw err;
+      if (err.operationState === 'cancelled') yield { type: 'cancelled' };
+      else yield { type: "error", message: err.message, status: err.operationUnconfirmed ? 'unknown' : 'failed' };
+      return;
+    }
+    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
+    // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
+    for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
   }
 
@@ -57,50 +91,83 @@
     for await (const { event, data: parsed } of overgo.sseEvents(response)) {
       if (!parsed) continue;
       if (parsed.response && parsed.response.id) id = parsed.response.id;
+      else if (parsed.response_id) id = parsed.response_id;
       if (event === "response.created") yield { type: "created", id };
       else if (event === "response.output_text.delta") yield { type: "token", text: parsed.delta || "" };
       else if (event === "response.output_item.added" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_start", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
       else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, result: parsed.item.arguments };
-      else if (event === "response.failed") yield { type: "error", message: String(parsed.delta || (parsed.error && parsed.error.message) || "the turn failed") };
+      else if (event === "response.failed") {
+        yield { type: "error", id, status: "failed", message: String(parsed.delta || (parsed.error && parsed.error.message) || "The turn failed.") };
+        return;
+      } else if (event === "response.cancelled") {
+        yield { type: "cancelled", id, status: "cancelled" };
+        return;
+      }
       else if (event === "response.completed") {
         const usage = parsed.response && parsed.response.usage;
         yield { type: "usage", usage: usage ? { prompt_tokens: usage.input_tokens, completion_tokens: usage.output_tokens } : null, timings: (parsed.response && parsed.response.timings) || null };
+        yield { type: "done", id, status: "completed" };
+        return;
       }
     }
-    yield { type: "done", id };
+    throw new Error("The connection ended before the response was confirmed. Resume to recover its result.");
   }
 
   // ---- thread: the stream renderer (messages, tool cards, media cards, a thinking row, error rows);
-  // options.reuse(file) takes a media output back as the next turn's input. ----
+  // options.reuse(file): media output -> next turn's input; options.marker: tag on every assistant turn ("remote"). ----
   function thread(host, options) {
     const reuse = options && options.reuse;
-    const log = el("div", { class: "chat-log" });
-    host.appendChild(log);
+    const replay = options && options.replay; // replay(event, "regenerate" | "vary"): the page resubmits the card's stored request
+    const log = el("div", { class: "chat-log", role: "log", "aria-label": "Conversation", "aria-live": "off", tabindex: "0" });
+    const announcement = el("div", { class: "sr-only", role: "status", "aria-atomic": "true" });
+    const latest = el("button", { class: "link-button jump-latest", text: "Jump to latest", hidden: true, onclick: () => { following = true; scroll(); log.focus({ preventScroll: true }); } });
+    host.append(log, latest, announcement);
     const messages = [];
     let thinkingRow = null;
 
-    function scroll() { log.scrollTop = log.scrollHeight; }
+    let following = true;
+    log.addEventListener("scroll", () => {
+      following = Math.ceil(log.scrollTop + log.clientHeight) >= log.scrollHeight;
+      latest.hidden = following;
+    });
+    function scroll() {
+      latest.hidden = following || log.scrollHeight <= log.clientHeight;
+      if (!following) return;
+      log.scrollTop = log.scrollHeight;
+    }
+    threadScrollers.set(log, scroll);
 
     function renderMessage(message, streaming) {
-      const body = el("div", { class: "body" });
+      const position = log.scrollTop;
+      if (!message.node) { message.node = el("div", { class: "msg " + message.role }, el("div", { class: "role" }), el("div", { class: "body" })); log.appendChild(message.node); }
+      const body = message.node.querySelector(".body");
       if (message.role === "assistant" && !streaming && message.content) {
-        body.appendChild(overgo.md(message.content));
+        body.replaceChildren(overgo.md(message.content));
+        message.streamText = null;
+      } else if (streaming) {
+        if (!message.streamText) {
+          message.streamText = document.createTextNode(message.content);
+          body.replaceChildren(message.streamText, el("span", { class: "cursor", text: "|", "aria-hidden": "true" }));
+        } else if (message.content.startsWith(message.streamText.data)) message.streamText.appendData(message.content.slice(message.streamText.length));
+        else message.streamText.data = message.content;
       } else {
-        body.appendChild(document.createTextNode(message.content));
-        if (streaming) body.appendChild(el("span", { class: "cursor", text: "|" }));
+        body.replaceChildren(document.createTextNode(message.content));
+        message.streamText = null;
       }
       const head = el("div", { class: "role" }, message.role);
-      if (message.role === "assistant" && !streaming && message.content) {
+      if (message.role === "assistant" && options && options.marker) head.appendChild(el("span", { class: "tag", text: options.marker }));
+      if (!streaming && message.content) {
         head.appendChild(overgo.copyButton(message.content, "copy"));
         if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));
       }
-      const node = el("div", { class: "msg " + message.role }, head, body);
-      if (message.node) message.node.replaceWith(node); else log.appendChild(node);
-      message.node = node;
+      if (!streaming && message.response && options && options.actions) head.append(...options.actions(message));
+      message.node.querySelector(".role").replaceWith(head);
+      if (!following) log.scrollTop = position;
       scroll();
     }
 
     function add(role, content) {
+      if (role === "user") following = true;
       const message = { role, content: content || "" };
       messages.push(message);
       renderMessage(message, false);
@@ -109,6 +176,7 @@
 
     function thinking(on) {
       if (on && !thinkingRow) {
+        announcement.textContent = "Waiting for a response.";
         thinkingRow = el("div", { class: "msg thinking", text: "thinking…" });
         log.appendChild(thinkingRow);
         scroll();
@@ -118,15 +186,12 @@
     function toolCard(call) {
       const status = el("span", { class: "tag", text: "running" });
       const arrow = el("span", { class: "arrow", text: "▸" });
-      const bodyNode = el("div", { class: "tool-body", style: "display:none" },
+      const bodyNode = el("div", { class: "tool-body", hidden: true },
         el("div", { class: "note", text: "input" }),
         el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) }));
-      const header = el("div", { class: "tool-header row" }, arrow, el("span", { class: "mono", text: call.name }), status);
-      header.addEventListener("click", () => {
-        const open = bodyNode.style.display === "none";
-        bodyNode.style.display = open ? "" : "none";
-        arrow.textContent = open ? "▾" : "▸";
-      });
+      bodyNode.id = "tool-" + crypto.randomUUID();
+      const header = el("button", { class: "tool-header row", type: "button", "aria-expanded": "false", "aria-controls": bodyNode.id }, arrow, el("span", { class: "mono", text: call.name }), status);
+      header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; header.setAttribute("aria-expanded", String(!bodyNode.hidden)); arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
       const card = el("div", { class: "card tool-call" }, header, bodyNode);
       log.appendChild(card);
       scroll();
@@ -146,6 +211,8 @@
 
     function mediaCard(event) {
       const player = mediaPlayer(event.kind, event.url, event.caption);
+      player.addEventListener("load", scroll, true);
+      player.addEventListener("loadedmetadata", scroll, true);
       const facts = [];
       if (event.mime) facts.push(event.mime);
       if (event.bytes) facts.push(fmt.bytes(event.bytes));
@@ -154,19 +221,22 @@
       const again = reuse && event.url ? el("button", { class: "btn alt", text: "use as input", onclick: async () => {
         try {
           const body = await overgo.api.blob(event.url);
-          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact);
+          reuse(new File([body], (event.artifact || "output").replace(/[^A-Za-z0-9]+/g, "-").slice(0, 40) + "." + (body.type.split("/").pop() || "bin"), { type: body.type }), event.artifact, event);
         } catch (err) { errorRow(overgo.friendlyError(err)); }
       } }) : null;
+      // A card behind a run replays its stored request: unchanged, or with a fresh seed.
+      const replays = replay && event.run ? ["regenerate", "vary"].map((label) => el("button", { class: "btn alt media-replay", text: label, onclick: () => replay(event, label) })) : [];
+      const lineage = options && options.lineage && event.artifact ? el("button", { class: "btn alt", text: "lineage", onclick: () => options.lineage(event, card) }) : null;
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
-          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again));
+          event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again, ...replays, lineage));
       log.appendChild(card);
       scroll();
       return card;
     }
 
     function errorRow(message) {
-      const row = el("div", { class: "msg error" }, el("div", { class: "role", text: "error" }),
+      const row = el("div", { class: "msg error", role: "alert" }, el("div", { class: "role", text: "error" }),
         el("div", { class: "body", text: message }));
       log.appendChild(row);
       scroll();
@@ -184,16 +254,12 @@
           switch (event.type) {
             case "token":
               thinking(false);
+              if (!assistant || !assistant.content) announcement.textContent = "Receiving a response.";
               if (!assistant) assistant = add("assistant", "");
               assistant.content += event.text;
               renderMessage(assistant, true);
               break;
-            case "tool_start": {
-              thinking(false);
-              const id = event.id || event.name + ":" + open.size;
-              open.set(id, toolCard(event));
-              break;
-            }
+            case "tool_start": { thinking(false); const id = event.id || event.name + ":" + open.size; open.set(id, toolCard(event)); break; }
             case "tool_end": {
               const id = event.id || event.name + ":" + (open.size - 1);
               const card = open.get(id) || toolCard(event);
@@ -213,20 +279,28 @@
             case "error":
               thinking(false);
               errorRow(event.message);
+              terminal.status = event.status || "failed";
+              announcement.textContent = "Response failed.";
+              break;
+            case "cancelled":
+              thinking(false);
+              log.appendChild(el("div", { class: "note", role: "status", text: "Stopped" }));
+              terminal.status = "cancelled";
+              announcement.textContent = "Response stopped.";
+              break;
+            case "done":
+              terminal.status = event.status || "completed";
+              announcement.textContent = "Response ready.";
               break;
             case "created":
-            case "done":
               break;
           }
         }
-      } finally {
-        thinking(false);
-        if (assistant) renderMessage(assistant, false);
-      }
+      } finally { thinking(false); if (assistant) renderMessage(assistant, false); }
       return terminal;
     }
 
-    function reset() { messages.length = 0; clear(log); thinkingRow = null; }
+    function reset() { messages.length = 0; clear(log); thinkingRow = null; following = true; latest.hidden = true; announcement.textContent = ""; }
 
     return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, messages, node: log, renderMessage };
   }
@@ -234,77 +308,195 @@
   // mediaPlayer: the element that shows a media artifact as what it is (image, video, audio).
   function mediaPlayer(kind, url, caption) {
     if (kind === "image") return el("a", { href: url, target: "_blank" }, el("img", { src: url, alt: caption || "" }));
-    if (kind === "video") return el("video", { src: url, controls: "", style: "max-width:420px" });
+    if (kind === "video") return el("video", { src: url, controls: "", class: "mw-420" });
     return el("audio", { controls: "", src: url });
   }
 
-  function mediaKind(mime) {
-    return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document";
-  }
+  function mediaKind(mime) { return mime.startsWith("image/") ? "image" : mime.startsWith("audio/") ? "audio" : mime.startsWith("video/") ? "video" : "document"; }
 
   // ---- composer: the input surface: one prompt box (Enter sends, Shift+Enter newline), attach, drop or
   // paste the kinds the capability document accepts, an attachment strip with previews and refusals, send
   // and stop, optional modes; attachments become the served protocol's own content parts. ----
   function composer(host, options) {
     options = options || {};
-    const input = el("textarea", { class: "text", placeholder: options.placeholder || "message (Enter to send, Shift+Enter for newline)" });
+    const input = el("textarea", { class: "text", "aria-label": "Message", placeholder: options.placeholder || "Message…", title: "Enter to send · Shift+Enter for a new line" });
     const attachments = [];
-    const attachmentHost = el("div", { class: "row" });
+    let busy = false;
+    let readOnly = false;
+    let sendBlocked = false;
+    let disposed = false;
+    const attachmentHost = el("div", { class: "row attachment-strip" });
     // Accepted media and its bounds come from the capability document, never
     // from a list typed into a surface; a surface may narrow it to kinds.
     const media = (overgo.capabilities() || {}).media || { accept: [] };
     const accept = (media.accept || []).filter((mime) => !options.kinds || options.kinds.includes(mediaKind(mime)) || (options.kinds.includes("video") && mime === "image/gif"));
-    const picker = el("input", { type: "file", style: "display:none", multiple: options.multiple !== false, accept: accept.join(",") });
+    const picker = el("input", { type: "file", hidden: true, multiple: options.multiple !== false, accept: accept.join(",") });
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
-    const stop = el("button", { class: "btn alt", style: "display:none" }, "stop");
-    const attach = accept.length ? el("button", { class: "btn alt", onclick: () => picker.click() }, options.attachLabel || "attach") : null;
-    const modeSelect = options.modes && options.modes.length > 1
-      ? el("select", { class: "text", style: "width:auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label })))
-      : null;
+    const stop = el("button", { class: "btn alt", hidden: true }, "stop");
+    // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
+    function openPicker() { picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    const attach = accept.length ? el("button", { class: "btn alt", onclick: openPicker }, options.attachLabel || "attach") : null;
+    const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
-    const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, modeHost, ...(options.controls || []));
-    const element = el("div", { class: "composer" }, input, attachmentHost, controls);
+    const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...((options.controls) || []), el("span", { class: "grow" }));
+    const extras = el("div", { class: "composer-extras" }, modeHost, attachmentHost);
+    const guidanceText = el('div', { class: 'note' });
+    const guidance = el('details', { class: 'attachment-guidance', hidden: true }, el('summary', { text: 'Accepted files' }), guidanceText);
+    extras.appendChild(guidance);
+    const element = el("div", { class: "composer" }, extras, input, controls);
+    send.classList.add("send-button"); stop.classList.add("stop-button");
     host.appendChild(element);
 
+    // Stable flat file rows keep keyboard targets and playing previews intact
+    // while read/upload state changes elsewhere in the list.
+    function attachmentPreview(item) {
+      if (!item.dataURL || item.pending || item.refusal) return null;
+      if (item.kind === "image") return el("img", { src: item.dataURL, alt: item.name, class: "thumb-preview" });
+      if (item.kind === "video") return el("video", { src: item.dataURL, class: "thumb-preview" });
+      if (item.kind === "audio") return el("audio", { src: item.dataURL, controls: "" });
+      return null;
+    }
+    function stage(item, phase, reason = '') {
+      item.phase = phase; item.pending = ['reading', 'validating', 'fetching'].includes(phase); item.storing = phase === 'uploading'; item.refusal = reason;
+    }
+    function invalidate(item) { item.attempt = null; if (item.cancel) item.cancel(); }
+    function releaseFile(item) {
+      if (item.release && !attachments.some(other => other !== item && other.target === item.target && other.artifact === item.artifact)) item.release();
+      item.artifact = ''; item.target = item.release = null;
+      if (item.infoLink) item.infoLink.remove(); item.infoLink = item.link = null;
+    }
+    function removeFile(item) {
+      const index = attachments.indexOf(item);
+      if (index < 0) return;
+      const focused = item.row && item.row.contains(document.activeElement);
+      attachments.splice(index, 1); invalidate(item);
+      releaseFile(item);
+      if (item.row) item.row.remove(); renderAttachments();
+      if (focused) (attachments[index]?.remove || attachments[index - 1]?.remove || attach || input).focus();
+    }
+    function stopFile(item) {
+      if (!item.file && item.sourceArtifact) item.needsReattach = true;
+      invalidate(item); stage(item, 'cancelled', 'File preparation stopped. Retry or remove it.'); renderAttachments(); item.retry.focus();
+    }
     function renderAttachments() {
-      attachmentHost.replaceChildren(...attachments.map((item, index) => {
-        const remove = el("button", { class: "btn alt", text: "×" });
-        remove.addEventListener("click", () => { attachments.splice(index, 1); renderAttachments(); });
-        const preview = item.refusal ? el("span", { class: "tag control", text: "refused" })
-          : item.kind === "image" ? el("img", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-            : item.kind === "video" ? el("video", { src: item.dataURL, style: "max-height:48px;max-width:96px" })
-              : item.kind === "audio" ? el("audio", { src: item.dataURL, controls: "" })
-                : el("span", { class: "tag", text: item.kind + " · " + overgo.fmt.bytes(item.size) });
-        return el("span", { class: "card" + (item.refusal ? " refused" : "") }, preview, " " + item.name + " ",
-          item.refusal ? el("span", { class: "note", text: item.refusal }) : null, remove);
-      }));
+      if (disposed) return;
+      for (const item of attachments) {
+        if (!item.row) {
+          item.preview = el('span', { class: 'attachment-preview' }); item.status = el('span', { class: 'note', role: 'status' });
+          item.remove = el('button', { class: 'link-button', text: 'Remove', 'aria-label': 'Remove ' + item.name, onclick: () => removeFile(item) });
+          item.retry = el('button', { class: 'link-button', text: 'Retry', 'aria-label': 'Retry ' + item.name, onclick: () => { if (!item.file && item.sourceArtifact) reloadStored(item); else prepareFile(item); } });
+          item.stop = el('button', { class: 'link-button', text: 'Cancel', 'aria-label': 'Cancel ' + item.name, onclick: () => stopFile(item) });
+          item.row = el('span', { class: 'attachment-row' }, item.preview, el('span', { class: 'attachment-info' },
+            el('span', { class: 'attachment-name', text: item.name }), el('span', { class: 'note', text: overgo.fmt.bytes(item.size) }), item.status),
+            el('span', { class: 'attachment-actions' }, item.retry, item.stop, item.remove));
+        }
+        if (item.row.parentNode !== attachmentHost) attachmentHost.appendChild(item.row);
+        item.row.dataset.state = item.phase || 'reattach';
+        let status = 'Ready';
+        if (item.refusal) status = item.refusal;
+        else if (item.needsReattach) status = 'Reattach this file, or remove it to continue.';
+        else if (item.storing) status = 'Uploading…';
+        else if (item.phase === 'fetching') status = 'Loading stored file…';
+        else if (item.phase === 'validating') status = 'Checking image…';
+        else if (item.pending) { status = 'Reading…'; if (item.loaded != null) status += ' ' + overgo.fmt.bytes(item.loaded) + ' of ' + overgo.fmt.bytes(item.size); }
+        else if (item.artifact) status = 'Stored';
+        if (item.status.textContent !== status) item.status.textContent = status;
+        item.status.setAttribute('role', item.refusal ? 'alert' : 'status');
+        const focused = document.activeElement;
+        item.retry.hidden = (!item.file || !['error', 'cancelled'].includes(item.phase)) && !(item.sourceArtifact && item.needsReattach);
+        item.retry.textContent = item.file ? 'Retry' : 'Reload stored file';
+        item.stop.hidden = !item.pending && !item.storing;
+        if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
+        else if (focused === item.stop && item.stop.hidden) (item.retry.hidden ? item.remove : item.retry).focus();
+        const previewKey = !item.pending && !item.refusal && item.dataURL;
+        if (item.previewKey !== previewKey) { item.previewKey = previewKey; const preview = attachmentPreview(item); item.preview.replaceChildren(...(preview ? [preview] : [])); }
+        if (item.artifact && !item.link) { item.link = overgo.artifactLink(item.artifact, 'Stored file'); item.infoLink = el('span', {}, item.link); item.row.querySelector('.attachment-info').appendChild(item.infoLink); }
+        if (item.sourceLink && item.sourceArtifact === item.artifact) { item.sourceLink.remove(); item.sourceLink = null; }
+        if (item.sourceArtifact && item.sourceArtifact !== item.artifact && !item.sourceLink) { item.sourceLink = overgo.artifactLink(item.sourceArtifact, 'Source file'); item.row.querySelector('.attachment-info').appendChild(item.sourceLink); }
+      }
+      guidance.hidden = !attachments.length;
+      guidanceText.textContent = options.takesAny && options.takesAny() ? 'Files fill the selected model input. The server checks supported types and sizes.' :
+        'Supported types: ' + accept.join(', ') + '. Image limit: ' + overgo.fmt.bytes(media.max_image_bytes || 0) + '; other files: ' + overgo.fmt.bytes(media.max_media_bytes || 0) + '.';
+      setBusy(busy);
+      if (options.onChange) options.onChange();
     }
     function refusal(file, kind) {
+      if (file.size === 0) return 'File is empty.';
       const refusals = media.refusals || {};
       if (!accept.includes(file.type)) return refusals[file.type] || refusals[kind] || "the served model does not accept " + (file.type || "this file");
       const limit = kind === "image" ? media.max_image_bytes : media.max_media_bytes;
       return limit && file.size > limit ? "exceeds the " + overgo.fmt.bytes(limit) + " limit" : "";
     }
-    function addFile(file) {
+    function addFile(file, source = {}) {
+      if (disposed || readOnly) return;
       const kind = mediaKind(file.type);
-      const item = { kind, name: file.name, mime: file.type, size: file.size, refusal: refusal(file, kind) };
-      attachments.push(item);
-      const reader = new FileReader();
+      const item = { file, kind, name: file.name, mime: file.type, size: file.size, sourceArtifact: source.artifact, sourceRun: source.run };
+      const missing = attachments.findIndex(saved => saved.needsReattach && saved.name === item.name && saved.size === item.size && saved.mime === item.mime);
+      if (missing < 0) attachments.push(item); else { removeFile(attachments[missing]); attachments.splice(missing, 0, item); }
+      prepareFile(item);
+    }
+    function reloadStored(item) {
+      if (disposed || readOnly || !attachments.includes(item)) return;
+      invalidate(item);
+      const attempt = Symbol(), controller = new AbortController();
+      item.attempt = attempt; item.cancel = () => controller.abort(); item.needsReattach = false;
+      const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
+      stage(item, 'fetching'); renderAttachments();
+      overgo.api.blob('/artifacts/content?id=' + encodeURIComponent(item.sourceArtifact), { signal: controller.signal }).then(blob => {
+        if (!current()) return;
+        item.file = new File([blob], item.name, { type: blob.type || item.mime });
+        item.mime = item.file.type; item.kind = mediaKind(item.mime); item.size = item.file.size;
+        prepareFile(item);
+      }, err => { if (current()) { item.needsReattach = true; stage(item, 'error', overgo.friendlyError(err)); renderAttachments(); } });
+    }
+    function prepareFile(item) {
+      if (disposed || readOnly || !attachments.includes(item)) return;
+      invalidate(item);
+      releaseFile(item);
+      const attempt = Symbol(), controller = new AbortController();
+      item.attempt = attempt; item.loaded = null;
+      const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
+      let reader, probe;
+      item.cancel = () => { controller.abort(); if (reader && reader.readyState === FileReader.LOADING) reader.abort(); if (probe) { probe.onload = probe.onerror = null; probe.src = ''; } };
+      const fail = err => { if (current()) { stage(item, [400, 413, 415, 422].includes(err.status) ? 'refused' : 'error', overgo.friendlyError(err)); renderAttachments(); } };
+      let stored;
+      try { stored = options.intake ? options.intake(item.file, { signal: controller.signal }) : null; }
+      catch (err) { fail(err); return; }
+      if (stored) {
+        stage(item, 'uploading'); renderAttachments();
+        Promise.resolve(stored).then(result => {
+          if (!current()) return;
+          item.artifact = result.id; item.release = result.remove; item.target = result.target;
+          if (!item.sourceArtifact) item.sourceArtifact = result.id;
+          stage(item, 'ready'); renderAttachments();
+        }, fail);
+        return;
+      }
+      const reason = refusal(item.file, item.kind);
+      if (reason) { stage(item, 'refused', reason); renderAttachments(); return; }
+      stage(item, 'reading'); renderAttachments();
+      reader = new FileReader();
+      reader.onprogress = event => { if (current() && event.lengthComputable) { item.loaded = event.loaded; renderAttachments(); } };
+      reader.onerror = () => fail(new Error('Could not read ' + item.name + '. Retry or remove it.'));
+      reader.onabort = () => fail(new Error('Reading stopped. Retry or remove the file.'));
       reader.onload = () => {
+        if (!current()) return;
         item.dataURL = reader.result;
-        if (kind === "image" && !item.refusal) {
-          const probe = new Image();
+        if (item.kind === 'image') {
+          stage(item, 'validating'); renderAttachments(); probe = new Image();
           probe.onload = () => {
-            if (probe.width > media.max_image_dimension || probe.height > media.max_image_dimension) item.refusal = "exceeds " + media.max_image_dimension + " pixels on a side";
-            else if (probe.width * probe.height > media.max_image_pixels) item.refusal = "exceeds " + media.max_image_pixels + " pixels";
-            renderAttachments();
+            if (!current()) return;
+            let reason = '';
+            if (probe.width > media.max_image_dimension || probe.height > media.max_image_dimension) reason = 'Exceeds ' + media.max_image_dimension + ' pixels on a side.';
+            else if (probe.width * probe.height > media.max_image_pixels) reason = 'Exceeds ' + media.max_image_pixels + ' pixels.';
+            stage(item, reason ? 'refused' : 'ready', reason); renderAttachments();
           };
-          probe.src = reader.result;
-        }
-        renderAttachments();
+          probe.onerror = () => fail(new Error('Could not decode ' + item.name + '. Retry or choose another file.'));
+          probe.src = item.dataURL;
+        } else { stage(item, 'ready'); renderAttachments(); }
       };
-      reader.readAsDataURL(file);
+      try { reader.readAsDataURL(item.file); } catch (err) { fail(err); }
     }
     function addFiles(files) { for (const file of files || []) addFile(file); }
     picker.addEventListener("change", () => { addFiles(picker.files); picker.value = ""; });
@@ -314,42 +506,51 @@
     element.addEventListener("drop", (event) => { event.preventDefault(); element.classList.remove("drop"); addFiles(event.dataTransfer.files); });
     input.addEventListener("paste", (event) => { if (event.clipboardData.files.length) { event.preventDefault(); addFiles(event.clipboardData.files); } });
     function attachmentParts() {
-      return attachments.filter((item) => item.dataURL && !item.refusal).map((item) => {
+      return attachments.filter((item) => item.dataURL && !item.refusal && !item.artifact && !item.storing).map((item) => {
         if (item.kind === "image") return { type: "image_url", image_url: { url: item.dataURL } };
         if (item.kind === "audio") return { type: "input_audio", input_audio: { data: item.dataURL.split(",").pop(), format: "wav" } };
         if (item.kind === "video") return { type: "input_video", input_video: { data: item.dataURL } };
         return { type: "input_file", filename: item.name, file_data: item.dataURL };
       });
     }
-    function setBusy(busy) {
-      send.disabled = busy;
-      stop.style.display = busy ? "" : "none";
+    function setBusy(value, stopping = stop.disabled) {
+      const focused = document.activeElement;
+      busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop";
+      send.disabled = readOnly || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing);
+      send.hidden = busy; stop.hidden = !busy;
+      if (focused === send && busy) stop.focus();
+      else if (focused === stop && !busy) send.focus();
     }
     async function submit() {
       const text = input.value.trim();
       if (!text && !attachments.length) return;
-      if (send.disabled || attachments.some((item) => item.refusal)) return;
+      if (send.disabled) return;
       if (options.onSubmit) await options.onSubmit(text, attachments.slice(), modeSelect ? modeSelect.value : "");
     }
     send.addEventListener("click", submit);
     stop.addEventListener("click", () => { if (options.onStop) options.onStop(); });
     if (modeSelect && options.onMode) modeSelect.addEventListener("change", () => options.onMode(modeSelect.value));
     input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); }
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit(); }
     });
+    input.addEventListener("input", () => { if (options.onChange) options.onChange(); });
     return {
-      element, input, attachments, attachmentParts, setBusy, addFile, modeHost,
-      clearAttachments() { attachments.length = 0; renderAttachments(); },
-      openPicker() { picker.click(); },
+      element, input, attachments, attachmentParts, setBusy, addFile, modeHost, extras,
+      setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
+      setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
+      clearAttachments() { for (const item of attachments) invalidate(item); attachments.length = 0; attachmentHost.replaceChildren(); renderAttachments(); },
+      restoreAttachments(items) { attachments.push(...items); renderAttachments(); },
+      dispose() { disposed = true; for (const item of attachments) invalidate(item); },
+      invalidateIntake() { for (const item of attachments) if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); } renderAttachments(); },
+      openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },
+      setMode(id) { if (!modeSelect) return null; modeSelect.value = id; return options.onMode ? options.onMode(id) : null; },
     };
   }
 
   // userLine: the user's turn as the thread shows it, attachments named.
-  function userLine(text, attachments) {
-    return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text;
-  }
+  function userLine(text, attachments) { return attachments.length ? text + "\n[" + attachments.map((item) => item.kind + ": " + item.name).join(", ") + "]" : text; }
 
   // generate: one request per composer mode beyond chat, answered in the event
   // vocabulary; the front page's modes and the generation tabs share it. A
@@ -385,7 +586,7 @@
   // the bound; results are the thread's tool cards and a refusal re-renders the decision.
   function toolStep(host, options) {
     const api = overgo.api;
-    const select = el("select", { class: "text" });
+    const select = el("select", { class: "text", "aria-label": "tool" });
     const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
     const decisionHost = el("div");
     const guard = el("span", { class: "note", "aria-label": "guardrails" });
@@ -440,10 +641,11 @@
 
   overgo.thread = thread;
   overgo.composer = composer;
-  overgo.streams = { reply, media, responses };
+  overgo.streams = { reply, media, responses, replay };
   overgo.userLine = userLine;
   overgo.generate = generate;
   overgo.bodyControl = bodyControl;
+  overgo.outputKind = outputKind;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

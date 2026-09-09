@@ -1,0 +1,37 @@
+{
+  "sample_rate": 16000,
+  "geometry": {
+    "window_samples": 400,
+    "hop_samples": 160,
+    "feature_bins": 80
+  },
+  "fft_length": 512,
+  "frame_span": 512,
+  "window_offset": 56,
+  "pad_left": 256,
+  "pad_right": 256,
+  "padding": "zero",
+  "window": "symmetric-hann",
+  "waveform_preemphasis": 0.9700000286102295,
+  "preemphasis_float32": true,
+  "mel": {
+    "scale": "slaney",
+    "min_frequency": 0,
+    "max_frequency": 8000,
+    "area_normalize": true
+  },
+  "log": {
+    "power": true,
+    "base": "natural",
+    "guard_mode": "add",
+    "guard": 5.960464477539063e-8,
+    "scale": 1,
+    "bias": 0
+  },
+  "normalize": {
+    "float32": true,
+    "mode": "per-feature",
+    "correction": 1,
+    "epsilon": 0.00001
+  }
+}

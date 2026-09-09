@@ -90,7 +90,7 @@ func TestGateScopePreservesAffectedCoverage(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		report, err := runGoTests(t.Context(), g.repo, scope.dependent, false)
+		report, err := g.runGoTests(t.Context(), scope.dependent, false, nil)
 		if err == nil {
 			t.Fatal("production regression passed selected consumers")
 		}
@@ -192,8 +192,16 @@ func assertScopeMeasuredIncident(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"overgo/cmd/longform", "overgo/internal/plan"}
-	if !slices.Equal(scope.direct, want) || len(scope.dependent) != 0 {
-		t.Fatalf("test-only plan edit propagated again: %+v", scope)
+	for _, owner := range want {
+		if !slices.Contains(scope.direct, owner) {
+			t.Fatalf("historical direct owner omitted: %s", owner)
+		}
+	}
+	// The original two-package projection omitted subprocess execution. Its
+	// zero-dependent claim is invalid without that independence proof. The
+	// compiler fixture above still requires exact scope for ordinary imports.
+	if !slices.Contains(scope.opaqueRuntimeInputs, "overgo/internal/gate") {
+		t.Fatal("historical projection still omits the gate's opaque subprocess boundary")
 	}
 	graph, err := g.inputGraph()
 	if err != nil {
@@ -209,15 +217,12 @@ func assertScopeMeasuredIncident(t *testing.T) {
 	legacyCount := 0
 	for line := range strings.SplitSeq(strings.TrimSpace(legacy), "\n") {
 		owner, dependencies, _ := strings.Cut(line, " ")
-		if slices.Contains(scope.direct, owner) || slices.ContainsFunc(strings.Split(dependencies, ","), func(dep string) bool { return slices.Contains(scope.direct, dep) }) {
+		if slices.Contains(want, owner) || slices.ContainsFunc(strings.Split(dependencies, ","), func(dep string) bool { return slices.Contains(want, dep) }) {
 			legacyCount++
 		}
 	}
 	selected := len(scope.direct) + len(scope.dependent)
-	if legacyCount <= selected {
-		t.Fatal("measured incident no longer demonstrates avoidable downstream scope")
-	}
-	t.Logf("incident 1939094b: legacy=%d selected=%d avoided=%d packages on the same compiler graph; historic gate wall=973.8s; this scope assertion does not measure a fresh full gate", legacyCount, selected, legacyCount-selected)
+	t.Logf("incident 1939094b: legacy_import_scope=%d corrected_scope=%d opaque_consumers=%d; historic gate wall=973.8s; prior two-package savings claim reopened, no fresh full-gate throughput claim", legacyCount, selected, len(scope.opaqueRuntimeInputs))
 }
 
 func scopeCompilerFixture(t *testing.T) *gateContext {

@@ -40,7 +40,7 @@ func TestFrontPageInspect(t *testing.T) {
 		t.Fatalf("inspection = %+v", record)
 	}
 
-	handler.inflight.begin("resp_running", handler.config.MaxStoredResponses)
+	handler.inflight.begin("resp_running", handler.config.MaxStoredResponses, nil)
 	running := serveTestRequest(handler, http.MethodGet, "/interactions/inspect?response=resp_running", "")
 	if err := json.Unmarshal(running.Body.Bytes(), &record); err != nil || record.Status != turnStatusRunning {
 		t.Fatalf("running inspection = %+v (%v) body=%s", record, err, running.Body.String())

@@ -374,13 +374,8 @@ func launchLinearLayout(
 				)
 			}
 			function := functions[quantKernels[leftNode.Type].mulMat]
-			launchCount, err := quantMulMatLaunchCount(leftNode.Type, leftRows, rightRows)
-			if err != nil {
-				return err
-			}
-			return launch1DABI(
-				state, function, launchCount,
-				&left, &right, &output, &inner, &leftRows, &rightRows,
+			return launchQuantMulMatSpans(
+				state, function, leftNode.Type, left, right, output, inner, leftRows, rightRows,
 			)
 		}
 		if blas == nil {
@@ -1396,9 +1391,51 @@ func q8InputFastPathType(storage dtype.Type) (ok bool) {
 	return ok
 }
 
-// quantMulMatLaunchCount sizes the thread grid for the warp-cooperative
-// quantized mul_mat kernels: one warp per output element, with Q8_0's
-// kernel additionally tiling four input vectors per warp.
+// launchQuantMulMatSpans splits columns without changing individual dot products.
+func launchQuantMulMatSpans(
+	state *device.State,
+	function boundKernel,
+	storage dtype.Type,
+	left, right, output driver.DevicePtr,
+	inner, leftRows, rightRows uint32,
+) error {
+	capacity, err := quantMulMatSpanRows(storage, leftRows)
+	if err != nil {
+		return err
+	}
+	for start := uint32(0); start < rightRows; {
+		rows := min(capacity, rightRows-start)
+		count, err := quantMulMatLaunchCount(storage, leftRows, rows)
+		if err != nil {
+			return err
+		}
+		input := right + driver.DevicePtr(uint64(start)*uint64(inner)*f32ScalarBytes)
+		result := output + driver.DevicePtr(uint64(start)*uint64(leftRows)*f32ScalarBytes)
+		if err := launch1DABI(state, function, count, &left, &input, &result, &inner, &leftRows, &rows); err != nil {
+			return err
+		}
+		start += rows
+	}
+	return nil
+}
+
+// quantMulMatSpanRows bounds each launch by the kernel's uint32 thread index.
+func quantMulMatSpanRows(storage dtype.Type, leftRows uint32) (uint32, error) {
+	count, err := quantMulMatLaunchCount(storage, leftRows, 1)
+	if err != nil {
+		return 0, err
+	}
+	if count == 0 {
+		return 0, errors.New("quantized mul_mat has no output rows")
+	}
+	rows := uint32(math.MaxUint32) / count
+	if storage == dtype.Q8_0 {
+		rows *= 4 // Four input vectors per warp in the Q8_0 kernel.
+	}
+	return rows, nil
+}
+
+// quantMulMatLaunchCount assigns one warp per output, or four inputs for Q8_0.
 func quantMulMatLaunchCount(storage dtype.Type, leftRows, rightRows uint32) (uint32, error) {
 	const (
 		dotProductThreads = uint32(32)

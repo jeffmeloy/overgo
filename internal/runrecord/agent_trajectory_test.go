@@ -8,7 +8,7 @@ import (
 
 func TestAgentTrajectoryIdentity(t *testing.T) {
 	base, err := NewInteractionTrace(Interaction{Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "recipe"), Model: testutil.ArtifactID(t, artifact.KindModel, "model")},
-		testutil.ArtifactID(t, artifact.KindEvidence, "request"), []InteractionMessage{{Role: "user", Content: "task"}, {Role: "assistant", Content: "result"}}, nil)
+		testutil.ArtifactID(t, artifact.KindEvidence, "request"), []InteractionMessage{{Role: "user", Content: "task"}, {Role: "assistant", Content: "result"}}, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

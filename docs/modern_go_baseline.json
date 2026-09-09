@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "f2688948e93afc4867efe145940afc0935099079d6c1d94b18fa70f533d3971d",
+  "source_identity": "7e41884edb3ed5a49afef53e7a7894d4daed2a5d677ee3ffaf4f1f9484fd0586",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 2994,
-    "typed_files": 2930
+    "inspected_files": 3171,
+    "typed_files": 3107
   },
   "guidelines": [
     {
@@ -1642,17 +1642,6 @@
     },
     {
       "guideline": "cmp_or",
-      "path": "internal/inference/device_cache.go",
-      "symbol": "prepareDeviceCacheTargets",
-      "owner": "overgo/internal/inference",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/inference -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
       "path": "internal/inference/diffusion.go",
       "symbol": "newDiffusionSampler",
       "owner": "overgo/internal/inference",
@@ -1853,17 +1842,6 @@
       "guideline": "cmp_or",
       "path": "internal/overgodb/rebuild.go",
       "symbol": "Rebuild",
-      "owner": "overgo/internal/overgodb",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/overgodb -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "internal/overgodb/snapshot.go",
-      "symbol": "Snapshot",
       "owner": "overgo/internal/overgodb",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
       "oracle": "go test ./internal/overgodb -count=1",
@@ -4733,17 +4711,6 @@
     },
     {
       "guideline": "context_timeout_deadline_cause",
-      "path": "cmd/server/main.go",
-      "symbol": "run",
-      "owner": "overgo/cmd/server",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./cmd/server -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_timeout_deadline_cause",
       "path": "internal/adaptiveparity/process_harness_windows_model_test.go",
       "symbol": "measureModelProcesses",
       "owner": "overgo/internal/adaptiveparity",
@@ -5161,5 +5128,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "e2402054cac6e8f5ab1afced38b8a47b803afa782d883761da84250c85db83e6"
+  "exceptions_sha256": "4fc8bda7c07723884e55061e196d3f6fcabf66d0d28ffa50188771ced7e6b54f"
 }

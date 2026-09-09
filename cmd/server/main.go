@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -17,7 +19,6 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
-	"overgo/internal/libraryintake"
 	"overgo/internal/mediacapability"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -36,6 +37,9 @@ const (
 
 	// generationCatalogLimit bounds the activated models the generation workspace lists.
 	generationCatalogLimit = 256
+	// transcriptionPolicyDocument: the transcription policy declared beside
+	// the store (in its data root); found, it serves without the flag.
+	transcriptionPolicyDocument = "transcription_policy.json"
 
 	defaultAnalysisTensorSamples = 4096
 	defaultAnalysisTensorBytes   = 64 << 20
@@ -83,11 +87,6 @@ func run() error {
 		"request-timeout",
 		"maximum end-to-end request duration; zero disables",
 	)
-	operationDeadlineBudget := clioptions.DurationOverride(
-		flag.CommandLine,
-		"operation-deadline-budget",
-		"maximum ceiling an operation may declare for its deadlines; zero leaves ceilings unbounded",
-	)
 	responseStoreEntries := clioptions.IntOverride(
 		flag.CommandLine,
 		"response-store-entries",
@@ -104,14 +103,14 @@ func run() error {
 		"read the /v1 bearer token from this file (or OVERGO_API_KEY)",
 	)
 	projectorPath := flag.String("mmproj", "", "multimodal projector GGUF")
-	projectorCUDA := flag.Bool("mmproj-cuda", false, "offload supported multimodal projector operations to CUDA")
+	projectorCUDA := clioptions.BoolOverride(flag.CommandLine, "mmproj-cuda", "offload projector operations to CUDA; unset follows active inference placement")
 	mediaPolicyPath := flag.String("media-policy", "media_policy.json", "remote-media JSON policy; empty disables URLs")
 	resourcePolicyPath := flag.String("resource-policy", "resource_policy.json", "Responses file-ID JSON policy; empty disables file IDs")
 	ffmpegPath := flag.String("ffmpeg", os.Getenv("OVERGO_FFMPEG"), "FFmpeg executable for encoded video")
 	videoFPS := clioptions.Float64Override(flag.CommandLine, "video-fps", "video frame sampling rate; unset uses recipe policy")
 	videoMaxFrames := clioptions.IntOverride(flag.CommandLine, "video-max-frames", "maximum decoded video frames; unset uses recipe policy")
 	trainingEnabled := flag.Bool("training", false, "enable active recipe-bound training workspace")
-	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict JSON policy for an additional CPU transcription workflow; empty disables")
+	transcriptionPolicyPath := flag.String("transcription-policy", "", "strict CPU transcription resource policy; unset discovers transcription_policy.json beside the store")
 	modelBuilderEnabled := flag.Bool("model-builder", false, "enable corpus-derived model builder workspace")
 	webuiDir := flag.String("webui-dir", "", "serve the workbench client from this directory with caching disabled (development); empty serves the embedded client")
 	var evaluationSuites []string
@@ -132,7 +131,7 @@ func run() error {
 	flag.Parse()
 	explicit := clioptions.ExplicitOverrides(flag.CommandLine)
 	if flag.NArg() != 1 {
-		return errors.New("usage: server [options] <model.gguf>")
+		return errors.New("usage: server [options] <model-reference>")
 	}
 	var transcriptionPolicy *llamaserver.TranscriptionPolicy
 	if *transcriptionPolicyPath != "" {
@@ -167,11 +166,56 @@ func run() error {
 	shutdownContext, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	modelReference, _ := checked.First(flag.Args())
+	// A reference the store declares as a remote model serves through the
+	// relay; every other reference is a local model path the runner opens.
+	repositoryPath, err := modelFlags.RepositoryPath()
+	if err != nil {
+		return err
+	}
+	remote, err := resolveRemoteServing(shutdownContext, repositoryPath, modelReference)
+	if err != nil {
+		return err
+	}
+	if remote != nil {
+		serving := remote.policy.Serving
+		clioptions.ApplyDefault(explicit, "model-id", modelID, remote.provider.Model)
+		clioptions.ApplyDefault(explicit, "max-tokens", maxTokens, serving.MaxTokens)
+		clioptions.ApplyDefault(explicit, "max-concurrent", maxConcurrent, serving.MaxConcurrent)
+		clioptions.ApplyDefault(explicit, "response-store-entries", responseStoreEntries, serving.StoredResponses)
+		clioptions.ApplyDefault(explicit, "response-store-bytes", responseStoreBytes, serving.ResponseStoreBytes)
+		hubRoot := ""
+		if roots, rootsErr := dataroot.ResolveCurrent(); rootsErr == nil {
+			hubRoot = roots.Models
+		}
+		return serveRemote(shutdownContext, remote, serveOptions{
+			address: *address, apiKey: apiKey, modelID: *modelID,
+			maxTokens: *maxTokens, maxConcurrent: *maxConcurrent,
+			storedResponses: *responseStoreEntries, responseStoreBytes: *responseStoreBytes,
+			requestTimeout: *requestTimeout, repository: repositoryPath, hubRoot: hubRoot, webuiDir: *webuiDir,
+		})
+	}
+	native, err := resolveTranscriptionServing(shutdownContext, repositoryPath, modelReference)
+	if err != nil {
+		return err
+	}
+	if native != nil {
+		return serveTranscription(shutdownContext, *native, transcriptionPolicy, serveOptions{
+			address: *address, apiKey: apiKey, modelID: *modelID, maxConcurrent: *maxConcurrent,
+			requestTimeout: *requestTimeout, repository: repositoryPath, webuiDir: *webuiDir,
+		})
+	}
 	runner, err := modelFlags.OpenRunnerWithOptions(shutdownContext, modelReference, openOptions)
 	if err != nil {
 		return err
 	}
 	defer runner.Close()
+	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
+	if err != nil {
+		return err
+	}
+	clioptions.ApplyDefault(explicit, "mmproj-cuda", projectorCUDA, slices.ContainsFunc(description.Stages, func(stage recipe.Stage) bool {
+		return stage.Node.Placement == recipe.PlacementDevice || stage.Node.Placement == recipe.PlacementHybrid
+	}))
 	policy := runner.RuntimePolicy()
 	agentRetrieval, err := newAgentRetrievalProvider(runner, runner.ModelID(), policy.ID)
 	if err != nil {
@@ -205,6 +249,21 @@ func run() error {
 		defer workspaceStore.Close()
 	}
 	var workflowWorkspaces llamaserver.WorkflowWorkspaceSet
+	// A transcription policy declared beside the store (the data root's
+	// transcription_policy.json) serves without the flag, so a server the
+	// swap proxy launches offers the store's active transcription recipe;
+	// its refusal (the recipe retired) is logged, not fatal.
+	discovered := false
+	if transcriptionPolicy == nil && repoPath != "" {
+		candidate := filepath.Join(filepath.Dir(repoPath), transcriptionPolicyDocument)
+		if _, statErr := os.Stat(candidate); statErr == nil {
+			policy, err := llamaserver.LoadTranscriptionPolicy(candidate)
+			if err != nil {
+				return fmt.Errorf("load transcription policy: %w", err)
+			}
+			transcriptionPolicy, discovered = &policy, true
+		}
+	}
 	if transcriptionPolicy != nil {
 		if workspaceStore == nil {
 			return errors.New("transcription workspace requires a repository")
@@ -214,11 +273,15 @@ func run() error {
 			return fmt.Errorf("bind transcription source: %w", err)
 		}
 		workspace, err := llamaserver.NewTranscriptionWorkspace(shutdownContext, workspaceStore, *transcriptionPolicy, commit)
-		if err != nil {
+		switch {
+		case err != nil && discovered:
+			log.Printf("transcription workspace unavailable under the declared policy: %v", err)
+		case err != nil:
 			return fmt.Errorf("open transcription workspace: %w", err)
+		default:
+			defer workspace.Close(context.WithoutCancel(shutdownContext))
+			workflowWorkspaces = append(workflowWorkspaces, workspace)
 		}
-		defer workspace.Close(context.WithoutCancel(shutdownContext))
-		workflowWorkspaces = append(workflowWorkspaces, workspace)
 	}
 	if *trainingEnabled {
 		if rootsErr != nil {
@@ -262,10 +325,6 @@ func run() error {
 		}
 	}
 	if workspaceCommit != "" {
-		description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
-		if err != nil {
-			return err
-		}
 		environment, err := runrecord.CurrentEnvironment(fmt.Sprintf("cuda:%d", *modelFlags.DeviceOrdinal), "cuda")
 		if err != nil {
 			return err
@@ -337,34 +396,34 @@ func run() error {
 		}
 	}
 	handler, err := llamaserver.New(llamaserver.Config{
-		RuntimePolicy:           policy,
-		ModelID:                 *modelID,
-		MaxTokens:               *maxTokens,
-		MaxConcurrent:           *maxConcurrent,
-		MaxEmbeddingInputs:      *maxEmbeddingInputs,
-		APIKey:                  apiKey,
-		ContextShift:            *contextShift,
-		RequestTimeout:          *requestTimeout,
-		OperationDeadlineBudget: *operationDeadlineBudget,
-		SPMInfill:               *spmInfill,
-		ImageProjector:          vision,
-		AudioProjector:          audio,
-		RemoteMediaPolicy:       mediaPolicy,
-		ResponseFiles:           resourcePolicy,
-		MaxStoredResponses:      *responseStoreEntries,
-		ResponseStoreBytes:      *responseStoreBytes,
-		FFmpegPath:              *ffmpegPath,
-		VideoFPS:                *videoFPS,
-		VideoMaxFrames:          *videoMaxFrames,
-		OvergoDBPath:            repoPath,
-		Repository:              workspaceStore,
-		HubToken:                os.Getenv("OVERGO_HF_TOKEN"),
-		HubDownloadRoot:         hubRoot,
-		WebUIDir:                *webuiDir,
-		Evaluation:              evaluationWorkspace,
-		AgentEmbedder:           agentRetrieval,
-		AgentReranker:           agentRetrieval,
-		LibraryIntake:           llamaserver.LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
+		RuntimePolicy:      policy,
+		ModelID:            *modelID,
+		MaxTokens:          *maxTokens,
+		MaxConcurrent:      *maxConcurrent,
+		MaxEmbeddingInputs: *maxEmbeddingInputs,
+		APIKey:             apiKey,
+		ContextShift:       *contextShift,
+		RequestTimeout:     *requestTimeout,
+		SPMInfill:          *spmInfill,
+		ImageProjector:     vision,
+		AudioProjector:     audio,
+		RemoteMediaPolicy:  mediaPolicy,
+		ResponseFiles:      resourcePolicy,
+		MaxStoredResponses: *responseStoreEntries,
+		ResponseStoreBytes: *responseStoreBytes,
+		FFmpegPath:         *ffmpegPath,
+		VideoFPS:           *videoFPS,
+		VideoMaxFrames:     *videoMaxFrames,
+		OvergoDBPath:       repoPath,
+		Repository:         workspaceStore,
+		HubToken:           os.Getenv("OVERGO_HF_TOKEN"),
+		HubDownloadRoot:    hubRoot,
+		WebUIDir:           *webuiDir,
+		Evaluation:         evaluationWorkspace,
+		AgentEmbedder:      agentRetrieval,
+		AgentReranker:      agentRetrieval,
+		LibraryIntake:      serverLibraryIntake(),
+		ProviderKeys:       providerIntake.Keys,
 		Analysis: llamaserver.AnalysisPolicy{
 			TensorSamples: *analysisTensorSamples, TensorReadBytes: *analysisTensorBytes,
 			StatePositions: *analysisPositions, MDSIterations: *analysisMDSIterations,
@@ -375,34 +434,40 @@ func run() error {
 		return err
 	}
 	defer handler.Close()
+	log.Printf("serving model %q on http://%s", *modelID, *address)
+	return serve(shutdownContext, *address, handler)
+}
+
+// serve runs the handler on the address until the context ends, then
+// drains the connections within the shutdown timeout.
+func serve(ctx context.Context, address string, handler http.Handler) error {
 	httpServer := &http.Server{
-		Addr:              *address,
+		Addr:              address,
 		Handler:           handler,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
 		ReadTimeout:       serverReadTimeout,
 		IdleTimeout:       serverIdleTimeout,
 		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}
-	log.Printf("serving model %q on http://%s", *modelID, *address)
 	serverError := make(chan error, 1)
 	go func() {
 		serverError <- httpServer.ListenAndServe()
 	}()
 	select {
-	case err = <-serverError:
+	case err := <-serverError:
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err
-	case <-shutdownContext.Done():
+	case <-ctx.Done():
 	}
 	log.Print("shutting down")
-	deadline, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+	deadline, cancel := context.WithTimeoutCause(context.Background(), serverShutdownTimeout, errors.New("server: shutdown deadline elapsed"))
 	defer cancel()
 	if err := httpServer.Shutdown(deadline); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
-	err = <-serverError
+	err := <-serverError
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

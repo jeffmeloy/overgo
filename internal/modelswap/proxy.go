@@ -1,15 +1,22 @@
 package modelswap
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"strings"
+
+	"overgo/internal/apimanifest"
+	"overgo/internal/httpstream"
+	"overgo/internal/processcontrol"
 )
 
 // maxRoutedBodyBytes bounds the request body the router buffers to
@@ -32,6 +39,33 @@ type Proxy struct {
 	Resolver   Resolver
 	// Default serves model-less requests when nothing is running yet.
 	Default Servable
+	// Keys takes a hosted provider's key for this process, so every child
+	// launched from now on inherits it; the request then rides on to the
+	// running child, which takes it for itself. Nil refuses the route.
+	Keys ProviderKeys
+	// Idle answers a model-less request while no child runs and no default
+	// is set (the cold start: the shell, its boot routes, the catalog the
+	// picker chooses from). Nil refuses such a request instead.
+	Idle http.Handler
+}
+
+// errNothingServes: a model-less request with no child running and no default.
+var errNothingServes = errors.New("model swap: no model named, none running, and no default configured")
+
+// ProviderKeys places a hosted provider's key in the proxy's process for
+// the model a reference names.
+type ProviderKeys interface {
+	SetKey(ctx context.Context, reference, key string) error
+}
+
+// providerKeyPath is the server's provider-key route, intercepted here
+// so the proxy holds the key before the child does.
+const providerKeyPath = "/providers/key"
+
+// providerKeyRequest mirrors the server route's body.
+type providerKeyRequest struct {
+	Location string `json:"location"`
+	Key      string `json:"key"`
 }
 
 // ServeHTTP implements the swap routing.
@@ -40,13 +74,64 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 		http.Error(response, "model swap proxy is not configured", http.StatusServiceUnavailable)
 		return
 	}
-	servable, body, err := p.routeServable(request)
+	// The proxy carries no credential and mutates its own process (a key, a launch) before the child
+	// sees the request, so it admits exactly as the credential-less server does, first.
+	if refusal := apimanifest.AdmitCredentialless(request); refusal != nil {
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"message": refusal.Message, "type": refusal.Type}})
+		return
+	}
+	mediaType, _, _ := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if mediaType == "application/x-ndjson" {
+		release, err := httpstream.OpenDuplex(response, request)
+		if err != nil {
+			http.Error(response, "bidirectional proxy transport is unavailable", http.StatusNotImplemented)
+			return
+		}
+		defer release()
+	}
+	if request.URL.Path == providerKeyPath && request.Method == http.MethodPost {
+		if p.Keys == nil {
+			http.Error(response, "model swap proxy takes no provider keys", http.StatusNotImplemented)
+			return
+		}
+		raw, err := io.ReadAll(io.LimitReader(request.Body, maxRoutedBodyBytes))
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var entry providerKeyRequest
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			http.Error(response, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := p.Keys.SetKey(request.Context(), entry.Location, entry.Key); err != nil {
+			http.Error(response, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+		request.Body = io.NopCloser(bytes.NewReader(raw))
+		request.ContentLength = int64(len(raw))
+	}
+	servable, err := p.routeServable(request)
+	if errors.Is(err, errNothingServes) && p.Idle != nil {
+		// The header names the proxy with no model, so the shell shows the proxy present and nothing served.
+		response.Header().Set("X-Overgo-Swap-Proxy", "")
+		p.Idle.ServeHTTP(response, request)
+		return
+	}
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusUnprocessableEntity)
 		return
 	}
 	target, release, err := p.Supervisor.Acquire(request.Context(), servable)
 	if err != nil {
+		if errors.Is(err, processcontrol.ErrResourceBusy) {
+			response.Header().Set("Content-Type", "application/json")
+			response.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"code": "resource_busy", "message": err.Error()}})
+			return
+		}
 		http.Error(response, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
@@ -55,10 +140,6 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	if err != nil {
 		http.Error(response, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	if body != nil {
-		request.Body = io.NopCloser(bytes.NewReader(body))
-		request.ContentLength = int64(len(body))
 	}
 	// Every proxied answer names the proxy, so a shell behind it can show the
 	// swap capability and a shell served directly can say it is absent.
@@ -72,22 +153,23 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 // parameter (dedicated to the proxy -- the server's own endpoints
 // already use ?model= to name analysis targets, which must never
 // trigger a swap), then the JSON body's model field, then whatever
-// child is already running, then the default. The body is buffered
-// and handed back for replay to the child.
-func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
-	var body []byte
+// child is already running, then the default. NDJSON routing reads only
+// its opening record; the remaining stream is passed to the child unread.
+func (p *Proxy) routeServable(request *http.Request) (Servable, error) {
 	name := request.URL.Query().Get("swap")
+	explicitSwap := name != ""
 	if name == "" && request.Body != nil && request.ContentLength != 0 &&
 		strings.Contains(request.Header.Get("Content-Type"), "json") {
-		buffered, err := io.ReadAll(io.LimitReader(request.Body, maxRoutedBodyBytes))
+		buffered, err := routingEnvelope(request)
 		if err != nil {
-			return Servable{}, nil, err
+			return Servable{}, err
 		}
-		body = buffered
 		var envelope struct {
 			Model string `json:"model"`
 		}
-		_ = json.Unmarshal(buffered, &envelope)
+		if err := json.Unmarshal(buffered, &envelope); err != nil {
+			return Servable{}, fmt.Errorf("model swap: invalid routing envelope: %w", err)
+		}
 		name = envelope.Model
 	}
 	if name != "" {
@@ -97,24 +179,67 @@ func (p *Proxy) routeServable(request *http.Request) (Servable, []byte, error) {
 		// swap spuriously mid-conversation.
 		if running, ok := p.Supervisor.Status(); ok &&
 			(strings.EqualFold(name, running.Name) || strings.EqualFold(name, running.Model)) {
-			return running, body, nil
+			return running, nil
 		}
 		servable, found, err := p.Resolver.Resolve(request.Context(), name)
 		if err != nil {
-			return Servable{}, nil, err
+			return Servable{}, err
 		}
 		if found {
-			return servable, body, nil
+			return servable, nil
+		}
+		if explicitSwap {
+			return Servable{}, fmt.Errorf("model swap: requested model %q is unavailable", name)
 		}
 		// An unresolvable model name falls through to the running child:
 		// serving-side model identifiers (the child's own model id) route
 		// to the child that owns them.
 	}
 	if running, ok := p.Supervisor.Status(); ok {
-		return running, body, nil
+		return running, nil
 	}
 	if p.Default.Name != "" {
-		return p.Default, body, nil
+		return p.Default, nil
 	}
-	return Servable{}, nil, errors.New("model swap: no model named, none running, and no default configured")
+	return Servable{}, errNothingServes
+}
+
+// replayBody retains the original body's cancellation and close ownership.
+type replayBody struct {
+	io.Reader
+	io.Closer
+}
+
+func routingEnvelope(request *http.Request) ([]byte, error) {
+	original := request.Body
+	reader := bufio.NewReader(original)
+	var prefix []byte
+	mediaType, _, _ := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if mediaType == "application/x-ndjson" {
+		for {
+			fragment, err := reader.ReadSlice('\n')
+			if len(prefix)+len(fragment) > maxRoutedBodyBytes {
+				return nil, errors.New("model swap: routing envelope exceeds request bound")
+			}
+			prefix = append(prefix, fragment...)
+			if errors.Is(err, bufio.ErrBufferFull) {
+				continue
+			}
+			if err != nil && !errors.Is(err, io.EOF) {
+				return nil, err
+			}
+			break
+		}
+	} else {
+		var err error
+		prefix, err = io.ReadAll(io.LimitReader(reader, maxRoutedBodyBytes+1))
+		if err != nil {
+			return nil, err
+		}
+		if len(prefix) > maxRoutedBodyBytes {
+			return nil, errors.New("model swap: routing envelope exceeds request bound")
+		}
+	}
+	request.Body = replayBody{Reader: io.MultiReader(bytes.NewReader(prefix), reader), Closer: original}
+	return prefix, nil
 }

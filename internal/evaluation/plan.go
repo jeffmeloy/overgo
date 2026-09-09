@@ -69,6 +69,11 @@ const (
 	// PromptingChatTemplate shapes each prompt through the model's
 	// declared chat template before scoring.
 	PromptingChatTemplate Prompting = "chat-template"
+	// PromptingHostedChat sends each prompt as the user message of a
+	// hosted provider's chat completion: the provider owns the template,
+	// so the answer opener rides the user message and no likelihood is
+	// observable; suites score generatively.
+	PromptingHostedChat Prompting = "hosted-chat"
 )
 
 // Label names the protocol for reports; the raw default reads as such.
@@ -232,7 +237,8 @@ func bindPlan[C, S any](
 		return Plan{}, errors.New("evaluation: invalid plan authorities")
 	}
 	if authorities.Execution.Lifecycle != LifecycleIsolated && authorities.Execution.Lifecycle != LifecycleResident ||
-		authorities.Execution.Prompting != PromptingRawCompletion && authorities.Execution.Prompting != PromptingChatTemplate {
+		authorities.Execution.Prompting != PromptingRawCompletion && authorities.Execution.Prompting != PromptingChatTemplate &&
+			authorities.Execution.Prompting != PromptingHostedChat {
 		return Plan{}, errors.New("evaluation: invalid execution policy")
 	}
 	body := planBody{

@@ -6,6 +6,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"flag"
@@ -68,11 +69,31 @@ func run() error {
 	declareDomains := flag.String("declare-domain", "", "comma-separated eval domains to declare for the positional model path (e.g. dna)")
 	declareReferences := flag.String("declare-references", "", "JSON spec of published or externally measured reference scores per model location ({declarations:[{model, references:[{suite, metric, value, protocol, source}]}]})")
 	transcriptionManifest := flag.String("transcription-manifest", "", "score stored transcription runs from separate suite and prediction files")
+	alignmentManifest := flag.String("alignment-manifest", "", "execute and score explicitly conditioned CPU CTC word alignment")
+	diarizationManifest := flag.String("diarization-manifest", "", "execute CPU speaker attribution and score every declared source interval")
 	transcriptionResourceManifest := flag.String("transcription-resource-manifest", "", "execute a pinned native speech or projected transcription corpus from clean source")
 	importDNA := flag.String("import-dna-corpus", "", "import a bounded slice of every parquet subset under this corpus root and merge the entries into the active benchmark catalog")
 	dnaLimit := flag.Int("dna-limit", 16, "sequences imported per corpus subset for -import-dna-corpus")
 	cpuProfile := flag.String("cpuprofile", "", "write a Go CPU profile of this process to the file (the host side of a pass; a worker's file is its own)")
 	flag.Parse()
+	analysisPath := cmp.Or(strings.TrimSpace(*alignmentManifest), strings.TrimSpace(*diarizationManifest))
+	if path := analysisPath; path != "" {
+		if flag.NArg() != 0 || *worker || *allModels || *manifestPath != "" || *transcriptionManifest != "" || *transcriptionResourceManifest != "" || *cpuProfile != "" || *importCache != "" || *listSuites || *importDNA != "" || *declareDomains != "" || *declareReferences != "" {
+			return errors.New("usage: evaluate -alignment-manifest or -diarization-manifest <manifest.json> [-repo <store>] [-budget <duration>]")
+		}
+		if *alignmentManifest != "" && *diarizationManifest != "" {
+			return errors.New("evaluate: select one speech analysis manifest")
+		}
+		if *budget <= 0 {
+			return errors.New("evaluate: speech analysis requires a positive budget")
+		}
+		ctx, cancel := context.WithTimeoutCause(context.Background(), *budget, errors.New("speech analysis evaluation budget exhausted"))
+		defer cancel()
+		if *diarizationManifest != "" {
+			return evaluateDiarizationManifest(ctx, *repository, path)
+		}
+		return evaluateAlignmentManifest(ctx, *repository, path)
+	}
 	if strings.TrimSpace(*transcriptionManifest) != "" && strings.TrimSpace(*transcriptionResourceManifest) != "" {
 		return errors.New("evaluate: select one transcription manifest")
 	}

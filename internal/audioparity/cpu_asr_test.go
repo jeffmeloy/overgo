@@ -16,6 +16,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
+	"overgo/internal/checked"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
@@ -63,44 +64,12 @@ func TestCPUASRReference(t *testing.T) {
 	if _, err = artifact.RequireTypedContent(t.Context(), store, golden.Descriptor.ID); err != nil {
 		t.Fatal(err)
 	}
-	modelRoot, err := artifact.AvailablePath(t.Context(), store, election.Model.ID, artifact.LocationDirectory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	modelRoot, weights := loadASRModel(t, store, election)
 	corpusPath, err := artifact.AvailablePath(t.Context(), store, election.Dataset.Artifact, artifact.LocationFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	verifyASRFile(t, corpusPath, election.Dataset.Artifact, election.Dataset.Bytes)
-	weights, err := safetensors.OpenSource(modelRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer weights.Close()
-	digests, err := weights.ShardDigests()
-	if err != nil {
-		t.Fatal(err)
-	}
-	weightCount := 0
-	for _, file := range election.Files {
-		if file.Role == "weights" {
-			matched := false
-			for _, digest := range digests {
-				if digest.Name == file.Path && hex.EncodeToString(digest.Digest[:]) == file.Artifact.DigestHex() && digest.Size == file.Bytes {
-					matched = true
-				}
-			}
-			if !matched {
-				t.Fatalf("weight shard differs: %s", file.Path)
-			}
-			weightCount++
-		} else if file.Role == "tokenizer" || file.Role == "configuration" || file.Role == "preprocessor" {
-			verifyASRFile(t, filepath.Join(modelRoot, filepath.FromSlash(file.Path)), file.Artifact, file.Bytes)
-		}
-	}
-	if weightCount == 0 || weightCount != len(digests) {
-		t.Fatal("unexpected or missing weight shard")
-	}
 	tensorID, err := artifact.ParseID("file:sha256:" + capture.TensorsSHA256)
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +83,7 @@ func TestCPUASRReference(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer oracle.Close()
-	digests, err = oracle.ShardDigests()
+	digests, err := oracle.ShardDigests()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +168,7 @@ func TestCPUASRReference(t *testing.T) {
 			}
 			seen := 0
 			start := time.Now()
-			hidden, logits, outFrames, err := encoder.Forward(t.Context(), features, frames, &ew, func(trace speechrecognition.Trace) error {
+			hidden, outFrames, err := encoder.Encode(t.Context(), features, frames, &ew, func(trace speechrecognition.Trace) error {
 				if trace.Block != seen-1 {
 					return fmt.Errorf("missing or reordered encoder boundary")
 				}
@@ -211,6 +180,10 @@ func TestCPUASRReference(t *testing.T) {
 				seen++
 				return nil
 			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			logits, err := encoder.Project(t.Context(), hidden, outFrames, &ew)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -232,7 +205,11 @@ func TestCPUASRReference(t *testing.T) {
 				t.Fatalf("transcript %q, want %q", text, tc.Text)
 			}
 			retainedHidden, retainedLogits := slices.Clone(hidden), slices.Clone(logits)
-			againHidden, againLogits, againFrames, err := encoder.Forward(t.Context(), features, frames, &ew, nil)
+			againHidden, againFrames, err := encoder.Encode(t.Context(), features, frames, &ew, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			againLogits, err := encoder.Project(t.Context(), againHidden, againFrames, &ew)
 			if err != nil || againFrames != outFrames || !slices.Equal(retainedHidden, againHidden) || !slices.Equal(retainedLogits, againLogits) {
 				t.Fatalf("unobserved replay is not bit-identical: %v", err)
 			}
@@ -283,11 +260,22 @@ func captureF32(t *testing.T, source *safetensors.Source, name string, shape ...
 	return values
 }
 
-func captureIDs(t *testing.T, source *safetensors.Source, name string, count int) []int {
+func captureIDs(t *testing.T, source *safetensors.Source, name string, shape ...int) []int {
 	t.Helper()
 	tensor, ok := source.Tensors[name]
-	if !ok || tensor.DType != "I64" || !slices.Equal(tensor.Shape, []uint64{uint64(count)}) {
+	wantShape := make([]uint64, len(shape))
+	for i, n := range shape {
+		if n <= 0 {
+			t.Fatal("invalid expected ID shape")
+		}
+		wantShape[i] = uint64(n)
+	}
+	if !ok || tensor.DType != "I64" || !slices.Equal(tensor.Shape, wantShape) {
 		t.Fatalf("missing or wrong ID tensor %q", name)
+	}
+	count, valid := checked.Int(tensor.Elements())
+	if !valid {
+		t.Fatal("captured ID extent overflows")
 	}
 	data, err := io.ReadAll(tensor.Reader())
 	if err != nil {

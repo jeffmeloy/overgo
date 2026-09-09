@@ -61,6 +61,29 @@ func Publish(t *testing.T, store artifact.Repository, oraclePath string) Fixture
 			t.Fatal(err)
 		}
 	}
+	frontend := audiodsp.FrontendConfig{
+		SampleRate: 16000, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 4},
+		FFTLength: 16, FrameSpan: 4, Padding: "zero", Window: "rectangular",
+		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7000},
+		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
+	}
+	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: frontend,
+		Grouping: audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}, Encoder: captured.Declaration, BlankToken: 0, Language: "en"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition := PublishModel(t, store, directory, profile)
+	return Fixture{Definition: definition, Policy: dataset.AudioInspectionPolicy{
+		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
+		Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1,
+			SilenceRMSThreshold: .001, MaximumAbsoluteDCOffset: .1},
+	}}
+}
+
+// PublishModel registers an existing model directory and exact execution profile.
+// Source weights remain in place; the shared fixture owner publishes identities.
+func PublishModel(t *testing.T, store artifact.Repository, directory string, profile speechrecognition.ExecutionProfile) recipe.Definition {
+	t.Helper()
 	hf, err := hfrepo.Open(directory)
 	if err != nil {
 		t.Fatal(err)
@@ -78,43 +101,28 @@ func Publish(t *testing.T, store artifact.Repository, oraclePath string) Fixture
 			t.Fatal(err)
 		}
 	}
-	commit(inventory.Batch("transcription-fixture/model"))
+	commit(inventory.Batch("transcription-fixture/model/" + inventory.Manifest.ID.String()))
 	var tokenizer artifact.ID
 	for _, component := range inventory.Manifest.Components {
 		if component.Name == "tokenizer.json" {
 			tokenizer = component.Artifact
 		}
 	}
-	frontend := audiodsp.FrontendConfig{
-		SampleRate: 16000, Geometry: recipecontract.AudioFrameGeometry{WindowSamples: 4, HopSamples: 2, FeatureBins: 4},
-		FFTLength: 16, FrameSpan: 4, Padding: "zero", Window: "rectangular",
-		Mel: audiodsp.MelConfig{Scale: "htk", MinFrequency: 20, MaxFrequency: 7000},
-		Log: audiodsp.LogConfig{Power: true, Base: "natural", GuardMode: "clamp", Guard: 1e-8, Scale: 1},
-	}
-	profile, err := speechrecognition.NewExecutionProfile(frontend,
-		audiodsp.GroupedFeatureConfig{StackFrames: 1, FinalFrameSamples: 4}, captured.Declaration, 0, "en")
-	if err != nil {
-		t.Fatal(err)
-	}
 	contract, err := modelrecipe.NewAudioContract(
-		recipecontract.AudioFormat{SampleRate: 16000, Channels: 1, Encoding: "pcm-f32le"}, frontend.Geometry, artifact.ID{}, artifact.ID{})
+		recipecontract.AudioFormat{SampleRate: uint64(profile.Frontend.SampleRate), Channels: 1, Encoding: "pcm-f32le"}, profile.Frontend.Geometry, artifact.ID{}, artifact.ID{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit(profile.Batch("transcription-fixture/profile"))
-	commit(contract.Batch("transcription-fixture/contract"))
+	commit(profile.Batch("transcription-fixture/profile/" + profile.ID.String()))
+	commit(contract.Batch("transcription-fixture/contract/" + contract.ID.String()))
 	definition, err := modelrecipe.TranscriptionDefinition(inventory.Manifest.ID, contract.ID, profile.ID, tokenizer, inventory.TensorInventory.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "transcription-fixture/recipe", definition); err != nil {
+	if _, _, err := modelrecipe.PublishCandidate(t.Context(), store, "transcription-fixture/recipe/"+definition.ID.String(), definition); err != nil {
 		t.Fatal(err)
 	}
-	return Fixture{Definition: definition, Policy: dataset.AudioInspectionPolicy{
-		MaximumEncodedBytes: 1 << 20, MaximumSamples: 1 << 16, ClipThreshold: .999,
-		Admission: recipecontract.AudioAdmissionPolicy{MinimumChannels: 1, MaximumChannels: 1,
-			SilenceRMSThreshold: .001, MaximumAbsoluteDCOffset: .1},
-	}}
+	return definition
 }
 
 // Wave returns deterministic PCM for the fixture's speech or silent control.

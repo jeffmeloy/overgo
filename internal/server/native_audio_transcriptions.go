@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 
 	"overgo/internal/artifact"
@@ -16,6 +17,11 @@ import (
 var errTranscriptionUploadLimit = errors.New("transcription upload exceeds the request limit")
 
 func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, request *http.Request) {
+	mediaType, _, _ := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if mediaType == "application/x-ndjson" {
+		h.nativeStreamingTranscriptions(response, request)
+		return
+	}
 	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
 	if !ok || h.repository == nil {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "transcription workspace is unavailable")
@@ -36,7 +42,7 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 		writeGenerationError(response, err)
 		return
 	}
-	capability, err := selectNativeWorkflowCapability(capabilities, recipe.TaskTranscription, model)
+	capability, err := h.selectNativeWorkflowCapability(capabilities, recipe.TaskTranscription, model)
 	if err != nil {
 		writeInvalidRequest(response, err)
 		return
@@ -71,7 +77,10 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 		writeGenerationError(response, err)
 		return
 	}
-	if status.State != operation.StateCompleted || len(status.Outputs) != 1 {
+	// Outputs: the transcription document first, the transcript's text
+	// beside it (the front page's assistant turn); the protocol answers
+	// from the document.
+	if status.State != operation.StateCompleted || len(status.Outputs) == 0 {
 		if status.Run != nil {
 			run, readErr := runrecord.RequireExactRun(request.Context(), h.repository, *status.Run)
 			if readErr == nil && run.Failure == transcriptionUploadLimit {

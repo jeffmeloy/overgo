@@ -1,0 +1,233 @@
+[
+  {
+    "file": "clip-0.wav",
+    "turns": [
+      {
+        "span": {
+          "start": 72960,
+          "end": 80640
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 156160,
+          "end": 163840
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 266240,
+          "end": 272640
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      }
+    ]
+  },
+  {
+    "file": "clip-20.wav",
+    "turns": [
+      {
+        "span": {
+          "start": 69120,
+          "end": 90880
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 98560,
+          "end": 126720
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 130560,
+          "end": 138240
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 144640,
+          "end": 149760
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 200960,
+          "end": 207360
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 256000,
+          "end": 263680
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 273920,
+          "end": 281600
+        },
+        "speaker": "speaker-2",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 286720,
+          "end": 296960
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 308480,
+          "end": 314880
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 316160,
+          "end": 319840
+        },
+        "speaker": "speaker-2",
+        "confidence": 0
+      }
+    ]
+  },
+  {
+    "file": "clip-40.wav",
+    "turns": [
+      {
+        "span": {
+          "start": 2560,
+          "end": 23040
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 32000,
+          "end": 37120
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 39680,
+          "end": 53760
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 48640,
+          "end": 53760
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 79360,
+          "end": 97280
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 93440,
+          "end": 111360
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 136960,
+          "end": 139520
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 148480,
+          "end": 190720
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 204800,
+          "end": 217600
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 239360,
+          "end": 248320
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 263680,
+          "end": 267520
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 275200,
+          "end": 294400
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 300800,
+          "end": 303360
+        },
+        "speaker": "speaker-1",
+        "confidence": 0
+      },
+      {
+        "span": {
+          "start": 317440,
+          "end": 319840
+        },
+        "speaker": "speaker-0",
+        "confidence": 0
+      }
+    ]
+  }
+]

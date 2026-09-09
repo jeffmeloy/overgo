@@ -70,6 +70,9 @@ func Compact(ctx context.Context, source *Store, destinationRoot string, admit S
 	if source == nil {
 		return report, errors.New("overgodb retention: nil source store")
 	}
+	if err := source.Refresh(ctx); err != nil {
+		return report, err
+	}
 	descriptors := map[artifact.ID]artifact.Descriptor{}
 	manifests := map[artifact.ID]artifact.Manifest{}
 	contents := map[artifact.ID]bool{}
@@ -301,6 +304,7 @@ type compactionWriter struct {
 	items       []artifact.Batch
 	content     int
 	chunk       int
+	head        artifact.CommitID
 }
 
 func (writer *compactionWriter) add(item artifact.Batch) error {
@@ -337,14 +341,17 @@ func (writer *compactionWriter) flush() error {
 func (writer *compactionWriter) commit(items []artifact.Batch) error {
 	batch := mergeCompactionItems(items)
 	batch.Key = writer.nextKey()
+	batch.ExpectedHead = &writer.head
 	fits, err := writer.destination.transactionFits(batch)
 	if err != nil {
 		return err
 	}
 	if fits {
-		if _, err := writer.destination.Commit(writer.ctx, batch); err != nil {
+		head, err := writer.destination.Commit(writer.ctx, batch)
+		if err != nil {
 			return err
 		}
+		writer.head = head
 		writer.chunk++
 		return nil
 	}

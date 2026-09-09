@@ -12,10 +12,14 @@ import (
 // decomposition: the per-node phase walls the workflow runtime
 // observed and the peak device bytes the loaded model session
 // reports. Absent measurements stay zero; nothing is invented.
+// Input is the request document the runtime recorded for the run (the
+// decoded request under its capability's input schema), so a consumer
+// publishing its own run record cites the one document the store holds.
 type Measured struct {
 	Output          any                        `json:"output"`
 	Phases          []workflowruntime.NodeWall `json:"phases,omitempty"`
 	PeakDeviceBytes uint64                     `json:"peak_device_bytes,omitzero"`
+	Input           artifact.Content           `json:"-"`
 }
 
 // Unwrap returns the output inside a measured envelope, or the value

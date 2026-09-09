@@ -40,7 +40,6 @@ type Candidate struct {
 	CallsiteID   string                    `json:"callsite_id"`
 	OwnerID      string                    `json:"owner_id"`
 	Policy       bool                      `json:"policy"`
-	Identity     IdentityRule              `json:"identity,omitzero"`
 	Doc          string                    `json:"doc,omitzero"`
 	Score        int                       `json:"score"`
 }
@@ -122,7 +121,6 @@ func (s LiteralSite) Candidate() Candidate {
 		OwnerID:    s.SourceID,
 		CallsiteID: s.SourceID,
 		Policy:     s.Policy,
-		Identity:   s.Identity,
 	}
 }
 
@@ -135,7 +133,6 @@ func (s AssumptionHint) Candidate() Candidate {
 		OwnerID:    s.SourceID,
 		CallsiteID: s.SourceID,
 		Policy:     s.Policy,
-		Identity:   s.Identity,
 	}
 }
 
@@ -217,7 +214,6 @@ type LiteralSite struct {
 	Class      LiteralClass   `json:"class"`
 	SourceID   string         `json:"source_id"`
 	Policy     bool           `json:"policy"`
-	Identity   IdentityRule   `json:"identity,omitzero"`
 }
 
 type TestLiteralClass string
@@ -256,7 +252,6 @@ type AssumptionHint struct {
 	Expression string         `json:"expression"`
 	SourceID   string         `json:"source_id"`
 	Policy     bool           `json:"policy"`
-	Identity   IdentityRule   `json:"identity,omitzero"`
 }
 
 // CensusLiterals classifies non-const numeric source literals.
@@ -425,19 +420,12 @@ func collectLiteralSites(file *ast.File, source repoanalysis.GoFile, out *[]Lite
 		}
 		context := literalContext(parent, parents)
 		class := classifyLiteral(literal, expression, parent, parents)
-		var identity IdentityRule
-		if class != LiteralStructural {
-			identity = identityRule(literal, expression, parent)
-		}
-		if identity != "" {
-			class = LiteralMathematical
-		}
 		*out = append(*out, LiteralSite{
 			File: source.Path, Package: filepath.ToSlash(filepath.Dir(source.Path)),
 			Scope: literalScope(node, parents), Line: source.Line(expression.Pos()), Offset: int(expression.Pos()) - 1,
 			Kind: literal.Kind.String(), Expression: formatExpression(expression), Value: value.ExactString(),
 			Context: context, Class: class, SourceID: source.ContentID,
-			Policy: runtimeLiteralContext(context) && class != LiteralStructural && identity == "", Identity: identity,
+			Policy: runtimeLiteralContext(context) && class != LiteralStructural,
 		})
 	})
 }

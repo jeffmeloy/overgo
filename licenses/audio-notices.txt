@@ -24,6 +24,25 @@ artifact revision, LibriSpeech source identity and numerical payload hashes
 are bound in internal/audioparity/testdata/frontend_boundaries.json. These are
 static-feature comparison fixtures, not full encoder or ASR parity evidence.
 
+internal/speechactivity and internal/hostmath/memory_filter.go re-express the
+finite-memory frame classifier and offline/live boundary policies from
+FireRedVAD c30ec49e8cc69642b0ee65362eba11b9d11c6e54. Copyright 2026 Xiaohongshu;
+authors Kaituo Xu, Wenpeng Li, Kai Huang and Kun Liu. Apache License 2.0;
+terms are included in audio-cpp-Apache-2.0.txt. Changes: operation-declared
+topology, bounded caller-owned state, strict validation, CPU float64 reductions,
+serialized restart and cancellation. Offline valley splitting uses integer
+frame indices; symmetric extension clips to the recording length rather than
+expanding short signals to the convolution kernel's length.
+
+Frame conditioning, powered Hann windows, mel-linear interpolation and fixed
+normalization in internal/audiodsp follow the model-native frontend using
+kaldi-native-fbank v1.15, f68c6b43f739697d7ab02ff6debacee130e1d541 (Apache-2.0).
+The numerical implementation retains Overgo's float64 direct DFT, not the
+reference FFT. VAD fixtures bind reference source commits, model/corpus hashes
+and reference runtime versions. No Python, PyTorch or kaldi-native-fbank runtime
+is shipped or invoked by Go execution. Numerical comparison is not an annotated
+speech-detection quality, throughput or GPU claim.
+
 internal/speechrecognition and grouped/delta processing in internal/audiodsp
 re-express the CPU encoder and processor semantics of Transformers 5.16.1
 Granite Speech 5 (copyright 2026 IBM and The HuggingFace Team, Apache-2.0).
@@ -44,3 +63,24 @@ bitio copyright 2016 Andras Belicza. The Apache-2.0 terms are included in
 audio-cpp-Apache-2.0.txt; public-domain terms are included in Unlicense.txt.
 Dependency source archives retain their licenses. SBOM.cdx.json records
 the exact module graph. These notices do not relicense Overgo.
+
+The acoustic speaker-activity composition and speaker interval decoding in
+internal/speechrecognition follow audio.cpp
+3497b7cc44753e2c141d8fe60ac42cec433e3281, Copyright 2026 ShugoAI LLC,
+Apache-2.0 (audio.cpp.txt). Changes include declaration-bound tensor roles,
+existing Go acoustic and attention operations, unpadded valid-frame execution,
+bounded reusable workspaces, integer sample-grid boundaries and clipping to
+the actual source extent. Float32 pre-emphasis and normalization are explicit
+audiodsp declarations; its existing float64 DFT and filterbank remain in use.
+Speaker labels are recording-local, not identified people. The independently
+captured reference and executable hashes are in
+internal/audioparity/testdata/speaker_reference.json.
+
+The research conformance fixture uses nvidia/diar_sortformer_4spk-v1 revision
+9f17b10df44c0a4c8f3c86fbddc9ee2d6ab9ac08. Its weights are CC-BY-NC-4.0;
+neither this port nor Apache-2.0 source licensing removes that restriction.
+The model card identifies AMI as training material. The AMI continuous audio
+and annotations are CC-BY-4.0; word times are forced-alignment-derived and
+manual segment boundaries include pauses. The selected windows establish
+bounded conformance, not held-out generalization or commercial readiness.
+No weights or corpus audio are redistributed in this repository.

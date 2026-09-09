@@ -18,8 +18,8 @@ import (
 // provenance through its artifact URL (the native speech route still
 // names its artifact in a header for API clients), a mode the served
 // recipe lacks is refused by the server with a typed error, and a model
-// switch re-derives the page from the refreshed capability document
-// without a reload.
+// switch is exercised by TestWebUIBrowserDraftLifecycle against refreshed
+// capability declarations, including delayed and failed mounts.
 func TestFrontPageModalities(t *testing.T) {
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
 
@@ -68,10 +68,5 @@ func TestFrontPageModalities(t *testing.T) {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("chat missing %q", needle)
 		}
-	}
-	boot := get("/boot.js")
-	derive := strings.Index(boot, "capabilityDocument = workspaceManifest.model")
-	if derive < 0 || !strings.Contains(boot[derive:], "remountActive();") {
-		t.Error("boot.js does not re-derive the page from the refreshed capability document after a model switch")
 	}
 }

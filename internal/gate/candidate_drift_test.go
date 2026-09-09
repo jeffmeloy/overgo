@@ -664,9 +664,7 @@ func runGitFixture(t *testing.T, repo string, arguments ...string) {
 	}
 }
 
-// TestGateStartIndexAdoptsStatRefreshUnderSameTree pins: a status refresh
-// that rewrites the index's stat cache without changing the staged tree is
-// adopted as the exact write-ahead state instead of refusing the commit.
+// TestGateStartIndexAdoptsStatRefreshUnderSameTree pins stat-only refresh recovery.
 func TestGateStartIndexAdoptsStatRefreshUnderSameTree(t *testing.T) {
 	repo, _, _ := newIndexCASFixture(t)
 	steady := filepath.Join(repo, "steady.txt")
@@ -699,6 +697,6 @@ func TestGateStartIndexAdoptsStatRefreshUnderSameTree(t *testing.T) {
 		t.Fatalf("adopted snapshot does not match the refreshed index: tree %s vs %s", gate.indexBefore.Tree, after.Tree)
 	}
 	if bytes.Equal(after.Data, before.Data) {
-		t.Log("the status refresh left the index bytes unchanged; adoption was not exercised")
+		t.Fatal("stat refresh did not change index bytes; adoption was not exercised")
 	}
 }

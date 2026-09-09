@@ -37,7 +37,7 @@ var Policy = func() ServePolicy {
 // Request is the page form of a question about an image: the stored image
 // artifact, the question, and the decode budget, the policy's when zero.
 type Request struct {
-	Image     artifact.ID `json:"image"`
+	Image     artifact.ID `json:"image" label:"image" media:"image"`
 	Question  string      `json:"question"`
 	MaxTokens int         `json:"max_tokens,omitzero"`
 }

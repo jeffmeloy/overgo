@@ -5,6 +5,8 @@ import (
 	"slices"
 
 	"overgo/internal/media"
+	"overgo/internal/recipe"
+	"overgo/internal/runrecord"
 )
 
 // The capability document (professional GUI campaign, gui-simplify/
@@ -15,13 +17,19 @@ import (
 // tab is accepted or refused from this document before any request is
 // sent, and a new server capability reaches the GUI by declaration alone.
 type workspaceModelCapabilities struct {
-	ID            string                   `json:"id"`
-	Name          string                   `json:"name"`
-	ContextLength uint32                   `json:"context_length"`
-	Generation    propertiesSamplingParams `json:"generation"`
-	Modalities    map[string]bool          `json:"modalities"`
-	Media         workspaceMediaLimits     `json:"media"`
-	Modes         []workspaceMode          `json:"modes"`
+	ID              string                   `json:"id"`
+	Name            string                   `json:"name"`
+	Recipe          string                   `json:"recipe,omitzero"`
+	Model           string                   `json:"model,omitzero"`
+	MaxOutputTokens int                      `json:"max_output_tokens"`
+	ContextLength   uint32                   `json:"context_length"`
+	Generation      propertiesSamplingParams `json:"generation"`
+	Modalities      map[string]bool          `json:"modalities"`
+	Media           workspaceMediaLimits     `json:"media"`
+	Modes           []workspaceMode          `json:"modes"`
+	// Remote: served through the relay at a hosted provider; the page marks
+	// its turns (not reproducible from the store).
+	Remote bool `json:"remote"`
 }
 
 // workspaceMediaLimits: the media kinds the served model accepts as prompt
@@ -61,21 +69,6 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	// Video rides the image projector frame by frame: GIF frames decode
 	// natively, MP4 only through FFmpeg.
 	video := image
-	accept := []string{}
-	if image {
-		accept = append(accept, media.PNGMediaType, "image/jpeg", media.GIFMediaType)
-	}
-	if audio {
-		accept = append(accept, "audio/wav")
-	}
-	if video {
-		accept = append(accept, media.GIFMediaType)
-		if h.config.FFmpegPath != "" {
-			accept = append(accept, media.MP4MediaType)
-		}
-	}
-	// Documents need no projector: text kinds pass through, PDF is extracted.
-	accept = append(accept, "text/plain", "text/markdown", "text/csv", "application/json", media.PDFMediaType)
 	refusals := map[string]string{}
 	if !image {
 		refusals["image"] = "the served model has no image projector loaded"
@@ -89,17 +82,24 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		refusals[media.MP4MediaType] = "MP4 decoding needs FFmpeg, which is not configured"
 	}
 	document := workspaceModelCapabilities{
-		ID:            h.config.ModelID,
-		Name:          model.Name,
-		ContextLength: model.ContextLength,
-		Generation:    h.defaultSamplingParams(),
-		Modalities:    map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
+		ID:              h.config.ModelID,
+		Name:            model.Name,
+		ContextLength:   model.ContextLength,
+		Remote:          model.Architecture == runrecord.BackendRemote,
+		Generation:      h.defaultSamplingParams(),
+		MaxOutputTokens: h.config.MaxTokens,
+		Modalities:      map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
 		Media: workspaceMediaLimits{
-			Accept: dedupeStrings(accept), Refusals: refusals,
+			Accept: h.acceptedMedia(image, audio, video), Refusals: refusals,
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},
 	}
+	if modelID, recipeID, ok := h.servingIdentity(recipe.TaskInference); ok {
+		document.Model, document.Recipe = modelID.String(), recipeID.String()
+	}
+	document.Generation.MaxTokens = min(document.Generation.MaxTokens, document.MaxOutputTokens)
+	document.Generation.NPredict = min(document.Generation.NPredict, document.MaxOutputTokens)
 	modes := []struct {
 		id, label, capability string
 	}{
@@ -109,6 +109,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		{"video-edit", "Video edit", "workflow.video-edit"},
 		{"speech", "Speech", "workflow.speech"},
 		{"vqa", "Ask about an image", "workflow.vqa"},
+		{"transcription", "Transcribe", "workflow.transcription"},
 		{"embeddings", "Embeddings", "embeddings"},
 		{"rerank", "Rerank", "rerank"},
 	}
@@ -126,6 +127,26 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 	}
 	document.Modes = append(document.Modes, agentMode)
 	return document, true
+}
+
+// acceptedMedia: media types accepted for the given projectors; documents
+// need none (text passes through, PDF is extracted); MP4 needs FFmpeg.
+// All three true = every type the server decodes (the attachment intake).
+func (h *Handler) acceptedMedia(image, audio, video bool) []string {
+	accept := []string{}
+	if image {
+		accept = append(accept, media.PNGMediaType, "image/jpeg", media.GIFMediaType)
+	}
+	if audio {
+		accept = append(accept, "audio/wav")
+	}
+	if video {
+		accept = append(accept, media.GIFMediaType)
+		if h.config.FFmpegPath != "" {
+			accept = append(accept, media.MP4MediaType)
+		}
+	}
+	return dedupeStrings(append(accept, "text/plain", "text/markdown", "text/csv", "application/json", media.PDFMediaType))
 }
 
 func dedupeStrings(values []string) []string {

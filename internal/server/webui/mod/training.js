@@ -5,8 +5,7 @@
 
   async function readTrace(overgo, id) {
     const trace = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(id));
-    return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null;
-  }
+    return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null; }
 
   async function traceFromRun(overgo, run) {
     for (const edge of run.children || []) {
@@ -20,15 +19,16 @@
   }
 
   function seriesBlock(overgo, title, series) {
-    const legend = overgo.el("div", { class: "series-legend" }, ...series.map((item) =>
-      overgo.el("span", {}, overgo.el("i", { style: "background:" + item.color }), item.label)));
+    const legend = overgo.el("div", { class: "series-legend" }, ...series.map((item) => {
+      const swatch = overgo.el("i", { class: "swatch" }); swatch.style.background = item.color; // the series' own colour
+      return overgo.el("span", {}, swatch, item.label); }));
     return overgo.el("section", { class: "evidence-block" },
       overgo.el("div", { class: "section-title", text: title }), legend,
       overgo.viz.signedSeries(series));
   }
 
   function pairInspector(overgo, observations) {
-    const select = overgo.el("select", { class: "text" });
+    const select = overgo.el("select", { class: "text", "aria-label": "observation step" });
     observations.forEach((observation, index) => select.appendChild(overgo.el("option", {
       value: index, text: "step " + observation.step,
     })));
@@ -134,7 +134,7 @@
       }}, "next");
       panel.append(
         el("div", { class: "section-title", text: "Training runs" }),
-        el("div", { class: "row", style: "margin-bottom:10px" }, prev, next, status));
+        el("div", { class: "row mb-10" }, prev, next, status));
       const host = el("div");
       const detail = el("div");
       panel.append(host, detail);
@@ -146,11 +146,7 @@
           const checkpoint = (run.outputs || []).find((value) => String(value).startsWith("checkpoint:"));
           const record = found && { id: found.id, trace: found.trace, checkpoint, run: run.id };
           const evidence = el("div");
-          const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => {
-            baseline = record;
-            pin.textContent = "Comparison baseline";
-            pin.disabled = true;
-          }});
+          const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => { baseline = record; pin.textContent = "Comparison baseline"; pin.disabled = true; } });
           detail.replaceChildren(
             el("div", { class: "section-title", text: "Run detail" }),
             el("div", { class: "statgrid" },
@@ -162,9 +158,7 @@
         } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
-      function outcomeClass(outcome) {
-        return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : "");
-      }
+      function outcomeClass(outcome) { return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : ""); }
       async function load() {
         host.replaceChildren(el("div", { class: "note", text: "loading /runs" }));
         let data;
@@ -172,11 +166,7 @@
           const query = new URLSearchParams({ limit: String(limit) });
           if (cursor) query.set("cursor", cursor);
           data = await overgo.api.get("/runs?" + query);
-        } catch (err) {
-          const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err);
-          host.replaceChildren(overgo.errorBanner(message));
-          return;
-        }
+        } catch (err) { const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err); host.replaceChildren(overgo.errorBanner(message)); return; }
         nextCursor = data.next || "";
         const first = data.count === 0 ? 0 : start + 1;
         const last = start + data.runs.length;

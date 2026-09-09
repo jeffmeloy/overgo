@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
@@ -40,6 +41,10 @@ func BindGenerationCatalog[
 	},
 	Control interface {
 		Declared() (name, kind string, required bool, choices []string)
+		// Slot reports an artifact control's label and media kind (empty for a typed field).
+		Slot() (label, media string)
+		// Bounded reports a numeric control's declared default, step and rate; declared is false without them.
+		Bounded() (defaultValue, step, rate int, declared bool)
 	},
 ](
 	catalog map[recipe.Task]Capability,
@@ -57,7 +62,12 @@ func BindGenerationCatalog[
 			bound := make([]WorkflowControl, 0, len(declared))
 			for _, control := range declared {
 				name, kind, required, choices := control.Declared()
-				bound = append(bound, WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices})
+				label, media := control.Slot()
+				wire := WorkflowControl{Name: name, Type: WorkflowControlType(kind), Required: required, Choices: choices, Label: label, Media: media}
+				if defaultValue, step, rate, declared := control.Bounded(); declared {
+					wire.Bounds = &WorkflowControlBounds{Default: defaultValue, Step: step, Rate: rate}
+				}
+				bound = append(bound, wire)
 			}
 			return bound, refusal
 		},
@@ -76,6 +86,8 @@ type StoreGenerationWorkspace struct {
 	store   *overgodb.Store
 	catalog GenerationCatalog
 	limit   int
+	mu      sync.Mutex
+	memo    *discovery.Memo
 }
 
 // NewStoreGenerationWorkspace binds the workspace to the store and to the
@@ -91,6 +103,19 @@ var generationTasks = []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, re
 // generationRunKeyPrefix roots every generation run record's batch key.
 const generationRunKeyPrefix = "generation/run/"
 
+// recordedInput is the request document the runtime recorded for an
+// executed output (the decoded request under the capability's input
+// schema): the run cites it as its input, so a gallery re-opens the
+// record beside the output and a page regenerates from it. A bare
+// output outside the measured envelope records none.
+func recordedInput(output any) (artifact.Content, bool) {
+	measured, ok := output.(capabilityruntime.Measured)
+	if !ok || measured.Input.Descriptor.ID == (artifact.ID{}) {
+		return artifact.Content{}, false
+	}
+	return measured.Input, true
+}
+
 // WorkflowCapabilities lists one capability per active media recipe with
 // present bytes, controls declared by the executor's request type, and a
 // refusal on the entry when its request carries what a page cannot type.
@@ -98,8 +123,16 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 	if workspace == nil || kind != WorkflowGeneration {
 		return nil, nil
 	}
-	memo := discovery.LoadMemo(ctx, workspace.store)
-	entries, _, err := discovery.CapabilityCatalog(ctx, workspace.store, workspace.limit, memo)
+	// Retain verified file identities; refresh activations on every read.
+	workspace.mu.Lock()
+	defer workspace.mu.Unlock()
+	if err := workspace.store.Refresh(ctx); err != nil {
+		return nil, err
+	}
+	if workspace.memo == nil {
+		workspace.memo = discovery.LoadMemo(ctx, workspace.store)
+	}
+	entries, _, err := discovery.CapabilityCatalogForTasks(ctx, workspace.store, workspace.limit, workspace.memo, generationTasks...)
 	if err != nil {
 		return nil, err
 	}
@@ -183,21 +216,33 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 	if err != nil {
 		return operation.Completion{}, err
 	}
+	// The submission's sources (a prompt enhancement the page accepted) are
+	// the run's inputs beside its request, so the original stays its source.
+	sources := workflowSources(ctx)
 	output, err := workspace.catalog.Execute[task](ctx, workspace.store, path, selection, string(raw))
 	if err != nil {
-		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
+		return failWorkflow(ctx, workspace.store, recipeID, sources, "generation_failed", err)
 	}
 	content, err := workspace.catalog.OutputContent(capabilityruntime.Unwrap(output))
 	if err != nil {
-		return failWorkflow(ctx, workspace.store, recipeID, nil, "generation_failed", err)
+		return failWorkflow(ctx, workspace.store, recipeID, sources, "generation_failed", err)
 	}
-	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, nil, []artifact.ID{content.Descriptor.ID}, "")
+	// The recorded request is the run's input: the record a gallery opens.
+	inputs := slices.Clone(sources)
+	request, recorded := recordedInput(output)
+	if recorded {
+		inputs = append(inputs, request.Descriptor.ID)
+	}
+	run, err := runrecord.NewRun(recipeID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{content.Descriptor.ID}, "")
 	if err != nil {
 		return operation.Completion{}, err
 	}
 	batch, err := run.Batch(generationRunKeyPrefix + run.ID.String())
 	if err != nil {
 		return operation.Completion{}, err
+	}
+	if recorded {
+		batch.Contents = append(batch.Contents, request)
 	}
 	batch.Contents = append(batch.Contents, content)
 	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {

@@ -18,9 +18,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// Options carries the parsed command surface into the one gate
-// transaction path. cmd/gate owns the flags; this package owns everything
-// after them.
+// Options binds command flags to the gate transaction.
 type Options struct {
 	MessageFile        string
 	PathsCSV           string
@@ -36,7 +34,7 @@ type Options struct {
 	AdmitReview        string
 	Watchdog           bool
 	InspectPlan        bool
-	// Preflight: validate phases on the working tree; no admission, store or candidate.
+	// Preflight diagnoses validation failures without admission.
 	Preflight  bool
 	StaleAfter time.Duration
 }
@@ -58,6 +56,9 @@ func Run(options Options) error {
 	watchdog := &options.Watchdog
 	inspectPlan := &options.InspectPlan
 	preflight := &options.Preflight
+	if *inspectPlan && *preflight {
+		return errors.New("gate: -inspect-plan and -preflight are mutually exclusive")
+	}
 	readOnlyPlan := *inspectPlan || *preflight
 	staleAfter := &options.StaleAfter
 	repo, err := os.Getwd()
@@ -176,7 +177,7 @@ func Run(options Options) error {
 			return fmt.Errorf("gate: open admission store: %w", err)
 		}
 		if err := reportGateAdmissionPhase("validate pending lifecycle state", func() error {
-			return requireNoPendingGateStateWithStore(repo, admissionStore)
+			return admitPendingGateState(repo, cleanStore, admissionStore)
 		}); err != nil {
 			return err
 		}

@@ -18,27 +18,42 @@ type FeedForwardBinding struct {
 
 // AttentionBinding declares block-local query-dependent relative attention.
 type AttentionBinding struct {
-	Norm        AffineBinding `json:"norm"`
-	Query       AffineBinding `json:"query"`
-	Key         AffineBinding `json:"key"`
-	Value       AffineBinding `json:"value"`
-	Out         AffineBinding `json:"out"`
-	Relative    string        `json:"relative"`
-	Heads       int           `json:"heads"`
-	BlockFrames int           `json:"block_frames"`
+	Norm              AffineBinding             `json:"norm"`
+	Query             AffineBinding             `json:"query"`
+	Key               AffineBinding             `json:"key"`
+	Value             AffineBinding             `json:"value"`
+	Out               AffineBinding             `json:"out"`
+	Relative          string                    `json:"relative"`
+	Heads             int                       `json:"heads"`
+	BlockFrames       int                       `json:"block_frames"`
+	ProjectedRelative *ProjectedRelativeBinding `json:"projected_relative,omitzero"`
+}
+
+// ProjectedRelativeBinding declares sinusoidal relative keys with learned
+// content/position query biases and whole-chunk left-context attention.
+type ProjectedRelativeBinding struct {
+	Projection   AffineBinding `json:"projection"`
+	ContentBias  string        `json:"content_bias"`
+	PositionBias string        `json:"position_bias"`
+	Base         float64       `json:"base"`
+	LeftContext  int           `json:"left_context"`
+	MaxPositions int           `json:"max_positions"`
 }
 
 // ConvolutionBinding declares GLU, centered depthwise convolution, frozen batch
 // normalization and output projection. Stride also selects residual mean pooling.
 type ConvolutionBinding struct {
-	Norm      AffineBinding `json:"norm"`
-	In        AffineBinding `json:"in"`
-	Kernel    string        `json:"kernel"`
-	BatchNorm AffineBinding `json:"batch_norm"`
-	Mean      string        `json:"mean"`
-	Variance  string        `json:"variance"`
-	Out       AffineBinding `json:"out"`
-	Stride    int           `json:"stride"`
+	Norm       AffineBinding `json:"norm"`
+	In         AffineBinding `json:"in"`
+	Kernel     string        `json:"kernel"`
+	KernelBias string        `json:"kernel_bias,omitzero"`
+	BatchNorm  AffineBinding `json:"batch_norm"`
+	Mean       string        `json:"mean"`
+	Variance   string        `json:"variance"`
+	Out        AffineBinding `json:"out"`
+	Stride     int           `json:"stride"`
+	Causal     bool          `json:"causal,omitzero"`
+	LayerNorm  AffineBinding `json:"layer_norm,omitzero"`
 }
 
 // BlockBinding declares a macaron feed-forward/attention/convolution block.
@@ -63,4 +78,6 @@ type Declaration struct {
 	FeedForwardScale float32        `json:"feed_forward_scale"`
 	LayerNormEpsilon float64        `json:"layer_norm_epsilon"`
 	BatchNormEpsilon float64        `json:"batch_norm_epsilon"`
+	// ScaleInputByWidth multiplies projected inputs by sqrt(hidden width).
+	ScaleInputByWidth bool `json:"scale_input_by_width,omitzero"`
 }

@@ -75,12 +75,12 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
-	if strings.Contains(document.Campaign, "audio.cpp") {
-		assertAudioCapabilityCampaign(t, document)
+	if strings.HasPrefix(document.Campaign, "Structural GUI redesign") || strings.HasPrefix(document.Campaign, "GUI capability roadmap:") {
+		assertConversationGUICampaign(t, document)
 		return
 	}
-	if strings.Contains(document.Campaign, "Hatchet-derived") {
-		assertHatchetWorkflowCampaign(t, document)
+	if strings.Contains(document.Campaign, "audio.cpp") {
+		assertAudioCapabilityCampaign(t, document)
 		return
 	}
 	// Each campaign pins its own structure ratchet, keyed by campaign
@@ -94,6 +94,10 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	}
 	if strings.Contains(document.Campaign, "Integrated validation") {
 		assertValidationCampaignSnapshot(t, document)
+		return
+	}
+	if strings.Contains(document.Campaign, "Hatchet-derived") {
+		assertHatchetWorkflowCampaign(t, document)
 		return
 	}
 	assertIntegratedReconciliationSnapshot(t, document)
@@ -430,10 +434,9 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"live-safety/circuit-breaker")
 }
 
-// assertHatchetWorkflowCampaign: overgo_hatchet lane ratchet; doctrine phrases
-// bound -> campaign rows open + file-guarded verifier in owning package ->
-// contract items before consumers -> first frontier parallel; retained master
-// items keep own verifiers.
+// pins the overgo_hatchet lane: doctrine phrases stay stated, every campaign
+// row keeps an open file-guarded verifier, contract items precede their
+// consumers and the first frontier runs in parallel.
 func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 	t.Helper()
 	for _, required := range []string{
@@ -543,16 +546,34 @@ func assertAudioCapabilityCampaign(t *testing.T, document Plan) {
 	}
 }
 
-// assertValidationCampaignSnapshot pins the validation-only freeze campaign:
-// only its declared drill steps may appear (completed rows leave plan.json,
-// so absence is fine and unknown ids are the violation), every retained step
-// carries a non-empty machine-checked verify, and the doctrine keeps the
-// freeze and the audit rules stated.
-// assertProfessionalGUICampaignSnapshot pins the professional GUI lane's
-// structure ratchet (owner directive 2026-09-04): the lane worktree
-// professional_overgo_gui carries this campaign, every row is one of the
-// steps named here with a machine-checked verify, and the doctrine keeps
-// the thin-client, retained-workbench, and UNAVAILABLE rules stated.
+// The conversation redesign supersedes the old GUI snapshot. Validate its
+// graph and worktree boundaries without treating unrelated RSI row IDs as
+// the authority for newly planned GUI capabilities.
+func assertConversationGUICampaign(t *testing.T, document Plan) {
+	t.Helper()
+	if err := Validate(document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Lane != "professional_overgo_gui" {
+		t.Errorf("conversation GUI campaign has unexpected lane %q", document.Lane)
+	}
+	for _, item := range document.Items {
+		if item.Owner != "" && item.Owner != document.Lane && item.Owner != "master" && item.Owner != "operator" {
+			t.Errorf("GUI item %s has an unexpected owner %q", item.ID, item.Owner)
+		}
+		if strings.HasPrefix(item.ID, "merge-") && !preparedMergeBoundary(item) {
+			t.Errorf("invalid prepared GUI merge boundary %+v", item)
+		}
+	}
+	for _, required := range []string{"flat", "conversation", "mobile", "settings", "status"} {
+		if !strings.Contains(strings.ToLower(document.Doctrine), required) {
+			t.Errorf("conversation GUI doctrine omits %q", required)
+		}
+	}
+}
+
+// assertProfessionalGUICampaignSnapshot pins the earlier GUI campaign's
+// declared steps and thin-client, retained-workbench and UNAVAILABLE rules.
 func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{
@@ -597,6 +618,9 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 		"openrouter-page/do",
 		"openrouter-evals/do",
 		"audio-staged-surface/do",
+		"webui-style-consistency/do",
+		"integrate-to-master/do",
+		"merge-2553fd7d28ba/do",
 		"merge-4e0b9a670603/do",
 		"merge-b3977f8cff14/do",
 		"merge-7d3ca937764c/do",
@@ -650,6 +674,8 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 	}
 }
 
+// assertValidationCampaignSnapshot pins the validation-only freeze campaign's
+// declared steps, machine-checked verifiers and audit rules.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
 	wantIDs := []string{
@@ -731,6 +757,10 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"model-regression-gate/coverage-inventory",
 		"model-regression-gate/coverage-selection",
 		"model-regression-gate/coverage-acquisition",
+		"model-regression-gate/coverage-12b-fp8",
+		"model-regression-gate/repair-retained-output-arena",
+		"model-regression-gate/repair-retained-packing",
+		"model-regression-gate/readmit-retained-controls",
 		"model-regression-gate/readmit-controls",
 		"model-regression-gate/repair-pool-release",
 		"model-regression-gate/readmit-pool-controls",
@@ -758,6 +788,10 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/e4b-scored-audio-producer",
 		"modality-verification/e4b-serving-repair",
 		"modality-verification/e4b-serving-admission",
+		"gpu-capacity-admission/do",
+		"validation-publication-lifetime/do",
+		"gui-conversation-recovery-intake/merge",
+		"audio-cpu-production-intake/merge",
 		"gui-worktree-integration/merge",
 		"gui-vqa-integration/merge",
 		"gui-validation-handoff/do",
@@ -787,6 +821,14 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-automation/guard-admission-efficiency",
 		"validation-automation/benchmark-protocol",
 		"validation-batch-control/batch-promotion",
+		"validation-batch-control/evidence-resource-producer",
+		"validation-batch-control/transaction-writer",
+		"validation-batch-control/workbench-writer-lifetime",
+		"validation-batch-control/abandoned-gate-recovery",
+		"validation-batch-control/selection-external-consumers",
+		"validation-batch-control/runtime-input-preflight",
+		"validation-batch-control/candidate-source-isolation",
+		"validation-batch-control/batch-terminal-obligations",
 		"boundary-hardening/cross-origin",
 		"boundary-hardening/argv-output",
 		"final-model-validation/do",
@@ -833,7 +875,27 @@ func preparedMergeBoundary(item Item) bool {
 	revision, found := strings.CutPrefix(item.ID, "merge-")
 	return found && len(revision) == 12 && strings.Trim(revision, "0123456789abcdef") == "" &&
 		item.Status == StatusOpen && len(item.Steps) == 1 && item.Steps[0].ID == "do" &&
-		item.Steps[0].Status == StatusOpen && item.Steps[0].Verify == "go run ./cmd/compatibility -check"
+		item.Steps[0].Status == StatusOpen &&
+		(item.Steps[0].Verify == "go run ./cmd/compatibility -check" ||
+			strings.HasPrefix(item.Steps[0].Verify, "go run ./cmd/compatibility -check && "))
+}
+
+func TestPreparedMergeBoundaryVerification(t *testing.T) {
+	item := Item{ID: "merge-fb7de0423660", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}}
+	for _, test := range []struct {
+		verify string
+		want   bool
+	}{
+		{"go run ./cmd/compatibility -check", true},
+		{"go run ./cmd/compatibility -check && go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", true},
+		{"go test ./internal/server -run '^TestConversationHistoryPaging$' -count=1", false},
+		{"go run ./cmd/compatibility -check || go test ./internal/server", false},
+	} {
+		item.Steps[0].Verify = test.verify
+		if got := preparedMergeBoundary(item); got != test.want {
+			t.Errorf("verification %q: prepared merge = %v, want %v", test.verify, got, test.want)
+		}
+	}
 }
 
 func assertIntegratedReconciliationSnapshot(t *testing.T, document Plan) {

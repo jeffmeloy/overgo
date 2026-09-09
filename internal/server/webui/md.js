@@ -3,9 +3,10 @@
    innerHTML — so model output can never inject markup, and link hrefs are
    scheme-checked (http/https/mailto only). Subset: fenced code blocks (with a
    copy button + language label), inline code, bold, italic, links, headings,
-   bullet/numbered lists, paragraphs, and hard line breaks. */
+   bullet/numbered lists, pipe tables, paragraphs, and hard line breaks. */
 (function () {
   "use strict";
+  const copiedLabelMS = 1200; // how long a copy button says "copied"
 
   function copyButton(text, label) {
     label = label || "copy";
@@ -17,10 +18,8 @@
       try {
         await navigator.clipboard.writeText(text);
         btn.textContent = "copied";
-      } catch (_) {
-        btn.textContent = "copy failed";
-      }
-      setTimeout(() => { btn.textContent = label; }, 1200);
+      } catch (_) { btn.textContent = "copy failed"; }
+      setTimeout(() => { btn.textContent = label; }, copiedLabelMS);
     });
     return btn;
   }
@@ -100,6 +99,45 @@
   }
 
   const isListLine = (line) => /^\s*([-*]|\d+\.)\s+/.test(line);
+  function tableCells(line) {
+    const cells = [""];
+    const text = line.trim();
+    for (let index = 0; index < text.length; index++) {
+      if (text[index] === "\\" && ["|", "\\"].includes(text[index + 1])) { cells[cells.length - 1] += text[++index]; }
+      else if (text[index] === "|") cells.push("");
+      else cells[cells.length - 1] += text[index];
+    }
+    if (text.startsWith("|")) cells.shift();
+    if (cells.length && cells[cells.length - 1] === "") cells.pop();
+    return cells.map(cell => cell.trim());
+  }
+  function tableHeader(lines, index) {
+    if (!lines[index].includes("|") || !lines[index + 1]) return false;
+    const separator = tableCells(lines[index + 1]);
+    return separator.length > 0 && separator.length === tableCells(lines[index]).length && separator.every(cell => /^:?-+:?$/.test(cell));
+  }
+  function tableBlock(headers, separators, rows) {
+    const container = document.createElement("div");
+    container.className = "md-table-scroll";
+    container.tabIndex = 0;
+    container.setAttribute("role", "region");
+    container.setAttribute("aria-label", "Response table");
+    const table = document.createElement("table");
+    const appendRow = (values, group, tag) => {
+      const row = document.createElement("tr");
+      headers.forEach((_, index) => {
+        const cell = document.createElement(tag);
+        if (tag === "th") cell.scope = "col";
+        cell.className = "md-align-left";
+        if (separators[index].endsWith(":")) cell.className = separators[index].startsWith(":") ? "md-align-center" : "md-align-right";
+        renderInline(cell, values[index] || ""); row.appendChild(cell);
+      });
+      group.appendChild(row);
+    };
+    const head = document.createElement("thead"), body = document.createElement("tbody");
+    appendRow(headers, head, "th"); rows.forEach(row => appendRow(row, body, "td"));
+    table.append(head, body); container.appendChild(table); return container;
+  }
 
   function md(text) {
     const root = document.createElement("div");
@@ -108,13 +146,21 @@
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
-      const fence = line.match(/^```(\w*)\s*$/);
+      const fence = line.match(/^(`{3,})(.*)$/);
       if (fence) {
         const buf = [];
         i++;
-        while (i < lines.length && !/^```\s*$/.test(lines[i])) { buf.push(lines[i]); i++; }
+        const closing = new RegExp("^`{" + fence[1].length + ",}\\s*$");
+        while (i < lines.length && !closing.test(lines[i])) { buf.push(lines[i]); i++; }
         i++; // consume closing fence (or end of input)
-        root.appendChild(codeBlock(buf.join("\n"), fence[1]));
+        root.appendChild(codeBlock(buf.join("\n"), fence[2].trim()));
+        continue;
+      }
+      if (tableHeader(lines, i)) {
+        const headers = tableCells(line), separators = tableCells(lines[i + 1]), rows = [];
+        i += 2;
+        while (i < lines.length && lines[i].includes("|") && lines[i].trim()) { rows.push(tableCells(lines[i])); i++; }
+        root.appendChild(tableBlock(headers, separators, rows));
         continue;
       }
       const heading = line.match(/^(#{1,6})\s+(.*)$/);
@@ -142,7 +188,7 @@
       if (/^\s*$/.test(line)) { i++; continue; }
       const para = [];
       while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^```/.test(lines[i]) &&
-        !/^#{1,6}\s+/.test(lines[i]) && !isListLine(lines[i])) {
+        !/^#{1,6}\s+/.test(lines[i]) && !isListLine(lines[i]) && !tableHeader(lines, i)) {
         para.push(lines[i]);
         i++;
       }

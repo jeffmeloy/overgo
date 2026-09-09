@@ -10,6 +10,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 	"overgo/internal/recipe"
 )
 
@@ -46,6 +47,52 @@ type LibraryIntake struct {
 	ModelFiles func(path, explicitProjector string) (model, projectorPath string, err error)
 	Register   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string) (map[string]any, error)
 	Validate   func(ctx context.Context, repository *overgodb.Store, path, projectorPath string, prompts []string, maxTokens int) (artifact.ID, operation.Executor, error)
+	// DeclareProvider declares a hosted provider's models in the store as
+	// the provider command does; absent, the provider kind answers that it
+	// needs it.
+	DeclareProvider func(ctx context.Context, repository *overgodb.Store, declaration ProviderDeclaration) ([]DeclaredProvider, error)
+	// ListProviderModels asks a hosted provider for the models it serves,
+	// under the key its variable holds; absent, the listing route answers
+	// that it needs it.
+	ListProviderModels func(ctx context.Context, endpoint, keyEnvironment string) ([]ProviderModel, error)
+	// RetireProvider retires a declared hosted model by its location with
+	// a reason, as the provider command does; absent, the retirement route
+	// answers that it needs it.
+	RetireProvider func(ctx context.Context, repository *overgodb.Store, location, reason string) error
+}
+
+// providerRetireRequest: the hosted model to retire and why.
+type providerRetireRequest struct {
+	Location string `json:"location"`
+	Reason   string `json:"reason"`
+}
+
+// ProviderModel is one model a hosted provider lists: its id, a display
+// name when listed, and the context length it declares (zero unstated).
+type ProviderModel struct {
+	ID            string `json:"id"`
+	Name          string `json:"name,omitzero"`
+	ContextLength uint32 `json:"context_length,omitzero"`
+}
+
+// ProviderDeclaration is a hosted provider and the model ids it serves,
+// as the library route takes it.
+type ProviderDeclaration struct {
+	Name           string
+	Endpoint       string
+	KeyEnvironment string
+	Models         []string
+	ContextLength  uint32
+}
+
+// DeclaredProvider is one declared hosted model the route answers: its
+// location, model and recipe identities, and the refusal its key's
+// absence carries now.
+type DeclaredProvider struct {
+	Location string `json:"location"`
+	Model    string `json:"model"`
+	Recipe   string `json:"recipe"`
+	Refusal  string `json:"refusal,omitzero"`
 }
 
 func (intake LibraryIntake) assembled() bool {
@@ -70,6 +117,12 @@ type libraryRegisterRequest struct {
 	Directory string `json:"directory,omitzero"`
 	Name      string `json:"name,omitzero"`
 	Modality  string `json:"modality,omitzero"`
+	// A provider declaration: the endpoint, the key's variable, the
+	// model ids and the declared context length.
+	Endpoint       string   `json:"endpoint,omitzero"`
+	KeyEnvironment string   `json:"key_environment,omitzero"`
+	Models         []string `json:"models,omitzero"`
+	ContextLength  uint32   `json:"context_length,omitzero"`
 }
 
 type libraryValidateRequest struct {
@@ -96,14 +149,33 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	if h.repository == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library registration needs a store")
+	libraryRegisterRoute(response, request, h.repository, h.config.LibraryIntake, body)
+}
+
+func requireLibraryStore(response http.ResponseWriter, request *http.Request, store *overgodb.Store) bool {
+	if store == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library writes need the store")
+		return false
+	}
+	if err := store.Refresh(request.Context()); err != nil {
+		if errors.Is(err, processlock.ErrBusy) {
+			writeError(response, http.StatusServiceUnavailable, "store_busy", "another database writer holds access; retry when it releases access")
+		} else {
+			writeError(response, http.StatusServiceUnavailable, "store_unavailable", err.Error())
+		}
+		return false
+	}
+	return true
+}
+
+// libraryRegisterRoute shares registration and store admission across served and idle workbenches.
+func libraryRegisterRoute(response http.ResponseWriter, request *http.Request, repository *overgodb.Store, intake LibraryIntake, body libraryRegisterRequest) {
+	if !requireLibraryStore(response, request, repository) {
 		return
 	}
 	switch body.Kind {
 	case "model":
-		intake := h.config.LibraryIntake
-		if !intake.assembled() {
+		if intake.ModelFiles == nil || intake.Register == nil {
 			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library registration needs the model intake")
 			return
 		}
@@ -112,7 +184,7 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 			writeInvalidRequest(response, err)
 			return
 		}
-		receipt, err := intake.Register(request.Context(), h.repository, path, projectorPath)
+		receipt, err := intake.Register(request.Context(), repository, path, projectorPath)
 		if err != nil {
 			writeLibraryError(response, err)
 			return
@@ -120,7 +192,7 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 		receipt["kind"] = body.Kind
 		writeJSON(response, http.StatusOK, receipt)
 	case "dataset":
-		registered, err := dataset.RegisterDirectoryDatasetAs(context.WithoutCancel(request.Context()), h.repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
+		registered, err := dataset.RegisterDirectoryDatasetAs(request.Context(), repository, strings.TrimSpace(body.Name), strings.TrimSpace(body.Directory), body.Modality)
 		if err != nil {
 			writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
 			return
@@ -129,9 +201,85 @@ func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Re
 			"kind": body.Kind, "name": body.Name, "dataset": registered.Dataset, "commit": registered.Commit,
 			"files": registered.Files, "bytes": registered.Bytes, "changed": registered.Changed,
 		})
+	case "provider":
+		declare := intake.DeclareProvider
+		if declare == nil {
+			writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider declaration needs the launcher's provider intake")
+			return
+		}
+		declared, err := declare(request.Context(), repository, ProviderDeclaration{
+			Name: body.Name, Endpoint: body.Endpoint, KeyEnvironment: body.KeyEnvironment, Models: body.Models, ContextLength: body.ContextLength,
+		})
+		if err != nil {
+			writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
+			return
+		}
+		writeJSON(response, http.StatusOK, map[string]any{"kind": body.Kind, "name": body.Name, "declared": declared})
 	default:
-		writeInvalidRequest(response, errors.New("library: kind must be model or dataset"))
+		writeInvalidRequest(response, errors.New("library: kind must be model, dataset or provider"))
 	}
+}
+
+// libraryProviderModels answers GET /library/providers/models: the
+// provider named by endpoint and key variable lists its models through
+// the launcher's intake, so the page declares from the provider's own
+// listing with each model's declared context length.
+func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *http.Request) {
+	libraryProviderModelsRoute(response, request, h.config.LibraryIntake.ListProviderModels)
+}
+
+// libraryProviderModelsRoute: the listing over one intake; the idle shell serves it too.
+func libraryProviderModelsRoute(response http.ResponseWriter, request *http.Request, list func(context.Context, string, string) ([]ProviderModel, error)) {
+	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	endpoint, variable := strings.TrimSpace(request.URL.Query().Get("endpoint")), strings.TrimSpace(request.URL.Query().Get("key_environment"))
+	if endpoint == "" || variable == "" {
+		writeInvalidRequestMessage(response, "library: endpoint and key_environment are required")
+		return
+	}
+	if list == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider listing needs the launcher's provider intake")
+		return
+	}
+	models, err := list(request.Context(), endpoint, variable)
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"endpoint": endpoint, "models": models})
+}
+
+// libraryProviderRetire answers POST /library/providers/retire: the
+// declared hosted model at the location retires through the launcher's
+// intake with the reason (a failed gate record, the alias released), so
+// the catalog and the picker stop offering it.
+func (h *Handler) libraryProviderRetire(response http.ResponseWriter, request *http.Request) {
+	var body providerRetireRequest
+	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	libraryProviderRetireRoute(response, request, h.repository, h.config.LibraryIntake.RetireProvider, body)
+}
+
+// libraryProviderRetireRoute: the retirement over one store and intake; the idle shell serves it too.
+func libraryProviderRetireRoute(response http.ResponseWriter, request *http.Request, repository *overgodb.Store, retire func(context.Context, *overgodb.Store, string, string) error, body providerRetireRequest) {
+	if strings.TrimSpace(body.Location) == "" || strings.TrimSpace(body.Reason) == "" {
+		writeInvalidRequestMessage(response, "library: location and reason are required")
+		return
+	}
+	if repository == nil || retire == nil {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "provider retirement needs a store and the launcher's provider intake")
+		return
+	}
+	if !requireLibraryStore(response, request, repository) {
+		return
+	}
+	if err := retire(request.Context(), repository, body.Location, body.Reason); err != nil {
+		writeError(response, http.StatusUnprocessableEntity, "library_refused", err.Error())
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]any{"location": body.Location, "retired": true})
 }
 
 // libraryValidate answers POST /library/validate: the validation runs as an
@@ -145,6 +293,9 @@ func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Re
 	intake := h.config.LibraryIntake
 	if h.repository == nil || h.operations == nil || !intake.assembled() {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "library validation needs a store, an operation runtime and the model intake")
+		return
+	}
+	if !requireLibraryStore(response, request, h.repository) {
 		return
 	}
 	var policy libraryValidationPolicy

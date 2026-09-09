@@ -15,6 +15,11 @@ import (
 // absent package refuses the memo with an audited reason.
 func TestCheckpointMemoCoversEveryCommand(t *testing.T) {
 	g, batch, _ := verificationBatchFixture(t, "pass")
+	// This case requires proven package independence. The general batch
+	// fixture reads runtime paths and must conservatively bind sibling inputs.
+	if err := os.WriteFile(filepath.Join(g.repo, "unit_test.go"), []byte("package batchfixture\nimport \"testing\"\nconst ProducerValue = 1\nfunc TestProducer(t *testing.T) { if ProducerValue != 1 { t.Fatal(ProducerValue) } }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	subDir := filepath.Join(g.repo, "sub")
 	if err := os.MkdirAll(subDir, 0o755); err != nil {
 		t.Fatal(err)

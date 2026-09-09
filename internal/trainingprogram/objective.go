@@ -25,6 +25,8 @@ type ObjectiveKind string
 
 const (
 	ObjectiveTokenPrediction ObjectiveKind = "token-prediction"
+	// ObjectiveCTC aligns unsegmented frame predictions with target tokens.
+	ObjectiveCTC             ObjectiveKind = "ctc"
 	ObjectiveFNS             ObjectiveKind = "fns"
 	ObjectiveLatentL2        ObjectiveKind = "latent-l2"
 	ObjectiveLatentSequence  ObjectiveKind = "latent-sequence-l2"
@@ -40,6 +42,7 @@ const (
 
 var objectiveKinds = []ObjectiveKind{
 	ObjectiveTokenPrediction,
+	ObjectiveCTC,
 	ObjectiveFNS,
 	ObjectiveLatentL2,
 	ObjectiveLatentSequence,
@@ -257,7 +260,7 @@ func validObjectiveKind(kind ObjectiveKind) bool {
 func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.ModalitySignature) bool {
 	input, output := signature.Inputs[0], signature.Outputs[0]
 	switch kind {
-	case ObjectiveTokenPrediction, ObjectiveDPO, ObjectiveGRPO:
+	case ObjectiveTokenPrediction, ObjectiveCTC, ObjectiveDPO, ObjectiveGRPO:
 		return output == recipecontract.ModalityText
 	case ObjectiveFNS:
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityText

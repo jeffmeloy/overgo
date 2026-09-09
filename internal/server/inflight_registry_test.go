@@ -10,20 +10,22 @@ import (
 func TestInflightRegistryConcurrentFinish(t *testing.T) {
 	for range 100 {
 		var registry inflightRegistry
-		before := registry.begin("before", 1)
+		before := registry.begin("before", 1, nil)
 		var during *inflightTurn
 		var workers sync.WaitGroup
-		workers.Go(func() { before.finish(nil, "") })
-		workers.Go(func() { during = registry.begin("during", 1) })
+		workers.Go(func() { before.finish(responsesResponse{Status: "completed"}, "") })
+		workers.Go(func() { during = registry.begin("during", 1, nil) })
 		workers.Wait()
-		during.finish(nil, "")
-		last := registry.begin("last", 1)
+		if during != nil {
+			during.finish(responsesResponse{Status: "completed"}, "")
+		}
+		last := registry.begin("last", 1, nil)
 		if got, found := registry.lookup("last"); !found || got != last {
 			t.Fatal("live turn lost during concurrent completion")
 		}
 		if len(registry.turns) != 1 {
 			t.Fatalf("completed turns retained: %d", len(registry.turns))
 		}
-		last.finish(nil, "")
+		last.finish(responsesResponse{Status: "completed"}, "")
 	}
 }

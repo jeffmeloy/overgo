@@ -12,8 +12,8 @@
       const { el, clear, displayToken } = overgo;
       clear(panel);
 
-      const layer = el("input", { class: "keyfield", type: "number", placeholder: "mid", min: "0", style: "width:80px" });
-      const maxPos = el("input", { class: "keyfield", type: "number", value: "32", min: "2", max: "48", style: "width:80px" });
+      const layer = el("input", { class: "keyfield w-80", type: "number", placeholder: "mid", min: "0" });
+      const maxPos = el("input", { class: "keyfield w-80", type: "number", value: "32", min: "2", max: "48", "aria-label": "positions" });
       let current = null; // last response, kept so the head selector can redraw.
       const { prompt, out } = overgo.analysisSurface(panel, seed, {
         defaultPrompt: "The quick brown fox jumps over the lazy dog", runLabel: "capture", busy: "capturing…",
@@ -33,7 +33,7 @@
         const labels = data.tokens.map((t) => (t.text ? displayToken(t.text) : String(t.id)));
 
         if (data.truncated) {
-          out.appendChild(el("div", { class: "note", style: "color:var(--amber)",
+          out.appendChild(el("div", { class: "note amber",
             text: "Prompt truncated to " + data.positions + " of " + data.requested_positions + " tokens (max " + data.max_positions + ")." }));
         }
 
@@ -44,18 +44,18 @@
           el("span", { class: "note", text: data.heads + " heads · " + data.kv_heads + " kv heads" + groupNote }),
           el("span", { class: "note", text: "scale " + data.scale.toFixed(4) })));
 
-        const head = el("select", { class: "keyfield", style: "width:110px", onchange: draw });
+        const head = el("select", { class: "keyfield w-110", "aria-label": "head", onchange: draw });
         for (let h = 0; h < data.heads; h++) head.appendChild(el("option", { value: String(h) }, "head " + h));
-        out.appendChild(el("div", { class: "row", style: "margin:8px 0" },
+        out.appendChild(el("div", { class: "row my-8" },
           el("span", { class: "note", text: "head" }), head));
 
         const map = el("div");
         out.appendChild(map);
         // Token legend so the axes of the (unlabeled) heatmap are readable.
         out.appendChild(el("div", { class: "section-title", text: "Token index → piece" }));
-        out.appendChild(el("div", { class: "note", style: "font-family:var(--mono);line-height:1.7",
+        out.appendChild(el("div", { class: "note mono-lines",
           text: labels.map((t, i) => i + ":" + t).join("  ") }));
-        out.appendChild(el("div", { class: "note", style: "margin-top:8px",
+        out.appendChild(el("div", { class: "note mt-8",
           text: "Rows = query token (i), columns = key token (j). Cell (i,j) is the attention weight from i to j; the upper triangle is zero by causality. Hover a cell for the exact value." }));
 
         function draw() {

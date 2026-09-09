@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 )
 
 type responsesRequest struct {
@@ -235,7 +236,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message)); err != nil {
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message), runrecord.OutcomeSucceeded); err != nil {
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
 		}
@@ -250,8 +251,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.pump.generated,
-			TotalTokens:       promptTokens + result.pump.generated,
+			OutputTokens:      result.outputTokens(),
+			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	})
@@ -269,12 +270,88 @@ func (h *Handler) streamResponses(
 	reasoningSummary bool,
 	parser ChatOutputParser,
 ) {
+	var output strings.Builder
+	var turnBuffer *inflightTurn
+	finished := false
+	var writeEvent func(string, any) error
+	fail := func(err error) {
+		status, outcome := "failed", runrecord.OutcomeFailed
+		// The execution context owns explicit Stop even when an executor has
+		// transported its error as text and lost context.Canceled's identity.
+		if errors.Is(err, context.Canceled) || errors.Is(plan.context().Err(), context.Canceled) {
+			status, outcome = "cancelled", runrecord.OutcomeCancelled
+		}
+		if turnBuffer != nil {
+			partial := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: output.String()}
+			if publishErr := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome); publishErr != nil {
+				err = errors.Join(err, publishErr)
+				status = "failed"
+			}
+			turnBuffer.finish(responsesResponse{ID: responseID, Object: "response", Model: h.config.ModelID, Status: status}, err.Error())
+		}
+		finished = true
+		if writeEvent != nil {
+			_ = writeEvent("response."+status, responsesStreamEvent{
+				Type: "response." + status, Response: responsesProgress{ID: responseID, Object: "response", Status: status}, Delta: err.Error(),
+			})
+		}
+	}
+	if store {
+		ctx, cancelCause := context.WithCancelCause(context.WithoutCancel(request.Context()))
+		cancel := func() { cancelCause(context.Canceled) }
+		defer cancel()
+		plan.request = request.WithContext(ctx)
+		turnBuffer = h.inflight.begin(responseID, h.config.MaxStoredResponses, cancel)
+		if turnBuffer == nil {
+			writeError(response, http.StatusServiceUnavailable, "busy", "stored response capacity is unavailable")
+			return
+		}
+		defer turnBuffer.stop()
+		// Reserve the response identity and prompt before the client can observe
+		// it. A restart leaves an inconclusive record, never a reused ID.
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive); err != nil {
+			turnBuffer.finish(responsesResponse{ID: responseID, Object: "response", Status: "failed"}, err.Error())
+			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
+			return
+		}
+		defer func() {
+			if !finished {
+				fail(errors.New("response ended without a confirmed terminal state"))
+			}
+		}()
+	}
 	flusher, ok := beginSSE(response)
 	if !ok {
 		return
 	}
+	if store {
+		// A mobile connection can stall without closing. Cancellation must
+		// interrupt its write as well as generation, then join the callback
+		// before net/http can reuse this response's connection.
+		writeInterrupted := make(chan struct{})
+		stopInterrupt := context.AfterFunc(plan.context(), func() {
+			_ = http.NewResponseController(response).SetWriteDeadline(time.Now())
+			close(writeInterrupted)
+		})
+		defer func() {
+			if !stopInterrupt() {
+				<-writeInterrupted
+			}
+		}()
+	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
-	writeEvent := stream.named
+	disconnected := false
+	writeEvent = func(name string, value any) error {
+		if disconnected {
+			return nil
+		}
+		err := stream.named(name, value)
+		if store && err != nil {
+			disconnected = true
+			return nil
+		}
+		return err
+	}
 	inProgress := responsesProgress{ID: responseID, Object: "response", Status: "in_progress"}
 	if err := writeEvent("response.created", responsesStreamEvent{
 		Type: "response.created", Response: inProgress,
@@ -286,29 +363,13 @@ func (h *Handler) streamResponses(
 	}); err != nil {
 		return
 	}
-	// A stored turn outlives its client: generation detaches from the
-	// request's cancellation, the text so far is held for a page that
-	// reattaches through /interactions/follow, and the interaction is
-	// published whether or not the first stream is still listening.
-	var turnBuffer *inflightTurn
-	if store {
-		turnBuffer = h.inflight.begin(responseID, h.config.MaxStoredResponses)
-		plan.request = request.WithContext(context.WithoutCancel(request.Context()))
-	}
-	detached := func(err error) error {
-		if err != nil && turnBuffer != nil {
-			return nil
-		}
-		return err
-	}
 
-	var output strings.Builder
 	var buffered strings.Builder
 	textStarted := false
 	var reasoningOutput *responseOutputItem
 	toolStream, streamErr := newToolDeltaStream(h.generator, tools)
 	if streamErr != nil {
-		_ = emitNamedGenerationError(writeEvent, "response.failed", streamErr)
+		fail(streamErr)
 		return
 	}
 	emitText := func(piece string) error {
@@ -442,27 +503,27 @@ func (h *Handler) streamResponses(
 				if streamErr := emitToolPiece(piece); streamErr != nil {
 					return streamErr
 				}
-				return detached(request.Context().Err())
+				return plan.context().Err()
 			}
 			if reasoningSummary {
 				buffered.WriteString(piece)
-				return detached(request.Context().Err())
+				return plan.context().Err()
 			}
-			return detached(emitText(piece))
+			if err := plan.context().Err(); err != nil {
+				return err
+			}
+			return emitText(piece)
 		},
 	)
 	if err != nil {
-		if turnBuffer != nil {
-			turnBuffer.finish(nil, err.Error())
-		}
-		_ = emitNamedGenerationError(writeEvent, "response.failed", err)
+		fail(err)
 		return
 	}
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
 		parsedMessage, err = toolStream.parse(parser, tools)
 		if err != nil {
-			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
+			fail(err)
 			return
 		}
 		if !toolStream.started {
@@ -473,7 +534,7 @@ func (h *Handler) streamResponses(
 	} else if reasoningSummary {
 		parsedMessage, err = parser.ParseChatOutput(buffered.String(), nil)
 		if err != nil {
-			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
+			fail(err)
 			return
 		}
 		if err := emitReasoning(parsedMessage.ReasoningContent); err != nil {
@@ -594,21 +655,25 @@ func (h *Handler) streamResponses(
 		Status:      "completed",
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.pump.generated,
-			TotalTokens:       promptTokens + result.pump.generated,
+			OutputTokens:      result.outputTokens(),
+			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
 	}
 	timings := h.slotStats[plan.session.ID].metrics(true).Timings
 	final.Timings = &timings
+	if err := plan.context().Err(); err != nil {
+		fail(err)
+		return
+	}
 	if store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage)); err != nil {
-			turnBuffer.finish(nil, err.Error())
-			_ = emitNamedGenerationError(writeEvent, "response.failed", err)
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage), runrecord.OutcomeSucceeded); err != nil {
+			fail(err)
 			return
 		}
 		turnBuffer.finish(final, "")
 	}
+	finished = true
 	_ = writeEvent("response.completed", responsesStreamEvent{
 		Type: "response.completed", Response: final,
 	})
@@ -671,6 +736,13 @@ func (h *Handler) previousResponseMessages(
 ) ([]inference.ChatMessage, artifact.ID, bool) {
 	if id == "" {
 		return nil, artifact.ID{}, true
+	}
+	if turn, found := h.inflight.lookup(id); found {
+		_, done, _, _, _ := turn.snapshot()
+		if !done {
+			writeError(response, http.StatusConflict, "response_in_progress", "resume or stop the previous response before continuing")
+			return nil, artifact.ID{}, false
+		}
 	}
 	messages, parent, ok := h.loadResponseInteraction(ctx, id)
 	if !ok {

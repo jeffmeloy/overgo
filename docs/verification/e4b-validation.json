@@ -1,0 +1,776 @@
+{
+  "model": "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b",
+  "projector": "projector:sha256:fd74ad68955dc65da2ccd2498b6ae39b05685120d2cc9ed1bd3c41f4c9933686",
+  "code_commit": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+  "mask_gate": "evidence:sha256:f9edb0ca833d390ece6876b9da35b29bce19c66eeff7953408edfe1f9983d04a",
+  "mask_run": "run:sha256:f7a4f17816f2e116af376eebeb1acd36e48b50cd6946031fa4a72a698f31d33c",
+  "cells": [
+    {
+      "name": "protocol/text/native",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/text/chat",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/text/responses",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "resources/text/native",
+      "evidence": "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b",
+      "run": "run:sha256:9bfe570233332189f30bf814a1d1dbd2102baed3216705c8dfe0cf144884255c",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "bounds": [
+        {
+          "metric": "peak-device-bytes",
+          "unit": "bytes",
+          "direction": "minimize",
+          "minimum": 1,
+          "maximum": 51539607552
+        },
+        {
+          "metric": "reload-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 3,
+          "maximum": 3
+        },
+        {
+          "metric": "cancellation-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "error-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "retained-allocation-growth",
+          "unit": "count",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0
+        }
+      ]
+    },
+    {
+      "plan": "profile:sha256:fde44f4a45a8f490d16e9ec10efce7e941cf3d7d52c4ac71c3e9b3dbc53a4555",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "dataset": "dataset:sha256:04fa82ae55c03c6bc043717b0de8caac3e2ee82f3fbedbcda104f53e76500a48",
+      "split": "dataset-shard:sha256:017ceda496024d522f927476859b7412b8c5a2bb0197b8c5fcbdd33ac432a141",
+      "shards": [
+        "dataset-shard:sha256:0077a0473fe1acbbacac1f43fc2c7fac2ce3d37ee0b73c439fd7036321321978",
+        "dataset-shard:sha256:0420c3646fb0bb14c0e015935fb8833fdb52f980305c0773fb38c999210b1b9a",
+        "dataset-shard:sha256:0567a4375826b4ff90a8f685f57ef88ea1d16f3efda5bc170a74af4f2e681b85",
+        "dataset-shard:sha256:07f8edbc1ab569942828e8d06ed6bf2d14aaeccf551e4df4d9eedf558b35a241",
+        "dataset-shard:sha256:0d853f1f02575fa9baa009dbc4188563a1f52aa6d82c11416b3f385825c0caa0",
+        "dataset-shard:sha256:13808e3826fa77e1e5f943f9057807c7ce4ff796f50cdea04cb64a2d3d62bbd2",
+        "dataset-shard:sha256:14cd21098968617e1ad741bbd19bc01736e3d471a60863e2551977bf78b56734",
+        "dataset-shard:sha256:1bc6bf853059b1901be3e8fb1da423ee88d938fc5e48494859ca81fb175f5f76",
+        "dataset-shard:sha256:1c4cfa7b0a8a3a898c5fe6b358e23fa33a1d742bf5d4caa7587a6941ea4da377",
+        "dataset-shard:sha256:1c9322e3c378f12bfd1f845c874df3e34bee48c7d90ff8f057854a736c9c776f",
+        "dataset-shard:sha256:23656999474aac1da972676e92bdc4934e485e0a0b605992679ee8e78a1b21f2",
+        "dataset-shard:sha256:261c7d170fe233ac7679f29d6adbbdfc8ef24cd6e2a7b00965ccafc615db826e",
+        "dataset-shard:sha256:2cd0203f2dd0a77fd769a97f4496bec46d817b8594860e6ac8193b45138dd350",
+        "dataset-shard:sha256:2e77e35c2bfb2a24ce0066dc9000080477572337b1cb2685b903df32b297d83b",
+        "dataset-shard:sha256:2fdf7e356903d6ec0d588c909ed458cb39deb36fd85e818e58528eee0070f293",
+        "dataset-shard:sha256:32366a85e93bae0100a324fd8f21ae1d5ca160401b6f28c569c050716acc6381",
+        "dataset-shard:sha256:37385eded1b49432873a3cc813a575ad78a0dd4374648d9f1c7535d1e879357a",
+        "dataset-shard:sha256:390429d467389016d54618216ab0e693b192e66de10d9a3471740094857632f2",
+        "dataset-shard:sha256:3da364fcd86d7a23f96b1d031931aaf712ef859fcb10ab0f48c62b4fdb1bd591",
+        "dataset-shard:sha256:4215c763fc4c6342a037637d04e7566c8f85708796c456494e02ffe85347ca16",
+        "dataset-shard:sha256:4837fed92cb71b517390bf070b9a21b03d8eae2ee4b4cac8fef1869fcf96ef01",
+        "dataset-shard:sha256:491a02542049f3dcdf266be2e26165622e6d9a92cc6ec3d6e8f5e043dc15d8b1",
+        "dataset-shard:sha256:49fb41a62c79dea26741b371d63b923d35b69c16abc4ff66d08eef435abc14f4",
+        "dataset-shard:sha256:4a39a5e4acfa6471509db58a0e30075bf4b256928356ea491d33586d8d5edcdb",
+        "dataset-shard:sha256:4a8874516f15759998b10ffb2cb4d26d6003e82a0a6de707ddac4d655e08f994",
+        "dataset-shard:sha256:4ac6716997a3a3b028810561dbb87fa993280d67c814892ddbf59d1f43c671cc",
+        "dataset-shard:sha256:4c12df7e9ff8f309be07ebf3761ca5b336b782c09a46087c712572ff5faf44e4",
+        "dataset-shard:sha256:4c98ac0d65e624ab0cd36addfd31a1be0a339199b8823434d3be77e35f6ad58a",
+        "dataset-shard:sha256:4d5c90879dd0514cce7762c21cc4d560263deca6ec8bd601b4d4c58fe8f7a364",
+        "dataset-shard:sha256:5281763f3893f3a1e697929543a6799480992a79a9d75eb1f19336531cc3a9de",
+        "dataset-shard:sha256:5875569f976142ce4919bc2d622025c77f13d6cab67234e7b4d95c799737a6bf",
+        "dataset-shard:sha256:599e69d6ad511a3c399c542a0e36cd0c534fce5b30d6a753acd476ee18cb3aa8",
+        "dataset-shard:sha256:5d03c45d78253e2203a794cbe353e23fad7c99e86621a8e9c1efbce3c8edb087",
+        "dataset-shard:sha256:5dc342af4772cd7cc3a1867420e04975bf93c9a6f0ce19b711b1be1a9975ae28",
+        "dataset-shard:sha256:605ddbb9ec704a7b733610492ec384abefa39343516ea0a2b1daa7aacf6fa1bd",
+        "dataset-shard:sha256:63df2ca8b5eee65694db9355950207490c842c2cbeb827b6fa7318673c15e7ee",
+        "dataset-shard:sha256:6be40565297d443f37a44e2f2e6540c6f72e8988868ccb1c9479d85542325ea5",
+        "dataset-shard:sha256:702c7dddd7d58b992ec418192f3b51bd2eae71813b1fb75acacee9b9ede5657a",
+        "dataset-shard:sha256:764af8d0fbc0f3e87db6ed3f5fc1043aa63974b8c6b80a4942b70443df8dcdb7",
+        "dataset-shard:sha256:789c9aee4d536eda37e53a9e4f6b87ac4e5aaa7aa44c887c0e06ae5ae606367f",
+        "dataset-shard:sha256:79309af8b76df9c464d44bdd1b6d29be1aaf586efd59be8c26ffb5bc3722f9d1",
+        "dataset-shard:sha256:79fcde6528834cb658233ea8fd2d656b3f2a00a87b14ee61e83fd624e5c273cf",
+        "dataset-shard:sha256:7be75a34cd226ad6798e5517832b188fe01b66c9163ad38226daa30b64119638",
+        "dataset-shard:sha256:7cf62c3a6b30406da6cb4fa311b42c800bfd3765d5da9db9080a0348c202fa1e",
+        "dataset-shard:sha256:80609554a8e78397619a28cdf4233632dec6420abd9d82bc0268c585bc108ada",
+        "dataset-shard:sha256:869dcd49345fef8630f567f92c4f2889aa7fd1ca240760f1d1d7a292917961d4",
+        "dataset-shard:sha256:8a5ae8989a813a96dfd6400bccd24968a6a5f0bfa7275757b1f2be4d943c0d80",
+        "dataset-shard:sha256:8e50f471d1845e2240307a684c7a91a95777e51605e08f2000244036e238f538",
+        "dataset-shard:sha256:90b2d185ced4591bd0f6ed1d5d736970dcd4bcf7c429f57f22025bbc0ef624d6",
+        "dataset-shard:sha256:925c2de97b9e23c12c5318b3ccb149bc655e43f58fd3c2cbd13fac736e8488fb",
+        "dataset-shard:sha256:92692151d025ed1aa0bf6740d67f63b707f96dc2165859a724e31e5fd41983ca",
+        "dataset-shard:sha256:94172eaca790f1086458d623bfc83305ab143e209c5b230cc1544d0b7167a583",
+        "dataset-shard:sha256:95bee42a181aa9ee63f20385b7f930738dd0f99f4dd42ef2b1afd0e0fc3f42e5",
+        "dataset-shard:sha256:972ed5e6908b4c347c3834566363c2881d3d93136d48add3e06eb36f5e93d2b2",
+        "dataset-shard:sha256:97d5b0a42d5dcaf0755b7583da365a8ca84b74de6c66c2ac367353340f3907d1",
+        "dataset-shard:sha256:993a231a225fbf0c276b1c13df71a667ff4b3a71b065fa095f1bda6734f4bf65",
+        "dataset-shard:sha256:99a40ba0e133adf77cf6443e671a4e300a21ed7545ca639c95a568a76b80bad7",
+        "dataset-shard:sha256:9a2793c001159a0f1d78b5e25b84ed4abec2e859a1813ebc75f062c8dfae337f",
+        "dataset-shard:sha256:9b664a596fba70922b34bd2f97d6accde8cf5e19ae8751eabe293015705eb3df",
+        "dataset-shard:sha256:9e63c0c184ac7bb655f155ad5c01674a2c553ecde4e1d9bea56d288885cb1518",
+        "dataset-shard:sha256:9f22b4b706cbb85b72ff244c1eecf2e12394ac1d186c670fd35d5da922e80648",
+        "dataset-shard:sha256:a25ebb0d1e560ad9a26f5d8ce42558182cf736e153a70536e2ce0d2f126a9f47",
+        "dataset-shard:sha256:a7f020222935d390639c6a86138ae215069de3d2fb71d17e1639efcf9715af23",
+        "dataset-shard:sha256:a8eddc69f2e74149c877e81271ffd82badf6f265e3bd947fb8667beb4ed5e576",
+        "dataset-shard:sha256:aca95fda4bd875932cbc08cb954cf91d4cf24b0fdb39502eef33c3b61cfbbc85",
+        "dataset-shard:sha256:b0a5d2be0ce5e3c4fb41c0eb5017f92676522f3ecec72132f58d1c9c05ddd040",
+        "dataset-shard:sha256:b3553dc776d52aa0b00262fd3ca99bae106a95c880e891a97ddd1f4b786cda40",
+        "dataset-shard:sha256:b405b772ba8c552d1a1b52ce33c14ff6f7b72d17e7a7a13a90ab4650e9db45c5",
+        "dataset-shard:sha256:b53255805b5a06a510bf79b6c6513cf00e2bcda770029102e3db7db07c795146",
+        "dataset-shard:sha256:b7f131fcc9634231abe991c9b001a46522d9adc6b45dae764282a4718e275ec2",
+        "dataset-shard:sha256:b8ab6f745bfd3cc234ba4c505c9b33bab3dc3edf8143af22188f6593832e6c7d",
+        "dataset-shard:sha256:b9c9e579c8359312a2143582c8bd20bb487ed455708a3f08cd50dc8024a22323",
+        "dataset-shard:sha256:bb835fec4ac592274ae208e408e74c369bf4b792eb9791c7168c464910603c5b",
+        "dataset-shard:sha256:bbf4fad1d42d0046e0f4aeede454dc201ceb466f45c5dea797d29197c3929f62",
+        "dataset-shard:sha256:bd3153f274fa02aeb3bf14ff6c1f3283d64d7b88b688b38a0519a125fae2c303",
+        "dataset-shard:sha256:bf7a125c217dc6f4bea44fe3181c80c42a81f9dbef8db3acd9ff4486c3d5af60",
+        "dataset-shard:sha256:c41f433c99191fc880a900e6abb1dfb5b4b821aa8a644de194bb239149f41b97",
+        "dataset-shard:sha256:c6c9c9608d5b7ee441e35a249ada5a9b672b7eec86fd1638020a9d6b248aef8f",
+        "dataset-shard:sha256:c8dc63dcf1619499fdb228486c900c9139b3c92166810709455d34b61bfa5b81",
+        "dataset-shard:sha256:cde260b9f42cfa453fc85006b1c966a0aa6511a5c550deafdad1d425f0472e3d",
+        "dataset-shard:sha256:d174937b4369d9cdb6508b84b7ff61923f8702f8b04804daaab849449ba2ecc9",
+        "dataset-shard:sha256:d43fa921c00e5cb34a80da83124155f4445829a5ea2108d9ecccd994da404615",
+        "dataset-shard:sha256:d6ec1e2044600d29519a77e1e06ce3ce8b17616715b3bc28145c4fa722ad4785",
+        "dataset-shard:sha256:d76935e8f42bdf170a53a0839ebfdbac15593e2a9eb2c0ac71ec110efd1107a8",
+        "dataset-shard:sha256:d8c4c2d048dbd5e70a6874f314896f6f619184cee76a5073e84982f69aa77809",
+        "dataset-shard:sha256:d93c0949d969e50c91c1377ca22658e2ef54f80eececb35b0958f534967ca046",
+        "dataset-shard:sha256:dc5ac69c738b47c17e091e1ebdb1561704493e61be10905597dfe4f0973e92ed",
+        "dataset-shard:sha256:dd0cb0b97a9b545cc16a4a14aefebdcde72ef8f97273d1c4db5b814cfc64e3ec",
+        "dataset-shard:sha256:de7d8ac91a8f9d82b6cb518e3d5feed50011caace43077f9f7611fae45d91cc4",
+        "dataset-shard:sha256:df9625bd80d110ae8ae002f5aaf749a2d5e069e858128a21397aeba7399a2500",
+        "dataset-shard:sha256:e4623656ef5e5a5cd41a12451bde5e0230e47b87cd8dfeed5dc2dfaa3c88b357",
+        "dataset-shard:sha256:e86cee08e10f62f020ddd3774f81f08e8a649e0a0f2115992acf96e2ba56853e",
+        "dataset-shard:sha256:ebc4b94c6f82ceffd7adc30d6e997aaa286bd73ad1a9b8adb2280f357f16d83d",
+        "dataset-shard:sha256:eff931885a1e3a622294006ecc1805143d07ac96117609efc9ba831b2f7ee3fc",
+        "dataset-shard:sha256:f0e830126683a475217bf4c78a3ad2d017b75f0982a6dc0b328d8e18db76c1d8",
+        "dataset-shard:sha256:f4cb8f9ce6c7a0ab5808aeb37784a6ffc9d4fdbe0363e17fc199f58da6a9b28c",
+        "dataset-shard:sha256:f8131aa332cab413c6c03949de0b995c501b3987e2388fdb975ed30e1bcbba1c",
+        "dataset-shard:sha256:f988729a10642e27a0b4f9e23a18d132a04fb07f0c4fb3d2d4d8455a8fa25749",
+        "dataset-shard:sha256:fb11337ea93f59a555bf896c7c3f2551d9065401237c642e4ce1c5bdb0abd34f",
+        "dataset-shard:sha256:fe1caf7a852136d74f491867ea3b1d617b4954a8a2f62df6efe1b92f8ce07453"
+      ],
+      "name": "quality/text/native",
+      "evidence": "evidence:sha256:7544ec540abe193e9512a65f33c9af339f29f5105f771bd058fe12168c4ae2c1",
+      "bounds": [
+        {
+          "metric": "accuracy",
+          "unit": "",
+          "direction": "maximize",
+          "minimum": 0.46,
+          "maximum": 1
+        }
+      ]
+    },
+    {
+      "name": "protocol/image/native",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/image/chat",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/image/responses",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "resources/image/native",
+      "evidence": "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b",
+      "run": "run:sha256:9bfe570233332189f30bf814a1d1dbd2102baed3216705c8dfe0cf144884255c",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "bounds": [
+        {
+          "metric": "peak-device-bytes",
+          "unit": "bytes",
+          "direction": "minimize",
+          "minimum": 1,
+          "maximum": 51539607552
+        },
+        {
+          "metric": "reload-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 3,
+          "maximum": 3
+        },
+        {
+          "metric": "cancellation-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "error-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "retained-allocation-growth",
+          "unit": "count",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0
+        }
+      ]
+    },
+    {
+      "plan": "profile:sha256:125611c1c05504c5d7aeca95e2a8033129ffc80571af6fd453663061d108d42f",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "dataset": "dataset:sha256:bc2f4bfc28dc9d59230723ee24994d2e21fef82c8da526e9c7370c41ed975e0d",
+      "split": "dataset-shard:sha256:7779a7c95b96e6906459343a867e06dab95f865693eb785ea6e1029f4cc6442c",
+      "shards": [
+        "dataset-shard:sha256:02bf6e81e517baedf82a9406272246b09b18b90026459ced4d76edea4e950691",
+        "dataset-shard:sha256:0de6a1402bad3288c9a5ee5533704a32e7b7770570996a0c9a1499b0c6a82106",
+        "dataset-shard:sha256:17c5c00b9515c1c66b71bec06a7ee0445120505d2055b24fce589238b1275377",
+        "dataset-shard:sha256:494a0b086f55157a5248a7593d95a3f38228005ca813c729aa8bcda12ddf84e3",
+        "dataset-shard:sha256:51d265e3a2004d0745af2bfda89ed5c3add4760a9de2c7054387aa88d85c1dd6",
+        "dataset-shard:sha256:7452aa1fb22961bb5b361ef57609942b1b30262acc376cbb6df77e277edf44c8",
+        "dataset-shard:sha256:763cc4b9e6501119f3d98cf45fa21911ad475092559eea54f7dd408f9135c3da",
+        "dataset-shard:sha256:88d64e520cd4be46cb6d9656bfe96928fb5ec05960a617e719ab970b710462c4",
+        "dataset-shard:sha256:89347f39b6497c3847bfaa5ca4ac827ca6c47cd6fb23895b04db87ce3e61ed14",
+        "dataset-shard:sha256:90f775a73c0444617a46f533bf37f7424f29c9ded06ae7843f513c477b185172",
+        "dataset-shard:sha256:98312bc3baf9b45d57b43013d18594e7efcd32922e4c8924efb4f08709237388",
+        "dataset-shard:sha256:ac6fb2302be134d4fcf9ae98703b195ce70c0a7aad8520ab4e66251802c5bf54",
+        "dataset-shard:sha256:bbaa96f7971a190c6792a31b2efcd4a920e8140186edf5827759fed0e56d2f7d",
+        "dataset-shard:sha256:cc00261bc75678688da9efd22510f43f92843b8c7d712422cbaae01921c8c42d",
+        "dataset-shard:sha256:e7856ee3117627ff3ff6e1f92bd1b951c24a8f8607a5f7990052f4b468eb5f03",
+        "dataset-shard:sha256:ecfe2a885021e7e044d7e3783402363a3ce4f6fa8ba1c6e804137327f3ac23f0"
+      ],
+      "name": "quality/image/native",
+      "evidence": "evidence:sha256:ca4b8bd35340a0081c06b3ce739b5675d314e6377e7a178e1288fffcf0f77009",
+      "bounds": [
+        {
+          "metric": "accuracy",
+          "unit": "",
+          "direction": "maximize",
+          "minimum": 1.0,
+          "maximum": 1
+        }
+      ]
+    },
+    {
+      "name": "protocol/multi-image/native",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/multi-image/chat",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/multi-image/responses",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "resources/multi-image/native",
+      "evidence": "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b",
+      "run": "run:sha256:9bfe570233332189f30bf814a1d1dbd2102baed3216705c8dfe0cf144884255c",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "bounds": [
+        {
+          "metric": "peak-device-bytes",
+          "unit": "bytes",
+          "direction": "minimize",
+          "minimum": 1,
+          "maximum": 51539607552
+        },
+        {
+          "metric": "reload-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 3,
+          "maximum": 3
+        },
+        {
+          "metric": "cancellation-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "error-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "retained-allocation-growth",
+          "unit": "count",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0
+        }
+      ]
+    },
+    {
+      "plan": "profile:sha256:d794ce14e54cbaefc383998791700ec792939434e72f6e02050c1fa0e51ff0c0",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "dataset": "dataset:sha256:d97a7313e7b9a1988cc2aa4f1a2342d1f97f71e1da2681f99da4021eaaa17633",
+      "split": "dataset-shard:sha256:24215be2d79e42d826ba77984df2f09934adeff1af7237fd20f7167b5b71de29",
+      "shards": [
+        "dataset-shard:sha256:0433b009d4a4453b96deb81c9b823c0ec68a96564ff26d7c0a4534b1be850ede",
+        "dataset-shard:sha256:0bed2459ff6531c5fb1fa01a1ed89147e29f3044b099d493ad9087aa3403f74d",
+        "dataset-shard:sha256:4025eced0c63b22692e2d15bc0bf4710aea17f9573ec690891784a01032b11f6",
+        "dataset-shard:sha256:6e451d70ef528c5f4f47392dfad6051f8a3b0bce3bde13b3c94f10f3a76e036e",
+        "dataset-shard:sha256:7926c54046fd2e6e7d1b2153b82bb15d2d7f4e88cb7d250938e61fe167ab7886",
+        "dataset-shard:sha256:820aa292c3d80007be0df063000885817f546459a51e3db8052b1b444bb4af0f",
+        "dataset-shard:sha256:83c7e16377bb7d92842c8db6f88905e72559772cec0d08db75be0ca72a88639f",
+        "dataset-shard:sha256:9335a78a6ccbe69ef6b3081b2dc9384b4fc5ee800b5458a6712a8b6e297b041a",
+        "dataset-shard:sha256:9a361772993d3a7dadc128d1d62ee98b8369304c7838ad8e5940f609457d9f6d",
+        "dataset-shard:sha256:a371eb7f902397f6c98f63bb56355b489308d626b7ed322a080576a54b635aae",
+        "dataset-shard:sha256:a4dc2c0f2d12b343032a73086a1ca053a3ebf0e3a2c8509ecbfba2370e46443f",
+        "dataset-shard:sha256:b50e025b2bf8e31f5a819cb6583bd7ba3b6d942a733004692e4492332f2e2f9b",
+        "dataset-shard:sha256:b79355e1c9c0781b78749e8b0dea97d2a16d1c593bec62712c7698ffd68e8e62",
+        "dataset-shard:sha256:cf0b0e26f4db549d183dbd17d36c7281e39f66381827f985851322212909391e",
+        "dataset-shard:sha256:f2db878752a24ed861a71a3bc4c8a99ebe78e3d2b3e21ec91dd3bca57866cec3",
+        "dataset-shard:sha256:faa0ff446a128661b671d763cf9750e7b6799e94ede7ccec699d2475cda01565"
+      ],
+      "name": "quality/multi-image/native",
+      "evidence": "evidence:sha256:1ed69f80da34328997d85ec7790ae671481843388a00be026aad8091303d916f",
+      "bounds": [
+        {
+          "metric": "accuracy",
+          "unit": "",
+          "direction": "maximize",
+          "minimum": 0.9375,
+          "maximum": 1
+        }
+      ]
+    },
+    {
+      "name": "protocol/audio/native",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/audio/chat",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/audio/responses",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "resources/audio/native",
+      "evidence": "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b",
+      "run": "run:sha256:9bfe570233332189f30bf814a1d1dbd2102baed3216705c8dfe0cf144884255c",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "bounds": [
+        {
+          "metric": "peak-device-bytes",
+          "unit": "bytes",
+          "direction": "minimize",
+          "minimum": 1,
+          "maximum": 51539607552
+        },
+        {
+          "metric": "reload-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 3,
+          "maximum": 3
+        },
+        {
+          "metric": "cancellation-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "error-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "retained-allocation-growth",
+          "unit": "count",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0
+        }
+      ]
+    },
+    {
+      "name": "quality/audio/native",
+      "evidence": "evaluation:sha256:69f0bfa7cfee6e1d1c35cc56ed193f03c034ae2f888cf21dd8ffaca1a967d980",
+      "plan": "profile:sha256:014be2a94fb209a985996d1da714aafaefcc02fc5d9d22263045972d75903855",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:5c2c7f73fe4ed1f27dfde6924adc07bf7a31ceb0bc365e64127973e2c02f37f6",
+      "dataset": "dataset:sha256:ad4177fe91ec6ce5ffd1299905164d50672d09d08d5d44fdcb4b36430900b1d7",
+      "split": "dataset-shard:sha256:38f254d3f51aa663beca0cbb39809d50e2a87d6d23bc3c47b92f606151e9d6f6",
+      "cases": [
+        "1188-133604-0003",
+        "121-123852-0004",
+        "1284-1180-0015",
+        "1320-122617-0006",
+        "1580-141084-0024",
+        "1995-1826-0010",
+        "2094-142345-0029",
+        "237-134500-0020",
+        "260-123288-0021",
+        "2830-3980-0055",
+        "2961-960-0009",
+        "3570-5694-0017",
+        "3575-170457-0053",
+        "3729-6852-0029",
+        "4077-13751-0009",
+        "4446-2273-0024",
+        "4507-16021-0051",
+        "4970-29093-0019",
+        "5105-28241-0001",
+        "5142-33396-0031",
+        "5639-40744-0031",
+        "5683-32866-0007",
+        "61-70968-0017",
+        "61-70970-0039",
+        "6829-68769-0000",
+        "6829-68771-0031",
+        "6930-75918-0000",
+        "7021-85628-0027",
+        "7176-92135-0014",
+        "8455-210777-0041",
+        "8463-294828-0013",
+        "908-157963-0030"
+      ],
+      "bounds": [
+        {
+          "metric": "wer",
+          "unit": "ratio",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0.029525032092426188
+        },
+        {
+          "metric": "cer",
+          "unit": "ratio",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0.009082217973231358
+        }
+      ]
+    },
+    {
+      "name": "protocol/video/native",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/video/chat",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/video/responses",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "resources/video/native",
+      "evidence": "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b",
+      "run": "run:sha256:9bfe570233332189f30bf814a1d1dbd2102baed3216705c8dfe0cf144884255c",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "bounds": [
+        {
+          "metric": "peak-device-bytes",
+          "unit": "bytes",
+          "direction": "minimize",
+          "minimum": 1,
+          "maximum": 51539607552
+        },
+        {
+          "metric": "reload-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 3,
+          "maximum": 3
+        },
+        {
+          "metric": "cancellation-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "error-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "retained-allocation-growth",
+          "unit": "count",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0
+        }
+      ]
+    },
+    {
+      "plan": "profile:sha256:aca2ade621994a03f781db2cc551c06414f6204fb5c70b8d2f7a51ac8b2876a7",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "dataset": "dataset:sha256:300912e29d19236c4cc2d5e7ff306188f07c5da725b0c3693816a3cafed50f6f",
+      "split": "dataset-shard:sha256:ede715dfe1be2dd8bfb2ba1a67a8d4fde90557ebcf1cf5162c600995a8f9de91",
+      "shards": [
+        "dataset-shard:sha256:111ddf5d02871d7a1e975efea6376eb7f7bff8e6f2e8c11f9b003ba6e5bc9e31",
+        "dataset-shard:sha256:2af863e5806596c2e2f6e7b41db244252f7cb92dcb49ad0933b947dae532919f",
+        "dataset-shard:sha256:2d50bf558e029921082d827ab9ab0dba4eac2505d8ac2fa50784ce6e74cd51f9",
+        "dataset-shard:sha256:489dd2ce811ee04a4fe14bb5f28efca1236ed3b3c63bf7b6fb09a7c71c2a921b",
+        "dataset-shard:sha256:4926817f182f2b44caf2a18d47defc67d8e065549597a9118f135a12a51c734c",
+        "dataset-shard:sha256:4f31e97cc0c4e836fe7ec9a64899d8bb6bc24308bf04778dfc1d961bf7e5b4e8",
+        "dataset-shard:sha256:6d11d63eaca48c2763326b4b01c60338c9e8e33aea7a7782054337d8abda9b90",
+        "dataset-shard:sha256:6d5d3d886bf9e1f7635aa778fdcc43dde635b451229775884f38594b7a53a222",
+        "dataset-shard:sha256:75fffa2ef215beeae2baca47db15473e7a63f83aa93a329a88d7146758f190a7",
+        "dataset-shard:sha256:7cdb69f8e33583b65e233f01e3fb60de988816a1e13ed188ec6f816f22792171",
+        "dataset-shard:sha256:813fa3293a412b7463c3bd1eb3f35de9368e8df5e54b4afa78d874c6c05f1076",
+        "dataset-shard:sha256:8bf2e3682100c45e1cd274f4d634f59cfceccbf9cf5a53e64e79c87d96c646a0",
+        "dataset-shard:sha256:a2b5e552f741c9a3e00b57ca04da5539bb2f76177df08fde83f2f527f04f3eb3",
+        "dataset-shard:sha256:b274a1b09ffdcda3701c0a3680a648f8d04381a89dfd0ef6900f1df14927d5fb",
+        "dataset-shard:sha256:eefce60aa1b5fb1992496f3e86c27cac5d9b6689e97f5380a06ea8d376919540",
+        "dataset-shard:sha256:f9821e9a8faab846d44545180033161cc2fd21909b8b42a3a4b87cdbb8fbc70c"
+      ],
+      "name": "quality/video/native",
+      "evidence": "evidence:sha256:9d5d48141816733c6b7d8681b98ba484345b143527ac2826f9cf6ae774768160",
+      "bounds": [
+        {
+          "metric": "accuracy",
+          "unit": "",
+          "direction": "maximize",
+          "minimum": 1.0,
+          "maximum": 1
+        }
+      ]
+    },
+    {
+      "name": "protocol/mixed-history/native",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/mixed-history/chat",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "protocol/mixed-history/responses",
+      "evidence": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+      "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633"
+    },
+    {
+      "name": "resources/mixed-history/native",
+      "evidence": "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b",
+      "run": "run:sha256:9bfe570233332189f30bf814a1d1dbd2102baed3216705c8dfe0cf144884255c",
+      "oracle_sha256": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "bounds": [
+        {
+          "metric": "peak-device-bytes",
+          "unit": "bytes",
+          "direction": "minimize",
+          "minimum": 1,
+          "maximum": 51539607552
+        },
+        {
+          "metric": "reload-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 3,
+          "maximum": 3
+        },
+        {
+          "metric": "cancellation-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "error-recoveries",
+          "unit": "count",
+          "direction": "maximize",
+          "minimum": 9,
+          "maximum": 9
+        },
+        {
+          "metric": "retained-allocation-growth",
+          "unit": "count",
+          "direction": "minimize",
+          "minimum": 0,
+          "maximum": 0
+        }
+      ]
+    },
+    {
+      "plan": "profile:sha256:d418d550c112e4463ddd45f974ab83fb064587a7665afb5317bede500225cb20",
+      "model_definition": "model-definition:sha256:76c8e7897e6f56581c2b09924735354c7ed97d0ea4fe955e2f76a5f1156b538d",
+      "recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+      "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+      "dataset": "dataset:sha256:2308111d79b91b1923424c6d84e8778a1e63076dab4ddd89cdfd8fa41c4d10ac",
+      "split": "dataset-shard:sha256:10f20b486e807a5e903209d646b6b543dca61cc0b4aa612628d8936dc62de144",
+      "shards": [
+        "dataset-shard:sha256:00036a4b61e561b3b3acde6af5cb8c77e97ed767d1c151f27bf70a2a183c2b6a",
+        "dataset-shard:sha256:0da15fe66e19ebe9482bc08709e572d9998b5fb4efc0607d29adbc3c03e7d972",
+        "dataset-shard:sha256:1404c601ed84d084d30c09c91cb92647caed96ae3f752464eb15c696d149a5a6",
+        "dataset-shard:sha256:1c36587e9c1436a951aa4e1b129ab33c77228e998430424b412c6d4b40b05627",
+        "dataset-shard:sha256:3940cfd6986d9c21a226bd79e8e12e59ce241a3f3290d9e7c2cd52a5abcb90b8",
+        "dataset-shard:sha256:3bb5f9fe09259582309a1e7b71237e57201f28b362bd2570bd2ba324302b6cdd",
+        "dataset-shard:sha256:4676af5d59e055dff366d0f044d7e46eda13c9c9321369558a9e380a0deba431",
+        "dataset-shard:sha256:4f9d558afdde3a7908c49cfe91bfd4763f5c0d727466e2eb65beb762c4bb09f4",
+        "dataset-shard:sha256:4fcd588bf73398ed81d7896c34f3ffd7b57a55c62fab520babb06bafe5836576",
+        "dataset-shard:sha256:6328fc9fa075973b3239a5060e5436e0b3e5037e3cd1353639449d62226ca0a3",
+        "dataset-shard:sha256:841e67bd501d724b423982e54e6ac543035d8b71dc4fc2846af9cb57c9d96ddc",
+        "dataset-shard:sha256:91a13ddbb8d1f6a6404e098f0c4172d88b7ddff59f737696f36e29c34024a929",
+        "dataset-shard:sha256:948455b01f38761d550218a92efbf3038161ae0abe1b91e71471a59ffbacf6ca",
+        "dataset-shard:sha256:c4615165371bdf57f5d3c7d4c2f0756d5420c4587c8c04840174340b8e401f71",
+        "dataset-shard:sha256:cda3dbc9b5b30b4b2a6256f02db48ed515d60ea5d3ef0abe898f66bca65caf3a",
+        "dataset-shard:sha256:ff86462fe0030f0af391f5b6dd96cb8f124e9506c69470217096b689884be1c6"
+      ],
+      "name": "quality/mixed-history/native",
+      "evidence": "evidence:sha256:83dfe486b49a50260fcf68b68e53f97a418870c84bbd914b9cb92dd792bc1505",
+      "bounds": [
+        {
+          "metric": "accuracy",
+          "unit": "",
+          "direction": "maximize",
+          "minimum": 0.5,
+          "maximum": 1
+        }
+      ]
+    }
+  ]
+}

@@ -245,7 +245,7 @@ func (fixture trajectorySupervisorFixture) baseExchange(t *testing.T, name, argu
 		}}},
 		{Role: "tool", Content: resultText, ToolCallID: "call"},
 		{Role: "assistant", Content: "done"},
-	})
+	}, "")
 	if err != nil {
 		t.Fatal(err)
 	}

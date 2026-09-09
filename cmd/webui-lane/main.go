@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
@@ -44,16 +45,36 @@ func run() error {
 	fork := flags.String("fork", "", "tree measured as the campaign's fork for -report: a checkout or extracted slice holding internal/server/webui and docs/api_manifest.json")
 	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
 	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
+	run := flags.String("run", "^"+webuilane.BrowserTestPrefix, "the browser tests to run, as go test -run takes them; a named test that skips fails the lane")
+	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
+	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
+	var required []string
+	flags.Func("require", "a journey line the run must write (repeatable); its absence fails the lane", func(text string) error { required = append(required, text); return nil })
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 || (*report != "") != (*fork != "") {
-		return errors.New("usage: webui-lane [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>] [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+	}
+	if *pageURL != "" {
+		return captureLive(os.Stdout, *pageURL, *screens)
 	}
 	var captured bytes.Buffer
-	stdout := io.Writer(os.Stdout)
-	if *report != "" {
-		stdout = io.MultiWriter(os.Stdout, &captured)
+	stdout := io.MultiWriter(os.Stdout, &captured)
+	var extra []string
+	if *screens != "" {
+		absolute, err := filepath.Abs(*screens)
+		if err != nil {
+			return err
+		}
+		extra = append(extra, "OVERGO_WEBUI_LANE_SCREENS="+absolute)
 	}
-	if err := runLane(stdout); err != nil {
+	ran, err := runLane(stdout, *run, extra)
+	if err != nil {
 		return err
+	}
+	// The verdict is the run's own output: a plan verify naming the lane gets evidence, never a silent pass.
+	if ran {
+		if err := webuilane.LaneVerdict(captured.String(), required); err != nil {
+			return err
+		}
 	}
 	if *report == "" {
 		return nil
@@ -75,17 +96,51 @@ func run() error {
 	return nil
 }
 
-// runLane runs the browser self-check and the acceptance tests, writing
-// the lane's observations to stdout.
-func runLane(stdout io.Writer) error {
+// liveSettle bounds a live server's tab request before its capture.
+const liveSettle = 8 * time.Second
+
+// captureLive captures and audits a running server's page: every tab and
+// the picker at each viewport, the captures written when dir is set, the
+// findings listed; a finding is the error.
+func captureLive(stdout io.Writer, pageURL, dir string) error {
+	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 5*time.Minute, errors.New("webui lane: the live capture did not complete"))
+	defer cancel()
+	page, err := webuilane.Open(ctx, browser, pageURL)
+	if err != nil {
+		return err
+	}
+	defer page.Close()
+	states, findings, err := webuilane.CaptureStates(ctx, page, dir, liveSettle)
+	if err != nil {
+		return err
+	}
+	for _, finding := range findings {
+		fmt.Fprintln(stdout, finding)
+	}
+	fmt.Fprintln(stdout, webuilane.CaptureSummary(states, findings))
+	if len(findings) > 0 {
+		return fmt.Errorf("webui lane: %d layout finding(s) at %s", len(findings), pageURL)
+	}
+	return nil
+}
+
+// runLane runs the browser self-check and the acceptance tests run names,
+// writing the lane's observations to stdout; ran reports whether the
+// tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
+// extra carries the screens test's capture directory and page address.
+func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error) {
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
-		return nil
+		return false, nil
 	}
 	probe, err := webuilane.Open(context.Background(), browser, "data:text/html,<title>overgo-webui-lane</title>")
 	if err != nil {
-		return err
+		return false, err
 	}
 	var title string
 	if err := probe.SetViewport(context.Background(), len(browser), len(browser)); err == nil {
@@ -93,33 +148,35 @@ func runLane(stdout io.Writer) error {
 	}
 	_ = probe.Close()
 	if err != nil {
-		return fmt.Errorf("browser transport self-check failed: %w", err)
+		return false, fmt.Errorf("browser transport self-check failed: %w", err)
 	}
 	if title != "overgo-webui-lane" {
-		return fmt.Errorf("browser transport self-check returned title %q", title)
+		return false, fmt.Errorf("browser transport self-check returned title %q", title)
 	}
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
+	env = append(env, extra...)
 	journey, unavailable := firstRunEnvironment(context.Background())
 	if unavailable != "" {
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE first-run journey: %s\n", unavailable)
 	} else {
 		env = append(env, journey...)
 	}
+	// The lane package's own browser test (the layout audit over a synthetic page) runs beside the server's.
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "-run", "^TestWebUIBrowser", "-count=1", "-timeout=10m", "-v"},
+		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=10m", "-v"},
 		Env:    env,
 		Stdout: stdout,
 		Stderr: os.Stderr,
 	})
 	if err != nil {
-		return err
+		return true, err
 	}
 	if receipt.ExitCode != 0 {
-		return fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
+		return true, fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
 	}
 	fmt.Fprintf(stdout, "webui lane: PASS browser=%s\n", browser)
-	return nil
+	return true, nil
 }
 
 // firstRunEnvironment prepares the served-model journey: the server binary
@@ -170,8 +227,10 @@ func firstRunEnvironment(ctx context.Context) ([]string, string) {
 // on disk, smallest file first, and among them the ones whose active
 // projection recipe binds a projector with bytes on disk: the journey
 // serves the cheapest model and switches to the cheapest multimodal one.
+// Preparation publishes the identities it verified before releasing the
+// writer to the serving child; the journey revalidates their live stats.
 func smallestServables(ctx context.Context, root string) (servable, multimodal []string, err error) {
-	store, err := overgodb.OpenReadOnly(root)
+	store, err := overgodb.Open(root)
 	if err != nil {
 		return nil, nil, errors.Join(errors.New("store did not open"), err)
 	}
@@ -208,6 +267,9 @@ func smallestServables(ctx context.Context, root string) (servable, multimodal [
 		if item.multimodal {
 			multimodal = append(multimodal, item.location)
 		}
+	}
+	if err := discovery.PublishMemo(ctx, store, memo); err != nil {
+		return nil, nil, fmt.Errorf("persist prepared model identities: %w", err)
 	}
 	return servable, multimodal, nil
 }

@@ -8,6 +8,7 @@
   const MODEL_STORAGE = "overgo.model"; // the last model this browser chose to serve
   const errors = []; // every window error since boot; the browser lane asserts none
   window.addEventListener("error", (event) => errors.push(String(event.message)));
+  window.addEventListener("unhandledrejection", (event) => errors.push(String(event.reason)));
 
   // The key lives in memory for the page session; browser storage is opt-in via the
   // "remember" control so a shared machine never keeps a key the operator did not ask it to keep.
@@ -17,11 +18,13 @@
 
   function getKey() { return sessionKey; }
   function setKey(value, remember) {
+    const changed = sessionKey !== (value || '');
     sessionKey = value || "";
     try {
       if (remember && sessionKey) localStorage.setItem(KEY_STORAGE, sessionKey);
       else localStorage.removeItem(KEY_STORAGE);
     } catch (_) { /* storage unavailable; the in-memory key still works */ }
+    if (changed && window.overgo && window.overgo.runtimeEvents) window.overgo.runtimeEvents.restart();
   }
 
   function authHeaders(extra) {
@@ -41,6 +44,8 @@
         (body && body.message) || text || ("HTTP " + response.status);
       const error = new Error(message);
       error.status = response.status;
+      error.code = body && body.error && body.error.code;
+      error.type = body && body.error && body.error.type;
       throw error;
     }
     return body;
@@ -53,21 +58,13 @@
       return readJSON(response);
     },
     async post(path, body, opts) {
-      return readJSON(await fetch(path, {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(body),
-        signal: opts && opts.signal,
-      }));
+      return readJSON(await fetch(path, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body), signal: opts && opts.signal }));
     },
+    // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
+    async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type || 'application/octet-stream' }, opts))); },
     async stream(path, body, opts) {
-      const method = (opts && opts.method) || "POST";
-      const response = await fetch(path, {
-        method,
-        headers: authHeaders(method === "POST" ? { "Content-Type": "application/json" } : {}),
-        body: method === "POST" ? JSON.stringify(body) : undefined,
-        signal: opts && opts.signal,
-      });
+      const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType;
+      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? { "Content-Type": raw || "application/json" } : {}), body: method !== "POST" ? undefined : raw ? body : JSON.stringify(body), signal: opts && opts.signal });
       if (!response.ok) await readJSON(response);
       return response;
     },
@@ -95,10 +92,7 @@
         buffered = buffered.slice(boundary + 2);
         let event = "message";
         const data = [];
-        for (const line of block.split("\n")) {
-          if (line.startsWith("event: ")) event = line.slice(7);
-          else if (line.startsWith("data: ")) data.push(line.slice(6));
-        }
+        for (const line of block.split("\n")) { if (line.startsWith("event: ")) event = line.slice(7); else if (line.startsWith("data: ")) data.push(line.slice(6)); }
         if (!data.length) continue;
         const joined = data.join("\n");
         if (joined === "[DONE]") { yield { event: "done", data: null }; continue; }
@@ -113,10 +107,7 @@
   // /analyze/model serves the Model tab and the lens; one cached promise per
   // page load, cleared on rejection and on a key change.
   let modelPromise = null;
-  function modelInfo() {
-    if (!modelPromise) modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; });
-    return modelPromise;
-  }
+  function modelInfo() { return modelPromise || (modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; })); }
   function invalidateModel() { modelPromise = null; }
 
   // Minimal hyperscript: el("div", {class:"x"}, child, child...).
@@ -128,27 +119,56 @@
         if (name === "class") node.className = value;
         else if (name === "text") node.textContent = value;
         else if (name.startsWith("on") && typeof value === "function") node.addEventListener(name.slice(2), value);
+        else if ((name === "src" || name === "href") && String(value).startsWith("/artifacts/content?")) artifactResource(node, name, value);
         else node.setAttribute(name, value);
       }
     }
-    for (const child of children.flat()) {
-      if (child == null || child === false) continue;
-      node.appendChild(typeof child === "string" ? document.createTextNode(child) : child);
-    }
+    for (const child of children.flat()) { if (child == null || child === false) continue; node.appendChild(typeof child === "string" ? document.createTextNode(child) : child); }
     return node;
+  }
+
+  // Native media and links cannot send a bearer header. Fetch protected bytes
+  // through the shared client and release their object URLs when removed.
+  const artifactURLs = new Map();
+  new MutationObserver(() => {
+    for (const [node, url] of artifactURLs) {
+      if (!node.isConnected) { URL.revokeObjectURL(url); artifactURLs.delete(node); }
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  function resourceURL(node, body) {
+    if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
+    const url = URL.createObjectURL(body);
+    artifactURLs.set(node, url);
+    return url;
+  }
+  function downloadBlob(node, body, name) {
+    el('a', { href: resourceURL(node, body), download: name }).click();
+  }
+  function artifactResource(node, attribute, path) {
+    const load = async () => {
+      try {
+        const body = await api.blob(path);
+        if (!node.isConnected) return;
+        const url = resourceURL(node, body);
+        if (attribute === "src") node.src = url;
+        else {
+          const download = el("a", { href: url, download: node.getAttribute("download") || "artifact" });
+          download.click();
+        }
+      } catch (err) { node.replaceWith(errorBanner(friendlyError(err))); }
+    };
+    if (attribute === "href") {
+      node.setAttribute("href", path);
+      node.addEventListener("click", (event) => { event.preventDefault(); load(); });
+    } else load();
   }
 
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
-  function errorBanner(message) {
-    return el("div", { class: "err-banner", text: message });
-  }
+  function errorBanner(message) { return el("div", { class: "err-banner", role: "alert", text: message }); }
 
   // friendlyError: a 401 becomes the same actionable hint on every tab.
-  function friendlyError(err) {
-    if (err && err.status === 401) return "API key required — enter it in the top bar.";
-    return String((err && err.message) || err);
-  }
+  function friendlyError(err) { return err && err.status === 401 ? "API key required — open Settings and enter it under Connection." : String((err && err.message) || err); }
 
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }
@@ -174,14 +194,13 @@
   }
 
   // displayToken: an empty, whitespace or multiline token piece made visible.
-  function displayToken(text) {
-    if (text === "" || text == null) return "∅";
-    if (/^\s+$/.test(text)) return "␠".repeat(text.length);
-    return text.replace(/\n/g, "⏎");
-  }
+  function displayToken(text) { if (text === "" || text == null) return "∅"; if (/^\s+$/.test(text)) return "␠".repeat(text.length); return text.replace(/\n/g, "⏎"); }
 
   // runner: one exclusive, cancelable async action bound to a run and a cancel
   // button; an abort goes to onCancel, any other failure to onError.
+  // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
+  // tick, the offline probe, and the status re-probe.
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -189,18 +208,14 @@
     return async function run(task) {
       if (controller) return; // a run is already in flight
       runButton.disabled = true;
-      cancelButton.style.display = "";
+      cancelButton.hidden = false;
       controller = new AbortController();
       try {
         await task(controller.signal);
       } catch (err) {
         if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
         else if (handlers.onError) handlers.onError(err);
-      } finally {
-        runButton.disabled = false;
-        cancelButton.style.display = "none";
-        controller = null;
-      }
+      } finally { runButton.disabled = false; cancelButton.hidden = true; controller = null; }
     };
   }
 
@@ -209,50 +224,28 @@
     let controller = null;
     let timer = null;
 
-    function cancel() {
-      if (timer != null) clearTimeout(timer);
-      timer = null;
-      if (controller) controller.abort();
-    }
-    function schedule() {
-      if (active && !document.hidden) timer = setTimeout(tick, interval);
-    }
+    function cancel() { if (timer != null) clearTimeout(timer); timer = null; if (controller) controller.abort(); }
+    function schedule() { if (active && !document.hidden) timer = setTimeout(tick, interval); }
     async function tick() {
       if (!active || document.hidden || controller) return;
       const current = new AbortController();
       controller = current;
       try { await task(current.signal); }
-      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally {
-        if (controller === current) controller = null;
-        schedule();
-      }
+      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally { if (controller === current) controller = null; schedule(); }
     }
-    function start() {
-      if (active) return;
-      active = true;
-      if (!document.hidden) tick();
-    }
-    function stop() {
-      active = false;
-      cancel();
-    }
-    document.addEventListener("visibilitychange", () => {
-      cancel();
-      if (active && !document.hidden) tick();
-    });
+    function start() { if (active) return; active = true; if (!document.hidden) tick(); }
+    function stop() { active = false; cancel(); }
+    document.addEventListener("visibilitychange", () => { cancel(); if (active && !document.hidden) tick(); });
     return { start, stop };
   }
 
   function stat(label, value, unit) {
-    return el("div", { class: "stat" },
-      el("div", { class: "k", text: label }),
-      el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
+    return el("div", { class: "stat" }, el("div", { class: "k", text: label }), el("div", { class: "v" }, String(value), unit ? el("small", { text: " " + unit }) : null));
   }
 
   // fold: a collapsible section, closed unless open is passed.
   function fold(title, open, ...children) {
-    const details = el("details", { class: "fold" },
-      el("summary", { class: "section-title", text: title }), ...children);
+    const details = el("details", { class: "fold" }, el("summary", { class: "section-title", text: title }), ...children);
     if (open) details.setAttribute("open", "");
     return details;
   }
@@ -261,11 +254,10 @@
   function registerTab(tab) { tabs.push(tab); }
 
   // artifactLink: the one link to a stored artifact (content, or the gallery entry).
+  const galleryRoute = "/artifacts?id=", contentRoute = "/artifacts/content?id=";
   function artifactLink(id, label, gallery) {
-    return el("a", {
-      class: "mono", href: (gallery ? "/artifacts?id=" : "/artifacts/content?id=") + encodeURIComponent(id),
-      target: "_blank", rel: "noopener", text: label || shortID(id),
-    });
+    const route = gallery ? galleryRoute : contentRoute;
+    return el("a", { class: "mono", href: route + encodeURIComponent(id), target: "_blank", rel: "noopener", text: label || shortID(id) });
   }
 
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
@@ -284,49 +276,194 @@
     const benchmark = item.benchmark || {};
     if (benchmark.prompt_tokens_per_second_p50) facts.push(Math.round(benchmark.prompt_tokens_per_second_p50) + " prompt tok/s");
     if (benchmark.decode_tokens_per_second_p50) facts.push(Math.round(benchmark.decode_tokens_per_second_p50) + " decode tok/s");
-    for (const entry of item.evals || []) if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2));
+    for (const entry of item.evals || []) if (entry.metrics && typeof entry.metrics.accuracy === "number") facts.push((entry.suite || "").replace(/^store\//, "") + " " + entry.metrics.accuracy.toFixed(2) + (entry.reproducible === false ? " (hosted)" : ""));
     return facts.join(" · ");
   }
 
   // The front page: the workbench folds to a rail; the Workbench control or any other tab unfolds it.
-  function setFront(on) { document.querySelector(".shell").classList.toggle("front", on); }
+  function setFront(on) {
+    document.querySelector(".shell").classList.toggle("front", on);
+    document.getElementById("workbench-toggle").setAttribute("aria-expanded", String(!on));
+  }
+  const phoneNavigation = matchMedia("(max-width: 860px)");
+  function closeNavigation() {
+    const nav = document.getElementById("navigation");
+    const toggle = document.getElementById("navigation-toggle");
+    const wasOpen = toggle.getAttribute("aria-expanded") === "true";
+    document.querySelector(".shell").classList.remove("navigation-open");
+    toggle.setAttribute("aria-expanded", "false");
+    document.getElementById("navigation-backdrop").hidden = true;
+    document.querySelector(".content").inert = false;
+    nav.inert = phoneNavigation.matches;
+    nav.removeAttribute("role"); nav.removeAttribute("aria-modal");
+    if (wasOpen) toggle.focus();
+  }
+  function openNavigation() {
+    const nav = document.getElementById("navigation");
+    nav.inert = false;
+    nav.setAttribute("role", "dialog"); nav.setAttribute("aria-modal", "true");
+    document.querySelector(".shell").classList.add("navigation-open");
+    document.getElementById("navigation-toggle").setAttribute("aria-expanded", "true");
+    document.getElementById("navigation-backdrop").hidden = false;
+    document.querySelector(".content").inert = true;
+    document.getElementById("navigation-close").focus();
+  }
+  document.getElementById("navigation-toggle").addEventListener("click", openNavigation);
+  document.getElementById("navigation-close").addEventListener("click", closeNavigation);
+  document.getElementById("navigation-backdrop").addEventListener("click", closeNavigation);
+  phoneNavigation.addEventListener("change", closeNavigation);
+  closeNavigation();
+  document.getElementById("navigation").addEventListener("keydown", (event) => {
+    if (!phoneNavigation.matches) return;
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeNavigation(); }
+    if (event.key !== "Tab") return;
+    const controls = [...event.currentTarget.querySelectorAll("button:not(:disabled), a[href], input")].filter((node) => node.getClientRects().length);
+    const first = controls[0], last = controls[controls.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  const settingsDialog = document.getElementById("settings-dialog");
+  document.getElementById("settings-toggle").addEventListener("click", (event) => { event.currentTarget.focus(); settingsDialog.showModal(); });
+  settingsDialog.querySelector("[data-close-dialog]").addEventListener("click", () => settingsDialog.close());
+  document.getElementById("new-chat").addEventListener("click", () => openConversation(null));
+  // Follow the browser's visible height when its on-screen keyboard resizes only the visual viewport.
+  if (window.visualViewport) {
+    const resize = () => { if (window.visualViewport.scale === 1) document.documentElement.style.setProperty("--viewport-height", window.visualViewport.height + "px"); };
+    window.visualViewport.addEventListener("resize", resize); resize();
+    window.addEventListener("resize", resize);
+  }
   let servedEntry = null;
+  let modelSwitchPending = false;
+  let modelSwitchBlocked = false;
+  function modelSwitching() { return modelSwitchBlocked; }
+  function setModelSwitchBlocked(value) { modelSwitchBlocked = value; document.dispatchEvent(new Event("overgo-model-switch")); }
   function servedModel() { return servedEntry; }
 
   // ---- conversations: the server lists stored-response chains; the rail opens, renames or archives one ----
   let selectedConversation = null;
+  try { selectedConversation = JSON.parse(sessionStorage.getItem("overgo.conversation") || "null"); } catch (_) { /* storage unavailable */ }
   function conversation() { return selectedConversation; }
-  function openConversation(item) {
+  function rememberConversation(item) {
     selectedConversation = item;
+    try { sessionStorage.setItem("overgo.conversation", JSON.stringify(item)); } catch (_) { /* storage unavailable */ }
+    markConversation();
+  }
+  function markConversation() {
+    for (const button of document.querySelectorAll('.conversation-open')) {
+      const active = !!selectedConversation && button.dataset.latest === selectedConversation.latest;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'true'); else button.removeAttribute('aria-current');
+    }
+  }
+  function openConversation(item) {
+    setFront(true);
+    rememberConversation(item);
     for (const tab of tabs) { if (tab.id === "chat") tab.mounted = false; }
     activate("chat");
   }
-  async function refreshConversations() {
-    const host = document.getElementById("conversation-list");
-    if (!host) return;
-    let listing;
-    try { listing = await api.get("/interactions"); } catch (_) { clear(host); return; }
-    const fresh = el("button", { class: "tab", text: "+ new conversation", onclick: () => openConversation(null) });
-    clear(host);
-    host.appendChild(fresh);
-    for (const item of (listing.conversations || []).filter((entry) => !entry.archived)) {
-      const open = el("button", { class: "tab" + (selectedConversation && selectedConversation.root === item.root ? " active" : ""),
-        text: item.title, title: item.turns + " turn(s)", onclick: () => openConversation(item) });
-      const label = async (patch) => {
-        await api.post("/interactions/label", { root: item.root, title: item.title, archived: false, ...patch });
-        if (patch.archived && selectedConversation && selectedConversation.root === item.root) openConversation(null);
-        refreshConversations();
-      };
-      const rename = el("button", { class: "link-button", text: "rename", "aria-label": "rename conversation",
-        onclick: () => { const title = window.prompt("conversation title", item.title); if (title != null) label({ title }); } });
-      const archive = el("button", { class: "link-button", text: "archive", "aria-label": "archive conversation", onclick: () => label({ archived: true }) });
-      host.appendChild(el("div", { class: "conversation" }, open, el("div", { class: "row" }, rename, archive)));
+  const historyHost = document.getElementById("conversation-list");
+  const historyRows = el('div', { id: 'history-rows' });
+  const historyStatus = el('div', { class: 'note', role: 'status', hidden: true });
+  const historyError = el('div', { class: 'note', role: 'alert', hidden: true });
+  const historySearch = el('input', { class: 'text', type: 'search', placeholder: 'Search titles', 'aria-label': 'Search conversation titles' });
+  let historyQuery = '', historyArchived = false, historyNext = '', historyPaged = false, historyAttempt = 0, historyController = null;
+  const historyReload = el('button', { class: 'link-button', text: 'Reload history', hidden: true, onclick: () => refreshConversations({ force: true }) });
+  const historyMore = el('button', { class: 'tab', text: 'Load older conversations', hidden: true, onclick: () => refreshConversations({ more: true }) });
+  const historyArchive = el('button', { class: 'link-button', text: 'Archived', 'aria-pressed': 'false', onclick: () => {
+    historyArchived = !historyArchived; historyArchive.setAttribute('aria-pressed', String(historyArchived)); searchHistory();
+  } });
+  function searchHistory() { historyQuery = historySearch.value.trim(); refreshConversations({ force: true }); }
+  historyHost.append(el('button', { class: 'tab', text: 'New conversation', onclick: () => openConversation(null) }),
+    el('form', { class: 'history-search', role: 'search', onsubmit: event => { event.preventDefault(); searchHistory(); } }, historySearch,
+      el('button', { class: 'link-button', type: 'submit', text: 'Search' })),
+    el('div', { class: 'row' }, historyArchive, historyReload), historyStatus, historyError, historyRows, historyMore);
+
+  function historyRow(item) {
+    const row = el('div', { class: 'conversation', 'data-latest': item.latest });
+    const open = el('button', { class: 'tab conversation-open', 'data-latest': item.latest,
+      title: item.title + '\nConversation: ' + item.root + '\nResponse: ' + item.latest + '\nModel: ' + item.model + '\nRecipe: ' + (item.recipe || ''),
+      onclick: () => openConversation(item) }, el('span', { class: 'conversation-title', text: item.title }),
+      el('span', { class: 'note', text: item.turns + ' turn' + (item.turns === 1 ? '' : 's') + ' · ' + shortID(item.latest) }));
+    const failure = el('div', { class: 'note', role: 'alert', hidden: true });
+    const actions = el('div', { class: 'history-actions', hidden: true, id: 'history-actions-' + crypto.randomUUID() });
+    const more = el('button', { class: 'link-button history-options', text: 'Actions', 'aria-label': 'Actions for ' + item.title,
+      'aria-expanded': 'false', 'aria-controls': actions.id, onclick: () => { actions.hidden = !actions.hidden; more.setAttribute('aria-expanded', String(!actions.hidden)); } });
+    let saving = false;
+    const label = async (patch) => {
+      if (saving) return false;
+      saving = true; failure.hidden = true;
+      const focused = document.activeElement;
+      const controls = [...row.querySelectorAll('button, input')].map(node => [node, node.disabled]); controls.forEach(([node]) => { node.disabled = true; });
+      try {
+        await api.post("/interactions/label", { root: item.root, title: item.title, archived: !!item.archived, ...patch });
+        Object.assign(item, patch);
+        if (selectedConversation && selectedConversation.root === item.root) rememberConversation({ ...selectedConversation, title: item.title, archived: !!item.archived });
+        await refreshConversations({ force: true });
+        if (!historyHost.closest('[inert]') && (document.activeElement === document.body || row.contains(document.activeElement))) {
+          const updated = [...historyRows.querySelectorAll('.conversation-open')].find(node => node.dataset.latest === item.latest);
+          (updated || historyArchive).focus();
+        }
+        return true;
+      } catch (err) { failure.textContent = friendlyError(err) + ' Try again.'; failure.hidden = false; return false; }
+      finally {
+        saving = false; controls.forEach(([node, disabled]) => { node.disabled = disabled; });
+        if (row.isConnected && !historyHost.closest('[inert]') && document.activeElement === document.body && row.contains(focused)) focused.focus();
+      }
+    };
+    const rename = el('button', { class: 'link-button', text: 'Rename', 'aria-label': 'rename conversation', onclick: () => {
+      actions.hidden = false;
+      const field = el('input', { class: 'text', value: item.title, required: true, 'aria-label': 'conversation title' });
+      const cancel = () => { if (saving) return; editor.replaceWith(open); actions.replaceChildren(rename, archive); more.disabled = false; rename.focus(); };
+      const editor = el('form', { class: 'history-editor', onsubmit: event => {
+        event.preventDefault(); if (field.value.trim()) label({ title: field.value.trim() });
+      } }, field, el('div', { class: 'row' }, el('button', { class: 'link-button', type: 'submit', text: 'Save' }),
+        el('button', { class: 'link-button', type: 'button', text: 'Cancel', onclick: cancel })));
+      editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
+      open.replaceWith(editor); actions.replaceChildren(); more.disabled = true; field.focus(); field.select();
+    } });
+    const archive = el('button', { class: 'link-button', text: item.archived ? 'Restore' : 'Archive',
+      'aria-label': item.archived ? 'restore conversation' : 'archive conversation', onclick: () => label({ archived: !item.archived }) });
+    actions.append(rename, archive);
+    row.append(el('div', { class: 'history-row' }, open, more), actions, failure);
+    return row;
+  }
+
+  async function refreshConversations({ force = false, more = false } = {}) {
+    // Automatic refresh must not replace an editor, a keyboard target, or a
+    // deliberately paged list. The selected transcript is never remounted here.
+    if (!force && !more && (historyPaged || historyRows.querySelector('form') || historyRows.contains(document.activeElement))) {
+      historyStatus.textContent = 'History may have changed.'; historyStatus.hidden = false; historyReload.hidden = false; return;
     }
+    const attempt = ++historyAttempt;
+    if (historyController) historyController.abort();
+    historyController = new AbortController();
+    historyError.hidden = true; historyStatus.hidden = false; historyStatus.textContent = 'Loading conversations…'; historyMore.disabled = true;
+    const query = new URLSearchParams({ view: historyArchived ? 'archived' : 'active', q: historyQuery });
+    if (more && historyNext) query.set('cursor', historyNext);
+    try {
+      const listing = await api.get("/interactions" + '?' + query, { signal: historyController.signal });
+      if (attempt !== historyAttempt) return;
+      if (!force && !more && (historyRows.querySelector('form') || historyRows.contains(document.activeElement))) {
+        historyStatus.textContent = 'History may have changed.'; historyReload.hidden = false; return;
+      }
+      if (!more) { historyRows.replaceChildren(); historyPaged = false; }
+      else historyPaged = true;
+      const present = new Set([...historyRows.querySelectorAll('.conversation')].map(node => node.dataset.latest));
+      for (const item of listing.conversations || []) if (!present.has(item.latest)) { historyRows.appendChild(historyRow(item)); present.add(item.latest); }
+      historyNext = listing.next || ''; historyMore.hidden = !historyNext; historyReload.hidden = true;
+      const empty = !historyRows.querySelector('.conversation');
+      historyStatus.hidden = !empty;
+      historyStatus.textContent = historyQuery ? 'No matching titles. Try another search.' : historyArchived ? 'No archived conversations.' : 'Your conversations will appear here.';
+      markConversation();
+    } catch (err) {
+      if (attempt !== historyAttempt) return;
+      historyStatus.hidden = true; historyError.textContent = friendlyError(err); historyError.hidden = false; historyReload.hidden = false;
+    } finally { if (attempt === historyAttempt) historyMore.disabled = false; }
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, headerRow, tableRow, table, evidenceLine, servedModel,
-    conversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
+    conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
@@ -338,31 +475,50 @@
   const sectionButtons = [];
 
   function tabSection(tab) { return tab.section; }
-  function sectionsPresent() {
-    return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id));
-  }
+  function sectionsPresent() { return workspaceManifest.sections.filter((s) => tabs.some((t) => tabSection(t) === s.id)); }
 
   // Sidebar navigation shows every section at once; the active section header highlights the active tab group.
-  function syncSectionUI() {
-    for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection);
-  }
+  function syncSectionUI() { for (const sb of sectionButtons) sb.button.classList.toggle("active", sb.id === activeSection); }
 
   // remountActive: the active tab reloads under a new key, a newly served model or a
   // changed store, from the capability document re-read for it.
-  async function remountActive() {
-    try { workspaceManifest = await api.get("/workspace/manifest"); capabilityDocument = workspaceManifest.model || null; } catch (_) { /* the shell stays on what it has */ }
+  async function remountActive(manifest) {
+    const next = manifest || await api.get("/workspace/manifest");
+    workspaceManifest = next;
+    capabilityDocument = next.model || null;
     for (const tab of tabs) {
       if (tab.onDeactivate) tab.onDeactivate();
       tab.mounted = false;
+      // The newly served model's refusals replace the last one's, so the nav shows what works now.
+      const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
+      if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; }
     }
+    applyCapabilities();
     const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-    if (current) activate(current);
-    refreshStatus();
+    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
+      if (!await activate(current)) throw new Error("The selected workspace could not load. Choose the model again to retry.");
+    }
+    syncColdStart();
+    await refreshStatus();
+  }
+
+  // syncColdStart: the landing while no model serves (no capability document: the proxy answers alone) and no tab
+  // is open; the picker is the way on, and the Library, the one tab the cold page serves, is a hash away.
+  function syncColdStart() {
+    const existing = document.getElementById("cold-start");
+    if (capabilityDocument || tabs.some((t) => t.panel.classList.contains("active"))) { if (existing) existing.remove(); return; }
+    if (existing) return;
+    document.getElementById("panels").appendChild(el("div", { class: "card front-empty", id: "cold-start" }, el("h2", { text: "no model serves" }),
+      el("div", { class: "note", text: "choose a model from the model pill; the Library tab registers a local model or declares a hosted provider" }),
+      el("div", { class: "starters" }, el("button", { class: "btn", text: "Choose a model", onclick: () => document.getElementById("model-pill").click() }),
+        el("button", { class: "btn alt", text: "Open the Library", onclick: () => activate("library") }))));
   }
 
   function activate(id) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
+    closeNavigation();
+    document.querySelector(".shell").classList.toggle("conversation-view", id === "chat");
     activeSection = tabSection(tab);
     if (id !== "chat") setFront(false);
     for (const t of tabs) {
@@ -375,7 +531,9 @@
       if (on && t.onActivate) t.onActivate();
     }
     syncSectionUI();
+    syncColdStart();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
+    return tab.ready || Promise.resolve(true);
   }
 
   // selectSection: switch to a section, keeping the current tab if it already
@@ -389,20 +547,15 @@
   }
 
   // embed: a registered tab mounted into another host with a seed (the inspector opens analysis tabs over one turn).
-  function embed(id, host, seed) {
-    const tab = tabs.find((t) => t.id === id);
-    if (!tab) throw new Error("no workspace tab " + id);
-    clear(host);
-    return tab.mount(host, window.overgo, seed);
-  }
+  function embed(id, host, seed) { const tab = tabs.find((t) => t.id === id); if (!tab) throw new Error("no workspace tab " + id); clear(host); return tab.mount(host, window.overgo, seed); }
   // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
   function analysisSurface(panel, seed, options) {
     const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
-    const cancel = el("button", { class: "btn alt", style: "display:none" }, "cancel");
+    const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row", style: "margin:10px 0" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
       onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
@@ -412,165 +565,207 @@
     return surface;
   }
   function safeMount(tab) {
+    const attempt = {};
+    tab.mountAttempt = attempt;
+    const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
       const result = tab.mount(tab.panel, window.overgo);
-      if (result && typeof result.catch === "function") result.catch((err) => renderMountError(tab, err));
-    } catch (err) { renderMountError(tab, err); }
+      tab.ready = Promise.resolve(result).then(() => tab.mountAttempt === attempt, failed);
+    } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
-  function renderMountError(tab, err) {
-    clear(tab.panel);
-    tab.panel.appendChild(errorBanner(String(err && err.message || err)));
-  }
+  function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
     const node = document.getElementById(id);
     if (node) { node.className = "dot " + state; node.title = title; }
   }
+  let statusAttempt = 0;
   async function refreshStatus() {
+    const attempt = ++statusAttempt;
     const statusPill = document.getElementById("status-pill");
     const modelPill = document.getElementById("model-pill");
     try {
-      const health = await api.get("/health", { onHeaders: (headers) => dot("proxy-dot", headers.has("X-Overgo-Swap-Proxy") ? "ok" : "off",
-        headers.has("X-Overgo-Swap-Proxy") ? "swap proxy serving " + headers.get("X-Overgo-Swap-Proxy") : "no swap proxy: served directly") });
+      // The proxy names its child in the header; an empty name is the proxy with no child (the cold start).
+      const health = await api.get("/health", { onHeaders: (headers) => { if (attempt !== statusAttempt) return; const via = headers.get("X-Overgo-Swap-Proxy");
+        dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
+      if (attempt !== statusAttempt) return;
       statusPill.textContent = "online";
+      document.getElementById("connection-alert").hidden = true;
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
+      // The proxy with no child names no model; the pill says so rather than keeping the last name.
+      modelPill.textContent = (health && health.model) || "no model serves";
+      modelPill.title = modelPill.textContent + " — choose a model";
+      document.getElementById("model-details").textContent = modelPill.textContent;
+      servedEntry = null;
+      document.getElementById("model-evidence").textContent = "";
       if (health && health.model) {
-        modelPill.textContent = health.model;
-        const catalog = await api.get("/catalog/models").catch(() => null);
-        servedEntry = ((catalog && catalog.models) || []).find((item) =>
-          (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
-        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : "";
+        // A catalog that fails to list says so under the pill instead of an empty evidence line.
+        const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+        if (attempt !== statusAttempt) return;
+        servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
+        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
       }
-    } catch (err) {
-      statusPill.textContent = "offline";
-      statusPill.className = "pill err";
-      dot("server-dot", "err", "server offline");
-    }
+    } catch (err) { if (attempt !== statusAttempt) return; statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
   }
 
   // The served model shows on every page as the banner pill; clicking it lists the servable models, and behind
   // the swap proxy choosing one swaps the serving child live while every page keeps working.
+  // libraryStarters: the two ways a model enters an empty store, each a control that opens the Library tab
+  // on its form (the local registration row, the hosted provider form) once the tab has mounted.
+  function libraryStarters() {
+    const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
+    return [el("button", { class: "btn alt", text: "register a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
+      el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
+  }
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
-    let panel = null;
-    modelPill.style.cursor = "pointer";
+    let panel = null; modelPill.classList.add("clickable");
     modelPill.title = "click to switch the served model";
+    // close: the picker leaves after a served swap and on Escape; a click on the pill toggles it.
+    const close = () => { if (panel) { panel.close(); panel.remove(); panel = null; modelPill.focus(); } };
 
     // swapModel routes one health probe through the swap proxy with the swap query parameter; the proxy swaps
     // the child to answer it, then the capability document is re-read and the active surface re-mounted.
     async function swapModel(item, name, button) {
-      const before = modelPill.textContent;
+      if (modelSwitchPending) return;
+      modelSwitchPending = true;
+      setModelSwitchBlocked(true);
+      const currentPanel = panel;
+      const before = capabilityDocument;
       const started = Date.now();
       const chip = { id: "swap-" + name, task: "model switch " + name, state: "running", progress: {} };
       window.overgo.localOperation(chip);
       button.disabled = true;
-      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, 1000);
+      for (const choice of currentPanel.querySelectorAll('[data-serve]')) choice.disabled = true;
+      const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
         await api.get("/health?swap=" + encodeURIComponent(name));
         invalidateModel();
-        await refreshStatus();
-        if (modelPill.textContent !== before) {
+        const manifest = await api.get("/workspace/manifest");
+        if (manifest.model && manifest.model.recipe === item.recipe) {
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
-          workspaceManifest = await api.get("/workspace/manifest");
-          capabilityDocument = workspaceManifest.model || null;
-          remountActive();
-          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served after " + Math.round((Date.now() - started) / 1000) + "s" }));
+          // Reopening history can request its original model; other switches start a fresh chain.
+          if (!selectedConversation || selectedConversation.model !== manifest.model.model) rememberConversation(null);
+          await remountActive(manifest);
+          setModelSwitchBlocked(false);
+          // The served swap is the operation chip's receipt; the picker has done its work and leaves.
           const elapsed = Math.round((Date.now() - started) / 1000);
-          panel.replaceChildren(el("div", { class: "note", text: "now serving " + modelPill.textContent + " after " + elapsed + "s · " +
-            (capabilityDocument ? "context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
+          window.overgo.localOperation(Object.assign(chip, { state: "completed", detail: "served " + modelPill.textContent + " after " + elapsed + "s" +
+            (capabilityDocument ? " · context " + capabilityDocument.context_length + " · " + Object.keys(capabilityDocument.modalities || {}).filter((kind) => capabilityDocument.modalities[kind]).join(", ") : "") }));
+          if (panel === currentPanel) close();
           return;
         }
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "no swap proxy" }));
+        if (before && manifest.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
         const command = 'overgo_gui.bat "' + (item.location || name) + '"';
         const copy = el("button", { class: "btn alt", text: "copy launch" });
         copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+        if (panel !== currentPanel) return;
         panel.replaceChildren(
           el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
           el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
       } catch (err) {
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: friendlyError(err) }));
-        panel.replaceChildren(errorBanner(friendlyError(err)));
+        // A refused swap may leave the original model usable. Confirm its
+        // recipe before releasing Send; an unknown model stays blocked.
+        try {
+          const current = await api.get("/workspace/manifest");
+          if (before && current.model && before.recipe === current.model.recipe) {
+            await remountActive(current);
+            setModelSwitchBlocked(false);
+          }
+        } catch (_) { /* choose a model again to resolve its unknown state */ }
+        const busy = err.code === 'resource_busy';
+        const message = busy ? 'The GPU is busy with another process. Wait for that work to finish, then retry loading this model.' : friendlyError(err);
+        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: message }));
+        if (panel === currentPanel) panel.replaceChildren(errorBanner(message),
+          ...(busy ? [el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })), el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) })] : []),
+          el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
       } finally {
-        clearInterval(timer);
-        button.disabled = false;
-        button.textContent = "serve";
+        modelSwitchPending = false;
+        clearInterval(timer); button.textContent = "serve";
+        if (panel) for (const choice of panel.querySelectorAll('[data-serve]')) choice.disabled = false;
       }
     }
 
     modelPill.addEventListener("click", async () => {
-      if (panel) { panel.remove(); panel = null; return; }
-      panel = el("div", { class: "card", style: "position:absolute;right:12px;top:44px;z-index:40;max-width:560px" });
+      if (panel) { close(); return; }
+      panel = el("dialog", { class: "card picker-card", "aria-label": "Choose a model" });
+      const currentPanel = panel;
       modelPill.parentElement.appendChild(panel);
+      panel.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
+      panel.showModal();
       panel.textContent = "loading servable models…";
       try {
         const catalog = await api.get("/catalog/models");
+        if (panel !== currentPanel) return;
         // Every activated entry with bytes on disk is listed: a servable one with its evidence, declared
         // task capabilities and a serve control; a stale activation with the loader's reason and no control.
         const entries = (catalog.models || []).filter((item) => item.present && item.recipe);
+        // An empty store names the two ways in; each opens the Library tab's form.
         if (!entries.length) {
-          panel.textContent = "no activated models in the store";
+          const starters = libraryStarters();
+          for (const starter of starters) starter.addEventListener("click", close);
+          panel.replaceChildren(el("div", { class: "note", text: "Add a local model or connect a hosted provider." }), el("div", { class: "row" }, ...starters));
           return;
         }
         let remembered = "";
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
-        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" +
-          (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
+        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
           ...entries.map((item) => {
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
-            const row = el("div", { class: "row" }, el("span", { class: "mono", text: name }));
-            const facts = evidenceLine(item);
-            if (facts) row.appendChild(el("span", { class: "note", text: facts }));
-            for (const capability of item.capabilities || []) {
-              row.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
-            }
+            // Keyboard path: a focused row serves on Enter; the arrows move between rows.
+            const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
+              if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "serve"); if (serve) serve.click(); }
+              else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
+            } }, el("span", { class: "mono", text: name }));
+            const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
+            if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
+            const evidence = evidenceLine(item);
+            if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
+            for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
             if (item.stale) {
-              row.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              facts.open = true;
+              facts.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
+              // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
+              if (item.key_environment) {
+                const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
+                facts.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
+                  try { await api.post("/providers/key", { location: item.location, key: key.value }); if (panel === currentPanel) { close(); modelPill.click(); } } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
+                } }));
+              }
               return row;
             }
-            const swap = el("button", { class: "btn alt", text: "serve" });
-            swap.addEventListener("click", () => swapModel(item, name, swap));
-            row.appendChild(swap);
-            return row;
+            row.appendChild(el("button", { class: "btn alt", text: "serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
-      } catch (err) { panel.textContent = friendlyError(err); }
+        const first = panel.querySelector(".row"); if (first) first.focus();
+      } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
+      finally {
+        if (panel === currentPanel) panel.prepend(el("div", { class: "dialog-heading" }, el("h2", { text: "Choose a model" }), el("button", { class: "btn alt", text: "Close", onclick: close })));
+      }
     });
+    // Alt+M opens the picker from anywhere on the page; the first row takes focus.
+    modelPill.setAttribute("aria-keyshortcuts", "Alt+M");
+    document.addEventListener("keydown", (event) => { if (event.altKey && !event.ctrlKey && event.key.toLowerCase() === "m") { event.preventDefault(); modelPill.click(); } });
   }
   wireModelPicker();
 
-  // ---- capability gating ----
-  // Refusal is server-owned and travels with the same manifest as navigation.
-  let authNoticeEl = null;
-
-  // When /analyze/model answers 401 the whole analysis surface is locked behind the key: one banner and
-  // a highlighted field instead of every tab failing on its own with a raw bearer-token error.
-  function showAuthNotice(show) {
-    if (authNoticeEl) authNoticeEl.style.display = show ? "" : "none";
-    const key = document.getElementById("api-key");
-    if (key) key.classList.toggle("needs-key", show);
-  }
-
-  function tabSupported(tab) {
-    return tab.enabled;
-  }
+  function tabSupported(tab) { return tab.enabled; }
 
   function applyCapabilities() {
     for (const tab of tabs) {
       const ok = tabSupported(tab);
       // A capability this model does not serve HIDES its tab: the nav shows what works here, and the
       // manifest still carries every refusal for API clients that ask.
-      tab.button.style.display = ok ? "" : "none";
+      tab.button.hidden = !ok;
       tab.button.disabled = !ok;
       tab.button.title = ok ? "" : tab.refusal;
     }
     const active = tabs.find((t) => t.button.classList.contains("active"));
-    if (active && !tabSupported(active)) {
-      const firstOk = tabs.find(tabSupported);
-      if (firstOk) activate(firstOk.id);
-    }
+    if (active && !tabSupported(active)) { const firstOk = tabs.find(tabSupported); if (firstOk) activate(firstOk.id); }
   }
 
   function bindWorkspaceManifest(manifest) {
@@ -603,11 +798,7 @@
   }
   async function loadWorkspaceModules(manifest) {
     for (const src of libraries) await loadScript(src);
-    const modules = [];
-    for (const declaration of manifest.tabs) {
-      const module = declaration.module || declaration.id;
-      if (!modules.includes(module)) modules.push(module);
-    }
+    const modules = [...new Set(manifest.tabs.map((declaration) => declaration.module || declaration.id))];
     await Promise.all(modules.map((module) => loadScript("/mod/" + module + ".js")));
   }
 
@@ -620,9 +811,9 @@
     const text = el("span", { text: message });
     const retry = el("button", { class: "btn alt", text: "probe again" });
     const card = el("div", { class: "card" }, el("div", { class: "probe" }, dot, text),
-      el("p", { class: "note", style: "margin-top:18px", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
+      el("p", { class: "note mt-18", text: "Start the server (overgo_gui.bat, or cmd/server with a model) and this page enters on its own." }),
       el("div", { class: "actions" }, retry));
-    panels.appendChild(el("div", { class: "center", style: "min-height:60vh" }, card));
+    panels.appendChild(el("div", { class: "center tall" }, card));
     async function probe() {
       dot.className = "dot scan";
       try {
@@ -635,7 +826,7 @@
       } catch (err) { dot.className = "dot err"; text.textContent = "no server at " + location.origin + " (" + friendlyError(err) + ")"; }
     }
     retry.addEventListener("click", probe);
-    if (offlineTimer == null) offlineTimer = setInterval(probe, 4000);
+    if (offlineTimer == null) offlineTimer = setInterval(probe, offlineProbeMS);
   }
 
   // The served model's capability document rides the manifest; every client capability decision reads capabilities().
@@ -670,12 +861,6 @@
       }
       sectionBar.appendChild(group);
     }
-    if (!authNoticeEl) {
-      authNoticeEl = el("div", { class: "auth-banner", style: "display:none" },
-        "This server requires an API key — enter it in the field at the top right to load analysis and chat.");
-      document.querySelector(".wrap").insertBefore(authNoticeEl, panels);
-    }
-
     // The key controls, hash routing and the health re-probe are wired once; the shell may initialise
     // again after an offline card and must not stack a second listener.
     if (!shellWired) {
@@ -686,26 +871,23 @@
       const keyRemember = document.getElementById("api-key-remember");
       keyInput.value = getKey();
       keyRemember.checked = keyWasPersisted;
-      keyRemember.addEventListener("change", () => {
-        setKey(keyInput.value.trim(), keyRemember.checked);
-      });
+      keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
       keyInput.addEventListener("change", () => {
         setKey(keyInput.value.trim(), keyRemember.checked);
         invalidateModel(); // the cached model was fetched under the old key
-        remountActive();
+        remountActive().catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
       });
-      window.addEventListener("hashchange", () => {
-        const id = location.hash.slice(1);
-        if (id && tabs.some((t) => t.id === id)) activate(id);
-      });
+      window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
-      setInterval(refreshStatus, 10000);
+      setInterval(refreshStatus, statusRefreshMS);
     }
     const start = location.hash.slice(1);
-    activate(tabs.some((t) => t.id === start) ? start : (tabs[0] && tabs[0].id));
-    refreshStatus();
     applyCapabilities();
+    const named = tabs.some((t) => t.id === start);
+    if (named || capabilityDocument) activate(named ? start : (tabs[0] && tabs[0].id));
+    syncColdStart();
+    refreshStatus();
     refreshConversations();
   }
   let shellWired = false;

@@ -16,8 +16,14 @@ import (
 // ceiling. A difference names the shape, so the report says which
 // context length moved.
 func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
+	// Legacy records bind the device class, before UUID capture existed.
+	// Preserve that comparison scope; a recorded UUID may never disappear.
+	device := fresh.Device
+	if record.Device.UUID == "" {
+		device.UUID = ""
+	}
 	if !record.Inputs.valid() || !fresh.Inputs.valid() || record.Inputs != fresh.Inputs || record.Floors != fresh.Floors || record.Floors != floors ||
-		record.Program != fresh.Program || record.Device != fresh.Device || record.ContextLength != fresh.ContextLength {
+		record.Program != fresh.Program || record.Device != device || record.ContextLength != fresh.ContextLength {
 		return Verdict{Reasons: []string{"comparison inputs differ or are unbound: model, corpus, tokens, protocol, floors, recipe, device or context"}}
 	}
 	var reasons []string

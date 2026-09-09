@@ -41,7 +41,11 @@ func (p *Frontend) melFilterbank() ([]float64, error) {
 	minimum, maximum := toMel(p.config.Mel.MinFrequency), toMel(p.config.Mel.MaxFrequency)
 	points := make([]float64, p.bands+2)
 	for index := range points {
-		points[index] = toHz(minimum + (maximum-minimum)*float64(index)/float64(p.bands+1))
+		point := minimum + (maximum-minimum)*float64(index)/float64(p.bands+1)
+		points[index] = toHz(point)
+		if p.config.Mel.LinearInMel {
+			points[index] = point
+		}
 		if !checked.Finite64(points[index]) || index > 0 && points[index] <= points[index-1] {
 			return nil, errors.New("audio frontend: mel edges collapse at declared precision")
 		}
@@ -49,12 +53,19 @@ func (p *Frontend) melFilterbank() ([]float64, error) {
 	bank := make([]float64, p.bins*p.bands)
 	for bin := range p.bins {
 		frequency := float64(p.config.SampleRate) / 2 * float64(bin) / (float64(p.config.FFTLength) / 2)
+		if p.config.Mel.LinearInMel {
+			frequency = toMel(frequency)
+		}
 		for band := range p.bands {
 			rising := (frequency - points[band]) / (points[band+1] - points[band])
 			falling := (points[band+2] - frequency) / (points[band+2] - points[band+1])
 			value := max(0, min(rising, falling))
 			if p.config.Mel.AreaNormalize {
-				value *= 2 / (points[band+2] - points[band])
+				span := points[band+2] - points[band]
+				if p.config.Mel.LinearInMel {
+					span = toHz(points[band+2]) - toHz(points[band])
+				}
+				value *= 2 / span
 			}
 			if !checked.Finite64(value) {
 				return nil, errors.New("audio frontend: non-finite filterbank")
@@ -84,6 +95,16 @@ func (p *Frontend) transform(ctx context.Context, features []float32, frames int
 		}
 	}
 	if norm := p.config.Normalize; norm != nil {
+		if norm.Mode == "fixed" {
+			for index, value := range features {
+				band := index % p.bands
+				features[index] = float32((float64(value) - norm.Mean[band]) * norm.InverseStd[band])
+				if !checked.Finite32(features[index]) {
+					return errors.New("audio frontend: non-finite fixed normalization")
+				}
+			}
+			return ctx.Err()
+		}
 		groups, width, stride := p.bands, frames, p.bands
 		if norm.Mode == "all" {
 			groups, width, stride = 1, len(features), 1
@@ -91,26 +112,58 @@ func (p *Frontend) transform(ctx context.Context, features []float32, frames int
 		if width <= norm.Correction {
 			return errors.New("audio frontend: too few observations for variance correction")
 		}
-		for group := range groups {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			var mean float64
-			for index := range width {
-				mean += float64(features[group+index*stride])
-			}
-			mean /= float64(width)
-			var variance float64
-			for index := range width {
-				delta := float64(features[group+index*stride]) - mean
-				variance += delta * delta
-			}
-			denominator := math.Sqrt(variance/float64(width-norm.Correction)) + norm.Epsilon
-			for index := range width {
-				at := group + index*stride
-				features[at] = float32((float64(features[at]) - mean) / denominator)
+		if norm.Float32 {
+			return normalizeFeatures(ctx, features, groups, width, stride, norm.Correction, float32(norm.Epsilon))
+		}
+		return normalizeFeatures(ctx, features, groups, width, stride, norm.Correction, norm.Epsilon)
+	}
+	return ctx.Err()
+}
+
+func normalizeFeatures[T float32 | float64](ctx context.Context, features []float32, groups, width, stride, correction int, epsilon T) error {
+	for group := range groups {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		var mean T
+		for index := range width {
+			mean += T(features[group+index*stride])
+		}
+		mean /= T(width)
+		var variance T
+		for index := range width {
+			delta := T(features[group+index*stride]) - mean
+			variance += T(delta * delta)
+		}
+		denominator := T(math.Sqrt(float64(variance/T(width-correction)))) + epsilon
+		for index := range width {
+			at := group + index*stride
+			features[at] = float32((T(features[at]) - mean) / denominator)
+			if !checked.Finite32(features[at]) {
+				return errors.New("audio frontend: non-finite normalization")
 			}
 		}
 	}
 	return ctx.Err()
+}
+
+func (norm NormalizeConfig) validate(bands int) error {
+	if norm.Mode == "fixed" {
+		if norm.Float32 || norm.Correction != 0 || norm.Epsilon != 0 || len(norm.Mean) != bands || len(norm.InverseStd) != bands {
+			return errors.New("audio frontend: invalid fixed normalization geometry")
+		}
+		for band, mean := range norm.Mean {
+			if !checked.Finite64(mean) || !checked.PositiveFinite64(norm.InverseStd[band]) {
+				return errors.New("audio frontend: invalid fixed normalization statistics")
+			}
+		}
+		return nil
+	}
+	if norm.Mode != "per-feature" && norm.Mode != "all" || norm.Correction < 0 || norm.Correction > 1 || !checked.PositiveFinite64(norm.Epsilon) || len(norm.Mean) != 0 || len(norm.InverseStd) != 0 {
+		return errors.New("audio frontend: invalid normalization declaration")
+	}
+	if norm.Float32 && !checked.PositiveFinite64(float64(float32(norm.Epsilon))) {
+		return errors.New("audio frontend: normalization epsilon is not positive finite float32")
+	}
+	return nil
 }

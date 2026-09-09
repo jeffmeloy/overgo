@@ -83,10 +83,7 @@
         renderDetail();
       }
 
-      async function refreshInventory() {
-        inventory = await api.get("/peers");
-        renderInventory();
-      }
+      async function refreshInventory() { inventory = await api.get("/peers"); renderInventory(); }
 
       async function transition(peer, state) {
         try {
@@ -97,10 +94,7 @@
       }
 
       enroll.addEventListener("click", async () => {
-        if (!enrollmentForm.validate()) {
-          status.textContent = "Complete every enrollment field";
-          return;
-        }
+        if (!enrollmentForm.validate()) { status.textContent = "Complete every enrollment field"; return; }
         try {
           const result = await api.post("/peers/enroll", enrollmentForm.value());
           enrollmentForm.markSaved();
@@ -121,10 +115,7 @@
       }
 
       compile.addEventListener("click", async () => {
-        if (!placementForm.validate()) {
-          status.textContent = "Complete every applicable placement field";
-          return;
-        }
+        if (!placementForm.validate()) { status.textContent = "Complete every applicable placement field"; return; }
         try {
           compiledPlan = await api.post("/peers/placement", placementRequest(placementForm.value()));
           placementForm.markSaved();
@@ -160,17 +151,17 @@
           attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))])));
       }
 
+      // An evidence read that fails says so where the evidence would stand.
+      const showEvidence = (data) => { if (data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); };
       await refreshInventory();
       const stream = new AbortController();
       api.events("/peers/stream", (event, data) => {
         if (event === "peer.inventory") { inventory = data; renderInventory(); }
-        if (event === "operation" && data.status && data.status.id) renderEvidence(data.status.id).catch(() => {});
+        if (event === "operation") showEvidence(data);
       }, { signal: stream.signal }).catch((err) => {
         if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
       });
-      overgo.runtimeEvents.subscribe((event, data) => {
-        if (event === "operation" && data.status && data.status.id) renderEvidence(data.status.id).catch(() => {});
-      });
+      overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
       return () => { stream.abort(); enrollmentForm.dispose(); placementForm.dispose(); };
     },
   });

@@ -9,9 +9,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
-	"net"
 	"net/http"
-	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,6 +18,7 @@ import (
 	"time"
 
 	"overgo/internal/agentloop"
+	"overgo/internal/apimanifest"
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/checked"
@@ -222,23 +221,20 @@ type Config struct {
 	APIKey             string
 	ContextShift       bool
 	RequestTimeout     time.Duration
-	// OperationDeadlineBudget bounds the ceiling any operation may declare;
-	// zero leaves ceilings unbounded.
-	OperationDeadlineBudget time.Duration
-	SPMInfill               bool
-	Qwen3VLProjector        projector.Session
-	ImageProjector          projector.Session
-	AudioProjector          projector.Session
-	RemoteMediaPolicy       *RemoteMediaPolicy
-	ResponseFiles           ResponseFileResolver
-	ToolProgram             recipe.Program
-	ToolAdapter             func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
-	MaxStoredResponses      int
-	ResponseStoreBytes      int
-	DatasetPreview          DatasetPreviewAPI
-	FFmpegPath              string
-	VideoFPS                float64
-	VideoMaxFrames          int
+	SPMInfill          bool
+	Qwen3VLProjector   projector.Session
+	ImageProjector     projector.Session
+	AudioProjector     projector.Session
+	RemoteMediaPolicy  *RemoteMediaPolicy
+	ResponseFiles      ResponseFileResolver
+	ToolProgram        recipe.Program
+	ToolAdapter        func(context.Context, recipe.ToolCall) (recipe.ToolResult, error)
+	MaxStoredResponses int
+	ResponseStoreBytes int
+	DatasetPreview     DatasetPreviewAPI
+	FFmpegPath         string
+	VideoFPS           float64
+	VideoMaxFrames     int
 	// OvergoDBPath enables read-only catalog browsing (runs, artifacts,
 	// datasets) when Repository is absent; the dataset catalog itself is
 	// read from the store, never from a filesystem manifest.
@@ -261,6 +257,11 @@ type Config struct {
 	// LibraryIntake is the model intake the library routes drive, assembled
 	// by the launcher; absent, those routes answer that they need it.
 	LibraryIntake LibraryIntake
+	// ProviderKeys places a hosted provider's key in this process for the
+	// model a reference names and returns the variable that holds it;
+	// assembled by the launcher, absent the key route answers that it
+	// needs it.
+	ProviderKeys func(ctx context.Context, store *overgodb.Store, reference, key string) (string, error)
 }
 
 type slotRuntimeStats struct {
@@ -477,9 +478,6 @@ func New(config Config, generator Generator) (*Handler, error) {
 	if config.DefaultTopP == 0 {
 		config.DefaultTopP = defaults.Sampling.TopP
 	}
-	if config.OperationDeadlineBudget < 0 {
-		return nil, errors.New("server: operation deadline budget must be non-negative")
-	}
 	if config.RequestTimeout < 0 {
 		return nil, errors.New("server: request timeout must be non-negative")
 	}
@@ -614,7 +612,6 @@ func New(config Config, generator Generator) (*Handler, error) {
 		_ = handler.Close()
 		return nil, err
 	}
-	handler.operations.BoundDeadlines(config.OperationDeadlineBudget)
 	if config.ToolAdapter != nil {
 		if repository == nil {
 			_ = handler.Close()
@@ -636,6 +633,7 @@ func (h *Handler) Close() error {
 	if h == nil {
 		return nil
 	}
+	h.inflight.shutdown()
 	// Downloads shut down first: the registry cancels in-flight transfers,
 	// records the interruption on each job, and waits for their goroutines,
 	// so nothing below closes out from under a disk write.
@@ -726,20 +724,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		)
 		return
 	}
+	// The credential-less CLI only binds loopback; the admission the swap proxy shares refuses a foreign Host or origin.
 	if h.config.APIKey == "" {
-		// The credential-less CLI only binds loopback. On a real HTTP transport,
-		// reject foreign Host names as well: matching Origin alone cannot stop
-		// DNS rebinding. Embedded Handler callers have no listener authority.
-		if request.Context().Value(http.LocalAddrContextKey) != nil {
-			host := (&url.URL{Host: request.Host}).Hostname()
-			if !strings.EqualFold(host, "localhost") && !net.ParseIP(host).IsLoopback() {
-				writeError(response, http.StatusForbidden, "invalid_host", "credential-less requests require a loopback Host")
-				return
-			}
-		}
-		var protection http.CrossOriginProtection
-		if err := protection.Check(request); err != nil {
-			writeError(response, http.StatusForbidden, "cross_origin_request", err.Error())
+		if refusal := apimanifest.AdmitCredentialless(request); refusal != nil {
+			writeError(response, http.StatusForbidden, refusal.Type, refusal.Message)
 			return
 		}
 	}

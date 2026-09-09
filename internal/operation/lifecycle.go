@@ -1,3 +1,5 @@
+// Package operation admits, runs, bounds and records long-running
+// operations behind the serving surfaces.
 package operation
 
 import (

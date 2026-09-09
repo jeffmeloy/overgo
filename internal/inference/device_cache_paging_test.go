@@ -71,6 +71,41 @@ func TestCompileDeviceCacheTargetPlanPinsSlotsAndCapacity(t *testing.T) {
 		got.valueCapacity.Dims[tokenAxis] != wantCapacity {
 		t.Fatalf("cache target plan = %+v", got)
 	}
+	keyElements, err := got.keyCapacity.Elements()
+	if err != nil {
+		t.Fatal(err)
+	}
+	valueElements, err := got.valueCapacity.Elements()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.keyOffset != 0 || got.valueOffset != keyElements || plans[0].elements != keyElements+valueElements {
+		t.Fatalf("cache group overlaps or includes unused storage: %+v", plans[0])
+	}
+}
+
+func TestDeviceCacheStorageViewsBoundEachLayer(t *testing.T) {
+	group := executor.DeviceValue{Pointer: driver.DevicePtr(4096), Shape: tensor.MustShape(16), CapacityBytes: 64}
+	key, err := deviceCacheStorageView(group, 0, tensor.MustShape(2, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, err := deviceCacheStorageView(group, 4, tensor.MustShape(3, 4))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if key.Pointer != group.Pointer || key.CapacityBytes != 16 || value.Pointer != group.Pointer+16 || value.CapacityBytes != 48 {
+		t.Fatalf("cache views overlap or expose adjacent storage: key=%+v value=%+v", key, value)
+	}
+	if _, err := deviceCacheStorageView(group, 16, tensor.MustShape(1)); err == nil {
+		t.Fatal("out-of-group cache view accepted")
+	}
+	storage := &deviceCacheStorage{keys: []executor.DeviceValue{key}, values: []executor.DeviceValue{value}}
+	builder := tensor.NewBuilder()
+	graph := deviceBatchGraph{keys: []*tensor.Tensor{builder.Input("key", dtype.F32, tensor.MustShape(2, 3))}, values: []*tensor.Tensor{builder.Input("value", dtype.F32, value.Shape)}}
+	if deviceCacheStorageFits(storage, graph) {
+		t.Fatal("cache growth crossed into another layer's storage")
+	}
 }
 
 func TestRebuildDeviceCachePagesCreatesPointerViews(t *testing.T) {

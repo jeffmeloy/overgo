@@ -28,7 +28,7 @@ func TestLater(t *testing.T) {
 	}
 	for _, short := range []bool{true, false} {
 		t.Run(fmt.Sprintf("short=%t", short), func(t *testing.T) {
-			report, err := runGoTests(t.Context(), repo, []string{"./..."}, short)
+			report, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./..."}, short, nil)
 			if err == nil {
 				t.Fatal("failing subprocess accepted")
 			}

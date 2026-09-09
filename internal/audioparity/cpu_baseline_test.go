@@ -100,7 +100,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	}
 	grouping := audiodsp.GroupedFeatureConfig{StackFrames: int(architecture.Preprocessor.StackFactor),
 		DeltaRadius: int(architecture.Preprocessor.DeltaWinLength-1) / 2, FinalFrameSamples: 1}
-	profile, err := speechrecognition.NewExecutionProfile(frontend, grouping, encoder, int(architecture.Config.PadTokenID), "en")
+	profile, err := speechrecognition.NewExecutionProfile(speechrecognition.ExecutionProfile{Frontend: frontend, Grouping: grouping, Encoder: encoder, BlankToken: int(architecture.Config.PadTokenID), Language: "en"})
 	if err != nil {
 		t.Fatal(err)
 	}

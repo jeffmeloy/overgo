@@ -1,6 +1,6 @@
 {
   "campaign": "Hatchet-derived process control: gate wall, selection coverage, lane overlap and governed promotion on existing Go owners",
-  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. Owner priorities 2026-09-09, judged by the phase wall table every gate prints: (1) safe selection and evidence reuse, since the last gate ran 234 packages with zero receipt reuse; (2) fast failure before expensive work, on master's a20ce59e ordering (vet and build before acceptance, edited owners first); (3) measured concurrency that shares GPU capacity between correctness workloads, changed packages first, overlap evaluated without recreating contention; (4) automatic mechanical repairs that refresh derived files before the candidate freezes, preserve reviewed thresholds and bind verification to the resulting candidate. The lane is judged by fewer unnecessary executions, faster failure detection and shorter successful gates with the same regression detection; scheduling machinery that does not reduce executed work is refused. Master's reviewed intake (74e8ea80, cbb2a24d, 89deb42c, a20ce59e) is the design authority: the full gate stays mandatory for every commit, no denominator shrinks, no skipped check earns credit, semantic literal authority stays as master decided, and the lane re-lands none of what master excluded without an independently bound correctness test and a measured validation benefit. No Hatchet source is copied; concepts are ported onto existing Go owners. Every row lands with one acceptance test in the owning package, named in its file-guarded verify, and commits through the plan-bound gate. Host rows land first; the measured rows precede master's batch-promotion row, which alone completes validation-batch-control; lane rows master's intake declined stay last and are re-planned before dispatch; master's retained rows are assigned to master and never dispatch here.",
+  "doctrine": "Work and commit only in the overgo_hatchet worktree; do not push. Owner priorities 2026-09-09, judged by the phase wall table every gate prints: (1) safe selection and evidence reuse, since the last gate ran 234 packages with zero receipt reuse; (2) fast failure before expensive work, on master's a20ce59e ordering (vet and build before acceptance, edited owners first); (3) measured concurrency that shares GPU capacity between correctness workloads, changed packages first, overlap evaluated without recreating contention; (4) automatic mechanical repairs that refresh derived files before the candidate freezes, preserve reviewed thresholds and bind verification to the resulting candidate. The lane is judged by fewer unnecessary executions, faster failure detection and shorter successful gates with the same regression detection; scheduling machinery that does not reduce executed work is refused. Master's reviewed intake (74e8ea80, cbb2a24d, 89deb42c, a20ce59e) is the design authority: the full gate stays mandatory for every commit, no denominator shrinks, no skipped check earns credit, semantic literal authority stays as master decided, and the lane re-lands none of what master excluded without an independently bound correctness test and a measured validation benefit. No Hatchet source is copied; concepts are ported onto existing Go owners. Every row lands with one acceptance test in the owning package, named in its file-guarded verify, and commits through the plan-bound gate. Host rows land first; the measured rows precede master's batch-promotion row, which alone completes validation-batch-control; lane rows master's intake declined stay last and are re-planned before dispatch; master's retained rows are assigned to master and never dispatch here. Master's 2ef953fa is the device admission authority: the gate's shared lease per host test batch, the measurement children that wait under their parent deadline and processcontrol.AwaitResource are reused, never duplicated; the lane adds no second wait loop and no refusal of foreign holders. One package-graph fact names the packages that need the device, and selection, batch order, the device lane and the lane exclusion resolver read it. Each lane cycle lands a plan-only commit, so plan-only commits are measured as their own gate shape.",
   "lane": "hatchet",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
@@ -17,10 +17,41 @@
           "verify": "test -f internal/gate/execution_edges_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeclaredExecutionEdgesBoundSelection$' -count=1",
           "rationale": "Priority one. Every package that imports os is bound to every repository root as an opaque reader, so any change selects about 234 packages and invalidates every package receipt: the last gate executed 234 packages with zero reuse. A deterministic analyzer classifies each package from the literals in its execution and file calls: a literal repository command binds that command's package closure, a literal repository path binds that file, the test binary itself and named external tools bind nothing, temporary files bind nothing, and a program or path the source does not name keeps the broad binding and is reported with its reason. Selection and package identities follow the classified edges, so unaffected packages keep their receipts across commits; the lane exclusion resolver reads the same classification. Master's subprocess cases (command output, shared launcher, renamed and deleted command, unowned protocol file) and the lane matrix stay green. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
           "depends_on": [
-            "selection-review/do"
+            "lane-overlap/device-lane-admission"
           ],
           "capabilities": [
             "selection-safety"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lane-overlap",
+      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "device-lane-admission",
+          "title": "Claim the device for the whole device lane through the admission wait before its first step",
+          "status": "open",
+          "verify": "test -f cmd/device-lane/admission_test.go \u0026\u0026 go test ./cmd/device-lane -run '^TestDeviceLaneAdmissionWaitsWithinBudget$' -count=1",
+          "rationale": "Master's 2ef953fa makes the gate's host batches and the measurement children wait for the device; the device lane's own steps still claim it exclusively and fail at once, so the merge gate of 2ef953fa passed its whole test phase under the shared lease and then failed twice in cuda-smoke against master's holders, and the lane's next source commit touches the device surface and runs the same lane. The device lane claims the device once for its process tree through processcontrol.AwaitResource under the gate's budget, reports the wait the way the gate reports its shared lease, and every step reenters the inherited reservation. A budget that expires names the contention; any other failure returns at once. This is the lane's first row after the merge because every following gate depends on it. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
+          "depends_on": [
+            "merge-2ef953fab346/do"
+          ]
+        },
+        {
+          "id": "concurrent-test-groups",
+          "title": "Order device work first under master's shared lease, then overlap the test groups and the lanes",
+          "status": "open",
+          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
+          "rationale": "Priority three, consolidated on master's 2ef953fa. The gate now takes one shared device lease per host test batch and waits for admission instead of failing, so the remaining loss is order and serialization: seven of the lane's eight gate attempts failed because the device packages ran minutes into the batch, after an exclusive holder had returned, and the device and browser lanes run seven minutes serial after the test phase. One package-graph fact names the packages whose tests need the device, replacing master's dependent-directory scan in the batch admission, the device lane's module ownership match and the lane exclusion resolver's copy. Within each group the changed source owners run first, then the device packages while the lease is held, then the rest; the dependent group starts once the changed owners pass; the device and browser lanes overlap the host test phase with store-writer admission through AwaitResource on the lane store lock, since both lanes write the lane store and its OS exclusion admits one writer. The device lane's own commands still claim the device exclusively without waiting (the merge gate of 2ef953fa passed its whole test phase under the shared lease and then failed in cuda-smoke against a foreign holder), so the device lane takes its exclusive claim through the same AwaitResource wait under the parent budget. Nothing is skipped: the same packages and lanes run. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
+          "depends_on": [
+            "process-commits/validate-only-gate"
+          ],
+          "capabilities": [
+            "evidence-durability"
           ]
         }
       ]
@@ -38,7 +69,7 @@
           "verify": "test -f internal/gate/validate_batch_test.go \u0026\u0026 go test ./internal/gate -run '^TestValidateChecksRunFirstConcurrently$' -count=1",
           "rationale": "Priority two. Master's a20ce59e already runs vet and build before acceptance and binds the candidate census in the early modern-Go phase; the static checks still run one after another behind profile and architecture. The checks with no data dependency on each other run in one wave after their declared prerequisites, every finding printed at once, before acceptance; the phase order inside the wave is by declared dependency only; the shared gate state they write is guarded. The full gate stays mandatory; nothing is skipped or credited. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
           "depends_on": [
-            "selection-review/do"
+            "merge-2ef953fab346/do"
           ],
           "capabilities": [
             "gate-cost"
@@ -46,12 +77,12 @@
         },
         {
           "id": "mechanical-repairs",
-          "title": "Refresh derived files before the candidate freezes, preserving reviewed thresholds",
+          "title": "Apply the mechanical repairs through one registry before the candidate freezes, preserving reviewed thresholds",
           "status": "open",
           "verify": "test -f internal/gate/mechanical_repair_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateStagesMechanicalRepairs$' -count=1",
-          "rationale": "Priority four. The modern-Go census and baseline change on any Go edit and the harness surface baseline has no writer, so a correct row is refused late and re-gated. Before the candidate is frozen the gate regenerates the derived files whose content is a function of the candidate source (modern-Go census and baseline, harness surface baseline, closure rebinds into a scratch store), records each as a staged repair in the audit, and binds verification to the resulting candidate. Reviewed thresholds and ceilings are never changed by a repair; a repair that would move one is refused with the delta. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
+          "rationale": "Priority four. The gate already repairs one finding by itself, the stale closure rebind in the magics phase; the others (gofmt, the modern-Go census and baseline, the harness surface baseline, the clone baseline within its ceiling) are refused late and re-gated by hand, and every re-gate pays the full wall. One repair registry lists each derived file with its writer, its reviewed thresholds and the phase that consumes it; before the candidate freezes the gate applies every repair whose input is the candidate source, records each as a staged repair in the audit and binds verification to the repaired candidate. A repair that would move a reviewed threshold or ceiling is refused with the delta. The existing closure rebind becomes the first registry entry, not a second path. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
           "depends_on": [
-            "gate-wall/validate-first"
+            "lane-overlap/concurrent-test-groups"
           ],
           "capabilities": [
             "gate-cost"
@@ -59,36 +90,15 @@
         },
         {
           "id": "admission-chain",
-          "title": "Overlap the independent admission steps and reuse the parsed plan in the commit phase",
+          "title": "Compute the candidate tree once per gate and reuse the parsed plan across admission and commit",
           "status": "open",
           "verify": "test -f internal/gate/admission_overlap_test.go \u0026\u0026 go test ./internal/gate -run '^TestAdmissionStepsOverlap$' -count=1",
-          "rationale": "Six serial admission steps precede the first check, ten to thirty-five seconds per gate; the projected-merge preflight opens a second store and parses the plan at three revisions, work the commit barrier repeats. Steps without a data dependency run concurrently, and the parsed plan and opened store are carried into the commit phase.",
+          "rationale": "Master owns admission recovery (b7b689c7, 5dec105b, 2ef953fa); the lane removes repeated work only. The drift check snapshots the candidate tree before every check (a temporary index, read-tree, add and write-tree per check) and the plan document is parsed in admission, in the docs phase and again in the commit phase. The candidate tree key is computed once after preparation and compared by content hash of the planned paths thereafter; the parsed plan and the captured index state are carried in the gate context. Measured by the wall of the seventeen checks outside their own work and the commit phase wall. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
           "depends_on": [
-            "gate-wall/validate-first"
+            "gate-wall/mechanical-repairs"
           ],
           "capabilities": [
             "gate-cost"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "lane-overlap",
-      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "concurrent-test-groups",
-          "title": "Overlap the remaining test work only after the changed owners pass, under the package evidence ledger",
-          "status": "open",
-          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
-          "rationale": "Priority three. Owner review of 8446925b: a blanket overlap of the direct and dependent groups can recreate master's observed timeout, where the gate package passed alone but exceeded 600 seconds under contention, and the shared-lanes gate showed the browser lane and the test processes contending for the lane store's single-writer OS exclusion. The changed owners run first and alone; only once they pass does the remaining dependent work overlap, and the lane store's writer admission is shared across the concurrent processes. Throughput and contention are measured per gate in the phase wall table before and after; -count=1 is dropped only where a persisted receipt keyed on the package's cumulative inputs already decides reuse; the acceptance denominator is unchanged. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
-          "depends_on": [
-            "selection-coverage/subprocess-contract"
-          ],
-          "capabilities": [
-            "evidence-durability"
           ]
         }
       ]
@@ -104,7 +114,7 @@
           "title": "Give plan-only and receipt-only commits a gate that runs the validate checks and the commit barrier",
           "status": "open",
           "verify": "test -f internal/gate/plan_only_gate_test.go \u0026\u0026 go test ./internal/gate -run '^TestPlanOnlyCommitSkipsExecution$' -count=1",
-          "rationale": "Since 1 September, 80 of 326 master commits were merges, replans or receipt records, each a full gate. When the changed paths hold no Go, asset or kernel input the vet, build and test phases already self-skip; the gate recognises the case at planning, runs the validate checks and the commit barrier, and records the skipped phases as inapplicable with the reason, so a plan edit or a receipt lands in about a minute. A merge never qualifies.",
+          "rationale": "Every lane cycle lands a plan-only commit (a re-plan or a merge row) and pays the full gate for it: the last plan-only gates ran the same nine-minute test phase as a source change because the plan is a runtime-named input of the plan packages. A commit whose planned paths change no Go input, no kernel and no runtime-named file of any package except the plan's own readers runs the admission chain, the validate wave, the plan's own readers and the commit barrier; every other phase records itself as inapplicable with the reason, never as reused or passed. The next source commit runs the full gate as before. The plan structure tests stay in the plan-only shape. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
           "depends_on": [
             "gate-wall/validate-first"
           ],
@@ -116,21 +126,52 @@
     },
     {
       "id": "device-reaper",
-      "title": "End lane servers with the run and refuse admission under a foreign device holder",
+      "title": "End lane servers with the run",
       "owner": "hatchet",
       "status": "open",
       "steps": [
         {
           "id": "job-and-refusal",
-          "title": "End lane servers with the run and admit the device by capacity, reserving exclusivity for measurement",
+          "title": "End lane servers with the run and report their device release in the run receipt",
           "status": "open",
-          "verify": "test -f internal/gate/device_holder_test.go \u0026\u0026 go test ./internal/gate -run '^TestForeignDeviceHolderRefusesAdmission$' -count=1",
-          "rationale": "Owner review of 8446925b: rejecting any GPU process outside a live gate conflicts with sharing memory with interactive models under a109e8af. A failed browser lane leaves overgo-server holding the GPU and nothing ends it, so the lane's server joins the gate's job object and dies with the run. Admission is capacity-aware: the gate reports every device holder with its owner and memory, admits when the served model and the checks fit beside the holders, waits with a bounded, reported delay when they do not, and refuses only an explicit performance measurement that cannot hold the device exclusively. An orphaned lane server, one whose gate no longer lives, is reported with its pid and command and reaped by the reaper, never a foreign holder.",
+          "verify": "test -f internal/gate/lane_server_test.go \u0026\u0026 go test ./internal/gate -run '^TestLaneServerEndsWithRun$' -count=1",
+          "rationale": "Master's 2ef953fa owns device admission: shared batches wait, measurement children wait under their parent deadline, and device tasks report not_busy only after the process tree exits. The lane keeps the one remaining hole: a browser lane that fails leaves overgo-server holding the device until an operator kills it, and the next gate's shared lease then waits its whole budget. The lane server is a supervised child of the lane run, ends with the run's terminal receipt on every exit path, and the receipt records the device release. No refusal of foreign holders and no second admission path. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
           "depends_on": [
             "lane-overlap/concurrent-test-groups"
           ],
           "capabilities": [
             "device-exclusion"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lane-merge-automation",
+      "title": "Make a lane merge one command and one gate",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "prepare-merge-lane",
+          "title": "Teach plan -prepare-merge the first-parent-target lane case end to end",
+          "status": "open",
+          "verify": "test -f cmd/plan/prepare_merge_lane_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPrepareMergeLaneProjection$' -count=1",
+          "rationale": "The merge of 2ef953fa took a manual sequence the lane repeats every cycle: stash the candidate, merge with no commit, keep the lane plan, resolve the census files, republish the census, import master's closure decisions, rebind, add and assign the merge row, and only then gate. plan -prepare-merge learns the first-parent-target lane case end to end: it performs that sequence, refuses when several worktrees sit on master's commit only if the projection cannot be resolved, and leaves one gate to run. Measured by the wall from the merge request to the merge gate start. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
+          "depends_on": [
+            "plan-dispatch/dispatch-json"
+          ],
+          "capabilities": [
+            "plan-ownership"
+          ]
+        },
+        {
+          "id": "lane-environment",
+          "title": "Derive the audio reference store and data roots from the lane's declared roots instead of the operator's environment",
+          "status": "open",
+          "verify": "test -f internal/gate/lane_environment_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateDerivesLaneEnvironment$' -count=1",
+          "rationale": "Two of the lane's gate attempts failed only because OVERGO_AUDIO_REFERENCE_STORE was not exported: the audio parity acceptances derive their datasets and model roots from the reference store's parent directory, and the gate exports the lane store when the variable is unset, which names roots the lane does not have. The gate derives the reference store from the declared data roots (local-models.json) the same way the tests derive theirs, records the derivation in the environment evidence, and the tests read the declared roots instead of the store's parent. No operator environment is needed for a lane gate. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
+          "depends_on": [
+            "lane-merge-automation/prepare-merge-lane"
           ]
         }
       ]
@@ -149,27 +190,6 @@
           "rationale": "A loop turn runs the plan tool five times, each rebuilding completion authority from git history and the store, the stop hook re-implements the resolver, and the loop parses the prose dispatch back into a struct. The plan tool prints the dispatch as JSON, the completion authority is cached on HEAD and the store head, and the hook and the loop consume the JSON; the dead bounded-request marker is removed.",
           "depends_on": [
             "lane-replan/do"
-          ],
-          "capabilities": [
-            "plan-ownership"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "lane-merge-automation",
-      "title": "Make a lane merge one command and one gate",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "prepare-merge-lane",
-          "title": "Teach plan -prepare-merge the first-parent-target lane case end to end",
-          "status": "open",
-          "verify": "test -f cmd/plan/prepare_merge_lane_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPrepareMergeLaneProjection$' -count=1",
-          "rationale": "Merging master into this lane took seven gate runs by hand: a manual merge because prepare-merge refuses when another worktree sits on master, keeping the lane plan, adding a merge row with a build verify, the cross-store and same-store closure imports, two baseline republications and a machine-local fixture copy. prepare-merge performs the merge, keeps the lane plan, adds the merge row, imports the source store's closure decisions, republishes the baselines and names the retained fixtures the device lane needs; the test proves the projected plan equals the lane plan plus the merge row.",
-          "depends_on": [
-            "plan-dispatch/dispatch-json"
           ],
           "capabilities": [
             "plan-ownership"

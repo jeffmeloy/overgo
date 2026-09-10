@@ -10,9 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
+	"overgo/internal/lanestore"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
@@ -42,6 +44,8 @@ func prepareMergeWithProjection(
 	if parsedProjection != projection {
 		return errors.New("prepare-merge projection is not canonical")
 	}
+	// The lane case is measured from the request to the staged merge.
+	started := time.Now()
 	canonicalRoot, err := gitauthority.RepositoryRoot(context.Background(), root)
 	if err != nil {
 		return err
@@ -114,7 +118,8 @@ func prepareMergeWithProjection(
 			return err
 		}
 		mergeID := "merge-" + snapshot[:12]
-		merged, err = insertItem(merged, mergeID, "Merge "+source+" at "+snapshot[:12], "", "go run ./cmd/compatibility -check")
+		lane := laneMerge(projection, local)
+		merged, err = insertMergeRow(merged, mergeID, "Merge "+source+" at "+snapshot[:12], local.Lane, lane)
 		if err != nil {
 			return err
 		}
@@ -198,6 +203,20 @@ func prepareMergeWithProjection(
 		} else {
 			fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local OvergoDB worktree)")
 		}
+		if lane {
+			// The lane's store rebinds its own decisions over the imported
+			// ones and mirrors the source's activations, so the one gate
+			// reads the same activation truth as the source's.
+			if _, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-store", gitauthority.CanonicalOvergoDBDirectory, "-import-store", gitauthority.CanonicalOvergoDBDirectory); err != nil {
+				return fmt.Errorf("prepare-merge lane closure rebind: %w", err)
+			}
+			report, err := mirrorLaneActivations(root, liveSourceStore)
+			if err != nil {
+				return fmt.Errorf("prepare-merge lane activations: %w", err)
+			}
+			fmt.Fprintf(output, "prepare-merge: lane store mirrors %d source activation(s): closure=%d copied=%v bindings=%d released=%d\n",
+				report.SourceActive, report.ClosureRecords, report.Copied, report.Bindings, len(report.Released))
+		}
 		keepMerge = true
 		projectionArguments, err := mergeFinalizeProjectionArguments(projection, liveSourceStore)
 		if err != nil {
@@ -208,8 +227,57 @@ func prepareMergeWithProjection(
 			"prepare-merge: %s@%s staged; finalize with cmd/gate -merge%s -plan %s/do\n",
 			source, snapshot, projectionArguments, mergeID,
 		)
+		if lane {
+			fmt.Fprintf(output, "prepare-merge: lane merge prepared in %s from the request to the staged merge\n", time.Since(started).Round(time.Millisecond))
+		}
 		return nil
 	})
+}
+
+// laneMerge reports the lane case: a first-parent-target merge into a plan
+// that names its lane.
+func laneMerge(projection plan.MergeProjection, local plan.Plan) bool {
+	return projection == plan.MergeProjectionFirstParentTarget && local.Lane != ""
+}
+
+// insertMergeRow puts the merge row at the top of the plan; a lane's row is
+// owned by the lane, since the lane dispatches only rows it owns, and is
+// proven by the build.
+func insertMergeRow(document plan.Plan, mergeID, title, owner string, lane bool) (plan.Plan, error) {
+	merged, err := insertItem(document, mergeID, title, "", mergeVerify(lane))
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	if lane {
+		merged.Items[0].Owner = owner
+	}
+	return merged, nil
+}
+
+// mergeVerify names the merge row's verify: a lane's merge row is proven by
+// the build, since the compatibility check regenerates on the target's
+// own line, not the lane's.
+func mergeVerify(lane bool) string {
+	if lane {
+		return "go build ./..."
+	}
+	return "go run ./cmd/compatibility -check"
+}
+
+// mirrorLaneActivations mirrors the live source store's active inference
+// activations into the lane's canonical store.
+func mirrorLaneActivations(root, liveSourceStore string) (lanestore.Report, error) {
+	source, err := overgodb.OpenReadOnly(liveSourceStore)
+	if err != nil {
+		return lanestore.Report{}, err
+	}
+	defer source.Close()
+	target, err := overgodb.Open(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
+	if err != nil {
+		return lanestore.Report{}, err
+	}
+	defer target.Close()
+	return lanestore.MirrorActivations(context.Background(), source, target, lanestore.MirrorDepth)
 }
 
 func mergeOwnedDocument(path string) bool {

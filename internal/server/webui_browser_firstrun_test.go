@@ -84,7 +84,16 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = repository.Close() })
-	resolver := &modelswap.CatalogResolver{Store: repository, Limit: 256}
+	// The resolver only reads: a read-only view refreshes without the
+	// store's process lock, so the picker never waits behind other
+	// processes' transactions on the lane store, while the writer handle
+	// stays the idle shell's, whose refresh is its writer admission.
+	catalog, err := overgodb.OpenReadOnly(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = catalog.Close() })
+	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
 	// No default: the journey opens on the cold proxy, as overgo_gui.bat
 	// without a model does, and chooses the first model from the picker.
 	proxy := &modelswap.Proxy{

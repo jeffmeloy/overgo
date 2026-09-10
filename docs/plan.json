@@ -11,19 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "prepare-merge-lane",
-          "title": "Teach plan -prepare-merge the first-parent-target lane case end to end",
-          "status": "open",
-          "verify": "test -f cmd/plan/prepare_merge_lane_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPrepareMergeLaneProjection$' -count=1",
-          "rationale": "The merge of 2ef953fa took a manual sequence the lane repeats every cycle: stash the candidate, merge with no commit, keep the lane plan, resolve the census files, republish the census, import master's closure decisions, rebind, add and assign the merge row, and only then gate. plan -prepare-merge learns the first-parent-target lane case end to end: it performs that sequence, refuses when several worktrees sit on master's commit only if the projection cannot be resolved, and leaves one gate to run. Measured by the wall from the merge request to the merge gate start. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused. The merge of f278ca23 cost three merge gates of twelve to thirteen minutes for one merge: the first two failed in the browser lane on the journey's own bound under the overlapped test groups, which the lane-overlap row's follow-up repaired, and the manual sequence before each gate repeated the census, closure, plan-row, store-sync and smoke steps. The one command performs that sequence and refuses to gate while the lane's store mirrors an activation set master no longer declares.",
-          "depends_on": [
-            "plan-dispatch/dispatch-json"
-          ],
-          "capabilities": [
-            "plan-ownership"
-          ]
-        },
-        {
           "id": "lane-environment",
           "title": "Derive the audio reference store and data roots from the lane's declared roots instead of the operator's environment",
           "status": "open",

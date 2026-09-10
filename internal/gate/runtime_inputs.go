@@ -136,6 +136,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 	}
 	for index, name := range files {
 		parsed := parsedFiles[index]
+		dotImported := canonicalizeImports(parsed)
 		classifier := sourceClassifier{
 			inputs: &inputs, relativeDir: relativeDir, file: name, commands: commands,
 			named: paths, pending: trees, reasons: &inputs.dynamic,
@@ -143,6 +144,11 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		}
 		if strings.HasSuffix(name, "_test.go") {
 			classifier.named, classifier.pending, classifier.reasons = testPaths, testTrees, &inputs.testDynamic
+		}
+		if dotImported {
+			// A file or process owner imported without a name hides every
+			// call it makes; the file keeps the broad binding.
+			*classifier.reasons = append(*classifier.reasons, name+": imports a file or process owner without a name")
 		}
 		ast.Inspect(parsed, classifier.visit)
 	}
@@ -164,6 +170,63 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		*reasons = slices.Compact(*reasons)
 	}
 	return inputs, nil
+}
+
+// ownerPackages are the imports whose calls the classifier names by their
+// package: a dot import of one hides every such call.
+var ownerPackages = []string{"os", "os/exec", "path/filepath", "io/ioutil", "io/fs", "path", "runtime"}
+
+// canonicalizeImports renames every aliased import's selectors to the
+// package's own name, so an owner imported under an alias is still seen,
+// and reports whether a file or process owner is imported without a name.
+func canonicalizeImports(file *ast.File) bool {
+	aliases := map[string]string{}
+	dotImported := false
+	for _, spec := range file.Imports {
+		importPath, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || spec.Name == nil {
+			continue
+		}
+		canonical := importPath[strings.LastIndex(importPath, "/")+1:]
+		switch spec.Name.Name {
+		case ".":
+			dotImported = dotImported || slices.Contains(ownerPackages, importPath)
+		case "_", canonical:
+		default:
+			aliases[spec.Name.Name] = canonical
+		}
+	}
+	if len(aliases) == 0 {
+		return dotImported
+	}
+	ast.Inspect(file, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if identifier, ok := selector.X.(*ast.Ident); ok {
+			if canonical, aliased := aliases[identifier.Name]; aliased {
+				identifier.Name = canonical
+			}
+		}
+		return true
+	})
+	return dotImported
+}
+
+// argumentZero reports the running binary's own path, os.Args[0]; any other
+// operator argument is an input the source does not name.
+func argumentZero(value ast.Expr) bool {
+	index, ok := value.(*ast.IndexExpr)
+	if !ok {
+		return false
+	}
+	selector, ok := index.X.(*ast.SelectorExpr)
+	if !ok || !selectorIs(selector, "os", "Args") {
+		return false
+	}
+	literal, ok := index.Index.(*ast.BasicLit)
+	return ok && literal.Kind == token.INT && literal.Value == "0"
 }
 
 // visit classifies one syntax node.
@@ -189,10 +252,14 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 		for _, value := range typed.Rhs {
 			derived = derived && classifier.callerDerived(value)
 		}
-		if derived {
-			for _, target := range typed.Lhs {
-				if identifier, ok := target.(*ast.Ident); ok {
+		// A name assigned from anything else, an environment value among
+		// them, stops being the caller's reach from that assignment on.
+		for _, target := range typed.Lhs {
+			if identifier, ok := target.(*ast.Ident); ok {
+				if derived {
 					classifier.parameters[identifier.Name] = true
+				} else {
+					delete(classifier.parameters, identifier.Name)
 				}
 			}
 		}
@@ -257,6 +324,14 @@ func (classifier *sourceClassifier) safePath(argument ast.Expr) bool {
 	case *ast.UnaryExpr, *ast.CompositeLit, *ast.FuncLit:
 		// A flag, a mode, a callback or a literal value, never a path.
 		return true
+	case *ast.IndexExpr:
+		// The binary's own path is safe; any other operator argument is an
+		// input the source does not name. An element of a safe name is safe.
+		if selector, ok := typed.X.(*ast.SelectorExpr); ok && selectorIs(selector, "os", "Args") {
+			return argumentZero(typed)
+		}
+		root := rootIdentifier(argument)
+		return root != "" && classifier.safeNames[root]
 	default:
 		root := rootIdentifier(argument)
 		return root != "" && classifier.safeNames[root]
@@ -267,6 +342,10 @@ func (classifier *sourceClassifier) safePath(argument ast.Expr) bool {
 // binary's own path or from a temporary directory or file.
 func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
 	names := maps.Clone(constants)
+	// A name assigned anywhere from a value that is not safe, an
+	// environment value among them, is never safe: the file's reads may
+	// follow either assignment.
+	unsafe := map[string]bool{}
 	ast.Inspect(file, func(node ast.Node) bool {
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok || len(assign.Rhs) == 0 {
@@ -276,16 +355,20 @@ func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
 		for _, value := range assign.Rhs {
 			safe = safe || safeSource(value, names)
 		}
-		if !safe {
-			return true
-		}
 		for _, target := range assign.Lhs {
 			if identifier, ok := target.(*ast.Ident); ok {
-				names[identifier.Name] = true
+				if safe {
+					names[identifier.Name] = true
+				} else {
+					unsafe[identifier.Name] = true
+				}
 			}
 		}
 		return true
 	})
+	for name := range unsafe {
+		delete(names, name)
+	}
 	return names
 }
 
@@ -298,8 +381,7 @@ func safeSource(value ast.Expr, names map[string]bool) bool {
 	case *ast.Ident:
 		return names[typed.Name]
 	case *ast.IndexExpr:
-		selector, ok := typed.X.(*ast.SelectorExpr)
-		return ok && selectorIs(selector, "os", "Args")
+		return argumentZero(typed)
 	case *ast.CallExpr:
 		selector, ok := typed.Fun.(*ast.SelectorExpr)
 		if !ok {
@@ -386,7 +468,7 @@ func literalArguments(call *ast.CallExpr) []string {
 func (classifier *sourceClassifier) classifyProgram(program ast.Expr) {
 	switch typed := program.(type) {
 	case *ast.IndexExpr:
-		if selector, ok := typed.X.(*ast.SelectorExpr); ok && selectorIs(selector, "os", "Args") {
+		if argumentZero(typed) {
 			return
 		}
 	case *ast.BasicLit:

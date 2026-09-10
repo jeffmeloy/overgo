@@ -261,6 +261,11 @@ func Run(options Options) error {
 	if err := validatePlannedPaths(g.paths); err != nil {
 		return err
 	}
+	// A lane commit that carries nothing but the plan is refused unless it
+	// is a merge: routine re-planning rides in the implementation commit.
+	if err := g.refusePlanOnlyCommit(*merge); err != nil {
+		return err
+	}
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
 	}

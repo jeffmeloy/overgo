@@ -60,27 +60,6 @@
       ]
     },
     {
-      "id": "process-commits",
-      "title": "Limit plan-only commits to merges; routine re-planning rides in the implementation commit",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "validate-only-gate",
-          "title": "Refuse a plan-only lane commit that is not a merge and record re-planning in the implementation commit's plan path",
-          "status": "open",
-          "verify": "test -f internal/plan/plan_only_commits_test.go \u0026\u0026 go test ./internal/plan -run '^TestPlanOnlyCommitsAreMergesOnly$' -count=1",
-          "rationale": "Owner review of 2026-09-10: a separate plan-only commit every cycle paid the full nine-minute test phase and a seven-minute browser lane for a document change. Instead of a cheaper gate shape for those commits, the lane stops making them: re-planning edits ride in the implementation commit's docs/plan.json path, the gate already accepts the plan beside code paths, and only a merge lands a plan-only commit, since a merge row carries no code of its own. The plan structure test refuses an open lane row whose verify names no test file and a doctrine that omits this rule, so the shape is machine-checked rather than remembered. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
-          "depends_on": [
-            "gate-wall/validate-first"
-          ],
-          "capabilities": [
-            "gate-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "device-reaper",
       "title": "End lane servers with the run",
       "owner": "hatchet",

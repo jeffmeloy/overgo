@@ -441,7 +441,7 @@ func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
 	t.Helper()
 	for _, required := range []string{
 		"phase wall table", "No Hatchet source is copied",
-		"one acceptance test in the owning package", "Host rows land first",
+		"one acceptance test in the owning package", "Host rows land first", "only a merge lands a plan-only commit",
 	} {
 		if !strings.Contains(document.Doctrine, required) {
 			t.Errorf("hatchet campaign doctrine omits %q", required)

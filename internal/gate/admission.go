@@ -249,3 +249,13 @@ func scopeDirty(planned []string, dirty []repoanalysis.DirtyPath) (map[string]bo
 	}
 	return visible, unplanned
 }
+
+// applies the plan-only lane commit rule to the operator's planned paths
+// before the plan path joins them
+func (g *gateContext) refusePlanOnlyCommit(merge bool) error {
+	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	if err != nil {
+		return err
+	}
+	return plan.PlanOnlyCommitRefusal(document, g.planRef, g.paths, merge)
+}

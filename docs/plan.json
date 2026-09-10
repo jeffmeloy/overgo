@@ -104,18 +104,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-admission-resource-refresh",
-          "title": "Refresh E4B resources once after storage admission changes",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^TestAcceptedE4BResourceRefresh$' -count=1",
-          "rationale": "The OpenContext change is in the declared inference dependency closure. The read-only check proves current resource freshness expired while original modality-quality evidence still passes. Freeze this producer once after admission-recovery; refresh the existing 18 protocol cases, 270 media recovery requests across six modes and three reloads, and 32768-token text recovery through the landed owners. Preserve all original denominators, ceilings, identities and failed attempts; do not rerun the 30-cell quality/native-mask campaign without a separate affected contract. Publish one complete immutable selection with routine plan updates, without intervening producer edits. Do not relabel old captures with the new surface. This restores current E4B resource evidence only; remaining catalog and benchmark obligations stay open. The existing read-only acceptance rejects the old resource selection at the current inference surface. Freeze the clean landed producer; reacquire only affected protocol and resource cells through the existing server and longform recovery owners. Preserve the original 30-cell quality/native-mask bundle, exact model/projector/recipe/environment identities, required modality cases, cancellation, restart and owned-memory bounds. Reuse unaffected records only with source-dependency proof; never relabel stale captures. Persist complete cells and gate their immutable selection together. Qwen-specific short-prefill variability is not a prerequisite for E4B protocol/resource collection. This row refreshes E4B evidence, not the remaining catalog, held-out benchmarks or modality-wide report.",
-          "depends_on": [
-            "modality-verification/decode-producer-comparison",
-            "modality-verification/decode-completed-cohorts",
-            "validation-batch-control/admission-recovery"
-          ]
-        },
-        {
           "id": "decode-guard-readmission",
           "title": "Readmit all affected guards on the frozen decode producer",
           "status": "open",

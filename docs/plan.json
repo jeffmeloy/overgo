@@ -5,27 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-wall",
-      "title": "Cut the gate wall: measure it, front-load the validate checks, repair the mechanical findings, overlap the admission chain",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "admission-chain",
-          "title": "Compute the candidate tree once per gate and reuse the parsed plan across admission and commit",
-          "status": "open",
-          "verify": "test -f internal/gate/admission_overlap_test.go \u0026\u0026 go test ./internal/gate -run '^TestAdmissionStepsOverlap$' -count=1",
-          "rationale": "Master owns admission recovery (b7b689c7, 5dec105b, 2ef953fa); the lane removes repeated work only. The drift check snapshots the candidate tree before every check (a temporary index, read-tree, add and write-tree per check) and the plan document is parsed in admission, in the docs phase and again in the commit phase. The candidate tree key is computed once after preparation and compared by content hash of the planned paths thereafter; the parsed plan and the captured index state are carried in the gate context. Measured by the wall of the seventeen checks outside their own work and the commit phase wall. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused. The row is called a speedup only when the phase wall tables before and after it show a measured reduction in executed checks and total gate wall. Master's store-lifetime step retains the one gate store; this row starts after it is merged and leaves the store handle to master.",
-          "depends_on": [
-            "gate-wall/mechanical-repairs"
-          ],
-          "capabilities": [
-            "gate-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "lane-overlap",
       "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
       "owner": "hatchet",

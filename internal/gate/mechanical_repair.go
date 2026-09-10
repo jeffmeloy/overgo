@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/closurescan"
@@ -32,14 +33,15 @@ type mechanicalRepair struct {
 	apply func(g *gateContext) error
 }
 
-// mechanicalRepairs lists the registry in the order the phases consume the
-// results; the closure rebind the magics phase already applied on its own
-// is the first entry, not a second path.
+// mechanicalRepairs lists the registry: the formatter first, since every
+// other repair reads the Go sources it rewrites, then the repairs that
+// write disjoint outputs; the closure rebind the magics phase already
+// applied on its own is a registry entry, not a second path.
 func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 	none := func(*gateContext) []string { return nil }
 	return []mechanicalRepair{
-		{name: "closure rebind", phase: "magics", files: none, apply: (*gateContext).remediateStaleClosureBindings},
 		{name: "gofmt", phase: "fmt", files: (*gateContext).changedGoFiles, apply: (*gateContext).repairFormatting},
+		{name: "closure rebind", phase: "magics", files: none, apply: (*gateContext).remediateStaleClosureBindings},
 		{
 			name: "modern-Go census", phase: "modern-go",
 			files: func(*gateContext) []string {
@@ -64,23 +66,55 @@ func (g *gateContext) stageMechanicalRepairs() error {
 	if len(g.changedGoFiles()) == 0 {
 		return nil
 	}
-	for _, repair := range g.mechanicalRepairs() {
-		files := repair.files(g)
-		before, err := g.fileDigests(files)
+	// The formatter rewrites the Go sources the other repairs read, so it
+	// runs first; the rest write disjoint files and run in one wave.
+	repairs := g.mechanicalRepairs()
+	if err := g.stageRepairs(repairs[:1]); err != nil {
+		return err
+	}
+	return g.stageRepairs(repairs[1:])
+}
+
+// stageRepairs applies one wave of repairs concurrently and records each
+// once every member has finished, in registry order.
+func (g *gateContext) stageRepairs(repairs []mechanicalRepair) error {
+	type outcome struct {
+		files   []string
+		before  map[string]string
+		started time.Time
+		wall    time.Duration
+		err     error
+	}
+	outcomes := make([]outcome, len(repairs))
+	for index, repair := range repairs {
+		outcomes[index].files = repair.files(g)
+		before, err := g.fileDigests(outcomes[index].files)
 		if err != nil {
 			return err
 		}
-		started := time.Now()
-		if err := repair.apply(g); err != nil {
-			return fmt.Errorf("gate: staged repair %s refused: %w", repair.name, err)
+		outcomes[index].before = before
+	}
+	var wait sync.WaitGroup
+	for index, repair := range repairs {
+		wait.Go(func() {
+			outcomes[index].started = time.Now()
+			outcomes[index].err = repair.apply(g)
+			outcomes[index].wall = time.Since(outcomes[index].started)
+		})
+	}
+	wait.Wait()
+	for index, repair := range repairs {
+		result := outcomes[index]
+		if result.err != nil {
+			return fmt.Errorf("gate: staged repair %s refused: %w", repair.name, result.err)
 		}
-		after, err := g.fileDigests(files)
+		after, err := g.fileDigests(result.files)
 		if err != nil {
 			return err
 		}
 		var changed []string
-		for _, file := range files {
-			if before[file] == after[file] {
+		for _, file := range result.files {
+			if result.before[file] == after[file] {
 				continue
 			}
 			changed = append(changed, file)
@@ -88,7 +122,7 @@ func (g *gateContext) stageMechanicalRepairs() error {
 				g.paths = append(g.paths, file)
 			}
 		}
-		g.note(fmt.Sprintf("staged repair: %s for the %s phase wall=%dms rewrote=[%s]", repair.name, repair.phase, time.Since(started).Milliseconds(), strings.Join(changed, ",")))
+		g.note(fmt.Sprintf("staged repair: %s for the %s phase wall=%dms rewrote=[%s]", repair.name, repair.phase, result.wall.Milliseconds(), strings.Join(changed, ",")))
 	}
 	return nil
 }

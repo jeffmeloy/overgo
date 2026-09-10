@@ -124,6 +124,15 @@ type gateContext struct {
 	// the audit they share are written under these locks.
 	sourceMutex sync.Mutex
 	auditMutex  sync.Mutex
+	// The planned tree is built once per candidate state and the plan is
+	// parsed once for the admission and verification readers; the commit
+	// phase rewrites the plan after every such reader has run.
+	plannedTreeMutex       sync.Mutex
+	plannedTreeID          string
+	plannedTreeFingerprint string
+	plannedTreeBuilds      int
+	planDocument           *plan.Plan
+	planLoads              int
 }
 
 // appends one audit line under the lock the concurrent validate wave shares
@@ -131,6 +140,21 @@ func (g *gateContext) note(line string) {
 	g.auditMutex.Lock()
 	defer g.auditMutex.Unlock()
 	g.audit = append(g.audit, line)
+}
+
+// returns the plan parsed once for the gate's readers that run before the
+// commit phase rewrites it
+func (g *gateContext) loadPlan() (plan.Plan, error) {
+	if g.planDocument != nil {
+		return *g.planDocument, nil
+	}
+	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	g.planDocument = &document
+	g.planLoads++
+	return document, nil
 }
 
 func (g *gateContext) runGateCommand(root, name string, args ...string) (string, error) {

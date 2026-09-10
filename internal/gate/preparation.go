@@ -430,7 +430,63 @@ func (g *gateContext) requirePreparedCandidate(candidateKey string) error {
 
 // plannedTree snapshots the commit candidate into an isolated temporary index.
 // It never reads unplanned worktree paths and never mutates the caller's index.
+// The snapshot is built once per candidate state: a fingerprint of HEAD and
+// the planned paths' bytes names the state, so the drift check before every
+// verification check reads the files instead of rebuilding the index, and
+// any change to a planned path or to HEAD rebuilds it.
 func (g *gateContext) plannedTree() (string, error) {
+	fingerprint, err := g.plannedFingerprint()
+	if err != nil {
+		return "", err
+	}
+	g.plannedTreeMutex.Lock()
+	defer g.plannedTreeMutex.Unlock()
+	if g.plannedTreeID != "" && g.plannedTreeFingerprint == fingerprint {
+		return g.plannedTreeID, nil
+	}
+	tree, err := g.buildPlannedTree()
+	if err != nil {
+		return "", err
+	}
+	g.plannedTreeID, g.plannedTreeFingerprint = tree, fingerprint
+	g.plannedTreeBuilds++
+	return tree, nil
+}
+
+// plannedFingerprint hashes HEAD and every planned path's bytes; an absent
+// planned path hashes as its own marker so a deletion changes the state.
+func (g *gateContext) plannedFingerprint() (string, error) {
+	head, err := command(g.repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	hasher := sha256.New()
+	hasher.Write([]byte(strings.TrimSpace(head)))
+	for _, path := range g.paths {
+		hasher.Write([]byte{0})
+		hasher.Write([]byte(path))
+		hasher.Write([]byte{0})
+		full := filepath.Join(g.repo, filepath.FromSlash(path))
+		if info, err := os.Stat(full); err == nil && info.IsDir() {
+			// A directory is expanded to its files before the tree is built;
+			// until then it names a state of its own.
+			hasher.Write([]byte("directory"))
+			continue
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return "", err
+			}
+			hasher.Write([]byte("absent"))
+			continue
+		}
+		hasher.Write(data)
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func (g *gateContext) buildPlannedTree() (string, error) {
 	temporary, err := os.MkdirTemp("", "overgo-gate-index-*")
 	if err != nil {
 		return "", err

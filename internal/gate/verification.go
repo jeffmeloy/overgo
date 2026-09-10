@@ -268,7 +268,7 @@ func (g *gateContext) stepDocumentation() (bool, error) {
 	if err := repoanalysis.ValidateDocsInventory(g.repo); err != nil {
 		return false, err
 	}
-	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	document, err := g.loadPlan()
 	if err != nil {
 		return false, err
 	}

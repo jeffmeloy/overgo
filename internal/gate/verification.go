@@ -968,7 +968,10 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
 	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
 	if len(scope.opaqueRuntimeInputs) != 0 {
-		g.audit = append(g.audit, "test scope: opaque runtime consumers bind candidate packages and repository inputs: "+strings.Join(scope.opaqueRuntimeInputs, ","))
+		g.audit = append(g.audit, "test scope: runtime consumers bind named commands, named paths or every repository input: "+strings.Join(scope.opaqueRuntimeInputs, ","))
+	}
+	if len(scope.opaqueReaders) != 0 {
+		g.audit = append(g.audit, fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
 	}
 	if len(scope.unresolved) != 0 {
 		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))

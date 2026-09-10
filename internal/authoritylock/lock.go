@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package authoritylock serializes mutations that can change plan or gate
 // authority. Readers remain lock-free; every writer reloads its inputs after
 // acquiring this process-lifetime lock.

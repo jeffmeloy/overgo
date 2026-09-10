@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package parity records ordered parity-campaign evidence.
 package parity
 

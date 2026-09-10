@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // mixture-train-probe: bounded observed causal-LM training smoke for a
 // densecausal artifact, including routed-mixture (DeepSeek-V2 family)
 // checkpoints whose host graph is the only training path. The probe is the

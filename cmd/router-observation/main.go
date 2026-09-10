@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command router-observation publishes one exact per-layer MoE router observation
 // through the bounded raw-chunk and coverage authorities.
 package main

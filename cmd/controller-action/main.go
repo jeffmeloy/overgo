@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command controller-action compiles one allowlisted controller action into
 // its content-addressed artifacts and commits them. This is the single
 // execution path for controller emissions: actions outside the allowlist are

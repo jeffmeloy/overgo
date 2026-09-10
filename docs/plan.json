@@ -5,27 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "selection-coverage",
-      "title": "Exclude the GPU lanes on host-only changes and bind subprocess consumers by declared edges",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "subprocess-contract",
-          "title": "Classify each package's runtime reach from its source and bind only the commands and files it names",
-          "status": "open",
-          "verify": "test -f internal/gate/execution_edges_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeclaredExecutionEdgesBoundSelection$' -count=1",
-          "rationale": "Priority one. Every package that imports os is bound to every repository root as an opaque reader, so any change selects about 234 packages and invalidates every package receipt: the last gate executed 234 packages with zero reuse. A deterministic analyzer classifies each package from the literals in its execution and file calls: a literal repository command binds that command's package closure, a literal repository path binds that file, the test binary itself and named external tools bind nothing, temporary files bind nothing, and a program or path the source does not name keeps the broad binding and is reported with its reason. Selection and package identities follow the classified edges, so unaffected packages keep their receipts across commits; the lane exclusion resolver reads the same classification. Master's subprocess cases (command output, shared launcher, renamed and deleted command, unowned protocol file) and the lane matrix stay green. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
-          "depends_on": [
-            "lane-overlap/device-lane-admission"
-          ],
-          "capabilities": [
-            "selection-safety"
-          ]
-        }
-      ]
-    },
-    {
       "id": "lane-overlap",
       "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
       "owner": "hatchet",

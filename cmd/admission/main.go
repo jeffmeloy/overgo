@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command admission is the owner-authority tool for the independent-admission
 // contract: it commits per-generation authority bindings and validates
 // generation succession. Deliberately NOT a controller action -- rebinding

@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // seriesforecast-train-probe: bounded forecast training evidence.
 package main
 

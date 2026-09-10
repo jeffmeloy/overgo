@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Backward for the dense causal-LM capability, composed from hostmath VJPs
 // in checkpoint posture: only the per-layer residual-stream inputs are
 // retained; every trace is recomputed from them. Gradients are keyed by the

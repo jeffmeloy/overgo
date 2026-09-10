@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 package main
 
 // Device mode: takes the RxBrain routed-LM terminal (final RMSNorm + lm_head

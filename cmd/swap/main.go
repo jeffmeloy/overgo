@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command swap serves every servable model in the store from one
 // endpoint: requests route by their model field, the supervisor swaps
 // which child overgo server runs, and the workbench rides through

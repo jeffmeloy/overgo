@@ -9,17 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "e4b-current-resource-refresh",
-          "title": "Refresh E4B protocol and resource evidence on the landed inference surface",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^TestAcceptedE4BResourceRefresh$' -count=1",
-          "rationale": "The existing read-only acceptance rejects the old resource selection at the current inference surface. Freeze the clean landed producer; reacquire only affected protocol and resource cells through the existing server and longform recovery owners. Preserve the original 30-cell quality/native-mask bundle, exact model/projector/recipe/environment identities, required modality cases, cancellation, restart and owned-memory bounds. Reuse unaffected records only with source-dependency proof; never relabel stale captures. Persist complete cells and gate their immutable selection together. Qwen-specific short-prefill variability is not a prerequisite for E4B protocol/resource collection. This row refreshes E4B evidence, not the remaining catalog, held-out benchmarks or modality-wide report.",
-          "depends_on": [
-            "modality-verification/decode-producer-comparison",
-            "modality-verification/decode-completed-cohorts"
-          ]
-        },
-        {
           "id": "decode-guard-readmission",
           "title": "Readmit all affected guards on the frozen decode producer",
           "status": "open",

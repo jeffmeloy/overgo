@@ -42,8 +42,10 @@ func TestChangedPackageFailurePreventsBroadSweep(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return &gateContext{repo: root, storePath: StorePath, environment: environment,
+		g := &gateContext{repo: root, storePath: StorePath, environment: environment,
 			paths: []string{"app/app_test.go", "NOTES.md"}, source: &snapshot}
+		t.Cleanup(func() { _ = g.closeStore() })
+		return g
 	}
 	g := newGate()
 	if _, err := g.stepTest(t.Context()); err == nil || !strings.Contains(err.Error(), "changed owner failed") {

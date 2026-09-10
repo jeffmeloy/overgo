@@ -124,6 +124,18 @@ func TestAcquireReleasedAfterProcessDeath(t *testing.T) {
 		_ = lock.Close()
 		t.Fatalf("live writer contention = %v", err)
 	}
+	type acquisition struct {
+		lock *Lock
+		err  error
+	}
+	queued := make(chan acquisition, 1)
+	go func() { lock, err := AcquireContext(t.Context(), path, 0o600); queued <- acquisition{lock, err} }()
+	select {
+	case got := <-queued:
+		_ = got.lock.Close()
+		t.Fatalf("waiter returned before owner death: %v", got.err)
+	case <-time.After(20 * time.Millisecond):
+	}
 	if err := child.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
@@ -132,11 +144,63 @@ func TestAcquireReleasedAfterProcessDeath(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
-	lock, err := Acquire(path, 0o600)
-	if err != nil {
-		t.Fatalf("dead writer blocked acquisition: %v", err)
+	select {
+	case got := <-queued:
+		if got.err != nil {
+			t.Fatalf("owner death failed queued acquisition: %v", got.err)
+		}
+		if err := got.lock.Close(); err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("owner death did not release queued acquisition")
 	}
-	if err := lock.Close(); err != nil {
-		t.Fatal(err)
+}
+
+func TestAcquireCancellationReleaseRace(t *testing.T) {
+	for _, order := range []string{"cancel-first", "release-first", "concurrent"} {
+		t.Run(order, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "process.lock")
+			owner, err := Acquire(path, 0o600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer owner.Close()
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(context.Canceled)
+			done := make(chan error, 1)
+			go func() {
+				lock, err := AcquireContext(ctx, path, 0o600)
+				done <- errors.Join(err, lock.Close())
+			}()
+			switch order {
+			case "cancel-first":
+				cancel(context.Canceled)
+				_ = owner.Close()
+			case "release-first":
+				_ = owner.Close()
+				cancel(context.Canceled)
+			default:
+				cancelled := make(chan struct{})
+				go func() { cancel(context.Canceled); close(cancelled) }()
+				_ = owner.Close()
+				<-cancelled
+			}
+			select {
+			case err := <-done:
+				if err != nil && !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("cancellation/release did not drain waiter")
+			}
+			lock, err := Acquire(path, 0o600)
+			if err != nil {
+				t.Fatalf("cancelled acquisition leaked ownership: %v", err)
+			}
+			if err := lock.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

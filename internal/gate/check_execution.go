@@ -28,9 +28,6 @@ func (g *gateContext) executeChecks(
 	if err != nil {
 		return nil, err
 	}
-	if ledger != nil {
-		defer ledger.store.Close()
-	}
 	if g.terminal == nil {
 		g.terminal = map[string]automationcheck.Evidence{}
 	}

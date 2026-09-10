@@ -293,7 +293,7 @@ func main() {
 			fatal(err)
 		}
 		if *publish {
-			store, err := overgodb.Open(filepath.Join(root, *storePath))
+			store, err := overgodb.OpenContext(context.Background(), filepath.Join(root, *storePath))
 			if err != nil {
 				fatal(err)
 			}
@@ -641,7 +641,7 @@ func importClosureDocuments(
 	if sameStore {
 		target = source
 	} else {
-		target, err = overgodb.Open(destinationPath)
+		target, err = overgodb.OpenContext(context.Background(), destinationPath)
 		if err != nil {
 			return count, unmatched, first, aliases, err
 		}
@@ -1601,7 +1601,7 @@ func commitClosureDocumentsAtHead(
 	if err := requireUniqueClosureDocumentAliases(documents); err != nil {
 		return 0, artifact.CommitID{}, err
 	}
-	store, err := overgodb.Open(storePath)
+	store, err := overgodb.OpenContext(context.Background(), storePath)
 	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}

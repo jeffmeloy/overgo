@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -65,6 +66,10 @@ func run() error {
 		return err
 	}
 	defer os.RemoveAll(buildDir)
+	identity, err := deviceIdentity()
+	if err != nil {
+		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
+	}
 	for index, step := range steps {
 		began := time.Now()
 		done, stopped := make(chan struct{}), make(chan struct{})
@@ -78,9 +83,13 @@ func run() error {
 		}
 		var stdout, stderr bytes.Buffer
 		var receipt processcontrol.Receipt
-		// A step refused by a foreign holder runs again under the lane
-		// budget; its own exclusive hold lasts only as long as the step.
-		code, err := runStepAdmitted(ctx, os.Stdout, "device", func() (int, error) {
+		// A built command claims the device exclusively for as long as it
+		// runs and, when refused, runs again under the lane budget. A test
+		// step's correctness tests open contexts of their own and run under
+		// a shared lease the lane waits for like the gate's batches; its
+		// measurement tests run outside that lease, since their exclusive
+		// children would otherwise wait on their own ancestor.
+		run := func(ctx context.Context, command []string) (int, error) {
 			stdout.Reset()
 			stderr.Reset()
 			var err error
@@ -89,7 +98,13 @@ func run() error {
 				Stdout: &stdout, Stderr: &stderr,
 			})
 			return receipt.ExitCode, err
-		})
+		}
+		var code int
+		if slices.Equal(command, step) {
+			code, err = runTestStep(ctx, os.Stdout, identity, step, run)
+		} else {
+			code, err = runStepAdmitted(ctx, os.Stdout, identity, deviceAdmissionBudget, func(ctx context.Context) (int, error) { return run(ctx, command) })
+		}
 		out := stdout.String() + stderr.String()
 		if err == nil && code != 0 {
 			err = fmt.Errorf("exit code %d", code)

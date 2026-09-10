@@ -469,3 +469,31 @@ func packageInputIdentities(graph packageInputGraph, packages []string) (map[str
 	}
 	return identities, nil
 }
+
+// devicePackages names, among the packages given and in their order, the
+// ones whose tests need the device: every package that is or transitively
+// depends on internal/cuda. It is the one fact the batch admission and the
+// batch order read.
+func (graph packageInputGraph) devicePackages(packages []string) ([]string, error) {
+	directories, err := graph.dependentDirectories("internal/cuda")
+	if err != nil {
+		return nil, err
+	}
+	needing := map[string]bool{}
+	for _, node := range graph.nodes {
+		relative, err := filepath.Rel(graph.root, node.Dir)
+		if err != nil {
+			return nil, err
+		}
+		if slices.Contains(directories, filepath.ToSlash(relative)) {
+			needing[node.ImportPath] = true
+		}
+	}
+	var devices []string
+	for _, pkg := range packages {
+		if needing[pkg] {
+			devices = append(devices, pkg)
+		}
+	}
+	return devices, nil
+}

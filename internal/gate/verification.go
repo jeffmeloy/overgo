@@ -1061,15 +1061,18 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	if len(edited) > 0 {
 		g.note(fmt.Sprintf("test order: changed source owners first [%s]; %d other direct packages remain", strings.Join(edited, ","), len(remaining)))
 	}
-	for _, batch := range [][]string{edited, remaining} {
-		if len(batch) == 0 {
-			continue
+	for _, group := range [][]string{edited, remaining} {
+		batches, err := g.deviceFirst(group)
+		if err != nil {
+			return false, err
 		}
-		directExecuted += len(batch)
-		_, runErr := g.runGoTests(ctx, batch, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
-		if runErr != nil {
-			g.packageCacheAudit(directReused, directExecuted)
-			return false, runErr
+		for _, batch := range batches {
+			directExecuted += len(batch)
+			_, runErr := g.runGoTests(ctx, batch, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
+			if runErr != nil {
+				g.packageCacheAudit(directReused, directExecuted)
+				return false, runErr
+			}
 		}
 	}
 	if len(dependent) == 0 {
@@ -1081,8 +1084,18 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	report := testevidence.GoTestReport{}
-	if len(dependentPending) > 0 {
-		report, err = g.runGoTests(ctx, dependentPending, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
+	batches, err := g.deviceFirst(dependentPending)
+	if err != nil {
+		return false, err
+	}
+	for _, batch := range batches {
+		var batchReport testevidence.GoTestReport
+		batchReport, err = g.runGoTests(ctx, batch, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
+		report.Skipped = append(report.Skipped, batchReport.Skipped...)
+		report.Unavailable = append(report.Unavailable, batchReport.Unavailable...)
+		if err != nil {
+			break
+		}
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.note(fmt.Sprintf(
@@ -1477,4 +1490,37 @@ func (g *gateContext) sourceEnvironment() ([]string, error) {
 		environment = append(environment, "OVERGO_AUDIO_REFERENCE_STORE="+roots.Store)
 	}
 	return environment, nil
+}
+
+// deviceFirst splits one test group into the batches the gate runs in
+// order: the packages whose tests need the device first, as their own batch
+// under the shared lease while the device is admitted, then the host-only
+// packages with no lease at all; a group without device packages is one
+// batch and an empty group none
+func (g *gateContext) deviceFirst(group []string) ([][]string, error) {
+	if len(group) == 0 {
+		return nil, nil
+	}
+	graph, err := g.inputGraph()
+	if err != nil {
+		return nil, err
+	}
+	devices, err := graph.devicePackages(group)
+	if err != nil {
+		return nil, err
+	}
+	if len(devices) == 0 {
+		return [][]string{group}, nil
+	}
+	var host []string
+	for _, pkg := range group {
+		if !slices.Contains(devices, pkg) {
+			host = append(host, pkg)
+		}
+	}
+	g.note(fmt.Sprintf("test order: %d device packages first under the shared lease [%s]; %d host packages follow without it", len(devices), strings.Join(devices, ","), len(host)))
+	if len(host) == 0 {
+		return [][]string{devices}, nil
+	}
+	return [][]string{devices, host}, nil
 }

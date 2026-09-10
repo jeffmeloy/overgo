@@ -36,27 +36,6 @@
       ]
     },
     {
-      "id": "plan-dispatch",
-      "title": "Resolve the dispatch once per turn and hand it to the harness as data",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "dispatch-json",
-          "title": "Add plan -next -json and have the stop hook and the loop consume it",
-          "status": "open",
-          "verify": "test -f cmd/plan/dispatch_json_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDispatchJSONMatchesProse$' -count=1 \u0026\u0026 test -f cmd/loophook/dispatch_test.go \u0026\u0026 go test ./cmd/loophook -run '^TestLoopHookConsumesDispatchJSON$' -count=1",
-          "rationale": "A loop turn runs the plan tool five times, each rebuilding completion authority from git history and the store, the stop hook re-implements the resolver, and the loop parses the prose dispatch back into a struct. The plan tool prints the dispatch as JSON, the completion authority is cached on HEAD and the store head, and the hook and the loop consume the JSON; the dead bounded-request marker is removed.",
-          "depends_on": [
-            "lane-replan/do"
-          ],
-          "capabilities": [
-            "plan-ownership"
-          ]
-        }
-      ]
-    },
-    {
       "id": "closure-catalog",
       "title": "Catalog a literal in one transaction",
       "owner": "hatchet",

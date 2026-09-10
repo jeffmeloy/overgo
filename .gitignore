@@ -20,6 +20,6 @@ docs/.loop_state
 docs/plan_stop.json
 
 # transient loop-control markers
-docs/.bounded_request
+docs/.dispatch
 docs/.loop_pause
 docs/loop.json

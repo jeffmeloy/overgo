@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -181,20 +182,19 @@ type execWorld struct {
 }
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
-	out, err := planCommand("-next")
+	// The dispatch arrives as data; the prose line is never parsed back.
+	out, err := planCommand("-next", "-json")
 	if err != nil {
 		return loop.Step{}, false, err
 	}
-	line := strings.TrimSpace(out)
-	if strings.HasPrefix(line, "plan complete") {
+	var dispatch plan.Dispatch
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &dispatch); err != nil {
+		return loop.Step{}, false, fmt.Errorf("unparseable dispatch %q: %w", strings.TrimSpace(out), err)
+	}
+	if dispatch.Complete {
 		return loop.Step{}, false, nil
 	}
-	head, _, ok := strings.Cut(line, ":")
-	item, step, ok2 := strings.Cut(strings.TrimSpace(head), " / ")
-	if !ok || !ok2 {
-		return loop.Step{}, false, fmt.Errorf("unparseable dispatch %q", line)
-	}
-	return loop.Step{Item: strings.TrimSpace(item), ID: strings.TrimSpace(step)}, true, nil
+	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
 }
 
 func (w *execWorld) Prompt(loop.Step) (string, error) {
@@ -342,10 +342,10 @@ func consumeProposal(spec, disposition string) error {
 	return os.Rename(spec, filepath.Join(target, filepath.Base(spec)))
 }
 
-func planCommand(verb string) (string, error) {
-	out, err := runTool("go", "run", "./cmd/plan", verb)
+func planCommand(verbs ...string) (string, error) {
+	out, err := runTool(append([]string{"go", "run", "./cmd/plan"}, verbs...)...)
 	if err != nil {
-		return "", fmt.Errorf("plan %s: %w: %s", verb, err, tailOf(out, 500))
+		return "", fmt.Errorf("plan %s: %w: %s", strings.Join(verbs, " "), err, tailOf(out, 500))
 	}
 	return string(out), nil
 }

@@ -757,6 +757,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/smoke-oracle-producer",
 		"modality-verification/minicpm-guard-repair",
 		"modality-verification/decode-guard-readmission",
+		"modality-verification/decode-completed-cohorts",
 		"modality-verification/decode-order-repair",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",

@@ -32,19 +32,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "validate-first",
-          "title": "Run the independent static checks concurrently, keeping master's prerequisites",
-          "status": "open",
-          "verify": "test -f internal/gate/validate_batch_test.go \u0026\u0026 go test ./internal/gate -run '^TestValidateChecksRunFirstConcurrently$' -count=1",
-          "rationale": "Priority two. Master's a20ce59e already runs vet and build before acceptance and binds the candidate census in the early modern-Go phase; the static checks still run one after another behind profile and architecture. The checks with no data dependency on each other run in one wave after their declared prerequisites, every finding printed at once, before acceptance; the phase order inside the wave is by declared dependency only; the shared gate state they write is guarded. The full gate stays mandatory; nothing is skipped or credited. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused. The row is called a speedup only when the phase wall tables before and after it show a measured reduction in executed checks and total gate wall.",
-          "depends_on": [
-            "merge-2ef953fab346/do"
-          ],
-          "capabilities": [
-            "gate-cost"
-          ]
-        },
-        {
           "id": "mechanical-repairs",
           "title": "Apply the mechanical repairs through one registry before the candidate freezes, preserving reviewed thresholds",
           "status": "open",

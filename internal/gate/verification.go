@@ -40,13 +40,20 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	device := automationcheck.DeviceCheck(g.sourceRoot(), g.paths, devicePackages, g.runGateCommand)
 	published := automationcheck.PublishedCheck(g.sourceRoot(), g.runGateCommand)
 	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runGateCommand)
+	// The store writer among the static checks (the magics phase may rebind
+	// the closure ledger) declares the store exclusively; the store readers
+	// declare it shared, so the writer never overlaps a reader's replay.
+	storeWriter := []automationcheck.Resource{{Name: "store", Exclusive: true}}
+	storeReader := []automationcheck.Resource{{Name: "store"}}
+	published.Descriptor.Resources = storeReader
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
+		withResources(gateCheck("magics", runrecord.PhaseValidate, g.stepMagics), storeWriter),
+		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
-		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2], published,
-		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
-		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
+		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2],
+		withResources(gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), storeReader), published,
 		gateCheck("vet", runrecord.PhaseVet, g.stepVet), gateCheck("build", runrecord.PhaseBuild, g.stepBuild),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), {
 			Descriptor: automationcheck.Descriptor{Name: "test", Phase: runrecord.PhaseTest, Always: true},
@@ -57,17 +64,47 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		},
 		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
-	dependencies := map[string][]string{
-		"scope": {"protection"}, "architecture": {"scope"}, "profile": {"architecture"}, "fmt": {"profile"}, "style": {"fmt"},
-		"manifest": {"style"}, "sbom": {"style"}, "claims": {"style"},
-		"docs": {"manifest", "sbom", "claims"}, "magics": {"docs"}, "modern-go": {"magics"},
-		"vet": {"modern-go"}, "build": {"modern-go"}, "acceptance": {"vet", "build"}, "test": {"acceptance"},
-		"device": {"test"}, automationcheck.WebUICheckName: {"test"}, "commit": {"test", "device", automationcheck.WebUICheckName},
+	// Protection and scope admit the candidate first: an unplanned
+	// verification input invalidates every later verdict. The static checks
+	// carry no data dependency on one another and run in one wave after
+	// scope; vet and build follow the whole wave as master ordered them.
+	dependencies := map[string][]string{"scope": {"protection"}}
+	for _, name := range validateWave {
+		dependencies[name] = []string{"scope"}
 	}
+	dependencies["vet"] = slices.Clone(validateWave)
+	dependencies["build"] = slices.Clone(validateWave)
+	dependencies["acceptance"] = []string{"vet", "build"}
+	dependencies["test"] = []string{"acceptance"}
+	dependencies["device"] = []string{"test"}
+	dependencies[automationcheck.WebUICheckName] = []string{"test"}
+	dependencies["commit"] = []string{"test", "device", automationcheck.WebUICheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
 	}
 	return checks
+}
+
+// validateWave lists the static checks that share no data and run together
+// after the admission checks, in the order the wave declares them: the
+// store writer first, so the store readers follow it in the next wave.
+var validateWave = []string{"magics", "modern-go", "architecture", "profile", "fmt", "style", "manifest", "sbom", "claims", "docs", "published"}
+
+func withResources(check automationcheck.Check, resources []automationcheck.Resource) automationcheck.Check {
+	check.Descriptor.Resources = resources
+	return check
+}
+
+// joins every failed check of the wave that stopped the pipeline, so one
+// attempt reports all its findings
+func checkFailures(results []automationcheck.DAGResult) error {
+	var failures []error
+	for _, result := range results {
+		if result.Err != nil {
+			failures = append(failures, fmt.Errorf("%s: %w", result.Invocation.Check.Name, result.Err))
+		}
+	}
+	return errors.Join(failures...)
 }
 
 func gateCheck(name string, phase runrecord.Phase, run func() (bool, error)) automationcheck.Check {
@@ -134,7 +171,7 @@ func (g *gateContext) pipeline() error {
 			return err
 		}
 		if saveErr := g.saveRetryCache(cache); saveErr != nil {
-			g.audit = append(g.audit, "retry cache not saved: "+saveErr.Error())
+			g.note("retry cache not saved: " + saveErr.Error())
 		}
 		byName := make(map[string]automationcheck.DAGResult, len(results))
 		for _, result := range results {
@@ -162,7 +199,7 @@ func (g *gateContext) pipeline() error {
 			if !ran {
 				if exclusion, excluded := impact.ExclusionReason(name); excluded {
 					g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
-					g.audit = append(g.audit, name+" skipped: "+exclusion)
+					g.note(name + " skipped: " + exclusion)
 				}
 				continue
 			}
@@ -173,13 +210,12 @@ func (g *gateContext) pipeline() error {
 			g.terminal[name] = result.Evidence
 			g.steps = append(g.steps, gateEvidenceRecord(name, result.Invocation.Check.Phase, result.Evidence, result.Err, g.stepEvidence[name]))
 			if result.Evidence.Reused {
-				g.audit = append(g.audit, name+" reused: derived inputs already passed this step")
-			}
-			if result.Err != nil {
-				return fmt.Errorf("%s: %w", name, result.Err)
+				g.note(name + " reused: derived inputs already passed this step")
 			}
 		}
-		return nil
+		// Every failure of the wave that stopped the pipeline is reported at
+		// once, so one attempt shows all its findings.
+		return checkFailures(results)
 	})
 }
 
@@ -282,6 +318,8 @@ func documentationFreshness(root string) error {
 }
 
 func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
+	g.sourceMutex.Lock()
+	defer g.sourceMutex.Unlock()
 	if g.source != nil {
 		return *g.source, nil
 	}
@@ -290,6 +328,21 @@ func (g *gateContext) sourceSnapshot() (repoanalysis.SourceSnapshot, error) {
 		g.source = &snapshot
 	}
 	return snapshot, err
+}
+
+// returns the HEAD source snapshot, computed once and shared by every check
+// of the validate wave that compares the candidate against HEAD
+func (g *gateContext) baseSnapshot(candidate repoanalysis.SourceSnapshot) (repoanalysis.SourceSnapshot, error) {
+	g.sourceMutex.Lock()
+	defer g.sourceMutex.Unlock()
+	if g.baseSource != nil {
+		return *g.baseSource, nil
+	}
+	base, err := sourceAtHEAD(g.repo, candidate)
+	if err == nil {
+		g.baseSource = &base
+	}
+	return base, err
 }
 
 // stepArchitectureRatchet audits the complete candidate source on every gate
@@ -331,7 +384,7 @@ func (g *gateContext) stepArchitectureRatchet() (bool, error) {
 	// step or an evidence-bound retained classification.
 	report.Rules += len(staged.Staged) + 1
 	report.Sites += len(staged.Staged)
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"architecture ratchet: source=%s paths=%d rules=%d sites=%d findings=%d",
 		report.SourceIdentity, len(g.paths), report.Rules, report.Sites, len(report.Findings),
 	))
@@ -355,7 +408,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 		Identity: g.selectionID, Owned: g.selection.Owned, Triggered: g.selection.Triggered,
 		Excluded: g.selection.Excluded, Unresolved: g.selection.Unresolved,
 	}
-	baseSource, err := sourceAtHEAD(g.repo, snapshot)
+	baseSource, err := g.baseSnapshot(snapshot)
 	if err != nil {
 		return false, err
 	}
@@ -363,13 +416,13 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"code profile: runtime=%d files/%d nodes automation=%d/%d generated=%d/%d test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
 		profile.Runtime.Files, profile.Runtime.Nodes, profile.Automation.Files, profile.Automation.Nodes,
 		profile.Generated.Files, profile.Generated.Nodes, profile.Test.Files, profile.Test.Nodes, profile.DuplicateExcessNodes,
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
-	g.audit = append(g.audit, surfaceDeltaAudit(base, profile))
+	g.note(surfaceDeltaAudit(base, profile))
 	baseline, ratcheted, err := codeprofile.LoadCloneBaseline(filepath.Join(g.repo, filepath.FromSlash(codeprofile.CloneBaselineFile)))
 	if err != nil {
 		return false, err
@@ -378,7 +431,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 		if err := codeprofile.AdmitCloneBaseline(baseline, profile.DuplicateExcessNodes); err != nil {
 			return false, err
 		}
-		g.audit = append(g.audit, fmt.Sprintf(
+		g.note(fmt.Sprintf(
 			"clone ratchet: duplicate_excess=%d ceiling=%d headroom=%d",
 			profile.DuplicateExcessNodes, baseline.DuplicateExcessNodes,
 			baseline.DuplicateExcessNodes-profile.DuplicateExcessNodes,
@@ -390,16 +443,15 @@ func (g *gateContext) stepProfile() (bool, error) {
 			return false, err
 		}
 		summary, err := automationROIAdmission("commit", movement)
-		g.audit = append(g.audit, summary)
+		g.note(summary)
 		if err != nil {
 			return false, err
 		}
 	}
-	g.audit = append(g.audit, profileReviewFocus(profile, g.changedGoFiles()))
+	g.note(profileReviewFocus(profile, g.changedGoFiles()))
 	if err := g.appendConsumerCensus(snapshot, baseSource, changed, &profile); err != nil {
 		return false, err
 	}
-	g.baseSource = &baseSource
 	g.profile = &profile
 	return false, nil
 }
@@ -418,11 +470,11 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 			return err
 		}
 	}
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"function impact: base=%s candidate=%s seeds=%d reachable=%d unknown=%d",
 		impact.BaseIdentity, impact.CandidateIdentity, len(impact.Seeds), len(impact.Reachable), len(impact.Unknown),
 	))
-	g.audit = append(g.audit, impactSelectionAudit(profile.Impact))
+	g.note(impactSelectionAudit(profile.Impact))
 	if _, profile.Consumers, err = codeprofile.ProductionConsumerCensus(candidate, selection, nil); err != nil {
 		return err
 	}
@@ -435,7 +487,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.audit = append(g.audit, consumerCensusAudit("commit", selection.Context, declarations, base, current))
+	g.note(consumerCensusAudit("commit", selection.Context, declarations, base, current))
 	if unconsumed := codeprofile.NewUnconsumedSurface(baseDeclarations, declarations); len(unconsumed) > 0 {
 		// docs/staged_surface.json is the reviewed acceptance for new
 		// surface whose consumer is deliberately deferred (owner ruling
@@ -447,7 +499,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 		}
 		accepted, blocking := codeprofile.PartitionStagedSurface(unconsumed, staged)
 		if len(accepted) > 0 {
-			g.audit = append(g.audit, fmt.Sprintf(
+			g.note(fmt.Sprintf(
 				"staged surface accepted per docs/staged_surface.json: %s", consumerCandidates(accepted)))
 		}
 		if len(blocking) > 0 {
@@ -457,7 +509,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 
 	mergeBase, err := command(g.repo, "git", "merge-base", "master", "HEAD")
 	if err != nil {
-		g.audit = append(g.audit, "consumer census plan-slice unavailable: "+err.Error())
+		g.note("consumer census plan-slice unavailable: " + err.Error())
 		return nil
 	}
 	mergeBase = strings.TrimSpace(mergeBase)
@@ -475,7 +527,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 			return err
 		}
 		summary, err := automationROIAdmission("plan-slice@"+mergeBase[:12], movement)
-		g.audit = append(g.audit, summary)
+		g.note(summary)
 		if err != nil {
 			return err
 		}
@@ -489,7 +541,7 @@ func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSn
 	if err != nil {
 		return err
 	}
-	g.audit = append(g.audit, consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
+	g.note(consumerCensusAudit("plan-slice@"+mergeBase[:12], selection.Context, declarations, base, current))
 	return nil
 }
 
@@ -826,14 +878,11 @@ func (g *gateContext) stepStyle() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if g.baseSource == nil {
-		baseline, err := sourceAtHEAD(g.repo, snapshot)
-		if err != nil {
-			return false, err
-		}
-		g.baseSource = &baseline
+	baseline, err := g.baseSnapshot(snapshot)
+	if err != nil {
+		return false, err
 	}
-	return false, repoanalysis.ValidateGoStyleDelta(snapshot, *g.baseSource)
+	return false, repoanalysis.ValidateGoStyleDelta(snapshot, baseline)
 }
 
 func (g *gateContext) stepModernGoRatchet() (bool, error) {
@@ -874,14 +923,11 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 		return false, err
 	}
 	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {
-		if g.baseSource == nil {
-			base, err := sourceAtHEAD(g.repo, snapshot)
-			if err != nil {
-				return false, err
-			}
-			g.baseSource = &base
+		base, err := g.baseSnapshot(snapshot)
+		if err != nil {
+			return false, err
 		}
-		previous, err := repoanalysis.ModernGoCensusSnapshot(*g.baseSource, selection, baseline.TargetGo)
+		previous, err := repoanalysis.ModernGoCensusSnapshot(base, selection, baseline.TargetGo)
 		if err != nil {
 			return false, err
 		}
@@ -889,7 +935,7 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 			return false, err
 		}
 	}
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"modern-Go ratchet: findings=%d candidates=%d inspected=%d typed=%d catalog=%s",
 		len(candidate.Findings), candidate.CandidateCount(), baseline.Coverage.InspectedFiles,
 		baseline.Coverage.TypedFiles, baseline.CatalogCommit,
@@ -927,7 +973,7 @@ func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
 
 func (g *gateContext) stepBuild() (bool, error) {
 	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
-		g.audit = append(g.audit, "build skipped: no Go-owned source or asset paths in -paths")
+		g.note("build skipped: no Go-owned source or asset paths in -paths")
 		return true, nil
 	}
 	_, err := g.runGateCommand(g.sourceRoot(), "go", "build", "./...")
@@ -942,7 +988,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if len(scope.direct)+len(scope.dependent) == 0 {
-		g.audit = append(g.audit, "tests skipped: no Go package owns a compiler or repository input in -paths")
+		g.note("tests skipped: no Go package owns a compiler or repository input in -paths")
 		return true, nil
 	}
 	direct, dependent := scope.direct, scope.dependent
@@ -959,22 +1005,22 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	if len(boundaryCoverage.Boundaries) != 0 {
-		g.audit = append(g.audit, "assembled agent boundaries: "+strings.Join(boundaryCoverage.Boundaries, ","))
+		g.note("assembled agent boundaries: " + strings.Join(boundaryCoverage.Boundaries, ","))
 	}
 	if len(direct)+len(dependent) == 0 {
-		g.audit = append(g.audit, "tests skipped: changed packages have no importers and no tests resolved")
+		g.note("tests skipped: changed packages have no importers and no tests resolved")
 		return true, nil
 	}
-	g.audit = append(g.audit, fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
-	g.audit = append(g.audit, fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
+	g.note(fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	g.note(fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
 	if len(scope.opaqueRuntimeInputs) != 0 {
-		g.audit = append(g.audit, "test scope: runtime consumers bind named commands, named paths or every repository input: "+strings.Join(scope.opaqueRuntimeInputs, ","))
+		g.note("test scope: runtime consumers bind named commands, named paths or every repository input: " + strings.Join(scope.opaqueRuntimeInputs, ","))
 	}
 	if len(scope.opaqueReaders) != 0 {
-		g.audit = append(g.audit, fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
+		g.note(fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
 	}
 	if len(scope.unresolved) != 0 {
-		g.audit = append(g.audit, "test scope widened for global or unresolved Go inputs: "+strings.Join(scope.unresolved, ","))
+		g.note("test scope widened for global or unresolved Go inputs: " + strings.Join(scope.unresolved, ","))
 	}
 	inputGraph, err := g.inputGraph()
 	if err != nil {
@@ -1013,7 +1059,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 	}
 	directExecuted := 0
 	if len(edited) > 0 {
-		g.audit = append(g.audit, fmt.Sprintf("test order: changed source owners first [%s]; %d other direct packages remain", strings.Join(edited, ","), len(remaining)))
+		g.note(fmt.Sprintf("test order: changed source owners first [%s]; %d other direct packages remain", strings.Join(edited, ","), len(remaining)))
 	}
 	for _, batch := range [][]string{edited, remaining} {
 		if len(batch) == 0 {
@@ -1039,7 +1085,7 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 		report, err = g.runGoTests(ctx, dependentPending, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
-		g.audit = append(g.audit, fmt.Sprintf(
+		g.note(fmt.Sprintf(
 			"dependent fixture evidence not credited: %d skipped [%s], %d unavailable [%s]",
 			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
@@ -1072,7 +1118,7 @@ func (g *gateContext) packageCachePartition(packages []string, mode string, inpu
 
 func (g *gateContext) packageCacheAudit(reused, executed int) {
 	if reused+executed > 0 {
-		g.audit = append(g.audit, fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
+		g.note(fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
 	}
 }
 
@@ -1141,7 +1187,7 @@ func (g *gateContext) stepMagics() (bool, error) {
 			err, gateStorePath,
 		)
 	}
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"permanent magic authority: production=%d classified=%d tests=%d open=0 stale=0 policy_copies=0",
 		report.ProductionSites, report.ClassifiedSites, report.TestSites,
 	))
@@ -1167,7 +1213,7 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 	if err != nil {
 		return fmt.Errorf("gate: closure rebind remediation: %w", err)
 	}
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"remediation: closure rebind applied (%s) wall=%dms",
 		strings.TrimSpace(out), time.Since(started).Milliseconds(),
 	))
@@ -1237,7 +1283,7 @@ func (g *gateContext) stepArchitecture() (bool, error) {
 	for _, domain := range report.Domains {
 		domains = append(domains, string(domain.Domain))
 	}
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"entry authority ratchet: domains=%s wall=%dms",
 		strings.Join(domains, ","), time.Since(started).Milliseconds(),
 	))

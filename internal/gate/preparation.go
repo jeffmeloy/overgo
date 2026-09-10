@@ -179,25 +179,25 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		surface = automationcheck.ManifestSurface(structural)
 		if requiresManifestBootstrap(g.paths) {
 			surface.Unknown = append(surface.Unknown, "manifest analyzer or planner implementation changed")
-			g.audit = append(g.audit, "manifest bootstrap: analyzer-owned change forced the complete selectable plan")
+			g.note("manifest bootstrap: analyzer-owned change forced the complete selectable plan")
 		}
 	} else {
 		if legacyErr == nil {
 			surface = ownershipSurface(legacy)
 		}
 		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
-		g.audit = append(g.audit, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
+		g.note("code manifest unavailable; owned checks defaulted to run: " + structuralErr.Error())
 	}
 	if graphErr != nil {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
-		g.audit = append(g.audit, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+		g.note("package ownership unavailable; owned checks defaulted to run: " + graphErr.Error())
 	}
 	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
 	if completenessErr != nil {
 		return plannedPipeline{}, completenessErr
 	}
 	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
-		g.audit = append(g.audit, fmt.Sprintf(
+		g.note(fmt.Sprintf(
 			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
 			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
 		))
@@ -210,10 +210,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		changed := changedPackages(structural)
 		if resolver, resolverErr := g.dependencyResolver(); resolverErr == nil {
 			impact = automationcheck.OwnershipByDependency(definitions, changed, resolver)
-			g.audit = append(g.audit, fmt.Sprintf("impact fallback: dependency closure over changed packages %s excluded %d owned check(s) under %d uncertainties",
+			g.note(fmt.Sprintf("impact fallback: dependency closure over changed packages %s excluded %d owned check(s) under %d uncertainties",
 				strings.Join(changed, ","), len(impact.Exclusions), len(surface.Unknown)))
 		} else {
-			g.audit = append(g.audit, "impact fallback unavailable; owned checks defaulted to run: "+resolverErr.Error())
+			g.note("impact fallback unavailable; owned checks defaulted to run: " + resolverErr.Error())
 		}
 	}
 	// The shell's assets are not Go symbols: a changed web UI path triggers
@@ -244,7 +244,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		g.baseManifest, g.candidateManifest = &baseManifest, &candidateManifest
 		boundPlan = &bound
 		g.selectionID = bound.ID.String()
-		g.audit = append(g.audit, "manifest plan: "+bound.ID.String())
+		g.note("manifest plan: " + bound.ID.String())
 	}
 	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan, structural: structural}, nil
 }
@@ -332,7 +332,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
 	if reused {
-		g.audit = append(g.audit, "candidate code manifest reused by exact analysis authority")
+		g.note("candidate code manifest reused by exact analysis authority")
 	}
 	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
 	if err != nil {

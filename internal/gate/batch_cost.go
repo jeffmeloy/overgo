@@ -129,11 +129,11 @@ func (g *gateContext) batchCostAudit(ctx context.Context, store *overgodb.Store,
 	current := batchCostOf(steps)
 	prior, err := priorBatchCosts(ctx, store, g.planRef)
 	if err != nil {
-		g.audit = append(g.audit, "gate cost: prior attempts unavailable: "+err.Error())
+		g.note("gate cost: prior attempts unavailable: " + err.Error())
 		return
 	}
 	saved, unmeasured := reuseSavings(prior, current)
-	g.audit = append(g.audit, fmt.Sprintf(
+	g.note(fmt.Sprintf(
 		"gate cost: total_wall=%s summed_step_time=%s failed=%d/%s other_phases=%d/%s accepted=%d reused=%d accepted_executed=%s estimated_step_time_avoided=%s prior_runs=%d unmeasured=%q",
 		time.Duration(wallNS), time.Duration(current.StepNS), current.Failed, time.Duration(current.FailedNS), current.Other, time.Duration(current.OtherNS),
 		current.Accepted, current.Reused, time.Duration(current.ExecutedNS), time.Duration(saved), len(prior), unmeasured,

@@ -32,6 +32,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -119,6 +120,17 @@ type gateContext struct {
 	// runCommand overrides supervised command execution for remediation
 	// tests; nil routes through the package command runner.
 	runCommand func(repo, name string, args ...string) (string, error)
+	// The validate wave runs its checks concurrently; the snapshots and
+	// the audit they share are written under these locks.
+	sourceMutex sync.Mutex
+	auditMutex  sync.Mutex
+}
+
+// appends one audit line under the lock the concurrent validate wave shares
+func (g *gateContext) note(line string) {
+	g.auditMutex.Lock()
+	defer g.auditMutex.Unlock()
+	g.audit = append(g.audit, line)
 }
 
 func (g *gateContext) runGateCommand(root, name string, args ...string) (string, error) {
@@ -451,12 +463,12 @@ func (g *gateContext) resolveAttemptStrategy(reader artifact.Reader) {
 	}
 	id, err := artifact.ParseID(declared)
 	if err != nil || id.Kind() != artifact.KindProfile || reader == nil {
-		g.audit = append(g.audit, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		g.note("attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
 		return
 	}
 	strategy, err := loop.RequireStrategy(context.Background(), reader, id)
 	if err != nil {
-		g.audit = append(g.audit, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		g.note("attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
 		return
 	}
 	g.strategy = &strategy

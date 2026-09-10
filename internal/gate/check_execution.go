@@ -67,7 +67,7 @@ func (g *gateContext) executeChecks(
 			// proven success; a write failure is audited, never silent.
 			saveErr := g.saveRetryCache(*cache)
 			if saveErr != nil {
-				g.audit = append(g.audit, "retry cache not saved after "+check.Check.Name+": "+saveErr.Error())
+				g.note("retry cache not saved after " + check.Check.Name + ": " + saveErr.Error())
 			}
 			cacheMutex.Unlock()
 			if saveErr == nil && gateCheckPersistedHook != nil {

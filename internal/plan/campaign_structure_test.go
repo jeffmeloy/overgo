@@ -758,6 +758,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/minicpm-guard-repair",
 		"modality-verification/decode-guard-readmission",
 		"modality-verification/decode-completed-cohorts",
+		"modality-verification/decode-producer-comparison",
+		"modality-verification/e4b-current-resource-refresh",
 		"modality-verification/decode-order-repair",
 		"modality-verification/declared-smoke-expectations",
 		"modality-verification/text-and-vision",

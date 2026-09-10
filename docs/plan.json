@@ -112,7 +112,8 @@
           "depends_on": [
             "modality-verification/minicpm-guard-repair",
             "modality-verification/decode-order-repair",
-            "modality-verification/decode-completed-cohorts"
+            "modality-verification/decode-completed-cohorts",
+            "modality-verification/measurement-clock"
           ]
         },
         {
@@ -158,7 +159,8 @@
             "modality-verification/speech-ocr-tabular-forecast",
             "modality-verification/e4b-all-modalities",
             "modality-verification/e4b-current-resource-refresh",
-            "modality-verification/e4b-admission-resource-refresh"
+            "modality-verification/e4b-admission-resource-refresh",
+            "modality-verification/e4b-final-resource-refresh"
           ]
         },
         {
@@ -170,6 +172,16 @@
           "depends_on": [
             "audio-worktree-integration/register-models",
             "merge-e36c3103a2e1/do"
+          ]
+        },
+        {
+          "id": "e4b-final-resource-refresh",
+          "title": "Refresh E4B resources after the final guard producer freezes",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^TestAcceptedE4BResourceRefresh$' -count=1",
+          "rationale": "After measurement and any causally required decode repairs have landed and the guard cohort is accepted, refresh only invalidated E4B protocol/resource cells once on that final producer. Reuse the existing 18 protocol cases, 270 media recovery requests across six modes and three reloads, and 32768-token text recovery. Preserve original quality/native-mask captures, every threshold and all historical selections. Do not acquire between producer edits or relabel old evidence. Existing immutable publication and current-surface acceptance remain the owners; no new runner, report or framework. Current quality remains historical accepted evidence while the source-bound resource projection is stale.",
+          "depends_on": [
+            "modality-verification/decode-guard-readmission"
           ]
         }
       ]

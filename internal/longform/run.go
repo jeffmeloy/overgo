@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
@@ -232,35 +233,45 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 	var (
 		evaluation  inference.PromptEvaluation
 		tokens      = make([]tokenizer.TokenID, 0, outputTokens)
-		firstToken  time.Time
+		firstToken  time.Duration
 		afterPrompt driver.ExecutionStats
 	)
 	// The device counters are read around the run; a host-resident
 	// runner has none and the counts stay zero.
 	before, _ := runner.DeviceExecutionStats(ctx)
-	started := time.Now()
+	started, err := processmeasure.Counter()
+	if err != nil {
+		return Generation{}, err
+	}
 	options.PromptTokenIDs = prompt
 	options.OnPromptEvaluated = func(value inference.PromptEvaluation) {
 		evaluation = value
 		afterPrompt, _ = runner.DeviceExecutionStats(ctx)
 	}
 	options.OnToken = func(event inference.TokenEvent) error {
-		if firstToken.IsZero() {
-			firstToken = time.Now()
+		if len(tokens) == 0 {
+			var err error
+			firstToken, err = processmeasure.Counter()
+			if err != nil {
+				return err
+			}
 		}
 		tokens = append(tokens, event.ID)
 		return nil
 	}
 	_, _, err = runner.Generate(ctx, "", options)
-	finished := time.Now()
+	if err != nil {
+		return Generation{}, err
+	}
+	finished, err := processmeasure.Counter()
 	if err != nil {
 		return Generation{}, err
 	}
 	after, _ := runner.DeviceExecutionStats(ctx)
-	total := finished.Sub(started)
+	total := finished - started
 	timeToFirst := total
-	if !firstToken.IsZero() {
-		timeToFirst = firstToken.Sub(started)
+	if len(tokens) != 0 {
+		timeToFirst = firstToken - started
 	}
 	decode := total - timeToFirst
 	measure := Measure{

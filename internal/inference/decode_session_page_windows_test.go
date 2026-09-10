@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"overgo/internal/testutil"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -26,7 +27,7 @@ const pagePairContext = uint32(64)
 func TestDecodeSessionServesOnlyItsOwnPastPage(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUFWithContext(t, pagePairContext)
+	path := testutil.HermeticLlamaGGUF(t, pagePairContext)
 	const band = 16
 	overhang := band / 2
 	reference := openPagePairRunner(t, path)

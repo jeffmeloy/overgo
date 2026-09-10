@@ -3,6 +3,7 @@
 package inference
 
 import (
+	"overgo/internal/testutil"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -31,7 +32,7 @@ func greedyToken(t *testing.T, logits []float32) tokenizer.TokenID {
 func TestDeviceDecodeSpan(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
+	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/model"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
@@ -118,7 +118,10 @@ func (r *Runner) Generate(
 		}
 	}()
 	if options.MaxNewTokens > 0 {
-		promptStarted := time.Now()
+		promptStarted, err := processmeasure.Counter()
+		if err != nil {
+			return nil, "", err
+		}
 		cached := 0
 		if useDeviceCache {
 			var retainedPrefix *deviceKVCache
@@ -285,10 +288,14 @@ func (r *Runner) Generate(
 			selectedPromptCache = nextPromptCache
 		}
 		if options.OnPromptEvaluated != nil {
+			finished, err := processmeasure.Counter()
+			if err != nil {
+				return nil, "", err
+			}
 			options.OnPromptEvaluated(PromptEvaluation{
 				Tokens:   len(ids),
 				Cached:   cached,
-				Duration: time.Since(promptStarted),
+				Duration: finished - promptStarted,
 			})
 		}
 	}

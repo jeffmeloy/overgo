@@ -31,6 +31,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
@@ -77,6 +78,7 @@ type options struct {
 	ExportCorpus      string
 	CorpusBytes       int
 	Baselines         []string
+	CompareRecords    []string
 	Budget            time.Duration
 	ModelBudget       time.Duration
 	corpusText        string
@@ -106,12 +108,26 @@ func parseOptions(args []string) (options, error) {
 	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
 	flags.IntVar(&result.CorpusBytes, "corpus-bytes", 0, "minimum corpus bytes to export; required with -export-corpus")
 	flags.Func("baseline", "repeatable exact accepted long-form record ID; required for every checked model", func(value string) error { result.Baselines = append(result.Baselines, value); return nil })
+	flags.Func("compare-record", "compare an exact stored record against matching -baseline records; repeatable, read-only, no model execution", func(value string) error { result.CompareRecords = append(result.CompareRecords, value); return nil })
 	flags.DurationVar(&result.Budget, "budget", 0, "required aggregate measurement deadline")
 	flags.DurationVar(&result.ModelBudget, "model-budget", 0, "optional per-model deadline within the aggregate budget")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Models = flags.Args()
+	if len(result.CompareRecords) > 0 {
+		var conflicts []string
+		flags.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "compare-record", "baseline", "repo", "root", "budget":
+			default:
+				conflicts = append(conflicts, f.Name)
+			}
+		})
+		if len(conflicts) > 0 || len(result.Models) > 0 || len(result.Baselines) == 0 {
+			return options{}, errors.New("longform: -compare-record requires -baseline and permits only -repo, -root and -budget")
+		}
+	}
 	if result.ExportCorpus != "" {
 		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect || result.PathsFile != "" || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
 			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
@@ -124,13 +140,13 @@ func parseOptions(args []string) (options, error) {
 	if (result.Check || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect) && (result.Corpus == "" || len(result.Baselines) == 0) {
 		return options{}, errors.New("longform: -check and -validate-baselines require a fixed -corpus and explicit -baseline records")
 	}
-	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && !result.GuardSelect && len(result.Baselines) != 0 {
+	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && !result.GuardSelect && len(result.CompareRecords) == 0 && len(result.Baselines) != 0 {
 		return options{}, errors.New("longform: -baseline requires -check or -validate-baselines")
 	}
 	if result.Guard && result.Corpus == "" {
 		return options{}, errors.New("longform: -guard requires a fixed -corpus")
 	}
-	if result.All == (len(result.Models) > 0) {
+	if len(result.CompareRecords) == 0 && result.All == (len(result.Models) > 0) {
 		return options{}, errors.New("usage: longform [-repo <store>] [-device N] [-publish | -check] (-all | <model.gguf>...)")
 	}
 	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
@@ -286,6 +302,9 @@ func run(args []string, output io.Writer) error {
 	defer stop()
 	ctx, cancel := context.WithTimeoutCause(ctx, options.Budget, fmt.Errorf("longform: aggregate budget %s exhausted: %w", options.Budget, context.DeadlineExceeded))
 	defer cancel()
+	if len(options.CompareRecords) > 0 {
+		return compareStoredRecords(ctx, options, output)
+	}
 	if options.Corpus != "" {
 		options.corpusText, err = readCorpus(options, 0)
 		if err != nil {
@@ -352,10 +371,17 @@ func run(args []string, output io.Writer) error {
 			return err
 		}
 		defer cuda.Close()
-		options.deviceInfo, err = cuda.ReserveDevice(options.Device)
+		admissionStart := time.Now()
+		fmt.Fprintln(output, "long-form device admission: waiting within aggregate budget; no models loaded")
+		err = processcontrol.AwaitResource(ctx, func() error {
+			info, err := cuda.ReserveDevice(options.Device)
+			options.deviceInfo = info
+			return err
+		})
 		if err != nil {
 			return err
 		}
+		fmt.Fprintf(output, "long-form device admitted after %s\n", time.Since(admissionStart))
 		return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
 	})
 }

@@ -21,11 +21,13 @@ type guardCohort struct {
 	initialModel     string
 	retired          bool
 	repeats          [3]string
+	priorProducer    string
+	prior            [3]string
 }
 
 // TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
-	producer, cohorts := readGuardCatalog(t)
+	selected := readGuardCatalog(t)
 	fixtures := []guardCohort{
 		{
 			name:       "Qwen 0.5B",
@@ -38,13 +40,13 @@ func TestCurrentGuardControls(t *testing.T) {
 	}
 	for index := range fixtures {
 		fixture := &fixtures[index]
-		records := cohorts[fixture.name]
+		records := selected.Cohorts[fixture.name]
 		if len(records) != len(fixture.repeats) {
 			t.Fatalf("%s requires three complete immutable records", fixture.name)
 		}
 		fixture.repeats = [3]string(records)
 	}
-	requireGuardCohorts(t, fixtures, producer, false)
+	requireGuardCohorts(t, fixtures, selected.Producer, false)
 	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }
 
@@ -83,13 +85,30 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 			live++
 		}
 		t.Run(fixture.name, func(t *testing.T) {
+			var prior []longform.Result
+			priorSeen := make(map[artifact.ID]bool)
+			for _, text := range fixture.prior {
+				if text == "" {
+					continue
+				}
+				id, err := artifact.ParseID(text)
+				if err != nil || priorSeen[id] {
+					t.Fatalf("invalid or duplicate prior record %q: %v", text, err)
+				}
+				priorSeen[id] = true
+				accepted, err := longform.ReadBaseline(t.Context(), store, id)
+				if err != nil || accepted.Result.Commit != fixture.priorProducer {
+					t.Fatalf("prior record lost its admitted producer: %v", err)
+				}
+				prior = append(prior, accepted.Result)
+			}
 			var historical longform.Summary
 			if fixture.initialModel != "" {
 				id, err := artifact.ParseID(fixture.initialModel)
 				if err != nil || id.Kind() != artifact.KindModel || fixture.historical != "" {
 					t.Fatal("initial calibration requires one exact model and no substituted historical reference")
 				}
-				t.Log("initial full-budget calibration; no historical comparison is claimed")
+				t.Logf("exact serving model %s; retained full-budget references=%d", fixture.initialModel, len(prior))
 			} else {
 				historical = measuredGuardRecord(t, store, fixture.historical)
 				if err := validateGuard(historical.Result); err != nil {
@@ -117,9 +136,19 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 				if err := validateGuard(fresh); err != nil {
 					t.Fatal(err)
 				}
+				if !fixture.retired {
+					if err := checkGuardShortBenchmark(t.Context(), store, fresh); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if historical.Record.Valid() {
 					if verdict := longform.Compare(historical.Result, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
 						t.Fatalf("historical comparison: %s", verdict)
+					}
+				}
+				for _, previous := range prior {
+					if verdict := longform.Compare(previous, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
+						t.Fatalf("prior accepted cohort comparison: %s", verdict)
 					}
 				}
 				if index == 0 {

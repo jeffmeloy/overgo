@@ -5,42 +5,11 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "lane-overlap",
-      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "lane-overlap-admission",
-          "title": "Overlap the dependent group and the lanes with the direct group under store-writer admission on master's retained store handle",
-          "status": "open",
-          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
-          "rationale": "Priority three, second half, after master's store-lifetime step is merged: the gate then holds one store handle through evidence and finalization, so the dependent group, the device lane and the browser lane can start once the changed owners pass, admitted to the lane store's single writer through processcontrol.AwaitResource on the store lock instead of the OS exclusion they collide on today. The measured phase wall table decides whether the overlap shortens the gate without recreating master's observed timeout; an overlap that lengthens the test phase is refused. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
-          "depends_on": [
-            "lane-overlap/concurrent-test-groups"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gate-wall",
       "title": "Cut the gate wall: measure it, front-load the validate checks, repair the mechanical findings, overlap the admission chain",
       "owner": "hatchet",
       "status": "open",
       "steps": [
-        {
-          "id": "mechanical-repairs",
-          "title": "Apply the mechanical repairs through one registry before the candidate freezes, preserving reviewed thresholds",
-          "status": "open",
-          "verify": "test -f internal/gate/mechanical_repair_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateStagesMechanicalRepairs$' -count=1",
-          "rationale": "Priority four. The gate already repairs one finding by itself, the stale closure rebind in the magics phase; the others (gofmt, the modern-Go census and baseline, the harness surface baseline, the clone baseline within its ceiling) are refused late and re-gated by hand, and every re-gate pays the full wall. One repair registry lists each derived file with its writer, its reviewed thresholds and the phase that consumes it; before the candidate freezes the gate applies every repair whose input is the candidate source, records each as a staged repair in the audit and binds verification to the repaired candidate. A repair that would move a reviewed threshold or ceiling is refused with the delta. The existing closure rebind becomes the first registry entry, not a second path. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused. The row is called a speedup only when the phase wall tables before and after it show a measured reduction in executed checks and total gate wall.",
-          "depends_on": [
-            "lane-overlap/concurrent-test-groups"
-          ],
-          "capabilities": [
-            "gate-cost"
-          ]
-        },
         {
           "id": "admission-chain",
           "title": "Compute the candidate tree once per gate and reuse the parsed plan across admission and commit",
@@ -52,6 +21,24 @@
           ],
           "capabilities": [
             "gate-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lane-overlap",
+      "title": "Run the GPU lanes and the test groups concurrently under the existing admission",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "lane-overlap-admission",
+          "title": "Overlap the dependent group and the lanes with the direct group under store-writer admission on master's retained store handle",
+          "status": "open",
+          "verify": "test -f internal/gate/test_groups_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestGroupsOverlapUnderLedger$' -count=1",
+          "rationale": "Priority three, second half, after master's store-lifetime step is merged: the gate then holds one store handle through evidence and finalization, so the dependent group, the device lane and the browser lane can start once the changed owners pass, admitted to the lane store's single writer through processcontrol.AwaitResource on the store lock instead of the OS exclusion they collide on today. The measured phase wall table decides whether the overlap shortens the gate without recreating master's observed timeout; an overlap that lengthens the test phase is refused. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused. The row follows the gate-wall rows in order so that master's store-lifetime commit, landed on master after 263e89be, is merged before it starts.",
+          "depends_on": [
+            "lane-overlap/concurrent-test-groups"
           ]
         }
       ]

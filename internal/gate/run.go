@@ -285,6 +285,11 @@ func Run(options Options) error {
 	if *preflight {
 		return g.Preflight(os.Stdout)
 	}
+	// Derived files are repaired before the candidate freezes, so the
+	// verification binds to the repaired candidate; preflight never repairs.
+	if err := reportGateAdmissionPhase("stage mechanical repairs", g.stageMechanicalRepairs); err != nil {
+		return err
+	}
 	err = reportGateAdmissionPhase("discover verification environment", func() error {
 		g.environment, err = discoverEnvironment(repo)
 		return err

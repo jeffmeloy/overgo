@@ -4,12 +4,40 @@ package processmeasure
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 )
 
 var getProcessMemoryInfo = syscall.NewLazyDLL("psapi.dll").NewProc("GetProcessMemoryInfo")
+
+var performanceCounter = syscall.NewLazyDLL("kernel32.dll").NewProc("QueryPerformanceCounter")
+
+var performanceFrequency = sync.OnceValues(func() (int64, error) {
+	query := syscall.NewLazyDLL("kernel32.dll").NewProc("QueryPerformanceFrequency")
+	var frequency int64
+	if ok, _, err := query.Call(uintptr(unsafe.Pointer(&frequency))); ok == 0 {
+		return 0, fmt.Errorf("measurement: performance frequency: %w", err)
+	}
+	return frequency, nil
+})
+
+// Counter returns a high-resolution monotonic timestamp for interval subtraction.
+// Its origin is arbitrary; it is not a wall-clock time or a persisted identity.
+func Counter() (time.Duration, error) {
+	frequency, err := performanceFrequency()
+	if err != nil {
+		return 0, err
+	}
+	var ticks int64
+	if ok, _, err := performanceCounter.Call(uintptr(unsafe.Pointer(&ticks))); ok == 0 {
+		return 0, fmt.Errorf("measurement: performance counter: %w", err)
+	}
+	return counterDuration(ticks, frequency)
+}
 
 type processMemoryCounters struct {
 	Size                       uint32

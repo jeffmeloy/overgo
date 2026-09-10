@@ -321,8 +321,19 @@ func FailureLines(output string) []string {
 			name, _, _ := strings.Cut(strings.TrimPrefix(trimmed, "--- FAIL: "), " (")
 			failures = append(failures, name+": "+last)
 		case last != "" && strings.HasPrefix(line, "        ") && trimmed != "":
-			last += " " + trimmed
+			// The step's name leads the line; a page dump behind it is cut so
+			// the name survives a caller's bounded tail.
+			if len(last) < failureLineBytes {
+				last += " " + trimmed
+				if len(last) > failureLineBytes {
+					last = strings.ToValidUTF8(last[:failureLineBytes], "") + "…"
+				}
+			}
 		}
 	}
 	return failures
 }
+
+// failureLineBytes bounds one reported failure so several fit a caller's
+// diagnostic tail beside one another.
+const failureLineBytes = 800

@@ -39,8 +39,9 @@ func TestGuardProducerComparison(t *testing.T) {
 		t.Run(cohort.producer, func(t *testing.T) {
 			requireGuardCohorts(t, []guardCohort{{
 				name: "Qwen 0.5B", repeats: cohort.records,
-				historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
-				prior:      [3]string(prior), priorProducer: selected.Prior.Producer,
+				historicalSurface: "22be8fb72e5fc316d414215317d7f566691517d9ec8d28eb88e7ee2d72b079e2",
+				historical:        "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
+				prior:             [3]string(prior), priorProducer: selected.Prior.Producer,
 			}}, cohort.producer, false)
 		})
 	}

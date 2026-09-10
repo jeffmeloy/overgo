@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/processmeasure"
 	"overgo/internal/tensor"
 	"overgo/internal/tokenizer"
 )
@@ -68,7 +69,7 @@ type continuousGenerateState struct {
 	topKIDs    []int
 	topKLogits []float32
 	index      int
-	started    time.Time
+	started    time.Duration
 	evaluated  bool
 }
 
@@ -254,8 +255,13 @@ func (g *ContinuousGenerator) run() {
 			if !state.evaluated {
 				state.evaluated = true
 				if callback := state.request.options.OnPromptEvaluated; callback != nil {
+					finished, err := processmeasure.Counter()
+					if err != nil {
+						g.failStates(active, []*continuousGenerateState{state}, err)
+						continue
+					}
 					callback(PromptEvaluation{
-						Tokens: len(state.ids), Duration: time.Since(state.started),
+						Tokens: len(state.ids), Duration: finished - state.started,
 					})
 				}
 			}
@@ -338,8 +344,13 @@ func (g *ContinuousGenerator) admit(
 		request.response <- continuousGenerateResult{ids: ids, text: text, err: decodeErr}
 		return
 	}
+	started, err := processmeasure.Counter()
+	if err != nil {
+		request.response <- continuousGenerateResult{err: err}
+		return
+	}
 	active[id] = &continuousGenerateState{
-		id: id, request: request, ids: ids, started: time.Now(),
+		id: id, request: request, ids: ids, started: started,
 	}
 }
 

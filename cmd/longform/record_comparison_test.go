@@ -31,6 +31,11 @@ func TestStoredRecordComparison(t *testing.T) {
 	secondReference := publish(r)
 	r.WallNS++
 	candidate := publish(r)
+	r.Shape.WarmupOutputTokens = longform.WarmupOutputTokens
+	initialized := publish(r)
+	rateFailure := r
+	rateFailure.Shape.Measure.PromptTokensPerSecond *= r.Floors.RateRegressionFraction / 2
+	initializedSlow := publish(rateFailure)
 	r.Shape.NLL += r.Floors.NLLTolerance * 2
 	regression := publish(r)
 	r.Inputs.Model, _, err = artifact.Identify(artifact.KindModel, strings.NewReader("other weights"))
@@ -49,6 +54,8 @@ func TestStoredRecordComparison(t *testing.T) {
 		fails                  bool
 	}{
 		{"all references", []string{reference, secondReference}, []string{candidate}, "comparisons=2 failures=0", false},
+		{"initialization disclosure", []string{reference}, []string{initialized}, "no like-for-like timing improvement claim", false},
+		{"initialized rate regression", []string{reference}, []string{initializedSlow}, "short: prompt", true},
 		{"regression", []string{reference, secondReference}, []string{regression}, "comparisons=2 failures=2", true},
 		{"self comparison", []string{reference}, []string{reference}, "self-comparison", true},
 		{"duplicate reference", []string{reference, reference}, []string{candidate}, "duplicate", true},

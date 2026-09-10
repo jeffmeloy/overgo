@@ -1,4 +1,4 @@
-// Package processmeasure owns child-process wall and peak-memory measurement.
+// Package processmeasure owns interval and process peak-memory measurements.
 package processmeasure
 
 import (
@@ -30,7 +30,10 @@ func Measure(command *exec.Cmd) (Result, error) {
 	}
 	var output bytes.Buffer
 	command.Stdout, command.Stderr = &output, &output
-	started := time.Now()
+	started, err := Counter()
+	if err != nil {
+		return Result{}, err
+	}
 	if err := command.Start(); err != nil {
 		return Result{}, err
 	}
@@ -38,16 +41,17 @@ func Measure(command *exec.Cmd) (Result, error) {
 	finished := make(chan peakSample, 1)
 	go samplePeak(command, stop, finished)
 	waitErr := command.Wait()
+	ended, clockErr := Counter()
 	close(stop)
 	sample := <-finished
 	result := Result{
-		Wall: time.Since(started), PeakWorkingSetByte: sample.bytes,
+		Wall: ended - started, PeakWorkingSetByte: sample.bytes,
 		Output: bytes.Clone(output.Bytes()),
 	}
 	if !sample.sampled {
-		return result, errors.Join(waitErr, fmt.Errorf("process measure: peak unavailable: %w", sample.err))
+		return result, errors.Join(waitErr, clockErr, fmt.Errorf("process measure: peak unavailable: %w", sample.err))
 	}
-	return result, waitErr
+	return result, errors.Join(waitErr, clockErr)
 }
 
 func samplePeak(command *exec.Cmd, stop <-chan struct{}, finished chan<- peakSample) {

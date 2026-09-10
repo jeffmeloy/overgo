@@ -93,7 +93,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	}
 	front := httptest.NewServer(proxy)
 	defer front.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 8*time.Minute, errors.New("webui lane: the first-run journey did not complete"))
+	// The journey's bound caps the sum of its steps, each bounded on its
+	// own: alone the journey's real model loads take about seven minutes,
+	// and beside the gate's test groups they take longer.
+	ctx, cancel := context.WithTimeoutCause(t.Context(), 15*time.Minute, errors.New("webui lane: the first-run journey did not complete"))
 	defer cancel()
 	browser, err := webuilane.Open(ctx, browserPath, front.URL+"/")
 	if err != nil {
@@ -122,11 +125,12 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
         assistant: document.querySelectorAll("#panel-chat .msg.assistant").length, busy: (document.querySelector(".composer .btn") || {}).disabled,
         failures: [...document.querySelectorAll("#panel-chat .msg.error .body")].map((node) => node.textContent.slice(0, 200)),
         last: ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent, text: document.body.innerText.slice(0, 120),
-        notes: [...document.querySelectorAll(".note, .err-banner")].map((node) => node.textContent.slice(0, 160)).filter(Boolean),
+        notes: [...document.querySelectorAll(".note, .err-banner")].filter((node) => !node.closest("#history-rows")).map((node) => node.textContent.slice(0, 160)).filter(Boolean),
         focused: document.hasFocus(), active: document.activeElement ? document.activeElement.outerHTML.slice(0, 160) : "",
         editor: !!document.querySelector("#history-rows form"), reload: [...document.querySelectorAll("button")].some((button) => button.textContent === "Reload history" && !button.hidden),
         predicate: (() => { try { return String(`+expression+`); } catch (failure) { return "throws: " + failure; } })()})`, &page)
-			t.Fatalf("%s: %v; page: %s", what, err, page)
+			// The exhausted bound is named: the step's own, or the journey's.
+			t.Fatalf("%s: %v (%v); page: %s", what, err, context.Cause(step), page)
 		}
 	}
 	// captureStates: the page as it stands at this leg, captured and audited

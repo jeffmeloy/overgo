@@ -5,31 +5,23 @@ package inference
 import (
 	"context"
 	"math"
-	"os"
-	"path/filepath"
 	"reflect"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/gguf"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
 
 const (
-	hermeticEmbedding = uint64(8)
-	hermeticHeads     = uint64(2)
-	hermeticKVHeads   = uint64(1)
-	hermeticHeadWidth = hermeticEmbedding / hermeticHeads
-	hermeticFFN       = uint64(12)
-	hermeticVocab     = uint64(8)
-	hermeticContext   = uint32(16)
+	hermeticVocab   = uint64(8)
+	hermeticContext = uint32(16)
 )
 
 func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
+	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +136,7 @@ func TestHermeticCUDAContinuousCacheParity(t *testing.T) {
 func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
+	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -186,59 +178,4 @@ func TestHermeticCUDACapacityCachePageBoundary(t *testing.T) {
 			}
 		}
 	}
-}
-
-// writeHermeticLlamaGGUFWithContext writes the hermetic fixture with the
-// given context length (hermeticContext for the parity tests); the cache
-// page bands a test straddles are set by the context, everything else by
-// the fixture's fixed shape.
-func writeHermeticLlamaGGUFWithContext(t *testing.T, context uint32) string {
-	t.Helper()
-	metadata := []gguf.Metadata{
-		testutil.GGUFScalar("general.architecture", gguf.ValueTypeString, "llama"),
-		testutil.GGUFScalar("general.name", gguf.ValueTypeString, "hermetic-cuda"),
-		testutil.GGUFScalar("llama.block_count", gguf.ValueTypeUint32, uint32(1)),
-		testutil.GGUFScalar("llama.context_length", gguf.ValueTypeUint32, context),
-		testutil.GGUFScalar("llama.embedding_length", gguf.ValueTypeUint32, uint32(hermeticEmbedding)),
-		testutil.GGUFScalar("llama.feed_forward_length", gguf.ValueTypeUint32, uint32(hermeticFFN)),
-		testutil.GGUFScalar("llama.attention.head_count", gguf.ValueTypeUint32, uint32(hermeticHeads)),
-		testutil.GGUFScalar("llama.attention.head_count_kv", gguf.ValueTypeUint32, uint32(hermeticKVHeads)),
-		testutil.GGUFScalar("llama.rope.freq_base", gguf.ValueTypeFloat32, float32(10_000)),
-		testutil.GGUFScalar("llama.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-		testutil.GGUFScalar("tokenizer.ggml.model", gguf.ValueTypeString, "llama"),
-		testutil.GGUFArray("tokenizer.ggml.tokens", gguf.ValueTypeString,
-			[]string{"<unk>", "<s>", "</s>", "â–", "a", "b", "c", "d"}),
-		testutil.GGUFArray("tokenizer.ggml.scores", gguf.ValueTypeFloat32, make([]float32, hermeticVocab)),
-		testutil.GGUFArray("tokenizer.ggml.token_type", gguf.ValueTypeInt32,
-			[]int32{2, 3, 3, 1, 1, 1, 1, 1}),
-		testutil.GGUFScalar("tokenizer.ggml.bos_token_id", gguf.ValueTypeUint32, uint32(1)),
-		testutil.GGUFScalar("tokenizer.ggml.eos_token_id", gguf.ValueTypeUint32, uint32(2)),
-	}
-	tensors := []gguf.TensorData{
-		testutil.GGUFTensorF32("token_embd.weight", []uint64{hermeticEmbedding, hermeticVocab}, 1),
-		testutil.GGUFTensorF32("output_norm.weight", []uint64{hermeticEmbedding}, 2),
-		testutil.GGUFTensorF32("output.weight", []uint64{hermeticEmbedding, hermeticVocab}, 3),
-		testutil.GGUFTensorF32("blk.0.attn_norm.weight", []uint64{hermeticEmbedding}, 4),
-		testutil.GGUFTensorF32("blk.0.attn_q.weight", []uint64{hermeticEmbedding, hermeticEmbedding}, 5),
-		testutil.GGUFTensorF32("blk.0.attn_k.weight", []uint64{hermeticEmbedding, hermeticHeadWidth}, 6),
-		testutil.GGUFTensorF32("blk.0.attn_v.weight", []uint64{hermeticEmbedding, hermeticHeadWidth}, 7),
-		testutil.GGUFTensorF32("blk.0.attn_output.weight", []uint64{hermeticEmbedding, hermeticEmbedding}, 8),
-		testutil.GGUFTensorF32("blk.0.ffn_norm.weight", []uint64{hermeticEmbedding}, 9),
-		testutil.GGUFTensorF32("blk.0.ffn_gate.weight", []uint64{hermeticEmbedding, hermeticFFN}, 10),
-		testutil.GGUFTensorF32("blk.0.ffn_up.weight", []uint64{hermeticEmbedding, hermeticFFN}, 11),
-		testutil.GGUFTensorF32("blk.0.ffn_down.weight", []uint64{hermeticFFN, hermeticEmbedding}, 12),
-	}
-	path := filepath.Join(t.TempDir(), "hermetic.gguf")
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = gguf.Write(file, metadata, tensors, gguf.WriteOptions{}); err != nil {
-		_ = file.Close()
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return path
 }

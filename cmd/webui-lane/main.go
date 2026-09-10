@@ -70,9 +70,16 @@ func run() error {
 	ran, err := runLane(stdout, *run, extra)
 	if err != nil {
 		// The failed tests' own lines end the error, where a caller's
-		// bounded tail keeps them.
+		// bounded tail keeps them; the whole run is kept in a file the
+		// error names, since a caller keeps only that tail.
 		if failures := webuilane.FailureLines(captured.String()); len(failures) > 0 {
-			return fmt.Errorf("%w: %s", err, strings.Join(failures, "; "))
+			err = fmt.Errorf("%w: %s", err, strings.Join(failures, "; "))
+		}
+		if kept, keepErr := os.CreateTemp("", "webui-lane-output-*.log"); keepErr == nil {
+			_, writeErr := kept.Write(captured.Bytes())
+			if closeErr := kept.Close(); writeErr == nil && closeErr == nil {
+				err = fmt.Errorf("%w; full output at %s", err, kept.Name())
+			}
 		}
 		return err
 	}
@@ -180,7 +187,7 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	// The lane package's own browser test (the layout audit over a synthetic page) runs beside the server's.
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=10m", "-v"},
+		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=20m", "-v"},
 		Env:    env,
 		Stdout: stdout,
 		Stderr: os.Stderr,

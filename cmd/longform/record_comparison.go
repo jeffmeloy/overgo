@@ -50,9 +50,9 @@ func compareStoredRecords(ctx context.Context, options options, output io.Writer
 	comparisons := 0
 	for _, candidate := range candidates {
 		fresh := candidate.Result
-		fmt.Fprintf(output, "candidate=%s short_prompt_ms=%.4f short_prompt_tok_s=%.1f short_nll=%.4f retained_bytes=%d peak_bytes=%d\n",
+		fmt.Fprintf(output, "candidate=%s short_prompt_ms=%.4f short_prompt_tok_s=%.1f short_nll=%.4f retained_bytes=%d peak_bytes=%d warmup_output_tokens=%d\n",
 			candidate.Record, fresh.Shape.Measure.PromptMilliseconds, fresh.Shape.Measure.PromptTokensPerSecond,
-			fresh.Shape.NLL, fresh.Shape.Measure.Memory.CurrentBytes, fresh.Shape.Measure.Memory.PeakBytes)
+			fresh.Shape.NLL, fresh.Shape.Measure.Memory.CurrentBytes, fresh.Shape.Measure.Memory.PeakBytes, fresh.Shape.WarmupOutputTokens)
 		matched := false
 		for _, reference := range references {
 			if reference.Result.Inputs.Model != candidate.Result.Inputs.Model {
@@ -62,6 +62,9 @@ func compareStoredRecords(ctx context.Context, options options, output io.Writer
 			used[reference.Record] = true
 			comparisons++
 			verdict := longform.Compare(reference.Result, fresh, reference.Result.Floors, reference.Result.Floors.CheckRungCeiling)
+			if reference.Result.Shape.WarmupOutputTokens != fresh.Shape.WarmupOutputTokens {
+				fmt.Fprintf(output, "reference=%s initialization differs: retained historical floors only; no like-for-like timing improvement claim\n", reference.Record)
+			}
 			fmt.Fprintf(output, "reference=%s candidate=%s verdict=%s\n", reference.Record, candidate.Record, verdict)
 			if !verdict.Passed {
 				failures = append(failures, fmt.Errorf("longform: %s against %s: %s", candidate.Record, reference.Record, verdict))

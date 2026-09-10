@@ -1,7 +1,6 @@
 package audioparity
 
 import (
-	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,7 +32,7 @@ import (
 // use temporary storage. This same acceptance can retain a measured baseline.
 func TestASRCPUBaselineAcceptance(t *testing.T) {
 	root := testutil.RepoRoot(t)
-	referenceRoot := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), filepath.Join(root, "overgodb-store"))
+	referenceRoot := resolveReferenceRoots(t).store
 	dataRoot := filepath.Dir(referenceRoot)
 	storeRoot, fixtureRoot := t.TempDir(), t.TempDir()
 	if retained := os.Getenv("OVERGO_AUDIO_BASELINE_STORE"); retained != "" {

@@ -38,7 +38,12 @@ type Roots struct {
 	Models      string `json:"models"`
 	Datasets    string `json:"datasets"`
 	Checkpoints string `json:"checkpoints"`
-	Source      string `json:"-"`
+	// AudioReference is the store the audio parity acceptances read their
+	// reference records from, whose own directory holds the audio models
+	// beside it; a checkout that keeps those in another checkout's home
+	// declares that store here. Unset, it is the checkout's own store.
+	AudioReference string `json:"audio_reference_store,omitzero"`
+	Source         string `json:"-"`
 }
 
 // ResolveCurrent returns roots for the process working directory.
@@ -102,6 +107,11 @@ func resolveIn(workingDirectory string) (Roots, error) {
 	for _, root := range []*string{&roots.Store, &roots.Models, &roots.Datasets, &roots.Checkpoints} {
 		*root = configuredRoot(workingDirectory, *root)
 	}
+	if roots.AudioReference == "" {
+		roots.AudioReference = roots.Store
+	} else {
+		roots.AudioReference = configuredRoot(workingDirectory, roots.AudioReference)
+	}
 	roots.Source = ConfigFile
 	return roots, nil
 }
@@ -115,12 +125,14 @@ func configuredRoot(workingDirectory, root string) string {
 }
 
 func fallback(workingDirectory string) Roots {
+	store := filepath.Join(workingDirectory, "overgodb-store")
 	return Roots{
-		Store:       filepath.Join(workingDirectory, "overgodb-store"),
-		Models:      filepath.Join(workingDirectory, "models"),
-		Datasets:    filepath.Join(workingDirectory, "datasets"),
-		Checkpoints: filepath.Join(workingDirectory, "checkpoints"),
-		Source:      "defaults",
+		Store:          store,
+		Models:         filepath.Join(workingDirectory, "models"),
+		Datasets:       filepath.Join(workingDirectory, "datasets"),
+		Checkpoints:    filepath.Join(workingDirectory, "checkpoints"),
+		AudioReference: store,
+		Source:         "defaults",
 	}
 }
 

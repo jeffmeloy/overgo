@@ -528,10 +528,12 @@ func discoverEnvironment(repo string) (runrecord.Environment, error) {
 	if err != nil {
 		return runrecord.Environment{}, err
 	}
+	// The audio reference store the evidence records is the derived one the
+	// acceptances read, whether the operator or the declared roots named it.
 	rootBytes, err := json.Marshal(struct {
 		Roots          dataroot.Roots
 		AudioReference string
-	}{roots, os.Getenv("OVERGO_AUDIO_REFERENCE_STORE")})
+	}{roots, audioReferenceStore(roots)})
 	if err != nil {
 		return runrecord.Environment{}, err
 	}

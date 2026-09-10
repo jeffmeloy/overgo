@@ -1539,10 +1539,22 @@ func (g *gateContext) sourceEnvironment() ([]string, error) {
 	if strings.TrimSpace(os.Getenv(dataroot.Env)) == "" {
 		environment = append(environment, dataroot.Env+"="+g.repo)
 	}
-	if os.Getenv("OVERGO_AUDIO_REFERENCE_STORE") == "" {
-		environment = append(environment, "OVERGO_AUDIO_REFERENCE_STORE="+roots.Store)
+	if os.Getenv(audioReferenceEnv) == "" {
+		environment = append(environment, audioReferenceEnv+"="+audioReferenceStore(roots))
 	}
 	return environment, nil
+}
+
+// audioReferenceEnv names the operator's override of the audio reference
+// store; the declared roots supply it otherwise.
+const audioReferenceEnv = "OVERGO_AUDIO_REFERENCE_STORE"
+
+// audioReferenceStore derives the audio parity acceptances' reference store
+// the way the acceptances derive theirs: the operator's override, else the
+// store the declared data roots name for it, which is the checkout's own
+// store unless local-models.json declares another checkout's.
+func audioReferenceStore(roots dataroot.Roots) string {
+	return cmp.Or(os.Getenv(audioReferenceEnv), roots.AudioReference)
 }
 
 // deviceFirst splits one test group into the batches the gate runs in

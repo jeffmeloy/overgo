@@ -1,7 +1,6 @@
 package audioparity
 
 import (
-	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,7 +17,6 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/speechactivity"
-	"overgo/internal/testutil"
 )
 
 type vadNumericalCase struct {
@@ -159,7 +157,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 		reference.FrontendSource != "f68c6b43f739697d7ab02ff6debacee130e1d541" || len(reference.Models) != 2 {
 		t.Fatal("VAD oracle identities or denominator differ")
 	}
-	storeRoot := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
+	storeRoot := resolveReferenceRoots(t).store
 	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +169,7 @@ func loadVADReference(t *testing.T) (vadNumericalReference, *overgodb.Store, med
 	if record.ShardSHA256 != existing.ShardSHA256 || record.AudioSHA256 != existing.AudioSHA256 || record.RowID != existing.RowID || record.Row != existing.Row || record.Split != existing.Split || record.Shard != existing.Shard {
 		t.Fatal("VAD source is not the pinned shared corpus row")
 	}
-	corpus := filepath.Join(filepath.Dir(storeRoot), "datasets", "librispeech_asr-clean-xet", "clean", record.Split, record.Shard)
+	corpus := librispeechPath(t, "clean", record.Split, record.Shard)
 	id, err := artifact.ParseID("file:sha256:" + record.ShardSHA256)
 	if err != nil {
 		t.Fatal(err)

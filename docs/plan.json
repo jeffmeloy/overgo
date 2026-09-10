@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "lane-merge-automation",
-      "title": "Make a lane merge one command and one gate",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "lane-environment",
-          "title": "Derive the audio reference store and data roots from the lane's declared roots instead of the operator's environment",
-          "status": "open",
-          "verify": "test -f internal/gate/lane_environment_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateDerivesLaneEnvironment$' -count=1",
-          "rationale": "Two of the lane's gate attempts failed only because OVERGO_AUDIO_REFERENCE_STORE was not exported: the audio parity acceptances derive their datasets and model roots from the reference store's parent directory, and the gate exports the lane store when the variable is unset, which names roots the lane does not have. The gate derives the reference store from the declared data roots (local-models.json) the same way the tests derive theirs, records the derivation in the environment evidence, and the tests read the declared roots instead of the store's parent. No operator environment is needed for a lane gate. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
-          "depends_on": [
-            "lane-merge-automation/prepare-merge-lane"
-          ]
-        }
-      ]
-    },
-    {
       "id": "closure-catalog",
       "title": "Catalog a literal in one transaction",
       "owner": "hatchet",

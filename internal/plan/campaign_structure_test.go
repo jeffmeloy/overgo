@@ -784,6 +784,8 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-batch-control/batch-promotion",
 		"validation-batch-control/evidence-commit-recovery",
 		"validation-batch-control/store-lifetime",
+		"validation-batch-control/admission-recovery",
+		"modality-verification/e4b-admission-resource-refresh",
 		"validation-batch-control/evidence-resource-producer",
 		"validation-batch-control/transaction-writer",
 		"validation-batch-control/workbench-writer-lifetime",

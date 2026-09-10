@@ -88,7 +88,7 @@ func TestAbandonedGateAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			head, sequence := store.Head()
-			err = admitPendingGateState(repo, StorePath, store)
+			_, err = admitPendingGateState(repo, StorePath, store)
 			if obstacle == "missing locator" {
 				if err != nil {
 					t.Fatal(err)
@@ -134,7 +134,7 @@ func TestAbandonedGateAdmission(t *testing.T) {
 		}
 		defer store.Close()
 		head, sequence := store.Head()
-		if err := admitPendingGateState(fixture.repo, fixture.storePath, store); err == nil || !strings.Contains(err.Error(), "2 unresolved") {
+		if _, err := admitPendingGateState(fixture.repo, fixture.storePath, store); err == nil || !strings.Contains(err.Error(), "2 unresolved") {
 			t.Fatalf("ambiguous recovery = %v", err)
 		}
 		if err := store.Refresh(t.Context()); err != nil {
@@ -157,7 +157,7 @@ func TestAbandonedGateAdmission(t *testing.T) {
 		}
 		defer store.Close()
 		head, sequence := store.Head()
-		if err := admitPendingGateState(fixture.repo, fixture.storePath, store); err == nil {
+		if _, err := admitPendingGateState(fixture.repo, fixture.storePath, store); err == nil {
 			t.Fatal("incomplete finalization admitted")
 		}
 		if err := store.Refresh(t.Context()); err != nil {

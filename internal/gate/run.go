@@ -40,7 +40,7 @@ type Options struct {
 }
 
 // Run executes the single gate transaction path for one parsed option set.
-func Run(options Options) error {
+func Run(options Options) (runErr error) {
 	messageFile := &options.MessageFile
 	pathsCSV := &options.PathsCSV
 	storePath := &options.StorePath
@@ -102,7 +102,13 @@ func Run(options Options) error {
 		if err != nil {
 			return err
 		}
-		defer lock.Close()
+		defer func() {
+			err := lock.Close()
+			runErr = errors.Join(runErr, err)
+			if err == nil {
+				fmt.Fprintf(os.Stderr, "gate: resource=authority:%s state=not_busy scope=gate\n", repo)
+			}
+		}()
 	}
 	if *reconcile {
 		preparation, err := reconcileGateDebt(repo, cleanStore)
@@ -158,27 +164,33 @@ func Run(options Options) error {
 	var admissionStore *overgodb.Store
 	defer func() {
 		if admissionStore != nil {
-			_ = admissionStore.Close()
+			runErr = errors.Join(runErr, admissionStore.Close())
 		}
 	}()
 	if !readOnlyPlan {
-		err = reportGateAdmissionPhase("capture candidate state", func() error {
-			mergeBefore, indexBefore, err = captureGateStartState(repo)
-			return err
-		})
-		if err != nil {
-			return err
-		}
 		err = reportGateAdmissionPhase("open canonical store", func() error {
-			admissionStore, err = overgodb.Open(filepath.Join(repo, cleanStore))
+			admissionStore, err = overgodb.OpenContext(context.Background(), filepath.Join(repo, cleanStore))
 			return err
 		})
 		if err != nil {
 			return fmt.Errorf("gate: open admission store: %w", err)
 		}
+		var recoveredPlan string
 		if err := reportGateAdmissionPhase("validate pending lifecycle state", func() error {
-			return admitPendingGateState(repo, cleanStore, admissionStore)
+			recoveredPlan, err = admitPendingGateState(repo, cleanStore, admissionStore)
+			return err
 		}); err != nil {
+			return err
+		}
+		if recoveredPlan != "" && recoveredPlan == *planRef {
+			fmt.Fprintf(os.Stderr, "gate: recovered %s; new verification=0 new commits=0\n", recoveredPlan)
+			return nil
+		}
+		err = reportGateAdmissionPhase("capture candidate state", func() error {
+			mergeBefore, indexBefore, err = captureGateStartState(repo)
+			return err
+		})
+		if err != nil {
 			return err
 		}
 		var accelerated bool
@@ -207,7 +219,7 @@ func Run(options Options) error {
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
 		planProjection: planProjection, mergeSourceStore: mergeSourceStore,
 	}
-	defer g.closeStore()
+	defer func() { runErr = errors.Join(runErr, g.closeStore()) }()
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
 		// staged set makes the scope step trivially pass, and the existing

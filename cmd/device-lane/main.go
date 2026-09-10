@@ -60,19 +60,39 @@ func run() error {
 	}
 	steps := deviceSteps(plan)
 	steps = append([][]string{{"go", "run", "./cmd/cuda-info"}}, steps...)
+	buildDir, err := os.MkdirTemp("", "device-lane-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(buildDir)
 	for index, step := range steps {
 		began := time.Now()
 		done, stopped := make(chan struct{}), make(chan struct{})
 		fmt.Println(deviceProgress(step, index, len(steps), 0))
 		go deviceHeartbeat(step, index, len(steps), began, done, stopped)
+		command, err := executableStep(ctx, ".", buildDir, step)
+		if err != nil {
+			close(done)
+			<-stopped
+			return runrecord.LaneError(runrecord.LaneFailed, err.Error())
+		}
 		var stdout, stderr bytes.Buffer
-		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-			Path: step[0], Args: step[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
-			Stdout: &stdout, Stderr: &stderr,
+		var receipt processcontrol.Receipt
+		// A step refused by a foreign holder runs again under the lane
+		// budget; its own exclusive hold lasts only as long as the step.
+		code, err := runStepAdmitted(ctx, os.Stdout, "device", func() (int, error) {
+			stdout.Reset()
+			stderr.Reset()
+			var err error
+			receipt, err = processcontrol.Run(ctx, processcontrol.Command{
+				Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
+				Stdout: &stdout, Stderr: &stderr,
+			})
+			return receipt.ExitCode, err
 		})
 		out := stdout.String() + stderr.String()
-		if err == nil && receipt.ExitCode != 0 {
-			err = fmt.Errorf("exit code %d", receipt.ExitCode)
+		if err == nil && code != 0 {
+			err = fmt.Errorf("exit code %d", code)
 		}
 		close(done)
 		<-stopped

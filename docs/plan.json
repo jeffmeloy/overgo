@@ -32,16 +32,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "device-lane-admission",
-          "title": "Claim the device for the whole device lane through the admission wait before its first step",
-          "status": "open",
-          "verify": "test -f cmd/device-lane/admission_test.go \u0026\u0026 go test ./cmd/device-lane -run '^TestDeviceLaneAdmissionWaitsWithinBudget$' -count=1",
-          "rationale": "Master's 2ef953fa makes the gate's host batches and the measurement children wait for the device; the device lane's own steps still claim it exclusively and fail at once, so the merge gate of 2ef953fa passed its whole test phase under the shared lease and then failed twice in cuda-smoke against master's holders, and the lane's next source commit touches the device surface and runs the same lane. The device lane claims the device once for its process tree through processcontrol.AwaitResource under the gate's budget, reports the wait the way the gate reports its shared lease, and every step reenters the inherited reservation. A budget that expires names the contention; any other failure returns at once. This is the lane's first row after the merge because every following gate depends on it. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; scheduling machinery that does not reduce executed work is refused.",
-          "depends_on": [
-            "merge-2ef953fab346/do"
-          ]
-        },
-        {
           "id": "concurrent-test-groups",
           "title": "Order device work first under master's shared lease, then overlap the test groups and the lanes",
           "status": "open",

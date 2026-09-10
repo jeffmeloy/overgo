@@ -207,7 +207,7 @@ func Run(options Options) error {
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
 		planProjection: planProjection, mergeSourceStore: mergeSourceStore,
 	}
-	defer g.closeCompletionStore()
+	defer g.closeStore()
 	if *merge {
 		// Merge mode: the staged merge IS the plan. Deriving -paths from the
 		// staged set makes the scope step trivially pass, and the existing
@@ -292,9 +292,7 @@ func Run(options Options) error {
 	}); err != nil {
 		return err
 	}
-	if err := admissionStore.Close(); err != nil {
-		return fmt.Errorf("gate: close admission store before verification: %w", err)
-	}
+	g.store = admissionStore
 	admissionStore = nil
 	stopHeartbeat, err := g.startHeartbeat()
 	if err != nil {
@@ -320,7 +318,7 @@ func Run(options Options) error {
 	// last running locator for the explicit recovery path.
 	stopHeartbeat()
 	if g.commitInterrupted {
-		closeErr := g.closeCompletionStore()
+		closeErr := g.closeStore()
 		_, recoveryErr := recoverInterruptedCommit(repo, cleanStore)
 		g.printSummary(os.Stdout, outcome, pipelineErr.Error())
 		if closeErr != nil || recoveryErr != nil {
@@ -337,7 +335,7 @@ func Run(options Options) error {
 		return pipelineErr
 	}
 	recordErr := g.record(outcome, failureCode)
-	recordErr = errors.Join(recordErr, g.closeCompletionStore())
+	recordErr = errors.Join(recordErr, g.closeStore())
 	// Intent removal mutates recovery authority and therefore must remain lazy;
 	// cmp.Or would evaluate the removal even when record publication failed.
 	switch {

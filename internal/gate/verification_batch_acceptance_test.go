@@ -252,6 +252,7 @@ func verificationBatchContext(t *testing.T, repo string) (*gateContext, *plan.Ve
 		paths:        []string{plan.Path, "go.mod", "unit_test.go", "mode"},
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 	}
+	t.Cleanup(func() { _ = g.closeStore() })
 	tree, err := g.plannedTree()
 	if err != nil {
 		t.Fatal(err)

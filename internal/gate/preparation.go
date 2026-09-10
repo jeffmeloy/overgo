@@ -888,9 +888,8 @@ func gatePreparationAlias(
 // a gate's final Git and record transaction. The current alias must still name
 // this exact preparation, its durable introduction must be the receipt carried
 // by Git, it must have no finalization yet, and every older preparation must
-// already have one complete typed finalization. Callers retain the writable
-// store handle through the final record append so no second writer can enter
-// after this proof.
+// already have one complete typed finalization. Refresh the retained handle;
+// the gate authority lock excludes competing gate lifecycle writers.
 func requireSoleCurrentGatePreparation(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -902,6 +901,9 @@ func requireSoleCurrentGatePreparation(
 		return errors.New("gate: exact current preparation authority is absent")
 	}
 	if err := preparation.ValidateIdentity(); err != nil {
+		return err
+	}
+	if err := store.Refresh(ctx); err != nil {
 		return err
 	}
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)

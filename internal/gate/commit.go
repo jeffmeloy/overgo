@@ -108,31 +108,27 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if planHead != g.planHead {
 		return false, fmt.Errorf("commit admission: plan authority moved from %.12s to %.12s", g.planHead, planHead)
 	}
-	completionStore, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+	completionStore, err := g.openStore()
 	if err != nil {
 		return false, fmt.Errorf("commit admission: lock completion store: %w", err)
 	}
 	if err := requireSoleCurrentGatePreparation(
 		context.Background(), completionStore, g.preparation, g.preparationCommit,
 	); err != nil {
-		_ = completionStore.Close()
 		return false, fmt.Errorf("commit admission: recheck gate preparation authority: %w", err)
 	}
 	completionAuthority, err := plan.ResolveCompletionAuthority(
 		context.Background(), g.repo, g.planHead, document, completionStore,
 	)
 	if err != nil {
-		_ = completionStore.Close()
 		return false, fmt.Errorf("commit admission: recheck completion authority: %w", err)
 	}
 	role, err := plan.AutomationRole("")
 	if err != nil {
-		_ = completionStore.Close()
 		return false, err
 	}
 	item, step, open := plan.Current(document, role, completionAuthority)
 	if !open || item.ID+"/"+step.ID != g.planRef {
-		_ = completionStore.Close()
 		return false, errors.New("commit admission: completion authority no longer selects the gated row")
 	}
 	if step.VerificationBatch != nil {
@@ -140,22 +136,18 @@ func (g *gateContext) stepCommit() (bool, error) {
 			if err := runrecord.VerifyCompletionAcceptanceEvidence(
 				g.stepEvidence[checkpoint.GateCheckName()], g.planRef, checkpoint.Verify,
 			); err != nil {
-				_ = completionStore.Close()
 				return false, fmt.Errorf("commit admission: checkpoint %s verifier binding: %w", checkpoint.ID, err)
 			}
 		}
 	}
 	planHead, err = command(g.repo, "git", "rev-parse", "HEAD")
 	if err != nil {
-		_ = completionStore.Close()
 		return false, err
 	}
 	if planHead = strings.TrimSpace(planHead); planHead != g.planHead {
-		_ = completionStore.Close()
 		return false, fmt.Errorf("commit admission: plan authority moved from %.12s to %.12s", g.planHead, planHead)
 	}
 	g.completionAuthority = completionAuthority
-	g.completionStore = completionStore
 	planAfter, err := advancedPlanBytes(planBefore, g.planRef)
 	if err != nil {
 		return false, err
@@ -240,7 +232,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 		return false, fmt.Errorf("commit admission: verify completion message: %w", err)
 	}
 	if err := verifyProspectiveGateCompletion(
-		g.repo, intent, document, childDocument, string(completionMessage), g.completionStore,
+		g.repo, intent, document, childDocument, string(completionMessage), g.store,
 	); err != nil {
 		return false, fmt.Errorf("commit admission: prospective completion transition: %w", err)
 	}
@@ -326,7 +318,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err := clearCommittedMergeState(g.repo, intent); err != nil {
 		return false, err
 	}
-	if err := validateInterruptedCommitAuthority(g.repo, intent, g.completionStore); err != nil {
+	if err := validateInterruptedCommitAuthority(g.repo, intent, g.store); err != nil {
 		return false, fmt.Errorf("commit authority validation: %w", err)
 	}
 	if !exactGateHead(g.repo, intent.HeadReference, intent.Commit) {

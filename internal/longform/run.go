@@ -90,10 +90,12 @@ func Score(ctx context.Context, runner *inference.Runner, prompt, continuation [
 // short prompt, by token id, and the teacher-forced NLL of the text's
 // own next tokens under that prompt.
 type ShortShape struct {
-	PromptTokens int     `json:"prompt_tokens"`
-	OutputIDs    []int32 `json:"output_ids"`
-	NLL          float64 `json:"nll"`
-	Measure      Measure `json:"measure"`
+	PromptTokens int `json:"prompt_tokens"`
+	// Zero preserves legacy records with unbound shape initialization.
+	WarmupOutputTokens int     `json:"warmup_output_tokens,omitzero"`
+	OutputIDs          []int32 `json:"output_ids"`
+	NLL                float64 `json:"nll"`
+	Measure            Measure `json:"measure"`
 }
 
 // Rung is one rung of the LONG ladder: the measure at that prompt
@@ -110,6 +112,9 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 	}
 	prompt := corpus[:floors.ShortPromptTokens]
 	continuation := corpus[floors.ShortPromptTokens : floors.ShortPromptTokens+floors.ShortOutputTokens]
+	if err := Warm(ctx, runner, prompt, protocol); err != nil {
+		return ShortShape{}, fmt.Errorf("short initialization: %w", err)
+	}
 	generation, err := Run(ctx, runner, prompt, floors.ShortOutputTokens, protocol)
 	if err != nil {
 		return ShortShape{}, err
@@ -123,7 +128,8 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 		return ShortShape{}, fmt.Errorf("short allocation accounting: %w", err)
 	}
 	return ShortShape{
-		PromptTokens: floors.ShortPromptTokens, OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
+		PromptTokens: floors.ShortPromptTokens, WarmupOutputTokens: WarmupOutputTokens,
+		OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
 	}, nil
 }
 
@@ -202,15 +208,15 @@ type Generation struct {
 	Measure Measure
 }
 
-// warmupTokens is the decode budget of the unmeasured pass that
+// WarmupOutputTokens is the decode budget of the unmeasured pass that
 // precedes the measured run: kernels load and graphs instantiate on the
 // first pass, and the benchmark measures after a warmup run too.
-const warmupTokens = 4
+const WarmupOutputTokens = 4
 
 // Warm runs the prompt once with a short decode so the measured run
 // reads steady-state rates.
 func Warm(ctx context.Context, runner *inference.Runner, prompt []tokenizer.TokenID, protocol Protocol) error {
-	_, err := Run(ctx, runner, prompt, warmupTokens, protocol)
+	_, err := Run(ctx, runner, prompt, WarmupOutputTokens, protocol)
 	return err
 }
 

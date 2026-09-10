@@ -17,12 +17,13 @@ import (
 )
 
 type guardCohort struct {
-	name, historical string
-	initialModel     string
-	retired          bool
-	repeats          [3]string
-	priorProducer    string
-	prior            [3]string
+	name, historical  string
+	initialModel      string
+	retired           bool
+	repeats           [3]string
+	priorProducer     string
+	prior             [3]string
+	historicalSurface string
 }
 
 // TestCurrentGuardControls checks retained controls without measuring models.
@@ -81,7 +82,10 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 	live := 0
 	opts := options{Root: filepath.Join("..", ".."), Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true}
 	for _, fixture := range fixtures {
-		if !fixture.retired {
+		if catalog && fixture.historicalSurface != "" {
+			t.Fatal("historical source binding cannot grant current catalog credit")
+		}
+		if !fixture.retired && fixture.historicalSurface == "" {
 			live++
 		}
 		t.Run(fixture.name, func(t *testing.T) {
@@ -127,8 +131,11 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if !fixture.retired && (fresh.Surface != surface || fresh.Commit != producer) {
-					t.Fatal("control does not identify the current inference surface and clean measured producer")
+				if !fixture.retired && (fresh.Surface != cmp.Or(fixture.historicalSurface, surface) || fresh.Commit != producer) {
+					t.Fatal("control does not identify the required inference surface and clean measured producer")
+				}
+				if !fixture.retired && fixture.historicalSurface == "" && fresh.Shape.WarmupOutputTokens != longform.WarmupOutputTokens {
+					t.Fatal("current short measurement lacks its exact-shape initialization contract")
 				}
 				if fixture.initialModel != "" && fresh.Program.Model.String() != fixture.initialModel {
 					t.Fatal("initial calibration substituted another model")
@@ -158,7 +165,7 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 						if err != nil || active {
 							t.Fatalf("retired control is still active: %v", err)
 						}
-					} else {
+					} else if fixture.historicalSurface == "" {
 						opts.Models = append(opts.Models, fresh.ModelPath)
 						opts.Baselines = append(opts.Baselines, text)
 					}
@@ -176,7 +183,7 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 		return
 	}
 	if live == 0 && !catalog {
-		t.Logf("historical evidence: %d retired records; no live model credit", len(seen))
+		t.Logf("historical evidence: %d records; no live model credit", len(seen))
 		return
 	}
 	if catalog {

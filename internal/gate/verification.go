@@ -1082,9 +1082,14 @@ func (g *gateContext) runGoTests(ctx context.Context, packages []string, short b
 	if err != nil {
 		return testevidence.GoTestReport{}, err
 	}
+	release, err := g.admitTestResources(ctx, packages, environment)
+	if err != nil {
+		return testevidence.GoTestReport{}, err
+	}
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
 	}, short, clioptions.DiagnosticTailBytes, observe)
+	err = errors.Join(err, release())
 	if short || len(report.Failed)+len(report.Unfinished) > 0 {
 		err = errors.Join(err, testevidence.RequireComplete(report))
 	}

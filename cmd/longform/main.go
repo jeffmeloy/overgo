@@ -418,6 +418,9 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 			fmt.Fprintf(output, "  ERROR %v\n", err)
+			if options.Check {
+				return errors.Join(failures...)
+			}
 			continue
 		}
 		measured++
@@ -437,6 +440,7 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			fmt.Fprintf(output, "  against record %.12s (surface %.12s): %s\n", target.record.Record, target.record.Result.Surface, verdict)
 			if !verdict.Passed {
 				failures = append(failures, fmt.Errorf("%s: regression: %s", name, verdict))
+				return errors.Join(failures...)
 			}
 			continue
 		}

@@ -13,9 +13,10 @@
           "title": "Readmit all affected guards on the frozen decode producer",
           "status": "open",
           "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1",
-          "rationale": "After the runtime producer commits, freeze that source and acquire three complete isolated guard records for each of the eight active text models through cmd/longform. Use the existing full-budget corpus, contexts, quality/rate bounds and owned-allocation checks. Preserve all prior 43a2c7aa cohorts and the retired MiniCPM cohort; bind the prior selections and compare unchanged model identities against their pre-change records. MiniCPM's corrected identity receives initial calibration, never relabeled historical evidence. New records must identify their immutable short benchmark; verify matching weights and embedded rates against that exact record before acceptance. Populate guard-catalog.json only with complete passing records and make TestAcceptedGuardCatalog accept eight live models plus retained retired history. No record freshness/listing-only closure. Resolve finding evidence:sha256:8584276e4b1e44ebcbfc7ac0886b097720049eaddc0c681587bf2f903db1cf28 only after this acceptance. Reacquire affected modality evidence at the same frozen source in the following modality bundles; preserve old bundles as historical. Do not reopen unrelated implementation or merge lanes during collection.",
+          "rationale": "After the runtime producer commits, freeze that source and acquire three complete isolated guard records for each of the eight active text models through cmd/longform. Use the existing full-budget corpus, contexts, quality/rate bounds and owned-allocation checks. Preserve all prior 43a2c7aa cohorts and the retired MiniCPM cohort; bind the prior selections and compare unchanged model identities against their pre-change records. MiniCPM's corrected identity receives initial calibration, never relabeled historical evidence. New records must identify their immutable short benchmark; verify matching weights and embedded rates against that exact record before acceptance. Populate guard-catalog.json only with complete passing records and make TestAcceptedGuardCatalog accept eight live models plus retained retired history. No record freshness/listing-only closure. Resolve finding evidence:sha256:8584276e4b1e44ebcbfc7ac0886b097720049eaddc0c681587bf2f903db1cf28 only after this acceptance. Reacquire affected modality evidence at the same frozen source in the following modality bundles; preserve old bundles as historical. Do not reopen unrelated implementation or merge lanes during collection.\n\nRun historical comparison after the first catalog pass, before further repeats: standalone floors do not prove regression parity. Compare each unchanged identity against its prior cohort; only then collect remaining repeats. The 6b8dcdbe pass is diagnostic history because two required comparisons fail. Freeze the decode-order repair producer and reacquire the complete admitted cohort. Verify immutable short-benchmark references and preserve both refused and prior accepted records. Close finding 5f3f75ea0d8cf6727bc79e9f4c054d7242e2f0b81ae17a8fa454065158c216ee only after full readmission.",
           "depends_on": [
-            "modality-verification/minicpm-guard-repair"
+            "modality-verification/minicpm-guard-repair",
+            "modality-verification/decode-order-repair"
           ]
         },
         {
@@ -474,7 +475,8 @@
             "merge-a9561f6703a8/do",
             "validation-priority-replan/do",
             "modality-verification/smoke-oracle-producer",
-            "modality-verification/decode-guard-readmission"
+            "modality-verification/decode-guard-readmission",
+            "modality-verification/decode-order-repair"
           ]
         }
       ]

@@ -182,18 +182,23 @@ func blasAttentionTiles(keyWidth, queryTokens, keyValueTokens uint32) (uint32, u
 	return chunk, keyChunk
 }
 
-// Split-key decode assigns one key per scoring thread until the split cap.
-// Derive work granularity from the launch width; a separate key-span policy
-// left small-head models underoccupied. Partials hold maximum, sum and output.
+// Narrow value heads use finer partitions to fill the device. Wide heads retain
+// their established reduction order: finer partitions changed guarded tokens.
+// Partials hold maximum, sum and output.
 const (
 	attentionDecodeThreads    = uint32(256)
+	attentionDecodeSplitSpan  = uint32(2048)
 	attentionDecodeMaxSplits  = uint32(16)
 	attentionDecodeMetaFloats = uint64(2)
 )
 
 // decodeSplits: blocks per head for a cache of the capacity.
-func decodeSplits(keyCapacityTokens uint32) uint32 {
-	splits := (keyCapacityTokens + attentionDecodeThreads - 1) / attentionDecodeThreads
+func decodeSplits(keyCapacityTokens uint32, valueWidth uint64) uint32 {
+	span := attentionDecodeSplitSpan
+	if valueWidth < uint64(attentionDecodeThreads) {
+		span = attentionDecodeThreads
+	}
+	splits := (keyCapacityTokens + span - 1) / span
 	return max(1, min(splits, attentionDecodeMaxSplits))
 }
 
@@ -217,7 +222,7 @@ func decodePartialBytes(node *tensor.Tensor) (uint64, bool) {
 	if err != nil {
 		return 0, false
 	}
-	splits := decodeSplits(capacity)
+	splits := decodeSplits(capacity, valueNode.Shape.Dims[0])
 	if splits == 1 {
 		return 0, false
 	}
@@ -541,7 +546,7 @@ func launchAttentionLayout(
 		// (one block per head walked 16k keys on 14 of the SMs); the split
 		// partials combine through the score staging when it holds them,
 		// and a graph without that staging decodes in one block per head.
-		splits := decodeSplits(keyCapacityTokens)
+		splits := decodeSplits(keyCapacityTokens, uint64(valueWidth))
 		rows := uint64(queryHeads) * uint64(sequences)
 		partialBytes := rows * uint64(splits) * (uint64(valueWidth) + attentionDecodeMetaFloats) * f32Bytes
 		if splits > 1 && (blas == nil || blas.scores == 0 || partialBytes > blas.scoreBytes) {

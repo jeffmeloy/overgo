@@ -57,7 +57,7 @@ func TestStaticFailurePreventsAcceptance(t *testing.T) {
 				}
 				for _, check := range checks {
 					name := check.Descriptor.Name
-					if name != "acceptance" && name != "test" && name != "device" && name != automationcheck.WebUICheckName && name != "commit" && !slices.ContainsFunc(batch.Checkpoints, func(c plan.VerificationCheckpoint) bool { return c.GateCheckName() == name }) {
+					if name != "acceptance" && name != "test" && name != "test-owners" && name != "device" && name != automationcheck.WebUICheckName && name != "commit" && !slices.ContainsFunc(batch.Checkpoints, func(c plan.VerificationCheckpoint) bool { return c.GateCheckName() == name }) {
 						continue
 					}
 					position := slices.Index(executed, name)

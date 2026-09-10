@@ -63,8 +63,10 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	direct, production := testscope.DirectPackages(graph.root, g.paths, packages)
 	scope := packageTestScope{direct: direct}
 	// Keep physical source edits ahead of conservatively selected readers.
-	// This changes order only; the full affected set remains required.
-	scope.edited, _ = testscope.DirectPackages(graph.root, g.changedGoFiles(), packages)
+	// This changes order only; the full affected set remains required. The
+	// owners are the packages whose directory holds a changed Go file, not
+	// every package that names one as a runtime input.
+	scope.edited = physicalOwners(graph, roots, g.changedGoFiles())
 	for _, path := range g.paths {
 		if path == "go.mod" || path == "go.sum" {
 			scope.unresolved = append(scope.unresolved, path)
@@ -190,4 +192,20 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	slices.Sort(scope.opaqueReaders)
 	slices.Sort(scope.opaqueRuntimeInputs)
 	return scope, nil
+}
+
+// physicalOwners names, in graph order, the root packages whose directory
+// holds one of the changed Go files.
+func physicalOwners(graph packageInputGraph, roots []goPackageInput, changed []string) []string {
+	directories := map[string]bool{}
+	for _, file := range changed {
+		directories[filepath.Clean(filepath.Join(graph.root, filepath.Dir(filepath.FromSlash(file))))] = true
+	}
+	var owners []string
+	for _, node := range roots {
+		if directories[filepath.Clean(node.Dir)] {
+			owners = append(owners, node.ImportPath)
+		}
+	}
+	return owners
 }

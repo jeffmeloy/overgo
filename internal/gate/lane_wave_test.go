@@ -28,8 +28,8 @@ func TestSharedLanesCoSchedule(t *testing.T) {
 		if !ok {
 			t.Fatalf("pipeline lacks the %s lane", lane)
 		}
-		if !slices.Equal(descriptor.Dependencies, []string{"test"}) {
-			t.Fatalf("%s depends on %v, want the test phase", lane, descriptor.Dependencies)
+		if !slices.Equal(descriptor.Dependencies, []string{"test-owners"}) {
+			t.Fatalf("%s depends on %v, want the changed-owners check", lane, descriptor.Dependencies)
 		}
 		for _, resource := range descriptor.Resources {
 			if resource.Exclusive {

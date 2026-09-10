@@ -133,6 +133,9 @@ type gateContext struct {
 	plannedTreeBuilds      int
 	planDocument           *plan.Plan
 	planLoads              int
+	// testPlan carries the prepared test groups from the changed-owners
+	// check to the check that runs the rest beside the lanes.
+	testPlan *testGroups
 }
 
 // appends one audit line under the lock the concurrent validate wave shares
@@ -174,14 +177,26 @@ func (g *gateContext) openStore() (*overgodb.Store, error) {
 		return nil, errors.New("gate store: canonical path and environment are required")
 	}
 	if g.store == nil {
-		store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+		// Another writer, a lane recording its receipts beside the test
+		// groups, is waited out under the host batch budget instead of
+		// refused on the store's OS exclusion.
+		ctx, cancel := context.WithTimeoutCause(context.Background(), testAdmissionBudget, errStoreAdmissionBudget)
+		defer cancel()
+		began := time.Now()
+		store, err := overgodb.OpenContext(ctx, filepath.Join(g.repo, g.storePath))
 		if err != nil {
 			return nil, err
+		}
+		if waited := time.Since(began); waited > time.Second {
+			g.note(fmt.Sprintf("store admission waited %s for another writer", waited.Round(time.Millisecond)))
 		}
 		g.store = store
 	}
 	return g.store, nil
 }
+
+// names the exhausted store admission budget as the cancellation cause
+var errStoreAdmissionBudget = errors.New("gate store admission budget exhausted")
 
 func (g *gateContext) closeStore() error {
 	if g == nil || g.store == nil {

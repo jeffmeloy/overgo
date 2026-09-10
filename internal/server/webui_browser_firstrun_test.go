@@ -100,6 +100,12 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer browser.Close()
+	// The journey is a desktop one: below the phone width the rail is an
+	// inert drawer until opened, so its rename field cannot take focus, and
+	// the browser's default window is narrower than that.
+	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
+		t.Fatal(err)
+	}
 	// Each step settles within its own bound so a leg that cannot settle
 	// fails with the page's state rather than spending the journey's budget.
 	settle := func(what, expression string) {
@@ -117,6 +123,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
         failures: [...document.querySelectorAll("#panel-chat .msg.error .body")].map((node) => node.textContent.slice(0, 200)),
         last: ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent, text: document.body.innerText.slice(0, 120),
         notes: [...document.querySelectorAll(".note, .err-banner")].map((node) => node.textContent.slice(0, 160)).filter(Boolean),
+        focused: document.hasFocus(), active: document.activeElement ? document.activeElement.outerHTML.slice(0, 160) : "",
+        editor: !!document.querySelector("#history-rows form"), reload: [...document.querySelectorAll("button")].some((button) => button.textContent === "Reload history" && !button.hidden),
         predicate: (() => { try { return String(`+expression+`); } catch (failure) { return "throws: " + failure; } })()})`, &page)
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
@@ -260,6 +268,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const row=document.querySelector('#history-rows .conversation');row.querySelector('.history-options').click();row.querySelector('[aria-label="rename conversation"]').click();
       const field=row.querySelector('input');field.value='renamed by the lane';field.focus();return true;
     })()`)
+	// Enter reaches the field only once it holds the document's focus: a
+	// relist or a capture between the click and the key would leave the
+	// key on the body and the rename unsent.
+	settle("the rename editor holds focus", `document.hasFocus() && document.activeElement === document.querySelector('#history-rows form input')`)
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle("the rail shows the new title", `[...document.querySelectorAll('#conversation-list .conversation-title')].some(node=>node.textContent==='renamed by the lane')`)
 	t.Log("rename leg: the conversation renamed in place from the rail")

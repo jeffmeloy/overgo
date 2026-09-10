@@ -56,9 +56,17 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		withResources(gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), storeReader), published,
 		gateCheck("vet", runrecord.PhaseVet, g.stepVet), gateCheck("build", runrecord.PhaseBuild, g.stepBuild),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), {
+			// The changed source owners run first as their own check; the
+			// lanes and the remaining groups follow it together.
+			Descriptor: automationcheck.Descriptor{Name: "test-owners", Phase: runrecord.PhaseTest, Always: true},
+			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
+				skipped, err := g.stepTestOwners(ctx)
+				return skipped, "", err
+			},
+		}, {
 			Descriptor: automationcheck.Descriptor{Name: "test", Phase: runrecord.PhaseTest, Always: true},
 			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
-				skipped, err := g.stepTest(ctx)
+				skipped, err := g.stepTestRest(ctx)
 				return skipped, "", err
 			},
 		},
@@ -75,9 +83,13 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies["vet"] = slices.Clone(validateWave)
 	dependencies["build"] = slices.Clone(validateWave)
 	dependencies["acceptance"] = []string{"vet", "build"}
-	dependencies["test"] = []string{"acceptance"}
-	dependencies["device"] = []string{"test"}
-	dependencies[automationcheck.WebUICheckName] = []string{"test"}
+	// The changed owners gate the rest: the remaining groups and both lanes
+	// start once they pass and run beside one another, admitted to the
+	// device by the shared lease and to the lane store by its waiting lock.
+	dependencies["test-owners"] = []string{"acceptance"}
+	dependencies["test"] = []string{"test-owners"}
+	dependencies["device"] = []string{"test-owners"}
+	dependencies[automationcheck.WebUICheckName] = []string{"test-owners"}
 	dependencies["commit"] = []string{"test", "device", automationcheck.WebUICheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -772,7 +784,7 @@ func phaseOwnsPath(phase, path string) bool {
 		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
 	case "manifest", "sbom", "claims", "docs":
 		return goInput || documentation
-	case "test":
+	case "test", "test-owners":
 		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
 	default:
 		return false
@@ -788,7 +800,7 @@ func phaseOwnsPath(phase, path string) bool {
 func phaseReusesEvidence(phase string) bool {
 	switch phase {
 	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection",
-		"manifest", "sbom", "claims", "docs", "test":
+		"manifest", "sbom", "claims", "docs", "test", "test-owners":
 		return true
 	default:
 		return false
@@ -982,7 +994,20 @@ func (g *gateContext) stepBuild() (bool, error) {
 
 // stepTest follows the compiled import graph for production changes and keeps
 // test-only edits with their owner. Selection and evidence reuse share one input graph.
+// stepTest runs the whole test phase in order: the changed owners, then the
+// remaining groups; the pipeline runs the two halves as their own checks so
+// the lanes can start between them.
 func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
+	skipped, err := g.stepTestOwners(ctx)
+	if err != nil || skipped {
+		return skipped, err
+	}
+	return g.stepTestRest(ctx)
+}
+
+// stepTestOwners derives the test scope, prepares the package evidence
+// ledger and runs the changed source owners first.
+func (g *gateContext) stepTestOwners(ctx context.Context) (bool, error) {
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		return false, err
@@ -1056,40 +1081,52 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 			remaining = append(remaining, pkg)
 		}
 	}
-	directExecuted := 0
 	if len(edited) > 0 {
 		g.note(fmt.Sprintf("test order: changed source owners first [%s]; %d other direct packages remain", strings.Join(edited, ","), len(remaining)))
-	}
-	for _, group := range [][]string{edited, remaining} {
-		batches, err := g.deviceFirst(group)
-		if err != nil {
-			return false, err
-		}
-		for _, batch := range batches {
-			directExecuted += len(batch)
-			_, runErr := g.runGoTests(ctx, batch, true, g.packagePassObserver(ctx, ledger, "short", directInputs))
-			if runErr != nil {
-				g.packageCacheAudit(directReused, directExecuted)
-				return false, runErr
-			}
-		}
-	}
-	if len(dependent) == 0 {
-		g.packageCacheAudit(directReused, len(directPending))
-		return false, nil
 	}
 	dependentPending, dependentReused, err := g.packageCachePartition(dependent, "complete", dependentInputs)
 	if err != nil {
 		return false, err
 	}
+	g.testPlan = &testGroups{
+		ledger: ledger, directInputs: directInputs, dependentInputs: dependentInputs,
+		edited: edited, remaining: remaining, dependent: dependentPending,
+		reused: directReused + dependentReused, pending: len(directPending) + len(dependentPending),
+	}
+	return false, g.runTestGroup(ctx, edited, true)
+}
+
+// testGroups carries the prepared test scope from the changed-owners check
+// to the check that runs the rest of the groups, so the lanes can start once
+// the changed owners pass while the remaining packages still run.
+type testGroups struct {
+	ledger                        *packageEvidenceLedger
+	directInputs, dependentInputs map[string]artifact.ID
+	edited, remaining, dependent  []string
+	reused, pending, executed     int
+}
+
+// stepTestRest runs the remaining direct packages and the dependent group
+// prepared by the changed-owners check; a skipped owners check skips it too.
+func (g *gateContext) stepTestRest(ctx context.Context) (bool, error) {
+	if g.testPlan == nil {
+		return true, nil
+	}
+	if err := g.runTestGroup(ctx, g.testPlan.remaining, true); err != nil {
+		return false, err
+	}
+	if len(g.testPlan.dependent) == 0 {
+		g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
+		return false, nil
+	}
 	report := testevidence.GoTestReport{}
-	batches, err := g.deviceFirst(dependentPending)
+	batches, err := g.deviceFirst(g.testPlan.dependent)
 	if err != nil {
 		return false, err
 	}
 	for _, batch := range batches {
 		var batchReport testevidence.GoTestReport
-		batchReport, err = g.runGoTests(ctx, batch, false, g.packagePassObserver(ctx, ledger, "complete", dependentInputs))
+		batchReport, err = g.runGoTests(ctx, batch, false, g.packagePassObserver(ctx, g.testPlan.ledger, "complete", g.testPlan.dependentInputs))
 		report.Skipped = append(report.Skipped, batchReport.Skipped...)
 		report.Unavailable = append(report.Unavailable, batchReport.Unavailable...)
 		if err != nil {
@@ -1102,8 +1139,25 @@ func (g *gateContext) stepTest(ctx context.Context) (bool, error) {
 			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
 	}
-	g.packageCacheAudit(directReused+dependentReused, len(directPending)+len(dependentPending))
+	g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
 	return false, err
+}
+
+// runTestGroup runs one direct group in device-first batches and, when a
+// batch fails, audits the packages executed so far.
+func (g *gateContext) runTestGroup(ctx context.Context, group []string, short bool) error {
+	batches, err := g.deviceFirst(group)
+	if err != nil {
+		return err
+	}
+	for _, batch := range batches {
+		g.testPlan.executed += len(batch)
+		if _, err := g.runGoTests(ctx, batch, short, g.packagePassObserver(ctx, g.testPlan.ledger, "short", g.testPlan.directInputs)); err != nil {
+			g.packageCacheAudit(g.testPlan.reused, g.testPlan.executed)
+			return err
+		}
+	}
+	return nil
 }
 
 func (g *gateContext) packageCachePartition(packages []string, mode string, inputs map[string]artifact.ID) ([]string, int, error) {

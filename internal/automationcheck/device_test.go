@@ -1,6 +1,7 @@
 package automationcheck
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,7 +13,7 @@ func TestDeviceCheck(t *testing.T) {
 	var calls []string
 	var listed string
 	record := recordingCommand(&calls)
-	command := func(dir, name string, args ...string) (string, error) {
+	command := func(_ context.Context, dir, name string, args ...string) (string, error) {
 		if index := slices.Index(args, "-paths-file"); index >= 0 && index+1 < len(args) {
 			content, err := os.ReadFile(args[index+1])
 			if err != nil {
@@ -44,14 +45,14 @@ func TestDeviceCheck(t *testing.T) {
 }
 
 func TestDeviceResource(t *testing.T) {
-	resources := DeviceCheck(".", nil, nil, recordingCommand(new([]string))).Descriptor.Resources
+	resources := DeviceCheck(".", nil, nil, recordingLane(new([]string))).Descriptor.Resources
 	if len(resources) != 1 || resources[0].Name != "device" || resources[0].Exclusive {
 		t.Fatalf("resources = %+v", resources)
 	}
 }
 
 func TestDeviceImpactUsesSymbolOwnership(t *testing.T) {
-	check := DeviceCheck(".", nil, []string{"internal/optimizer"}, recordingCommand(new([]string)))
+	check := DeviceCheck(".", nil, []string{"internal/optimizer"}, recordingLane(new([]string)))
 	for _, packagePath := range []string{"internal/cuda/executor", "internal/optimizer"} {
 		impact := OwnershipImpact([]Check{check}, Surface{Identity: "candidate", Packages: []string{packagePath}})
 		planned, err := Plan([]Check{check}, impact)

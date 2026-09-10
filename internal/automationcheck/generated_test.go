@@ -1,6 +1,7 @@
 package automationcheck
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -97,6 +98,14 @@ func generatedRoot(t *testing.T) string {
 
 func recordingCommand(calls *[]string) Command {
 	return func(_ string, name string, arguments ...string) (string, error) {
+		*calls = append(*calls, strings.Join(append([]string{name}, arguments...), " "))
+		return "", nil
+	}
+}
+
+// recordingLane records each lane command as one line, like recordingCommand.
+func recordingLane(calls *[]string) LaneCommand {
+	return func(_ context.Context, _ string, name string, arguments ...string) (string, error) {
 		*calls = append(*calls, strings.Join(append([]string{name}, arguments...), " "))
 		return "", nil
 	}

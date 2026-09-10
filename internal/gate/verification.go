@@ -37,9 +37,9 @@ import (
 
 func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck.Check {
 	generated := automationcheck.GeneratedChecks(g.sourceRoot(), g.runGateCommand)
-	device := automationcheck.DeviceCheck(g.sourceRoot(), g.paths, devicePackages, g.runGateCommand)
+	device := automationcheck.DeviceCheck(g.sourceRoot(), g.paths, devicePackages, g.runLaneCommand)
 	published := automationcheck.PublishedCheck(g.sourceRoot(), g.runGateCommand)
-	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runGateCommand)
+	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runLaneCommand)
 	// The store writer among the static checks (the magics phase may rebind
 	// the closure ledger) declares the store exclusively; the store readers
 	// declare it shared, so the writer never overlaps a reader's replay.

@@ -27,7 +27,7 @@ var webuiPathPrefixes = []string{"internal/server/webui/", "internal/server/webu
 // the web UI fact is present and shares the device under the context-lifetime
 // admission: its served model fits beside correctness tests, and only an
 // explicit measurement holds the device exclusively.
-func WebUICheck(root string, command Command) Check {
+func WebUICheck(root string, command LaneCommand) Check {
 	return Check{
 		Descriptor: Descriptor{
 			Name: WebUICheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{WebUIImpact},
@@ -37,9 +37,9 @@ func WebUICheck(root string, command Command) Check {
 				Fact: WebUIImpact, Packages: []string{"internal/server", "internal/webuilane", "cmd/webui-lane"},
 			},
 		},
-		Run: func(context.Context, Invocation) (bool, string, error) {
-			_, err := command(root, "go", "run", "./cmd/webui-lane")
-			return false, "", err
+		Run: func(ctx context.Context, _ Invocation) (bool, string, error) {
+			receipt, err := command(ctx, root, "go", "run", "./cmd/webui-lane")
+			return false, receipt, err
 		},
 	}
 }

@@ -1,6 +1,7 @@
 package automationcheck
 
 import (
+	"context"
 	"slices"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestWebUICheckSelection(t *testing.T) {
 		t.Fatal("Trigger changed the original impact")
 	}
 	var ran []string
-	check := WebUICheck("root", func(root, name string, arguments ...string) (string, error) {
+	check := WebUICheck("root", func(_ context.Context, root, name string, arguments ...string) (string, error) {
 		ran = append(ran, root, name)
 		ran = append(ran, arguments...)
 		return "", nil

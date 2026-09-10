@@ -5,27 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "closure-catalog",
-      "title": "Catalog a literal in one transaction",
-      "owner": "hatchet",
-      "status": "open",
-      "steps": [
-        {
-          "id": "catalog-transaction",
-          "title": "Fold propose, triage and import into one closure-scan command",
-          "status": "open",
-          "verify": "test -f cmd/closure-scan/catalog_test.go \u0026\u0026 go test ./cmd/closure-scan -run '^TestCatalogBindsInOneTransaction$' -count=1",
-          "rationale": "A new named constant or policy literal costs three tool runs plus prose, and the staged-surface and unconsumed-surface rules enforce the same fact twice with a hand-written entry each. One command takes the name and the understanding, proposes, binds and imports in one store transaction, and the staged entry is generated from the failing check's own output. Semantic literal authority stays exactly as master decided; only the mechanics change.",
-          "depends_on": [
-            "lane-replan/do"
-          ],
-          "capabilities": [
-            "closure-authority"
-          ]
-        }
-      ]
-    },
-    {
       "id": "validation-batch-control",
       "title": "Stabilize evidence commits; defer broader control policy until model evidence",
       "owner": "master",

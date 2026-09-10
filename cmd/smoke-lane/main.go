@@ -1,195 +1,194 @@
-// smoke-lane: the store-derived model smoke matrix (Automation Doctrine
-// Layer 3 target, now built). The matrix is not a file: it is the servable
-// predicate — every model with an active inference recipe and present bytes
-// gets one short serve, and every serve records a run + wall-time evaluation
-// to the store against the model's own recipe. Absent models are
-// UNAVAILABLE, listed, never green.
+// smoke-lane checks declared behavior for every active inference model.
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
-	"strings"
+	"os/signal"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/evaluation"
+	"overgo/internal/inference"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
-const smokePrompt = "The capital of France is"
+func main() { clioptions.MainNamed("smoke-lane", func() error { return run(os.Args[1:]) }) }
 
-func main() {
-	clioptions.MainNamed("smoke-lane", run)
-}
-
-func run() error {
+func run(args []string) error {
+	flags := flag.NewFlagSet("smoke-lane", flag.ContinueOnError)
+	budget := flags.Duration("budget", 0, "total discovery and execution budget (required)")
+	diagnostic := flags.Bool("diagnostic", false, "inspect behavior without publishing evidence")
+	model := flags.String("model", "", "exact model identity; diagnostic mode only")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 || (*model != "" && !*diagnostic) {
+		return errors.New("smoke: unexpected arguments or non-diagnostic model filter")
+	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
 		return err
 	}
-	// Discovery reads through a read-only open; each record is its own short
-	// writer transaction so serves never contend with the lane's lock.
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if *budget > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, *budget, errors.New("smoke: execution budget exhausted"))
+		defer cancel()
+	}
 	reader, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		return err
 	}
+	began := time.Now()
+	fmt.Println("[smoke] checking active recipes and artifact bytes")
 	entries, err := discovery.Servable(ctx, reader, 10_000)
-	closeErr := reader.Close()
-	if err != nil || closeErr != nil {
-		return errorsJoin(err, closeErr)
+	fmt.Printf("[smoke] discovery=%.1fs models=%d\n", time.Since(began).Seconds(), len(entries))
+	if err != nil {
+		return errors.Join(err, reader.Close())
 	}
 	if len(entries) == 0 {
-		fmt.Println("smoke-lane: 0 servable models; nothing to smoke (empty, not green)")
-		return runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models")
+		return errors.Join(runrecord.LaneError(runrecord.LaneEmpty, "servable matrix has no models"), reader.Close())
 	}
-	unavailable, failed, passed := 0, 0, 0
-	for _, entry := range entries {
-		if entry.Stale != "" {
-			unavailable++
-			fmt.Printf("[smoke] %s STALE (%s)\n", entry.Model, entry.Stale)
-			continue
-		}
-		if !entry.Present {
-			unavailable++
-			fmt.Printf("[smoke] %s UNAVAILABLE (recorded location missing: %s)\n", entry.Model, entry.Location)
-			continue
-		}
-		began := time.Now()
-		serveErr := serve(entry.Location)
-		wall := time.Since(began)
-		outcome := runrecord.OutcomeSucceeded
-		failure := ""
-		if serveErr != nil {
-			outcome = runrecord.OutcomeFailed
-			failure = serveErr.Error()
-			failed++
-		} else {
-			passed++
-		}
-		if err := recordSmokeTransaction(ctx, roots.Store, entry, outcome, failure, wall); err != nil {
-			return err
-		}
-		fmt.Printf("[smoke] %s %-9s %6.1fs tier=%s\n", entry.Model, outcome, wall.Seconds(), entry.Tier)
-		if serveErr != nil {
-			fmt.Printf("        %s\n", clioptions.Tail(failure, 400))
-		}
+	if *budget <= 0 {
+		return errors.Join(errors.New("smoke: explicit positive -budget required"), reader.Close())
 	}
-	fmt.Printf("=== SMOKE %d passed / %d failed / %d unavailable of %d servable ===\n",
-		passed, failed, unavailable, len(entries))
-	fmt.Println("audit: matrix derived from the servable predicate; runs recorded to the store per model recipe")
-	if failed > 0 {
-		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("%d failed, %d unavailable", failed, unavailable))
-	}
-	if unavailable > 0 {
-		return runrecord.LaneError(runrecord.LaneUnavailable, fmt.Sprintf("%d model artifacts unavailable", unavailable))
-	}
-	return nil
-}
-
-// serve runs one short generation through the recipe-authorized path. A
-// subprocess keeps the lane exact: it exercises exactly what a user runs.
-func serve(location string) error {
-	cmd := exec.Command("go", "run", "./cmd/generate", "-n", "4", location, smokePrompt)
-	out, err := cmd.CombinedOutput()
+	oracles, err := readSmokeOracles(smokeOraclePath, entries)
 	if err != nil {
-		return fmt.Errorf("%v: %s", err, clioptions.Tail(string(out), 800))
+		return errors.Join(err, reader.Close())
 	}
-	var payload struct {
-		Text string `json:"text"`
+	references := make(map[artifact.ID][]smokeReferenceCase)
+	for _, entry := range entries {
+		oracle := oracles[entry.Model]
+		domains, declared, domainErr := evaluation.EvalDomains(ctx, reader, entry.Model)
+		if domainErr != nil || (!declared && oracle.Domain != evaluation.DomainText) || (declared && (len(domains) != 1 || domains[0] != oracle.Domain)) {
+			return errors.Join(fmt.Errorf("smoke: domain binding differs for %s: %v", entry.Model, domainErr), reader.Close())
+		}
+		if oracle.ReferenceFile != "" {
+			references[entry.Model], err = readSmokeReference(oracle)
+			if err != nil {
+				return errors.Join(err, reader.Close())
+			}
+		}
 	}
-	trimmed := string(out)
-	if before, _, ok := strings.Cut(trimmed, "{"); ok {
-		trimmed = trimmed[len(before):]
+	if err := reader.Close(); err != nil {
+		return err
 	}
-	if json.Unmarshal([]byte(trimmed), &payload) != nil || strings.TrimSpace(payload.Text) == "" {
-		return fmt.Errorf("serve produced no text")
-	}
-	return nil
-}
-
-func errorsJoin(errs ...error) error {
-	for _, err := range errs {
+	commit := ""
+	if !*diagnostic {
+		commit, err = runrecord.VerifyingCommit(".")
 		if err != nil {
 			return err
 		}
 	}
+	started, passed := 0, 0
+	var failure error
+	for _, entry := range entries {
+		if *model != "" && *model != entry.Model.String() {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			failure = err
+			break
+		}
+		started++
+		began := time.Now()
+		observation, serveErr := serve(ctx, roots.Store, entry, oracles[entry.Model], references[entry.Model])
+		wall := time.Since(began)
+		if !*diagnostic {
+			serveErr = errors.Join(serveErr, recordSmokeTransaction(context.WithoutCancel(ctx), roots.Store, entry, oracles[entry.Model], observation, serveErr, wall, commit))
+		}
+		fmt.Printf("[smoke] %s wall=%.1fs error=%v\n", entry.Model, wall.Seconds(), serveErr)
+		if serveErr != nil {
+			failure = serveErr
+			break
+		}
+		passed++
+	}
+	fmt.Printf("audit: inference catalog=%d started=%d passed=%d failed=%d not_started=%d diagnostic=%t; no benchmark or modality promotion\n", len(entries), started, passed, started-passed, len(entries)-started, *diagnostic)
+	if failure != nil || started == 0 {
+		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("smoke incomplete: %v", failure))
+	}
 	return nil
 }
 
-// recordSmokeTransaction opens a short-lived writer, commits, and closes:
-// the writer lock is held only for the record, never across a serve.
-func recordSmokeTransaction(
-	ctx context.Context,
-	storePath string,
-	entry discovery.Entry,
-	outcome runrecord.Outcome,
-	failure string,
-	wall time.Duration,
-) error {
-	store, err := overgodb.Open(storePath)
+func serve(ctx context.Context, store string, entry discovery.Entry, oracle smokeOracle, reference []smokeReferenceCase) (smokeObservation, error) {
+	runner, err := clioptions.OpenRunner(ctx, store, entry.Location, inference.OpenOptions{})
 	if err != nil {
-		return err
+		return smokeObservation{}, err
 	}
-	defer store.Close()
-	return recordSmoke(ctx, store, entry, outcome, failure, wall)
+	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
+	if err != nil || description.Identity.Model != entry.Model || description.Identity.Recipe != entry.Recipe {
+		return smokeObservation{}, errors.Join(fmt.Errorf("smoke: runtime activation differs: %v", err), runner.Close())
+	}
+	observation, err := executeSmoke(ctx, runner, oracle, reference)
+	return observation, errors.Join(err, runner.Close())
 }
 
-func recordSmoke(
-	ctx context.Context,
-	store *overgodb.Store,
-	entry discovery.Entry,
-	outcome runrecord.Outcome,
-	failure string,
-	wall time.Duration,
-) error {
-	environmentDoc, err := json.Marshal(map[string]string{
-		"os": runtime.GOOS, "arch": runtime.GOARCH, "go": runtime.Version(), "host": hostname(),
-	})
+// Publish after runner close; the writer never spans model execution.
+func recordSmokeTransaction(ctx context.Context, path string, entry discovery.Entry, oracle smokeOracle, observation smokeObservation, serveErr error, wall time.Duration, commit string) error {
+	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
 	if err != nil {
 		return err
 	}
-	environmentID, err := artifact.IdentifyBytes(artifact.KindEvidence, environmentDoc)
+	environmentContent, err := environment.Content()
 	if err != nil {
 		return err
 	}
-	codeCommit := "unknown"
-	if out, err := exec.Command("git", "rev-parse", "HEAD").Output(); err == nil {
-		codeCommit = strings.TrimSpace(string(out))
-	}
-	// Run records want structured facts: failure is a CODE (detail already
-	// printed), and a successful run's output is the smoke-result document.
-	failureCode := ""
-	if failure != "" {
-		failureCode = "serve_failed"
-	}
-	resultDoc, err := json.Marshal(map[string]string{
-		"model": entry.Model.String(), "prompt": smokePrompt,
-		"wall_ns": fmt.Sprintf("%d", wall.Nanoseconds()), "outcome": string(outcome),
-	})
+	oracleData, err := json.Marshal(oracle)
 	if err != nil {
 		return err
 	}
-	resultID, err := artifact.IdentifyBytes(artifact.KindEvidence, resultDoc)
+	oracleID, err := artifact.IdentifyBytes(artifact.KindProfile, oracleData)
 	if err != nil {
 		return err
 	}
-	var outputs []artifact.ID
-	if outcome == runrecord.OutcomeSucceeded {
-		outputs = []artifact.ID{resultID}
+	observation.Oracle = oracleID
+	outcome, failure := runrecord.OutcomeSucceeded, ""
+	if serveErr != nil {
+		outcome, failure = runrecord.OutcomeFailed, "smoke_failed"
 	}
-	run, err := runrecord.NewBoundRun(
-		entry.Recipe, outcome, []artifact.ID{entry.Model}, outputs, failureCode, codeCommit,
-		environmentID, uint64(wall.Nanoseconds()), nil,
-	)
+	resultData, err := json.Marshal(struct {
+		Model       artifact.ID       `json:"model"`
+		Observation smokeObservation  `json:"observation"`
+		Outcome     runrecord.Outcome `json:"outcome"`
+		WallNS      int64             `json:"wall_ns"`
+	}{entry.Model, observation, outcome, wall.Nanoseconds()})
+	if err != nil {
+		return err
+	}
+	resultID, err := artifact.IdentifyBytes(artifact.KindEvidence, resultData)
+	if err != nil {
+		return err
+	}
+	contents := []artifact.Content{environmentContent,
+		{Descriptor: artifact.Descriptor{ID: oracleID, Size: uint64(len(oracleData))}, Data: oracleData},
+		{Descriptor: artifact.Descriptor{ID: resultID, Size: uint64(len(resultData))}, Data: resultData},
+	}
+	inputs := []artifact.ID{entry.Model, oracleID}
+	if oracle.Reference.Valid() {
+		data, err := os.ReadFile(oracle.ReferenceFile)
+		if err != nil {
+			return err
+		}
+		id, err := artifact.IdentifyBytes(artifact.KindEvidence, data)
+		if err != nil || id != oracle.Reference {
+			return errors.New("smoke: native reference changed during execution")
+		}
+		contents = append(contents, artifact.Content{Descriptor: artifact.Descriptor{ID: id, Size: uint64(len(data))}, Data: data})
+		inputs = append(inputs, id)
+	}
+	run, err := runrecord.NewBoundRun(entry.Recipe, outcome, inputs, []artifact.ID{resultID}, failure, commit, environment.ID, uint64(wall.Nanoseconds()), nil)
 	if err != nil {
 		return err
 	}
@@ -197,46 +196,32 @@ func recordSmoke(
 	if err != nil {
 		return err
 	}
-	batch := artifact.Batch{
-		Key:       "smoke/" + entry.Model.String() + "/" + codeCommit,
-		Artifacts: []artifact.Descriptor{{ID: environmentID}},
-		Contents: []artifact.Content{runContent, {
-			Descriptor: artifact.Descriptor{ID: resultID, Size: uint64(len(resultDoc))},
-			Data:       resultDoc,
-		}},
-		Lineage: run.Lineage(),
-	}
+	contents = append(contents, runContent)
+	lineage := run.Lineage()
 	if outcome == runrecord.OutcomeSucceeded {
-		workloadID, err := artifact.IdentifyBytes(artifact.KindDataset, []byte("overgo-smoke-workload/v1"))
+		workload, err := artifact.IdentifyBytes(artifact.KindDataset, oracleData)
 		if err != nil {
 			return err
 		}
-		evaluation, err := runrecord.NewEvaluation(entry.Recipe, run.ID, workloadID, []runrecord.Metric{{
-			Name: "smoke_wall_ns", Value: float64(wall.Nanoseconds()),
-			Unit: "ns", Direction: runrecord.DirectionMinimize,
-		}})
+		measurement, err := runrecord.NewEvaluation(entry.Recipe, run.ID, workload, []runrecord.Metric{{Name: "smoke_wall_ns", Value: float64(wall.Nanoseconds()), Unit: "ns", Direction: runrecord.DirectionMinimize}})
 		if err != nil {
 			return err
 		}
-		evaluationContent, err := evaluation.Content()
+		content, err := measurement.Content()
 		if err != nil {
 			return err
 		}
-		batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: workloadID})
-		batch.Contents = append(batch.Contents, evaluationContent)
-		batch.Lineage = append(batch.Lineage, evaluation.Lineage()...)
+		contents = append(contents, artifact.Content{Descriptor: artifact.Descriptor{ID: workload, Size: uint64(len(oracleData))}, Data: oracleData}, content)
+		lineage = append(lineage, measurement.Lineage()...)
 	}
-	_, err = store.Commit(ctx, batch)
-	if err != nil && strings.Contains(err.Error(), "batch key already names") {
-		return nil // same tree already smoked this model
-	}
-	return err
-}
-
-func hostname() string {
-	name, err := os.Hostname()
+	batch, err := artifact.NewDocumentBatch("smoke/"+run.ID.String(), contents, lineage, nil)
 	if err != nil {
-		return "unknown"
+		return err
 	}
-	return name
+	store, err := overgodb.Open(path)
+	if err != nil {
+		return err
+	}
+	_, err = artifact.CommitBatch(ctx, store, batch)
+	return errors.Join(err, store.Close())
 }

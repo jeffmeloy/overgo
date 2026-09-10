@@ -9,15 +9,19 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 	"time"
 	"unicode"
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
+	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 )
 
@@ -39,6 +43,8 @@ func main() {
 
 func run() error {
 	start := time.Now()
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
 	csv := *pathsFlag
 	if *pathsFileFlag != "" {
 		raw, err := os.ReadFile(*pathsFileFlag)
@@ -59,10 +65,21 @@ func run() error {
 		done, stopped := make(chan struct{}), make(chan struct{})
 		fmt.Println(deviceProgress(step, index, len(steps), 0))
 		go deviceHeartbeat(step, index, len(steps), began, done, stopped)
-		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), step[0], step[1:]...)
+		var stdout, stderr bytes.Buffer
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+			Path: step[0], Args: step[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
+			Stdout: &stdout, Stderr: &stderr,
+		})
+		out := stdout.String() + stderr.String()
+		if err == nil && receipt.ExitCode != 0 {
+			err = fmt.Errorf("exit code %d", receipt.ExitCode)
+		}
 		close(done)
 		<-stopped
 		fmt.Printf("[device] %-60s %6.1fs %s\n", strings.Join(step[1:], " "), time.Since(began).Seconds(), clioptions.Verdict(err))
+		if receipt.WallNS > 0 {
+			fmt.Printf("[device] phase=%d/%d resource=not_busy scope=task process_tree=exited\n", index+1, len(steps))
+		}
 		if err != nil {
 			fmt.Print(deviceDiagnostic(out, err))
 			if index == 0 {

@@ -84,8 +84,10 @@ type Result struct {
 	// prompt length.
 	Measure Measure    `json:"measure"`
 	Short   ShortRates `json:"short_prompt_rates"`
-	Floors  Floors     `json:"floors"`
-	Verdict Verdict    `json:"verdict"`
+	// ShortBenchmark identifies the immutable rate calibration; absent in legacy records.
+	ShortBenchmark artifact.ID `json:"short_benchmark,omitzero"`
+	Floors         Floors      `json:"floors"`
+	Verdict        Verdict     `json:"verdict"`
 	// Shape is the SHORT fingerprint, Rungs the LONG ladder the run
 	// climbed, LadderStop why it stopped before the last planned rung.
 	Shape      ShortShape `json:"shape"`

@@ -215,7 +215,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 				"cmd/release/main.go":                          "release lane tooling; execution-semantics migration",
 				"cmd/reverify/main.go":                         "reverify lane tooling; execution-semantics migration",
 				"cmd/build-kernels/main.go":                    "kernel toolchain invocations; execution-semantics migration",
-				"cmd/smoke-lane/main.go":                       "smoke lane tooling; execution-semantics migration",
 				"cmd/eval-lane/main.go":                        "eval lane tooling; execution-semantics migration",
 				"cmd/sbom/main.go":                             "read-only go toolchain fact reads; execution-semantics migration",
 				"cmd/advisories/main.go":                       "read-only git fact reads; execution-semantics migration",

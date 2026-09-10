@@ -25,6 +25,21 @@ func TestAcceptedFP8Guard(t *testing.T) {
 	t.Log("one exact FP8 model, three complete current-source guard repeats; other models, modalities and full benchmarks remain separate")
 }
 
+// TestRetiredGuardRecords preserves historical evidence without live credit.
+func TestRetiredGuardRecords(t *testing.T) {
+	producer, cohorts := readGuardCatalog(t)
+	name := "MiniCPM 1B retired template-less"
+	records := cohorts[name]
+	if len(records) != len(guardCohort{}.repeats) {
+		t.Fatal("retired MiniCPM requires its three immutable records")
+	}
+	requireGuardCohorts(t, []guardCohort{{
+		name: name, retired: true,
+		historical: "evidence:sha256:4a9aeeabfe52471cd86826b4857b2ece592b6f6c7eb75334a5b203387a1a5d5f",
+		repeats:    [3]string(records),
+	}}, producer, false)
+}
+
 func readGuardCatalog(t *testing.T) (string, map[string][]string) {
 	t.Helper()
 	if testing.Short() {
@@ -50,7 +65,8 @@ func TestAcceptedGuardCatalog(t *testing.T) {
 	fixtures := []guardCohort{
 		{name: "Qwen 0.5B", historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51"},
 		{name: "E4B", historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a"},
-		{name: "MiniCPM 1B", historical: "evidence:sha256:4a9aeeabfe52471cd86826b4857b2ece592b6f6c7eb75334a5b203387a1a5d5f"},
+		{name: "MiniCPM 1B", initialModel: "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32"},
+		{name: "MiniCPM 1B retired template-less", historical: "evidence:sha256:4a9aeeabfe52471cd86826b4857b2ece592b6f6c7eb75334a5b203387a1a5d5f", retired: true},
 		{name: "Qwen 3.5 4B", historical: "evidence:sha256:198df790d9f4ff6179087f8a823115448eb45c7c51739625fd7388e71a19b160"},
 		{name: "Qwen 3.5 9B", historical: "evidence:sha256:b0977a1f38b87d56459e389a68dc315a2a76a0e38c3a71afa320d4943c6af7fe"},
 		{name: "Gemma 12B FP8", historical: "evidence:sha256:e28cc3d5a6f8d19d984063e8f3f7c9893a582a85e31d770115f406a713422bf4"},
@@ -60,7 +76,7 @@ func TestAcceptedGuardCatalog(t *testing.T) {
 		{name: "Qwen 27B quantized", initialModel: "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6"},
 	}
 	if len(cohorts) != len(fixtures) {
-		t.Fatal("catalog selection must name the complete eight-model denominator")
+		t.Fatal("catalog selection must name eight live models and the retained retired MiniCPM cohort")
 	}
 	for index := range fixtures {
 		fixture := &fixtures[index]

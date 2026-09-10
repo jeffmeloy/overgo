@@ -12,6 +12,7 @@ import (
 
 func TestGateTestFailureDiagnostics(t *testing.T) {
 	repo := t.TempDir()
+	runGitFixture(t, repo, "init")
 	for name, content := range map[string]string{
 		"go.mod": "module failurefixture\n\ngo 1.23\n",
 		"failure_test.go": `package failurefixture

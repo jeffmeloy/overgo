@@ -16,11 +16,7 @@
       "evidence:sha256:b0c9c68a3ed0cf854e69f19f64943b879a8fda66bbf416d38dd25f2ea81159e8",
       "evidence:sha256:9d5e58624d2ca1308e384d196a60ca05211494b944f1fd3fff4b80ae228bb16f"
     ],
-    "MiniCPM 1B": [
-      "evidence:sha256:24e738830d4b5ed6b03918ea83bbe681c774eb8a7179f8f078e9f7d26990377f",
-      "evidence:sha256:333afd6de9d45d20803e476851afe91d5095419b8c2b8a10d4295828291cb5bd",
-      "evidence:sha256:61f5dc7d32ce6747fffb27f8d575a2ee23a63d986e7e57746135c2b4d551f021"
-    ],
+    "MiniCPM 1B": [],
     "Qwen 0.5B": [
       "evidence:sha256:e8b02b34d5c02761930d7b74ac007e1e218f7e2041c02bb7e196f3dec282fe39",
       "evidence:sha256:79e771518f8cb8d0128c330a07941035002da456a5d5e0694fb5348ef5acc09f",
@@ -40,6 +36,11 @@
       "evidence:sha256:e382b7504644a127cc5de0f96d85372889a4e4692909efb4a5cc7a1ae2156f96",
       "evidence:sha256:c10c8b84f26a96b6a70f06bef57f07a9bd8d02d37c41ccfe0dad6df2d6138970",
       "evidence:sha256:a3f9fb17b82a3c0a4946f0fc9851380c9aa12651c0a65b6ea4438d85c664ff1e"
+    ],
+    "MiniCPM 1B retired template-less": [
+      "evidence:sha256:24e738830d4b5ed6b03918ea83bbe681c774eb8a7179f8f078e9f7d26990377f",
+      "evidence:sha256:333afd6de9d45d20803e476851afe91d5095419b8c2b8a10d4295828291cb5bd",
+      "evidence:sha256:61f5dc7d32ce6747fffb27f8d575a2ee23a63d986e7e57746135c2b4d551f021"
     ]
   }
 }

@@ -124,10 +124,8 @@ func validateGuard(result longform.Result) error {
 		math.IsNaN(result.Shape.NLL) || math.IsInf(result.Shape.NLL, 0) || result.Shape.NLL < 0 {
 		return errors.New("guard: short prompt or quality evidence is incomplete")
 	}
-	for _, rate := range []float64{result.Short.PromptTokensPerSecond, result.Short.DecodeTokensPerSecond} {
-		if math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
-			return errors.New("guard: short benchmark rate is absent or non-finite")
-		}
+	if !validShortRates(result.Short) {
+		return errors.New("guard: short benchmark rate is absent or non-finite")
 	}
 	required := longform.LadderRungs(result.ContextLength, int(result.ContextLength), floors, floors.CheckRungCeiling)
 	if !slices.Contains(required, floors.PromptTokens) {
@@ -183,6 +181,15 @@ func validateGuard(result longform.Result) error {
 		return fmt.Errorf("guard: incomplete comparison evidence: %s", verdict)
 	}
 	return nil
+}
+
+func validShortRates(short longform.ShortRates) bool {
+	for _, rate := range []float64{short.PromptTokensPerSecond, short.DecodeTokensPerSecond} {
+		if math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func validateSelectedBaselines(output io.Writer, targets []target, surface string) error {

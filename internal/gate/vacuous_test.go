@@ -48,6 +48,7 @@ func TestGateReportsUnchangedImporterSkipWithoutCreditingIt(t *testing.T) {
 
 func TestGateNamesFailureBeforeDiagnosticTail(t *testing.T) {
 	repo := t.TempDir()
+	runGitFixture(t, repo, "init")
 	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module failurefixture\n\ngo 1.26\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

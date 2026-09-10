@@ -186,7 +186,12 @@ func modelMetadata(directory, name string, profile archProfile, config modelConf
 	if err != nil {
 		return nil, err
 	}
-	return append(metadata, tokenizerItems...), nil
+	template, err := chatTemplateMetadata(directory)
+	if err != nil {
+		return nil, err
+	}
+	metadata = append(metadata, tokenizerItems...)
+	return append(metadata, template...), nil
 }
 
 func noSpecialTokens() specialTokenIDs {

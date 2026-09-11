@@ -839,6 +839,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-automation/benchmark-protocol",
 		"validation-batch-control/batch-promotion",
 		"hatchet-process-replan/do",
+		"documentation-refresh/do",
 		"validation-gate-selection/call-reach",
 		"evidence-storage-efficiency/merge-preflight",
 		"validation-gate-selection/runtime-binding-hardening",

@@ -561,6 +561,7 @@
             "modality-verification/decode-guard-readmission",
             "modality-verification/decode-order-repair",
             "hatchet-process-replan/do",
+            "documentation-refresh/do",
             "evidence-storage-efficiency/snapshot-reuse",
             "evidence-storage-efficiency/small-record-layout"
           ]

@@ -46,6 +46,35 @@ func contractResult(t *testing.T, name string) longform.Result {
 	return result
 }
 
+func TestCheckStopsAfterFirstFailure(t *testing.T) {
+	for _, measurementFailure := range []bool{false, true} {
+		record := contractResult(t, "fail-fast")
+		calls := 0
+		measure := func(context.Context, io.Writer, options, target, string, string, longform.Floors, int) (longform.Result, error) {
+			calls++
+			if measurementFailure {
+				return longform.Result{}, errors.New("measurement failed")
+			}
+			fresh := record
+			fresh.Shape.Measure.PromptTokensPerSecond = record.Shape.Measure.PromptTokensPerSecond * record.Floors.RateRegressionFraction / 2
+			fresh.Verdict.Passed = false
+			return fresh, nil
+		}
+		var output strings.Builder
+		targets := []target{{record: longform.Summary{Result: record}}, {record: longform.Summary{Result: record}}}
+		err := runTargets(t.Context(), &output, options{Check: true}, targets, record.Commit, record.Surface, measure, nil)
+		if err == nil || calls != 1 || !strings.Contains(output.String(), "failed=1 not-started=1") {
+			t.Fatalf("measurement failure=%t: calls=%d err=%v output=%s", measurementFailure, calls, err, output.String())
+		}
+		calls = 0
+		output.Reset()
+		err = runTargets(t.Context(), &output, options{}, targets, record.Commit, record.Surface, measure, nil)
+		if err == nil || calls != len(targets) || !strings.Contains(output.String(), "failed=2 not-started=0") {
+			t.Fatalf("acquisition lost remaining targets: calls=%d err=%v output=%s", calls, err, output.String())
+		}
+	}
+}
+
 func TestCampaignMeasurementContract(t *testing.T) {
 	t.Run("corpus export is immutable", func(t *testing.T) {
 		root := t.TempDir()

@@ -4,6 +4,7 @@ package inference
 
 import (
 	"math"
+	"overgo/internal/testutil"
 	"testing"
 
 	cudatest "overgo/internal/cuda/testutil"
@@ -21,7 +22,7 @@ func openHermeticScoringRunner(t *testing.T) *Runner {
 	t.Helper()
 	requireIntegration(t)
 	cudatest.Require(t)
-	path := writeHermeticLlamaGGUFWithContext(t, hermeticContext)
+	path := testutil.HermeticLlamaGGUF(t, hermeticContext)
 	runner, err := openF32FixtureRunner(path, OpenOptions{})
 	if err != nil {
 		t.Fatal(err)

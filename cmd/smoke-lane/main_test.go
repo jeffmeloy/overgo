@@ -19,7 +19,7 @@ func TestLaneOutcomeContract(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	err = run()
+	err = run(nil)
 	if err == nil || !strings.Contains(err.Error(), "outcome=empty") {
 		t.Fatalf("empty smoke outcome = %v", err)
 	}

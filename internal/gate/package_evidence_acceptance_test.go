@@ -47,7 +47,9 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			return &gateContext{repo: root, storePath: StorePath, environment: environment, paths: []string{"app/app_test.go", "other/other_test.go"}, source: &snapshot}
+			g := &gateContext{repo: root, storePath: StorePath, environment: environment, paths: []string{"app/app_test.go", "other/other_test.go"}, source: &snapshot}
+			t.Cleanup(func() { _ = g.closeStore() })
+			return g
 		}
 		g := newGate()
 		if _, err := g.stepTest(t.Context()); err == nil || !strings.Contains(err.Error(), "declared failure") {

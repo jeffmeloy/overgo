@@ -106,7 +106,7 @@ type gateContext struct {
 	strategy            *loop.Strategy
 	diff                runrecord.AttemptDiff
 	completionAuthority plan.CompletionAuthority
-	completionStore     *overgodb.Store
+	store               *overgodb.Store
 	indexBefore         gateIndexSnapshot
 	mergeBefore         *gateMergeIntent
 	planProjection      plan.MergeProjection
@@ -132,12 +132,27 @@ func (g *gateContext) runGateCommand(root, name string, args ...string) (string,
 	return commandEnvironment(root, environment, name, args...)
 }
 
-func (g *gateContext) closeCompletionStore() error {
-	if g == nil || g.completionStore == nil {
+// openStore retains one replayed handle; writes still acquire transaction locks.
+func (g *gateContext) openStore() (*overgodb.Store, error) {
+	if g.storePath == "" || !g.environment.ID.Valid() {
+		return nil, errors.New("gate store: canonical path and environment are required")
+	}
+	if g.store == nil {
+		store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+		if err != nil {
+			return nil, err
+		}
+		g.store = store
+	}
+	return g.store, nil
+}
+
+func (g *gateContext) closeStore() error {
+	if g == nil || g.store == nil {
 		return nil
 	}
-	err := g.completionStore.Close()
-	g.completionStore = nil
+	err := g.store.Close()
+	g.store = nil
 	return err
 }
 

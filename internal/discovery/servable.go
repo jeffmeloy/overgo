@@ -203,11 +203,14 @@ func presence(
 // is not hashed again. A path that does not name present bytes returns
 // an error.
 func WeightsIdentity(path string, memo *Memo) (artifact.ID, error) {
-	identity := identifyLocation(path, artifact.KindModel, map[string]fileIdentity{}, memo)
+	identity := identifyLocation(path, artifact.KindTensorSet, map[string]fileIdentity{}, memo)
 	if !identity.present {
 		return artifact.ID{}, fmt.Errorf("discovery: %s does not name present weights", path)
 	}
-	return identity.id, nil
+	// Artifact kinds share the byte digest. Reuse discovery's stat-validated
+	// tensor identity and retain the model kind required by verification claims.
+	_, digest, _ := strings.Cut(identity.id.String(), ":")
+	return artifact.ParseID(artifact.KindModel.String() + ":" + digest)
 }
 
 func identifyLocation(path string, kind artifact.Kind, identities map[string]fileIdentity, memo *Memo) fileIdentity {

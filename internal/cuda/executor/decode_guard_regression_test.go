@@ -57,8 +57,8 @@ func TestDecodeGuardRegression(t *testing.T) {
 		t.Fatal("F32 has no scalar storage width")
 	}
 	type cacheShape struct{ capacity, active uint32 }
-	for _, geometry := range []struct{ width, queryHeads, keyHeads uint64 }{{4, 2, 1}, {64, 14, 2}, {96, 4, 2}, {128, 8, 2}, {192, 4, 1}, {256, 4, 1}, {320, 4, 1}} {
-		shapes := []cacheShape{{2048, 1792}, {4096, 2048}, {16384, 8448}}
+	for _, geometry := range []struct{ width, queryHeads, keyHeads uint64 }{{4, 2, 1}, {64, 14, 2}, {96, 4, 2}, {128, 8, 2}, {128, 16, 2}, {192, 4, 1}, {256, 4, 1}, {320, 4, 1}} {
+		shapes := []cacheShape{{256, 255}, {512, 256}, {512, 511}, {2048, 1792}, {4096, 2048}, {16384, 8448}}
 		if geometry.width == 4 {
 			// More than 8192 keys per split exercises scratch reuse across
 			// softmax tiles; the tiny head keeps the CPU oracle inexpensive.

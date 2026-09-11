@@ -2,8 +2,10 @@ package main
 
 import (
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -64,7 +66,7 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 	historyReads := 0
 	readHistory := func() map[string]evaluation.BenchmarkSummary {
 		historyReads++
-		return map[string]evaluation.BenchmarkSummary{r.ModelPath: {DecodeTokensPerSecond: 999}}
+		return map[string]evaluation.BenchmarkSummary{r.ModelPath: {Record: accepted, PromptTokensPerSecond: 999, DecodeTokensPerSecond: 999}}
 	}
 	targets, err := readTargets(t.Context(), store, opts, readHistory)
 	if err != nil || len(targets) != 1 {
@@ -96,8 +98,20 @@ func TestSelectedGuardAdmissionScope(t *testing.T) {
 		t.Fatalf("full read-only catalog = %+v, history reads=%d, error=%v", full, historyReads, err)
 	}
 	opts.ValidateBaselines = false
-	if _, err := readTargets(t.Context(), store, opts, readHistory); err != nil || historyReads != 1 {
+	if targets, err := readTargets(t.Context(), store, opts, readHistory); err != nil || historyReads != 1 || len(targets) != 1 || targets[0].shortBenchmark != accepted {
 		t.Fatalf("measurement lost benchmark input: reads=%d error=%v", historyReads, err)
+	}
+	for _, rates := range []evaluation.BenchmarkSummary{
+		{}, {Record: accepted, PromptTokensPerSecond: 1, DecodeTokensPerSecond: math.NaN()},
+		{Record: accepted, PromptTokensPerSecond: math.Inf(1), DecodeTokensPerSecond: 1},
+		{Record: accepted, PromptTokensPerSecond: 1, DecodeTokensPerSecond: -1},
+		{PromptTokensPerSecond: 1, DecodeTokensPerSecond: 1},
+	} {
+		if targets, err := readTargets(t.Context(), store, opts, func() map[string]evaluation.BenchmarkSummary {
+			return map[string]evaluation.BenchmarkSummary{r.ModelPath: rates}
+		}); err == nil || len(targets) != 0 || !strings.Contains(err.Error(), "short-prompt benchmark") {
+			t.Fatalf("invalid calibration reached measurement targets: %+v, %v", targets, err)
+		}
 	}
 	opts.ValidateBaselines = true
 	if err := os.WriteFile(r.ModelPath, []byte("changed selected bytes"), 0o600); err != nil {

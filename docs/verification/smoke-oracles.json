@@ -1,0 +1,125 @@
+[
+  {
+    "model": "model:sha256:0754fb8aca4227b773ea6690df0e188d360d71b71d6d103dfcd970648406fc9a",
+    "recipe": "recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2",
+    "domain": "dna",
+    "chat": false,
+    "claim": "Exact tokenization and within-case native likelihood ordering only; no numerical parity tolerance, factual accuracy or scientific quality claim.",
+    "reference_file": "docs/verification/smoke-carbon-reference.json",
+    "reference": "evidence:sha256:8c986b85b491909fee204e01766351becbefd993126e58ef9f7c8e6a091aec74"
+  },
+  {
+    "model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8",
+    "recipe": "recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca",
+    "domain": "text",
+    "chat": false,
+    "claim": "Exact tokenization and within-case native likelihood ordering only; no numerical parity tolerance, factual accuracy or scientific quality claim.",
+    "reference_file": "docs/verification/smoke-qwen05-reference.json",
+    "reference": "evidence:sha256:86a7eb02d634614aecc50de372aeac736329d74f56532972cd4165259a6d1573"
+  },
+  {
+    "model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
+    "recipe": "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  },
+  {
+    "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+    "recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  },
+  {
+    "model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
+    "recipe": "recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  },
+  {
+    "model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+    "recipe": "recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  },
+  {
+    "model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
+    "recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  },
+  {
+    "model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
+    "recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  },
+  {
+    "model": "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b",
+    "recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
+  }
+]

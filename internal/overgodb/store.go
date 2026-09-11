@@ -175,17 +175,28 @@ type Store struct {
 	snapshot  SnapshotReplay
 }
 
-// Open replays the store under root and returns a writable handle.
+// Open replays the store and returns a writable handle without waiting for a writer.
 func Open(root string) (*Store, error) {
-	return open(root, false)
+	return open(nil, root, false)
+}
+
+// OpenContext waits for startup write access until release or caller cancellation.
+func OpenContext(ctx context.Context, root string) (*Store, error) {
+	if ctx == nil {
+		return nil, errors.New("overgodb: opening with cancellation requires a context")
+	}
+	if err := contextError(ctx); err != nil {
+		return nil, err
+	}
+	return open(ctx, root, false)
 }
 
 // OpenReadOnly replays the store under root without taking the write lock.
 func OpenReadOnly(root string) (*Store, error) {
-	return open(root, true)
+	return open(nil, root, true)
 }
 
-func open(root string, readOnly bool) (*Store, error) {
+func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 	if root == "" {
 		return nil, errors.New("overgodb: empty root")
 	}
@@ -193,7 +204,13 @@ func open(root string, readOnly bool) (*Store, error) {
 		if err := os.MkdirAll(root, storeDirectoryMode); err != nil {
 			return nil, err
 		}
-		lock, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+		var lock *processlock.Lock
+		var err error
+		if ctx == nil {
+			lock, err = processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode)
+		} else {
+			lock, err = processlock.AcquireContext(ctx, filepath.Join(root, lockFilename), storeFileMode)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -232,6 +249,11 @@ func open(root string, readOnly bool) (*Store, error) {
 	store.head = replay.head
 	store.sequence = replay.sequence
 	store.replayEnd = replay.validEnd
+	if ctx != nil {
+		if err := contextError(ctx); err != nil {
+			return nil, errors.Join(err, store.Close())
+		}
+	}
 	return store, nil
 }
 

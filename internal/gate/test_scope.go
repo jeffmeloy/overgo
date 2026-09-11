@@ -12,6 +12,7 @@ type packageTestScope struct {
 	direct, dependent, productionPaths []string
 	unresolved                         []string
 	opaqueRuntimeInputs                []string
+	edited                             []string
 	excluded                           int
 }
 
@@ -47,6 +48,9 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	}
 	direct, production := testscope.DirectPackages(graph.root, g.paths, packages)
 	scope := packageTestScope{direct: direct}
+	// Keep physical source edits ahead of conservatively selected readers.
+	// This changes order only; the full affected set remains required.
+	scope.edited, _ = testscope.DirectPackages(graph.root, g.changedGoFiles(), packages)
 	for _, path := range g.paths {
 		if path == "go.mod" || path == "go.sum" {
 			scope.unresolved = append(scope.unresolved, path)

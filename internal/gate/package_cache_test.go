@@ -80,6 +80,23 @@ func TestPackageSelectiveReuse(t *testing.T) {
 	if err := cache.RecordPackagePass("example/other", "short", otherInput); err != nil {
 		t.Fatal(err)
 	}
+	// A documentation repair outside these pure packages preserves their passes.
+	if err := os.WriteFile(filepath.Join(root, "NOTES.md"), []byte("Corrected documentation.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for index := range graph.nodes {
+		graph.nodes[index].Match = []string{"./..."}
+	}
+	graph.bindResourceFiles([]string{"NOTES.md"})
+	for _, name := range []string{"example/app", "example/other"} {
+		input, err := graph.identity(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if hit, err := cache.PackageReusable(name, "short", input); err != nil || !hit {
+			t.Fatalf("documentation repair lost %s evidence: %v", name, err)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(root, "dep", "dep.go"), []byte("package dep\nconst Value = 3\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -109,6 +109,15 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:6a3465f7325358362cae92f2a7b584167fcc5a6c56068bba0f4748095eef6190"
       }
+    },
+    {
+      "name": "HermeticLlamaGGUF",
+      "package": "overgo/internal/testutil",
+      "reason": "Shared CPU timing and CUDA parity fixture; migrated all prior inference callers and removed the local builder. Test-consumed by design.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:a9753ddf7825c88b536fa7cfb0d334b35053de0aea663ed4f9776db0e33cd551"
+      }
     }
   ]
 }

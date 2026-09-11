@@ -31,6 +31,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
@@ -77,6 +78,7 @@ type options struct {
 	ExportCorpus      string
 	CorpusBytes       int
 	Baselines         []string
+	CompareRecords    []string
 	Budget            time.Duration
 	ModelBudget       time.Duration
 	corpusText        string
@@ -106,12 +108,26 @@ func parseOptions(args []string) (options, error) {
 	flags.StringVar(&result.ExportCorpus, "export-corpus", "", "write a new fixed corpus file from this repository, without measuring models")
 	flags.IntVar(&result.CorpusBytes, "corpus-bytes", 0, "minimum corpus bytes to export; required with -export-corpus")
 	flags.Func("baseline", "repeatable exact accepted long-form record ID; required for every checked model", func(value string) error { result.Baselines = append(result.Baselines, value); return nil })
+	flags.Func("compare-record", "compare an exact stored record against matching -baseline records; repeatable, read-only, no model execution", func(value string) error { result.CompareRecords = append(result.CompareRecords, value); return nil })
 	flags.DurationVar(&result.Budget, "budget", 0, "required aggregate measurement deadline")
 	flags.DurationVar(&result.ModelBudget, "model-budget", 0, "optional per-model deadline within the aggregate budget")
 	if err := flags.Parse(args); err != nil {
 		return options{}, err
 	}
 	result.Models = flags.Args()
+	if len(result.CompareRecords) > 0 {
+		var conflicts []string
+		flags.Visit(func(f *flag.Flag) {
+			switch f.Name {
+			case "compare-record", "baseline", "repo", "root", "budget":
+			default:
+				conflicts = append(conflicts, f.Name)
+			}
+		})
+		if len(conflicts) > 0 || len(result.Models) > 0 || len(result.Baselines) == 0 {
+			return options{}, errors.New("longform: -compare-record requires -baseline and permits only -repo, -root and -budget")
+		}
+	}
 	if result.ExportCorpus != "" {
 		if result.CorpusBytes <= 0 || result.All || len(result.Models) != 0 || result.Check || result.Guard || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect || result.PathsFile != "" || result.Publish || result.Corpus != "" || len(result.Baselines) != 0 {
 			return options{}, errors.New("longform: -export-corpus requires positive -corpus-bytes and no measurement options")
@@ -124,13 +140,13 @@ func parseOptions(args []string) (options, error) {
 	if (result.Check || result.ValidateBaselines || result.GuardCoverage || result.GuardSelect) && (result.Corpus == "" || len(result.Baselines) == 0) {
 		return options{}, errors.New("longform: -check and -validate-baselines require a fixed -corpus and explicit -baseline records")
 	}
-	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && !result.GuardSelect && len(result.Baselines) != 0 {
+	if !result.Check && !result.ValidateBaselines && !result.GuardCoverage && !result.GuardSelect && len(result.CompareRecords) == 0 && len(result.Baselines) != 0 {
 		return options{}, errors.New("longform: -baseline requires -check or -validate-baselines")
 	}
 	if result.Guard && result.Corpus == "" {
 		return options{}, errors.New("longform: -guard requires a fixed -corpus")
 	}
-	if result.All == (len(result.Models) > 0) {
+	if len(result.CompareRecords) == 0 && result.All == (len(result.Models) > 0) {
 		return options{}, errors.New("usage: longform [-repo <store>] [-device N] [-publish | -check] (-all | <model.gguf>...)")
 	}
 	if result.Publish && (result.Check || result.ValidateBaselines) || result.Check && result.ValidateBaselines {
@@ -159,11 +175,12 @@ func parseOptions(args []string) (options, error) {
 // identity its claim binds to, the short-prompt rates its long-form
 // rates are bounded against, and the explicitly selected comparison record.
 type target struct {
-	entry   discovery.Entry
-	weights artifact.ID
-	bytes   int64
-	short   longform.ShortRates
-	record  longform.Summary
+	entry          discovery.Entry
+	weights        artifact.ID
+	bytes          int64
+	short          longform.ShortRates
+	shortBenchmark artifact.ID
+	record         longform.Summary
 }
 
 // listTargets reads everything the run needs from the store before any
@@ -191,7 +208,8 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 		return nil, err
 	}
 	var benchmarks map[string]evaluation.BenchmarkSummary
-	if !options.ValidateBaselines && !options.GuardCoverage && !options.GuardSelect {
+	measure := !options.ValidateBaselines && !options.GuardCoverage && !options.GuardSelect
+	if measure {
 		benchmarks = readBenchmarks()
 	}
 	wanted := make(map[string]bool, len(requested))
@@ -217,6 +235,14 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 			}
 			continue
 		}
+		benchmark := benchmarks[entry.Location]
+		short := longform.ShortRates{
+			PromptTokensPerSecond: benchmark.PromptTokensPerSecond,
+			DecodeTokensPerSecond: benchmark.DecodeTokensPerSecond,
+		}
+		if measure && (!validShortRates(short) || !benchmark.Record.Valid() || benchmark.Record.Kind() != artifact.KindEvidence) {
+			return nil, fmt.Errorf("longform: %s has no bound finite positive short-prompt benchmark; publish one with cmd/benchmark before measurement", entry.Location)
+		}
 		info, err := os.Stat(entry.Location)
 		if err != nil {
 			return nil, err
@@ -228,13 +254,9 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 		if err != nil {
 			return nil, err
 		}
-		benchmark := benchmarks[entry.Location]
 		targets = append(targets, target{
 			entry: entry, weights: weights, bytes: info.Size(),
-			short: longform.ShortRates{
-				PromptTokensPerSecond: benchmark.PromptTokensPerSecond,
-				DecodeTokensPerSecond: benchmark.DecodeTokensPerSecond,
-			},
+			short: short, shortBenchmark: benchmark.Record,
 		})
 		delete(wanted, longform.Key(entry.Location))
 	}
@@ -280,6 +302,9 @@ func run(args []string, output io.Writer) error {
 	defer stop()
 	ctx, cancel := context.WithTimeoutCause(ctx, options.Budget, fmt.Errorf("longform: aggregate budget %s exhausted: %w", options.Budget, context.DeadlineExceeded))
 	defer cancel()
+	if len(options.CompareRecords) > 0 {
+		return compareStoredRecords(ctx, options, output)
+	}
 	if options.Corpus != "" {
 		options.corpusText, err = readCorpus(options, 0)
 		if err != nil {
@@ -346,10 +371,17 @@ func run(args []string, output io.Writer) error {
 			return err
 		}
 		defer cuda.Close()
-		options.deviceInfo, err = cuda.ReserveDevice(options.Device)
+		admissionStart := time.Now()
+		fmt.Fprintln(output, "long-form device admission: waiting within aggregate budget; no models loaded")
+		err = processcontrol.AwaitResource(ctx, func() error {
+			info, err := cuda.ReserveDevice(options.Device)
+			options.deviceInfo = info
+			return err
+		})
 		if err != nil {
 			return err
 		}
+		fmt.Fprintf(output, "long-form device admitted after %s\n", time.Since(admissionStart))
 		return runTargets(ctx, output, options, targets, commit, surface, measure, publish)
 	})
 }
@@ -412,6 +444,9 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 			fmt.Fprintf(output, "  ERROR %v\n", err)
+			if options.Check {
+				return errors.Join(failures...)
+			}
 			continue
 		}
 		measured++
@@ -431,6 +466,7 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			fmt.Fprintf(output, "  against record %.12s (surface %.12s): %s\n", target.record.Record, target.record.Result.Surface, verdict)
 			if !verdict.Passed {
 				failures = append(failures, fmt.Errorf("%s: regression: %s", name, verdict))
+				return errors.Join(failures...)
 			}
 			continue
 		}
@@ -549,7 +585,7 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 		Inputs:    longform.BindInputs(target.weights, text, corpus, protocol),
 		ModelPath: properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
 		Commit: commit, Surface: surface, PromptSource: options.Corpus,
-		Measure: judged.Measure, Short: target.short, Floors: floors,
+		Measure: judged.Measure, Short: target.short, ShortBenchmark: target.shortBenchmark, Floors: floors,
 		Shape: shape, Rungs: climbed, LadderStop: stop,
 		PromptTail: tail, Output: outputText,
 	}

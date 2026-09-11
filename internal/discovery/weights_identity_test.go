@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 )
 
 // The weights identity is the model digest of the file's bytes, read
@@ -40,5 +41,47 @@ func TestWeightsIdentityDigestsThroughTheMemo(t *testing.T) {
 	}
 	if _, err := WeightsIdentity(filepath.Join(t.TempDir(), "absent.gguf"), memo); err == nil {
 		t.Fatal("an absent file must be an error")
+	}
+}
+
+func TestWeightsIdentityReusesPersistedTensorDigest(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "weights.gguf")
+	payload := []byte("registered tensor bytes")
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	memo := NewMemo()
+	identity := identifyLocation(path, artifact.KindTensorSet, map[string]fileIdentity{}, memo)
+	if !identity.present {
+		t.Fatal("tensor identity missing")
+	}
+	if err := PublishMemo(t.Context(), store, memo); err != nil {
+		t.Fatal(err)
+	}
+	loaded := LoadMemo(t.Context(), store)
+	want, err := artifact.IdentifyBytes(artifact.KindModel, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := WeightsIdentity(path, loaded)
+	if err != nil || got != want || loaded.dirty || len(loaded.entries) != 1 {
+		t.Fatalf("persisted tensor digest was not reused: got=%s want=%s dirty=%v entries=%d error=%v", got, want, loaded.dirty, len(loaded.entries), err)
+	}
+	payload = append(payload, " changed"...)
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	want, err = artifact.IdentifyBytes(artifact.KindModel, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = WeightsIdentity(path, loaded)
+	if err != nil || got != want || !loaded.dirty {
+		t.Fatalf("changed bytes reused a stale digest: got=%s want=%s dirty=%v error=%v", got, want, loaded.dirty, err)
 	}
 }

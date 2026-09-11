@@ -1,10 +1,13 @@
+// Package testutil admits CUDA tests and isolated device measurements.
 package testutil
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"regexp"
 	"testing"
+	"time"
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
@@ -29,17 +32,35 @@ func Require(t testing.TB) {
 // Call after fixture admission and before creating contexts or changing inputs.
 func MeasurementProcess(t *testing.T, ordinal int) bool {
 	t.Helper()
+	ctx := t.Context()
+	deadline, bounded := t.Deadline()
+	if bounded {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadlineCause(ctx, deadline, context.DeadlineExceeded)
+		defer cancel()
+	}
 	const childEnvironment = "OVERGO_CUDA_MEASUREMENT_TEST"
 	if os.Getenv(childEnvironment) != t.Name() {
 		var stdout, stderr bytes.Buffer
-		receipt, err := processcontrol.Run(t.Context(), processcontrol.Command{
+		args := []string{"-test.run=^" + regexp.QuoteMeta(t.Name()) + "$", "-test.v"}
+		if bounded {
+			remaining := time.Until(deadline)
+			if remaining <= 0 {
+				t.Fatal("measurement deadline exhausted before launch")
+			}
+			args = append(args, "-test.timeout="+remaining.String())
+		}
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 			Path:   os.Args[0],
-			Args:   []string{"-test.run=^" + regexp.QuoteMeta(t.Name()) + "$", "-test.v"},
+			Args:   args,
 			Env:    append(os.Environ(), childEnvironment+"="+t.Name()),
 			Stdout: &stdout, Stderr: &stderr,
 		})
 		output := stdout.String() + stderr.String()
 		t.Log(output)
+		if receipt.WallNS > 0 {
+			t.Logf("resource: task=%s state=not_busy scope=measurement process_tree=exited", t.Name())
+		}
 		if err != nil || receipt.ExitCode != 0 {
 			t.Fatalf("isolated measurement exit %d: %v", receipt.ExitCode, err)
 		}
@@ -53,7 +74,10 @@ func MeasurementProcess(t *testing.T, ordinal int) bool {
 		t.Fatal(err)
 	}
 	defer library.Close()
-	if _, err := library.ReserveDevice(ordinal); err != nil {
+	if err := processcontrol.AwaitResource(ctx, func() error {
+		_, err := library.ReserveDevice(ordinal)
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	return false

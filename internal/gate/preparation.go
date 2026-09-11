@@ -627,22 +627,114 @@ func (g *gateContext) prepareWithStore(store *overgodb.Store) error {
 }
 
 // admitPendingGateState runs only while the caller owns the gate mutation lock.
-func admitPendingGateState(repo, storePath string, store *overgodb.Store) error {
+func admitPendingGateState(repo, storePath string, store *overgodb.Store) (string, error) {
+	if store == nil {
+		return "", errors.New("gate: pending-state admission requires the canonical store")
+	}
+	var intent gateCommitIntent
+	intentErr := readJSON(repo, gateCommitIntentFile, &intent)
+	if intentErr != nil && !errors.Is(intentErr, os.ErrNotExist) {
+		return "", intentErr
+	}
+	if intentErr == nil {
+		if err := intent.validate(); err != nil {
+			return "", err
+		}
+	}
+	var debt gateDebtEnvelope
+	debtErr := readJSON(repo, gateDebtFile, &debt)
+	if debtErr != nil && !errors.Is(debtErr, os.ErrNotExist) {
+		return "", debtErr
+	}
+	if debtErr == nil || intentErr == nil {
+		preparation := intent.Preparation
+		if debtErr == nil {
+			final, err := gateDebtFinalization(debt)
+			if err != nil {
+				return "", err
+			}
+			if intentErr == nil && intent.Preparation != debt.Preparation {
+				return "", errors.New("gate: debt and commit intent name different preparations")
+			}
+			head, err := command(repo, "git", "rev-parse", "HEAD")
+			if err != nil {
+				return "", err
+			}
+			if strings.TrimSpace(head) != final.CodeCommit {
+				return "", errors.New("gate: recording debt does not name the current revision")
+			}
+			if final.Outcome == runrecord.OutcomeSucceeded && intentErr == nil {
+				candidate := gateContext{repo: repo, paths: intent.Paths}
+				tree, err := candidate.plannedTree()
+				if err != nil {
+					return "", err
+				}
+				if tree != intent.Tree {
+					return "", errors.New("gate: candidate changed before recording recovery")
+				}
+			}
+			preparation = debt.Preparation
+		}
+		var heartbeat runrecord.GateHeartbeat
+		if err := readJSON(repo, gateHeartbeatFile, &heartbeat); err == nil {
+			if err := heartbeat.Validate(); err != nil {
+				return "", err
+			}
+			if heartbeat.Preparation != preparation {
+				return "", errors.New("gate: recovery locator names another preparation")
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		var err error
+		if debtErr == nil {
+			_, err = reconcileGateDebt(repo, storePath)
+		} else {
+			_, err = recoverInterruptedCommit(repo, storePath)
+		}
+		if err != nil {
+			return "", err
+		}
+		if err := store.Refresh(context.Background()); err != nil {
+			return "", err
+		}
+		if err := requireNoPendingGateStateWithStore(repo, store); err != nil {
+			return "", err
+		}
+		if intentErr == nil && intent.Commit != "" {
+			final, found, err := runrecord.GateFinalizationForPreparation(context.Background(), store, intent.Preparation)
+			if err != nil {
+				return "", err
+			}
+			if found && final.Outcome == runrecord.OutcomeSucceeded {
+				head, err := command(repo, "git", "rev-parse", "HEAD")
+				if err != nil {
+					return "", err
+				}
+				if strings.TrimSpace(head) == intent.Commit {
+					fmt.Fprintf(os.Stderr, "gate: admission recovered completed commit %s for %s\n", intent.Commit, intent.PlanRef)
+					return intent.PlanRef, nil
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "gate: admission recovered transaction %s; acceptance remains required\n", preparation)
+		return "", nil
+	}
 	if err := requireNoPendingGateStateWithStore(repo, store); !errors.Is(err, errGateLifecyclePending) {
-		return err
+		return "", err
 	}
 	recovered, err := recordSelectedUnbatchableFailure(repo, storePath, "")
 	if err != nil {
-		return fmt.Errorf("gate: recover abandoned lifecycle: %w", err)
+		return "", fmt.Errorf("gate: recover abandoned lifecycle: %w", err)
 	}
 	if err := store.Refresh(context.Background()); err != nil {
-		return err
+		return "", err
 	}
 	if err := requireNoPendingGateStateWithStore(repo, store); err != nil {
-		return err
+		return "", err
 	}
 	fmt.Fprintf(os.Stderr, "gate: admission recovered lifecycle %s; acceptance remains required\n", recovered)
-	return nil
+	return "", nil
 }
 
 var errGateLifecyclePending = errors.New("gate: unresolved lifecycle")
@@ -888,9 +980,8 @@ func gatePreparationAlias(
 // a gate's final Git and record transaction. The current alias must still name
 // this exact preparation, its durable introduction must be the receipt carried
 // by Git, it must have no finalization yet, and every older preparation must
-// already have one complete typed finalization. Callers retain the writable
-// store handle through the final record append so no second writer can enter
-// after this proof.
+// already have one complete typed finalization. Refresh the retained handle;
+// the gate authority lock excludes competing gate lifecycle writers.
 func requireSoleCurrentGatePreparation(
 	ctx context.Context,
 	store *overgodb.Store,
@@ -902,6 +993,9 @@ func requireSoleCurrentGatePreparation(
 		return errors.New("gate: exact current preparation authority is absent")
 	}
 	if err := preparation.ValidateIdentity(); err != nil {
+		return err
+	}
+	if err := store.Refresh(ctx); err != nil {
 		return err
 	}
 	current, found, err := artifact.ResolveAlias(ctx, store, runrecord.GateLifecycleCurrentAlias)

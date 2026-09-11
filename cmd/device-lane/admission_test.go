@@ -65,21 +65,45 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 	}
 }
 
-// TestDeviceLaneAdmissionBoundsRunningStep pins that the advertised budget
-// bounds the running step itself: a step that never returns on its own is
-// cancelled through the bounded context when the budget ends.
-func TestDeviceLaneAdmissionBoundsRunningStep(t *testing.T) {
+// TestDeviceLaneAdmissionSeparatesWaitingFromExecution pins the owner's
+// review of 96a447c1: the admission budget bounds only the wait for the
+// device. A step admitted at once completes legitimate work longer than
+// the budget; a stuck step ends with the caller's own bound and its cause,
+// never the admission budget's; and a step refused past the budget still
+// ends with the budget's cause.
+func TestDeviceLaneAdmissionSeparatesWaitingFromExecution(t *testing.T) {
 	var output bytes.Buffer
+	budget := 50 * time.Millisecond
+	code, err := runStepAdmitted(t.Context(), &output, "GPU-test", budget, func(ctx context.Context) (int, error) {
+		select {
+		case <-time.After(4 * budget):
+			return 0, nil
+		case <-ctx.Done():
+			return 0, context.Cause(ctx)
+		}
+	})
+	if code != 0 || err != nil {
+		t.Fatalf("admitted step outliving the budget = code %d, %v, want completion", code, err)
+	}
+	errCaller := errors.New("the caller's bound")
+	bounded, cancel := context.WithTimeoutCause(t.Context(), 4*budget, errCaller)
+	defer cancel()
 	began := time.Now()
-	code, err := runStepAdmitted(t.Context(), &output, "GPU-test", 150*time.Millisecond, func(ctx context.Context) (int, error) {
+	code, err = runStepAdmitted(bounded, &output, "GPU-test", budget, func(ctx context.Context) (int, error) {
 		<-ctx.Done()
 		return 0, context.Cause(ctx)
 	})
-	if code != 0 || !errors.Is(err, errAdmissionBudget) {
-		t.Fatalf("stuck step = code %d, %v, want the budget cause", code, err)
+	if code != 0 || !errors.Is(err, errCaller) || errors.Is(err, errAdmissionBudget) {
+		t.Fatalf("stuck step = code %d, %v, want the caller's cause alone", code, err)
 	}
-	if elapsed := time.Since(began); elapsed > 5*time.Second {
-		t.Fatalf("stuck step outlived its budget: %s", elapsed)
+	if elapsed := time.Since(began); elapsed < 3*budget || elapsed > 5*time.Second {
+		t.Fatalf("stuck step ended after %s, want the caller's bound", elapsed)
+	}
+	code, err = runStepAdmitted(t.Context(), &output, "GPU-test", budget, func(context.Context) (int, error) {
+		return processcontrol.ResourceBusyExitCode, nil
+	})
+	if code != processcontrol.ResourceBusyExitCode || !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, errAdmissionBudget) {
+		t.Fatalf("refused past the budget = code %d, %v, want the contention and the budget cause", code, err)
 	}
 }
 

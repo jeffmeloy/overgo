@@ -73,15 +73,17 @@ func executableStep(ctx context.Context, root, buildDir string, step []string) (
 
 // runs one step again while it exits with the typed contention status, so a
 // foreign holder is waited out under the budget and each exclusive hold
-// stays as short as the step itself; the bounded context reaches the step,
-// so a stuck attempt ends with the budget
+// stays as short as the step itself; the budget bounds that wait alone,
+// while a running attempt keeps the caller's context, whose own bound ends
+// a stuck step, so a step admitted at once is never cancelled for the
+// waiting it did not do
 func runStepAdmitted(ctx context.Context, output io.Writer, name string, budget time.Duration, run func(context.Context) (int, error)) (int, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, budget, errAdmissionBudget)
+	wait, cancel := context.WithTimeoutCause(ctx, budget, errAdmissionBudget)
 	defer cancel()
 	began := time.Now()
 	waiting := false
 	code := 0
-	err := processcontrol.AwaitResource(ctx, func() error {
+	err := processcontrol.AwaitResource(wait, func() error {
 		var err error
 		code, err = run(ctx)
 		if err != nil || code != processcontrol.ResourceBusyExitCode {

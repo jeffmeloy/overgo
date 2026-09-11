@@ -5,17 +5,17 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "review-96a447c1",
-      "title": "Close the selection gaps the owner's review of 96a447c1 demonstrated",
+      "id": "selection-reach",
+      "title": "Propagate a library's runtime inputs only to importers whose tests can reach the read",
       "owner": "hatchet",
       "status": "open",
       "steps": [
         {
-          "id": "admission-budget",
-          "title": "Separate the device lane's waiting budget from its execution budget",
+          "id": "reach-propagation",
+          "title": "Establish an importer's isolation from a library's runtime read on the call graph, dynamic calls reachable",
           "status": "open",
-          "verify": "go test ./cmd/device-lane -run '^(TestDeviceLaneAdmissionWaitsWithinBudget|TestDeviceLaneAdmissionSeparatesWaitingFromExecution)$' -count=1",
-          "rationale": "Owner review 2026-09-10 [P2]: runStepAdmitted passed its admission budget into the whole command, so a step admitted at once could be cancelled for exceeding the waiting budget while doing legitimate work. The admission budget bounds only the wait for the resource; the running step is bounded by the caller's execution context, and a stuck step ends with that context's cause, never the admission budget's. The test proves a step admitted immediately outlives the admission budget and completes, while a refused step still ends with the budget. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; a selection that omits a package the full gate fails is refused."
+          "verify": "test -f internal/gate/reach_propagation_test.go \u0026\u0026 go test ./internal/gate -run '^(TestChangeSelectiveVerificationShadow|TestRuntimeInputsPropagateThroughCallers|TestRuntimeInputsReachImporters)$' -count=1",
+          "rationale": "After the owner's review the conservative propagation selects every importer of a library that reads a changed document at run time: on a docs-touching commit 103 dependents where there were 11, and gates of 27 to 29 minutes against 12 to 16. The plan and repoanalysis libraries read docs/plan.json and the modern-Go census, which nearly every commit changes, so nearly every importer of those libraries runs in the complete group whether or not its tests can reach the read. Isolation is positively established on the call graph: the runtime read binds to the functions that perform it, and an importer inherits the input only when a function its test binary can reach, its tests, its own sources and their transitive callees, reaches a reading function; dynamic calls through interfaces or function values are treated as reachable, and a package the analysis cannot resolve inherits everything, as now. The shadow matrix keeps the library runtime input candidate and gains an importer that uses the library's types alone, which the full gate does not fail and the selection may exclude. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; a selection that omits a package the full gate fails is refused."
         }
       ]
     },

@@ -142,10 +142,13 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
         focused: document.hasFocus(), active: document.activeElement ? document.activeElement.outerHTML.slice(0, 160) : "",
         editor: !!document.querySelector("#history-rows form"), reload: [...document.querySelectorAll("button")].some((button) => button.textContent === "Reload history" && !button.hidden),
         predicate: (() => { try { return String(`+expression+`); } catch (failure) { return "throws: " + failure; } })()})`, &page)
-			// The exhausted bound is named: the step's own, or the journey's.
-			t.Fatalf("%s: %v (%v); page: %s", what, err, context.Cause(step), page)
+			// The exhausted bound is named: the step's own, or the journey's;
+			// the resolver's stage timing shows a picker stalled behind the
+			// catalog, with the stage the request waits in.
+			t.Fatalf("%s: %v (%v); catalog resolver: %+v; page: %s", what, err, context.Cause(step), resolver.Progress(), page)
 		}
 	}
+	defer func() { t.Logf("catalog resolver stages, slowest: %v", resolver.Progress().Slowest) }()
 	settle := func(what, expression string) {
 		t.Helper()
 		settleWithin(what, stepBound, expression)

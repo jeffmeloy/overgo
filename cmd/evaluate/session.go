@@ -53,7 +53,7 @@ type nativeSession struct {
 }
 
 func openEvaluationSession(ctx context.Context, value manifest, request modelRequest) (evaluationSession, error) {
-	store, err := overgodb.Open(value.Repository)
+	store, err := overgodb.OpenContext(ctx, value.Repository)
 	if err != nil {
 		return nil, err
 	}

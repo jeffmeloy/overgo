@@ -762,6 +762,7 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"modality-verification/e4b-current-resource-refresh",
 		"modality-verification/decode-order-repair",
 		"modality-verification/declared-smoke-expectations",
+		"modality-verification/text-evidence-selection",
 		"modality-verification/text-and-vision",
 		"modality-verification/image-and-video",
 		"modality-verification/speech-ocr-tabular-forecast",

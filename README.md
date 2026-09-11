@@ -37,34 +37,41 @@ The [development plan](docs/plan.json) defines the current work.
 
 ## Current skill automation
 
-[skill.md](skill.md) guides the worker's implementation decisions. The automation
-code turns the working loop into task dispatch, bounded execution, verification,
-and recorded outcomes:
+[skill.md](skill.md) describes the intended behavior; deterministic Go code
+implements its mechanically verifiable parts. Code resolves task eligibility,
+runs checks, validates evidence, enforces budgets, and advances accepted work.
+This reduces repeated agent reasoning and makes the same rules apply across
+attempts. Agents contribute hypotheses and implementation changes; executable
+contracts determine their admission and completion.
 
 ```mermaid
 flowchart LR
-    Plan[Plan dispatch] --> Worker[Worker follows skill.md]
-    Worker --> Gate[Gate checks and commits]
-    Gate -->|Advance plan| Plan
-    Worker -->|Step unchanged| Verify[Run verifier]
-    Verify -->|Feedback and bounded retry| Worker
-    Gate --> Records[Stored attempt records]
+    Plan[Resolve eligible task] --> Driver[Bounded driver]
+    Driver --> Change[Implement candidate]
+    Change --> Gate[Execute checks and validate evidence]
+    Gate -->|Accepted| Commit[Commit and advance plan]
+    Commit --> Plan
+    Gate --> Records[Store outcomes and cost]
+    Change -->|Step remains open| Verify[Execute verifier]
+    Verify -->|Failure or missing commit| Driver
 ```
 
-| Skill behavior | Current automation |
+| Skill behavior | Deterministic implementation |
 | --- | --- |
-| Work on the next eligible task | [cmd/plan](cmd/plan/main.go) resolves dispatch from the plan. Its prompt names the task, verifier, gate command, and `skill.md`. |
-| Execute and recover from unsuccessful attempts | [cmd/loop](cmd/loop/main.go) launches the configured worker with that prompt and a timeout. The [driver](internal/loop/driver.go) rereads the plan after each invocation; if the step remains open, it runs the verifier and feeds the result into the next attempt. Exhausted attempts become findings. |
+| Work on the next eligible task | [Plan dispatch](internal/plan/dispatch.go) resolves the task from plan state, role, and stored completion authority, returning structured data to the driver. |
+| Verify requirements mechanically | The [gate pipeline](internal/gate/verification.go) executes scope, magic-number policy, architecture, formatting, build, acceptance, and applicable test checks. Check dependencies and recorded results determine whether execution can proceed. |
+| Avoid repeated verification work | The same pipeline derives check selection from affected code and binds evidence to candidate inputs. It reuses eligible matching results and records executed, reused, and skipped checks separately. |
+| Bound retries and preserve failures | [cmd/loop](cmd/loop/main.go) enforces worker timeouts. The [driver](internal/loop/driver.go) rereads plan state after each invocation, runs the verifier when the step stays open, and supplies concrete feedback for a bounded retry. Exhausted attempts become findings. |
 | Respect budgets and operator stops | A published [strategy profile](internal/loop/strategy.go), selected by `strategy_id`, supplies retry, invocation, and saturation limits. The driver checks `docs/.loop_pause` and recorded plan stops between iterations. |
-| Verify before advancing | [cmd/gate](cmd/gate/main.go) owns required checks, acceptance, committing the selected changes, and plan advancement. A passing verifier alone does not finish the step. |
-| Learn from cost and failures | [Attempt history](cmd/plan/history.go) reads stored outcomes, wall time, change churn, recovery counts, and strategy identities; repeated unsuccessful directions surface pivot recommendations. |
+| Advance only accepted work | [Gate admission](internal/gate/admission.go) checks plan binding and change scope; the [commit path](internal/gate/commit.go) owns committing and plan advancement. A passing standalone verifier does not confer completion. |
+| Retain feedback for improvement | [Attempt history](cmd/plan/history.go) aggregates stored outcomes, wall time, change churn, recovery counts, and strategy identities; repeated unsuccessful directions trigger computed pivot recommendations. |
 | Continue with admitted proposals | When proposal intake is enabled and dispatch is complete, the driver consumes prepared JSON specs from `docs/proposals`. The plan command replays the cited candidate admission before adding the next task. |
 
-The worker applies the skill's guidance on robustness, efficiency, derived values,
-justified assumptions, and available compute. Specific checks enforce the parts
-captured in executable contracts. The next integration is to connect observations
-and stored history to proposal generation inside the driver, so outcomes guide
-the next useful improvement without waiting for a prepared queue or another prompt.
+The implementation direction is to move each repeatable, mechanically decidable
+requirement into its existing code owner. Agent reasoning remains useful for
+choosing hypotheses and designing changes. The next integration connects
+observations and stored history to proposal generation inside the driver, with
+code owning duplicate suppression, admission, budget accounting, and resumption.
 
 ## Capabilities
 

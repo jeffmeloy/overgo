@@ -9,7 +9,7 @@ improve both task capability and the process that proposes, executes, and
 evaluates later work. Operators set goals, budgets, and constraints. Humans
 or models propose changes; executable policy controls admission and activation.
 
-![Overgo recursive self-improvement: propose, admit, realize, evaluate, decide, and observe, with measured feedback into later iterations](docs/assets/overgo-platform-technical-architecture.png)
+![Overgo recursive self-improvement: durable feedback triggers the next experiment through propose, admit, realize, evaluate, decide, and observe; methods derive values and justify assumptions, while execution scales to available RAM, VRAM, CPU, and GPU resources](docs/assets/overgo-platform-technical-architecture.png)
 
 [Editable figure definition](docs/assets/overgo_graphic.json)
 
@@ -50,10 +50,35 @@ Architecture profiles bind model tensors to shared execution primitives for
 dense, mixture-of-experts, recurrent, hybrid, encoder, diffusion, and
 multimodal programs.
 
-Training takes a model, data, objective, and budget. The trainer derives
-optimizer settings and uses Muon across trainable parameter geometries.
-Checkpoints retain the model, optimizer, random state, and data position
-needed to resume the same run.
+## Training and Muon
+
+Training takes a model, data, objective, and budget. Overgo uses a shared Muon
+optimizer for matrices, vectors, and scalars, including embeddings,
+normalization parameters, and adapters. The training recipe binds the optimizer
+policy; the trainer resolves its settings without per-model optimizer controls.
+
+For each parameter group, Muon forms a Nesterov momentum direction, normalizes
+it, and applies Newton–Schulz orthogonalization. For an $m\times n$ group,
+the update scales the resulting direction by
+
+$$
+\eta_t\sqrt{\max(m,n)}\sqrt{1-\mu^2},
+$$
+
+where $\eta_t$ is the learning rate and $\mu$ is momentum. This compensates
+for matrix dimensions and momentum in the update scale. Host and CUDA paths
+use the same parameter-group and portable-state contracts.
+
+The [built-in policy](internal/trainingprogram/optimizer_policy.json) uses a
+constant learning rate of $P^{-1/2}$, where $P$ is the parameter count passed
+to the policy, and derives momentum as $(N-1)/(N+1)$ from its declared
+effective-sample horizon $N=30$. These policy choices are recorded with the
+recipe and resolved optimizer state.
+
+Checkpoints retain model and recipe identity, optimizer progress and momentum,
+random state, and data-stream position. Resume checks these bindings before
+continuing. See the [optimizer implementation](internal/optimizer/optimizer.go)
+and [training compatibility](docs/TRAINING_COMPATIBILITY.md) for execution details.
 
 ## Recipes and durable state
 
@@ -75,13 +100,35 @@ work, agents, and automation use the same backend controls.
 ## Workbench and APIs
 
 The server embeds a browser workbench with no separate client build step.
-Use it to chat and attach media, select models, manage the model library,
-run training and evaluations, inspect agent sessions, and review operations
-and their records.
+Its controls come from the server's capability declarations and active recipes,
+so the page reflects the model and services currently available.
+
+| Workspace | What you can do |
+| --- | --- |
+| Chat and Generate | Switch models, resume conversations, attach media, and run the image, video, speech, or other generation modes declared by active recipes |
+| Library and Datasets | Search and download from Hugging Face, register and validate local models, declare hosted providers, and inspect registered datasets |
+| Train and Runs | Start recipe-bound training, inspect progress and run records, and review the session's measurements and checkpoints |
+| Evaluations | Run registered suites and compare recorded quality and resource results |
+| Agent and Automations | Work with agent sessions, registered tools, approvals, schedules, and execution history |
+| Runtime and Activity | Inspect running operations, resource state, and terminal outcomes, and cancel operations that expose cancellation |
+| Model analysis | Inspect model properties, vocabulary, logits, hidden states, attention, and tensors through the available analysis controls |
+| Recipes and Artifacts | Inspect recipe definitions, compositions, stored outputs, and their lineage |
+
+Conversations and operation records live on the server. Reloading the page
+reattaches to retained state, and generated outputs remain linked to the runs
+that produced them. Human direction, agent actions, and automation use the same
+backend admission and recording paths.
 
 Local models and declared remote providers appear in the model catalog.
 Remote providers use a hosted chat relay; local models run through the
-Go and CUDA runtime.
+Go and CUDA runtime. The model picker switches the served model through the
+swap proxy, and the composer updates to its declared capabilities.
+
+Training and model construction are enabled on the direct server with
+`-training` and `-model-builder`, respectively, and require their registered
+inputs and recipes. Evaluation uses the store's benchmark catalog or explicit
+suite files and binds results to a source commit. Unavailable controls show
+their reason in the workbench.
 
 HTTP interfaces include native routes and OpenAI- and Anthropic-compatible
 surfaces. The [API manifest](docs/API_MANIFEST.md) lists commands, routes,

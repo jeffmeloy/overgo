@@ -265,7 +265,7 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 		}
 	case *ast.CallExpr:
 		if program, isExec := execProgram(typed); isExec {
-			classifier.classifyProgram(program)
+			classifier.classifyProgram(program, execArguments(typed, program))
 			for _, value := range literalArguments(typed) {
 				*classifier.escapes = *classifier.escapes || value == "rev-parse"
 			}
@@ -351,17 +351,22 @@ func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
 		if !ok || len(assign.Rhs) == 0 {
 			return true
 		}
-		safe := false
-		for _, value := range assign.Rhs {
-			safe = safe || safeSource(value, names)
-		}
-		for _, target := range assign.Lhs {
-			if identifier, ok := target.(*ast.Ident); ok {
-				if safe {
-					names[identifier.Name] = true
-				} else {
-					unsafe[identifier.Name] = true
-				}
+		// Each target takes the safety of its own value; a value shared by
+		// several targets, a call's results, is safe only if it is safe as a
+		// whole, which a call never is.
+		for index, target := range assign.Lhs {
+			identifier, ok := target.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			safe := false
+			if len(assign.Lhs) == len(assign.Rhs) {
+				safe = safeSource(assign.Rhs[index], names)
+			}
+			if safe {
+				names[identifier.Name] = true
+			} else {
+				unsafe[identifier.Name] = true
 			}
 		}
 		return true
@@ -416,6 +421,36 @@ func execProgram(call *ast.CallExpr) (ast.Expr, bool) {
 	return call.Args[1], true
 }
 
+// execArguments lists the arguments an exec call hands its program, the
+// ones after it.
+func execArguments(call *ast.CallExpr, program ast.Expr) []ast.Expr {
+	index := slices.IndexFunc(call.Args, func(argument ast.Expr) bool { return argument == program })
+	if index < 0 {
+		return nil
+	}
+	return call.Args[index+1:]
+}
+
+// goToolTarget returns the program a go tool invocation executes: the
+// argument after a run, test, build or vet verb.
+func goToolTarget(tool string, arguments []ast.Expr) (ast.Expr, bool) {
+	if tool != "go" || len(arguments) <= 1 {
+		return nil, false
+	}
+	verb, ok := arguments[0].(*ast.BasicLit)
+	if !ok || verb.Kind != token.STRING {
+		return nil, false
+	}
+	value, err := strconv.Unquote(verb.Value)
+	if err != nil || !slices.Contains(goToolVerbs, value) {
+		return nil, false
+	}
+	return arguments[1], true
+}
+
+// goToolVerbs are the go tool verbs whose next argument names a program.
+var goToolVerbs = []string{"run", "test", "build", "vet"}
+
 // fileOwnerCall reports a call on a file owner with at least one argument.
 func fileOwnerCall(call *ast.CallExpr) bool {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
@@ -465,7 +500,7 @@ func literalArguments(call *ast.CallExpr) []string {
 // classifyProgram decides what an executed program reaches: the test binary
 // itself and named external tools reach nothing in the repository, a literal
 // repository command binds its package, and anything else is dynamic.
-func (classifier *sourceClassifier) classifyProgram(program ast.Expr) {
+func (classifier *sourceClassifier) classifyProgram(program ast.Expr, arguments []ast.Expr) {
 	switch typed := program.(type) {
 	case *ast.IndexExpr:
 		if argumentZero(typed) {
@@ -475,6 +510,12 @@ func (classifier *sourceClassifier) classifyProgram(program ast.Expr) {
 		if typed.Kind == token.STRING {
 			value, err := strconv.Unquote(typed.Value)
 			if err == nil && !strings.ContainsAny(value, `/\`) {
+				// The go tool executes the program its run, test, build or
+				// vet argument names: that target is the program reached, and
+				// an unknown target keeps the package dynamic.
+				if target, found := goToolTarget(value, arguments); found {
+					classifier.classifyProgram(target, nil)
+				}
 				return
 			}
 			if err == nil {

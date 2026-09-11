@@ -11,13 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "conservative-classifier",
-          "title": "Track assignments individually and retain unknown subprocess inputs as dynamic",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestRuntimeInputsUnsafeClassifications$' -count=1",
-          "rationale": "Owner review 2026-09-10 [P1]: a mixed assignment holding an environment-derived path beside a literal marked both names safe, and a go run whose target came from the environment was classified confined because only the program name was read. Each assignment target takes the safety of its own value, a multi-value call makes every target unsafe, and a program's executed target, the argument a go run or go test names, is classified like the program itself, so an unknown target keeps the package dynamic. The classifier grows no further special cases: unknown stays unknown. Both counterexamples join the classifier's test. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; a selection that omits a package the full gate fails is refused."
-        },
-        {
           "id": "admission-budget",
           "title": "Separate the device lane's waiting budget from its execution budget",
           "status": "open",

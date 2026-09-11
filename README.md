@@ -37,19 +37,19 @@ The [development plan](docs/plan.json) defines the current work.
 
 ## Current skill automation
 
-[skill.md](skill.md) describes the intended behavior; deterministic Go code
-implements its mechanically verifiable parts. Code resolves task eligibility,
-runs checks, validates evidence, enforces budgets, and advances accepted work.
-This reduces repeated agent reasoning and makes the same rules apply across
-attempts. Agents contribute hypotheses and implementation changes; executable
-contracts determine their admission and completion.
+[skill.md](skill.md) describes how development should proceed. Go code automates
+the parts that can be checked directly: selecting the next task, running required
+tests, checking whether previous results can be reused, limiting retries, and
+recording completion. Agents propose and implement changes. The automation checks
+those changes against the task's requirements before committing them and marking
+the task complete.
 
 ```mermaid
 flowchart LR
-    Plan[Resolve eligible task] --> Driver[Bounded driver]
+    Plan[Select next task] --> Driver[Run worker within configured limits]
     Driver --> Change[Implement candidate]
-    Change --> Gate[Execute checks and validate evidence]
-    Gate -->|Accepted| Commit[Commit and advance plan]
+    Change --> Gate[Run required checks]
+    Gate -->|Requirements satisfied| Commit[Commit and update plan]
     Commit --> Plan
     Gate --> Records[Store outcomes and cost]
     Change -->|Step remains open| Verify[Execute verifier]
@@ -58,20 +58,21 @@ flowchart LR
 
 | Skill behavior | Deterministic implementation |
 | --- | --- |
-| Work on the next eligible task | [Plan dispatch](internal/plan/dispatch.go) resolves the task from plan state, role, and stored completion authority, returning structured data to the driver. |
-| Verify requirements mechanically | The [gate pipeline](internal/gate/verification.go) executes scope, magic-number policy, architecture, formatting, build, acceptance, and applicable test checks. Check dependencies and recorded results determine whether execution can proceed. |
-| Avoid repeated verification work | The same pipeline derives check selection from affected code and binds evidence to candidate inputs. It reuses eligible matching results and records executed, reused, and skipped checks separately. |
-| Bound retries and preserve failures | [cmd/loop](cmd/loop/main.go) enforces worker timeouts. The [driver](internal/loop/driver.go) rereads plan state after each invocation, runs the verifier when the step stays open, and supplies concrete feedback for a bounded retry. Exhausted attempts become findings. |
-| Respect budgets and operator stops | A published [strategy profile](internal/loop/strategy.go), selected by `strategy_id`, supplies retry, invocation, and saturation limits. The driver checks `docs/.loop_pause` and recorded plan stops between iterations. |
-| Advance only accepted work | [Gate admission](internal/gate/admission.go) checks plan binding and change scope; the [commit path](internal/gate/commit.go) owns committing and plan advancement. A passing standalone verifier does not confer completion. |
-| Retain feedback for improvement | [Attempt history](cmd/plan/history.go) aggregates stored outcomes, wall time, change churn, recovery counts, and strategy identities; repeated unsuccessful directions trigger computed pivot recommendations. |
-| Continue with admitted proposals | When proposal intake is enabled and dispatch is complete, the driver consumes prepared JSON specs from `docs/proposals`. The plan command replays the cited candidate admission before adding the next task. |
+| Select the next task | [Plan selection](internal/plan/dispatch.go) uses the plan, worker role, and recorded completion results to return the next task as structured data. |
+| Check implementation requirements | The [verification code](internal/gate/verification.go) checks which files changed, magic-number policy, architecture rules, formatting, compilation, task acceptance criteria, and applicable tests. Required checks must succeed before the commit step runs. |
+| Reuse valid test results | Verification selects checks based on affected code and associates results with the inputs checked. It reuses previous results when their inputs and reuse conditions match, recording executed, reused, and skipped checks separately. |
+| Limit retries and record failures | [cmd/loop](cmd/loop/main.go) limits worker execution time. The [loop implementation](internal/loop/driver.go) rereads the plan after each attempt. If the task remains open, it runs the task's verification command and supplies its output for the next attempt. Reaching the attempt limit records a finding. |
+| Respect limits and operator stops | A stored [strategy configuration](internal/loop/strategy.go), selected by `strategy_id`, sets attempt and invocation limits and the allowed number of consecutive proposals that exhaust their attempts. The loop checks `docs/.loop_pause` and recorded plan stops between iterations. |
+| Record completion after verification | [Pre-commit checks](internal/gate/admission.go) confirm that the requested task is current and the changed files match the declared scope. The [commit code](internal/gate/commit.go) commits the changes and updates the plan after required checks succeed. Running the task's verification command alone does not mark it complete. |
+| Summarize results for later decisions | [Attempt history](cmd/plan/history.go) summarizes outcomes, elapsed time, code changes, recoveries, and the strategy used. It identifies repeated unsuccessful changes and reports when to reconsider the approach. |
+| Add the next prepared proposal | When enabled and no task remains, the loop reads proposal files from `docs/proposals`. The [plan command](cmd/plan/history.go) checks that the proposal's stored approval can be reproduced by the candidate validation code before adding a task. |
 
-The implementation direction is to move each repeatable, mechanically decidable
-requirement into its existing code owner. Agent reasoning remains useful for
-choosing hypotheses and designing changes. The next integration connects
-observations and stored history to proposal generation inside the driver, with
-code owning duplicate suppression, admission, budget accounting, and resumption.
+Further automation should implement repeatable checks in the responsible Go
+packages, reducing the need for agents to inspect results and track process state.
+The next step is to generate proposals from recorded outcomes, with code checking
+for duplicates, validating proposals, tracking resource use against limits, and
+resuming interrupted work. Agent reasoning remains useful for choosing hypotheses
+and designing changes.
 
 ## Capabilities
 

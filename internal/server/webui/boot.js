@@ -517,6 +517,7 @@
   function activate(id) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
+    window.dispatchEvent(new Event("overgo-panel-change"));
     closeNavigation();
     document.querySelector(".shell").classList.toggle("conversation-view", id === "chat");
     activeSection = tabSection(tab);
@@ -785,7 +786,7 @@
 
   // ---- one loader: the manifest names each tab's module (default: the tab id); the libraries load in
   // order, then every distinct module, then the shell wires. Same-origin scripts, so the strict CSP holds. ----
-  const libraries = ["/viz.js", "/md.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
+  const libraries = ["/viz.js", "/md.js", "/media_capture.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
   function loadScript(src) {
     if (loadedScripts.has(src)) return Promise.resolve(src);

@@ -118,8 +118,11 @@
       let chatThread = null;
       let chatComposer = null;
       let chatController = null;
+      let chatAgent = "";
       function renderChat() {
         const agent = activeAgent();
+        if (chatComposer && chatAgent !== selected) chatComposer.closeCapture();
+        chatAgent = selected;
         if (!chatThread) {
           chatThread = overgo.thread(conversationHost);
           chatComposer = overgo.composer(conversationHost, {

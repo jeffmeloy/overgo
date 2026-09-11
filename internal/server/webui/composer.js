@@ -334,8 +334,9 @@
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
-    function openPicker() { picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
-    const attach = accept.length ? el("button", { class: "btn alt", onclick: openPicker }, options.attachLabel || "attach") : null;
+    function openPicker() { if (disposed || readOnly) return; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    const capture = overgo.mediaCapture({ media, accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
+    const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly) capture.open(); } }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
@@ -529,7 +530,7 @@
     }
     send.addEventListener("click", submit);
     stop.addEventListener("click", () => { if (options.onStop) options.onStop(); });
-    if (modeSelect && options.onMode) modeSelect.addEventListener("change", () => options.onMode(modeSelect.value));
+    if (modeSelect && options.onMode) modeSelect.addEventListener("change", () => { capture.close(); options.onMode(modeSelect.value); });
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey && !event.isComposing && event.keyCode !== 229) { event.preventDefault(); submit(); }
     });
@@ -537,15 +538,16 @@
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost, extras,
       setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
-      setReadOnly(value) { readOnly = value; input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
+      setReadOnly(value) { readOnly = value; if (value) capture.close(); input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
       clearAttachments() { for (const item of attachments) invalidate(item); attachments.length = 0; attachmentHost.replaceChildren(); renderAttachments(); },
       restoreAttachments(items) { attachments.push(...items); renderAttachments(); },
-      dispose() { disposed = true; for (const item of attachments) invalidate(item); },
-      invalidateIntake() { for (const item of attachments) if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); } renderAttachments(); },
+      dispose() { disposed = true; capture.dispose(); for (const item of attachments) invalidate(item); },
+      closeCapture: capture.close,
+      invalidateIntake() { capture.close(); for (const item of attachments) if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); } renderAttachments(); },
       openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },
-      setMode(id) { if (!modeSelect) return null; modeSelect.value = id; return options.onMode ? options.onMode(id) : null; },
+      setMode(id) { capture.close(); if (!modeSelect) return null; modeSelect.value = id; return options.onMode ? options.onMode(id) : null; },
     };
   }
 

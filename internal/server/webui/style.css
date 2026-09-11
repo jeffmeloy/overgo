@@ -503,3 +503,19 @@ summary { cursor:pointer; min-height:32px; }
   #panel-chat > .chat-log { padding-block:var(--s2); }
   .composer textarea.text { height:48px; min-height:40px; }
 }
+/* Capture is an on-demand flat surface; preview yields space to its controls. */
+.capture-dialog[open] { display:flex; flex-direction:column; gap:var(--s2); padding:var(--s3); overflow:auto; }
+.capture-dialog > :not(.capture-preview) { flex:none; }
+.capture-dialog .dialog-heading, .capture-dialog .setting-field, .capture-dialog .note { margin:0; }
+.capture-dialog .setting-field { flex-direction:row; align-items:center; }
+.capture-dialog .setting-field select { flex:1; min-width:0; width:0; }
+.capture-dialog .btn, .capture-dialog select { min-height:44px; }
+.capture-choices { display:flex; flex-direction:column; align-items:stretch; }
+.capture-choices .btn { text-align:left; }
+.capture-preview { flex:0 1 auto; min-height:0; overflow:hidden; display:grid; place-items:center; }
+.capture-preview:empty { display:none; }
+.capture-preview video, .capture-preview img { display:block; width:100%; height:100%; min-height:0; max-height:45dvh; object-fit:contain; }
+.capture-preview audio { width:100%; min-width:0; }
+.capture-actions { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:var(--s1); }
+.capture-dialog[data-state="ready"] .capture-actions > .btn:not(.alt) { grid-column:1 / -1; }
+.attachment-info a { display:inline-flex; align-items:center; min-height:44px; }

@@ -38,6 +38,7 @@ type workspaceModelCapabilities struct {
 // with the same rule the request would meet.
 type workspaceMediaLimits struct {
 	Accept            []string `json:"accept"`
+	IntakeAccept      []string `json:"intake_accept"`
 	MaxImageBytes     uint64   `json:"max_image_bytes"`
 	MaxMediaBytes     uint64   `json:"max_media_bytes"`
 	MaxImageDimension uint64   `json:"max_image_dimension"`
@@ -91,6 +92,7 @@ func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceMode
 		Modalities:      map[string]bool{"text": true, "image": image, "audio": audio, "video": video, "document": true},
 		Media: workspaceMediaLimits{
 			Accept: h.acceptedMedia(image, audio, video), Refusals: refusals,
+			IntakeAccept:  h.acceptedMedia(true, true, true),
 			MaxImageBytes: maxImageBytes, MaxMediaBytes: maxMediaBytes,
 			MaxImageDimension: maxImageDimension, MaxImagePixels: maxImagePixels,
 		},

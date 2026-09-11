@@ -374,6 +374,10 @@
         onStop: overgo.stopTurn,
         onChange: () => { composer.input.setCustomValidity(''); saveDraft(); },
         takesAny: () => !!artifactField(),
+        captureAccept: () => {
+          const slots = [...generation.fields.values()].filter(field => field.control.type === "artifact");
+          return slots.length ? (capabilities.media.intake_accept || []).filter(mime => slots.some(field => !field.control.media || mime.startsWith(field.control.media + "/"))) : capabilities.media.accept || [];
+        },
         intake: (file, { signal }) => {
           const field = artifactField(file);
           if (!field) return null;

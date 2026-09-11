@@ -35,7 +35,9 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		`<p style="color:rgb(187,187,187)">faint words</p></body>`
 	clean := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><button style="width:40px;height:40px">fine</button>` +
 		`<div role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap;clip-path:inset(50%)"><span>Response ready.</span></div>` +
-		`<p style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:40px">a line of text cut by design</p></body>`
+		`<p style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:40px">a line of text cut by design</p>` +
+		`<details id="collapsed" open><summary>Details</summary><p style="color:rgb(187,187,187)">hidden faint words</p><button style="width:10px;height:10px;padding:0">hidden tiny</button></details>` +
+		`<script>const details=document.getElementById('collapsed');details.querySelector('p').getBoundingClientRect();details.open=false;</script></body>`
 	audit := func(html string) []LayoutFinding {
 		t.Helper()
 		ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("webui lane: the synthetic page did not audit"))
@@ -70,6 +72,14 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	}
 	if findings := audit(clean); len(findings) != 0 {
 		t.Errorf("the clean page audited with findings: %v", findings)
+	}
+	modal := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><p style="color:rgb(187,187,187)">inactive words</p><button style="width:10px;height:10px;padding:0">inactive tiny</button><dialog id="modal" style="background:rgb(255,255,255);color:rgb(0,0,0)"><p>Active dialog</p><button style="width:40px;height:40px">fine</button></dialog><script>document.getElementById('modal').showModal()</script></body>`
+	if findings := audit(modal); len(findings) != 0 {
+		t.Errorf("the modal page audited inactive content: %v", findings)
+	}
+	faintModal := strings.Replace(modal, "<p>Active dialog</p>", `<p style="color:rgb(187,187,187)">Active dialog</p>`, 1)
+	if findings := audit(faintModal); len(findings) != 1 || findings[0].Kind != layoutContrast {
+		t.Errorf("the faulty modal audited as %v", findings)
 	}
 	// A phone-wide page whose header pushes the content below the first screen's upper part.
 	tall := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><div style="height:500px"></div><div id="panels">content</div></body>`

@@ -247,6 +247,7 @@ func layoutAuditScript() string {
 
 const layoutAuditTemplate = `(() => {
   const findings = [];
+  const modal = document.querySelector("dialog:modal");
   const limit = 40;
   const minimumControl = 24;
   const readable = 4.5, readableLarge = 3;
@@ -262,6 +263,12 @@ const layoutAuditTemplate = `(() => {
     return parts.join(" > ");
   };
   const visible = (node) => {
+    // The modal's backdrop deliberately dims the inactive page. Its controls
+    // cannot be operated until the modal closes and are audited then.
+    if (modal && !modal.contains(node)) return false;
+    // Closed details may retain old geometry/styles while their content is
+    // skipped. Ask the browser whether the node actually has a visible box.
+    if (!node.checkVisibility({ checkVisibilityCSS: true })) return false;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return false;
     const style = getComputedStyle(node);

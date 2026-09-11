@@ -5,6 +5,28 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "review-96a447c1",
+      "title": "Close the selection gaps the owner's review of 96a447c1 demonstrated",
+      "owner": "hatchet",
+      "status": "open",
+      "steps": [
+        {
+          "id": "conservative-classifier",
+          "title": "Track assignments individually and retain unknown subprocess inputs as dynamic",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestRuntimeInputsUnsafeClassifications$' -count=1",
+          "rationale": "Owner review 2026-09-10 [P1]: a mixed assignment holding an environment-derived path beside a literal marked both names safe, and a go run whose target came from the environment was classified confined because only the program name was read. Each assignment target takes the safety of its own value, a multi-value call makes every target unsafe, and a program's executed target, the argument a go run or go test names, is classified like the program itself, so an unknown target keeps the package dynamic. The classifier grows no further special cases: unknown stays unknown. Both counterexamples join the classifier's test. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; a selection that omits a package the full gate fails is refused."
+        },
+        {
+          "id": "admission-budget",
+          "title": "Separate the device lane's waiting budget from its execution budget",
+          "status": "open",
+          "verify": "go test ./cmd/device-lane -run '^(TestDeviceLaneAdmissionWaitsWithinBudget|TestDeviceLaneAdmissionSeparatesWaitingFromExecution)$' -count=1",
+          "rationale": "Owner review 2026-09-10 [P2]: runStepAdmitted passed its admission budget into the whole command, so a step admitted at once could be cancelled for exceeding the waiting budget while doing legitimate work. The admission budget bounds only the wait for the resource; the running step is bounded by the caller's execution context, and a stuck step ends with that context's cause, never the admission budget's. The test proves a step admitted immediately outlives the admission budget and completes, while a refused step still ends with the budget. Acceptance for pace is the phase wall table of the gates before and after this row: fewer executed packages and checks, earlier failure detection, a shorter successful gate, and the same seeded regressions detected; a selection that omits a package the full gate fails is refused."
+        }
+      ]
+    },
+    {
       "id": "validation-batch-control",
       "title": "Stabilize evidence commits; defer broader control policy until model evidence",
       "owner": "master",
@@ -106,14 +128,14 @@
       "id": "declared-capacity",
       "title": "Declare slot cost, lane labels and sticky assignment on the existing schedulers",
       "owner": "hatchet",
-      "status": "open",
+      "status": "blocked:no-measured-validation-benefit",
       "steps": [
         {
           "id": "weighted-and-sticky-assignment",
           "title": "Assign by required labels, order by weight, break ties round-robin, and keep dependent rows sticky to the lane holding their resident model",
           "status": "open",
           "verify": "test -f internal/plan/sticky_assignment_test.go \u0026\u0026 go test ./internal/plan -run '^TestWeightedStickyLaneAssignment$' -count=1",
-          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The locality scheduler already filters lanes on artifact locality; it gains weight ordering, round-robin ties and soft or hard sticky modes so that rows reusing one resident session are assigned by declaration rather than by hand.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. The locality scheduler already filters lanes on artifact locality; it gains weight ordering, round-robin ties and soft or hard sticky modes so that rows reusing one resident session are assigned by declaration rather than by hand. Blocked 2026-09-10: after the pace rows landed, one lane runs beside master, the wall tables of the campaign's gates bind no validation benefit to this scheduling, and master's intake excluded the feature; it dispatches again only when a measured benefit is bound to it.",
           "depends_on": [
             "declared-capacity/slot-cost-and-labels"
           ],
@@ -143,14 +165,14 @@
       "id": "eviction-and-release",
       "title": "Evict waiting sessions by declared policy and release device claims after the device phase",
       "owner": "hatchet",
-      "status": "open",
+      "status": "blocked:no-measured-validation-benefit",
       "steps": [
         {
           "id": "eviction-policy",
           "title": "Declare TTL, capacity and priority eviction on resident session leases and waiting operations",
           "status": "open",
           "verify": "test -f internal/capabilityruntime/eviction_policy_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestSessionEvictionPolicy$' -count=1",
-          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E2. The ModelSessionDirector evicts by policy when an admission needs capacity: after a waiting TTL, under capacity pressure when permitted, and in priority order among candidates, recording the reason. A fake capacity model proves the order without a device.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E2. The ModelSessionDirector evicts by policy when an admission needs capacity: after a waiting TTL, under capacity pressure when permitted, and in priority order among candidates, recording the reason. A fake capacity model proves the order without a device. Blocked 2026-09-10: after the pace rows landed, one lane runs beside master, the wall tables of the campaign's gates bind no validation benefit to this scheduling, and master's intake excluded the feature; it dispatches again only when a measured benefit is bound to it.",
           "depends_on": [
             "declared-capacity/slot-cost-and-labels",
             "deadlines-and-requeue/deadline-refresh"
@@ -195,14 +217,14 @@
       "id": "keyed-admission",
       "title": "Admit requests by declared key with recorded strategies and idempotency holds",
       "owner": "hatchet",
-      "status": "open",
+      "status": "blocked:no-measured-validation-benefit",
       "steps": [
         {
           "id": "concurrency-strategies",
           "title": "Derive a group key from declared request facts and apply round-robin, cancel-in-progress, cancel-newest and cancel-queued-except-newest strategies",
           "status": "open",
           "verify": "test -f internal/server/keyed_admission_test.go \u0026\u0026 go test ./internal/server -run '^TestKeyedConcurrencyStrategies$' -count=1",
-          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E4. A new turn in the same conversation supersedes the in-flight one, one served model is shared fairly across users by a declared limit, and every cancellation records its reason. The key is derived from the conversation, model or workspace identity the request already carries.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E4. A new turn in the same conversation supersedes the in-flight one, one served model is shared fairly across users by a declared limit, and every cancellation records its reason. The key is derived from the conversation, model or workspace identity the request already carries. Blocked 2026-09-10: after the pace rows landed, one lane runs beside master, the wall tables of the campaign's gates bind no validation benefit to this scheduling, and master's intake excluded the feature; it dispatches again only when a measured benefit is bound to it.",
           "depends_on": [
             "deadlines-and-requeue/schedule-and-execution-deadlines"
           ],
@@ -244,14 +266,14 @@
       "id": "queue-observability",
       "title": "Record cancellation reasons and publish queue statistics per key",
       "owner": "hatchet",
-      "status": "open",
+      "status": "blocked:no-measured-validation-benefit",
       "steps": [
         {
           "id": "cancellation-reasons",
           "title": "Record a typed cancellation reason on every cancelled operation and row",
           "status": "open",
           "verify": "test -f internal/operation/cancellation_reason_test.go \u0026\u0026 go test ./internal/operation -run '^TestCancellationReasonRecorded$' -count=1",
-          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E9. Schedule timeout, execution timeout, superseded by key, evicted, operator stop and dependency cancelled are the closed reasons; a cancellation without one is refused.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E9. Schedule timeout, execution timeout, superseded by key, evicted, operator stop and dependency cancelled are the closed reasons; a cancellation without one is refused. Blocked 2026-09-10: after the pace rows landed, one lane runs beside master, the wall tables of the campaign's gates bind no validation benefit to this scheduling, and master's intake excluded the feature; it dispatches again only when a measured benefit is bound to it.",
           "depends_on": [
             "deadlines-and-requeue/schedule-and-execution-deadlines"
           ],
@@ -279,14 +301,14 @@
       "id": "schedule-pause",
       "title": "Pause one automation with declared behaviour for its due slots",
       "owner": "hatchet",
-      "status": "open",
+      "status": "blocked:no-measured-validation-benefit",
       "steps": [
         {
           "id": "pause-policy",
           "title": "Pause one automation with queue-or-drop behaviour for due schedule slots and a queue TTL",
           "status": "open",
           "verify": "test -f internal/workflowruntime/automation_pause_test.go \u0026\u0026 go test ./internal/workflowruntime -run '^TestAutomationPauseQueueOrDrop$' -count=1",
-          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E8. In-flight runs continue, new runs queue under a TTL or the due slot is dropped as declared, expired queued runs cancel with the reason recorded, and unpausing requeues the rest. The recorded operator stop remains the whole-plan pause.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E8. In-flight runs continue, new runs queue under a TTL or the due slot is dropped as declared, expired queued runs cancel with the reason recorded, and unpausing requeues the rest. The recorded operator stop remains the whole-plan pause. Blocked 2026-09-10: after the pace rows landed, one lane runs beside master, the wall tables of the campaign's gates bind no validation benefit to this scheduling, and master's intake excluded the feature; it dispatches again only when a measured benefit is bound to it.",
           "depends_on": [
             "keyed-admission/status-idempotency"
           ],
@@ -301,14 +323,14 @@
       "id": "serving-load-lane",
       "title": "Measure serving under concurrent load and ratchet its floors",
       "owner": "hatchet",
-      "status": "open",
+      "status": "blocked:no-measured-validation-benefit",
       "steps": [
         {
           "id": "timing-collector",
           "title": "Add a load lane that drives the served model at declared concurrency and collects timings with bounded fetch concurrency and a pending TTL",
           "status": "open",
           "verify": "test -f cmd/load-lane/collector_test.go \u0026\u0026 go test ./cmd/load-lane -run '^TestLoadLaneTimingCollector$' -count=1",
-          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E10. Queued-to-first-token latency and throughput through the swap proxy are unmeasured. The collector fetches run timings concurrently under a bound and abandons a run whose timings never arrive after a TTL, so a broken run cannot stall the lane.",
+          "rationale": "Deferred 2026-09-08: master's reviewed intake (89deb42c) excluded conditional workflows and broader scheduling and replay features and named them neither E4B prerequisites nor presumed future imports; the row is re-planned against an independently bound correctness test and a measured validation benefit before it dispatches. Design record E10. Queued-to-first-token latency and throughput through the swap proxy are unmeasured. The collector fetches run timings concurrently under a bound and abandons a run whose timings never arrive after a TTL, so a broken run cannot stall the lane. Blocked 2026-09-10: after the pace rows landed, one lane runs beside master, the wall tables of the campaign's gates bind no validation benefit to this scheduling, and master's intake excluded the feature; it dispatches again only when a measured benefit is bound to it.",
           "depends_on": [
             "queue-observability/queue-statistics"
           ],

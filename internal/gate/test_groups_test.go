@@ -27,18 +27,18 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	for _, check := range checks {
 		byName[check.Descriptor.Name] = check.Descriptor
 	}
-	if !slices.Equal(byName["test-owners"].Dependencies, []string{"acceptance"}) || !slices.Equal(byName["test"].Dependencies, []string{"test-owners"}) {
-		t.Fatalf("test groups depend on %v and %v", byName["test-owners"].Dependencies, byName["test"].Dependencies)
+	if !slices.Equal(byName["test-owners"].Dependencies, []string{"acceptance"}) || !slices.Equal(byName["test-device"].Dependencies, []string{"test-owners"}) || !slices.Equal(byName["test"].Dependencies, []string{"test-device"}) {
+		t.Fatalf("test groups depend on %v, %v and %v", byName["test-owners"].Dependencies, byName["test-device"].Dependencies, byName["test"].Dependencies)
 	}
 	for _, lane := range []string{"device", automationcheck.WebUICheckName} {
-		if !slices.Equal(byName[lane].Dependencies, []string{"test-owners"}) {
-			t.Fatalf("%s depends on %v, want the changed-owners check alone", lane, byName[lane].Dependencies)
+		if !slices.Equal(byName[lane].Dependencies, []string{"test-device"}) {
+			t.Fatalf("%s depends on %v, want the device check of the remaining groups alone", lane, byName[lane].Dependencies)
 		}
 	}
 	if !slices.Equal(byName["commit"].Dependencies, []string{"test", "device", automationcheck.WebUICheckName}) {
 		t.Fatalf("commit depends on %v", byName["commit"].Dependencies)
 	}
-	if !phaseReusesEvidence("test-owners") || !phaseOwnsPath("test-owners", "internal/gate/gate.go") {
+	if !phaseReusesEvidence("test-owners") || !phaseReusesEvidence("test-device") || !phaseOwnsPath("test-owners", "internal/gate/gate.go") {
 		t.Fatal("the changed-owners check does not reuse evidence or own Go inputs like the test check")
 	}
 
@@ -66,8 +66,8 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 		return spans[left].start.Before(spans[right].end) && spans[right].start.Before(spans[left].end)
 	}
 	for _, follower := range []string{"test", "device", automationcheck.WebUICheckName} {
-		if spans[follower].start.Before(spans["test-owners"].end) {
-			t.Fatalf("%s started before the changed owners passed", follower)
+		if spans[follower].start.Before(spans["test-device"].end) {
+			t.Fatalf("%s started before the device packages passed", follower)
 		}
 		if spans["commit"].start.Before(spans[follower].end) {
 			t.Fatalf("commit started before %s ended", follower)

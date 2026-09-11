@@ -57,10 +57,20 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("vet", runrecord.PhaseVet, g.stepVet), gateCheck("build", runrecord.PhaseBuild, g.stepBuild),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance), {
 			// The changed source owners run first as their own check; the
-			// lanes and the remaining groups follow it together.
+			// remaining groups' device packages follow, then the lanes and
+			// the host packages together.
 			Descriptor: automationcheck.Descriptor{Name: "test-owners", Phase: runrecord.PhaseTest, Always: true},
 			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
 				skipped, err := g.stepTestOwners(ctx)
+				return skipped, "", err
+			},
+		}, {
+			// The remaining groups' device packages run next, ahead of the
+			// lanes: a package whose code claims the device exclusively is
+			// refused at once beside a lane's server, which holds it shared.
+			Descriptor: automationcheck.Descriptor{Name: "test-device", Phase: runrecord.PhaseTest, Always: true},
+			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
+				skipped, err := g.stepTestDevice(ctx)
 				return skipped, "", err
 			},
 		}, {
@@ -83,13 +93,15 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies["vet"] = slices.Clone(validateWave)
 	dependencies["build"] = slices.Clone(validateWave)
 	dependencies["acceptance"] = []string{"vet", "build"}
-	// The changed owners gate the rest: the remaining groups and both lanes
-	// start once they pass and run beside one another, admitted to the
+	// The changed owners gate the rest, then the remaining groups' device
+	// packages run alone on the device; the host packages and both lanes
+	// start once those pass and run beside one another, admitted to the
 	// device by the shared lease and to the lane store by its waiting lock.
 	dependencies["test-owners"] = []string{"acceptance"}
-	dependencies["test"] = []string{"test-owners"}
-	dependencies["device"] = []string{"test-owners"}
-	dependencies[automationcheck.WebUICheckName] = []string{"test-owners"}
+	dependencies["test-device"] = []string{"test-owners"}
+	dependencies["test"] = []string{"test-device"}
+	dependencies["device"] = []string{"test-device"}
+	dependencies[automationcheck.WebUICheckName] = []string{"test-device"}
 	dependencies["commit"] = []string{"test", "device", automationcheck.WebUICheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -784,7 +796,7 @@ func phaseOwnsPath(phase, path string) bool {
 		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
 	case "manifest", "sbom", "claims", "docs":
 		return goInput || documentation
-	case "test", "test-owners":
+	case "test", "test-owners", "test-device":
 		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
 	default:
 		return false
@@ -800,7 +812,7 @@ func phaseOwnsPath(phase, path string) bool {
 func phaseReusesEvidence(phase string) bool {
 	switch phase {
 	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection",
-		"manifest", "sbom", "claims", "docs", "test", "test-owners":
+		"manifest", "sbom", "claims", "docs", "test", "test-owners", "test-device":
 		return true
 	default:
 		return false
@@ -1106,32 +1118,56 @@ type testGroups struct {
 	reused, pending, executed     int
 }
 
-// stepTestRest runs the remaining direct packages and the dependent group
-// prepared by the changed-owners check; a skipped owners check skips it too.
+// stepTestDevice runs the device packages of the remaining direct group and
+// of the dependent group, prepared by the changed-owners check, alone on
+// the device ahead of the lanes; a skipped owners check skips it too.
+func (g *gateContext) stepTestDevice(ctx context.Context) (bool, error) {
+	if g.testPlan == nil {
+		return true, nil
+	}
+	return false, g.runRestParts(ctx, true)
+}
+
+// stepTestRest runs the host packages of the remaining direct group and of
+// the dependent group beside the lanes.
 func (g *gateContext) stepTestRest(ctx context.Context) (bool, error) {
 	if g.testPlan == nil {
 		return true, nil
 	}
-	if err := g.runTestGroup(ctx, g.testPlan.remaining, true); err != nil {
-		return false, err
-	}
-	if len(g.testPlan.dependent) == 0 {
-		g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
-		return false, nil
-	}
-	report := testevidence.GoTestReport{}
-	batches, err := g.deviceFirst(g.testPlan.dependent)
-	if err != nil {
-		return false, err
-	}
-	for _, batch := range batches {
-		var batchReport testevidence.GoTestReport
-		batchReport, err = g.runGoTests(ctx, batch, false, g.packagePassObserver(ctx, g.testPlan.ledger, "complete", g.testPlan.dependentInputs))
-		report.Skipped = append(report.Skipped, batchReport.Skipped...)
-		report.Unavailable = append(report.Unavailable, batchReport.Unavailable...)
-		if err != nil {
-			break
+	return false, g.runRestParts(ctx, false)
+}
+
+// runRestParts runs the device or the host part of the remaining direct
+// group in the short mode, then of the dependent group in the complete mode.
+func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
+	part := func(group []string) ([]string, error) {
+		devices, host, err := g.splitDevice(group)
+		if device {
+			return devices, err
 		}
+		return host, err
+	}
+	remaining, err := part(g.testPlan.remaining)
+	if err != nil {
+		return err
+	}
+	if err := g.runTestGroup(ctx, remaining, true); err != nil {
+		return err
+	}
+	dependent, err := part(g.testPlan.dependent)
+	if err != nil {
+		return err
+	}
+	if len(dependent) == 0 {
+		g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
+		return nil
+	}
+	observe := g.packagePassObserver(ctx, g.testPlan.ledger, "complete", g.testPlan.dependentInputs)
+	var report testevidence.GoTestReport
+	if device {
+		report, err = g.runDeviceBatch(ctx, dependent, false, observe, g.runGoTestsAdmitted)
+	} else {
+		report, err = g.runGoTests(ctx, dependent, false, observe)
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.note(fmt.Sprintf(
@@ -1140,19 +1176,31 @@ func (g *gateContext) stepTestRest(ctx context.Context) (bool, error) {
 		))
 	}
 	g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
-	return false, err
+	return err
 }
 
 // runTestGroup runs one direct group in device-first batches and, when a
 // batch fails, audits the packages executed so far.
 func (g *gateContext) runTestGroup(ctx context.Context, group []string, short bool) error {
-	batches, err := g.deviceFirst(group)
+	devices, host, err := g.splitDevice(group)
 	if err != nil {
 		return err
 	}
-	for _, batch := range batches {
-		g.testPlan.executed += len(batch)
-		if _, err := g.runGoTests(ctx, batch, short, g.packagePassObserver(ctx, g.testPlan.ledger, "short", g.testPlan.directInputs)); err != nil {
+	observe := g.packagePassObserver(ctx, g.testPlan.ledger, "short", g.testPlan.directInputs)
+	for _, batch := range []struct {
+		packages []string
+		device   bool
+	}{{devices, true}, {host, false}} {
+		if len(batch.packages) == 0 {
+			continue
+		}
+		g.testPlan.executed += len(batch.packages)
+		if batch.device {
+			_, err = g.runDeviceBatch(ctx, batch.packages, short, observe, g.runGoTestsAdmitted)
+		} else {
+			_, err = g.runGoTests(ctx, batch.packages, short, observe)
+		}
+		if err != nil {
 			g.packageCacheAudit(g.testPlan.reused, g.testPlan.executed)
 			return err
 		}
@@ -1189,6 +1237,58 @@ func (g *gateContext) packageCacheAudit(reused, executed int) {
 }
 
 func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
+	return g.runGoTestsAdmitted(ctx, packages, short, observe, true)
+}
+
+// testRunner runs packages as runGoTestsAdmitted does; the device batch
+// takes it so a test can stand in for go test.
+type testRunner func(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error)
+
+// errContentionBudget names the exhausted wait for a refused exclusive claim.
+var errContentionBudget = errors.New("device contention budget exhausted")
+
+// runDeviceBatch runs one device batch under the shared lease and, when its
+// only failures were refused exclusive claims, runs each refused package
+// again alone and outside the lease: a package whose code claims the device
+// exclusively is refused beneath any holder's lease, its siblings' and the
+// gate's own, and admits once no other process holds the device. The wait
+// for a foreign holder is bounded by the admission budget, which bounds only
+// the wait; each run itself is bounded by the caller's context.
+func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short bool, observe func(string, bool) error, run testRunner) (testevidence.GoTestReport, error) {
+	report, err := run(ctx, batch, short, observe, true)
+	if err == nil || !report.ContentionOnly() {
+		return report, err
+	}
+	contended := report.Contended
+	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive claim under the shared lease [%s]; each runs again alone outside it under the %s admission budget",
+		len(contended), strings.Join(contended, ","), testAdmissionBudget))
+	wait, cancel := context.WithTimeoutCause(ctx, testAdmissionBudget, errContentionBudget)
+	defer cancel()
+	for _, pkg := range contended {
+		attempts := 0
+		err := processcontrol.AwaitResource(wait, func() error {
+			attempts++
+			report, err = run(ctx, []string{pkg}, short, observe, false)
+			if err != nil && report.ContentionOnly() {
+				return processcontrol.ErrResourceBusy
+			}
+			return err
+		})
+		if err != nil {
+			if errors.Is(err, processcontrol.ErrResourceBusy) || wait.Err() != nil {
+				return report, fmt.Errorf("device contention: %s refused its exclusive claim %d time(s): %w", pkg, attempts, errors.Join(processcontrol.ErrResourceBusy, err, context.Cause(wait)))
+			}
+			return report, err
+		}
+		g.note(fmt.Sprintf("device contention: %s admitted alone after %d attempt(s)", pkg, attempts))
+	}
+	return report, nil
+}
+
+// runGoTestsAdmitted runs the packages under the gate's shared device lease
+// when leased, else with no lease, so a package claiming the device
+// exclusively is not refused by the gate's own lease.
+func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error) {
 	args := []string{"test", "-json", "-count=1"}
 	if short {
 		args = append(args, "-short")
@@ -1197,9 +1297,12 @@ func (g *gateContext) runGoTests(ctx context.Context, packages []string, short b
 	if err != nil {
 		return testevidence.GoTestReport{}, err
 	}
-	release, err := g.admitTestResources(ctx, packages, environment)
-	if err != nil {
-		return testevidence.GoTestReport{}, err
+	release := func() error { return nil }
+	if leased {
+		release, err = g.admitTestResources(ctx, packages, environment)
+		if err != nil {
+			return testevidence.GoTestReport{}, err
+		}
 	}
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
@@ -1563,29 +1666,41 @@ func audioReferenceStore(roots dataroot.Roots) string {
 // packages with no lease at all; a group without device packages is one
 // batch and an empty group none
 func (g *gateContext) deviceFirst(group []string) ([][]string, error) {
+	devices, host, err := g.splitDevice(group)
+	if err != nil {
+		return nil, err
+	}
+	var batches [][]string
+	for _, batch := range [][]string{devices, host} {
+		if len(batch) != 0 {
+			batches = append(batches, batch)
+		}
+	}
+	return batches, nil
+}
+
+// splitDevice parts one group into the packages whose tests need the device
+// and the host-only rest, each in the group's order.
+func (g *gateContext) splitDevice(group []string) (devices, host []string, err error) {
 	if len(group) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	graph, err := g.inputGraph()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	devices, err := graph.devicePackages(group)
+	devices, err = graph.devicePackages(group)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(devices) == 0 {
-		return [][]string{group}, nil
+		return nil, group, nil
 	}
-	var host []string
 	for _, pkg := range group {
 		if !slices.Contains(devices, pkg) {
 			host = append(host, pkg)
 		}
 	}
 	g.note(fmt.Sprintf("test order: %d device packages first under the shared lease [%s]; %d host packages follow without it", len(devices), strings.Join(devices, ","), len(host)))
-	if len(host) == 0 {
-		return [][]string{devices}, nil
-	}
-	return [][]string{devices, host}, nil
+	return devices, host, nil
 }

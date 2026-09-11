@@ -113,8 +113,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			affected[node.ImportPath] = true
 		}
 		// A changed path the compiled sources read at run time is a change
-		// to the reader's own inputs; importers observe it only when their
-		// tests reach the repository.
+		// to the reader's own inputs and, below, to every importer's.
 		if slices.ContainsFunc(graph.runtimeResourceFiles[node.Dir], func(path string) bool { return changedAbsolute[filepath.Clean(path)] }) {
 			named[node.ImportPath], tainted[node.ImportPath] = true, true
 		}
@@ -142,6 +141,14 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			if !tainted[node.ImportPath] && (node.escapes || node.opaqueReader || node.testOpaque) &&
 				slices.ContainsFunc(edges, func(imported string) bool { return tainted[imported] }) {
 				tainted[node.ImportPath] = true
+				changed = true
+			}
+			// A library's named runtime input is an input of every importer:
+			// the importer's tests run the library's read. Nothing establishes
+			// an importer's isolation from that read, so every importer
+			// inherits the change and runs in the complete group.
+			if !named[node.ImportPath] && slices.ContainsFunc(edges, func(imported string) bool { return named[imported] }) {
+				named[node.ImportPath], tainted[node.ImportPath] = true, true
 				changed = true
 			}
 		}

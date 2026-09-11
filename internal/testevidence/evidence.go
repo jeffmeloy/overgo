@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"overgo/internal/processcontrol"
 )
 
 const ShortIntegrationSkip = "integration excluded by -short"
@@ -25,9 +27,29 @@ type GoTestReport struct {
 	Unavailable       []string
 	Failed            []string
 	Unfinished        []string
-	Diagnostics       []string
-	tests             []testResult
-	packages          map[string]packageEvidence
+	// Contended names, once each, the packages whose failures carried the
+	// typed refusal of a physical resource claim: their tests claim the
+	// device exclusively and cannot under a holder's lease.
+	Contended   []string
+	Diagnostics []string
+	tests       []testResult
+	packages    map[string]packageEvidence
+}
+
+// ContentionOnly reports a failed run whose every failure was a refused
+// resource claim and nothing was left unfinished: the packages named in
+// Contended may pass once admitted.
+func (report GoTestReport) ContentionOnly() bool {
+	if len(report.Failed) == 0 || len(report.Unfinished) != 0 || len(report.Contended) == 0 {
+		return false
+	}
+	for _, failed := range report.Failed {
+		failedPackage, _, _ := strings.Cut(failed, ": ")
+		if !slices.Contains(report.Contended, failedPackage) {
+			return false
+		}
+	}
+	return true
 }
 
 type packageEvidence struct {
@@ -108,6 +130,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
+	contended := map[string]bool{}
 	results := map[string]*testResult{}
 	updates := packageUpdates{observe: observe, passed: map[string]bool{}}
 	tails := map[string]diagnosticTail{}
@@ -194,6 +217,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			report.Unavailable = append(report.Unavailable, event.Package+": "+reason)
 			results[key].Unavailable = reason
 		}
+		if strings.Contains(event.Output, processcontrol.ErrResourceBusy.Error()) {
+			contended[key] = true
+		}
 		switch {
 		case event.Action == "pass" && event.Test != "":
 			report.PassedTests++
@@ -207,6 +233,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			report.NoTestPackages++
 		case event.Action == "fail" && event.Test != "":
 			report.Failed = append(report.Failed, event.Package+": "+event.Test)
+			if contended[key] && !slices.Contains(report.Contended, event.Package) {
+				report.Contended = append(report.Contended, event.Package)
+			}
 		case event.Action == "fail" && event.Test == "":
 			report.Failed = append(report.Failed, event.Package)
 		}

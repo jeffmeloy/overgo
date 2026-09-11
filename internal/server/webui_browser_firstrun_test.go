@@ -120,9 +120,13 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	}
 	// Each step settles within its own bound so a leg that cannot settle
 	// fails with the page's state rather than spending the journey's budget.
-	settle := func(what, expression string) {
+	// A model switch loads real weights, which took over two minutes for the
+	// multimodal model beside the gate's test groups, so it settles under
+	// the load bound; every other step settles under the step bound.
+	const stepBound, loadBound = 2 * time.Minute, 6 * time.Minute
+	settleWithin := func(what string, bound time.Duration, expression string) {
 		t.Helper()
-		step, done := context.WithTimeoutCause(ctx, 2*time.Minute, errors.New("webui lane: the step did not settle"))
+		step, done := context.WithTimeoutCause(ctx, bound, errors.New("webui lane: the step did not settle"))
 		defer done()
 		if err := browser.Eventually(step, expression); err != nil {
 			var page string
@@ -141,6 +145,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			// The exhausted bound is named: the step's own, or the journey's.
 			t.Fatalf("%s: %v (%v); page: %s", what, err, context.Cause(step), page)
 		}
+	}
+	settle := func(what, expression string) {
+		t.Helper()
+		settleWithin(what, stepBound, expression)
 	}
 	// captureStates: the page as it stands at this leg, captured and audited
 	// at both viewports (written when the lane writes screens); the journey
@@ -212,7 +220,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 		// The pill names the served file; the welcome card, when the
 		// conversation is empty, names the model by its own declared name.
-		settle("model switched and the composer re-derived", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
+		settleWithin("model switched and the composer re-derived", loadBound, `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
       !!document.querySelector("#panel-chat.active .composer textarea") && !document.querySelector(".composer").dataset.laneBefore &&
       !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       (window.overgo.capabilities() || {}).id !== `+strconv.Quote(previous)+``)

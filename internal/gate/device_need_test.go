@@ -48,6 +48,11 @@ func TestDevicePackagesRunFirstUnderTheLease(t *testing.T) {
 	}) {
 		t.Fatalf("audit = %v, want the device-first order", g.audit)
 	}
+	// The same split parts the remaining groups between the device check,
+	// which runs ahead of the lanes, and the host check beside them.
+	if devices, hostPart, err := g.splitDevice(group); err != nil || !slices.Equal(devices, want[0]) || !slices.Equal(hostPart, want[1]) {
+		t.Fatalf("split = %v / %v, %v; want %v", devices, hostPart, err, want)
+	}
 	host := []string{"overgo/internal/plan", "overgo/cmd/plan"}
 	if batches, err := g.deviceFirst(host); err != nil || len(batches) != 1 || !slices.Equal(batches[0], host) {
 		t.Fatalf("host-only group = %v, %v; want one batch", batches, err)

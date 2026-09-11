@@ -335,10 +335,8 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		return artifact.ID{}, fmt.Errorf("package input identity: package %q is absent", target)
 	}
 	rootNodes := make(map[int]bool, len(queue))
-	rootEscapes := false
 	for _, index := range queue {
 		rootNodes[index] = true
-		rootEscapes = rootEscapes || graph.nodes[index].escapes
 	}
 	seen := map[int]bool{}
 	var visit func(int)
@@ -372,16 +370,15 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		}
 		// The target's own tests read what they name; an imported package's
 		// test inputs do not reach this identity, and its runtime-named
-		// inputs reach it only when the target's tests reach the repository.
+		// inputs always do: the target's tests run the import's reads, and
+		// nothing establishes their isolation from them.
 		if rootNodes[index] {
 			for _, path := range graph.testResourceFiles[node.Dir] {
 				files[path] = true
 			}
 		}
-		if rootNodes[index] || rootEscapes {
-			for _, path := range graph.runtimeResourceFiles[node.Dir] {
-				files[path] = true
-			}
+		for _, path := range graph.runtimeResourceFiles[node.Dir] {
+			files[path] = true
 		}
 		if node.Module != nil && node.Module.GoMod != "" {
 			files[node.Module.GoMod] = true

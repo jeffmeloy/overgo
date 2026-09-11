@@ -330,7 +330,7 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 	return result, nil
 }
 
-func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
+func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error) {
 	queue := append([]int(nil), graph.byID[target]...)
 	for index, node := range graph.nodes {
 		if node.ForTest == target {
@@ -338,7 +338,7 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		}
 	}
 	if len(queue) == 0 {
-		return artifact.ID{}, fmt.Errorf("package input identity: package %q is absent", target)
+		return nil, fmt.Errorf("package input identity: package %q is absent", target)
 	}
 	seen, withTests := map[int]bool{}, map[int]bool{}
 	var visit func(int, bool)
@@ -406,8 +406,16 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		if _, err := os.Stat(path); err == nil {
 			files[path] = true
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return artifact.ID{}, err
+			return nil, err
 		}
+	}
+	return files, nil
+}
+
+func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
+	files, err := graph.inputFiles(target)
+	if err != nil {
+		return artifact.ID{}, err
 	}
 	// Repository paths are logical inputs; temporary checkout locations are not.
 	logical := make(map[string]string, len(files))

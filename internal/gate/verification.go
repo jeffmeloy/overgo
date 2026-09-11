@@ -292,6 +292,19 @@ func (g *gateContext) stepDocumentation() (bool, error) {
 	if err := repoanalysis.ValidateDocsInventory(g.repo); err != nil {
 		return false, err
 	}
+	if slices.Contains(g.paths, plan.Path) || g.pathsTouchAny("internal/plan/") {
+		tests := []string{"TestSingleCanonicalCampaignPlan", "TestRSICampaignRatchetAndParallelStructure", "TestOptimizedValidationCampaign"}
+		output, err := g.runGateCommand(g.sourceRoot(), "go", "test", "./internal/plan", "-json", "-run", "^("+strings.Join(tests, "|")+")$", "-count=1")
+		if err != nil {
+			return false, fmt.Errorf("campaign structure: %w\n%s", err, output)
+		}
+		for _, name := range tests {
+			if err := testevidence.VerifyGoTestEvidence("go test ./internal/plan -run '^"+name+"$'", output); err != nil {
+				return false, fmt.Errorf("campaign structure: %w", err)
+			}
+		}
+		g.note("campaign structure: required checks passed before long verification")
+	}
 	document, err := g.loadPlan()
 	if err != nil {
 		return false, err

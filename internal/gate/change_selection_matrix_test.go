@@ -163,9 +163,9 @@ func laneExclusionMatrix(t *testing.T) {
 		excluded []string
 	}{
 		{name: "shared launcher reaches the command", changed: []string{"cmd/tool"}, excluded: []string{"pure-lane"}},
-		{name: "runtime file reader stays in scope", changed: []string{"internal/other"}, excluded: []string{"pure-lane"}},
+		{name: "runtime file reader stays in scope", changed: []string{"internal/other"}, excluded: []string{"launcher-lane", "pure-lane"}},
 		{name: "deleted command keeps every lane", changed: []string{"cmd/gone"}, excluded: nil},
-		{name: "pure lane follows its imports", changed: []string{"internal/recipe"}, excluded: nil},
+		{name: "pure lane follows its imports", changed: []string{"internal/recipe"}, excluded: []string{"launcher-lane"}},
 	}
 	for _, entry := range cases {
 		impact := automationcheck.OwnershipByDependency(checks, entry.changed, resolver)

@@ -56,7 +56,7 @@ func lifecycleHeldout(t *testing.T, l *adapterLifecycle, selectionPath string) l
 	if shard == l.origin.Container || shard == l.fixture.election.Dataset.Artifact {
 		t.Fatal("held-out source overlaps training or oracle selection")
 	}
-	path := filepath.Join(filepath.Dir(l.fixture.storeRoot), "datasets", "librispeech_asr-clean-xet", filepath.FromSlash(selection.Path))
+	path := librispeechPath(t, filepath.FromSlash(selection.Path))
 	verifyASRFile(t, path, shard, selection.Bytes)
 	location, err := artifact.CanonicalLocalLocation(shard, artifact.LocationFile, path)
 	if err != nil {

@@ -8,12 +8,14 @@ import (
 	"testing"
 )
 
-// shadowCandidate: one recorded candidate change over the compiler fixture;
-// edits replace whole files, paths is what the gate would be handed.
+// shadowCandidate: one recorded candidate change over a fixture, the
+// compiler fixture unless the candidate brings its own; edits replace whole
+// files, paths is what the gate would be handed.
 type shadowCandidate struct {
-	name  string
-	paths []string
-	edits map[string]string
+	name    string
+	paths   []string
+	edits   map[string]string
+	fixture func(*testing.T) *gateContext
 }
 
 // selectionCounterexamples: packages the full gate failed that the selection
@@ -30,6 +32,16 @@ func selectionCounterexamples(fullFailed, selected []string) []string {
 	}
 	slices.Sort(missed)
 	return slices.Compact(missed)
+}
+
+// candidateFixture builds the candidate's own fixture, else the compiler
+// fixture every recorded change shares.
+func candidateFixture(t *testing.T, candidate shadowCandidate) *gateContext {
+	t.Helper()
+	if candidate.fixture != nil {
+		return candidate.fixture(t)
+	}
+	return scopeCompilerFixture(t)
 }
 
 // fixtureRootPackages: every package ./... resolves in the fixture graph.
@@ -69,10 +81,17 @@ func TestChangeSelectiveVerificationShadow(t *testing.T) {
 			name: "leaf dependency", paths: []string{"internal/recipe/recipe.go"},
 			edits: map[string]string{"internal/recipe/recipe.go": "package recipe\nconst Value = 5\n"},
 		},
+		{
+			// Owner review 2026-09-10: a file a library reads at run time
+			// changes; the library has no test, its caller's test fails.
+			name: "library runtime input", paths: []string{"docs/config.txt"},
+			edits:   map[string]string{"docs/config.txt": "2\n"},
+			fixture: runtimeReaderFixture,
+		},
 	}
 	for _, candidate := range candidates {
 		t.Run(candidate.name, func(t *testing.T) {
-			g := scopeCompilerFixture(t)
+			g := candidateFixture(t, candidate)
 			for path, content := range candidate.edits {
 				if err := os.WriteFile(filepath.Join(g.repo, filepath.FromSlash(path)), []byte(content), 0o644); err != nil {
 					t.Fatal(err)

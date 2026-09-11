@@ -108,7 +108,7 @@ func (g *gateContext) checkpointMemoInputs(batch *plan.VerificationBatch) (map[s
 	memos := make(map[string]checkpointMemoEntry, len(batch.Checkpoints))
 	for _, checkpoint := range batch.Checkpoints {
 		if reason := g.memoiseCheckpoint(memos, graph, root, key, checkpoint); reason != "" {
-			g.audit = append(g.audit, fmt.Sprintf("checkpoint memo refused: %s: %s", checkpoint.ID, reason))
+			g.note(fmt.Sprintf("checkpoint memo refused: %s: %s", checkpoint.ID, reason))
 		}
 	}
 	return memos, nil

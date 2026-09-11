@@ -146,10 +146,19 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		if err != nil {
 			return err
 		}
-		graph, err := g.inputGraph()
-		graphErr = err
+		_, graphErr = g.inputGraph()
+		// The device lane owns the packages it tests, not every dependent
+		// of the device runtime: its full plan plus the packages the changed
+		// kernels' functions own.
 		if graphErr == nil {
-			devicePackages, graphErr = graph.dependentDirectories("internal/cuda")
+			devicePackages = slices.Clone(automationcheck.DeviceLanePackages[1:])
+			if devicePlan, planErr := automationcheck.DevicePlan(root, g.paths); planErr == nil {
+				for _, packagePath := range devicePlan.Packages {
+					devicePackages = append(devicePackages, strings.TrimPrefix(packagePath, "./"))
+				}
+			}
+			slices.Sort(devicePackages)
+			devicePackages = slices.Compact(devicePackages)
 		}
 		structural, baseManifest, candidateManifest, structuralErr = g.deriveManifestImpact()
 		if structuralErr != nil {
@@ -170,30 +179,43 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		surface = automationcheck.ManifestSurface(structural)
 		if requiresManifestBootstrap(g.paths) {
 			surface.Unknown = append(surface.Unknown, "manifest analyzer or planner implementation changed")
-			g.audit = append(g.audit, "manifest bootstrap: analyzer-owned change forced the complete selectable plan")
+			g.note("manifest bootstrap: analyzer-owned change forced the complete selectable plan")
 		}
 	} else {
 		if legacyErr == nil {
 			surface = ownershipSurface(legacy)
 		}
 		surface.Unknown = append(surface.Unknown, "code manifest unavailable: "+structuralErr.Error())
-		g.audit = append(g.audit, "code manifest unavailable; owned checks defaulted to run: "+structuralErr.Error())
+		g.note("code manifest unavailable; owned checks defaulted to run: " + structuralErr.Error())
 	}
 	if graphErr != nil {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
-		g.audit = append(g.audit, "package ownership unavailable; owned checks defaulted to run: "+graphErr.Error())
+		g.note("package ownership unavailable; owned checks defaulted to run: " + graphErr.Error())
 	}
 	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
 	if completenessErr != nil {
 		return plannedPipeline{}, completenessErr
 	}
 	if len(coverage.UncoveredPackages)+len(coverage.UncoveredSymbols) != 0 {
-		g.audit = append(g.audit, fmt.Sprintf(
+		g.note(fmt.Sprintf(
 			"ownership incomplete; owned checks defaulted to run: packages=%d symbols=%d",
 			len(coverage.UncoveredPackages), len(coverage.UncoveredSymbols),
 		))
 	}
 	impact := automationcheck.OwnershipImpact(definitions, surface)
+	// Symbol reachability uncertain (interface dispatch, reflection, cgo):
+	// the linker's rule still decides package-owned checks, since a check's
+	// tests observe only packages in their dependency closure.
+	if len(surface.Unknown) != 0 && structuralErr == nil && graphErr == nil && !requiresManifestBootstrap(g.paths) && reachabilityOnlyUncertainty(structural) {
+		changed := changedPackages(structural)
+		if resolver, resolverErr := g.dependencyResolver(); resolverErr == nil {
+			impact = automationcheck.OwnershipByDependency(definitions, changed, resolver)
+			g.note(fmt.Sprintf("impact fallback: dependency closure over changed packages %s excluded %d owned check(s) under %d uncertainties",
+				strings.Join(changed, ","), len(impact.Exclusions), len(surface.Unknown)))
+		} else {
+			g.note("impact fallback unavailable; owned checks defaulted to run: " + resolverErr.Error())
+		}
+	}
 	// The shell's assets are not Go symbols: a changed web UI path triggers
 	// the browser lane that the symbol closure could not select.
 	if automationcheck.WebUIPaths(g.paths) {
@@ -222,7 +244,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		g.baseManifest, g.candidateManifest = &baseManifest, &candidateManifest
 		boundPlan = &bound
 		g.selectionID = bound.ID.String()
-		g.audit = append(g.audit, "manifest plan: "+bound.ID.String())
+		g.note("manifest plan: " + bound.ID.String())
 	}
 	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan, structural: structural}, nil
 }
@@ -310,7 +332,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
 	if reused {
-		g.audit = append(g.audit, "candidate code manifest reused by exact analysis authority")
+		g.note("candidate code manifest reused by exact analysis authority")
 	}
 	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
 	if err != nil {
@@ -408,7 +430,63 @@ func (g *gateContext) requirePreparedCandidate(candidateKey string) error {
 
 // plannedTree snapshots the commit candidate into an isolated temporary index.
 // It never reads unplanned worktree paths and never mutates the caller's index.
+// The snapshot is built once per candidate state: a fingerprint of HEAD and
+// the planned paths' bytes names the state, so the drift check before every
+// verification check reads the files instead of rebuilding the index, and
+// any change to a planned path or to HEAD rebuilds it.
 func (g *gateContext) plannedTree() (string, error) {
+	fingerprint, err := g.plannedFingerprint()
+	if err != nil {
+		return "", err
+	}
+	g.plannedTreeMutex.Lock()
+	defer g.plannedTreeMutex.Unlock()
+	if g.plannedTreeID != "" && g.plannedTreeFingerprint == fingerprint {
+		return g.plannedTreeID, nil
+	}
+	tree, err := g.buildPlannedTree()
+	if err != nil {
+		return "", err
+	}
+	g.plannedTreeID, g.plannedTreeFingerprint = tree, fingerprint
+	g.plannedTreeBuilds++
+	return tree, nil
+}
+
+// plannedFingerprint hashes HEAD and every planned path's bytes; an absent
+// planned path hashes as its own marker so a deletion changes the state.
+func (g *gateContext) plannedFingerprint() (string, error) {
+	head, err := command(g.repo, "git", "rev-parse", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	hasher := sha256.New()
+	hasher.Write([]byte(strings.TrimSpace(head)))
+	for _, path := range g.paths {
+		hasher.Write([]byte{0})
+		hasher.Write([]byte(path))
+		hasher.Write([]byte{0})
+		full := filepath.Join(g.repo, filepath.FromSlash(path))
+		if info, err := os.Stat(full); err == nil && info.IsDir() {
+			// A directory is expanded to its files before the tree is built;
+			// until then it names a state of its own.
+			hasher.Write([]byte("directory"))
+			continue
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			if !errors.Is(err, os.ErrNotExist) {
+				return "", err
+			}
+			hasher.Write([]byte("absent"))
+			continue
+		}
+		hasher.Write(data)
+	}
+	return hex.EncodeToString(hasher.Sum(nil)), nil
+}
+
+func (g *gateContext) buildPlannedTree() (string, error) {
 	temporary, err := os.MkdirTemp("", "overgo-gate-index-*")
 	if err != nil {
 		return "", err
@@ -450,10 +528,12 @@ func discoverEnvironment(repo string) (runrecord.Environment, error) {
 	if err != nil {
 		return runrecord.Environment{}, err
 	}
+	// The audio reference store the evidence records is the derived one the
+	// acceptances read, whether the operator or the declared roots named it.
 	rootBytes, err := json.Marshal(struct {
 		Roots          dataroot.Roots
 		AudioReference string
-	}{roots, os.Getenv("OVERGO_AUDIO_REFERENCE_STORE")})
+	}{roots, audioReferenceStore(roots)})
 	if err != nil {
 		return runrecord.Environment{}, err
 	}

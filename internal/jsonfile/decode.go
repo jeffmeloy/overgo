@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package jsonfile decodes complete JSON files.
 package jsonfile
 

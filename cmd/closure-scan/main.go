@@ -78,6 +78,14 @@ func main() {
 	inventoryUnclassified := flag.Bool("inventory-unclassified", false, "report every current constant without exact active authority and matching history")
 	inventoryUnclassifiedPolicy := flag.Bool("inventory-unclassified-policy", false, "report every current production policy candidate without exact active authority and matching history")
 	propose := flag.String("propose", "", "emit ready-to-apply triage rows with exact scanner coordinates for the named uncatalogued candidates (comma-separated)")
+	catalog := flag.String("catalog", "", "catalogue the named uncatalogued candidates (comma-separated) in one store transaction: propose their coordinates, bind them under the reviewed text, and commit them with any drifted rebinding")
+	catalogTier := flag.String("tier", "", "with -catalog: the reviewed tier (implementation-constraint or mathematical-fact)")
+	catalogUnderstanding := flag.String("understanding", "", "with -catalog: the reviewed understanding")
+	catalogClosurePath := flag.String("closure-path", "", "with -catalog: the closure path")
+	catalogRerank := flag.String("rerank-trigger", "", "with -catalog: the rerank trigger")
+	stage := flag.String("stage", "", "declare new unconsumed surface from the gate's own report of it (file:Name=class entries, comma-separated) in docs/staged_surface.json")
+	stageReason := flag.String("stage-reason", "", "with -stage: why the surface lands before its consumer")
+	stageRetireWith := flag.String("retire-with", "", "with -stage: the exact open plan item/step that retires the staging")
 	format := flag.String("format", "text", "structured report format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
 	importStore := flag.String("import-store", "", "import matching active decisions; same-store mode safely rebinds unambiguous history")
@@ -195,6 +203,23 @@ func main() {
 		if err := clioptions.WritePrettyJSON(os.Stdout, proposal); err != nil {
 			fatal(err)
 		}
+		return
+	}
+	if *catalog != "" {
+		text := catalogText{tier: *catalogTier, understanding: *catalogUnderstanding, closurePath: *catalogClosurePath, rerankTrigger: *catalogRerank}
+		catalogued, rebound, err := catalogCandidates(root, *storePath, mustSnapshot(root), strings.Split(*catalog, ","), text)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf("catalogued %d closure document(s) in one transaction with %d rebound\n", catalogued, rebound)
+		return
+	}
+	if *stage != "" {
+		added, err := stageSurface(root, *stage, *stageReason, *stageRetireWith)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf("staged %d surface entr(ies) in docs/staged_surface.json retired with %s\n", added, *stageRetireWith)
 		return
 	}
 	if *inventoryUnclassified || *inventoryUnclassifiedPolicy {
@@ -593,6 +618,22 @@ func importClosureDocuments(
 	snapshot repoanalysis.SourceSnapshot,
 	reviewCallsites, retireUnmatched bool,
 ) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
+	return importClosureDocumentsWith(root, storePath, sourcePath, snapshot, reviewCallsites, retireUnmatched, nil)
+}
+
+// importClosureDocumentsWith imports as importClosureDocuments does and
+// commits the catalogued documents in the same transaction as the
+// rebinding the import decides, so a new catalogue entry and the drift the
+// same scan found land together or not at all.
+func importClosureDocumentsWith(
+	root, storePath, sourcePath string,
+	snapshot repoanalysis.SourceSnapshot,
+	reviewCallsites, retireUnmatched bool,
+	catalogued []closureledger.Document,
+) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
+	if retireUnmatched && len(catalogued) != 0 {
+		return 0, 0, "", closureAliasReview{}, errors.New("-retire-unmatched cannot catalogue documents")
+	}
 	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
 		return count, unmatched, first, aliases, err
@@ -881,11 +922,16 @@ func importClosureDocuments(
 			"closure-scan: retirement requires a settled rebind; run same-store import without -retire-unmatched first",
 		)
 	}
+	// The catalogued documents ride in the rebind's own commit.
+	rebound = append(rebound, catalogued...)
 	if rebound == nil && retirements == nil && unmatchedRetirements == nil {
 		return count, unmatched, first, aliases, nil
 	}
 	operation := closureImportOperation
-	if sameStore {
+	switch {
+	case len(catalogued) != 0:
+		operation = closurePublishOperation
+	case sameStore:
 		operation = closureRebindOperation
 	}
 	commitHead := reviewedTargetHead
@@ -1537,37 +1583,9 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	if err := strictjson.DecodeBytes(raw, &triage); err != nil {
 		return fmt.Errorf("triage file: %w", err)
 	}
-	if len(triage.Rows) == 0 {
-		return fmt.Errorf("triage file has no rows")
-	}
-	byKey := map[string]closurescan.Candidate{}
-	for _, row := range candidates {
-		byKey[row.DeclarationKey()] = row
-		byKey[row.LegacyDeclarationKey()] = row
-	}
-	documents := make([]closureledger.Document, 0, len(triage.Rows))
-	for _, row := range triage.Rows {
-		found, ok := byKey[(closurescan.Candidate{
-			Kind: row.Kind, File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
-		}).DeclarationKey()]
-		if !ok {
-			return fmt.Errorf("triage row %s not found by scan in %s (stale triage?)", row.Name, row.File)
-		}
-		valueJSON := found.ValueJSON()
-		binding, err := found.Binding()
-		if err != nil {
-			return err
-		}
-		document, err := closureledger.New(
-			row.Name, valueJSON,
-			closureledger.Tier(row.Tier), closureledger.Status(row.Status),
-			row.Understanding, []closureledger.SourceBinding{binding},
-			row.ClosurePath, row.RerankTrigger, binding.Owner,
-		)
-		if err != nil {
-			return fmt.Errorf("row %s: %w", row.Name, err)
-		}
-		documents = append(documents, document)
+	documents, err := triageDocuments(triage, candidates)
+	if err != nil {
+		return err
 	}
 	owners, commit, err := commitClosureDocuments(
 		root, filepath.Join(root, storePath), closurePublishOperation, documents, nil, nil,

@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command agent-tool publishes and audits the agent tool manual
 // catalog: UTCP-style tool declarations become store authority under
 // registered aliases, and orchestration resolves tools only from there.

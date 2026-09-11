@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
 )
 
@@ -105,6 +106,25 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Chromium also uses its default directory for intermediate downloads.
+	// CDP's destination override alone does not isolate those files.
+	downloads := filepath.Join(profile, "downloads")
+	preferences, err := json.Marshal(map[string]any{
+		"download": map[string]any{"default_directory": downloads, "prompt_for_download": false},
+		"savefile": map[string]any{"default_directory": downloads},
+	})
+	if err != nil {
+		removeProfile(profile)
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Join(profile, "Default"), clioptions.OutputDirectoryMode); err != nil {
+		removeProfile(profile)
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(profile, "Default", "Preferences"), preferences, clioptions.PrivateFileMode); err != nil {
+		removeProfile(profile)
+		return nil, err
+	}
 	output := &bytes.Buffer{}
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path: executable,
@@ -126,7 +146,7 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 		browser.Close()
 		return nil, fmt.Errorf("webui lane: browser debugging endpoint: %w: %s", err, output.String())
 	}
-	target, err := createTarget(ctx, port, pageURL)
+	target, err := createTarget(ctx, port, "about:blank")
 	if err != nil {
 		browser.Close()
 		return nil, err
@@ -137,6 +157,17 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 		return nil, err
 	}
 	if err := browser.Call(ctx, "Runtime.enable", nil, nil); err != nil {
+		browser.Close()
+		return nil, err
+	}
+	// Downloads belong to this run and leave with its temporary profile.
+	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{
+		"behavior": "allow", "downloadPath": downloads,
+	}, nil); err != nil {
+		browser.Close()
+		return nil, err
+	}
+	if err := browser.Call(ctx, "Page.navigate", map[string]any{"url": pageURL}, nil); err != nil {
 		browser.Close()
 		return nil, err
 	}

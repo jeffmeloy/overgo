@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package overgodbimport ingests wire-format import streams into the
 // catalog, verifying digests and upgrading legacy profile schemas; the
 // wire labels keep their original repodb names because published

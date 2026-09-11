@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // reverify re-establishes one model's activation after a document schema
 // migration: it locates the model's stored exact-golden inference suite from
 // its claims manifest, replays it through `recipe verify` (real inference,

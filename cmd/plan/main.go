@@ -81,6 +81,7 @@ func main() {
 	owner := flag.String("owner", "", "with -assign: the owning lane")
 	setLane := flag.String("set-lane", "", "record the lane this plan dispatches for (the unassigned role's role)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
+	jsonFlag := flag.Bool("json", false, "with -next: print the dispatch as JSON")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
@@ -92,7 +93,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -107,6 +108,7 @@ type cli struct {
 	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
 	assign                                                                           bool
 	owner, setLane                                                                   string
+	json                                                                             bool
 	prepareMerge                                                                     string
 	planProjection                                                                   string
 	grantExploration, chargeExploration, recordExperiment                            string
@@ -217,34 +219,44 @@ func run(c cli, args []string) error {
 	case c.context:
 		return printAutomationContext(document, c.role, os.Stdout)
 	case c.prompt:
-		completionAuthority, err := resolveCompletionAuthority(".", document)
+		// The dispatch is resolved once per HEAD, plan and store head; the
+		// prompt, the verify and the next line all read the same row.
+		dispatch, err := plan.ResolveDispatch(context.Background(), ".", c.role)
 		if err != nil {
 			return err
 		}
-		printPrompt(document, role, os.Stdout, completionAuthority)
+		it, st, ok := locateStep(document, dispatch)
+		if !ok {
+			fmt.Println("PLAN COMPLETE: every item is done. Stop and tell the user.")
+			return nil
+		}
+		printPromptStep(it, st, os.Stdout)
 		return nil
 	case c.verify:
-		completionAuthority, err := resolveCompletionAuthority(".", document)
+		dispatch, err := plan.ResolveDispatch(context.Background(), ".", c.role)
 		if err != nil {
 			return err
 		}
-		it, st, ok := plan.Current(document, role, completionAuthority)
+		it, st, ok := locateStep(document, dispatch)
 		if !ok {
 			fmt.Println("plan complete: nothing to verify")
 			return nil
 		}
 		return runVerify(it, st)
 	case c.next:
-		completionAuthority, err := resolveCompletionAuthority(".", document)
+		dispatch, err := plan.ResolveDispatch(context.Background(), ".", c.role)
 		if err != nil {
 			return err
 		}
-		action, open := nextAction(document, role, completionAuthority)
-		if !open {
-			fmt.Println("plan complete: every item is done")
+		if c.json {
+			encoded, err := json.Marshal(dispatch)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(encoded))
 			return nil
 		}
-		fmt.Println(action)
+		fmt.Println(dispatch.Line)
 		return nil
 	default:
 		return errors.New("one of -next, -prompt, -verify, -status, -context, -record-lease, -lease-report, -schedule-locality, -advance is required")
@@ -782,16 +794,14 @@ func printStatus(document plan.Plan) {
 	}
 }
 
-// nextAction: the one-line form of the current step.
+// nextAction: the one-line form of the current step, rendered from the
+// dispatch's fields.
 func nextAction(document plan.Plan, role string, completions plan.CompletionAuthority) (string, bool) {
-	it, st, ok := plan.Current(document, role, completions)
-	if !ok {
+	dispatch := plan.DispatchOf(document, role, completions)
+	if dispatch.Complete {
 		return "", false
 	}
-	if st.ID == "." {
-		return fmt.Sprintf("%s: %s -- open the rung (define its steps)", it.ID, it.Title), true
-	}
-	return fmt.Sprintf("%s / %s: %s -- %s", it.ID, st.ID, it.Title, st.Title), true
+	return dispatch.Line, true
 }
 
 // printPrompt emits the self-contained, non-negotiable task for the current
@@ -802,6 +812,33 @@ func printPrompt(document plan.Plan, role string, output io.Writer, completions 
 		fmt.Fprintln(output, "PLAN COMPLETE: every item is done. Stop and tell the user.")
 		return
 	}
+	printPromptStep(it, st, output)
+}
+
+// locateStep finds the dispatched row in the document; a complete dispatch
+// or a row the document no longer holds is not found.
+func locateStep(document plan.Plan, dispatch plan.Dispatch) (plan.Item, plan.Step, bool) {
+	if dispatch.Complete {
+		return plan.Item{}, plan.Step{}, false
+	}
+	for _, it := range document.Items {
+		if it.ID != dispatch.Item {
+			continue
+		}
+		if dispatch.Step == "." {
+			return it, plan.Step{ID: "."}, true
+		}
+		for _, st := range it.Steps {
+			if st.ID == dispatch.Step {
+				return it, st, true
+			}
+		}
+	}
+	return plan.Item{}, plan.Step{}, false
+}
+
+// printPromptStep renders the task for one located row.
+func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
 	verify := st.Verify
 	if strings.TrimSpace(verify) == "" {
 		verify = "MISSING -- add a runnable step.verify before implementation"

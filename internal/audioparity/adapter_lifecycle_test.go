@@ -100,7 +100,7 @@ func newAdapterLifecycle(t *testing.T) *adapterLifecycle {
 	datasetID := l.content(t, content, err)
 	content, err = artifact.JSONContent(artifact.JSONContract(artifact.KindDatasetShard, "overgo/asr-selected-training-split/v1"), pair)
 	splitID := l.content(t, content, err)
-	path := filepath.Join(filepath.Dir(l.fixture.storeRoot), "datasets", "librispeech_asr-clean-xet", "clean", l.fixture.record.Split, l.fixture.record.Shard)
+	path := librispeechPath(t, "clean", l.fixture.record.Split, l.fixture.record.Shard)
 	location, err := artifact.CanonicalLocalLocation(shard, artifact.LocationFile, path)
 	if err != nil {
 		t.Fatal(err)

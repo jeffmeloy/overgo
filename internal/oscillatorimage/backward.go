@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 package oscillatorimage
 
 import (

@@ -302,3 +302,38 @@ func SimplificationReport(fork, head Census, proven, unobserved []string) string
 	}
 	return report.String()
 }
+
+// FailureLines names each failed test with the last line its own source
+// wrote before its verdict and that line's indented continuation: the
+// failing step and its page state, which a bounded tail of the whole run
+// would lose behind the tests after it.
+func FailureLines(output string) []string {
+	var failures []string
+	var last string
+	for line := range strings.SplitSeq(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "=== RUN "):
+			last = ""
+		case strings.Contains(trimmed, "_test.go:"):
+			last = trimmed
+		case strings.HasPrefix(trimmed, "--- FAIL: "):
+			name, _, _ := strings.Cut(strings.TrimPrefix(trimmed, "--- FAIL: "), " (")
+			failures = append(failures, name+": "+last)
+		case last != "" && strings.HasPrefix(line, "        ") && trimmed != "":
+			// The step's name leads the line; a page dump behind it is cut so
+			// the name survives a caller's bounded tail.
+			if len(last) < failureLineBytes {
+				last += " " + trimmed
+				if len(last) > failureLineBytes {
+					last = strings.ToValidUTF8(last[:failureLineBytes], "") + "…"
+				}
+			}
+		}
+	}
+	return failures
+}
+
+// failureLineBytes bounds one reported failure so several fit a caller's
+// diagnostic tail beside one another.
+const failureLineBytes = 800

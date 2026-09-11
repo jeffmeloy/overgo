@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -60,19 +61,53 @@ func run() error {
 	}
 	steps := deviceSteps(plan)
 	steps = append([][]string{{"go", "run", "./cmd/cuda-info"}}, steps...)
+	buildDir, err := os.MkdirTemp("", "device-lane-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(buildDir)
+	identity, err := deviceIdentity()
+	if err != nil {
+		return runrecord.LaneError(runrecord.LaneUnavailable, err.Error())
+	}
 	for index, step := range steps {
 		began := time.Now()
 		done, stopped := make(chan struct{}), make(chan struct{})
 		fmt.Println(deviceProgress(step, index, len(steps), 0))
 		go deviceHeartbeat(step, index, len(steps), began, done, stopped)
+		command, err := executableStep(ctx, ".", buildDir, step)
+		if err != nil {
+			close(done)
+			<-stopped
+			return runrecord.LaneError(runrecord.LaneFailed, err.Error())
+		}
 		var stdout, stderr bytes.Buffer
-		receipt, err := processcontrol.Run(ctx, processcontrol.Command{
-			Path: step[0], Args: step[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
-			Stdout: &stdout, Stderr: &stderr,
-		})
+		var receipt processcontrol.Receipt
+		// A built command claims the device exclusively for as long as it
+		// runs and, when refused, runs again under the lane budget. A test
+		// step's correctness tests open contexts of their own and run under
+		// a shared lease the lane waits for like the gate's batches; its
+		// measurement tests run outside that lease, since their exclusive
+		// children would otherwise wait on their own ancestor.
+		run := func(ctx context.Context, command []string) (int, error) {
+			stdout.Reset()
+			stderr.Reset()
+			var err error
+			receipt, err = processcontrol.Run(ctx, processcontrol.Command{
+				Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
+				Stdout: &stdout, Stderr: &stderr,
+			})
+			return receipt.ExitCode, err
+		}
+		var code int
+		if slices.Equal(command, step) {
+			code, err = runTestStep(ctx, os.Stdout, identity, step, run)
+		} else {
+			code, err = runStepAdmitted(ctx, os.Stdout, identity, deviceAdmissionBudget, func(ctx context.Context) (int, error) { return run(ctx, command) })
+		}
 		out := stdout.String() + stderr.String()
-		if err == nil && receipt.ExitCode != 0 {
-			err = fmt.Errorf("exit code %d", receipt.ExitCode)
+		if err == nil && code != 0 {
+			err = fmt.Errorf("exit code %d", code)
 		}
 		close(done)
 		<-stopped
@@ -131,9 +166,14 @@ func deviceProgress(step []string, index, total int, elapsed time.Duration) stri
 func deviceSteps(plan automationcheck.DeviceVerificationPlan) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
 	if plan.Full {
+		// The full plan tests exactly the packages the lane declares it owns.
+		full := []string{"./" + automationcheck.DeviceLanePackages[0] + "/..."}
+		for _, packagePath := range automationcheck.DeviceLanePackages[1 : len(automationcheck.DeviceLanePackages)-1] {
+			full = append(full, "./"+packagePath)
+		}
 		return append(steps,
-			deviceTestStep("./internal/cuda/...", "./internal/model", "./internal/projector", "./internal/optimizer", "./internal/devicemath"),
-			deviceTestStep("-run", "Device", "./internal/densecausal"))
+			deviceTestStep(full...),
+			deviceTestStep("-run", "Device", "./"+automationcheck.DeviceLanePackages[len(automationcheck.DeviceLanePackages)-1]))
 	}
 	if len(plan.Packages) > 0 {
 		// Bound this lane's package concurrency; independent consumers share VRAM.

@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // overgodb-repair truncates a torn or corrupt journal tail. The journal
 // is an append-only chain of checksummed frames; corruption that enters
 // through a dying or memory-corrupted writer can only live in the final

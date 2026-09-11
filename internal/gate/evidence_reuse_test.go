@@ -16,7 +16,7 @@ func TestGateReusesUnchangedCheckEvidence(t *testing.T) {
 	for phase, reusable := range map[string]bool{
 		"fmt": true, "style": true, "profile": true, "scope": true, "protection": true,
 		"manifest": true, "sbom": true, "claims": true, "docs": true, "architecture": true,
-		"vet": true, "build": true, "test": true,
+		"vet": true, "build": true, "test": true, "test-owners": true, "test-device": true,
 		"magics": false, "acceptance": false, "published": false, "device": false, "commit": false,
 	} {
 		if got := phaseReusesEvidence(phase); got != reusable {

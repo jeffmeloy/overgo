@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"overgo/internal/clioptions"
@@ -68,6 +69,18 @@ func run() error {
 	}
 	ran, err := runLane(stdout, *run, extra)
 	if err != nil {
+		// The failed tests' own lines end the error, where a caller's
+		// bounded tail keeps them; the whole run is kept in a file the
+		// error names, since a caller keeps only that tail.
+		if failures := webuilane.FailureLines(captured.String()); len(failures) > 0 {
+			err = fmt.Errorf("%w: %s", err, strings.Join(failures, "; "))
+		}
+		if kept, keepErr := os.CreateTemp("", "webui-lane-output-*.log"); keepErr == nil {
+			_, writeErr := kept.Write(captured.Bytes())
+			if closeErr := kept.Close(); writeErr == nil && closeErr == nil {
+				err = fmt.Errorf("%w; full output at %s", err, kept.Name())
+			}
+		}
 		return err
 	}
 	// The verdict is the run's own output: a plan verify naming the lane gets evidence, never a silent pass.
@@ -95,6 +108,9 @@ func run() error {
 	fmt.Fprintf(stdout, "webui lane: report written to %s\n", *report)
 	return nil
 }
+
+// names the exhausted settle bound of the transport probe as its cause
+var errProbeSettle = errors.New("webui lane: browser transport probe did not settle")
 
 // liveSettle bounds a live server's tab request before its capture.
 const liveSettle = 8 * time.Second
@@ -142,9 +158,16 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	if err != nil {
 		return false, err
 	}
+	// The probe page settles under the same bound as a live tab: the lane
+	// starts beside the test groups now, and a loaded host may hand back an
+	// empty title before the data page has rendered.
 	var title string
 	if err := probe.SetViewport(context.Background(), len(browser), len(browser)); err == nil {
-		err = probe.Evaluate(context.Background(), "document.title", &title)
+		settle, cancel := context.WithTimeoutCause(context.Background(), liveSettle, errProbeSettle)
+		if err = probe.Eventually(settle, `document.title === "overgo-webui-lane"`); err == nil {
+			err = probe.Evaluate(settle, "document.title", &title)
+		}
+		cancel()
 	}
 	_ = probe.Close()
 	if err != nil {
@@ -164,7 +187,7 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	// The lane package's own browser test (the layout audit over a synthetic page) runs beside the server's.
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=10m", "-v"},
+		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=20m", "-v"},
 		Env:    env,
 		Stdout: stdout,
 		Stderr: os.Stderr,
@@ -230,7 +253,7 @@ func firstRunEnvironment(ctx context.Context) ([]string, string) {
 // Preparation publishes the identities it verified before releasing the
 // writer to the serving child; the journey revalidates their live stats.
 func smallestServables(ctx context.Context, root string) (servable, multimodal []string, err error) {
-	store, err := overgodb.Open(root)
+	store, err := overgodb.OpenContext(ctx, root)
 	if err != nil {
 		return nil, nil, errors.Join(errors.New("store did not open"), err)
 	}

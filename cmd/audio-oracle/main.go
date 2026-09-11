@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command audio-oracle verifies and publishes one immutable external audio-oracle election.
 package main
 

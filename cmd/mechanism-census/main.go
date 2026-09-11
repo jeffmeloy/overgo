@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command mechanism-census publishes an exact mechanism ownership and gap census.
 package main
 

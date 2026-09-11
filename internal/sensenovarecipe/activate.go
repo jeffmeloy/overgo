@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package sensenovarecipe registers and activates the SenseNova-U1-8B MoT
 // image-generation recipe through the shared verified-promotion lifecycle, then
 // resolves it back through the SAME predicate the sibling VQA capability uses

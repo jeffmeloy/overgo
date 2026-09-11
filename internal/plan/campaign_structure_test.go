@@ -96,6 +96,10 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		assertValidationCampaignSnapshot(t, document)
 		return
 	}
+	if strings.Contains(document.Campaign, "Hatchet-derived") {
+		assertHatchetWorkflowCampaign(t, document)
+		return
+	}
 	assertIntegratedReconciliationSnapshot(t, document)
 	// The shared-spine doctrine binds once the grounded campaign is adopted;
 	// a first-parent-target merge lands under the target's prior campaign,
@@ -428,6 +432,55 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	assertCampaignFrontier(t, document,
 		"deterministic-rollout/promotion-binding",
 		"live-safety/circuit-breaker")
+}
+
+// pins the overgo_hatchet lane: doctrine phrases stay stated, every campaign
+// row keeps an open file-guarded verifier, contract items precede their
+// consumers and the first frontier runs in parallel.
+func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
+	t.Helper()
+	for _, required := range []string{
+		"phase wall table", "No Hatchet source is copied",
+		"one acceptance test in the owning package", "Host rows land first", "only a merge lands a plan-only commit",
+	} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("hatchet campaign doctrine omits %q", required)
+		}
+	}
+	campaign := map[string]bool{
+		"campaign-replan": true, "campaign-review-replan": true, "gate-wall": true, "gate-checkpoints": true, "device-exclusion": true, "durable-attempt-log": true, "deadlines-and-requeue": true,
+		"conditional-plan-rows": true, "batch-flush-contracts": true, "declared-capacity": true,
+		"eviction-and-release": true, "keyed-admission": true, "schedule-pause": true,
+		"queue-observability": true, "serving-load-lane": true, "operator-references": true,
+		"hatchet-closeout": true, "lane-replan": true, "selection-coverage": true, "lane-overlap": true,
+		"process-commits": true, "device-reaper": true, "plan-dispatch": true, "lane-merge-automation": true,
+		"closure-catalog": true, "priority-replan": true, "selection-review": true,
+	}
+	for _, item := range document.Items {
+		if !campaign[item.ID] {
+			continue
+		}
+		for _, step := range item.Steps {
+			if step.Status != StatusOpen || !strings.HasPrefix(step.Verify, "test -f ") {
+				t.Errorf("hatchet campaign step %s/%s lacks an open file-guarded verifier", item.ID, step.ID)
+			}
+		}
+	}
+	for _, order := range [][2]string{
+		{"durable-attempt-log", "eviction-and-release"},
+		{"deadlines-and-requeue", "keyed-admission"},
+		{"conditional-plan-rows", "declared-capacity"},
+		{"declared-capacity", "eviction-and-release"},
+		{"keyed-admission", "schedule-pause"},
+		{"queue-observability", "serving-load-lane"},
+		{"selection-coverage", "gate-wall"}, {"selection-coverage", "validation-batch-control"},
+		{"lane-overlap", "validation-batch-control"}, {"validation-batch-control", "hatchet-closeout"},
+	} {
+		assertCampaignOrder(t, document, order[0], order[1])
+	}
+	assertCampaignFrontier(t, document,
+		"durable-attempt-log/attempt-identity", "deadlines-and-requeue/schedule-and-execution-deadlines",
+		"conditional-plan-rows/outcome-predicates", "batch-flush-contracts/flush-conditions")
 }
 
 // assertAudioCapabilityCampaign admits the branch-specific audio campaign
@@ -785,6 +838,12 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		"validation-automation/guard-admission-efficiency",
 		"validation-automation/benchmark-protocol",
 		"validation-batch-control/batch-promotion",
+		"hatchet-process-replan/do",
+		"validation-gate-selection/call-reach",
+		"validation-gate-selection/scope-and-reuse",
+		"validation-gate-selection/measured-adoption",
+		"evidence-storage-efficiency/snapshot-reuse",
+		"evidence-storage-efficiency/small-record-layout",
 		"validation-batch-control/evidence-commit-recovery",
 		"validation-batch-control/store-lifetime",
 		"validation-batch-control/admission-recovery",

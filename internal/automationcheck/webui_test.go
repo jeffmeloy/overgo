@@ -1,6 +1,7 @@
 package automationcheck
 
 import (
+	"context"
 	"slices"
 	"testing"
 )
@@ -31,13 +32,13 @@ func TestWebUICheckSelection(t *testing.T) {
 		t.Fatal("Trigger changed the original impact")
 	}
 	var ran []string
-	check := WebUICheck("root", func(root, name string, arguments ...string) (string, error) {
+	check := WebUICheck("root", func(_ context.Context, root, name string, arguments ...string) (string, error) {
 		ran = append(ran, root, name)
 		ran = append(ran, arguments...)
 		return "", nil
 	})
 	if check.Descriptor.Name != WebUICheckName || !slices.Contains(check.Descriptor.Triggers, WebUIImpact) ||
-		!slices.Contains(check.Descriptor.Ownership.Packages, "internal/server") || len(check.Descriptor.Resources) != 1 || !check.Descriptor.Resources[0].Exclusive {
+		!slices.Contains(check.Descriptor.Ownership.Packages, "internal/server") || len(check.Descriptor.Resources) != 1 || check.Descriptor.Resources[0].Exclusive {
 		t.Fatalf("descriptor = %+v", check.Descriptor)
 	}
 	if _, _, err := check.Run(t.Context(), Invocation{}); err != nil || !slices.Equal(ran, []string{"root", "go", "run", "./cmd/webui-lane"}) {

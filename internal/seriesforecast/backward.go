@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Backward wiring for the patched time-series capability, composed from
 // hostmath VJPs in the same order the grad goldens are factored: residual
 // block, RevIN, running patch stats, patch embed, attention sub-block, full

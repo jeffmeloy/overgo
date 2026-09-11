@@ -122,7 +122,7 @@
      "path": "internal/audioparity/second_asr_test.go",
      "contains": "func TestSecondASROfflineAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:aac11a4e7cf9c7941dbcf455dcaa7d1118b0adec9d0d3a7dd33034d94dc81d4c"
+     "identity": "evidence:sha256:1978eb3f1973d5d7ed5d7a2b5eb77774ac732c16b85b969e61c224c9ebdca6f7"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -151,7 +151,7 @@
      "path": "internal/audioparity/second_asr_test.go",
      "contains": "func TestSecondASRStreamingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:aac11a4e7cf9c7941dbcf455dcaa7d1118b0adec9d0d3a7dd33034d94dc81d4c"
+     "identity": "evidence:sha256:1978eb3f1973d5d7ed5d7a2b5eb77774ac732c16b85b969e61c224c9ebdca6f7"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -223,7 +223,7 @@
      "path": "internal/audioparity/cpu_lifecycle_test.go",
      "contains": "func TestASRCPUClosedLoop(",
      "role": "artifact",
-     "identity": "evidence:sha256:99ddf96a5e78f6e612d3b551137438ebe681bf4f268c98211f843066192d0dc3"
+     "identity": "evidence:sha256:16fc7c812179a864ffd78ade5e09403fb49b83deda0a9c9aab55c8265e6e23a8"
     },
     {
      "path": "internal/audioparity/testdata/lifecycle_heldout.json",
@@ -296,7 +296,7 @@
      "path": "internal/audioparity/segmented_transcription_test.go",
      "contains": "func TestValidatedTranscriptionConsumers(",
      "role": "artifact",
-     "identity": "evidence:sha256:1901c25624f12031326514a8b52a119a18e422b82b80947fcbc470021bf2f898"
+     "identity": "evidence:sha256:c06f662c84d5c4f1a619e958cb434d6fc1758eaa0071895f55f0ea0a882915ac"
     },
     {
      "path": "internal/audioparity/testdata/segmented_reference.json",
@@ -376,7 +376,7 @@
      "contains": "func TestASRAdapterPublicationAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b18810a308ad298ef444adb30b057ec58e94ea689e9238e4cf14670829d16c1d"
+     "identity": "evidence:sha256:5f9ee48adfd03b278f0ae80bc8445eb41bb1010a143ec38a5f2619dccb4ea378"
     }
    ],
    "id": "asr-cpu-adapter-publication",
@@ -398,7 +398,7 @@
      "contains": "func TestASRExactResumeAcceptance(",
      "path": "internal/audioparity/adapter_lifecycle_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:b18810a308ad298ef444adb30b057ec58e94ea689e9238e4cf14670829d16c1d"
+     "identity": "evidence:sha256:5f9ee48adfd03b278f0ae80bc8445eb41bb1010a143ec38a5f2619dccb4ea378"
     }
    ],
    "id": "asr-cpu-exact-adapter-resume",

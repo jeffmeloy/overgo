@@ -18,7 +18,8 @@
             "validation-gate-selection/scope-and-reuse",
             "validation-gate-selection/declarative-plan",
             "validation-gate-selection/browser-prerequisites",
-            "validation-gate-selection/api-manifest-json"
+            "validation-gate-selection/api-manifest-json",
+            "validation-gate-selection/call-reach"
           ]
         },
         {
@@ -26,11 +27,27 @@
           "title": "Prove which tests can reach runtime reads and subprocesses",
           "status": "open",
           "verify": "go test ./internal/gate -run '^(TestRuntimeInputsUnsafeClassifications|TestRuntimeInputsPropagateThroughCallers|TestChangeSelectionRequiredMatrix|TestRuntimeInputsIndirectAndConditional|TestRuntimeOpaqueCallerSourceInput|TestDeclaredExecutionEdgesBoundSelection|TestRuntimeReachBindingsAcceptance)$' -count=1 \u0026\u0026 test -f internal/gate/runtime_call_isolation_test.go \u0026\u0026 go test ./internal/gate -run '^TestRuntimeCallIsolationAcceptance$' -count=1",
-          "rationale": "Hatchet 8a052b5b contributes runtime-input classification, package identities and independent receipts. The integration repairs reproduced function-alias, go-option and conditional-assignment gaps; these are lower bounds, not complete soundness proof. Extend existing gate/repoanalysis owners with binding-aware call reachability. Prove positive isolation before excluding an importer. Cover shadowed names, reassigned and escaped function values, receiver/interface calls, closures, conditional/loop joins, caller annotations, go flags/argument vectors and indirect launchers. Unresolved calls broaden the affected dependency boundary. Use the same graph for selecting packages and invalidating receipts. Seed a failing consumer for every relevant mutation and require both selection and identity invalidation; unrelated consumers retain identities. No whole-program optimizer or new analysis wrapper. Merge changes to gate policy keep the pre-existing full acceptance scope. Binding hardening is a separate prerequisite: annotation comments cannot waive unknown caller inputs. Retain its eleven seeded-consumer counterexamples. Positive call-site isolation must demonstrate actual repository exclusions with equivalent failure detection before adding more analysis machinery; a conservative hardening pass alone does not close this row. Require a baseline-versus-candidate selection comparison on the actual repository before the long commit gate. Withdrawn lexical-path candidate finding evidence:sha256:caaf1d565556bd5b084e02dbc4aae6d9c3860b1936bcae5fb8afd591833ec55f showed 230 to 231 selected packages and zero exclusions in four real change cases; its copied-owner fixture did not prove incremental benefit. Do not repeat that candidate without resolving the causal graph boundary and demonstrating net useful reduction.",
+          "rationale": "Hatchet 8a052b5b contributes runtime-input classification, package identities and independent receipts. The integration repairs reproduced function-alias, go-option and conditional-assignment gaps; these are lower bounds, not complete soundness proof. Extend existing gate/repoanalysis owners with binding-aware call reachability. Prove positive isolation before excluding an importer. Cover shadowed names, reassigned and escaped function values, receiver/interface calls, closures, conditional/loop joins, caller annotations, go flags/argument vectors and indirect launchers. Unresolved calls broaden the affected dependency boundary. Use the same graph for selecting packages and invalidating receipts. Seed a failing consumer for every relevant mutation and require both selection and identity invalidation; unrelated consumers retain identities. No whole-program optimizer or new analysis wrapper. Merge changes to gate policy keep the pre-existing full acceptance scope. Binding hardening is a separate prerequisite: annotation comments cannot waive unknown caller inputs. Retain its eleven seeded-consumer counterexamples. Positive call-site isolation must demonstrate actual repository exclusions with equivalent failure detection before adding more analysis machinery; a conservative hardening pass alone does not close this row. Require a baseline-versus-candidate selection comparison on the actual repository before the long commit gate. Withdrawn lexical-path candidate finding evidence:sha256:caaf1d565556bd5b084e02dbc4aae6d9c3860b1936bcae5fb8afd591833ec55f showed 230 to 231 selected packages and zero exclusions in four real change cases; its copied-owner fixture did not prove incremental benefit. Do not repeat that candidate without resolving the causal graph boundary and demonstrating net useful reduction.\n\nTyped-reach feasibility finding evidence:sha256:47af76959b96997c195c6bf0b043b63cf1340a8314f8684ddc71130cf668cd98: 11 potential exclusions from 230 selected tracked packages for a README edit; gate and audio groups remained selected. No reduced selector or speedup was accepted. Method binding alone does not justify an adoption gate. Next resolve temporary fixture roots through arguments and returned owners, plus subprocess working directories; preserve conservative treatment of unresolved effects. The closure diagnostic repair belongs in the same integration batch. Probe output SHA256 a58d738fe2df1e1ea0e5b2f7f29009116cefc64450f03aa71b19216fab69d40d.",
           "depends_on": [
             "validation-gate-selection/test-input-ownership",
-            "validation-gate-selection/runtime-binding-hardening"
-          ]
+            "validation-gate-selection/runtime-binding-hardening",
+            "validation-gate-selection/closure-diagnostic"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/gate",
+              "docs/plan.json"
+            ],
+            "rationale": "Keep selector implementation and seeded counterexamples in one integration batch. Run focused checks while editing; defer the full integration gate until the candidate demonstrates useful repository-level exclusions. The operator-requested diagnostic commit is a completed prerequisite, not reduced-scope adoption.",
+            "reopen_when": "Reopen affected checks when their implementation, runtime inputs, environment or verification contract changes. Unresolved reach retains existing coverage. Checkpoints do not advance the parent row or authorize reduced scope.",
+            "checkpoints": [
+              {
+                "id": "runtime-bindings",
+                "title": "Retain seeded runtime selection and receipt counterexamples",
+                "verify": "go test ./internal/gate -run '^(TestRuntimeInputsUnsafeClassifications|TestRuntimeInputsPropagateThroughCallers|TestRuntimeInputsIndirectAndConditional|TestRuntimeOpaqueCallerSourceInput|TestDeclaredExecutionEdgesBoundSelection|TestRuntimeReachBindingsAcceptance)$' -count=1"
+              }
+            ]
+          }
         }
       ]
     },

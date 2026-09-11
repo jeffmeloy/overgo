@@ -167,7 +167,7 @@ func main() {
 	}
 	tests := testRequirements{noPolicyCopies: *requireNoPolicyCopies, classifiedFixtures: *requireClassifiedFixtures}
 	if *checkScope != "" || *checkAll {
-		if err := checkProductionClosures(root, *storePath, *checkScope, *checkAll, productionRequirements); err != nil {
+		if err := checkProductionClosures(root, *storePath, *checkScope, *checkAll, productionRequirements, os.Stdout); err != nil {
 			fatal(err)
 		}
 		if *requireNoPolicyCopies || *requireClassifiedFixtures {
@@ -388,7 +388,7 @@ func main() {
 	}
 }
 
-func checkProductionClosures(root, storePath, scopeList string, all bool, requirements closureRequirements) error {
+func checkProductionClosures(root, storePath, scopeList string, all bool, requirements closureRequirements, output io.Writer) error {
 	snapshot := mustSnapshot(root)
 	var prefixes []string
 	if !all {
@@ -425,7 +425,7 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			// edit shifts every literal offset after it), and a report
 			// naming only the first costs one gate run per binding.
 			for _, issue := range issues {
-				fmt.Printf("stale %s %s:%s\n", issue.Kind, issue.File, issue.Name)
+				fmt.Fprintf(output, "stale %s %s:%s\n", issue.Kind, issue.File, issue.Name)
 			}
 			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
 		}
@@ -458,7 +458,11 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			}
 		}
 	}
-	fmt.Printf("closure-scan: scoped sites=%d classified=%d stale=0\n", len(candidates), classified)
+	stale := "unchecked"
+	if requirements.noStale {
+		stale = "0"
+	}
+	fmt.Fprintf(output, "closure-scan: scoped sites=%d classified=%d stale=%s\n", len(candidates), classified, stale)
 	return nil
 }
 

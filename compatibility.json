@@ -245,7 +245,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioCancellationAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:9c0f2b9b2fb8c38f1aab9aebb9962dbab0724264699a3b2d2ce79bf3d4d906f6"
+     "identity": "evidence:sha256:09c7c25d031443eb78c419ed840faa8a641cdc62dac47f5fe6732998e446f694"
     },
     {
      "path": "internal/speechrecognition/session.go",
@@ -267,7 +267,7 @@
      "path": "internal/audioparity/audio_recovery_test.go",
      "contains": "func TestAudioPublicationRecoveryAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:9c0f2b9b2fb8c38f1aab9aebb9962dbab0724264699a3b2d2ce79bf3d4d906f6"
+     "identity": "evidence:sha256:09c7c25d031443eb78c419ed840faa8a641cdc62dac47f5fe6732998e446f694"
     },
     {
      "path": "internal/trainingworkflow/input_projection.go",

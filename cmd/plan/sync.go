@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
@@ -46,6 +47,8 @@ func prepareMergeWithProjection(
 	}
 	// The lane case is measured from the request to the staged merge.
 	started := time.Now()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	canonicalRoot, err := gitauthority.RepositoryRoot(context.Background(), root)
 	if err != nil {
 		return err
@@ -96,12 +99,13 @@ func prepareMergeWithProjection(
 		if err := preflightMergeConflicts(root, localRevision, snapshot); err != nil {
 			return err
 		}
-		closureSnapshot, err := captureClosureEvidence(root, source, snapshot)
+		closureSnapshot, err := captureClosureEvidence(ctx, root, source, snapshot)
 		if err != nil {
 			return err
 		}
 		if closureSnapshot.cleanup != nil {
 			defer closureSnapshot.cleanup()
+			fmt.Fprintf(output, "prepare-merge: evidence snapshot IO=%+v; store-file counters exclude seal IO and replay\n", closureSnapshot.backup)
 		}
 		liveSourceStore := ""
 		if projection == plan.MergeProjectionFirstParentTarget {

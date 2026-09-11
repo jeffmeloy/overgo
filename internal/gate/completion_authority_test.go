@@ -277,7 +277,7 @@ func TestProspectiveGateCompletionRejectsAuditedSourceDependency(t *testing.T) {
 	}
 	defer targetStore.Close()
 	sourcePath := filepath.Join(t.TempDir(), "source-store")
-	if _, _, err := targetStore.Backup(sourcePath); err != nil {
+	if _, err := targetStore.Backup(t.Context(), sourcePath); err != nil {
 		t.Fatal(err)
 	}
 	sourceStore, err := overgodb.Open(sourcePath)

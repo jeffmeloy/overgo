@@ -17,7 +17,7 @@ func TestCommonCommitPrefixFindsGreatestSharedCoordinate(t *testing.T) {
 	first := commonPrefixCommit(t, left, "first")
 	second := commonPrefixCommit(t, left, "second")
 	rightRoot := filepath.Join(t.TempDir(), "right")
-	if _, _, err := left.Backup(rightRoot); err != nil {
+	if _, err := left.Backup(t.Context(), rightRoot); err != nil {
 		t.Fatal(err)
 	}
 	commonPrefixCommit(t, left, "left-tail")
@@ -45,7 +45,7 @@ func TestCommonCommitPrefixDistinguishesIdenticalAndForeignStores(t *testing.T) 
 	}
 	head := commonPrefixCommit(t, left, "shared")
 	backupRoot := filepath.Join(t.TempDir(), "backup")
-	if _, _, err := left.Backup(backupRoot); err != nil {
+	if _, err := left.Backup(t.Context(), backupRoot); err != nil {
 		t.Fatal(err)
 	}
 	backup, err := OpenReadOnly(backupRoot)

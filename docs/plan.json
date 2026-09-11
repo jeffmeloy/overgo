@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "snapshot-reuse",
-          "title": "Reuse verified snapshot content across merges and retries",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^(TestStreamingSnapshotRoundTrip|TestConcurrentBackupExtent|TestBlobStorePublicationContract)$' -count=1 \u0026\u0026 test -f internal/overgodb/snapshot_reuse_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestSnapshotReuseAcceptance$' -count=1",
-          "rationale": "Measured Hatchet intake copied 117099 blob files (1635867784 bytes) plus a 508862305-byte log before discovering a source conflict. Existing content-addressed blobs already deduplicate identical payloads; avoid repeating verified physical copies and equivalent test acquisitions. Extend Backup and its merge caller, not a new snapshot framework. Check resolvable Git/source conflicts before expensive evidence copying where safe. Reuse immutable snapshot content by verified identity, head and committed extent; bind source authority and live projection explicitly. Prove unchanged content is not copied again, changed extents are captured, corrupt candidates are rejected, and interrupted publication resumes without trusting partial output. Preserve source independence, caller cancellation, write contention, hash verification and replayed ancestry. Report bytes/files read, copied, reused and synced plus elapsed wall. Never weaken durability or delete referenced evidence to improve a timer.",
-          "depends_on": [
-            "evidence-storage-efficiency/merge-preflight"
-          ]
-        },
-        {
           "id": "small-record-layout",
           "title": "Measure and decide whether to pack small immutable records",
           "status": "open",

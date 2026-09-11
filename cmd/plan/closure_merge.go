@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -9,7 +11,10 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/clioptions"
+	"overgo/internal/fsatomic"
 	"overgo/internal/overgodb"
+	"overgo/internal/processlock"
 )
 
 type closureEvidenceSnapshot struct {
@@ -18,9 +23,10 @@ type closureEvidenceSnapshot struct {
 	head     artifact.CommitID
 	sequence uint64
 	cleanup  func()
+	backup   *overgodb.BackupReport
 }
 
-func captureClosureEvidence(root, gitSource, gitSnapshot string) (closureEvidenceSnapshot, error) {
+func captureClosureEvidence(ctx context.Context, root, gitSource, gitSnapshot string) (closureEvidenceSnapshot, error) {
 	source, err := sourceOvergoDB(root, gitSource, gitSnapshot)
 	if err != nil || source == "" {
 		return closureEvidenceSnapshot{}, err
@@ -30,25 +36,45 @@ func captureClosureEvidence(root, gitSource, gitSnapshot string) (closureEvidenc
 	} else if err != nil {
 		return closureEvidenceSnapshot{}, err
 	}
+	// One source workspace survives retries; the lease pins it through import.
+	identity := sha256.Sum256([]byte(source))
+	parent := filepath.Join(root, "tmp", "merge-evidence", fmt.Sprintf("%x", identity))
+	err = os.MkdirAll(parent, clioptions.OutputDirectoryMode)
+	if err != nil {
+		return closureEvidenceSnapshot{}, err
+	}
+	lease, err := processlock.AcquireContext(ctx, filepath.Join(parent, "lease.lock"), clioptions.PrivateFileMode)
+	if err != nil {
+		return closureEvidenceSnapshot{}, err
+	}
+	cleanup := func() { _ = lease.Close() }
+	destination := filepath.Join(parent, "overgodb-store")
+	if _, err := os.Lstat(destination); err == nil {
+		if _, err := os.Lstat(destination + ".partial"); !os.IsNotExist(err) {
+			cleanup()
+			return closureEvidenceSnapshot{}, errors.New("prepare-merge: published and partial evidence snapshots overlap")
+		}
+		if err := fsatomic.Replace(destination, destination+".partial"); err != nil {
+			cleanup()
+			return closureEvidenceSnapshot{}, err
+		}
+	} else if !os.IsNotExist(err) {
+		cleanup()
+		return closureEvidenceSnapshot{}, err
+	}
 	store, err := overgodb.OpenReadOnly(source)
 	if err != nil {
+		cleanup()
 		return closureEvidenceSnapshot{}, err
 	}
-	parent, err := os.MkdirTemp("", "overgo-merge-evidence-")
-	if err != nil {
-		_ = store.Close()
-		return closureEvidenceSnapshot{}, err
-	}
-	cleanup := func() { _ = os.RemoveAll(parent) }
-	destination := filepath.Join(parent, "overgodb-store")
-	head, sequence, backupErr := store.Backup(destination)
+	report, backupErr := store.Backup(ctx, destination)
 	closeErr := store.Close()
 	if backupErr != nil || closeErr != nil {
 		cleanup()
-		return closureEvidenceSnapshot{}, fmt.Errorf("prepare-merge: snapshot closure evidence: %w", errors.Join(backupErr, closeErr))
+		return closureEvidenceSnapshot{}, fmt.Errorf("prepare-merge: snapshot closure evidence IO=%+v: %w", report, errors.Join(backupErr, closeErr))
 	}
 	return closureEvidenceSnapshot{
-		store: destination, source: source, head: head, sequence: sequence, cleanup: cleanup,
+		store: destination, source: source, head: report.Head, sequence: report.Sequence, cleanup: cleanup, backup: report,
 	}, nil
 }
 

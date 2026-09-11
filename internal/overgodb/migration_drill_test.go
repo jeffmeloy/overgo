@@ -130,7 +130,8 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 	// Backup and restore: the streamed backup opens read-only at the same
 	// head and surface.
 	backupRoot := filepath.Join(base, "backup")
-	backupHead, _, err := source.Backup(backupRoot)
+	backupReport, err := source.Backup(t.Context(), backupRoot)
+	backupHead := backupReport.Head
 	if err != nil {
 		t.Fatal(err)
 	}

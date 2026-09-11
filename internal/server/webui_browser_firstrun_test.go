@@ -35,9 +35,9 @@ import (
 
 // TestWebUIBrowserFirstRun drives the front page end to end against a
 // served model through the real swap proxy (professional GUI campaign,
-// gui-quality/acceptance-lane). cmd/webui-lane prepares the journey: the
-// server binary, the store and the smallest servable models; without them
-// the journey reports UNAVAILABLE and is skipped. The journey: the page boots once
+// gui-quality/acceptance-lane). The test prepares its server
+// binary, store and smallest servable models; missing prerequisites fail
+// this journey without affecting independently selected browser tests. The journey: the page boots once
 // the default model serves (the pill names it, the proxy dot is on), the
 // first message receives a streamed reply with the context meter filled,
 // an image attachment is either taken to a grounded reply (a vision-capable
@@ -55,11 +55,12 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testevidence.ShortIntegrationSkip + ": the journey runs through cmd/webui-lane")
 	}
-	binary, store := os.Getenv("OVERGO_WEBUI_LANE_SERVER"), os.Getenv("OVERGO_WEBUI_LANE_STORE")
-	modelName, modelLocation := os.Getenv("OVERGO_WEBUI_LANE_MODEL"), os.Getenv("OVERGO_WEBUI_LANE_MODEL_LOCATION")
-	if binary == "" || store == "" || modelName == "" || modelLocation == "" {
-		t.Skip("first-run journey UNAVAILABLE: cmd/webui-lane prepared no served model")
+	journey, err := prepareBrowserJourney(t)
+	if err != nil {
+		t.Fatal(err)
 	}
+	binary, store := journey.binary, journey.store
+	modelName, modelLocation := journey.model, journey.location
 	t.Logf("first-run journey: model %s at %s", modelName, modelLocation)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
@@ -317,7 +318,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
 			t.Fatal(err)
 		}
-		if multimodal := os.Getenv("OVERGO_WEBUI_LANE_MULTIMODAL_MODEL"); !vision && multimodal != "" && multimodal != modelName {
+		if multimodal := journey.multimodal; !vision && multimodal != "" && multimodal != modelName {
 			switchTo(multimodal)
 			if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
 				t.Fatal(err)

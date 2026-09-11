@@ -1,39 +1,29 @@
-// Command webui-lane runs Overgo's required real-browser GUI acceptance
-// lane: the workbench acceptance steps, the front page's keyboard, motion,
-// colour and width contract, and the first-run journey against a served
-// model (professional GUI campaign, gui-quality/acceptance-lane). The
-// journey needs a browser, the built server binary and a servable model
-// with bytes on disk in the store; a missing prerequisite reports
-// UNAVAILABLE for that leg instead of failing what it cannot observe.
-// With -report the lane also writes the campaign's simplification report:
-// the client census at the fork beside the head and the behaviours the
-// lane proved (gui-closeout/closeout).
+// Command webui-lane runs selected real-browser acceptance tests.
+// Compiler discovery binds ordinary selectors to their test owners.
+// The first-run test prepares its own served models; layout and transport
+// tests need only a browser. -report explicitly renders a comparison report.
 package main
 
 import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/dataroot"
-	"overgo/internal/discovery"
-	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
-	"overgo/internal/recipe"
 	"overgo/internal/webuilane"
 )
-
-const laneCatalogLimit = 256
 
 func main() {
 	clioptions.MainNamed("webui lane", run)
@@ -149,6 +139,23 @@ func captureLive(stdout io.Writer, pageURL, dir string) error {
 // tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
 // extra carries the screens test's capture directory and page address.
 func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error) {
+	var listing bytes.Buffer
+	if !strings.Contains(run, "/") {
+		// Empty -list executes tests instead of listing them.
+		listingPattern := cmp.Or(run, ".")
+		args := append([]string{"test", "-list", listingPattern, "-json"}, browserTestPackages...)
+		receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{Path: "go", Args: args, Stdout: &listing, Stderr: os.Stderr})
+		if err != nil {
+			return false, err
+		}
+		if receipt.ExitCode != 0 {
+			return false, fmt.Errorf("browser test discovery exited %d", receipt.ExitCode)
+		}
+	}
+	packages, err := browserPackages(run, &listing)
+	if err != nil {
+		return false, err
+	}
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
@@ -178,16 +185,11 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	}
 	env := append(os.Environ(), "OVERGO_WEBUI_LANE=1", "OVERGO_BROWSER="+browser)
 	env = append(env, extra...)
-	journey, unavailable := firstRunEnvironment(context.Background())
-	if unavailable != "" {
-		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE first-run journey: %s\n", unavailable)
-	} else {
-		env = append(env, journey...)
-	}
-	// The lane package's own browser test (the layout audit over a synthetic page) runs beside the server's.
+	args := append([]string{"test"}, packages...)
+	args = append(args, "-run", run, "-count=1", "-timeout=20m", "-v")
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   "go",
-		Args:   []string{"test", "./internal/server", "./internal/webuilane", "-run", run, "-count=1", "-timeout=20m", "-v"},
+		Args:   args,
 		Env:    env,
 		Stdout: stdout,
 		Stderr: os.Stderr,
@@ -202,97 +204,46 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	return true, nil
 }
 
-// firstRunEnvironment prepares the served-model journey: the server binary
-// built from this tree and the smallest servable inference model the store
-// holds with bytes on disk; the journey switches through the picker itself. The reason a prerequisite is missing is returned as text.
-func firstRunEnvironment(ctx context.Context) ([]string, string) {
-	// The store comes from the data-root contract (OVERGO_DATA_ROOT, local-models.json,
-	// or ./overgodb-store), so the lane finds it from a gate's candidate tree too.
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return nil, err.Error()
-	}
-	store := roots.Store
-	if _, err := os.Stat(store); err != nil {
-		return nil, "no store at " + store
-	}
-	scratch, err := os.MkdirTemp("", "webui-lane-*")
-	if err != nil {
-		return nil, err.Error()
-	}
-	binary := filepath.Join(scratch, "overgo-server.exe")
-	if _, err := processcontrol.Run(ctx, processcontrol.Command{
-		Path: "go", Args: []string{"build", "-o", binary, "./cmd/server"}, Stdout: os.Stderr, Stderr: os.Stderr,
-	}); err != nil {
-		return nil, "server binary did not build: " + err.Error()
-	}
-	servables, multimodal, err := smallestServables(ctx, store)
-	if err != nil {
-		return nil, err.Error()
-	}
-	if len(servables) == 0 {
-		return nil, "no servable inference model with bytes on disk"
-	}
-	env := []string{
-		"OVERGO_WEBUI_LANE_SERVER=" + binary, "OVERGO_WEBUI_LANE_STORE=" + store,
-		"OVERGO_WEBUI_LANE_MODEL=" + filepath.Base(servables[0]), "OVERGO_WEBUI_LANE_MODEL_LOCATION=" + servables[0],
-	}
-	// The smallest model whose store declares a projector with bytes on
-	// disk serves the journey's image-in leg; without one the leg proves
-	// the refusal contract on the default model.
-	if len(multimodal) > 0 {
-		env = append(env, "OVERGO_WEBUI_LANE_MULTIMODAL_MODEL="+filepath.Base(multimodal[0]))
-	}
-	return env, ""
-}
+var browserTestPackages = []string{"overgo/internal/server", "overgo/internal/webuilane"}
 
-// smallestServables lists the store's servable inference models with bytes
-// on disk, smallest file first, and among them the ones whose active
-// projection recipe binds a projector with bytes on disk: the journey
-// serves the cheapest model and switches to the cheapest multimodal one.
-// Preparation publishes the identities it verified before releasing the
-// writer to the serving child; the journey revalidates their live stats.
-func smallestServables(ctx context.Context, root string) (servable, multimodal []string, err error) {
-	store, err := overgodb.OpenContext(ctx, root)
+// Compiler discovery selects owners, not acceptance evidence. Subtest filters
+// retain the existing complete owner set until their reach is resolved.
+func browserPackages(run string, listing io.Reader) ([]string, error) {
+	if strings.Contains(run, "/") {
+		return slices.Clone(browserTestPackages), nil
+	}
+	pattern, err := regexp.Compile(run)
 	if err != nil {
-		return nil, nil, errors.Join(errors.New("store did not open"), err)
+		return nil, err
 	}
-	defer store.Close()
-	memo := discovery.LoadMemo(ctx, store)
-	entries, _, err := discovery.CapabilityCatalog(ctx, store, laneCatalogLimit, memo)
-	if err != nil {
-		return nil, nil, err
-	}
-	type candidate struct {
-		location   string
-		size       int64
-		multimodal bool
-	}
-	var candidates []candidate
-	for _, entry := range entries {
-		if !entry.Present || entry.Location == "" {
-			continue
+	selected := map[string]bool{}
+	decoder := json.NewDecoder(listing)
+	for {
+		var event struct {
+			Package string
+			Output  string
 		}
-		inference := false
-		for _, capability := range entry.Capabilities {
-			inference = inference || capability.Task == recipe.TaskInference && capability.Stale == ""
+		if err := decoder.Decode(&event); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return nil, fmt.Errorf("browser test discovery: %w", err)
 		}
-		info, statErr := os.Stat(entry.Location)
-		if !inference || statErr != nil {
-			continue
-		}
-		_, projected, projectorErr := discovery.ActiveProjector(ctx, store, entry.Model, memo)
-		candidates = append(candidates, candidate{location: entry.Location, size: info.Size(), multimodal: projectorErr == nil && projected})
-	}
-	slices.SortFunc(candidates, func(left, right candidate) int { return cmp.Compare(left.size, right.size) })
-	for _, item := range candidates {
-		servable = append(servable, item.location)
-		if item.multimodal {
-			multimodal = append(multimodal, item.location)
+		name := strings.TrimSpace(event.Output)
+		if strings.HasPrefix(name, webuilane.BrowserTestPrefix) && pattern.MatchString(name) {
+			if !slices.Contains(browserTestPackages, event.Package) {
+				return nil, fmt.Errorf("browser test discovery returned unknown owner %q", event.Package)
+			}
+			selected[event.Package] = true
 		}
 	}
-	if err := discovery.PublishMemo(ctx, store, memo); err != nil {
-		return nil, nil, fmt.Errorf("persist prepared model identities: %w", err)
+	var packages []string
+	for _, name := range browserTestPackages {
+		if selected[name] {
+			packages = append(packages, name)
+		}
 	}
-	return servable, multimodal, nil
+	if len(packages) == 0 {
+		return nil, fmt.Errorf("browser selector %q matched no browser tests", run)
+	}
+	return packages, nil
 }

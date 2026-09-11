@@ -9,8 +9,7 @@ import (
 // TestWebUICheckSelection pins the lane's selection: a changed web UI
 // asset path triggers the fact the symbol closure cannot see, the trigger
 // withdraws the lane's exclusion while keeping every other, and the check
-// declares the server package that embeds the shell as its ownership and
-// the device as an exclusive resource.
+// declares the shell owner and shared device admission for the full journey.
 func TestWebUICheckSelection(t *testing.T) {
 	for path, owned := range map[string]bool{
 		"internal/server/webui/mod/chat.js": true, "internal\\server\\webui\\style.css": true,

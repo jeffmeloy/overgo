@@ -24,9 +24,7 @@ const (
 var webuiPathPrefixes = []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/"}
 
 // WebUICheck returns the real-browser lane as a gate check: it runs when
-// the web UI fact is present and shares the device under the context-lifetime
-// admission: its served model fits beside correctness tests, and only an
-// explicit measurement holds the device exclusively.
+// the web UI fact is present. The full journey shares device admission.
 func WebUICheck(root string, command LaneCommand) Check {
 	return Check{
 		Descriptor: Descriptor{

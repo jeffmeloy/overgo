@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1536" height="940" viewBox="0 0 1536 940" role="img" aria-labelledby="title description">
+<title id="title">Overgo — Recursive self-improvement</title>
+<desc id="description">Six-stage clockwise cycle: propose, admit, realize, evaluate, decide, observe. Outcomes identify improvements in capability, robustness and efficiency and guide the next proposal. OvergoDB retains evidence and state. Methods derive values and justify assumptions; execution scales to available compute.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="#58C8C5"/></marker></defs>
+<g font-family="Segoe UI, Arial, sans-serif"><rect width="1536" height="940" fill="#101820"/>
+<text x="768" y="66" font-size="46" font-weight="650" text-anchor="middle" fill="#E5EDF2">Overgo — Recursive self-improvement</text>
+<rect x="26" y="101" width="1484" height="64" rx="10" fill="#1C303B" stroke="none" stroke-width="2"/>
+<text x="768" y="142" font-size="24" font-weight="400" text-anchor="middle" fill="#E5EDF2">Operators set goals, budgets, constraints and stop conditions.</text>
+<path d="M290 166 V195" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M506 275 H590" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M978 275 H1062" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1256 354 V503" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M1062 582 H978" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M590 582 H506" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<path d="M118 582 H70 V275 H118" fill="none" stroke="#58C8C5" stroke-width="4" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="118" y="198" width="388" height="156" rx="10" fill="#192731" stroke="#58C8C5" stroke-width="2"/>
+<circle cx="167" cy="243" r="27" fill="#24474D"/>
+<text x="167" y="251" font-size="24" font-weight="650" text-anchor="middle" fill="#E5EDF2">01</text>
+<text x="212" y="254" font-size="34" font-weight="650" text-anchor="start" fill="#E5EDF2">Propose</text>
+<text x="144" y="301" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Use observations and prior attempts</text>
+<text x="144" y="331" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Predict benefit and total cost</text>
+<rect x="590" y="198" width="388" height="156" rx="10" fill="#192731" stroke="#58C8C5" stroke-width="2"/>
+<circle cx="639" cy="243" r="27" fill="#24474D"/>
+<text x="639" y="251" font-size="24" font-weight="650" text-anchor="middle" fill="#E5EDF2">02</text>
+<text x="684" y="254" font-size="34" font-weight="650" text-anchor="start" fill="#E5EDF2">Admit</text>
+<text x="616" y="301" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Check authority and dependencies</text>
+<text x="616" y="331" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Bind available compute and limits</text>
+<rect x="1062" y="198" width="388" height="156" rx="10" fill="#192731" stroke="#58C8C5" stroke-width="2"/>
+<circle cx="1111" cy="243" r="27" fill="#24474D"/>
+<text x="1111" y="251" font-size="24" font-weight="650" text-anchor="middle" fill="#E5EDF2">03</text>
+<text x="1156" y="254" font-size="34" font-weight="650" text-anchor="start" fill="#E5EDF2">Realize</text>
+<text x="1088" y="301" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Derive execution choices</text>
+<text x="1088" y="331" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Train, compose or edit</text>
+<rect x="1062" y="504" width="388" height="156" rx="10" fill="#192731" stroke="#58C8C5" stroke-width="2"/>
+<circle cx="1111" cy="549" r="27" fill="#24474D"/>
+<text x="1111" y="557" font-size="24" font-weight="650" text-anchor="middle" fill="#E5EDF2">04</text>
+<text x="1156" y="560" font-size="34" font-weight="650" text-anchor="start" fill="#E5EDF2">Evaluate</text>
+<text x="1088" y="607" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Fixed tasks, baseline and ablation</text>
+<text x="1088" y="637" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Capability, robustness and total cost</text>
+<rect x="590" y="504" width="388" height="156" rx="10" fill="#342B21" stroke="#D9A45B" stroke-width="2"/>
+<circle cx="639" cy="549" r="27" fill="#594127"/>
+<text x="639" y="557" font-size="24" font-weight="650" text-anchor="middle" fill="#E5EDF2">05</text>
+<text x="684" y="560" font-size="34" font-weight="650" text-anchor="start" fill="#E5EDF2">Decide</text>
+<text x="616" y="607" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Apply executable evidence rules</text>
+<text x="616" y="637" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Promote, reject, investigate or wait</text>
+<rect x="118" y="504" width="388" height="156" rx="10" fill="#192731" stroke="#58C8C5" stroke-width="2"/>
+<circle cx="167" cy="549" r="27" fill="#24474D"/>
+<text x="167" y="557" font-size="24" font-weight="650" text-anchor="middle" fill="#E5EDF2">06</text>
+<text x="212" y="560" font-size="34" font-weight="650" text-anchor="start" fill="#E5EDF2">Observe</text>
+<text x="144" y="607" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Record outcomes and detect gaps</text>
+<text x="144" y="637" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Resume work; roll back regressions</text>
+<text x="96" y="400" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Use outcomes to identify improvements</text>
+<text x="96" y="432" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">in capability, robustness and efficiency,</text>
+<text x="96" y="464" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">then generate the next proposal.</text>
+<text x="880" y="420" font-size="24" font-weight="400" text-anchor="middle" fill="#E5EDF2">Outcomes improve models, methods and</text>
+<text x="880" y="453" font-size="24" font-weight="400" text-anchor="middle" fill="#E5EDF2">the improvement process itself.</text>
+<rect x="26" y="687" width="1484" height="112" rx="10" fill="#1C303B" stroke="none" stroke-width="2"/>
+<text x="768" y="724" font-size="22" font-weight="400" text-anchor="middle" fill="#E5EDF2">OvergoDB records evidence and state across every stage:</text>
+<text x="768" y="753" font-size="22" font-weight="400" text-anchor="middle" fill="#E5EDF2">identities and lineage · runs and decisions · checkpoints and active versions</text>
+<text x="768" y="782" font-size="22" font-weight="400" text-anchor="middle" fill="#E5EDF2">pending work · consumed budgets</text>
+<text x="54" y="851" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Derive values; eliminate unnecessary literals and magic numbers.</text>
+<text x="54" y="884" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Justify assumptions about shape, distribution and geometry.</text>
+<text x="816" y="843" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Scale Go and CUDA execution to available RAM, VRAM,</text>
+<text x="816" y="873" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">CPU and GPU capacity.</text>
+<text x="816" y="903" font-size="20" font-weight="400" text-anchor="start" fill="#E5EDF2">Adapt placement, batching and concurrency; preserve correctness.</text>
+<path d="M768 834 V914" stroke="#526776" stroke-width="1" fill="none"/></g>
+</svg>

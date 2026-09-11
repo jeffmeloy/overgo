@@ -32,6 +32,12 @@ makes execution or recovery easier to understand.
 
 ## Autonomous feedback
 
+Use outcomes to identify improvements in capability, robustness, and efficiency,
+then generate the next proposal. Identify the limiting capability, recurring
+failure, or avoidable cost and explain how the proposed change addresses it.
+Apply this reasoning to both the model system and its improvement process;
+carry lessons from successful, rejected, and failed attempts into the next choice.
+
 Robustness determines how independently the loop can operate. Efficiency guides
 what it attempts. Increase autonomy as recovery becomes reliable and useful
 outcomes require less compute, repeated work, and operator intervention;

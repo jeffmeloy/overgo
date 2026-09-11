@@ -11,7 +11,7 @@ or models propose changes; executable policy controls admission and activation.
 
 ![Overgo recursive self-improvement: durable feedback triggers the next experiment through propose, admit, realize, evaluate, decide, and observe; methods derive values and justify assumptions, while execution scales to available RAM, VRAM, CPU, and GPU resources](docs/assets/overgo-platform-technical-architecture.png)
 
-[Editable figure definition](docs/assets/overgo_graphic.json)
+[Editable SVG](docs/assets/overgo-platform-technical-architecture.svg) · [Figure definition](docs/assets/overgo_graphic.json)
 
 ## The improvement loop
 
@@ -34,6 +34,37 @@ and failed runs remain part of that record.
 
 Budgets, stop conditions, and recorded operator decisions bound the loop.
 The [development plan](docs/plan.json) defines the current work.
+
+## Current skill automation
+
+[skill.md](skill.md) guides the worker's implementation decisions. The automation
+code turns the working loop into task dispatch, bounded execution, verification,
+and recorded outcomes:
+
+```mermaid
+flowchart LR
+    Plan[Plan dispatch] --> Worker[Worker follows skill.md]
+    Worker --> Gate[Gate checks and commits]
+    Gate -->|Advance plan| Plan
+    Worker -->|Step unchanged| Verify[Run verifier]
+    Verify -->|Feedback and bounded retry| Worker
+    Gate --> Records[Stored attempt records]
+```
+
+| Skill behavior | Current automation |
+| --- | --- |
+| Work on the next eligible task | [cmd/plan](cmd/plan/main.go) resolves dispatch from the plan. Its prompt names the task, verifier, gate command, and `skill.md`. |
+| Execute and recover from unsuccessful attempts | [cmd/loop](cmd/loop/main.go) launches the configured worker with that prompt and a timeout. The [driver](internal/loop/driver.go) rereads the plan after each invocation; if the step remains open, it runs the verifier and feeds the result into the next attempt. Exhausted attempts become findings. |
+| Respect budgets and operator stops | A published [strategy profile](internal/loop/strategy.go), selected by `strategy_id`, supplies retry, invocation, and saturation limits. The driver checks `docs/.loop_pause` and recorded plan stops between iterations. |
+| Verify before advancing | [cmd/gate](cmd/gate/main.go) owns required checks, acceptance, committing the selected changes, and plan advancement. A passing verifier alone does not finish the step. |
+| Learn from cost and failures | [Attempt history](cmd/plan/history.go) reads stored outcomes, wall time, change churn, recovery counts, and strategy identities; repeated unsuccessful directions surface pivot recommendations. |
+| Continue with admitted proposals | When proposal intake is enabled and dispatch is complete, the driver consumes prepared JSON specs from `docs/proposals`. The plan command replays the cited candidate admission before adding the next task. |
+
+The worker applies the skill's guidance on robustness, efficiency, derived values,
+justified assumptions, and available compute. Specific checks enforce the parts
+captured in executable contracts. The next integration is to connect observations
+and stored history to proposal generation inside the driver, so outcomes guide
+the next useful improvement without waiting for a prepared queue or another prompt.
 
 ## Capabilities
 

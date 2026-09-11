@@ -1,37 +1,42 @@
 {
   "document_type": "system_architecture_graphic",
-  "schema_version": "4.0",
+  "schema_version": "6.0",
   "figure": {
     "id": "overgo-recursive-self-improvement",
-    "title": "Overgo",
-    "subtitle": "Recursive self-improvement",
-    "intent": "Intent: repeatable gains on fixed tasks within matched resource budgets.",
+    "title": "Overgo — Recursive self-improvement",
     "image": "docs/assets/overgo-platform-technical-architecture.png",
-    "purpose": "Explain the implemented RSI cycle and its intent: measured outcomes inform changes to task capability and the mechanisms used for later improvement.",
+    "purpose": "Show the RSI implementation intent: durable observations trigger the next experiment, improving task capability, robustness and efficiency through derived methods and resource-aware execution.",
     "tone": [
       "technical",
       "neutral",
       "non-promotional",
-      "implementation-focused"
-    ]
+      "implementation-and-intent"
+    ],
+    "source": "docs/assets/overgo-platform-technical-architecture.svg"
   },
   "canvas": {
-    "width": 1536,
-    "height": 1024,
+    "width": 3072,
+    "height": 1880,
     "unit": "px",
-    "layout": "landscape"
+    "layout": "landscape",
+    "view_box": "0 0 1536 940"
   },
   "visual_language": {
-    "background": "warm white",
-    "typography": "modern sans-serif; sentence-case headings",
-    "text": "charcoal",
-    "feedback": "muted teal",
-    "decision": "subtle amber",
-    "effects": "flat fills, fine rules, no shadows or decorative icons"
+    "background": "#101820",
+    "typography": "modern sans-serif; one main title, functional stage labels, regular-weight supporting text; no subheaders",
+    "text": "#E5EDF2",
+    "feedback": "#58C8C5",
+    "decision": "#D9A45B border; #342B21 fill",
+    "effects": "Uniform solid SVG fills and strokes; no textures, gradients, filters, shadows or image layers",
+    "secondary_text": "#CBD5DF",
+    "cards": "#192731",
+    "bands": "#1C303B",
+    "number_badges": "#24474D",
+    "dividers": "#526776",
+    "theme": "dark"
   },
   "operator_direction": {
-    "heading": "Operator direction",
-    "detail": "Goals, budgets, constraints and stop conditions",
+    "text": "Operators set goals, budgets, constraints and stop conditions.",
     "entry": "propose"
   },
   "cycle": [
@@ -41,8 +46,8 @@
       "position": "top-left",
       "label": "Propose",
       "details": [
-        "Human or model",
-        "Falsifiable change + expected gain"
+        "Use observations and prior attempts",
+        "Predict benefit and total cost"
       ]
     },
     {
@@ -51,8 +56,8 @@
       "position": "top-center",
       "label": "Admit",
       "details": [
-        "Check dependencies and authority",
-        "Bind limits before execution"
+        "Check authority and dependencies",
+        "Bind available compute and limits"
       ]
     },
     {
@@ -61,8 +66,8 @@
       "position": "top-right",
       "label": "Realize",
       "details": [
-        "Train, compose or edit",
-        "Run the admitted candidate"
+        "Derive execution choices",
+        "Train, compose or edit"
       ]
     },
     {
@@ -71,8 +76,8 @@
       "position": "bottom-right",
       "label": "Evaluate",
       "details": [
-        "Fixed tasks + matched baseline",
-        "Ablation, quality and resource cost"
+        "Fixed tasks, baseline and ablation",
+        "Capability, robustness and total cost"
       ]
     },
     {
@@ -82,7 +87,7 @@
       "label": "Decide",
       "details": [
         "Apply executable evidence rules",
-        "Promote, reject or request more work"
+        "Promote, reject, investigate or wait"
       ]
     },
     {
@@ -91,8 +96,8 @@
       "position": "bottom-left",
       "label": "Observe",
       "details": [
-        "Record outcomes and regressions",
-        "Quarantine or roll back when required"
+        "Record outcomes and detect gaps",
+        "Resume work; roll back regressions"
       ]
     }
   ],
@@ -120,57 +125,60 @@
     {
       "from": "observe",
       "to": "propose",
-      "label": "Measured feedback"
+      "label": "Use outcomes to identify improvements in capability, robustness and efficiency, then generate the next proposal."
     }
   ],
   "recursive_step": {
-    "heading": "The recursive step",
-    "detail": "Outcomes inform later proposals, execution and evaluation policies."
+    "text": "Outcomes improve models, methods and the improvement process itself."
   },
   "foundation": {
-    "heading": "OvergoDB | Evidence across every stage",
-    "detail": "Identities and lineage · runs and receipts · metrics and decisions · checkpoints and active versions"
+    "lines": [
+      "OvergoDB records evidence and state across every stage:",
+      "identities and lineage · runs and decisions · checkpoints and active versions",
+      "pending work · consumed budgets"
+    ]
   },
   "support": [
     {
-      "heading": "Change surfaces",
-      "details": [
-        "Models and adapters · recipes and code",
-        "Data and retrieval · routing and automation policies"
+      "id": "methods",
+      "lines": [
+        "Derive values; eliminate unnecessary literals and magic numbers.",
+        "Justify assumptions about shape, distribution and geometry."
       ]
     },
     {
-      "heading": "Execution substrate",
-      "details": [
-        "Go host + CUDA · serving, training and evaluation",
-        "Text, image, audio, video, time-series and tabular paths"
+      "id": "resources",
+      "lines": [
+        "Scale Go and CUDA execution to available RAM, VRAM,",
+        "CPU and GPU capacity.",
+        "Adapt placement, batching and concurrency; preserve correctness."
       ]
     }
   ],
-  "recursive_scope": {
-    "heading": "Recursive scope",
-    "detail": "Improve task capability and the mechanisms that propose, execute and evaluate later work."
-  },
   "semantic_constraints": [
-    "Human or model proposals do not themselves authorize execution or activation.",
-    "Executable policy applies evidence requirements; the store retains facts and decisions.",
-    "Rejected candidates and unsuccessful runs contribute recorded outcomes.",
-    "The return path represents feedback into later iterations, not guaranteed promotion.",
-    "Model, code, recipe and policy changes use the same bounded cycle.",
-    "Capabilities are bound to task-specific recipes; the modality list is not a claim that every model supports every task.",
-    "Focus on implementation and intent, without proven/unproven framing or maturity disclaimers.",
-    "Use precise authorization, regression monitoring and recovery language."
+    "Present implementation and RSI intent without promotional or maturity framing.",
+    "Proposals do not themselves authorize execution or activation; executable policy owns admission and decisions.",
+    "Observe-to-propose is intended to become durable automatic feedback through the existing driver.",
+    "Rejection, waiting, resumption and rollback remain part of the process.",
+    "Derive values and justify assumptions rather than prohibiting mathematically or contractually required operations.",
+    "Use available RAM, VRAM, CPU and GPU capacity within operator limits.",
+    "OvergoDB retains pending work and consumed budgets as well as results.",
+    "Capability, robustness and total resource cost are joint evaluation dimensions."
   ],
   "rendering_constraints": [
-    "Use one clockwise loop, not two duplicated pipelines.",
-    "Route arrows outside labels with visible arrowheads and no crossings.",
-    "Keep the recursive-step explanation inside the loop without making it a stage.",
-    "Show OvergoDB as a foundation shared across the stages.",
-    "Keep text legible at 1200px display width.",
-    "Use the JSON as the editable semantic specification and the PNG as its reviewed rendering."
+    "One main title and no subtitle or section subheaders.",
+    "Retain the functional stage labels and numbers; all supporting statements use regular-weight text.",
+    "Preserve one clockwise six-stage loop with a clearly labelled Observe-to-Propose return.",
+    "Keep connectors outside labels with visible arrowheads and no crossings.",
+    "Show OvergoDB as a foundation shared across every stage.",
+    "Keep the two supporting columns unheaded and readable at 1200px display width.",
+    "Use native SVG geometry and text for uniform fills and crisp lettering; export PNG at twice the SVG viewBox resolution.",
+    "No footer slogan.",
+    "Keep the JSON semantic definition, SVG source, and PNG export synchronized."
   ],
   "source_anchors": [
     "README.md",
+    "skill.md",
     "internal/loop/driver.go",
     "internal/loop/circuit_breaker.go",
     "internal/loop/live_rollback.go",
@@ -179,8 +187,8 @@
     "internal/overgodb/store.go"
   ],
   "rendering": {
-    "method": "built-in image_gen",
-    "prompt": "Use case: infographic-diagram.\nAsset: replacement technical infographic for the Overgo repository README.\nInput image 1 is the existing infographic to replace. Redesign its layout and rewrite its text completely using ONLY the exact copy below. Preserve the subject (Overgo's intended recursive self-improvement system), not the old design, density or duplicated pipelines.\n\nCreate an exceptionally clear editorial systems diagram, landscape 3:2, 1536x1024. It should look like a carefully typeset research overview, neutral and restrained, not a sales pitch. Warm white background, charcoal text, muted teal for the recursive loop, one subtle amber accent for decision. Use generous whitespace, large readable modern sans-serif type, sentence-case titles, small aligned stage numbers, fine flat rules. No shadows, gradients, glossy effects, brain/shield/rocket icons, logos, ornamental charts, or decorative circuitry. No unsupported claims or added words.\n\nLAYOUT AND EXACT COPY:\nTop left large title: \"Overgo\"\nBeside or beneath title: \"Recursive self-improvement\"\nSubtitle: \"Intent: repeatable gains on fixed tasks within matched resource budgets.\"\n\nBelow header, a slim lightly tinted full-width strip:\n\"Operator direction\"\n\"Goals, budgets, constraints and stop conditions\"\nOne clear connector enters stage 01 from this strip, without implying that proposals authorize execution.\n\nMAIN DIAGRAM: one dominant, spacious six-stage clockwise loop. Three cards across top, three across bottom. Order and positions must be:\nTop left 01 Propose -> top middle 02 Admit -> top right 03 Realize.\nTop right 03 down to bottom right 04 Evaluate.\nBottom right 04 -> bottom middle 05 Decide -> bottom left 06 Observe.\nBottom left 06 returns up along the LEFT OUTSIDE EDGE to top left 01.\nConnectors are thin teal with clear directional arrowheads, no crossings, never across text. No extra loop or duplicated pipeline.\nEach card has exactly these texts:\n01 \"Propose\"\n\"Human or model\"\n\"Falsifiable change + expected gain\"\n02 \"Admit\"\n\"Check dependencies and authority\"\n\"Bind limits before execution\"\n03 \"Realize\"\n\"Train, compose or edit\"\n\"Run the admitted candidate\"\n04 \"Evaluate\"\n\"Fixed tasks + matched baseline\"\n\"Ablation, quality and resource cost\"\n05 \"Decide\"\n\"Apply executable evidence rules\"\n\"Promote, reject or request more work\"\n06 \"Observe\"\n\"Record outcomes and regressions\"\n\"Quarantine or roll back when required\"\n\nIn the generous whitespace between the two rows, inside the loop, place an understated two-line explanation:\n\"The recursive step\"\n\"Outcomes inform later proposals, execution and evaluation policies.\"\nThis explanation must be distinct from arrows and not a seventh stage.\nA small label beside the outside return connector: \"Measured feedback\"\n\nBelow loop, quiet full-width foundation band:\n\"OvergoDB | Evidence across every stage\"\n\"Identities and lineage · runs and receipts · metrics and decisions · checkpoints and active versions\"\nThis is a shared durable record; do not draw speculative arrows between random boxes.\n\nBelow that band, two balanced text columns, without heavy frames:\nLeft heading \"Change surfaces\"\n\"Models and adapters · recipes and code\"\n\"Data and retrieval · routing and automation policies\"\nRight heading \"Execution substrate\"\n\"Go host + CUDA · serving, training and evaluation\"\n\"Text, image, audio, video, time-series and tabular paths\"\n\nBottom section separated by a fine rule, visibly readable:\n\"Recursive scope\"\n\"Improve task capability and the mechanisms that propose, execute and evaluate later work.\"\n\nSEMANTIC CONSTRAINTS:\nFocus solely on the implementation and RSI intent. Do not include maturity assessments, proven/unproven framing, or disclaimers.\nA model proposes; executable policy admits execution and promotion.\nRejection and failed attempts are still evidence. The loop does not guarantee improvement.\nNo use of the word safety, no anthropomorphizing evidence as a decision maker, no broad safety promises.\nKeep all exact text spelled correctly, strong alignment, ample spacing, comfortably legible when displayed at 1200px wide. Prioritize the main loop and the recursion explanation over subordinate implementation details.",
-    "refinement_prompt": "Edit target: the attached Overgo recursive self-improvement infographic. Make ONE targeted edit to the bottom footer below the thin horizontal rule. Preserve every other pixel, label, arrow, card, spacing, typography, color, and layout as closely as possible. Preserve landscape 3:2 dimensions and sharp readable text.\nREMOVE the entire footer text \"Implementation and evidence\", \"Capability depends on the exact model, task and active recipe.\" and \"Unattended RSI and gains in the proposing model’s cognition remain unproven.\"\nREPLACE the footer heading at bottom left with exactly: \"Recursive scope\"\nREPLACE the footer body to the right of the vertical divider with exactly this text, wrapped naturally into two readable lines:\n\"Improve task capability and the mechanisms that propose,\"\n\"execute and evaluate later work.\"\nThe user specifically wants implementation and RSI intent, no proven/unproven framing or maturity disclaimer. Do not add any other text. The rest of the image is approved and must remain unchanged."
+    "method": "native SVG with PNG export",
+    "source": "docs/assets/overgo-platform-technical-architecture.svg",
+    "scale": 2
   }
 }

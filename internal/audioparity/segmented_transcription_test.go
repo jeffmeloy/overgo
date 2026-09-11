@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -298,7 +297,7 @@ func (f *segmentedFixture) evaluate(t *testing.T, expected recipecontract.Transc
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(filepath.Dir(f.clip.storeRoot), "datasets", "librispeech_asr-clean-xet", "clean", f.clip.record.Split, f.clip.record.Shard)
+	path := librispeechPath(t, "clean", f.clip.record.Split, f.clip.record.Shard)
 	report, err := evaluation.EvaluateTranscriptionResources(t.Context(), f.store, compiled, plan, f.definition.Model,
 		[]evaluation.TranscriptionResourceInput{{Name: f.clip.record.RowID, Reference: dataset.AudioPayloadReference{Path: path, Audio: expected.Source.Audio, Origin: f.origin}, Policy: f.policy}},
 		evaluation.TranscriptionResourceOptions{TimedRuns: 1}, adapterAcceptanceMemory)

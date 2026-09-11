@@ -1249,7 +1249,7 @@ func (g *gateContext) requireGateStartState() error {
 	if !bytes.Equal(index.Data, g.indexBefore.Data) {
 		// Same staged tree in refreshed bytes: a status refresh rewrote the
 		// stat cache. The refreshed bytes become the exact write-ahead state.
-		g.audit = append(g.audit, "commit admission: Git index bytes refreshed under the gate-start tree; adopted")
+		g.note("commit admission: Git index bytes refreshed under the gate-start tree; adopted")
 		g.indexBefore = index
 	}
 	if !sameGateMergeState(merge, g.mergeBefore) {

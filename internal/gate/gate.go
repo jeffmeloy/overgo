@@ -32,6 +32,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -119,6 +120,44 @@ type gateContext struct {
 	// runCommand overrides supervised command execution for remediation
 	// tests; nil routes through the package command runner.
 	runCommand func(repo, name string, args ...string) (string, error)
+	// The validate wave runs its checks concurrently; the snapshots and
+	// the audit they share are written under these locks.
+	sourceMutex sync.Mutex
+	auditMutex  sync.Mutex
+	// The planned tree is built once per candidate state and the plan is
+	// parsed once for the admission and verification readers; the commit
+	// phase rewrites the plan after every such reader has run.
+	plannedTreeMutex       sync.Mutex
+	plannedTreeID          string
+	plannedTreeFingerprint string
+	plannedTreeBuilds      int
+	planDocument           *plan.Plan
+	planLoads              int
+	// testPlan carries the prepared test groups from the changed-owners
+	// check to the check that runs the rest beside the lanes.
+	testPlan *testGroups
+}
+
+// appends one audit line under the lock the concurrent validate wave shares
+func (g *gateContext) note(line string) {
+	g.auditMutex.Lock()
+	defer g.auditMutex.Unlock()
+	g.audit = append(g.audit, line)
+}
+
+// returns the plan parsed once for the gate's readers that run before the
+// commit phase rewrites it
+func (g *gateContext) loadPlan() (plan.Plan, error) {
+	if g.planDocument != nil {
+		return *g.planDocument, nil
+	}
+	document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	g.planDocument = &document
+	g.planLoads++
+	return document, nil
 }
 
 func (g *gateContext) runGateCommand(root, name string, args ...string) (string, error) {
@@ -138,14 +177,26 @@ func (g *gateContext) openStore() (*overgodb.Store, error) {
 		return nil, errors.New("gate store: canonical path and environment are required")
 	}
 	if g.store == nil {
-		store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+		// Another writer, a lane recording its receipts beside the test
+		// groups, is waited out under the host batch budget instead of
+		// refused on the store's OS exclusion.
+		ctx, cancel := context.WithTimeoutCause(context.Background(), testAdmissionBudget, errStoreAdmissionBudget)
+		defer cancel()
+		began := time.Now()
+		store, err := overgodb.OpenContext(ctx, filepath.Join(g.repo, g.storePath))
 		if err != nil {
 			return nil, err
+		}
+		if waited := time.Since(began); waited > time.Second {
+			g.note(fmt.Sprintf("store admission waited %s for another writer", waited.Round(time.Millisecond)))
 		}
 		g.store = store
 	}
 	return g.store, nil
 }
+
+// names the exhausted store admission budget as the cancellation cause
+var errStoreAdmissionBudget = errors.New("gate store admission budget exhausted")
 
 func (g *gateContext) closeStore() error {
 	if g == nil || g.store == nil {
@@ -466,12 +517,12 @@ func (g *gateContext) resolveAttemptStrategy(reader artifact.Reader) {
 	}
 	id, err := artifact.ParseID(declared)
 	if err != nil || id.Kind() != artifact.KindProfile || reader == nil {
-		g.audit = append(g.audit, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		g.note("attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
 		return
 	}
 	strategy, err := loop.RequireStrategy(context.Background(), reader, id)
 	if err != nil {
-		g.audit = append(g.audit, "attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
+		g.note("attempt strategy profile was declared but not resolvable; attempt remains comparison-ineligible")
 		return
 	}
 	g.strategy = &strategy
@@ -520,6 +571,9 @@ func (g *gateContext) printSummary(output io.Writer, outcome runrecord.Outcome, 
 	fmt.Fprintf(output, "GATE %s %.1fs | ran=%s | reused=%s | skipped=%s | inapplicable=%s\n", strings.ToUpper(string(outcome)), time.Since(g.start).Seconds(), strings.Join(run, ","), strings.Join(reused, ","), strings.Join(skipped, ","), strings.Join(inapplicable, ","))
 	if failure != "" {
 		fmt.Fprintf(output, "blocker: %s\n", failure)
+	}
+	for _, line := range formatPhaseWallTable(phaseWallTable(g.steps), time.Since(g.start)) {
+		fmt.Fprintln(output, line)
 	}
 	for _, line := range compactAudit(g.audit) {
 		fmt.Fprintln(output, line)

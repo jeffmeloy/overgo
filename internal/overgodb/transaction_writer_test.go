@@ -35,7 +35,8 @@ func TestTransactionWriter(t *testing.T) {
 			t.Fatal(err)
 		}
 		destination := filepath.Join(t.TempDir(), "backup")
-		got, sequence, err := source.Backup(destination)
+		backupReport, err := source.Backup(t.Context(), destination)
+		got, sequence := backupReport.Head, backupReport.Sequence
 		if err != nil || got != head || sequence != 1 {
 			t.Fatalf("backup: %s@%d, %v", got, sequence, err)
 		}

@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package artifact defines typed capability bundle storage.
 package artifact
 

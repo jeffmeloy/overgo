@@ -18,6 +18,11 @@ const (
 // Command runs one check command from an explicit repository root.
 type Command func(root, name string, arguments ...string) (string, error)
 
+// LaneCommand runs one lane command under the check's context: the lane's
+// process tree, its servers included, ends with the run on every exit
+// path, and the returned text is the run's terminal receipt.
+type LaneCommand func(ctx context.Context, root, name string, arguments ...string) (string, error)
+
 // GeneratedChecks returns freshness checks for generated repository authorities.
 func GeneratedChecks(root string, command Command) []Check {
 	return []Check{

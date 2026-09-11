@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "0c9f3510ce5d0a8afde86f8e2769ed49969fc78c08bf56a7b205b5f75371b8ae",
+  "source_identity": "c5c280e9e4e4c0ffb1bab32d7a153f1d089207a51a6f7fa1ef303f998f162730",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3194,
-    "typed_files": 3130
+    "inspected_files": 3249,
+    "typed_files": 3185
   },
   "guidelines": [
     {
@@ -1400,17 +1400,6 @@
     },
     {
       "guideline": "cmp_or",
-      "path": "cmd/loophook/main.go",
-      "symbol": "nextAction",
-      "owner": "overgo/cmd/loophook",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./cmd/loophook -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
       "path": "cmd/recipe/fractale_model_test.go",
       "symbol": "TestFractaleRecipeActivation",
       "owner": "overgo/cmd/recipe",
@@ -1801,17 +1790,6 @@
       "owner": "overgo/internal/objectstore",
       "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
       "oracle": "go test ./internal/objectstore -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "internal/overgodb/backup.go",
-      "symbol": "copyFileSync",
-      "owner": "overgo/internal/overgodb",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/overgodb -count=1",
       "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -5128,5 +5106,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "4fc8bda7c07723884e55061e196d3f6fcabf66d0d28ffa50188771ced7e6b54f"
+  "exceptions_sha256": "9d7f0bb8ab431f7489abe38210ef428a785cd43fa3783530c67ad3eb90750118"
 }

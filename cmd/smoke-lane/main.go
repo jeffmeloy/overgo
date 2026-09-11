@@ -28,12 +28,18 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("smoke-lane", flag.ContinueOnError)
 	budget := flags.Duration("budget", 0, "total discovery and execution budget (required)")
 	diagnostic := flags.Bool("diagnostic", false, "inspect behavior without publishing evidence")
-	model := flags.String("model", "", "exact model identity; diagnostic mode only")
+	model := flags.String("model", "", "exact model identity; omitted models receive no evidence credit")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || (*model != "" && !*diagnostic) {
-		return errors.New("smoke: unexpected arguments or non-diagnostic model filter")
+	if flags.NArg() != 0 {
+		return errors.New("smoke: unexpected arguments")
+	}
+	if *model != "" {
+		id, err := artifact.ParseID(*model)
+		if err != nil || id.Kind() != artifact.KindModel {
+			return errors.New("smoke: -model requires an exact model identity")
+		}
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -52,7 +58,13 @@ func run(args []string) error {
 	}
 	began := time.Now()
 	fmt.Println("[smoke] checking active recipes and artifact bytes")
-	entries, err := discovery.Servable(ctx, reader, 10_000)
+	scope := "catalog"
+	var selection []string
+	if *model != "" {
+		scope = "selected"
+		selection = append(selection, *model)
+	}
+	entries, err := discovery.ServableWithMemo(ctx, reader, 10_000, nil, selection...)
 	fmt.Printf("[smoke] discovery=%.1fs models=%d\n", time.Since(began).Seconds(), len(entries))
 	if err != nil {
 		return errors.Join(err, reader.Close())
@@ -63,7 +75,7 @@ func run(args []string) error {
 	if *budget <= 0 {
 		return errors.Join(errors.New("smoke: explicit positive -budget required"), reader.Close())
 	}
-	oracles, err := readSmokeOracles(smokeOraclePath, entries)
+	oracles, err := readSmokeOracles(smokeOraclePath, entries, *model)
 	if err != nil {
 		return errors.Join(err, reader.Close())
 	}
@@ -115,7 +127,7 @@ func run(args []string) error {
 		}
 		passed++
 	}
-	fmt.Printf("audit: inference catalog=%d started=%d passed=%d failed=%d not_started=%d diagnostic=%t; no benchmark or modality promotion\n", len(entries), started, passed, started-passed, len(entries)-started, *diagnostic)
+	fmt.Printf("audit: inference scope=%s discovered=%d started=%d passed=%d failed=%d not_started=%d diagnostic=%t; no evidence for models outside scope; no benchmark or modality promotion\n", scope, len(entries), started, passed, started-passed, len(entries)-started, *diagnostic)
 	if failure != nil || started == 0 {
 		return runrecord.LaneError(runrecord.LaneFailed, fmt.Sprintf("smoke incomplete: %v", failure))
 	}
@@ -218,7 +230,7 @@ func recordSmokeTransaction(ctx context.Context, path string, entry discovery.En
 	if err != nil {
 		return err
 	}
-	store, err := overgodb.Open(path)
+	store, err := overgodb.OpenContext(ctx, path)
 	if err != nil {
 		return err
 	}

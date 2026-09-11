@@ -230,7 +230,7 @@ func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit st
 		return nil
 	}
 	if g.profileDirty {
-		g.audit = append(g.audit, "code profile evidence not persisted: unplanned Go dirt is outside the committed target")
+		g.note("code profile evidence not persisted: unplanned Go dirt is outside the committed target")
 		return nil
 	}
 	evidence, err := codeprofile.NewEvidence(codeCommit, gateResult, *g.profile)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
@@ -90,4 +91,58 @@ func TestMatchServableRoutesRemoteLocations(t *testing.T) {
 	if _, found, err := matchServable(entries, false, "absent"); err != nil || found {
 		t.Fatal("an absent remote entry matched")
 	}
+}
+
+func TestCatalogProgressNamesStagesAndKeepsSlowest(t *testing.T) {
+	root := t.TempDir()
+	writer, err := overgodb.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	reader, err := overgodb.OpenReadOnly(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	resolver := CatalogResolver{Store: reader, Limit: 100}
+	if progress := resolver.Progress(); progress.Stage != "" || progress.Waiting != 0 || len(progress.Slowest) != 0 {
+		t.Fatalf("idle resolver reports %+v", progress)
+	}
+	if _, _, err := resolver.Catalog(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	progress := resolver.Progress()
+	if progress.Stage != "" || progress.Waiting != 0 {
+		t.Fatalf("resolver still inside a stage after the catalog: %+v", progress)
+	}
+	for _, stage := range []string{"refresh", "memo", "catalog"} {
+		if _, ran := progress.Slowest[stage]; !ran {
+			t.Fatalf("stage %s not timed: %+v", stage, progress)
+		}
+	}
+	// A caller inside a stage is reported with its wait, so a stalled
+	// picker names the stage it waits behind.
+	holding := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		defer resolver.acquire()()
+		defer resolver.begin("catalog")()
+		close(holding)
+		<-release
+	}()
+	<-holding
+	waiting := make(chan struct{})
+	go func() {
+		defer resolver.acquire()()
+		close(waiting)
+	}()
+	for resolver.Progress().Waiting == 0 {
+		time.Sleep(time.Millisecond)
+	}
+	if progress := resolver.Progress(); progress.Stage != "catalog" || progress.Waiting != 1 || progress.Elapsed <= 0 {
+		t.Fatalf("held resolver reports %+v", progress)
+	}
+	close(release)
+	<-waiting
 }

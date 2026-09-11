@@ -6,11 +6,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -37,11 +39,13 @@ func run(args []string, output io.Writer) error {
 		return err
 	}
 	defer func() { _ = store.Close() }()
-	head, sequence, err := store.Backup(*destination)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	report, err := store.Backup(ctx, *destination)
 	if err != nil {
-		return err
+		return fmt.Errorf("backup failed: store-file IO=%+v: %w", report, err)
 	}
-	fmt.Fprintf(output, "backup published: %s head=%s sequence=%d; audit: replay-verified against the source head, not byte-compared\n",
-		*destination, head, sequence)
+	fmt.Fprintf(output, "backup published: %s head=%s sequence=%d extent=%d; IO=%+v; audit: byte-verified copy, matching replay head; store-file counters exclude seal IO and replay\n",
+		*destination, report.Head, report.Sequence, report.Extent, report)
 	return nil
 }

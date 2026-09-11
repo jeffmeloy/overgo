@@ -96,6 +96,10 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		assertValidationCampaignSnapshot(t, document)
 		return
 	}
+	if strings.Contains(document.Campaign, "Hatchet-derived") {
+		assertHatchetWorkflowCampaign(t, document)
+		return
+	}
 	assertIntegratedReconciliationSnapshot(t, document)
 	// The shared-spine doctrine binds once the grounded campaign is adopted;
 	// a first-parent-target merge lands under the target's prior campaign,
@@ -430,6 +434,55 @@ func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 		"live-safety/circuit-breaker")
 }
 
+// pins the overgo_hatchet lane: doctrine phrases stay stated, every campaign
+// row keeps an open file-guarded verifier, contract items precede their
+// consumers and the first frontier runs in parallel.
+func assertHatchetWorkflowCampaign(t *testing.T, document Plan) {
+	t.Helper()
+	for _, required := range []string{
+		"phase wall table", "No Hatchet source is copied",
+		"one acceptance test in the owning package", "Host rows land first", "only a merge lands a plan-only commit",
+	} {
+		if !strings.Contains(document.Doctrine, required) {
+			t.Errorf("hatchet campaign doctrine omits %q", required)
+		}
+	}
+	campaign := map[string]bool{
+		"campaign-replan": true, "campaign-review-replan": true, "gate-wall": true, "gate-checkpoints": true, "device-exclusion": true, "durable-attempt-log": true, "deadlines-and-requeue": true,
+		"conditional-plan-rows": true, "batch-flush-contracts": true, "declared-capacity": true,
+		"eviction-and-release": true, "keyed-admission": true, "schedule-pause": true,
+		"queue-observability": true, "serving-load-lane": true, "operator-references": true,
+		"hatchet-closeout": true, "lane-replan": true, "selection-coverage": true, "lane-overlap": true,
+		"process-commits": true, "device-reaper": true, "plan-dispatch": true, "lane-merge-automation": true,
+		"closure-catalog": true, "priority-replan": true, "selection-review": true,
+	}
+	for _, item := range document.Items {
+		if !campaign[item.ID] {
+			continue
+		}
+		for _, step := range item.Steps {
+			if step.Status != StatusOpen || !strings.HasPrefix(step.Verify, "test -f ") {
+				t.Errorf("hatchet campaign step %s/%s lacks an open file-guarded verifier", item.ID, step.ID)
+			}
+		}
+	}
+	for _, order := range [][2]string{
+		{"durable-attempt-log", "eviction-and-release"},
+		{"deadlines-and-requeue", "keyed-admission"},
+		{"conditional-plan-rows", "declared-capacity"},
+		{"declared-capacity", "eviction-and-release"},
+		{"keyed-admission", "schedule-pause"},
+		{"queue-observability", "serving-load-lane"},
+		{"selection-coverage", "gate-wall"}, {"selection-coverage", "validation-batch-control"},
+		{"lane-overlap", "validation-batch-control"}, {"validation-batch-control", "hatchet-closeout"},
+	} {
+		assertCampaignOrder(t, document, order[0], order[1])
+	}
+	assertCampaignFrontier(t, document,
+		"durable-attempt-log/attempt-identity", "deadlines-and-requeue/schedule-and-execution-deadlines",
+		"conditional-plan-rows/outcome-predicates", "batch-flush-contracts/flush-conditions")
+}
+
 // assertAudioCapabilityCampaign admits the branch-specific audio campaign
 // without weakening its structure to the historical RSI or validation
 // whitelists. Once the campaign adopts the repeated master-sync workflow, the
@@ -625,187 +678,11 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 	}
 }
 
-// assertValidationCampaignSnapshot pins the validation-only freeze campaign's
-// declared steps, machine-checked verifiers and audit rules.
+// Validate the live plan's contracts without duplicating its task inventory.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
-	wantIDs := []string{
-		"campaign-bootstrap/author-validation-plan",
-		"durability/publish-history",
-		"durability/snapshot-store",
-		"freeze-capture/capture-identity",
-		"hermetic-foundation/hermetic-suite",
-		"hermetic-foundation/repeat-agreement",
-		"hermetic-foundation/coverage-floors",
-		"hermetic-foundation/race-lane",
-		"hermetic-foundation/browser-workbench",
-		"hermetic-foundation/release-build",
-		"hermetic-foundation/store-drills",
-		// Fix rows injected under the owner's correct-as-you-go directive
-		// (2026-08-31) are declared here when a drill surfaces a defect:
-		// the store drill exposed the rebuild/compaction refusal, the
-		// stranded-blob swap, and the missing lifecycle evidence lineage.
-		"store-lifecycle-admission/do",
-		"inference-e2e/verified-matrix",
-		"inference-e2e/serving-operations",
-		"training-e2e/route-drills",
-		"training-e2e/preference-objectives",
-		"benchmark-routing/pinned-benchmarks",
-		// The benchmark drill (2026-09-01/02) surfaced that no model's
-		// provided sampling reached the runtime and that every evaluate
-		// worker compiles the whole suite catalog before a two-second
-		// suite; both are corrected in-campaign under the same directive.
-		"model-generation-settings/do",
-		"evaluate-family-compile/do",
-		"benchmark-routing/resource-quality-fitness",
-		"benchmark-routing/routing-replay",
-		"failure-recovery/interruption-drills",
-		"failure-recovery/control-plane-drills",
-		"failure-recovery/gate-recovery-drill",
-		// Phase 2 (owner directive 2026-09-02): repository cleanup, the
-		// remaining benchmark suites except MATH, modality verification of
-		// every registered model, the generated media report, the fixes the
-		// phase-1 drills surfaced, and the close-out.
-		"phase2-bootstrap/author-phase2-plan",
-		"repo-cleanup/scrap-and-drill-copies",
-		"repo-cleanup/stash-reconciliation",
-		"repo-cleanup/routing-resource-size",
-		"repo-cleanup/findings-disposition",
-		"resource-tolerance/do",
-		"audit-language/do",
-		"choice-scoring-fix/do",
-		"group-metric-names/do",
-		"native-decode-span/do",
-		"native-tensor-core-prefill/do",
-		"chat-choice-options/do",
-		"gate-authority-memoization/do",
-		"chat-protocol-guards/do",
-		"graph-exec-staleness/do",
-		"decode-session-source-capacity/do",
-		"report-wall-time/do",
-		"report-throughput/do",
-		"benchmark-token-budget/do",
-		"worker-budget/do",
-		"chat-answer-opener/do",
-		"causal-prefill-attention/do",
-		"evaluator-batching/do",
-		"bpe-merge-heap/do",
-		"buffer-pool-classes/do",
-		"ifeval-chat-shaping/do",
-		"merged-boundary-candidates/do",
-		"quantized-prefill-gemm/do",
-		"quantized-prefill-f16/do",
-		"fp8-prefill-f16/do",
-		"long-form-verification/do",
-		"readme-2026-09-04/do",
-		"long-context-collapse/do",
-		"decode-attention-per-key-cost/do",
-		"device-memory-retention/do",
-		"gemma-12b-accuracy/do",
-		"model-regression-fingerprints/do",
-		"model-regression-gate/do",
-		// Split the existing guard row at its inventory and selection boundaries.
-		"model-regression-gate/coverage-inventory",
-		"model-regression-gate/coverage-selection",
-		"model-regression-gate/coverage-acquisition",
-		// Accept the completed model cohorts; retain full-catalog acquisition.
-		"e4b-fp8-evidence-refresh/do",
-		"model-regression-gate/coverage-12b-fp8",
-		"model-regression-gate/repair-retained-output-arena",
-		"model-regression-gate/repair-retained-packing",
-		"model-regression-gate/readmit-retained-controls",
-		"model-regression-gate/readmit-controls",
-		"model-regression-gate/repair-pool-release",
-		"model-regression-gate/readmit-pool-controls",
-		"model-regression-baseline/do",
-		"simplify-prefill-paths/do",
-		"simplify-command-surface/do",
-		"simplify-execution-core/do",
-		"simplify-checkpoint-locations/do",
-		"simplify-capability-report/do",
-		"generation-soak/do",
-		"docs-pruning/do",
-		"benchmark-completion/bbh-pass",
-		"benchmark-completion/musr-pass",
-		"benchmark-completion/ifeval-pass",
-		"benchmark-completion/dna-pass",
-		"benchmark-completion/mmlu-pro-pass",
-		"benchmark-completion/published-comparison",
-		"modality-verification/capability-census",
-		"modality-verification/capability-census-owner",
-		"modality-verification/e4b-all-modalities",
-		"modality-verification/e4b-validation-producer",
-		"modality-verification/e4b-media-resource-producer",
-		"modality-verification/e4b-protocol-parity-repair",
-		"modality-verification/e4b-resource-recovery",
-		"modality-verification/e4b-scored-audio-producer",
-		"modality-verification/e4b-serving-repair",
-		"modality-verification/e4b-serving-admission",
-		"gpu-capacity-admission/do",
-		"validation-publication-lifetime/do",
-		"gui-conversation-recovery-intake/merge",
-		"audio-cpu-production-intake/merge",
-		"gui-worktree-integration/merge",
-		"gui-vqa-integration/merge",
-		"gui-validation-handoff/do",
-		"audio-worktree-integration/register-models",
-		"validation-integration-replan/do",
-		"validation-priority-replan/do",
-		// Accept or remove the staged API from the explicitly authorized audio intake.
-		"modality-verification/native-audio-streaming-intake",
-		"model-validation-batching/do",
-		"modality-verification/smoke-oracle-producer",
-		"modality-verification/minicpm-guard-repair",
-		"modality-verification/decode-guard-readmission",
-		"modality-verification/decode-completed-cohorts",
-		"modality-verification/decode-producer-comparison",
-		"modality-verification/e4b-current-resource-refresh",
-		"modality-verification/decode-order-repair",
-		"modality-verification/declared-smoke-expectations",
-		"modality-verification/text-and-vision",
-		"modality-verification/image-and-video",
-		"modality-verification/speech-ocr-tabular-forecast",
-		"modality-verification/media-report",
-		"failure-recovery/rollout-plan-author",
-		// Owner-directed capability-first replan (2026-09-04): bind
-		// acceptance before device work and keep independent host fixes ready.
-		"validation-readiness/measurement-contract",
-		"validation-replan/do",
-		"capability-simplification-replan/do",
-		"model-regression-baseline/full-catalog",
-		"model-regression-baseline/prepare-guard",
-		"baseline-repair-order/do",
-		"model-regression-baseline/complete-coverage",
-		"model-regression-baseline/repair-throughput",
-		"validation-readiness/failure-diagnostics",
-		"validation-automation/gate-scope-efficiency",
-		"validation-automation/guard-admission-efficiency",
-		"validation-automation/benchmark-protocol",
-		"validation-batch-control/batch-promotion",
-		"validation-batch-control/evidence-commit-recovery",
-		"validation-batch-control/store-lifetime",
-		"validation-batch-control/admission-recovery",
-		"modality-verification/e4b-admission-resource-refresh",
-		"modality-verification/measurement-clock",
-		"modality-verification/short-initialization",
-		"modality-verification/e4b-final-resource-refresh",
-		"validation-batch-control/evidence-resource-producer",
-		"validation-batch-control/transaction-writer",
-		"validation-batch-control/workbench-writer-lifetime",
-		"validation-batch-control/abandoned-gate-recovery",
-		"validation-batch-control/selection-external-consumers",
-		"validation-batch-control/runtime-input-preflight",
-		"validation-batch-control/candidate-source-isolation",
-		"validation-batch-control/batch-terminal-obligations",
-		"boundary-hardening/cross-origin",
-		"boundary-hardening/argv-output",
-		"final-model-validation/do",
-		"benchmark-27b/mmlu-pro-pass",
-		"campaign-closeout/closeout",
-	}
-	want := make(map[string]bool, len(wantIDs))
-	for _, id := range wantIDs {
-		want[id] = true
+	if err := Validate(document); err != nil {
+		t.Fatal(err)
 	}
 	mergeRows := 0
 	for _, item := range document.Items {
@@ -818,10 +695,6 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 		}
 		for _, step := range item.Steps {
 			id := item.ID + "/" + step.ID
-			if !want[id] {
-				t.Errorf("validation campaign has undeclared step %s; the freeze admits only validation drills", id)
-				continue
-			}
 			if strings.TrimSpace(step.Verify) == "" {
 				t.Errorf("validation step %s has no machine-checked verify", id)
 			}

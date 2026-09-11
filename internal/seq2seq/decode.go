@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Incremental decode: O(n) per-token stepping over a per-layer KV cache
 // plus static cross-attention memory. Every per-row operation matches the
 // full-recompute path exactly (hostmath.CausalAttentionStep is bit-identical

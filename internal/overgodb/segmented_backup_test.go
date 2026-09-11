@@ -70,7 +70,8 @@ func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 	}
 
 	destination := filepath.Join(t.TempDir(), "segmented-backup")
-	backupHead, backupSequence, err := writer.Backup(destination)
+	backupReport, err := writer.Backup(t.Context(), destination)
+	backupHead, backupSequence := backupReport.Head, backupReport.Sequence
 	if err != nil {
 		t.Fatal(err)
 	}

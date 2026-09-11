@@ -162,7 +162,7 @@ func EvaluateStructuredGenerated(
 	}
 	groups, accepted := make([]string, len(compiled.suite.Cases)), make([]bool, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
-		result, err := Record(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+		result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
 			return StructuredGeneratedReport{}, err
 		}

@@ -41,9 +41,9 @@ func Servable(ctx context.Context, store *overgodb.Store, limit int) ([]Entry, e
 
 // ServableWithMemo is Servable with digest reuse for interactive callers: a
 // nil memo hashes every file fresh, exactly as Servable always has.
-// Explicit locations filter recorded component metadata before any file hashing
+// Exact model identities or locations filter metadata before any file hashing
 // or active-recipe resolution. An empty selection retains full-catalog discovery.
-func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, selectedLocations ...string) ([]Entry, error) {
+func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, memo *Memo, selectedInputs ...string) ([]Entry, error) {
 	result, err := store.Query(ctx, overgodb.Query{
 		Kind: artifact.KindModel, MaxResults: limit, Projection: overgodb.ProjectManifests,
 	})
@@ -56,7 +56,7 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 	var entries []Entry
 	identities := map[string]fileIdentity{}
 	for _, manifest := range result.Manifests {
-		selected, err := matchesSelectedLocation(ctx, store, manifest, selectedLocations)
+		selected, err := matchesSelectedInput(ctx, store, manifest, selectedInputs)
 		if err != nil {
 			return nil, err
 		}
@@ -108,9 +108,14 @@ func ServableWithMemo(ctx context.Context, store *overgodb.Store, limit int, mem
 	return entries, nil
 }
 
-func matchesSelectedLocation(ctx context.Context, store artifact.Reader, manifest artifact.Manifest, selected []string) (bool, error) {
+func matchesSelectedInput(ctx context.Context, store artifact.Reader, manifest artifact.Manifest, selected []string) (bool, error) {
 	if len(selected) == 0 {
 		return true, nil
+	}
+	for _, input := range selected {
+		if input == manifest.ID.String() {
+			return true, nil
+		}
 	}
 	for _, component := range manifest.Components {
 		locations, err := store.Locations(ctx, component.Artifact)

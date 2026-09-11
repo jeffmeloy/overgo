@@ -56,7 +56,7 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 		return nil, fmt.Errorf("acceptance: %w", err)
 	}
 	g.checkpointMemos = memos
-	g.audit = append(g.audit, fmt.Sprintf("checkpoint memo: key=%s checkpoints=%d", checkpointMemoKey(g.planRef, batch), len(memos)))
+	g.note(fmt.Sprintf("checkpoint memo: key=%s checkpoints=%d", checkpointMemoKey(g.planRef, batch), len(memos)))
 	var added []automationcheck.Check
 	for _, checkpoint := range batch.Checkpoints {
 		evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
@@ -79,7 +79,7 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 				if err != nil {
 					return false, fmt.Errorf("checkpoint %s: %w", checkpoint.ID, err)
 				}
-				g.audit = append(g.audit, fmt.Sprintf("batch flush: checkpoint=%s key=%s size=%d bytes=%d flush=%t reason=%q",
+				g.note(fmt.Sprintf("batch flush: checkpoint=%s key=%s size=%d bytes=%d flush=%t reason=%q",
 					checkpoint.ID, state.Key, state.Size, state.Bytes, flush, reason))
 				pending = state
 				if flush {

@@ -44,7 +44,7 @@ type deviceDependency struct {
 }
 
 // DeviceCheck returns the shared-device verification adapter.
-func DeviceCheck(root string, paths, packages []string, command Command) Check {
+func DeviceCheck(root string, paths, packages []string, command LaneCommand) Check {
 	return Check{
 		Descriptor: Descriptor{
 			Name: deviceCheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{deviceImpact},
@@ -55,7 +55,7 @@ func DeviceCheck(root string, paths, packages []string, command Command) Check {
 				PackagePrefixes: []string{"internal/cuda"},
 			},
 		},
-		Run: func(context.Context, Invocation) (bool, string, error) {
+		Run: func(ctx context.Context, _ Invocation) (bool, string, error) {
 			// The changed-path list rides in a file: a repo-wide commit can
 			// carry more paths than the Windows command line admits.
 			list, err := os.CreateTemp("", "device-paths-*.txt")
@@ -70,8 +70,8 @@ func DeviceCheck(root string, paths, packages []string, command Command) Check {
 			if err := list.Close(); err != nil {
 				return false, "", err
 			}
-			_, err = command(root, "go", "run", "./cmd/device-lane", "-paths-file", list.Name())
-			return false, "", err
+			receipt, err := command(ctx, root, "go", "run", "./cmd/device-lane", "-paths-file", list.Name())
+			return false, receipt, err
 		},
 	}
 }

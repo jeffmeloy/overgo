@@ -1,7 +1,6 @@
 package audioparity
 
 import (
-	"cmp"
 	"context"
 	"encoding/hex"
 	"encoding/json"
@@ -173,8 +172,7 @@ func (f *transducerFixture) inputs(t *testing.T, capture transducerCapture) ([]f
 	if err != nil {
 		t.Fatal(err)
 	}
-	storeRoot := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), filepath.Join(testutil.RepoRoot(t), "overgodb-store"))
-	shard := filepath.Join(filepath.Dir(storeRoot), "datasets", "librispeech_asr-clean-xet", filepath.FromSlash(capture.Dataset.Path))
+	shard := librispeechPath(t, filepath.FromSlash(capture.Dataset.Path))
 	file, err := os.Open(shard)
 	if err != nil {
 		t.Fatal(err)

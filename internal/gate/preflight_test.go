@@ -80,7 +80,7 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 		}
 		names = append(names, check.Descriptor.Name)
 	}
-	want := []string{"protection", "scope", "architecture", "profile", "fmt", "style", "manifest", "sbom", "claims", "published", "docs", "magics", "modern-go"}
+	want := append([]string{"protection", "scope"}, validateWave...)
 	if !slices.Equal(names, want) {
 		t.Fatalf("preflight checks = %v, want %v", names, want)
 	}

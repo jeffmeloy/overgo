@@ -186,20 +186,7 @@ func EvaluateInstructionRules(
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
-		// Under the chat-template protocol the instruction rides the
-		// model's declared conversation framing: an instruct model
-		// follows instructions as the user turn it was trained on, and
-		// the plan's prompting authority keeps the two protocols' records
-		// apart.
-		prompt := testCase.Prompt
-		if chat, shaped := generator.(ChatChoiceRuntime); shaped {
-			framed, err := chat.ShapeChatPrompt(prompt)
-			if err != nil {
-				return InstructionRulesReport{}, err
-			}
-			prompt = framed
-		}
-		result, err := Record(ctx, generator, testCase.Name, prompt, testCase.MaxTokens)
+		result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
 		if err != nil {
 			return InstructionRulesReport{}, err
 		}

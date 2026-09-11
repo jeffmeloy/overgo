@@ -21,7 +21,7 @@ func ValidateDocsInventory(root string) error {
 			return err
 		}
 		relative = filepath.ToSlash(relative)
-		if relative == ".loop_state" || relative == ".bounded_request" {
+		if relative == ".loop_state" || relative == ".dispatch" {
 			return nil
 		}
 		switch strings.ToLower(filepath.Ext(relative)) {

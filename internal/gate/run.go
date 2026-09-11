@@ -273,6 +273,11 @@ func Run(options Options) (runErr error) {
 	if err := validatePlannedPaths(g.paths); err != nil {
 		return err
 	}
+	// A lane commit that carries nothing but the plan is refused unless it
+	// is a merge: routine re-planning rides in the implementation commit.
+	if err := g.refusePlanOnlyCommit(*merge); err != nil {
+		return err
+	}
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err
 	}
@@ -291,6 +296,11 @@ func Run(options Options) (runErr error) {
 	}
 	if *preflight {
 		return g.Preflight(os.Stdout)
+	}
+	// Derived files are repaired before the candidate freezes, so the
+	// verification binds to the repaired candidate; preflight never repairs.
+	if err := reportGateAdmissionPhase("stage mechanical repairs", g.stageMechanicalRepairs); err != nil {
+		return err
 	}
 	err = reportGateAdmissionPhase("discover verification environment", func() error {
 		g.environment, err = discoverEnvironment(repo)

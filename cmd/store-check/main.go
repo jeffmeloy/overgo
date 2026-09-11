@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // store-check proves the published side of the source-data contract: every
 // active recipe chain in OvergoDB must still load through the production
 // readers under the current document schemas. The gate runs source-only

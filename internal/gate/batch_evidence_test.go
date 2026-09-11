@@ -78,8 +78,9 @@ func TestBatchEvidencePublicationFailure(t *testing.T) {
 			}
 			want := overgodb.ErrClosed
 			if conflict {
-				competitor := *g
-				competitor.store = nil
+				// A second gate context over the same store and plan, built field
+				// by field: the context carries locks and is never copied.
+				competitor := cloneGateContext(g)
 				other, err := competitor.openBatchEvidence(checks, nil, &cache)
 				if err != nil {
 					t.Fatal(err)

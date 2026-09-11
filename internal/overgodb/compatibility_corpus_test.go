@@ -200,7 +200,8 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		}
 		defer store.Close()
 		destination := filepath.Join(t.TempDir(), "backup")
-		backupHead, sequence, err := store.Backup(destination)
+		backupReport, err := store.Backup(t.Context(), destination)
+		backupHead, sequence := backupReport.Head, backupReport.Sequence
 		if err != nil {
 			t.Fatal(err)
 		}

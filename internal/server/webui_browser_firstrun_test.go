@@ -74,7 +74,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// Leg 15's page-declared provider: its key set before any child launches, so the running child can list and serve it.
 	t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
+	serverDir := filepath.Dir(store)
+	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +101,10 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer browser.Close()
+	// Desktop journey: the narrower default viewport leaves the history drawer inert.
+	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
+		t.Fatal(err)
+	}
 	// Each step settles within its own bound so a leg that cannot settle
 	// fails with the page's state rather than spending the journey's budget.
 	settle := func(what, expression string) {
@@ -117,6 +122,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
         failures: [...document.querySelectorAll("#panel-chat .msg.error .body")].map((node) => node.textContent.slice(0, 200)),
         last: ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent, text: document.body.innerText.slice(0, 120),
         notes: [...document.querySelectorAll(".note, .err-banner")].map((node) => node.textContent.slice(0, 160)).filter(Boolean),
+        focused: document.hasFocus(), active: document.activeElement?.outerHTML.slice(0, 160),
         predicate: (() => { try { return String(`+expression+`); } catch (failure) { return "throws: " + failure; } })()})`, &page)
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
@@ -260,6 +266,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const row=document.querySelector('#history-rows .conversation');row.querySelector('.history-options').click();row.querySelector('[aria-label="rename conversation"]').click();
       const field=row.querySelector('input');field.value='renamed by the lane';field.focus();return true;
     })()`)
+	settle("the rename editor holds focus", `document.hasFocus() && document.activeElement === document.querySelector('#history-rows form input')`)
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle("the rail shows the new title", `[...document.querySelectorAll('#conversation-list .conversation-title')].some(node=>node.textContent==='renamed by the lane')`)
 	t.Log("rename leg: the conversation renamed in place from the rail")
@@ -742,7 +749,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			retirement = `document.querySelector("[data-lane-retirement]")?.textContent === "executable was built from modified source; exact code revision unavailable"`
 		}
 		if !stamped {
-			if _, err := runrecord.VerifyingCommit(testutil.RepoRoot(t)); err != nil {
+			// Match the child's fallback directory, not the gate's candidate tree.
+			if _, err := runrecord.VerifyingCommit(serverDir); err != nil {
 				retirement = `document.querySelector("[data-lane-retirement]")?.textContent === ` + strconv.Quote(err.Error())
 			}
 		}

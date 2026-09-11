@@ -220,7 +220,7 @@ suite files and binds results to a source commit. Unavailable controls show
 their reason in the workbench.
 
 HTTP interfaces include native routes and OpenAI- and Anthropic-compatible
-surfaces. The [API manifest](docs/API_MANIFEST.md) lists commands, routes,
+surfaces. The [API manifest](docs/api_manifest.json) lists commands, routes,
 authentication requirements, and document contracts.
 
 ## Quick start
@@ -272,7 +272,7 @@ results, and advance work. See the [development workflow](skill.md).
 
 ## Technical references
 
-- [API manifest](docs/API_MANIFEST.md) — commands, routes, and typed contracts
+- [API manifest](docs/api_manifest.json) — commands, routes, and typed contracts
 - [Benchmark report](docs/BENCHMARK.md) — evaluation and performance results
 - [Model catalog](docs/model_compatibility.json) — prototypes and model-specific records
 - [Media report](docs/MEDIA_REPORT.md) — media recipes, runs, and outputs

@@ -66,7 +66,7 @@ func TestSnapshotReusePreflight(t *testing.T) {
 }
 
 func TestMergePreflightOwnedDocuments(t *testing.T) {
-	for _, path := range []string{apiManifestDocumentPath, "source conflict.txt"} {
+	for _, path := range []string{apiManifestJSONPath, "source conflict.txt"} {
 		t.Run(path, func(t *testing.T) {
 			root, git := mergeTestRepository(t)
 			branch := git("branch", "--show-current")

@@ -2,8 +2,10 @@ package gate
 
 import (
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"maps"
 	"os"
 	"path"
@@ -12,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // runtimeInputs classifies how a package's sources reach beyond their own
@@ -49,9 +52,6 @@ var execFunctions = []string{"exec.Command", "exec.CommandContext"}
 // fileOwners are the packages whose calls take file system paths.
 var fileOwners = []string{"os", "filepath", "ioutil", "fs"}
 
-// temporaryCalls name the calls that yield a path outside the repository.
-var temporaryCalls = []string{"TempDir", "MkdirTemp", "CreateTemp"}
-
 // discoveryCall names a callee that reads a directory tree or a file by a
 // path it is handed, outside the file owners: repository discovery, walks,
 // globs, loads and reads.
@@ -70,22 +70,12 @@ type sourceClassifier struct {
 	named       map[string]bool
 	pending     map[string]bool
 	reasons     *[]string
+	temporary   map[*ast.CallExpr]bool
 	// safeNames are identifiers that hold the running binary's own path or
 	// a temporary path, which reach nothing in the repository.
 	safeNames map[string]bool
-	// parameters are the enclosing function's receiver and parameters; a
-	// path or program rooted in one is the caller's reach, which the
-	// package may declare with the runtime-inputs directive.
-	parameters  map[string]bool
-	uncertain   map[string]bool
-	callerReach bool
-	escapes     *bool
+	escapes   *bool
 }
-
-// runtimeInputsDirective declares, in any comment of a package, that the
-// paths and programs its functions take from callers are the callers' reach:
-// the package itself reads and runs nothing it does not name.
-const runtimeInputsDirective = "//overgo:runtime-inputs caller"
 
 // classifyRuntimeInputs parses the package's compiled and test sources under
 // dir and classifies every execution call, every path handed to a file or
@@ -107,18 +97,12 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 	}
 	relativeDir = filepath.ToSlash(relativeDir)
 	parsedFiles := make([]*ast.File, 0, len(files))
-	callerReach := false
 	for _, name := range files {
 		parsed, err := parser.ParseFile(set, filepath.Join(dir, name), nil, parser.ParseComments)
 		if err != nil {
 			return runtimeInputs{}, err
 		}
 		parsedFiles = append(parsedFiles, parsed)
-		for _, group := range parsed.Comments {
-			for _, comment := range group.List {
-				callerReach = callerReach || strings.TrimSpace(comment.Text) == runtimeInputsDirective
-			}
-		}
 	}
 	// Package-level constants are literals by another name in every file.
 	constants := map[string]bool{}
@@ -140,10 +124,11 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 	for index, name := range files {
 		parsed := parsedFiles[index]
 		dotImported := canonicalizeImports(parsed)
+		temporary := temporarySources(parsed)
 		classifier := sourceClassifier{
 			inputs: &inputs, relativeDir: relativeDir, file: name, commands: commands,
 			named: paths, pending: trees, reasons: &inputs.dynamic,
-			safeNames: safeNames(parsed, constants), parameters: map[string]bool{}, callerReach: callerReach, escapes: &escapes,
+			safeNames: safeNames(parsed, constants, temporary), temporary: temporary, escapes: &escapes,
 		}
 		if strings.HasSuffix(name, "_test.go") {
 			classifier.commands = testCommands
@@ -153,6 +138,9 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 			// A file or process owner imported without a name hides every
 			// call it makes; the file keeps the broad binding.
 			*classifier.reasons = append(*classifier.reasons, name+": imports a file or process owner without a name")
+		}
+		if escapedOwnerFunction(parsed) {
+			*classifier.reasons = append(*classifier.reasons, name+": exposes a file or process function to indirect calls")
 		}
 		ast.Inspect(parsed, classifier.visit)
 	}
@@ -237,46 +225,7 @@ func argumentZero(value ast.Expr) bool {
 // visit classifies one syntax node.
 func (classifier *sourceClassifier) visit(node ast.Node) bool {
 	switch typed := node.(type) {
-	case *ast.FuncDecl:
-		classifier.parameters = functionParameters(typed.Recv, typed.Type)
-		classifier.uncertain = map[string]bool{}
-	case *ast.FuncLit:
-		maps.Copy(classifier.parameters, functionParameters(nil, typed.Type))
-	case *ast.RangeStmt:
-		// Elements of a caller-derived collection are caller-derived.
-		if classifier.callerDerived(typed.X) {
-			for _, target := range []ast.Expr{typed.Key, typed.Value} {
-				if identifier, ok := target.(*ast.Ident); ok {
-					classifier.parameters[bindingName(identifier)] = true
-				}
-			}
-		}
-	case *ast.AssignStmt:
-		// A local built from parameters or other caller-derived names is
-		// the caller's reach too.
-		derived := len(typed.Rhs) != 0
-		for _, value := range typed.Rhs {
-			derived = derived && classifier.callerDerived(value)
-		}
-		// Unknown assignments remain unknown: a syntax walk cannot prove
-		// that a later assignment dominates every path through a branch.
-		for _, target := range typed.Lhs {
-			if identifier, ok := target.(*ast.Ident); ok {
-				if derived && !classifier.uncertain[bindingName(identifier)] {
-					classifier.parameters[bindingName(identifier)] = true
-				} else {
-					delete(classifier.parameters, bindingName(identifier))
-					if classifier.uncertain == nil {
-						classifier.uncertain = map[string]bool{}
-					}
-					classifier.uncertain[bindingName(identifier)] = true
-				}
-			}
-		}
 	case *ast.CallExpr:
-		if ownerFunctionAlias(typed.Fun, map[*ast.Object]bool{}) {
-			*classifier.reasons = append(*classifier.reasons, classifier.file+": calls an aliased file or process owner")
-		}
 		if program, isExec := execProgram(typed); isExec {
 			classifier.classifyProgram(program, execArguments(typed, program))
 			for _, value := range literalArguments(typed) {
@@ -295,13 +244,7 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 			// paths); a path it is handed that the source does not name may
 			// reach any repository file.
 			if fileOwnerCall(typed) && !classifier.safePath(typed.Args[0]) {
-				if root := rootIdentifier(typed.Args[0]); root != "" && classifier.parameters[root] {
-					if !classifier.callerReach {
-						*classifier.reasons = append(*classifier.reasons, classifier.file+": reads a path a caller hands in")
-					}
-				} else {
-					*classifier.reasons = append(*classifier.reasons, classifier.file+": reads a path the source does not name")
-				}
+				*classifier.reasons = append(*classifier.reasons, classifier.file+": reads a path the source does not name")
 			}
 		}
 	case *ast.BasicLit:
@@ -326,7 +269,7 @@ func (classifier *sourceClassifier) safePath(argument ast.Expr) bool {
 		return classifier.safeNames[bindingName(typed)] || typed.Name == "nil" && typed.Obj == nil
 	case *ast.CallExpr:
 		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok {
-			if slices.Contains(temporaryCalls, selector.Sel.Name) {
+			if classifier.temporary[typed] {
 				return true
 			}
 			if selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join") {
@@ -353,17 +296,24 @@ func (classifier *sourceClassifier) safePath(argument ast.Expr) bool {
 
 // safeNames collects the identifiers a file assigns from the running
 // binary's own path or from a temporary directory or file.
-func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
+func safeNames(file *ast.File, constants map[string]bool, temporary map[*ast.CallExpr]bool) map[string]bool {
 	names := maps.Clone(constants)
 	// A name assigned anywhere from a value that is not safe, an
 	// environment value among them, is never safe: the file's reads may
 	// follow either assignment.
 	unsafe := map[string]bool{}
+	var assignments []*ast.AssignStmt
 	ast.Inspect(file, func(node ast.Node) bool {
+		if address, ok := node.(*ast.UnaryExpr); ok && address.Op == token.AND {
+			if name := rootIdentifier(address.X); name != "" {
+				unsafe[name] = true
+			}
+		}
 		assign, ok := node.(*ast.AssignStmt)
 		if !ok || len(assign.Rhs) == 0 {
 			return true
 		}
+		assignments = append(assignments, assign)
 		// Each target takes the safety of its own value; a value shared by
 		// several targets, a call's results, is safe only if it is safe as a
 		// whole, which a call never is.
@@ -374,7 +324,7 @@ func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
 			}
 			safe := false
 			if len(assign.Lhs) == len(assign.Rhs) {
-				safe = safeSource(assign.Rhs[index], names)
+				safe = safeSource(assign.Rhs[index], names, temporary)
 			}
 			if safe {
 				names[bindingName(identifier)] = true
@@ -387,12 +337,28 @@ func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
 	for name := range unsafe {
 		delete(names, name)
 	}
+	// Removing a premise invalidates every copied or joined value derived
+	// from it. Converge by deletion; source order is not a dominance proof.
+	for changed := true; changed; {
+		changed = false
+		for _, assign := range assignments {
+			if len(assign.Lhs) != len(assign.Rhs) {
+				continue
+			}
+			for index, target := range assign.Lhs {
+				if name, ok := target.(*ast.Ident); ok && names[bindingName(name)] && !safeSource(assign.Rhs[index], names, temporary) {
+					delete(names, bindingName(name))
+					changed = true
+				}
+			}
+		}
+	}
 	return names
 }
 
 // safeSource reports a value that holds the binary's own path, a temporary
 // path, or a join of literals and such names.
-func safeSource(value ast.Expr, names map[string]bool) bool {
+func safeSource(value ast.Expr, names map[string]bool, temporary map[*ast.CallExpr]bool) bool {
 	switch typed := value.(type) {
 	case *ast.BasicLit:
 		return typed.Kind == token.STRING
@@ -405,14 +371,65 @@ func safeSource(value ast.Expr, names map[string]bool) bool {
 		if !ok {
 			return false
 		}
-		if selectorIs(selector, "os", "Executable") || slices.Contains(temporaryCalls, selector.Sel.Name) {
+		if selectorIs(selector, "os", "Executable") || temporary[typed] {
 			return true
 		}
 		if selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join") {
-			return !slices.ContainsFunc(typed.Args, func(part ast.Expr) bool { return !safeSource(part, names) })
+			return !slices.ContainsFunc(typed.Args, func(part ast.Expr) bool { return !safeSource(part, names, temporary) })
 		}
 	}
 	return false
+}
+
+// Temporary provenance requires the standard owner and receiver declaration.
+// An application method named TempDir carries no such guarantee.
+func temporarySources(file *ast.File) map[*ast.CallExpr]bool {
+	imports := map[string]bool{}
+	for _, spec := range file.Imports {
+		if name, err := strconv.Unquote(spec.Path.Value); err == nil {
+			imports[name] = true
+		}
+	}
+	result := map[*ast.CallExpr]bool{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		owner, ok := selector.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		if imports["os"] && owner.Obj == nil && owner.Name == "os" {
+			if selector.Sel.Name == "TempDir" && len(call.Args) == 0 {
+				result[call] = true
+			}
+			if (selector.Sel.Name == "MkdirTemp" || selector.Sel.Name == "CreateTemp") && len(call.Args) > 0 {
+				literal, ok := call.Args[0].(*ast.BasicLit)
+				if ok && literal.Kind == token.STRING {
+					value, err := strconv.Unquote(literal.Value)
+					result[call] = err == nil && value == ""
+				}
+			}
+		}
+		if imports["testing"] && owner.Obj != nil && selector.Sel.Name == "TempDir" && len(call.Args) == 0 {
+			if field, ok := owner.Obj.Decl.(*ast.Field); ok {
+				receiver := field.Type
+				if pointer, ok := receiver.(*ast.StarExpr); ok {
+					receiver = pointer.X
+				}
+				if kind, ok := receiver.(*ast.SelectorExpr); ok {
+					result[call] = selectorIs(kind, "testing", "T") || selectorIs(kind, "testing", "B") || selectorIs(kind, "testing", "F") || selectorIs(kind, "testing", "TB")
+				}
+			}
+		}
+		return true
+	})
+	return result
 }
 
 // execProgram returns the program expression of an exec call.
@@ -469,34 +486,55 @@ func goToolTarget(tool string, arguments []ast.Expr) (ast.Expr, bool) {
 	return arguments[1], true
 }
 
-// ownerFunctionAlias follows variable bindings, not identifier spellings.
-// A file/process function used indirectly retains unknown runtime inputs.
-func ownerFunctionAlias(expression ast.Expr, seen map[*ast.Object]bool) bool {
-	switch value := expression.(type) {
-	case *ast.ParenExpr:
-		return ownerFunctionAlias(value.X, seen)
-	case *ast.Ident:
-		object := value.Obj
-		if object == nil || seen[object] {
-			return false
+// Bind function values to the toolchain's exports, not an API-name heuristic.
+// Missing export data keeps every selector on that owner conservative.
+var runtimeOwnerFunctions = sync.OnceValue(func() map[string]bool {
+	functions := map[string]bool{}
+	loader := importer.Default()
+	for _, importPath := range ownerPackages {
+		owner := path.Base(importPath)
+		if !slices.Contains(fileOwners, owner) && owner != "exec" {
+			continue
 		}
-		seen[object] = true
-		var values []ast.Expr
-		switch declaration := object.Decl.(type) {
-		case *ast.AssignStmt:
-			values = declaration.Rhs
-		case *ast.ValueSpec:
-			values = declaration.Values
+		pkg, err := loader.Import(importPath)
+		if err != nil {
+			functions[owner+".*"] = true
+			continue
 		}
-		return slices.ContainsFunc(values, func(source ast.Expr) bool {
-			if selector, ok := source.(*ast.SelectorExpr); ok {
-				owner, ok := selector.X.(*ast.Ident)
-				return ok && (slices.Contains(fileOwners, owner.Name) || owner.Name == "exec")
+		for _, name := range pkg.Scope().Names() {
+			if _, ok := pkg.Scope().Lookup(name).(*types.Func); ok {
+				functions[owner+"."+name] = true
 			}
-			return ownerFunctionAlias(source, seen)
-		})
+		}
 	}
-	return false
+	return functions
+})
+
+// Once a function escapes a direct call, its eventual arguments are unknown.
+// This covers reassignments, returns, callbacks and interface-held closures.
+func escapedOwnerFunction(file *ast.File) bool {
+	direct := map[ast.Expr]bool{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		if call, ok := node.(*ast.CallExpr); ok {
+			direct[call.Fun] = true
+		}
+		return true
+	})
+	escaped := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok || direct[selector] {
+			return true
+		}
+		owner, ok := selector.X.(*ast.Ident)
+		if !ok || owner.Obj != nil {
+			return true
+		}
+		functions := runtimeOwnerFunctions()
+		escaped = escaped || functions[owner.Name+"."+selector.Sel.Name] || functions[owner.Name+".*"]
+		return true
+	})
+	return escaped
 }
 
 // goToolVerbs are the go tool verbs whose next argument names a program.
@@ -581,84 +619,8 @@ func (classifier *sourceClassifier) classifyProgram(program ast.Expr, arguments 
 	if root != "" && classifier.safeNames[root] {
 		return
 	}
-	if root != "" && classifier.parameters[root] {
-		if !classifier.callerReach {
-			*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program a caller hands in")
-		}
-		return
-	}
+
 	*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program the source does not name")
-}
-
-// callerDerived reports a value built only from literals, parameters,
-// caller-derived names, safe names and calls or selections on them.
-func (classifier *sourceClassifier) callerDerived(value ast.Expr) bool {
-	switch typed := value.(type) {
-	case *ast.BasicLit:
-		return true
-	case *ast.Ident:
-		return classifier.parameters[bindingName(typed)] || classifier.safeNames[bindingName(typed)] || typed.Name == "nil" && typed.Obj == nil
-	case *ast.CallExpr:
-		derivedArguments := !slices.ContainsFunc(typed.Args, func(part ast.Expr) bool { return !classifier.callerDerived(part) })
-		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok {
-			if slices.Contains(temporaryCalls, selector.Sel.Name) {
-				return true
-			}
-			if owner, ok := selector.X.(*ast.Ident); ok && slices.Contains(derivingOwners, owner.Name) {
-				// The environment and the working directory come from
-				// outside the call, never from the caller.
-				return derivedArguments && !slices.Contains(environmentCalls, selector.Sel.Name)
-			}
-		}
-		// A function over caller-derived arguments yields a caller-derived
-		// value; a function that takes nothing may find the repository on
-		// its own.
-		if len(typed.Args) != 0 && derivedArguments {
-			return true
-		}
-		root := rootIdentifier(typed.Fun)
-		return root != "" && (classifier.parameters[root] || classifier.safeNames[root]) && derivedArguments
-	case *ast.SelectorExpr, *ast.IndexExpr, *ast.StarExpr, *ast.ParenExpr:
-		root := rootIdentifier(value)
-		return root != "" && (classifier.parameters[root] || classifier.safeNames[root])
-	case *ast.UnaryExpr:
-		return classifier.callerDerived(typed.X)
-	case *ast.BinaryExpr:
-		return classifier.callerDerived(typed.X) && classifier.callerDerived(typed.Y)
-	case *ast.CompositeLit:
-		return !slices.ContainsFunc(typed.Elts, func(element ast.Expr) bool {
-			if pair, ok := element.(*ast.KeyValueExpr); ok {
-				element = pair.Value
-			}
-			return !classifier.callerDerived(element)
-		})
-	default:
-		return false
-	}
-}
-
-// derivingOwners are the standard packages whose functions return values
-// derived only from their arguments.
-var derivingOwners = []string{"os", "filepath", "path", "strings", "fmt", "io", "bufio", "bytes", "strconv", "slices", "errors", "sort"}
-
-// environmentCalls name the os functions whose results come from the
-// process environment rather than from the caller.
-var environmentCalls = []string{"Getenv", "LookupEnv", "Environ", "Getwd", "UserHomeDir", "UserCacheDir", "UserConfigDir"}
-
-// functionParameters names a function's receiver and parameters.
-func functionParameters(receiver *ast.FieldList, signature *ast.FuncType) map[string]bool {
-	names := map[string]bool{}
-	for _, list := range []*ast.FieldList{receiver, signature.Params} {
-		if list == nil {
-			continue
-		}
-		for _, field := range list.List {
-			for _, name := range field.Names {
-				names[bindingName(name)] = true
-			}
-		}
-	}
-	return names
 }
 
 // rootIdentifier returns the identifier an expression is rooted in through
@@ -800,7 +762,7 @@ func selectorIs(selector *ast.SelectorExpr, owner, member string) bool {
 		return false
 	}
 	identifier, ok := selector.X.(*ast.Ident)
-	return ok && identifier.Name == owner
+	return ok && identifier.Obj == nil && identifier.Name == owner
 }
 
 // packageSources lists the compiled and test Go files go list reported for

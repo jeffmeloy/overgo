@@ -116,6 +116,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 		t.Fatalf("denominator text=%d DNA=%d chat=%d native=%d", text, dna, chat, referenceCases)
 	}
 	referenceStore := os.Getenv("OVERGO_SMOKE_REFERENCE_STORE")
+	selectedReference := referenceStore != ""
 	if referenceStore != "" || os.Getenv(dataroot.Env) != "" {
 		if referenceStore == "" {
 			roots, err := dataroot.Resolve(root)
@@ -134,6 +135,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 			t.Fatalf("live catalog: %v; truncated=%t", err, catalog.Truncated)
 		}
 		entries = nil
+		extra := 0
 		for _, manifest := range catalog.Manifests {
 			active, err := modelrecipe.HasActiveRecipe(t.Context(), store, manifest.ID, recipe.TaskInference)
 			if err != nil {
@@ -142,13 +144,21 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 			if !active {
 				continue
 			}
+			// An explicit external fixture store can acquire unrelated models
+			// after this revision. Verify every declared identity without
+			// claiming coverage of those additional activations. The normal
+			// data-root path and production lane still require the full catalog.
+			if selectedReference && !slices.ContainsFunc(declarations, func(d smokeOracle) bool { return d.Model == manifest.ID }) {
+				extra++
+				continue
+			}
 			record, found, err := modelrecipe.ActiveRecord(t.Context(), store, manifest.ID, recipe.TaskInference)
 			if err != nil || !found {
 				t.Fatalf("live activation %s: %v", manifest.ID, err)
 			}
 			entries = append(entries, discovery.Entry{Model: manifest.ID, Recipe: record.Definition.ID, Present: true})
 		}
-		t.Log("live model/recipe identities checked read-only; lane verifies artifact bytes")
+		t.Logf("%d declared model/recipe identities checked read-only; %d additional reference activations receive no evidence credit; lane verifies artifact bytes", len(entries), extra)
 	}
 	if _, err := bindSmokeOracles(declarations, entries); err != nil {
 		t.Fatal(err)

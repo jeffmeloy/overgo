@@ -28,12 +28,18 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("smoke-lane", flag.ContinueOnError)
 	budget := flags.Duration("budget", 0, "total discovery and execution budget (required)")
 	diagnostic := flags.Bool("diagnostic", false, "inspect behavior without publishing evidence")
-	model := flags.String("model", "", "exact model identity; diagnostic mode only")
+	model := flags.String("model", "", "exact model identity; omitted models receive no evidence credit")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || (*model != "" && !*diagnostic) {
-		return errors.New("smoke: unexpected arguments or non-diagnostic model filter")
+	if flags.NArg() != 0 {
+		return errors.New("smoke: unexpected arguments")
+	}
+	if *model != "" {
+		id, err := artifact.ParseID(*model)
+		if err != nil || id.Kind() != artifact.KindModel {
+			return errors.New("smoke: -model requires an exact model identity")
+		}
 	}
 	roots, err := dataroot.ResolveCurrent()
 	if err != nil {
@@ -218,7 +224,7 @@ func recordSmokeTransaction(ctx context.Context, path string, entry discovery.En
 	if err != nil {
 		return err
 	}
-	store, err := overgodb.Open(path)
+	store, err := overgodb.OpenContext(ctx, path)
 	if err != nil {
 		return err
 	}

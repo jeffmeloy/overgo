@@ -69,27 +69,16 @@ func prepareMergeWithProjection(
 			return err
 		}
 		snapshot := strings.TrimSpace(string(sourceRaw))
-		closureSnapshot, err := captureClosureEvidence(root, source, snapshot)
-		if err != nil {
-			return err
-		}
-		if closureSnapshot.cleanup != nil {
-			defer closureSnapshot.cleanup()
-		}
 		contains := exec.Command("git", "--no-replace-objects", "merge-base", "--is-ancestor", snapshot, "HEAD")
 		contains.Dir = root
 		contains.Env = gitauthority.RepositoryEnvironment()
-		if contains.Run() == nil {
+		if err := contains.Run(); err == nil {
 			fmt.Fprintf(output, "prepare-merge: HEAD already contains %s at %s\n", source, snapshot)
 			return nil
-		}
-		liveSourceStore := ""
-		if projection == plan.MergeProjectionFirstParentTarget {
-			liveSourceStore, err = firstParentTargetSourceStore(
-				context.Background(), root, snapshot, closureSnapshot.source,
-			)
-			if err != nil {
-				return err
+		} else {
+			exit, found := errors.AsType[*exec.ExitError](err)
+			if !found || exit.ExitCode() != 1 {
+				return fmt.Errorf("prepare-merge ancestry: %w", err)
 			}
 		}
 		baseRef, err := uniqueMergeBase(root, localRevision, snapshot)
@@ -103,6 +92,25 @@ func prepareMergeWithProjection(
 		incoming, err := planAtRef(root, snapshot)
 		if err != nil {
 			return err
+		}
+		if err := preflightMergeConflicts(root, localRevision, snapshot); err != nil {
+			return err
+		}
+		closureSnapshot, err := captureClosureEvidence(root, source, snapshot)
+		if err != nil {
+			return err
+		}
+		if closureSnapshot.cleanup != nil {
+			defer closureSnapshot.cleanup()
+		}
+		liveSourceStore := ""
+		if projection == plan.MergeProjectionFirstParentTarget {
+			liveSourceStore, err = firstParentTargetSourceStore(
+				context.Background(), root, snapshot, closureSnapshot.source,
+			)
+			if err != nil {
+				return err
+			}
 		}
 		var localAuthority, incomingAuthority plan.CompletionAuthority
 		if projection == plan.MergeProjectionSemanticUnion {
@@ -278,6 +286,28 @@ func mirrorLaneActivations(root, liveSourceStore string) (lanestore.Report, erro
 	}
 	defer target.Close()
 	return lanestore.MirrorActivations(context.Background(), source, target, lanestore.MirrorDepth)
+}
+
+// Preflight writes Git objects only; HEAD, index and worktree stay unchanged.
+func preflightMergeConflicts(root, target, source string) error {
+	out, err := gitOutput(root, "merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", target, source)
+	if err == nil {
+		return nil
+	}
+	exit, found := errors.AsType[*exec.ExitError](err)
+	if !found || exit.ExitCode() != 1 {
+		return fmt.Errorf("prepare-merge conflict preflight: %w", err)
+	}
+	_, paths, found := bytes.Cut(out, []byte{0})
+	if !found || len(bytes.Trim(paths, "\x00")) == 0 {
+		return fmt.Errorf("prepare-merge conflict preflight returned no conflict paths: %w", err)
+	}
+	for path := range bytes.SplitSeq(paths, []byte{0}) {
+		if len(path) != 0 && !mergeOwnedDocument(string(path)) {
+			return fmt.Errorf("prepare-merge source conflict in %q; evidence snapshot not copied", path)
+		}
+	}
+	return nil
 }
 
 func mergeOwnedDocument(path string) bool {

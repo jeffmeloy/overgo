@@ -4,6 +4,33 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "evidence-storage-efficiency",
+      "title": "Reuse immutable evidence without copying every small file",
+      "status": "open",
+      "steps": [
+        {
+          "id": "snapshot-reuse",
+          "title": "Reuse verified snapshot content across merges and retries",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^(TestStreamingSnapshotRoundTrip|TestConcurrentBackupExtent|TestBlobStorePublicationContract)$' -count=1 \u0026\u0026 test -f internal/overgodb/snapshot_reuse_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestSnapshotReuseAcceptance$' -count=1",
+          "rationale": "Measured Hatchet intake copied 117099 blob files (1635867784 bytes) plus a 508862305-byte log before discovering a source conflict. Existing content-addressed blobs already deduplicate identical payloads; avoid repeating verified physical copies and equivalent test acquisitions. Extend Backup and its merge caller, not a new snapshot framework. Check resolvable Git/source conflicts before expensive evidence copying where safe. Reuse immutable snapshot content by verified identity, head and committed extent; bind source authority and live projection explicitly. Prove unchanged content is not copied again, changed extents are captured, corrupt candidates are rejected, and interrupted publication resumes without trusting partial output. Preserve source independence, caller cancellation, write contention, hash verification and replayed ancestry. Report bytes/files read, copied, reused and synced plus elapsed wall. Never weaken durability or delete referenced evidence to improve a timer.",
+          "depends_on": [
+            "evidence-storage-efficiency/merge-preflight"
+          ]
+        },
+        {
+          "id": "small-record-layout",
+          "title": "Measure and decide whether to pack small immutable records",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^(TestBlobStorePublicationContract|TestObservationChunkPublication|TestSegmentedJournalChainAndRecovery|TestStreamingSnapshotRoundTrip)$' -count=1 \u0026\u0026 test -f internal/overgodb/small_record_layout_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestSmallRecordLayoutDecision$' -count=1",
+          "rationale": "The current evidence descriptor census includes 68385 text/plain records totaling 10801019 bytes, 27609 closure-ledger records totaling 29217663 bytes, and 1070 code-manifest-analysis records totaling 1110797445 bytes. Descriptor counts include retained content not necessarily stored as separate blobs; keep physical and logical denominators separate. Compare the retained layout plus snapshot reuse against append-only packs for small immutable records with hash-indexed offsets and separate large payloads. Reuse the existing OvergoDB segment/index owners. Measure publication, reopen, random lookup, backup and concurrent-writer costs with actual size distributions. A retained-layout decision may close this row with evidence and a reopen trigger; packing is not mandatory. If adopted, prove torn-write and crash recovery, per-record integrity, safe index rebuild, source-independent backup, old-store readability and reversible migration before promotion. Preserve immutable IDs and referenced history. Derive packing boundaries from measurements, never an arbitrary file-count target. Reuse source-bound manifest analysis and package receipts; compact physical storage without suppressing distinct failures or obligations.",
+          "depends_on": [
+            "evidence-storage-efficiency/snapshot-reuse"
+          ]
+        }
+      ]
+    },
+    {
       "id": "validation-gate-selection",
       "title": "Reduce repeated verification through one sound dependency owner",
       "status": "open",
@@ -37,30 +64,6 @@
           "rationale": "Compare cold and resumed attempts over the same docs/plan-only, browser, unit-test, runtime fixture, model-execution, kernel and gate-policy change matrix. Inject regressions and refuse any selection that misses a failure detected by the retained required scope. Measure wall to commit, preparation/queue/check/finalization time, executed/reused packages, model loads, outstanding checks and interventions. The 91537691 gate took 1270.6 seconds and executed 234 packages with zero reuse. Hatchet merge fd3a3250 took 1080.7 seconds with 7 reused and 226 executed packages; 154 opaque readers retained broad scope. The preceding browser failure took 925.1 seconds with 233 executed and zero reused packages. Use these concrete incidents, not a universal throughput floor. Publish through existing gate cost/evidence owners. Include merge snapshot preparation: this intake copies a source store with 117099 blobs; measure copying, syncing and replay before choosing immutable snapshot reuse or incremental backup. Preserve verified store ancestry and crash integrity. No recurring full benchmark merely to validate gate savings. Adoption may proceed independently of the modality report; broader batching still retains its recovery and promotion prerequisites.",
           "depends_on": [
             "validation-gate-selection/scope-and-reuse"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "evidence-storage-efficiency",
-      "title": "Reuse immutable evidence without copying every small file",
-      "status": "open",
-      "steps": [
-        {
-          "id": "snapshot-reuse",
-          "title": "Reuse verified snapshot content across merges and retries",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^(TestStreamingSnapshotRoundTrip|TestConcurrentBackupExtent|TestBlobStorePublicationContract)$' -count=1 \u0026\u0026 test -f internal/overgodb/snapshot_reuse_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestSnapshotReuseAcceptance$' -count=1",
-          "rationale": "Measured Hatchet intake copied 117099 blob files (1635867784 bytes) plus a 508862305-byte log before discovering a source conflict. Existing content-addressed blobs already deduplicate identical payloads; avoid repeating verified physical copies and equivalent test acquisitions. Extend Backup and its merge caller, not a new snapshot framework. Check resolvable Git/source conflicts before expensive evidence copying where safe. Reuse immutable snapshot content by verified identity, head and committed extent; bind source authority and live projection explicitly. Prove unchanged content is not copied again, changed extents are captured, corrupt candidates are rejected, and interrupted publication resumes without trusting partial output. Preserve source independence, caller cancellation, write contention, hash verification and replayed ancestry. Report bytes/files read, copied, reused and synced plus elapsed wall. Never weaken durability or delete referenced evidence to improve a timer."
-        },
-        {
-          "id": "small-record-layout",
-          "title": "Measure and decide whether to pack small immutable records",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^(TestBlobStorePublicationContract|TestObservationChunkPublication|TestSegmentedJournalChainAndRecovery|TestStreamingSnapshotRoundTrip)$' -count=1 \u0026\u0026 test -f internal/overgodb/small_record_layout_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestSmallRecordLayoutDecision$' -count=1",
-          "rationale": "The current evidence descriptor census includes 68385 text/plain records totaling 10801019 bytes, 27609 closure-ledger records totaling 29217663 bytes, and 1070 code-manifest-analysis records totaling 1110797445 bytes. Descriptor counts include retained content not necessarily stored as separate blobs; keep physical and logical denominators separate. Compare the retained layout plus snapshot reuse against append-only packs for small immutable records with hash-indexed offsets and separate large payloads. Reuse the existing OvergoDB segment/index owners. Measure publication, reopen, random lookup, backup and concurrent-writer costs with actual size distributions. A retained-layout decision may close this row with evidence and a reopen trigger; packing is not mandatory. If adopted, prove torn-write and crash recovery, per-record integrity, safe index rebuild, source-independent backup, old-store readability and reversible migration before promotion. Preserve immutable IDs and referenced history. Derive packing boundaries from measurements, never an arbitrary file-count target. Reuse source-bound manifest analysis and package receipts; compact physical storage without suppressing distinct failures or obligations.",
-          "depends_on": [
-            "evidence-storage-efficiency/snapshot-reuse"
           ]
         }
       ]

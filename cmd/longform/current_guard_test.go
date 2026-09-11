@@ -10,39 +10,44 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/longform"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/testevidence"
 )
 
 type guardCohort struct {
-	name, historical string
-	initialModel     string
-	repeats          [3]string
+	name, historical  string
+	initialModel      string
+	retired           bool
+	repeats           [3]string
+	priorProducer     string
+	prior             [3]string
+	historicalSurface string
 }
 
 // TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
+	selected := readGuardCatalog(t)
 	fixtures := []guardCohort{
 		{
-			name:       "Qwen capacity session",
+			name:       "Qwen 0.5B",
 			historical: "evidence:sha256:0a6076ca812d7b2d0eb8bc17eef3fda6913ecec8dfbfd0e366e14f42eba12e51",
-			repeats: [3]string{
-				"evidence:sha256:8216acc2fdbc4705d6acead094d3253c176aa9c029683bc4e4480d19774d410c",
-				"evidence:sha256:98cb6f0b40bd3ece9d1cf1815b4a5255fd6e26fa550dc57806cd82f5f7d8634a",
-				"evidence:sha256:8a3933043176ed794d5fcad18c647dfedf583fb59a8a1bbe1e6aec0dead657d7",
-			},
 		},
 		{
-			name:       "E4B request session",
+			name:       "E4B",
 			historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a",
-			repeats: [3]string{
-				"evidence:sha256:5e665ff150fad0fca8ae13a3de609f555ed6b67046c6697a45bfbb48bc9f6cd5",
-				"evidence:sha256:64557c547d3c281bbb4ee77174f28d2c8ba19519197d9d21b54afd54d0abc469",
-				"evidence:sha256:edf1b490201bba3344c73a361a4c8af2db1af0654258e8fd6e3786b11805ec8c",
-			},
 		},
 	}
-	requireGuardCohorts(t, fixtures, "95c0ac02654d9e9034451f9ab1a4d4b2abd0646b", false)
+	for index := range fixtures {
+		fixture := &fixtures[index]
+		records := selected.Cohorts[fixture.name]
+		if len(records) != len(fixture.repeats) {
+			t.Fatalf("%s requires three complete immutable records", fixture.name)
+		}
+		fixture.repeats = [3]string(records)
+	}
+	requireGuardCohorts(t, fixtures, selected.Producer, false)
 	t.Log("control readmission: 2 exact models, 3 isolated repeats each; historical controls retained. Six other text cohorts, chat, modalities and full benchmark suites are excluded.")
 }
 
@@ -74,16 +79,40 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 	lineage := cmp.Or(fixtures[0].historical, fixtures[0].repeats[0])
 	requireStoreLineage(t, store, lineage)
 	seen := make(map[artifact.ID]bool)
+	live := 0
 	opts := options{Root: filepath.Join("..", ".."), Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true}
 	for _, fixture := range fixtures {
+		if catalog && fixture.historicalSurface != "" {
+			t.Fatal("historical source binding cannot grant current catalog credit")
+		}
+		if !fixture.retired && fixture.historicalSurface == "" {
+			live++
+		}
 		t.Run(fixture.name, func(t *testing.T) {
+			var prior []longform.Result
+			priorSeen := make(map[artifact.ID]bool)
+			for _, text := range fixture.prior {
+				if text == "" {
+					continue
+				}
+				id, err := artifact.ParseID(text)
+				if err != nil || priorSeen[id] {
+					t.Fatalf("invalid or duplicate prior record %q: %v", text, err)
+				}
+				priorSeen[id] = true
+				accepted, err := longform.ReadBaseline(t.Context(), store, id)
+				if err != nil || accepted.Result.Commit != fixture.priorProducer {
+					t.Fatalf("prior record lost its admitted producer: %v", err)
+				}
+				prior = append(prior, accepted.Result)
+			}
 			var historical longform.Summary
 			if fixture.initialModel != "" {
 				id, err := artifact.ParseID(fixture.initialModel)
 				if err != nil || id.Kind() != artifact.KindModel || fixture.historical != "" {
 					t.Fatal("initial calibration requires one exact model and no substituted historical reference")
 				}
-				t.Log("initial full-budget calibration; no historical comparison is claimed")
+				t.Logf("exact serving model %s; retained full-budget references=%d", fixture.initialModel, len(prior))
 			} else {
 				historical = measuredGuardRecord(t, store, fixture.historical)
 				if err := validateGuard(historical.Result); err != nil {
@@ -102,8 +131,11 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if fresh.Surface != surface || fresh.Commit != producer {
-					t.Fatal("control does not identify the current inference surface and clean measured producer")
+				if !fixture.retired && (fresh.Surface != cmp.Or(fixture.historicalSurface, surface) || fresh.Commit != producer) {
+					t.Fatal("control does not identify the required inference surface and clean measured producer")
+				}
+				if !fixture.retired && fixture.historicalSurface == "" && fresh.Shape.WarmupOutputTokens != longform.WarmupOutputTokens {
+					t.Fatal("current short measurement lacks its exact-shape initialization contract")
 				}
 				if fixture.initialModel != "" && fresh.Program.Model.String() != fixture.initialModel {
 					t.Fatal("initial calibration substituted another model")
@@ -111,15 +143,32 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 				if err := validateGuard(fresh); err != nil {
 					t.Fatal(err)
 				}
+				if !fixture.retired {
+					if err := checkGuardShortBenchmark(t.Context(), store, fresh); err != nil {
+						t.Fatal(err)
+					}
+				}
 				if historical.Record.Valid() {
 					if verdict := longform.Compare(historical.Result, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
 						t.Fatalf("historical comparison: %s", verdict)
 					}
 				}
+				for _, previous := range prior {
+					if verdict := longform.Compare(previous, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
+						t.Fatalf("prior accepted cohort comparison: %s", verdict)
+					}
+				}
 				if index == 0 {
 					first = fresh
-					opts.Models = append(opts.Models, fresh.ModelPath)
-					opts.Baselines = append(opts.Baselines, text)
+					if fixture.retired {
+						active, err := modelrecipe.HasActiveRecipe(t.Context(), store, fresh.Program.Model, recipe.TaskInference)
+						if err != nil || active {
+							t.Fatalf("retired control is still active: %v", err)
+						}
+					} else if fixture.historicalSurface == "" {
+						opts.Models = append(opts.Models, fresh.ModelPath)
+						opts.Baselines = append(opts.Baselines, text)
+					}
 				} else if verdict := longform.Compare(first, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !verdict.Passed {
 					t.Fatalf("first-repeat comparison: %s", verdict)
 				}
@@ -133,6 +182,10 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 	if t.Failed() {
 		return
 	}
+	if live == 0 && !catalog {
+		t.Logf("historical evidence: %d records; no live model credit", len(seen))
+		return
+	}
 	if catalog {
 		opts.All, opts.Models = true, nil
 	}
@@ -140,15 +193,15 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(targets) != len(fixtures) {
+	if len(targets) != live {
 		t.Fatal("live control selection differs from the accepted denominator")
 	}
 	if catalog {
 		report, err := loadGuardCoverage(t.Context(), opts, targets, surface)
-		if err != nil || report.Covered != len(fixtures) {
+		if err != nil || report.Covered != live {
 			t.Fatalf("live execution coverage is incomplete: %d/%d: %v", report.Covered, report.Selected, err)
 		}
-		t.Logf("catalog: %d exact live models, %d distinct complete records; recipe, definition, profile, corpus and inference surface bound; no model executions", report.Covered, len(seen))
+		t.Logf("catalog: %d exact live models, %d retired cohorts, %d distinct complete records; recipe, definition, profile, corpus and inference surface bound; no model executions", report.Covered, len(fixtures)-live, len(seen))
 		return
 	}
 	if err := bindBaselines(t.Context(), opts, targets); err != nil {

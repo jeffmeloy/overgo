@@ -1,0 +1,71 @@
+{
+  "schema": "overgo/smoke-native-reference/v1",
+  "model_directory": "C:\\Users\\jeffm\\adaptive_new\\models\\Qwen2.5-0.5B",
+  "source_sha256": {
+    "config.json": "ce7908dfd631cd1f713a65cbea3591d32acaab58d438127d70c5dfc5ce1fc1f0",
+    "generation_config.json": "644edd2e8c1de128e73112c2cccda3bfa7b84e39722b24264bb500f196e2ec1a",
+    "merges.txt": "0de0bc38a29ea38eef099b677fa1ff52edd181e573529af26c4cd2136e233777",
+    "model.safetensors": "88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342",
+    "tokenizer.json": "47ec9be242d3ef39b9c97ac0a3f06c1752f061b234e295bc0a2842067a3fe4f9",
+    "tokenizer_config.json": "58db9caa18292ee4e94d2d46bfbbee3cde6dd92da7da3b0d78a44638130e3399",
+    "vocab.json": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+  },
+  "torch": "2.12.0+cu126",
+  "transformers": "5.14.1",
+  "device": "cpu",
+  "dtype": "float32",
+  "cpu_threads": 2,
+  "cases": [
+    {
+      "text": "The capital of France is Paris.",
+      "ids": [
+        785,
+        6722,
+        315,
+        9625,
+        374,
+        12095,
+        13
+      ],
+      "continuation_log_probabilities": [
+        -9.316476821899414,
+        -0.6144585609436035,
+        -3.1789870262145996,
+        -0.327068954706192,
+        -1.153326153755188,
+        -0.7652052640914917
+      ]
+    },
+    {
+      "text": "The capital of France is Rome.",
+      "ids": [
+        785,
+        6722,
+        315,
+        9625,
+        374,
+        21718,
+        13
+      ],
+      "continuation_log_probabilities": [
+        -9.316476821899414,
+        -0.6144585609436035,
+        -3.1789870262145996,
+        -0.327068954706192,
+        -7.475034713745117,
+        -0.914993166923523
+      ]
+    }
+  ],
+  "prompt": "The capital of France is",
+  "generated_ids": [
+    12095,
+    13,
+    1084,
+    374
+  ],
+  "generated_text": " Paris. It is",
+  "wall_seconds": 9.303853599994909,
+  "scope": "Exact tokenization and within-case native likelihood ordering only; no numerical parity tolerance, factual accuracy or scientific quality claim.",
+  "model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8"
+}

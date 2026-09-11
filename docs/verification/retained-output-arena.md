@@ -21,9 +21,10 @@ accounting. Three clean-source FP8 repeats now pass every required guard rung
 and the historical/first-repeat comparisons at producer
 `95c0ac02654d9e9034451f9ab1a4d4b2abd0646b`. Each has the table's exact peak.
 Judged decode: 30.1, 30.0, 30.0 tokens/s; measured wall: 97.438, 96.905,
-96.867 seconds. The [cohort](fp8-guard.json) is checked by
-`TestAcceptedFP8Guard`; selection:
+96.867 seconds. The historical cohort remains in selection
 `evidence:sha256:e970606101f9f1b185d15a0cda2f90d4f59ef7644c8909bc76f03a26e0233c69`.
+`TestAcceptedFP8Guard` checks the current FP8 cohort in the shared
+[guard catalog](guard-catalog.json).
 This is a regression guard, not chat-quality, full-modality or MMLU acceptance.
 
 Fresh E4B/Qwen controls and full text/media resource recovery also pass; see

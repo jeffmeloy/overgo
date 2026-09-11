@@ -1174,6 +1174,11 @@ func TestFinalRecordRefusesSecondFinalization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	retained, err := overgodb.Open(filepath.Join(repo, storePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer retained.Close()
 	publishUnaliasedGateFinalization(t, store, preparation, environment, "record-conflict")
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
@@ -1182,6 +1187,7 @@ func TestFinalRecordRefusesSecondFinalization(t *testing.T) {
 		repo: repo, storePath: storePath, start: time.Now().Add(-time.Second),
 		environment: environment, preparation: preparation, preparationCommit: preparationCommit,
 		planHead: "0123456789abcdef0123456789abcdef01234567", planRef: "authority/record",
+		store: retained,
 		steps: []runrecord.GateStep{{
 			Name: "scope", Phase: runrecord.PhaseValidate, Outcome: runrecord.StepFailed, DurationNS: 1,
 		}},

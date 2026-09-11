@@ -25,6 +25,7 @@ const terminalEvidenceRepo = "OVERGO_TEST_TERMINAL_EVIDENCE_REPO"
 func terminalEvidenceFixture(t *testing.T, root string) (*gateContext, map[string]artifact.ID) {
 	t.Helper()
 	g := &gateContext{repo: root, storePath: StorePath, environment: lifecycleTestEnvironment(t)}
+	t.Cleanup(func() { _ = g.closeStore() })
 	return g, map[string]artifact.ID{
 		"fixture/good":    testutil.ArtifactID(t, artifact.KindEvidence, "good source"),
 		"fixture/pending": testutil.ArtifactID(t, artifact.KindEvidence, "pending source"),

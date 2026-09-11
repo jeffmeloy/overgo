@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tokenizer"
@@ -89,10 +90,12 @@ func Score(ctx context.Context, runner *inference.Runner, prompt, continuation [
 // short prompt, by token id, and the teacher-forced NLL of the text's
 // own next tokens under that prompt.
 type ShortShape struct {
-	PromptTokens int     `json:"prompt_tokens"`
-	OutputIDs    []int32 `json:"output_ids"`
-	NLL          float64 `json:"nll"`
-	Measure      Measure `json:"measure"`
+	PromptTokens int `json:"prompt_tokens"`
+	// Zero preserves legacy records with unbound shape initialization.
+	WarmupOutputTokens int     `json:"warmup_output_tokens,omitzero"`
+	OutputIDs          []int32 `json:"output_ids"`
+	NLL                float64 `json:"nll"`
+	Measure            Measure `json:"measure"`
 }
 
 // Rung is one rung of the LONG ladder: the measure at that prompt
@@ -109,6 +112,9 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 	}
 	prompt := corpus[:floors.ShortPromptTokens]
 	continuation := corpus[floors.ShortPromptTokens : floors.ShortPromptTokens+floors.ShortOutputTokens]
+	if err := Warm(ctx, runner, prompt, protocol); err != nil {
+		return ShortShape{}, fmt.Errorf("short initialization: %w", err)
+	}
 	generation, err := Run(ctx, runner, prompt, floors.ShortOutputTokens, protocol)
 	if err != nil {
 		return ShortShape{}, err
@@ -122,7 +128,8 @@ func Short(ctx context.Context, runner *inference.Runner, corpus []tokenizer.Tok
 		return ShortShape{}, fmt.Errorf("short allocation accounting: %w", err)
 	}
 	return ShortShape{
-		PromptTokens: floors.ShortPromptTokens, OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
+		PromptTokens: floors.ShortPromptTokens, WarmupOutputTokens: WarmupOutputTokens,
+		OutputIDs: tokenIDs(generation.Tokens), NLL: nll, Measure: generation.Measure,
 	}, nil
 }
 
@@ -201,15 +208,15 @@ type Generation struct {
 	Measure Measure
 }
 
-// warmupTokens is the decode budget of the unmeasured pass that
+// WarmupOutputTokens is the decode budget of the unmeasured pass that
 // precedes the measured run: kernels load and graphs instantiate on the
 // first pass, and the benchmark measures after a warmup run too.
-const warmupTokens = 4
+const WarmupOutputTokens = 4
 
 // Warm runs the prompt once with a short decode so the measured run
 // reads steady-state rates.
 func Warm(ctx context.Context, runner *inference.Runner, prompt []tokenizer.TokenID, protocol Protocol) error {
-	_, err := Run(ctx, runner, prompt, warmupTokens, protocol)
+	_, err := Run(ctx, runner, prompt, WarmupOutputTokens, protocol)
 	return err
 }
 
@@ -232,35 +239,45 @@ func Run(ctx context.Context, runner *inference.Runner, prompt []tokenizer.Token
 	var (
 		evaluation  inference.PromptEvaluation
 		tokens      = make([]tokenizer.TokenID, 0, outputTokens)
-		firstToken  time.Time
+		firstToken  time.Duration
 		afterPrompt driver.ExecutionStats
 	)
 	// The device counters are read around the run; a host-resident
 	// runner has none and the counts stay zero.
 	before, _ := runner.DeviceExecutionStats(ctx)
-	started := time.Now()
+	started, err := processmeasure.Counter()
+	if err != nil {
+		return Generation{}, err
+	}
 	options.PromptTokenIDs = prompt
 	options.OnPromptEvaluated = func(value inference.PromptEvaluation) {
 		evaluation = value
 		afterPrompt, _ = runner.DeviceExecutionStats(ctx)
 	}
 	options.OnToken = func(event inference.TokenEvent) error {
-		if firstToken.IsZero() {
-			firstToken = time.Now()
+		if len(tokens) == 0 {
+			var err error
+			firstToken, err = processmeasure.Counter()
+			if err != nil {
+				return err
+			}
 		}
 		tokens = append(tokens, event.ID)
 		return nil
 	}
 	_, _, err = runner.Generate(ctx, "", options)
-	finished := time.Now()
+	if err != nil {
+		return Generation{}, err
+	}
+	finished, err := processmeasure.Counter()
 	if err != nil {
 		return Generation{}, err
 	}
 	after, _ := runner.DeviceExecutionStats(ctx)
-	total := finished.Sub(started)
+	total := finished - started
 	timeToFirst := total
-	if !firstToken.IsZero() {
-		timeToFirst = firstToken.Sub(started)
+	if len(tokens) != 0 {
+		timeToFirst = firstToken - started
 	}
 	decode := total - timeToFirst
 	measure := Measure{

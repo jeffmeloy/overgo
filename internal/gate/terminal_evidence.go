@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
@@ -49,14 +48,11 @@ type packageEvidenceLedger struct {
 }
 
 func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
-	if g.storePath == "" || !g.environment.ID.Valid() {
-		return nil, errors.New("package evidence: canonical store and environment are required")
-	}
 	if g.retryCache == nil {
 		cache := g.loadRetryCache()
 		g.retryCache = &cache
 	}
-	store, err := overgodb.Open(filepath.Join(g.repo, g.storePath))
+	store, err := g.openStore()
 	if err != nil {
 		return nil, err
 	}

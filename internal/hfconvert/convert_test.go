@@ -8,6 +8,43 @@ import (
 	"overgo/internal/tokenizer"
 )
 
+func TestDenseConversionPreservesChatTemplate(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.WriteFile(filepath.Join(directory, "tokenizer.json"), []byte(`{"model":{"vocab":{"a":0},"merges":[]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	const template = "{% if enable_thinking is false %}<think>\n\n</think>\n\n{% endif %}"
+	path := filepath.Join(directory, "chat_template.jinja")
+	if err := os.WriteFile(path, []byte(template), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := modelMetadata(directory, "fixture", archProfiles["llama"], modelConfig{Vocabulary: 1, HeadDim: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, item := range metadata {
+		if item.Key == "tokenizer.chat_template" {
+			count++
+			if item.Value.Data != template {
+				t.Fatal("template changed")
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("chat template count=%d", count)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := modelMetadata(directory, "fixture", archProfiles["llama"], modelConfig{Vocabulary: 1, HeadDim: 1}); err == nil {
+		t.Fatal("unreadable template was silently dropped")
+	}
+}
+
 func TestDNATokenizerMetadataPreservesDeclaredExtension(t *testing.T) {
 	directory := t.TempDir()
 	config := `{

@@ -87,21 +87,24 @@ func (g *gateContext) openBatchEvidence(checks []automationcheck.Invocation, inp
 	if g.verificationBatch != nil && g.manifestPlan == nil {
 		return nil, errors.New("gate batch evidence: source-bound manifest is required")
 	}
-	owner, err := g.openPackageEvidence()
+	store, err := g.openStore()
 	if err != nil {
 		return nil, err
 	}
-	ledger := &batchEvidenceLedger{store: owner.store}
+	ledger := &batchEvidenceLedger{store: store}
 	if err := ledger.prepare(context.Background(), g, checks, inputs, cache); err != nil {
-		return nil, errors.Join(err, ledger.store.Close())
+		return nil, err
 	}
 	if g.verificationBatch == nil {
-		return nil, ledger.store.Close()
+		return nil, nil
 	}
 	return ledger, nil
 }
 
 func (ledger *batchEvidenceLedger) prepare(ctx context.Context, g *gateContext, checks []automationcheck.Invocation, inputs map[artifact.ID]artifact.ID, cache *automationcheck.EvidenceCache) error {
+	if err := ledger.store.Refresh(ctx); err != nil {
+		return err
+	}
 	task, err := artifact.JSONID(artifact.KindRecipe, struct{ Policy, Reference string }{"gate-batch/v1", g.planRef})
 	if err != nil {
 		return err

@@ -220,7 +220,7 @@ func recoverInterruptedCommit(repo, storePath string) (recovered artifact.ID, er
 			head, intent.Commit,
 		)
 	}
-	store, err := overgodb.Open(filepath.Join(repo, storePath))
+	store, err := overgodb.OpenContext(context.Background(), filepath.Join(repo, storePath))
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -871,7 +871,7 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 		}
 		successIntent = &intent
 	}
-	store, err := overgodb.Open(filepath.Join(repo, storePath))
+	store, err := overgodb.OpenContext(context.Background(), filepath.Join(repo, storePath))
 	if err != nil {
 		return artifact.ID{}, err
 	}
@@ -1189,7 +1189,7 @@ func recordSelectedUnbatchableFailure(repo, storePath, selected string) (artifac
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return artifact.ID{}, err
 	}
-	store, err := overgodb.Open(filepath.Join(repo, storePath))
+	store, err := overgodb.OpenContext(context.Background(), filepath.Join(repo, storePath))
 	if err != nil {
 		return artifact.ID{}, err
 	}

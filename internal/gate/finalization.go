@@ -15,7 +15,6 @@ import (
 	"overgo/internal/codeprofile"
 	"overgo/internal/fsatomic"
 	"overgo/internal/loop"
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 )
@@ -181,17 +180,9 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 		batch.Lineage = append(batch.Lineage, evaluation.Lineage()...)
 	}
 
-	store := g.completionStore
-	closeStore := false
-	if store == nil {
-		store, err = overgodb.Open(filepath.Join(g.repo, g.storePath))
-		if err != nil {
-			return g.oweRecord(batch, err)
-		}
-		closeStore = true
-	}
-	if closeStore {
-		defer store.Close()
+	store, err := g.openStore()
+	if err != nil {
+		return g.oweRecord(batch, err)
 	}
 	// Cost per accepted checkpoint and reuse saving against this row's prior
 	// gate results; advisory audit, derived from stored results only.

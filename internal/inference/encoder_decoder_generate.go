@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/model"
+	"overgo/internal/processmeasure"
 	"overgo/internal/tensor/reference"
 	"overgo/internal/tokenizer"
 )
@@ -50,7 +50,10 @@ func (r *Runner) GenerateEncoderDecoder(
 	}
 	defer restoreLoRA()
 
-	promptStarted := time.Now()
+	promptStarted, err := processmeasure.Counter()
+	if err != nil {
+		return nil, "", nil, err
+	}
 	var encoder reference.Value
 	cached := 0
 	if options.CachePrompt {
@@ -75,8 +78,12 @@ func (r *Runner) GenerateEncoderDecoder(
 		}
 	}
 	if options.OnPromptEvaluated != nil {
+		finished, err := processmeasure.Counter()
+		if err != nil {
+			return nil, "", nil, err
+		}
 		options.OnPromptEvaluated(PromptEvaluation{
-			Tokens: len(sourceIDs), Cached: cached, Duration: time.Since(promptStarted),
+			Tokens: len(sourceIDs), Cached: cached, Duration: finished - promptStarted,
 		})
 	}
 	session := &EncoderDecoderSession{Encoder: encoder}

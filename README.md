@@ -110,9 +110,59 @@ use the same parameter-group and portable-state contracts.
 
 The [built-in policy](internal/trainingprogram/optimizer_policy.json) uses a
 constant learning rate of $P^{-1/2}$, where $P$ is the parameter count passed
-to the policy, and derives momentum as $(N-1)/(N+1)$ from its declared
-effective-sample horizon $N=30$. These policy choices are recorded with the
-recipe and resolved optimizer state.
+to the policy. Increasing $P$ by a factor of four therefore halves the base
+learning rate. The rate stays constant across training steps; the group-size
+and momentum factors above determine the scale applied to each group's direction.
+
+The policy expresses momentum through an effective sample count $N$:
+
+$$
+\mu=\frac{N-1}{N+1},\qquad N=30\;\Rightarrow\;\mu=\frac{29}{31}\approx0.9355.
+$$
+
+The choice of 30 follows the established central limit theorem (CLT) sample-size
+heuristic discussed in statistical literature and simulation studies, including
+[Brussolo (2018)](https://www.mdpi.com/2504-3900/2/21/1322). For many distributions,
+averaging roughly 30 independent observations gives a useful normal approximation
+to the distribution of the mean. The appropriate sample size depends on the
+underlying distribution; strongly skewed distributions can require more
+observations. Overgo uses this heuristic to set an effective gradient sample
+count of 30, with the intent of reducing variation between updates while retaining
+responsiveness to changes in gradient direction. The CLT motivates the choice of
+$N$; the exponential-average variance formula below determines $\mu$ from $N$.
+
+The implementation accumulates gradients as $b_t=\mu b_{t-1}+g_t$.
+Rescaling this accumulator as $a_t=(1-\mu)b_t$ gives an exponentially weighted
+average, $a_t=\mu a_{t-1}+(1-\mu)g_t$. This makes the effect of $N$ explicit:
+
+| Effect of $N=30$ | Value and meaning |
+| --- | --- |
+| Weight of the newest gradient in the normalized average | $1-\mu=2/31\approx6.45\%$; the previous average retains about 93.55% weight. |
+| Decay of an individual gradient's contribution | Its weight halves after $\log(0.5)/\log(\mu)\approx10.4$ updates to that parameter group. |
+| Average age of contributions after the initial transient | $\mu/(1-\mu)=14.5$ updates; older gradients continue to contribute with decreasing weight. |
+| Momentum factor in the final update scale | $\sqrt{1-\mu^2}=2\sqrt{N}/(N+1)\approx0.3534$, before multiplying by the learning rate and group-size factor. |
+
+The effective sample count follows from the variance of an exponentially weighted
+average. For independent gradient observations with a constant mean and common
+finite variance $\sigma^2$, its long-run variance is
+$\sigma^2(1-\mu)/(1+\mu)=\sigma^2/N$. Thus $N=30$ gives the same variance as
+an equally weighted average of 30 such observations. This is the
+[standard exponential-average variance relation](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc324.htm)
+with smoothing coefficient $1-\mu$. This variance calculation does not require
+normally distributed gradients. It describes the normalized accumulator;
+correlated or changing gradients need not have that variance reduction.
+
+Choosing $N=30$ specifies a tradeoff between smoothing gradient variation and
+responding to a change in gradient direction. Larger $N$ retains older gradients
+longer and reduces the update-scale factor; smaller $N$ responds more quickly
+and increases that factor. The current policy fixes $N$ at 30 rather than
+estimating it from gradient measurements. Its CLT rationale is a statistical
+heuristic whose applicability depends on the gradient distribution and dependence
+between updates. Here, $N$ describes effective averaging, rather than a fixed
+30-step window or a batch size. Muon uses the Nesterov direction $g_t+\mu b_t$
+and then orthogonalizes it, so the accumulator's variance relation does not
+directly describe the final parameter update. The recipe records the policy
+identity, and optimizer state records the resolved settings.
 
 Checkpoints retain model and recipe identity, optimizer progress and momentum,
 random state, and data-stream position. Resume checks these bindings before

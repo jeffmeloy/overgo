@@ -48,6 +48,8 @@ type goPackageInput struct {
 	// Non-import edges derived from runtime inputs: the command packages
 	// the source names, or every root when the reach is not named.
 	inputDependencies []string
+	// Test commands and opaque reads belong to the package's own test execution.
+	testInputDependencies []string
 	// Execution edges alone propagate device requirements.
 	executionDependencies []string
 	// opaqueReader marks a package whose compiled runtime reach the source
@@ -184,6 +186,17 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 					absent = "runs the command " + command + " the graph does not hold"
 				}
 			}
+			for _, command := range inputs.testCommands {
+				if target, ok := byDirectory[command]; ok {
+					node.testInputDependencies = append(node.testInputDependencies, target)
+					node.executionDependencies = append(node.executionDependencies, target)
+				} else {
+					inputs.testDynamic = append(inputs.testDynamic, "runs the command "+command+" the graph does not hold")
+				}
+			}
+		}
+		if reason == "" && absent != "" {
+			reason = absent
 		}
 		if reason == "" && absent == "" && inputs.confined() {
 			// Temporary files, the test binary and external tools: no edge.
@@ -192,15 +205,12 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		if reason == "" {
 			namedPaths[node.Dir] = append(namedPaths[node.Dir], inputs.files...)
 			namedTestPaths[node.Dir] = append(namedTestPaths[node.Dir], inputs.testFiles...)
-			if absent != "" {
-				inputs.testDynamic = append(inputs.testDynamic, absent)
-			}
 			if len(inputs.testDynamic) != 0 {
 				// The tests alone reach what they do not name: they run on
 				// any change, but importers observe only the compiled reach.
 				node.testOpaque = true
 				node.runtimeReason = "tests: " + strings.Join(inputs.testDynamic, "; ")
-				node.inputDependencies = slices.Clone(roots)
+				node.testInputDependencies = slices.Clone(roots)
 				if !slices.Contains(runtimeDirectories, node.Dir) {
 					runtimeDirectories = append(runtimeDirectories, node.Dir)
 					broadTest[node.Dir] = true
@@ -330,35 +340,46 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 	if len(queue) == 0 {
 		return artifact.ID{}, fmt.Errorf("package input identity: package %q is absent", target)
 	}
-	rootNodes := make(map[int]bool, len(queue))
-	for _, index := range queue {
-		rootNodes[index] = true
-	}
-	seen := map[int]bool{}
-	var visit func(int)
-	visit = func(index int) {
-		if seen[index] {
+	seen, withTests := map[int]bool{}, map[int]bool{}
+	var visit func(int, bool)
+	visit = func(index int, tests bool) {
+		if seen[index] && (!tests || withTests[index]) {
 			return
 		}
 		seen[index] = true
-		imports := slices.Concat(graph.nodes[index].Imports, graph.nodes[index].inputDependencies)
-		if rootNodes[index] {
+		withTests[index] = withTests[index] || tests
+		imports := slices.Clone(graph.nodes[index].Imports)
+		if tests {
 			imports = append(imports, graph.nodes[index].TestImports...)
 			imports = append(imports, graph.nodes[index].XTestImports...)
 		}
 		for _, imported := range imports {
 			for _, dependency := range graph.byID[imported] {
-				visit(dependency)
+				visit(dependency, false)
+			}
+		}
+		runtime := slices.Clone(graph.nodes[index].inputDependencies)
+		if tests {
+			runtime = append(runtime, graph.nodes[index].testInputDependencies...)
+		}
+		for _, imported := range runtime {
+			for _, dependency := range graph.byID[imported] {
+				// Runtime commands may run tests; opaque readers may read test source.
+				visit(dependency, true)
 			}
 		}
 	}
 	for _, index := range queue {
-		visit(index)
+		visit(index, true)
 	}
 	files := map[string]bool{}
 	for index := range seen {
 		node := graph.nodes[index]
-		for _, name := range node.files() {
+		names := node.productionFiles()
+		if withTests[index] {
+			names = node.files()
+		}
+		for _, name := range names {
 			files[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
 		}
 		for _, path := range graph.resourceFiles[node.Dir] {
@@ -368,7 +389,7 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		// test inputs do not reach this identity, and its runtime-named
 		// inputs always do: the target's tests run the import's reads, and
 		// nothing establishes their isolation from them.
-		if rootNodes[index] {
+		if withTests[index] {
 			for _, path := range graph.testResourceFiles[node.Dir] {
 				files[path] = true
 			}

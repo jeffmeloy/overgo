@@ -160,6 +160,11 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		}
 	}
 	for _, node := range roots {
+		if slices.ContainsFunc(node.testInputDependencies, func(imported string) bool { return affected[imported] }) {
+			testTargets[node.ImportPath] = true
+		}
+	}
+	for _, node := range roots {
 		if slices.Contains(direct, node.ImportPath) {
 			continue
 		}
@@ -180,7 +185,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	slices.Sort(scope.direct)
 	slices.Sort(scope.dependent)
 	for _, node := range graph.nodes {
-		if len(node.inputDependencies) == 0 {
+		if len(node.inputDependencies) == 0 && len(node.testInputDependencies) == 0 {
 			continue
 		}
 		target := node.ImportPath

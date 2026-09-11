@@ -54,7 +54,7 @@ func TestDeclaredExecutionEdgesBoundSelection(t *testing.T) {
 		t.Fatalf("package %s not in graph", directory)
 		return runtimeInputs{}
 	}
-	if inputs := classify("internal/runner"); !slices.Equal(inputs.commands, []string{"cmd/tool"}) || len(inputs.dynamic) != 0 {
+	if inputs := classify("internal/runner"); !slices.Equal(inputs.testCommands, []string{"cmd/tool"}) || len(inputs.commands) != 0 || len(inputs.dynamic) != 0 {
 		t.Fatalf("runner inputs = %+v", inputs)
 	}
 	if inputs := classify("internal/confined"); !inputs.confined() {

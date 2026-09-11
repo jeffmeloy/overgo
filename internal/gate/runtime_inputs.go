@@ -19,7 +19,8 @@ import (
 // calls: repository commands it runs, repository paths it names, and the
 // reasons a dynamic reach keeps the broad binding.
 type runtimeInputs struct {
-	commands []string
+	commands     []string
+	testCommands []string
 	// files are repository paths the compiled sources name; testFiles are
 	// paths only the package's tests name, inputs of those tests alone.
 	files     []string
@@ -38,7 +39,7 @@ type runtimeInputs struct {
 // confined reports a package whose runtime reach stays inside its own
 // directory, external tools and temporary files.
 func (inputs runtimeInputs) confined() bool {
-	return len(inputs.commands) == 0 && len(inputs.files) == 0 && len(inputs.testFiles) == 0 && len(inputs.dynamic) == 0 && len(inputs.testDynamic) == 0
+	return len(inputs.commands) == 0 && len(inputs.testCommands) == 0 && len(inputs.files) == 0 && len(inputs.testFiles) == 0 && len(inputs.dynamic) == 0 && len(inputs.testDynamic) == 0
 }
 
 // execFunctions name the calls that start a process; the context variant
@@ -93,6 +94,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 	var inputs runtimeInputs
 	set := token.NewFileSet()
 	commands := map[string]bool{}
+	testCommands := map[string]bool{}
 	paths, testPaths := map[string]bool{}, map[string]bool{}
 	// A bare repository root handed to a discovery call names the tree only
 	// when the sources also reach the repository root; a fixture under a
@@ -144,6 +146,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 			safeNames: safeNames(parsed, constants), parameters: map[string]bool{}, callerReach: callerReach, escapes: &escapes,
 		}
 		if strings.HasSuffix(name, "_test.go") {
+			classifier.commands = testCommands
 			classifier.named, classifier.pending, classifier.reasons = testPaths, testTrees, &inputs.testDynamic
 		}
 		if dotImported {
@@ -159,6 +162,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		maps.Copy(testPaths, testTrees)
 	}
 	inputs.commands = slices.Sorted(maps.Keys(commands))
+	inputs.testCommands = slices.Sorted(maps.Keys(testCommands))
 	inputs.files = slices.Sorted(maps.Keys(paths))
 	for path := range testPaths {
 		if !paths[path] {
@@ -205,7 +209,7 @@ func canonicalizeImports(file *ast.File) bool {
 		if !ok {
 			return true
 		}
-		if identifier, ok := selector.X.(*ast.Ident); ok {
+		if identifier, ok := selector.X.(*ast.Ident); ok && identifier.Obj == nil {
 			if canonical, aliased := aliases[identifier.Name]; aliased {
 				identifier.Name = canonical
 			}
@@ -243,7 +247,7 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 		if classifier.callerDerived(typed.X) {
 			for _, target := range []ast.Expr{typed.Key, typed.Value} {
 				if identifier, ok := target.(*ast.Ident); ok {
-					classifier.parameters[identifier.Name] = true
+					classifier.parameters[bindingName(identifier)] = true
 				}
 			}
 		}
@@ -258,14 +262,14 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 		// that a later assignment dominates every path through a branch.
 		for _, target := range typed.Lhs {
 			if identifier, ok := target.(*ast.Ident); ok {
-				if derived && !classifier.uncertain[identifier.Name] {
-					classifier.parameters[identifier.Name] = true
+				if derived && !classifier.uncertain[bindingName(identifier)] {
+					classifier.parameters[bindingName(identifier)] = true
 				} else {
-					delete(classifier.parameters, identifier.Name)
+					delete(classifier.parameters, bindingName(identifier))
 					if classifier.uncertain == nil {
 						classifier.uncertain = map[string]bool{}
 					}
-					classifier.uncertain[identifier.Name] = true
+					classifier.uncertain[bindingName(identifier)] = true
 				}
 			}
 		}
@@ -319,7 +323,7 @@ func (classifier *sourceClassifier) safePath(argument ast.Expr) bool {
 	case *ast.BasicLit:
 		return true
 	case *ast.Ident:
-		return classifier.safeNames[typed.Name] || typed.Name == "nil"
+		return classifier.safeNames[bindingName(typed)] || typed.Name == "nil" && typed.Obj == nil
 	case *ast.CallExpr:
 		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok {
 			if slices.Contains(temporaryCalls, selector.Sel.Name) {
@@ -373,9 +377,9 @@ func safeNames(file *ast.File, constants map[string]bool) map[string]bool {
 				safe = safeSource(assign.Rhs[index], names)
 			}
 			if safe {
-				names[identifier.Name] = true
+				names[bindingName(identifier)] = true
 			} else {
-				unsafe[identifier.Name] = true
+				unsafe[bindingName(identifier)] = true
 			}
 		}
 		return true
@@ -393,7 +397,7 @@ func safeSource(value ast.Expr, names map[string]bool) bool {
 	case *ast.BasicLit:
 		return typed.Kind == token.STRING
 	case *ast.Ident:
-		return names[typed.Name]
+		return names[bindingName(typed)]
 	case *ast.IndexExpr:
 		return argumentZero(typed)
 	case *ast.CallExpr:
@@ -593,7 +597,7 @@ func (classifier *sourceClassifier) callerDerived(value ast.Expr) bool {
 	case *ast.BasicLit:
 		return true
 	case *ast.Ident:
-		return classifier.parameters[typed.Name] || classifier.safeNames[typed.Name] || typed.Name == "nil"
+		return classifier.parameters[bindingName(typed)] || classifier.safeNames[bindingName(typed)] || typed.Name == "nil" && typed.Obj == nil
 	case *ast.CallExpr:
 		derivedArguments := !slices.ContainsFunc(typed.Args, func(part ast.Expr) bool { return !classifier.callerDerived(part) })
 		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok {
@@ -650,7 +654,7 @@ func functionParameters(receiver *ast.FieldList, signature *ast.FuncType) map[st
 		}
 		for _, field := range list.List {
 			for _, name := range field.Names {
-				names[name.Name] = true
+				names[bindingName(name)] = true
 			}
 		}
 	}
@@ -663,7 +667,7 @@ func rootIdentifier(expression ast.Expr) string {
 	for {
 		switch typed := expression.(type) {
 		case *ast.Ident:
-			return typed.Name
+			return bindingName(typed)
 		case *ast.SelectorExpr:
 			expression = typed.X
 		case *ast.IndexExpr:
@@ -678,6 +682,15 @@ func rootIdentifier(expression ast.Expr) string {
 			return ""
 		}
 	}
+}
+
+// Locals and parameters bind to declarations, not spellings shared by scopes.
+// Constants remain literal values; unresolved package constants bind by name.
+func bindingName(identifier *ast.Ident) string {
+	if identifier.Obj == nil || identifier.Obj.Kind == ast.Con {
+		return identifier.Name
+	}
+	return identifier.Name + "\x00" + strconv.Itoa(int(identifier.Obj.Pos()))
 }
 
 // classifyPath binds a literal that names a repository path outside the

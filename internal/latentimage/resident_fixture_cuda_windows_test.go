@@ -31,12 +31,12 @@ func newResidentFixture(
 	}
 	graph, err := compileResidentWeights(ctx, runtime, label, source, inputs, nil, outputs...)
 	if err != nil {
-		_ = runtime.Close(ctx)
+		_ = runtime.Close(context.WithoutCancel(ctx))
 		t.Fatal(err)
 	}
 	fixture := &residentFixture{runtime: runtime, graph: graph}
 	t.Cleanup(func() {
-		if err := fixture.runtime.Close(ctx); err != nil {
+		if err := fixture.runtime.Close(context.WithoutCancel(ctx)); err != nil {
 			t.Errorf("close resident fixture: %v", err)
 		}
 	})

@@ -5,48 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "shared-buffer-lifetimes",
-      "title": "Remove demonstrated duplicate live storage through existing planners",
-      "status": "open",
-      "steps": [
-        {
-          "id": "retained-lifetimes",
-          "title": "Verify retained outputs, workspace aliases and shared buffer lifetimes across real consumers",
-          "status": "open",
-          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/graphruntime -run '^TestResidentLifetimeResourceAcceptance$' -count=1 -v",
-          "rationale": "Start from the landed retained-output arena repair; do not reimplement it or extrapolate its historical FP8 saving. Inspect actual planner exclusions, output leases, shared weight bindings and scratch lifetime in admitted inference, diffusion and training consumers. Select a demonstrated duplicate allocation or lifetime defect; retain a concrete failing accounting/lifetime case before repair. Reuse current planners and ownership contracts, derive workspace from live tensor shapes, and delete displaced allocation logic. Verify aliases, separate host-output behavior, concurrent independent sessions, release after cancellation/error, graph invalidation before free and post-recovery execution; do not alias tensors still needed by backward or observers. Bind real-consumer peak measurements and allocation counts to the exact repaired source and artifact. If no further defect is demonstrated, record the bounded audit and no-change outcome with passing guards, not an invented memory improvement. Run CPU planner/lifetime checks first, applicable device and sanitizer checks for changed ownership, and downstream acceptance only where affected; the matched device peak comparison requires exclusive admission. Missing required models or counters cannot establish memory fitness.",
-          "capabilities": [
-            "retained-output-accounting",
-            "derived-workspace-lifetimes",
-            "measured-live-memory"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/graphruntime",
-              "internal/cuda",
-              "internal/tensor",
-              "internal/devicemath",
-              "internal/densecausal",
-              "internal/diffusionimage",
-              "internal/latentimage",
-              "internal/inference",
-              "docs",
-              "compatibility.json"
-            ],
-            "rationale": "One demonstrated lifetime repair or bounded no-change audit; shared allocator changes derive the full affected consumer cone rather than using one model as universal proof.",
-            "reopen_when": "Revalidate affected consumers when source, runtime inputs, artifact, shape, precision, ABI, buffer lifetime, environment or quality contract changes; reuse only exact independent passing evidence.",
-            "checkpoints": [
-              {
-                "id": "lifetime-contract",
-                "title": "Verify output exclusions, aliases, release and replay invalidation",
-                "verify": "go test ./internal/graphruntime -run '^TestResidentLifetimeContractAcceptance$' -count=1 -v"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
       "id": "shared-training-residency",
       "title": "Extend existing resident training across host-device boundaries",
       "status": "open",

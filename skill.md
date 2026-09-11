@@ -244,7 +244,7 @@ compatibility, manifest, and other required checks.
 | OvergoDB | Artifacts, lineage, runs, decisions, findings, and receipts; query through `cmd/overgodb-query` |
 | [compatibility.json](compatibility.json) | Model and capability verification contracts |
 | [kernels/manifest.json](kernels/manifest.json) | Kernel ABI and source/binary identities |
-| [API manifest](docs/API_MANIFEST.md) | Public commands, routes, and document contracts |
+| [API manifest](docs/api_manifest.json) | Public commands, routes, and document contracts |
 
 Use existing owners rather than parallel plans, ledgers, schedulers, or
 recovery mechanisms. Campaign-specific constraints remain in the active plan;

@@ -17,7 +17,8 @@
           "depends_on": [
             "validation-gate-selection/scope-and-reuse",
             "validation-gate-selection/declarative-plan",
-            "validation-gate-selection/browser-prerequisites"
+            "validation-gate-selection/browser-prerequisites",
+            "validation-gate-selection/api-manifest-json"
           ]
         },
         {

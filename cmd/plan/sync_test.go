@@ -352,7 +352,6 @@ func TestMergeOwnedDocumentLimitsAutomaticConflictResolution(t *testing.T) {
 		plan.Path,
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
-		apiManifestDocumentPath,
 		apiManifestJSONPath,
 		modernGoBaselinePath,
 		modernGoCensusPath,

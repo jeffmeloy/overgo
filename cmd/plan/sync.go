@@ -23,7 +23,6 @@ import (
 const (
 	compatibilityDocumentPath         = "docs/COMPATIBILITY.md"
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
-	apiManifestDocumentPath           = "docs/API_MANIFEST.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
 	modernGoBaselinePath              = "docs/modern_go_baseline.json"
 	modernGoCensusPath                = "docs/modern_go_census.json"
@@ -195,7 +194,6 @@ func prepareMergeWithProjection(
 			"compatibility.json",
 			compatibilityDocumentPath,
 			trainingCompatibilityDocumentPath,
-			apiManifestDocumentPath,
 			apiManifestJSONPath,
 			modernGoBaselinePath,
 			modernGoCensusPath,
@@ -319,7 +317,6 @@ func mergeOwnedDocument(path string) bool {
 	case plan.Path,
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
-		apiManifestDocumentPath,
 		apiManifestJSONPath,
 		modernGoBaselinePath,
 		modernGoCensusPath:

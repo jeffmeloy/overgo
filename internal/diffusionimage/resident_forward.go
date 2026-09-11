@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/rand"
 
+	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
@@ -13,11 +15,13 @@ import (
 )
 
 type ResidentForward struct {
-	session *graphruntime.ResidentSession
-	program *graphruntime.ResidentProgram
-	input   *tensor.Tensor
-	output  *tensor.Tensor
-	image   imageGeometry
+	session                        *graphruntime.ResidentSession
+	program                        *graphruntime.ResidentProgram
+	input                          *tensor.Tensor
+	output                         *tensor.Tensor
+	image                          imageGeometry
+	sampling, upload               *graphruntime.ResidentProgram
+	delta, next, initial, interval *tensor.Tensor
 }
 
 func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHeight, imageWidth int) (*ResidentForward, error) {
@@ -76,6 +80,8 @@ func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHei
 	output := graph.finalProjection(cur, model.final, imageGeometry{
 		channels: channels, height: height, width: width,
 	}, model.Cfg.InChannels, model.Cfg.PatchSize)
+	delta, next := samplingUpdate(graph.builder, input, output)
+	initial, interval := graph.builder.Scale(input, 1), graph.builder.Scale(delta, 1)
 	if err := graph.err("resident forward"); err != nil {
 		return nil, err
 	}
@@ -84,9 +90,20 @@ func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHei
 		return nil, err
 	}
 	program, err := session.Compile(ctx, "diffusion image resident forward", []*tensor.Tensor{input}, output)
+	var sampling, upload *graphruntime.ResidentProgram
+	if err == nil {
+		sampling, err = session.Compile(ctx, "diffusion image resident sampling", []*tensor.Tensor{input, delta}, next)
+	}
+	if err == nil {
+		upload, err = session.Compile(ctx, "diffusion image sampling inputs", nil, initial, interval)
+	}
 	if err == nil {
 		for _, binding := range graph.static {
 			err = session.BindF32(ctx, program, "diffusionimage:"+binding.Node.Name, binding.Node, binding.Value.Data)
+			if err != nil {
+				break
+			}
+			err = session.BindF32(ctx, sampling, "diffusionimage:"+binding.Node.Name, binding.Node, binding.Value.Data)
 			if err != nil {
 				break
 			}
@@ -98,8 +115,15 @@ func CompileResidentForward(ctx context.Context, model *Model, ordinal, imageHei
 	session.Seal()
 	return &ResidentForward{
 		session: session, program: program, input: input, output: output,
-		image: imageGeometry{channels: model.Cfg.InChannels, height: imageHeight, width: imageWidth},
+		image:    imageGeometry{channels: model.Cfg.InChannels, height: imageHeight, width: imageWidth},
+		sampling: sampling, upload: upload, delta: delta, next: next, initial: initial, interval: interval,
 	}, nil
+}
+
+// samplingUpdate preserves the reference's separate F32 multiply and add.
+func samplingUpdate(builder *tensor.Builder, input, velocity *tensor.Tensor) (*tensor.Tensor, *tensor.Tensor) {
+	delta := builder.Input("sampling.delta", dtype.F32, tensor.MustShape(tensor.SingletonExtent))
+	return delta, builder.Add(input, builder.Multiply(velocity, delta))
 }
 
 func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([]float32, error) {
@@ -118,26 +142,55 @@ func (forward *ResidentForward) Execute(ctx context.Context, input []float32) ([
 	return graphImageToNCHW(result[forward.output].Data, forward.image.channels, forward.image.height, forward.image.width), nil
 }
 
-func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int64) ([]float32, error) {
+func (forward *ResidentForward) Sample(ctx context.Context, steps int, seed int64) (pixels []float32, err error) {
 	if forward == nil || forward.session == nil || steps <= 0 {
 		return nil, errors.New("diffusionimage: resident sample request is invalid")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	rng := rand.New(rand.NewSource(seed))
-	pixels := make([]float32, forward.image.channels*forward.image.height*forward.image.width)
+	pixels = make([]float32, forward.image.channels*forward.image.height*forward.image.width)
 	for index := range pixels {
 		pixels[index] = float32(rng.NormFloat64())
 	}
 	delta := float32(1) / float32(steps)
+	initial, err := forward.session.Retain(ctx, forward.upload, map[*tensor.Tensor]reference.Value{
+		forward.input: {Shape: forward.input.Shape, Data: nchwToGraphImage(pixels, forward.image.channels, forward.image.height, forward.image.width)},
+		forward.delta: {Shape: forward.delta.Shape, Data: []float32{delta}},
+	}, nil)
+	if err != nil {
+		return nil, err
+	}
+	cleanup := context.WithoutCancel(ctx)
+	var current *executor.RetainedOutputs
+	defer func() {
+		err = errors.Join(err, current.Release(cleanup), initial.Release(cleanup))
+	}()
+	state, stateOK := initial.Value(forward.initial)
+	interval, intervalOK := initial.Value(forward.interval)
+	if !stateOK || !intervalOK {
+		return nil, errors.New("diffusionimage: sampling inputs are unavailable")
+	}
 	for range steps {
-		velocity, err := forward.Execute(ctx, pixels)
+		next, err := forward.session.Retain(ctx, forward.sampling, nil, []driver.DevicePtr{state.Pointer, interval.Pointer})
 		if err != nil {
 			return nil, err
 		}
-		for index := range pixels {
-			pixels[index] += velocity[index] * delta
+		value, ok := next.Value(forward.next)
+		if !ok {
+			return nil, errors.Join(errors.New("diffusionimage: sampling output is unavailable"), next.Release(cleanup))
 		}
+		if err := current.Release(cleanup); err != nil {
+			return nil, errors.Join(err, next.Release(cleanup))
+		}
+		current, state = next, value
 	}
-	return pixels, nil
+	result, err := current.CopyToHost(ctx, forward.next)
+	if err != nil {
+		return nil, err
+	}
+	return graphImageToNCHW(result.Data, forward.image.channels, forward.image.height, forward.image.width), nil
 }
 
 func (forward *ResidentForward) Stats(ctx context.Context) (graphruntime.ResidentStats, error) {
@@ -154,5 +207,6 @@ func (forward *ResidentForward) Close(ctx context.Context) error {
 	err := forward.session.Close(ctx)
 	forward.session = nil
 	forward.program = nil
+	forward.sampling, forward.upload = nil, nil
 	return err
 }

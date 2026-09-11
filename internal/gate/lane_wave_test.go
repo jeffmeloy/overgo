@@ -12,11 +12,8 @@ import (
 )
 
 // TestSharedLanesCoSchedule pins the lane overlap: the browser lane shares
-// the device like the device lane, both lanes still follow the test phase
-// because the lane store admits one writer at a time, and under the DAG
-// executor the
-// two lanes run in one wave while an exclusive measurement still waits for
-// the device to be free.
+// the device like the device lane. Their prerequisites remain explicit;
+// eligible shared consumers overlap while exclusive measurements wait.
 func TestSharedLanesCoSchedule(t *testing.T) {
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/server/webui_shell.go"}}
 	byName := map[string]automationcheck.Descriptor{}
@@ -28,8 +25,12 @@ func TestSharedLanesCoSchedule(t *testing.T) {
 		if !ok {
 			t.Fatalf("pipeline lacks the %s lane", lane)
 		}
-		if !slices.Equal(descriptor.Dependencies, []string{"test-device"}) {
-			t.Fatalf("%s depends on %v, want the device check of the remaining groups", lane, descriptor.Dependencies)
+		prerequisite := "test-device"
+		if lane == automationcheck.WebUICheckName {
+			prerequisite = "test-owners"
+		}
+		if !slices.Equal(descriptor.Dependencies, []string{prerequisite}) {
+			t.Fatalf("%s depends on %v, want %s", lane, descriptor.Dependencies, prerequisite)
 		}
 		for _, resource := range descriptor.Resources {
 			if resource.Exclusive {

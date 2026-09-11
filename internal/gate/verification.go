@@ -65,9 +65,8 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 				return skipped, "", err
 			},
 		}, {
-			// The remaining groups' device packages run next, ahead of the
-			// lanes: a package whose code claims the device exclusively is
-			// refused at once beside a lane's server, which holds it shared.
+			// Dependent device-capable tests share admission. Opted-in
+			// measurements remain outside this host-test batch.
 			Descriptor: automationcheck.Descriptor{Name: "test-device", Phase: runrecord.PhaseTest, Always: true},
 			Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
 				skipped, err := g.stepTestDevice(ctx)
@@ -93,15 +92,14 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies["vet"] = slices.Clone(validateWave)
 	dependencies["build"] = slices.Clone(validateWave)
 	dependencies["acceptance"] = []string{"vet", "build"}
-	// The changed owners gate the rest, then the remaining groups' device
-	// packages run alone on the device; the host packages and both lanes
-	// start once those pass and run beside one another, admitted to the
-	// device by the shared lease and to the lane store by its waiting lock.
+	// Changed owners precede shared dependency tests and browser correctness.
+	// The device lane and remaining host tests follow the dependency tests.
+	// Shared device admission and waiting store locks protect overlap.
 	dependencies["test-owners"] = []string{"acceptance"}
 	dependencies["test-device"] = []string{"test-owners"}
 	dependencies["test"] = []string{"test-device"}
 	dependencies["device"] = []string{"test-device"}
-	dependencies[automationcheck.WebUICheckName] = []string{"test-device"}
+	dependencies[automationcheck.WebUICheckName] = []string{"test-owners"}
 	dependencies["commit"] = []string{"test", "device", automationcheck.WebUICheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]

@@ -16,9 +16,8 @@ import (
 )
 
 // TestTestGroupsOverlapUnderLedger pins the overlap: the changed source
-// owners run as their own check, the remaining groups and both lanes
-// depend on it alone and run beside one another, the commit waits for all
-// three, a skipped owners check skips the rest, and the gate's store handle
+// owners precede the shared browser and dependency tests. The commit waits
+// for all checks, a skipped owners check skips the rest, and the store handle
 // waits for another writer instead of refusing on the OS exclusion.
 func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/gate.go"}}
@@ -31,7 +30,11 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 		t.Fatalf("test groups depend on %v, %v and %v", byName["test-owners"].Dependencies, byName["test-device"].Dependencies, byName["test"].Dependencies)
 	}
 	for _, lane := range []string{"device", automationcheck.WebUICheckName} {
-		if !slices.Equal(byName[lane].Dependencies, []string{"test-device"}) {
+		prerequisite := "test-device"
+		if lane == automationcheck.WebUICheckName {
+			prerequisite = "test-owners"
+		}
+		if !slices.Equal(byName[lane].Dependencies, []string{prerequisite}) {
 			t.Fatalf("%s depends on %v, want the device check of the remaining groups alone", lane, byName[lane].Dependencies)
 		}
 	}
@@ -66,14 +69,18 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 		return spans[left].start.Before(spans[right].end) && spans[right].start.Before(spans[left].end)
 	}
 	for _, follower := range []string{"test", "device", automationcheck.WebUICheckName} {
-		if spans[follower].start.Before(spans["test-device"].end) {
-			t.Fatalf("%s started before the device packages passed", follower)
+		prerequisite := "test-device"
+		if follower == automationcheck.WebUICheckName {
+			prerequisite = "test-owners"
+		}
+		if spans[follower].start.Before(spans[prerequisite].end) {
+			t.Fatalf("%s started before %s passed", follower, prerequisite)
 		}
 		if spans["commit"].start.Before(spans[follower].end) {
 			t.Fatalf("commit started before %s ended", follower)
 		}
 	}
-	if !overlaps("test", "device") || !overlaps("test", automationcheck.WebUICheckName) {
+	if !overlaps("test", "device") || !overlaps("test-device", automationcheck.WebUICheckName) {
 		t.Fatalf("the remaining groups did not run beside the lanes: %v", spans)
 	}
 

@@ -37,34 +37,42 @@ The [development plan](docs/plan.json) defines the current work.
 
 ## Current skill automation
 
-[skill.md](skill.md) guides the worker's implementation decisions. The automation
-code turns the working loop into task dispatch, bounded execution, verification,
-and recorded outcomes:
+[skill.md](skill.md) describes how development should proceed. Go code automates
+the parts that can be checked directly: selecting the next task, running required
+tests, checking whether previous results can be reused, limiting retries, and
+recording completion. Agents propose and implement changes. The automation checks
+those changes against the task's requirements before committing them and marking
+the task complete.
 
 ```mermaid
 flowchart LR
-    Plan[Plan dispatch] --> Worker[Worker follows skill.md]
-    Worker --> Gate[Gate checks and commits]
-    Gate -->|Advance plan| Plan
-    Worker -->|Step unchanged| Verify[Run verifier]
-    Verify -->|Feedback and bounded retry| Worker
-    Gate --> Records[Stored attempt records]
+    Plan[Select next task] --> Driver[Run worker within configured limits]
+    Driver --> Change[Implement candidate]
+    Change --> Gate[Run required checks]
+    Gate -->|Requirements satisfied| Commit[Commit and update plan]
+    Commit --> Plan
+    Gate --> Records[Store outcomes and cost]
+    Change -->|Step remains open| Verify[Execute verifier]
+    Verify -->|Failure or missing commit| Driver
 ```
 
-| Skill behavior | Current automation |
+| Skill behavior | Deterministic implementation |
 | --- | --- |
-| Work on the next eligible task | [cmd/plan](cmd/plan/main.go) resolves dispatch from the plan. Its prompt names the task, verifier, gate command, and `skill.md`. |
-| Execute and recover from unsuccessful attempts | [cmd/loop](cmd/loop/main.go) launches the configured worker with that prompt and a timeout. The [driver](internal/loop/driver.go) rereads the plan after each invocation; if the step remains open, it runs the verifier and feeds the result into the next attempt. Exhausted attempts become findings. |
-| Respect budgets and operator stops | A published [strategy profile](internal/loop/strategy.go), selected by `strategy_id`, supplies retry, invocation, and saturation limits. The driver checks `docs/.loop_pause` and recorded plan stops between iterations. |
-| Verify before advancing | [cmd/gate](cmd/gate/main.go) owns required checks, acceptance, committing the selected changes, and plan advancement. A passing verifier alone does not finish the step. |
-| Learn from cost and failures | [Attempt history](cmd/plan/history.go) reads stored outcomes, wall time, change churn, recovery counts, and strategy identities; repeated unsuccessful directions surface pivot recommendations. |
-| Continue with admitted proposals | When proposal intake is enabled and dispatch is complete, the driver consumes prepared JSON specs from `docs/proposals`. The plan command replays the cited candidate admission before adding the next task. |
+| Select the next task | [Plan selection](internal/plan/dispatch.go) uses the plan, worker role, and recorded completion results to return the next task as structured data. |
+| Check implementation requirements | The [verification code](internal/gate/verification.go) checks which files changed, magic-number policy, architecture rules, formatting, compilation, task acceptance criteria, and applicable tests. Required checks must succeed before the commit step runs. |
+| Reuse valid test results | Verification selects checks based on affected code and associates results with the inputs checked. It reuses previous results when their inputs and reuse conditions match, recording executed, reused, and skipped checks separately. |
+| Limit retries and record failures | [cmd/loop](cmd/loop/main.go) limits worker execution time. The [loop implementation](internal/loop/driver.go) rereads the plan after each attempt. If the task remains open, it runs the task's verification command and supplies its output for the next attempt. Reaching the attempt limit records a finding. |
+| Respect limits and operator stops | A stored [strategy configuration](internal/loop/strategy.go), selected by `strategy_id`, sets attempt and invocation limits and the allowed number of consecutive proposals that exhaust their attempts. The loop checks `docs/.loop_pause` and recorded plan stops between iterations. |
+| Record completion after verification | [Pre-commit checks](internal/gate/admission.go) confirm that the requested task is current and the changed files match the declared scope. The [commit code](internal/gate/commit.go) commits the changes and updates the plan after required checks succeed. Running the task's verification command alone does not mark it complete. |
+| Summarize results for later decisions | [Attempt history](cmd/plan/history.go) summarizes outcomes, elapsed time, code changes, recoveries, and the strategy used. It identifies repeated unsuccessful changes and reports when to reconsider the approach. |
+| Add the next prepared proposal | When enabled and no task remains, the loop reads proposal files from `docs/proposals`. The [plan command](cmd/plan/history.go) checks that the proposal's stored approval can be reproduced by the candidate validation code before adding a task. |
 
-The worker applies the skill's guidance on robustness, efficiency, derived values,
-justified assumptions, and available compute. Specific checks enforce the parts
-captured in executable contracts. The next integration is to connect observations
-and stored history to proposal generation inside the driver, so outcomes guide
-the next useful improvement without waiting for a prepared queue or another prompt.
+Further automation should implement repeatable checks in the responsible Go
+packages, reducing the need for agents to inspect results and track process state.
+The next step is to generate proposals from recorded outcomes, with code checking
+for duplicates, validating proposals, tracking resource use against limits, and
+resuming interrupted work. Agent reasoning remains useful for choosing hypotheses
+and designing changes.
 
 ## Capabilities
 

@@ -20,7 +20,8 @@
             "validation-gate-selection/closure-diagnostic",
             "validation-gate-selection/expensive-boundary",
             "validation-gate-selection/package-execution-cost",
-            "validation-gate-selection/audio-source-binding"
+            "validation-gate-selection/audio-source-binding",
+            "validation-gate-selection/edge-provenance"
           ],
           "verification_batch": {
             "scope": [

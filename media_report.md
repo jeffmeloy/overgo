@@ -4,7 +4,7 @@ This report covers generation validation, resource use, and targeted optimizatio
 in `codex/image_video_gen`. The worktree starts from master commit `a5798b52`.
 [docs/plan.json](docs/plan.json) defines the execution steps and acceptance checks.
 
-**Status: isolated storage and readiness checks passed.** No
+**Status: isolated storage, readiness, and inventory checks passed.** No
 image/video generation or optimization comparison has run in this worktree.
 The entries below identify existing implementations and the evidence the
 campaign must collect or verify. They do not claim new model results.
@@ -25,25 +25,35 @@ identities. Keep model weights read-only at their declared locations.
 Speech, transcription, VQA, model training, and unrelated text benchmarks remain
 outside this campaign. Model names alone do not establish a supported task.
 
-## Initial coverage inventory
+## Frozen coverage inventory
 
-The inherited [all-media report](docs/MEDIA_REPORT.md) supplies this discovery
-list. The first inventory step must verify current recipes and freeze the
-required model/task/input combinations before generation.
+The [inventory specification](docs/image_video_inventory.json) binds the seven
+active model/task/recipe entries, reference-file hashes, and known limitations.
+The existing census owner published snapshot
+`evidence:sha256:42ce9a29b26232e6f68937df366a4f26c1f81199cca38198c10bd2c89b9fcb45`
+from source commit `476ca45918edbc447a00cb2fca628755d38edfd5`, at private-store
+sequence 26673. The census includes the registered catalog; this campaign uses
+only its image-generation, video-generation, and video-edit projection.
 
-| Model | Inherited task entry | Existing implementation | Worktree status |
+| Model | Active task | Existing implementation | Remaining validation |
 | --- | --- | --- | --- |
-| Krea-2-Turbo | Image generation | [Latent image runtime](internal/latentimage) | Inventory and evidence review pending |
-| SimpleDiffusion-TensorProductAttentionRope | Image generation | [Diffusion image runtime](internal/diffusionimage) | Inventory and evidence review pending |
-| SenseNova-U1-8B-MoT-Infographic-V3 | Image generation | [Image recipe integration](internal/mediacapability/image_cuda_windows.go) | Inventory and evidence review pending |
-| Un-0 | Image and video generation | [Oscillator runtime](internal/oscillatorimage) | Inventory and evidence review pending |
-| Wan2.1-T2V-1.3B | Video generation | [Latent video runtime](internal/latentvideo), [runner](cmd/latentvideo-run) | Inventory and evidence review pending |
-| LiveEdit | Video generation; inspect declared edit inputs | [Media recipe integration](internal/mediacapability), [latent video runtime](internal/latentvideo) | Inventory and evidence review pending |
-| Declared compositions | Determine from active recipes | [Composition validation](cmd/composite-generation-lane) | Applicability review pending |
+| Krea-2-Turbo | Image generation | [Latent image runtime](internal/latentimage) | Matched quality and resource protocol; incomplete intermediate golden captures |
+| SimpleDiffusion-TensorProductAttentionRope | Image generation | [Diffusion image runtime](internal/diffusionimage) | Numerical reference and perceptual-quality checks remain separate |
+| SenseNova-U1-8B-MoT-Infographic-V3 | Image generation | [Image recipe integration](internal/mediacapability/image_cuda_windows.go) | Separate four-step smoke and full-resolution reference requests |
+| Un-0 | Class-conditioned image and video generation | [Oscillator runtime](internal/oscillatorimage) | Native sample parity, declared geometry, and video timing |
+| Wan2.1-T2V-1.3B | Video generation | [Latent video runtime](internal/latentvideo), [runner](cmd/latentvideo-run) | Numerical trajectories, full-clip quality, and resource measurements |
+| LiveEdit | Source-conditioned video generation | [Media recipe integration](internal/mediacapability), [latent video runtime](internal/latentvideo) | Full-quality source-conditioned oracle and video timing |
+| Declared compositions | Composition review remains open | [Composition validation](cmd/composite-generation-lane) | Bind supported component recipes and input/output contracts |
 
 Record candidate-only implementations separately from activated recipes. Add or
 remove discovery entries only after inspecting the catalog; retain the reason.
 Mark missing required evidence as unavailable or incomplete, never as passed.
+
+The store also contains four superseded media definitions: prior Un-0 image,
+SimpleDiffusion image, Wan video, and Krea image recipes. Un-0 video recipe
+`514d3feb338d82271a67ac4b52c7281378ab300b478ba17bd2b338be497b6761` remains a
+candidate with host placement; its lifecycle has not reached verification and
+activation. These five definitions do not add active capability entries.
 
 ## Worktree readiness
 
@@ -90,12 +100,17 @@ each top-level test's active time and event silence, excludes paused time, and
 preserves explicit operator timeouts. The accompanying deadline and caller
 tests remain required. This prerequisite does not change generation behavior.
 
+The next gate passed in 1,142.3 seconds and committed readiness as `476ca459`.
+It executed 230 package checks with no reused package receipts. Owner tests took
+7 minutes 41 seconds, dependent tests 8 minutes 4 seconds, and browser checks
+1 minute 58 seconds; these phases overlap, so their sum is not elapsed time.
+
 ## Retained evidence inspection
 
 A read-only query of the private snapshot found seven active image/video
 capabilities across six models. All seven resolved their model files and
 activation evidence without a stale status. This establishes the catalog state;
-the inventory acceptance and quality review remain open.
+the inventory acceptance passed, while quality review remains open.
 
 | Model | Declared task | Inputs | Retained runs with output artifacts |
 | --- | --- | --- | ---: |
@@ -110,6 +125,21 @@ the inventory acceptance and quality review remain open.
 The catalog contains no active `video-edit` recipe. LiveEdit's active recipe
 declares source-conditioned video generation. Its name does not expand that
 contract.
+
+All 16 retained PNG/GIF exports decode and match their SHA-256 filenames.
+The Wan manifests `g3_denoise.json` and `g4_denoise.json` reference 110 and 16
+raw float32 assets respectively; the existing fixture loader verified their
+hashes and declared element counts. These are artifact checks, not new model
+comparisons.
+
+Decoded GIF timing exposes accumulated truncation in the shared
+`media.GIFFrameDelay` helper. The 81-frame Wan sample stores six centiseconds per
+frame: 4.86 seconds, compared with 5.0625 seconds at its declared 16 fps. The
+12-frame Un-0 samples store twelve centiseconds per frame: 1.44 seconds, compared
+with 1.5 seconds at 8 fps. A timing correction must preserve frame pixels and
+order, respect GIF time resolution, and retain the original artifacts. Their
+existing encoded-byte reference checks also need an explicit disposition before
+changing the encoding policy.
 
 The 417 retained successful generation records lack source revision, environment,
 and elapsed-time fields; 389 retain input artifacts. Separate activation verifier

@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "media-readiness",
-      "title": "Prepare isolated evidence, model access, and generation coverage",
-      "owner": "image_video_gen",
-      "status": "open",
-      "steps": [
-        {
-          "id": "inventory",
-          "title": "Freeze image/video capability coverage and classify retained evidence",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_inventory_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoInventoryAcceptance$' -count=1",
-          "rationale": "Query the private store's active recipes and declared task/input contracts. Start from the inherited report's Krea-2-Turbo, SenseNova-U1-8B-MoT-Infographic-V3, SimpleDiffusion-TensorProductAttentionRope, Un-0 image/video, LiveEdit and Wan2.1-T2V-1.3B entries; treat this list as discovery input, not a fixed support claim. Include video-edit and conditioned generation only when actual recipes declare them. Inventory candidate-only paths separately and record why they are not activated. For each required model/task/conditioning/output cell, bind model and component hashes, recipe/policy identities, reference source revision, available validation results and missing obligations. Separate functional, numerical, visual, resource and browser evidence; an activation alone cannot satisfy them. Reuse evidence only when affected code, artifacts, environment and protocol still match. Reject omitted/duplicate cells, stale activations, missing component lineage and relabeled training/VQA evidence. Freeze the required denominator before acquisition and update the report's initial coverage table.",
-          "depends_on": [
-            "media-readiness/private-store"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-protocol",
       "title": "Define quality, resource, and reporting requirements before generation",
       "owner": "image_video_gen",

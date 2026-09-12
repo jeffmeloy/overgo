@@ -1,0 +1,178 @@
+{
+  "cells": [
+    {
+      "limitations": [
+        "Keep the four-step smoke requests separate from the 50-step full-resolution visual reference."
+      ],
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "name": "SenseNova-U1-8B-MoT-Infographic-V3",
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "references": [
+        {
+          "path": "fixtures/sensenova/generation_native_256.json",
+          "sha256": "f9b7a9b925fcf3b104349713ced8415a59aa1b001f192b55f483054899dc994f"
+        },
+        {
+          "path": "fixtures/sensenova/full_generation_quality.json",
+          "sha256": "81791cd7c3982cc1a369db88e24a88e26d99a54f78db420f9d531b585199ab46"
+        }
+      ],
+      "task": "image-gen"
+    },
+    {
+      "limitations": [
+        "Class-conditioned oscillator outputs require their native reference and declared small geometry; they do not establish prompt-to-scene generation. The native sample's producing revision is not recorded in the available file."
+      ],
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "name": "Un-0",
+      "recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+      "references": [
+        {
+          "path": "C:/Users/jeffm/adaptive_new/docs/image_gen_samples/un0_direct_seed42.png",
+          "sha256": "f830e305502cc3b3eddeb34f685f1eee163a60f352daa48c8eafe8f6e8ec3d18"
+        }
+      ],
+      "task": "image-gen"
+    },
+    {
+      "limitations": [
+        "Class-conditioned oscillator outputs require their native reference and declared small geometry; they do not establish prompt-to-scene generation. The native sample's producing revision is not recorded in the available file."
+      ],
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "name": "Un-0",
+      "recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+      "references": [
+        {
+          "path": "C:/Users/jeffm/adaptive_new/docs/image_gen_samples/un0_video_direct_seed202_frames6.gif",
+          "sha256": "57b6f5a4eddeb1c7c94f370e114318e732871df13619ec5dda79c294017b0633"
+        }
+      ],
+      "task": "video-gen"
+    },
+    {
+      "limitations": [
+        "The checkpoint's smoke outputs do not establish perceptual quality. The native PNG's producing revision is not recorded in the available file."
+      ],
+      "model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "name": "SimpleDiffusion-TensorProductAttentionRope",
+      "recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+      "references": [
+        {
+          "path": "fixtures/simplediffusion/real_forward.json",
+          "sha256": "1b2c702b1a128f7c4eddc2fa989d739ccad7072a2676ec8a91c62d314e9bfc93"
+        },
+        {
+          "path": "C:/Users/jeffm/adaptive_new/docs/image_gen_samples/uvit_direct_seed7_steps2_64.png",
+          "sha256": "360a2395b7f9c4116534f437629ec0f56274954b5e109a0034d699bebea78301"
+        }
+      ],
+      "task": "image-gen"
+    },
+    {
+      "limitations": [
+        "The retained 32x16 five-frame clip is a smoke output, not an independent full-quality editing oracle. The active task is source-conditioned video-gen. Existing GIF frame delays accumulate playback-duration error."
+      ],
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "name": "LiveEdit",
+      "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+      "references": [
+        {
+          "path": "docs/media_samples/6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif",
+          "sha256": "6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33"
+        }
+      ],
+      "task": "video-gen"
+    },
+    {
+      "limitations": [
+        "Keep small numerical fixtures separate from the 81-frame visual sample. Existing GIF frame delays accumulate playback-duration error."
+      ],
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "name": "Wan2.1-T2V-1.3B",
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "references": [
+        {
+          "path": "fixtures/wan/g0_config.json",
+          "sha256": "a4cd727132f0990dcd21fe693c3582efb7f2f841fe2d7b68465fa341fc4ea0d8"
+        },
+        {
+          "path": "fixtures/wan/g1_text_conditioning.json",
+          "sha256": "b4c3afa6bc298ae4fe0427e63a2c1aa7b5ee8ccbf834f85c699c872160aac420"
+        },
+        {
+          "path": "fixtures/wan/g2_timestep_conditioning.json",
+          "sha256": "66118cc90e9d7c07116bfd9e0ade3801292a955b4db7abf053b20062be639380"
+        },
+        {
+          "path": "fixtures/wan/g3_denoise.json",
+          "sha256": "39f311b4db474af53af3a8f11c3aa13aa816bcf7cf6a4f6db75855470a20d703"
+        },
+        {
+          "path": "fixtures/wan/g4_denoise.json",
+          "sha256": "6fcc955ae1ec5290262db93b8ba630b01bd4e6acd129ad4c68a43cf113809fe9"
+        }
+      ],
+      "task": "video-gen"
+    },
+    {
+      "limitations": [
+        "The golden manifest marks intermediate element probes and the float VAE output as incomplete. The retained 512x512 sample differs from the 256x256 golden request."
+      ],
+      "model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+      "name": "Krea-2-Turbo",
+      "recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+      "references": [
+        {
+          "path": "fixtures/krea/g0_config.json",
+          "sha256": "ffbb3c1623e72a5fae07b4eff5b9b25579e2fb6e88988fd89535cef751931491"
+        },
+        {
+          "path": "fixtures/krea/g1_text_conditioning.json",
+          "sha256": "bd811d4794e97ae70783ed856f126f051eb62e6d4a7db8db4bb9266fa246f15c"
+        },
+        {
+          "path": "fixtures/krea/g2_schedule.json",
+          "sha256": "3bc11ec1e7975c33a42b5f00a88041889c4c6988314a1bca243e3741508b3ae7"
+        },
+        {
+          "path": "fixtures/krea/g3_final_image.json",
+          "sha256": "c5eee4efef3bc56d53f7839d947b2120251d2575eb09be791a04183b506c3d0f"
+        },
+        {
+          "path": "fixtures/krea/goldens_manifest.json",
+          "sha256": "6cebc7346bab8c8aaf5984e8ce24de6d29113ad4e3ff96de46458b22004bdfd2"
+        }
+      ],
+      "task": "image-gen"
+    }
+  ],
+  "census": "evidence:sha256:42ce9a29b26232e6f68937df366a4f26c1f81199cca38198c10bd2c89b9fcb45",
+  "inactive": [
+    {
+      "recipe": "recipe:sha256:2938eb7c15590cd28049a7bc005b0643ed874fcc49ac6f4fa89212f213473829",
+      "status": "superseded"
+    },
+    {
+      "recipe": "recipe:sha256:e98c43b709622c9dc178ad3d7f0a7c54a454842e694c8444babc88f78629df9c",
+      "status": "superseded"
+    },
+    {
+      "recipe": "recipe:sha256:ee97b39b70825dcc97b9768064367d540cdbb30ecdf107b28ddbf775166b6c67",
+      "status": "superseded"
+    },
+    {
+      "recipe": "recipe:sha256:514d3feb338d82271a67ac4b52c7281378ab300b478ba17bd2b338be497b6761",
+      "status": "candidate"
+    },
+    {
+      "recipe": "recipe:sha256:d931a95e3aa4d4c1cfbcb7dc67f349cefaea2b9186866e4b58e150516f6a7804",
+      "status": "superseded"
+    }
+  ],
+  "tasks": [
+    "image-gen",
+    "video-gen",
+    "video-edit"
+  ],
+  "version": 1
+}

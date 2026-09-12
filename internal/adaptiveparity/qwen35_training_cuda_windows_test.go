@@ -95,7 +95,7 @@ func TestQwen35RealTraining(t *testing.T) {
 		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trained.MatrixParamCount() + trained.VectorParamCount()),
 		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 		Schedule:         optimizer.ScheduleConstant,
-	})
+	}, hybridtrain.TrainingOptions{})
 	trainWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)

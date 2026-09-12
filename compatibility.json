@@ -525,7 +525,7 @@
      "contains": "func TestQwen35RealTraining(",
      "path": "internal/adaptiveparity/qwen35_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:20ca7f8caae132aef167f0eaf1c8389656b7249c4c5a47245325cbf56d35fd2d"
+     "identity": "evidence:sha256:5c3fcff7144e75edadde940df8ddc2d4371a980226eb34f1a26bbdd267898034"
     }
    ],
    "id": "qwen35-real-recurrent-layer-training",

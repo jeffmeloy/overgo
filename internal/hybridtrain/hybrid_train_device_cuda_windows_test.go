@@ -43,18 +43,18 @@ func TestHybridTrainHostMasterStreamedMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostTraj, err := host.TrainHost(testSteps, ocfg)
+	hostTraj, err := host.TrainHost(testSteps, ocfg, TrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	observed := 0
-	streamedTraj, err := streamed.TrainHostMasterStreamed(worker, testSteps, ocfg, func(step int, loss float64) error {
+	streamedTraj, err := streamed.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
 		if step != observed {
 			t.Fatalf("observer saw step %d, want %d", step, observed)
 		}
 		observed++
 		return nil
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,18 +101,18 @@ func TestHybridTrainLayerStreamedMatchesFullSlab(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fullTraj, err := fullSlab.TrainHostMasterStreamed(worker, testSteps, ocfg, nil)
+	fullTraj, err := fullSlab.TrainHostMasterStreamed(worker, testSteps, ocfg, TrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	observed := 0
-	layerTraj, err := layered.TrainHostMasterLayerStreamed(worker, testSteps, ocfg, func(step int, loss float64) error {
+	layerTraj, err := layered.TrainHostMasterLayerStreamed(worker, testSteps, ocfg, TrainingOptions{Observe: func(step int, loss float64) error {
 		if step != observed {
 			t.Fatalf("observer saw step %d, want %d", step, observed)
 		}
 		observed++
 		return nil
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	}
 	t.Logf("resident matrix params=%d  host-Sign vector params=%d", host.MatrixParamCount(), host.VectorParamCount())
 
-	hostTraj, err := host.TrainHost(testSteps, ocfg)
+	hostTraj, err := host.TrainHost(testSteps, ocfg, TrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	devTraj, acc, err := dev.TrainDeviceResident(worker, testSteps, ocfg)
+	devTraj, acc, err := dev.TrainDeviceResident(worker, testSteps, ocfg, TrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

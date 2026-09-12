@@ -11,16 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "quality",
-          "title": "Bind reproducible requests, references, and output checks",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_protocol_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoProtocolAcceptance$' -count=1",
-          "rationale": "Use existing recipe input forms, mediacapability, evaluation and verification-spec owners. Bind exact prompts, supplied images/clips, seeds, output geometry, frames, frame rate, sampling schedule and precision from the selected recipe. Cover text-to-image, text-to-video and declared image/video-conditioned or edit cases, including boundary shapes and invalid inputs. Select reference oracles from pinned native implementations and retained outputs; never infer geometry or distribution from a filename or model family. Define structural decode checks, finiteness, dimensions, color range and channel ordering; separate numerical parity from perceptual quality. For video include frame count/order/timing, motion consistency, flicker and conditioned-content preservation. Record a bounded visual review rubric for prompt adherence, composition, artifacts and temporal behavior. Use quantitative quality measures only where the reference and task justify them; do not equate a decodable/nonconstant output with quality. Freeze tolerances and review requirements before changing implementation. Assert rejection of changed seeds, protocols, judges, references, dimensions and omitted required metrics.",
-          "depends_on": [
-            "media-readiness/inventory"
-          ]
-        },
-        {
           "id": "resources",
           "title": "Bind actual compute capacity, measurement scope, and run limits",
           "status": "open",

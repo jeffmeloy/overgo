@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "c6855afc59a667d0c77aad1b69150bf0c8abd4a3883a652087ef4f1fd27a2ee6",
+  "source_identity": "3b1b3f97b602811006ca24cc46d7190a75658b12e57d76359070df3b8e1de7c7",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3309,
-    "typed_files": 3245
+    "inspected_files": 3310,
+    "typed_files": 3246
   },
   "guidelines": [
     {

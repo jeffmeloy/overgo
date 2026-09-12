@@ -105,6 +105,11 @@ It executed 230 package checks with no reused package receipts. Owner tests took
 7 minutes 41 seconds, dependent tests 8 minutes 4 seconds, and browser checks
 1 minute 58 seconds; these phases overlap, so their sum is not elapsed time.
 
+The inventory gate passed in 1,031.7 seconds and committed as `5eeba8ba`.
+It executed 230 package checks with no reused package receipts. Concurrent
+work continued in the master worktree; these gate durations are validation
+cost observations, not isolated generation benchmarks.
+
 ## Retained evidence inspection
 
 A read-only query of the private snapshot found seven active image/video
@@ -177,6 +182,27 @@ memory improvement has been measured yet.
 Freeze criteria and reference inputs before comparing an implementation change.
 Keep functional, numerical, visual, performance, and interaction results separate.
 Store negative results and evaluate the complete required case set.
+
+The [quality protocol](docs/image_video_protocol.json) freezes 15 retained
+requests across all seven active recipe entries. Each case identifies its input
+artifacts, source run, output artifacts, decoded geometry, and applicable video
+timing. The protocol identifies the existing numerical test owners, preserves
+their reference criteria, and distinguishes smoke requests from full visual
+review. Its acceptance checks exact lineage and rejects substituted requests,
+changed dimensions, omitted cases, and changed review criteria.
+
+The review asks whether the output contains the requested subject or class,
+preserves required source content, and has visible defects in composition,
+detail, text, or color. Video review covers the complete frame sequence and
+records motion, discontinuities, flicker, and consistency. Un-0 generates
+independent class-conditioned frames with successive seeds; this behavior
+differs from the temporal conditioning used by video models.
+
+All seven retained video cases fail the protocol's duration requirement. GIF
+represents time in centiseconds, so accumulated duration error must stay within
+half a centisecond when rounded to the nearest representable duration. These
+existing failures remain visible. Passing protocol acceptance establishes the
+case definitions and checks; it does not mark their model outputs as correct.
 
 ## Compute environment and measurements
 
@@ -294,7 +320,8 @@ for this focused report as needed; no focused generation flag exists yet.
 
 ## Remaining work
 
-The [plan](docs/plan.json) records remaining steps and their dependencies. Next
-reconcile the discovery list with actual active recipes and retained evidence.
-Implement the named acceptance checks before their corresponding acquisitions.
+The [plan](docs/plan.json) records remaining steps and their dependencies.
+The active inventory is reconciled with the private snapshot. Complete resource
+requirements before acquiring new measurements, and implement each named
+acceptance check before its corresponding acquisition.
 Model quality, performance, lifecycle, and workflow validation remain open.

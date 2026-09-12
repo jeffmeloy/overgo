@@ -268,6 +268,7 @@ Device, installed-model, race, and browser checks have separate lanes:
 `cmd/device-lane`, `cmd/smoke-lane`, `cmd/race-lane`, and `cmd/webui-lane`.
 
 The commit gate selects checks, records results, and advances the plan.
+It stops new tests in a failed package and retains independent passes for retries.
 Ordinary README, skill, and top-level documentation edits run document checks
 without runtime, device, or browser suites. Embedded documents and declared
 runtime inputs retain their consumer checks. Plan edits retain admission and

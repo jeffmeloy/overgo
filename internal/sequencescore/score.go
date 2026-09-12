@@ -9,6 +9,7 @@ import (
 type Score struct {
 	LogProbability float64 `json:"log_probability"`
 	Tokens         uint64  `json:"tokens"`
+	Characters     uint64  `json:"characters,omitzero"`
 }
 
 type Normalization string
@@ -16,6 +17,8 @@ type Normalization string
 const (
 	NormalizationSum  Normalization = "sum"
 	NormalizationMean Normalization = "mean"
+	// NormalizationCharacters divides by the declared source character count.
+	NormalizationCharacters Normalization = "characters"
 )
 
 type Selection struct {
@@ -66,7 +69,7 @@ func Selected(logProbabilities []float64, selected []bool) (Score, error) {
 }
 
 func Select(scores []Score, normalization Normalization) (Selection, error) {
-	if len(scores) < 2 || normalization != NormalizationSum && normalization != NormalizationMean {
+	if len(scores) < 2 || normalization != NormalizationSum && normalization != NormalizationMean && normalization != NormalizationCharacters {
 		return Selection{}, errors.New("sequence score: invalid choice contract")
 	}
 	result := Selection{Values: make([]float64, len(scores))}
@@ -78,6 +81,11 @@ func Select(scores []Score, normalization Normalization) (Selection, error) {
 		value := score.LogProbability
 		if normalization == NormalizationMean {
 			value /= float64(score.Tokens)
+		} else if normalization == NormalizationCharacters {
+			if score.Characters == 0 {
+				return Selection{}, errors.New("sequence score: character denominator is absent")
+			}
+			value /= float64(score.Characters)
 		}
 		result.Values[index] = value
 		if value > maximum {

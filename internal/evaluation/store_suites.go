@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
@@ -309,7 +310,7 @@ func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, e
 func assembleMuSRSuite(cases []storeCase) (any, int, error) {
 	suite := GroupedChoiceSuite{
 		Kind: GroupedChoiceKind, Schema: "lm-eval/leaderboard-musr/v1.0", Source: "store/musr",
-		Normalization: sequencescore.NormalizationMean,
+		Normalization: sequencescore.NormalizationCharacters, TieBreak: TieBreakFirst,
 	}
 	for _, entry := range cases {
 		narrative, err := caseString(entry.fields, "narrative")
@@ -345,12 +346,14 @@ func assembleMuSRSuite(cases []storeCase) (any, int, error) {
 		}
 		prompt.WriteString("Answer:")
 		candidates := make([]string, len(choices))
+		characters := make([]uint64, len(choices))
 		for index, choice := range choices {
 			candidates[index] = targetDelimiter + choice
+			characters[index] = uint64(utf8.RuneCountInString(choice))
 		}
 		suite.Cases = append(suite.Cases, DemonstratedChoice{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: entry.subset,
-			Prompt: prompt.String(), Candidates: candidates, Answer: answer,
+			Prompt: prompt.String(), Candidates: candidates, CandidateCharacters: characters, Answer: answer,
 		})
 	}
 	return suite, 0, nil

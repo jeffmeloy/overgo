@@ -21,12 +21,13 @@ var groupedChoiceReportContract = artifact.DocumentContract{
 }
 
 type DemonstratedChoice struct {
-	Name           string               `json:"name"`
-	Group          string               `json:"group"`
-	Prompt         string               `json:"prompt"`
-	Candidates     []string             `json:"candidates"`
-	Answer         int                  `json:"answer"`
-	Demonstrations []MultipleChoiceCase `json:"demonstrations,omitempty"`
+	Name                string               `json:"name"`
+	Group               string               `json:"group"`
+	Prompt              string               `json:"prompt"`
+	Candidates          []string             `json:"candidates"`
+	CandidateCharacters []uint64             `json:"candidate_characters,omitzero"`
+	Answer              int                  `json:"answer"`
+	Demonstrations      []MultipleChoiceCase `json:"demonstrations,omitempty"`
 }
 
 type GroupedChoiceSuite struct {
@@ -34,6 +35,7 @@ type GroupedChoiceSuite struct {
 	Schema        string                      `json:"schema"`
 	Source        string                      `json:"source"`
 	Normalization sequencescore.Normalization `json:"normalization"`
+	TieBreak      string                      `json:"tie_break,omitzero"`
 	Cases         []DemonstratedChoice        `json:"cases"`
 }
 
@@ -54,7 +56,7 @@ type GroupedChoiceReport struct {
 
 func CompileGroupedChoice(suite GroupedChoiceSuite) (GroupedChoicePlan, error) {
 	if suite.Kind != GroupedChoiceKind || strings.TrimSpace(suite.Schema) == "" || strings.TrimSpace(suite.Source) == "" ||
-		len(suite.Cases) == 0 || suite.Normalization != sequencescore.NormalizationSum && suite.Normalization != sequencescore.NormalizationMean {
+		len(suite.Cases) == 0 || suite.Normalization != sequencescore.NormalizationSum && suite.Normalization != sequencescore.NormalizationMean && suite.Normalization != sequencescore.NormalizationCharacters {
 		return GroupedChoicePlan{}, errors.New("evaluation: invalid grouped-choice suite")
 	}
 	cases := make([]MultipleChoiceCase, len(suite.Cases))
@@ -74,13 +76,13 @@ func CompileGroupedChoice(suite GroupedChoiceSuite) (GroupedChoicePlan, error) {
 		}
 		prompt.WriteString(source.Prompt)
 		cases[index] = MultipleChoiceCase{
-			Name: source.Name, Prompt: prompt.String(), Candidates: slices.Clone(source.Candidates), Answer: source.Answer,
+			Name: source.Name, Prompt: prompt.String(), Candidates: slices.Clone(source.Candidates), CandidateCharacters: slices.Clone(source.CandidateCharacters), Answer: source.Answer,
 		}
 		groups[index] = source.Group
 	}
 	choice, err := CompileMultipleChoice(MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: suite.Schema, Source: suite.Source,
-		Normalization: suite.Normalization, Aggregation: AggregationAccuracy, Cases: cases,
+		Normalization: suite.Normalization, TieBreak: suite.TieBreak, Aggregation: AggregationAccuracy, Cases: cases,
 	})
 	if err != nil {
 		return GroupedChoicePlan{}, err

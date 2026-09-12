@@ -55,8 +55,20 @@ func catalogCandidates(root, storePath string, snapshot repoanalysis.SourceSnaps
 	if err != nil {
 		return 0, 0, err
 	}
-	proposal, proposeErr := proposeTriageRows(ctx, snapshot, store, names)
+	report, proposeErr := buildUnclassifiedPolicyReport(ctx, snapshot, store)
 	if err := errors.Join(proposeErr, store.Close()); err != nil {
+		return 0, 0, err
+	}
+	var fresh []string
+	for _, name := range names {
+		index := slices.IndexFunc(report.Candidates, func(candidate unclassifiedCandidate) bool { return candidate.Current.Name == name })
+		if index >= 0 && report.Candidates[index].ActiveRebind {
+			continue
+		}
+		fresh = append(fresh, name)
+	}
+	proposal, err := proposeTriageRowsFromReport(report, fresh)
+	if err != nil {
 		return 0, 0, err
 	}
 	for index := range proposal.Rows {
@@ -64,15 +76,15 @@ func catalogCandidates(root, storePath string, snapshot repoanalysis.SourceSnaps
 		row.Tier, row.Status = text.tier, string(closureledger.StatusClosed)
 		row.Understanding, row.ClosurePath, row.RerankTrigger = text.understanding, text.closurePath, text.rerankTrigger
 	}
-	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateAll)
-	if err != nil {
-		return 0, 0, err
+	candidates := report.review.candidates
+	var documents []closureledger.Document
+	if len(proposal.Rows) != 0 {
+		documents, err = triageDocuments(proposal, candidates)
+		if err != nil {
+			return 0, 0, err
+		}
 	}
-	documents, err := triageDocuments(proposal, candidates)
-	if err != nil {
-		return 0, 0, err
-	}
-	rebound, _, _, _, err = importClosureDocumentsWith(root, storePath, filepath.Join(root, storePath), snapshot, false, false, documents)
+	rebound, _, _, _, err = importClosureDocumentsWith(root, storePath, filepath.Join(root, storePath), snapshot, false, false, documents, report.review)
 	if err != nil {
 		return 0, 0, err
 	}

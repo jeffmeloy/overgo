@@ -54,6 +54,7 @@ type testRequirements struct {
 
 type closureAliasReview struct {
 	Reviewed, Retired, Preserved int
+	HistoryReused                bool
 }
 
 type closureCommitOperation string
@@ -342,8 +343,8 @@ func main() {
 			fatal(err)
 		}
 		fmt.Printf(
-			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d\n",
-			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved,
+			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d history_reused=%t\n",
+			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved, aliases.HistoryReused,
 		)
 		return
 	}
@@ -622,7 +623,7 @@ func importClosureDocuments(
 	snapshot repoanalysis.SourceSnapshot,
 	reviewCallsites, retireUnmatched bool,
 ) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
-	return importClosureDocumentsWith(root, storePath, sourcePath, snapshot, reviewCallsites, retireUnmatched, nil)
+	return importClosureDocumentsWith(root, storePath, sourcePath, snapshot, reviewCallsites, retireUnmatched, nil, nil)
 }
 
 // importClosureDocumentsWith imports as importClosureDocuments does and
@@ -634,13 +635,20 @@ func importClosureDocumentsWith(
 	snapshot repoanalysis.SourceSnapshot,
 	reviewCallsites, retireUnmatched bool,
 	catalogued []closureledger.Document,
+	reviewed *closureReview,
 ) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
 	if retireUnmatched && len(catalogued) != 0 {
 		return 0, 0, "", closureAliasReview{}, errors.New("-retire-unmatched cannot catalogue documents")
 	}
-	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
-	if err != nil {
-		return count, unmatched, first, aliases, err
+	var candidates []closurescan.Candidate
+	var err error
+	if reviewed != nil && reviewed.source == snapshot.Identity() {
+		candidates = reviewed.candidates
+	} else {
+		candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
 	}
 	destinationPath := filepath.Join(root, storePath)
 	sourceInfo, sourceErr := os.Stat(sourcePath)
@@ -662,9 +670,18 @@ func importClosureDocumentsWith(
 			finalErr = errors.Join(finalErr, target.Close())
 		}
 	}()
-	documents, sourceAliases, err := activeClosureDocuments(context.Background(), source)
-	if err != nil {
-		return count, unmatched, first, aliases, err
+	head, sequence := source.Head()
+	reuseReview := sameStore && !retireUnmatched && reviewed != nil && reviewed.source == snapshot.Identity() && reviewed.head == head && reviewed.sequence == sequence
+	var documents []closureledger.Document
+	var sourceAliases map[string]artifact.ID
+	if reuseReview {
+		documents, sourceAliases = reviewed.documents, reviewed.aliases
+		aliases.HistoryReused = true
+	} else {
+		documents, sourceAliases, err = activeClosureDocuments(context.Background(), source)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
 	}
 	if sameStore {
 		aliases.Reviewed = len(sourceAliases)
@@ -672,7 +689,9 @@ func importClosureDocumentsWith(
 	}
 	historicalDocuments := documents
 	recoveryAuthority := map[string]artifact.ID{}
-	if sameStore && !retireUnmatched {
+	if reuseReview {
+		historicalDocuments, recoveryAuthority = reviewed.history, reviewed.recovery.Authorized
+	} else if sameStore && !retireUnmatched {
 		historicalDocuments, err = allClosureDocuments(context.Background(), source)
 		if err != nil {
 			return count, unmatched, first, aliases, err
@@ -700,7 +719,12 @@ func importClosureDocumentsWith(
 	var retirements []artifact.AliasBinding
 	var unmatchedRetirements []artifact.AliasBinding
 	retired := map[string]bool{}
-	index := closurescan.CompileRebindIndex(candidates)
+	var index closurescan.RebindIndex
+	if reuseReview {
+		index = reviewed.index
+	} else {
+		index = closurescan.CompileRebindIndex(candidates)
+	}
 	if !sameStore {
 		for _, document := range targetDocuments {
 			if len(document.Bindings) != 1 {
@@ -732,87 +756,30 @@ func importClosureDocumentsWith(
 			}
 		}
 	}
-	claimedAliases := make(map[string]bool, len(sourceAliases))
-	for alias := range sourceAliases {
-		claimedAliases[alias] = true
-	}
-	type contentRetry struct {
-		document      closureledger.Document
-		previousAlias string
-		reason        string
-	}
-	var contentRetries []contentRetry
-	for _, document := range documents {
-		if len(document.Bindings) != 1 {
-			unmatched++
-			first = cmp.Or(first, document.Name+":bindings")
-			continue
-		}
-		previousAlias, err := closureledger.ActiveAlias(document.Bindings[0])
-		if err != nil || sourceAliases[previousAlias] != document.ID {
-			unmatched++
-			first = cmp.Or(first, document.Name+":source-alias")
-			continue
-		}
-		current, matched, reason, err := rebindClosure(index, document, reviewCallsites)
+
+	var projection closureProjection
+	if reuseReview && !reviewCallsites {
+		projection = reviewed.projection
+	} else {
+		projection, err = projectActiveClosures(index, candidates, documents, sourceAliases, sameStore, reviewCallsites, retired)
 		if err != nil {
 			return count, unmatched, first, aliases, err
 		}
-		if !matched {
-			contentRetries = append(contentRetries, contentRetry{
-				document: document, previousAlias: previousAlias, reason: reason,
-			})
-			continue
-		}
-		if sameStore && current.ID == document.ID {
-			continue
-		}
-		currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
-		if err != nil {
-			return count, unmatched, first, aliases, err
-		}
-		claimedAliases[currentAlias] = true
-		if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
-			retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
-			retired[previousAlias] = true
-		}
-		rebound = append(rebound, current)
 	}
-	// Content-matched recovery runs after every structural rebind has
-	// claimed its alias, so the only free candidates left are genuinely
-	// new sites; an offset-shifted successor with the same file, scope,
-	// and exact value inherits the reviewed closure instead of being
-	// retired and retyped.
-	for _, retry := range contentRetries {
-		document, previousAlias, reason := retry.document, retry.previousAlias, retry.reason
-		current, matched, _, err := closurescan.ContentMatchedRebind(
-			document, candidates, func(alias string) bool { return claimedAliases[alias] },
-		)
-		if err != nil {
-			return count, unmatched, first, aliases, err
-		}
-		if matched {
-			currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
-			if err != nil {
-				return count, unmatched, first, aliases, err
-			}
-			claimedAliases[currentAlias] = true
-			if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
-				retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
+	rebound = append(rebound, projection.rebound...)
+	retirements = append(retirements, projection.retirements...)
+	retired, claimedAliases := maps.Clone(projection.retired), maps.Clone(projection.claimed)
+	unmatched += projection.unmatched
+	first = cmp.Or(first, projection.first)
+	if sameStore && retireUnmatched {
+		for _, retry := range projection.pending {
+			document, previousAlias := retry.document, retry.previousAlias
+			if !retired[previousAlias] {
+				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true})
 				retired[previousAlias] = true
+				aliases.Retired++
+				aliases.Preserved--
 			}
-			rebound = append(rebound, current)
-			continue
-		}
-		unmatched++
-		first = cmp.Or(first, document.Name+":"+reason)
-		if sameStore && retireUnmatched && !retired[previousAlias] {
-			unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{
-				Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true,
-			})
-			retired[previousAlias] = true
-			aliases.Retired++
-			aliases.Preserved--
 		}
 	}
 	if sameStore && !retireUnmatched {

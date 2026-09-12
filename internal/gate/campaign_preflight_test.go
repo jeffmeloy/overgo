@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/testutil"
 )
 
 // TestCampaignStructurePreflight rejects a failed or missing campaign check
@@ -16,6 +17,7 @@ func TestCampaignStructurePreflight(t *testing.T) {
 	for _, outcome := range []string{"fail", "missing", "pass"} {
 		t.Run(outcome, func(t *testing.T) {
 			root := t.TempDir()
+			testutil.WriteTextFile(t, root, "README.md", "")
 			if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 				t.Fatal(err)
 			}

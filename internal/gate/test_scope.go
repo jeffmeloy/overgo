@@ -25,6 +25,15 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	if err != nil {
 		return packageTestScope{}, err
 	}
+	if documentationChanges(g.paths, graph) {
+		scope := packageTestScope{}
+		for _, node := range graph.nodes {
+			if len(node.Match) != 0 && node.ForTest == "" {
+				scope.excluded++
+			}
+		}
+		return scope, nil
+	}
 	// Deleted inputs are absent from the candidate index. Retain their owner
 	// conservatively so removing a resource cannot remove its acceptance too.
 	graph.bindResourceFiles(g.paths)

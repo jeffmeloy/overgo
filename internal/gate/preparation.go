@@ -133,6 +133,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		return plannedPipeline{}, err
 	}
 	var graphErr error
+	var inputGraph packageInputGraph
 	var devicePackages []string
 	var structural codemanifest.Impact
 	var baseManifest, candidateManifest codemanifest.Manifest
@@ -146,7 +147,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		if err != nil {
 			return err
 		}
-		_, graphErr = g.inputGraph()
+		inputGraph, graphErr = g.inputGraph()
 		// The device lane owns the packages it tests, not every dependent
 		// of the device runtime: its full plan plus the packages the changed
 		// kernels' functions own.
@@ -191,6 +192,11 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if graphErr != nil {
 		surface.Unknown = append(surface.Unknown, "package ownership: "+graphErr.Error())
 		g.note("package ownership unavailable; owned checks defaulted to run: " + graphErr.Error())
+	}
+	if graphErr == nil && structuralErr == nil && baseManifest.SourceIdentity == candidateManifest.SourceIdentity &&
+		documentationChanges(g.paths, inputGraph) {
+		surface = automationcheck.Surface{Identity: surface.Identity}
+		g.note("documentation boundary: unchanged compiled source; retain gate-owned document/plan acceptance, exclude runtime suites")
 	}
 	definitions, surface, coverage, completenessErr := automationcheck.CompleteOwnership(definitions, surface, nil)
 	if completenessErr != nil {
@@ -254,7 +260,7 @@ func requiresManifestBootstrap(paths []string) bool {
 		name = filepath.ToSlash(name)
 		for _, owner := range []string{
 			"internal/codemanifest/", "internal/codeprofile/", "internal/repoanalysis/",
-			"internal/automationcheck/", "cmd/code-manifest/", "cmd/gate/",
+			"internal/automationcheck/", "internal/gate/", "cmd/code-manifest/", "cmd/gate/",
 		} {
 			if strings.HasPrefix(name, owner) {
 				return true

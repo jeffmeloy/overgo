@@ -337,14 +337,20 @@ actual recipe, store, inputs, and resource requirements before execution. Use
 `cmd/device-lane` and `cmd/webui-lane` for the applicable checks; direct tests that
 skip required device/browser work do not satisfy acceptance.
 
-The existing all-media generator uses `cmd/compatibility -update-media` and exports
-samples with `-export-samples`. The report-contract step will extend that owner
-for this focused report as needed; no focused generation flag exists yet.
+The existing generator supports this focused report with
+`cmd/compatibility -update-media -media-scope image-video` and exports its frozen
+review requests with `-export-samples -media-scope image-video`. The default
+scope retains the all-media report. Both use the same run and sample readers.
+The focused projection includes source, environment, input, run and output
+identities, preserves failed and cancelled attempts, and identifies missing
+measurements. Export and rendering check sample hashes and image/clip decoding.
+The final publication step will replace this working report with the completed
+evidence projection.
 
 ## Remaining work
 
 The [plan](docs/plan.json) records remaining steps and their dependencies.
-The active inventory is reconciled with the private snapshot. Complete resource
-requirements before acquiring new measurements, and implement each named
+The active inventory is reconciled with the private snapshot. Quality and resource
+requirements are frozen before new measurements. Implement each named
 acceptance check before its corresponding acquisition.
 Model quality, performance, lifecycle, and workflow validation remain open.

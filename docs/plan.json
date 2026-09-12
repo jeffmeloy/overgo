@@ -5,24 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "media-protocol",
-      "title": "Define quality, resource, and reporting requirements before generation",
-      "owner": "image_video_gen",
-      "status": "open",
-      "steps": [
-        {
-          "id": "report-contract",
-          "title": "Define report rows and sample provenance through existing report code",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_report_contract_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoReportContract$' -count=1",
-          "rationale": "Extend cmd/compatibility/media.go and the existing sample export/report owners only as needed to render the requested root media_report.md with image/video scope. Keep docs/MEDIA_REPORT.md as the existing all-media projection unless a deliberate compatible generator change is required; do not overwrite it manually or create a second reporting engine. Specify each row's task, artifacts, recipe, source commit, reference, protocol, correctness/quality disposition, resource measurements, output hashes and remaining work. Define matched baseline/candidate tables and links to stored results. Render missing, failed, rejected and unavailable results distinctly. A draft must not imply completed validation. Test deterministic rendering, broken/missing sample references, duplicate/missing coverage, stale lineage, changed criteria and preservation of negative results using small fixtures. Include a shared-component before/after map with real migrated callers and deleted paths, plus per-boundary copy and live-memory tables. Identify selected baseline cohorts and explain their coverage. Show separate latency, peak/retained CPU/GPU memory, transfer-byte/call, synchronization and quality outcomes; a reduction in one quantity does not imply all improved.",
-          "depends_on": [
-            "media-readiness/inventory"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-optimization",
       "title": "Refactor shared generation components and reduce compute, memory, and transfer cost",
       "owner": "image_video_gen",

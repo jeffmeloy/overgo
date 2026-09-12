@@ -18,7 +18,8 @@
             "validation-gate-selection/test-input-ownership",
             "validation-gate-selection/runtime-binding-hardening",
             "validation-gate-selection/closure-diagnostic",
-            "validation-gate-selection/expensive-boundary"
+            "validation-gate-selection/expensive-boundary",
+            "validation-gate-selection/package-execution-cost"
           ],
           "verification_batch": {
             "scope": [

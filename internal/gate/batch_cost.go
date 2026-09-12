@@ -12,6 +12,11 @@ import (
 	"overgo/internal/runrecord"
 )
 
+type packageCostAttribution struct {
+	packageInputAttribution
+	RuntimeReaders []string `json:"runtime_readers"`
+}
+
 // checkpointCost records one acceptance step's outcome and wall.
 type checkpointCost struct {
 	Name       string                `json:"name"`
@@ -163,6 +168,9 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 	if selected.Name == "" {
 		return
 	}
+	g.auditMutex.Lock()
+	batches := g.packageGraph.normalizePackageExecutions(g.testExecutions)
+	g.auditMutex.Unlock()
 	packages := slices.Clone(g.testPlan.edited)
 	if selected.Name != "test-owners" {
 		packages = slices.Concat(g.testPlan.remaining, g.testPlan.dependent)
@@ -175,14 +183,23 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 			return slices.Contains(device, target) != (selected.Name == "test-device")
 		})
 	}
+	for _, batch := range batches {
+		for _, execution := range batch.Executions {
+			if len(g.packageGraph.byID[execution.Package]) != 0 {
+				packages = append(packages, execution.Package)
+			}
+		}
+	}
 	slices.Sort(packages)
 	packages = slices.Compact(packages)
 	report := struct {
-		Step       string                    `json:"step"`
-		DurationNS uint64                    `json:"duration_ns"`
-		AnalysisNS uint64                    `json:"analysis_ns"`
-		Packages   []packageInputAttribution `json:"packages"`
-	}{Step: selected.Name, DurationNS: selected.DurationNS}
+		Step       string                   `json:"step"`
+		DurationNS uint64                   `json:"duration_ns"`
+		AnalysisNS uint64                   `json:"analysis_ns"`
+		Packages   []packageCostAttribution `json:"packages"`
+		Readers    map[string]string        `json:"readers"`
+		Executions []packageExecutionBatch  `json:"executions"`
+	}{Step: selected.Name, DurationNS: selected.DurationNS, Readers: map[string]string{}, Executions: batches}
 	for _, target := range packages {
 		attribution, err := g.packageGraph.attributeInputs(target, g.paths)
 		if err != nil {
@@ -193,7 +210,13 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 		if !attribution.Input.Valid() {
 			attribution.Input = g.testPlan.dependentInputs[target]
 		}
-		report.Packages = append(report.Packages, attribution)
+		entry := packageCostAttribution{packageInputAttribution: attribution}
+		for reader, reason := range attribution.RuntimeReaders {
+			report.Readers[reader] = reason
+			entry.RuntimeReaders = append(entry.RuntimeReaders, reader)
+		}
+		slices.Sort(entry.RuntimeReaders)
+		report.Packages = append(report.Packages, entry)
 	}
 	report.AnalysisNS = uint64(time.Since(began).Nanoseconds())
 	data, err := json.Marshal(report)

@@ -136,6 +136,8 @@ type gateContext struct {
 	// testPlan carries the prepared test groups from the changed-owners
 	// check to the check that runs the rest beside the lanes.
 	testPlan *testGroups
+	// Protected by auditMutex; each invocation retains its own cost and profile.
+	testExecutions []packageExecutionBatch
 }
 
 // appends one audit line under the lock the concurrent validate wave shares

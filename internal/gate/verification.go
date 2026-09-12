@@ -81,10 +81,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		},
 		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
-	// Protection and scope admit the candidate first: an unplanned
-	// verification input invalidates every later verdict. The static checks
-	// carry no data dependency on one another and run in one wave after
-	// scope; vet and build follow the whole wave as master ordered them.
+	// Protection and scope admit the candidate first
 	dependencies := map[string][]string{"scope": {"protection"}}
 	for _, name := range validateWave {
 		dependencies[name] = []string{"scope"}
@@ -108,8 +105,6 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 }
 
 // validateWave lists the static checks that share no data and run together
-// after the admission checks, in the order the wave declares them: the
-// store writer first, so the store readers follow it in the next wave.
 var validateWave = []string{"magics", "modern-go", "architecture", "profile", "fmt", "style", "manifest", "sbom", "claims", "docs", "published"}
 
 func withResources(check automationcheck.Check, resources []automationcheck.Resource) automationcheck.Check {
@@ -117,8 +112,7 @@ func withResources(check automationcheck.Check, resources []automationcheck.Reso
 	return check
 }
 
-// joins every failed check of the wave that stopped the pipeline, so one
-// attempt reports all its findings
+// joins every failed check
 func checkFailures(results []automationcheck.DAGResult) error {
 	var failures []error
 	for _, result := range results {
@@ -235,8 +229,7 @@ func (g *gateContext) pipeline() error {
 				g.note(name + " reused: derived inputs already passed this step")
 			}
 		}
-		// Every failure of the wave that stopped the pipeline is reported at
-		// once, so one attempt shows all its findings.
+		// reported failures show all findings
 		return checkFailures(results)
 	})
 }
@@ -283,9 +276,7 @@ func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationc
 	return record
 }
 
-// stepDocumentation keeps prose assessments from masquerading as current
-// work authority. Ranked current work belongs to the failable plan; prose may
-// retain its historical ordering only with an explicit warning and redirect.
+// stepDocumentation prevents prose assessments from being work authority
 func (g *gateContext) stepDocumentation() (bool, error) {
 	if err := repoanalysis.ValidateDocsInventory(g.repo); err != nil {
 		return false, err
@@ -1331,9 +1322,11 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 			return testevidence.GoTestReport{}, err
 		}
 	}
+	began := time.Now()
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
 	}, options)
+	wall := time.Since(began)
 	if len(report.ClassifiedSkipped) != 0 {
 		g.note(fmt.Sprintf("short-profile exclusions (no full-test credit): %d [%s]", len(report.ClassifiedSkipped), strings.Join(report.ClassifiedSkipped, ",")))
 	}
@@ -1341,6 +1334,7 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	if short || len(report.Failed)+len(report.Unfinished) > 0 {
 		err = errors.Join(err, testevidence.RequireComplete(report))
 	}
+	g.recordPackageExecution(packages, short, wall, report, err)
 	if err != nil {
 		return report, fmt.Errorf("go test evidence: %w\n%s", err, strings.Join(report.Diagnostics, "\n"))
 	}

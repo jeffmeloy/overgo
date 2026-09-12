@@ -47,7 +47,7 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 			t.Fatal("candidate lifetime leaked")
 		}
 		var report struct {
-			Packages []packageInputAttribution `json:"packages"`
+			Packages []packageCostAttribution `json:"packages"`
 		}
 		if len(g.audit) != 1 {
 			t.Fatalf("attribution lost at candidate teardown: %v", g.audit)
@@ -139,9 +139,9 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 			t.Fatalf("missing bounded cost audit: %v", g.audit)
 		}
 		var audit struct {
-			Step       string                    `json:"step"`
-			DurationNS uint64                    `json:"duration_ns"`
-			Packages   []packageInputAttribution `json:"packages"`
+			Step       string                   `json:"step"`
+			DurationNS uint64                   `json:"duration_ns"`
+			Packages   []packageCostAttribution `json:"packages"`
 		}
 		if err := json.Unmarshal([]byte(strings.TrimPrefix(g.audit[0], "test input attribution: ")), &audit); err != nil {
 			t.Fatal(err)

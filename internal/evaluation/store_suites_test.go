@@ -108,14 +108,20 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 				"instruction_id_list": []string{"language:response_language"},
 				"kwargs":              []map[string]any{{"language": "fr"}},
 			})},
+		{entry: "ifeval/default/train", subset: "default", ordinal: 2,
+			fields: rawFields(t, map[string]any{
+				"key": 3, "prompt": "Use an undeclared language.",
+				"instruction_id_list": []string{"language:response_language"},
+				"kwargs":              []map[string]any{{"language": "not-a-language"}},
+			})},
 	})
 	if err != nil || dropped != 1 {
 		t.Fatalf("ifeval assemble = (%v, dropped=%d)", err, dropped)
 	}
 	ifevalSuite := ifeval.(InstructionRulesSuite)
-	if len(ifevalSuite.Cases) != 1 || len(ifevalSuite.Cases[0].Rules) != 2 ||
-		ifevalSuite.Cases[0].Rules[0].Kind != RuleUppercase ||
-		ifevalSuite.Cases[0].Rules[1].Kind != ifevalKeywordsRule {
+	if len(ifevalSuite.Cases) != 2 || len(ifevalSuite.Cases[0].Rules) != 2 ||
+		ifevalSuite.Cases[0].Rules[0].Kind != ifevalEnglishUpper ||
+		ifevalSuite.Cases[0].Rules[1].Kind != ifevalKeywordsRule || len(ifevalSuite.Cases[1].Rules) != 1 || ifevalSuite.Cases[1].Rules[0].Kind != ifevalLanguageRule || len(ifevalSuite.Cases[1].Rules[0].Values) != 1 || ifevalSuite.Cases[1].Rules[0].Values[0] != "fr" {
 		t.Fatalf("ifeval case = %+v", ifevalSuite.Cases)
 	}
 }

@@ -25,6 +25,9 @@ const (
 )
 
 func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, error) {
+	if source.Kind == ifevalLanguageRule || source.Kind == ifevalEnglishUpper || source.Kind == ifevalEnglishLower {
+		return compileIFEvalLanguageRule(source)
+	}
 	if source.Kind == ifevalSentences || source.Kind == ifevalCapitalWords {
 		return compileIFEvalTokenizerRule(source)
 	}

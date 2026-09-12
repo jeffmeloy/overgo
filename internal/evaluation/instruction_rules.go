@@ -79,6 +79,7 @@ type InstructionRulesSuite struct {
 }
 
 type compiledInstructionRule struct {
+	language  *ifevalLanguageDetector
 	tokenizer *ifevalTokenizer
 	source    InstructionRule
 	pattern   *regexp.Regexp
@@ -372,6 +373,9 @@ func looseInstructionViews(response string) []string {
 }
 
 func (rule compiledInstructionRule) matches(response string) (bool, error) {
+	if rule.language != nil {
+		return rule.matchesIFEvalLanguage(response)
+	}
 	if rule.tokenizer != nil {
 		return rule.matchesIFEvalTokenizer(response)
 	}

@@ -197,15 +197,14 @@ func nltkMatches(pattern *regexp2.Regexp, text string) ([]*regexp2.Match, error)
 
 func nltkUpper(r rune) bool { return unicode.IsUpper(r) || unicode.Is(unicode.Other_Uppercase, r) }
 func nltkLower(r rune) bool { return unicode.IsLower(r) || unicode.Is(unicode.Other_Lowercase, r) }
-func nltkAllUpper(text string) bool {
+func ifevalUniformCase(text string, accept func(rune) bool) bool {
 	found := false
 	for _, r := range text {
-		if nltkUpper(r) {
+		if nltkUpper(r) || nltkLower(r) || unicode.IsTitle(r) {
+			if !accept(r) {
+				return false
+			}
 			found = true
-			continue
-		}
-		if nltkLower(r) || unicode.IsTitle(r) {
-			return false
 		}
 	}
 	return found

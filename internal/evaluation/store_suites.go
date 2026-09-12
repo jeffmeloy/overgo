@@ -444,10 +444,20 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 			return nil, false
 		}
 		return []InstructionRule{{Name: id, Kind: ifevalForbiddenRule, Values: values}}, true
+	case "language:response_language":
+		language, err := caseString(kwargs, "language")
+		if err != nil {
+			return nil, false
+		}
+		rule := InstructionRule{Name: id, Kind: ifevalLanguageRule, Values: []string{language}}
+		if _, err := compileIFEvalLanguageRule(rule); err != nil {
+			return nil, false
+		}
+		return []InstructionRule{rule}, true
 	case "change_case:english_capital":
-		return []InstructionRule{{Name: id, Kind: RuleUppercase}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalEnglishUpper}}, true
 	case "change_case:english_lowercase":
-		return []InstructionRule{{Name: id, Kind: RuleLowercase}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalEnglishLower}}, true
 	case "punctuation:no_comma":
 		return []InstructionRule{{Name: id, Kind: RuleNoComma}}, true
 	case "startend:quotation":

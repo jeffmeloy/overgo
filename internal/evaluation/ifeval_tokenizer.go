@@ -30,7 +30,7 @@ func (rule compiledInstructionRule) matchesIFEvalTokenizer(response string) (boo
 			return false, err
 		}
 		for _, word := range words {
-			if nltkAllUpper(word) {
+			if ifevalUniformCase(word, nltkUpper) {
 				count++
 			}
 		}

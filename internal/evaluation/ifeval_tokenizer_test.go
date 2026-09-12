@@ -87,7 +87,7 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		}
 		count := 0
 		for _, word := range words {
-			if nltkAllUpper(word) {
+			if ifevalUniformCase(word, nltkUpper) {
 				count++
 			}
 		}

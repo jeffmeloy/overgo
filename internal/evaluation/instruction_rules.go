@@ -74,8 +74,9 @@ type InstructionRulesSuite struct {
 }
 
 type compiledInstructionRule struct {
-	source  InstructionRule
-	pattern *regexp.Regexp
+	source   InstructionRule
+	pattern  *regexp.Regexp
+	patterns []*regexp.Regexp
 }
 
 type InstructionRulesPlan struct {
@@ -228,6 +229,26 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 	}
 	result := compiledInstructionRule{source: source}
 	switch source.Kind {
+	case ifevalKeywordsRule, ifevalForbiddenRule:
+		if len(source.Values) == 0 || source.Count != nil {
+			return compiledInstructionRule{}, errors.New("evaluation: invalid IFEval keyword rule")
+		}
+		for _, value := range source.Values {
+			pattern, err := compileIFEvalKeyword(value, source.Kind == ifevalForbiddenRule)
+			if err != nil {
+				return compiledInstructionRule{}, err
+			}
+			result.patterns = append(result.patterns, pattern)
+		}
+	case ifevalEndRule:
+		if len(source.Values) != 1 || source.Count != nil {
+			return compiledInstructionRule{}, errors.New("evaluation: invalid IFEval end phrase")
+		}
+		for _, r := range source.Values[0] {
+			if r > unicode.MaxASCII {
+				return compiledInstructionRule{}, errors.New("evaluation: unsupported non-ASCII IFEval end phrase")
+			}
+		}
 	case RuleContainsAll, RuleExcludesAll:
 		if len(source.Values) == 0 || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction value rule")
@@ -302,6 +323,15 @@ func looseInstructionViews(response string) []string {
 
 func (rule compiledInstructionRule) matches(response string) bool {
 	switch rule.source.Kind {
+	case ifevalKeywordsRule, ifevalForbiddenRule:
+		for _, pattern := range rule.patterns {
+			if pattern.MatchString(response) == (rule.source.Kind == ifevalForbiddenRule) {
+				return false
+			}
+		}
+		return true
+	case ifevalEndRule:
+		return matchesIFEvalEnd(response, rule.source.Values[0])
 	case RuleContainsAll:
 		for _, value := range rule.source.Values {
 			if !strings.Contains(response, value) {

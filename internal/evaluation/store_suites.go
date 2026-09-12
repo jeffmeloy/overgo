@@ -429,13 +429,13 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 		if !ok {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: RuleContainsAll, Values: values}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalKeywordsRule, Values: values}}, true
 	case "keywords:forbidden_words":
 		values, ok := stringsOf("forbidden_words")
 		if !ok {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: RuleExcludesAll, Values: values}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalForbiddenRule, Values: values}}, true
 	case "change_case:english_capital":
 		return []InstructionRule{{Name: id, Kind: RuleUppercase}}, true
 	case "change_case:english_lowercase":
@@ -451,7 +451,7 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 		if err := json.Unmarshal(kwargs["end_phrase"], &phrase); err != nil || phrase == "" {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: RuleSuffix, Values: []string{phrase}}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalEndRule, Values: []string{phrase}}}, true
 	case "detectable_format:json_format":
 		return []InstructionRule{{Name: id, Kind: ifevalJSONRule}}, true
 	default:

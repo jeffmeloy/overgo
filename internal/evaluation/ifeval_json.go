@@ -3,24 +3,17 @@ package evaluation
 import (
 	"encoding/json"
 	"strings"
-	"unicode"
 )
 
 // lm_eval 0.4.9.1 JsonFormat; separate identity from the strict JSON rule.
 const ifevalJSONRule = "lm-eval/ifeval/json-format/v1"
 
 func matchesIFEvalJSON(response string) bool {
-	// Python str.strip includes the four ASCII information separators.
-	strip := func(value string) string {
-		return strings.TrimFunc(value, func(r rune) bool {
-			return unicode.IsSpace(r) || r >= '\x1c' && r <= '\x1f'
-		})
-	}
-	value := strip(response)
+	value := trimIFEvalSpace(response)
 	for _, prefix := range []string{"```json", "```Json", "```JSON", "```"} {
 		value = strings.TrimPrefix(value, prefix)
 	}
-	value = strip(strings.TrimSuffix(value, "```"))
+	value = trimIFEvalSpace(strings.TrimSuffix(value, "```"))
 	// Python json.loads also accepts these three constants. Replace only
 	// unquoted literals; encoding/json still validates the complete grammar.
 	var normalized strings.Builder

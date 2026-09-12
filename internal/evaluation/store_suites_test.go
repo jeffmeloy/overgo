@@ -115,7 +115,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 	ifevalSuite := ifeval.(InstructionRulesSuite)
 	if len(ifevalSuite.Cases) != 1 || len(ifevalSuite.Cases[0].Rules) != 2 ||
 		ifevalSuite.Cases[0].Rules[0].Kind != RuleUppercase ||
-		ifevalSuite.Cases[0].Rules[1].Kind != RuleContainsAll {
+		ifevalSuite.Cases[0].Rules[1].Kind != ifevalKeywordsRule {
 		t.Fatalf("ifeval case = %+v", ifevalSuite.Cases)
 	}
 }

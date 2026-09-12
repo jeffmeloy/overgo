@@ -1,0 +1,375 @@
+{
+  "schema": "overgo/ifeval-rule-oracle/v1",
+  "reference_version": "0.4.9.1",
+  "langdetect_seed": 0,
+  "sources": {
+    "instructions.py": "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32",
+    "instructions_registry.py": "9db1c062cdb70a91420d3789a588235a1064c2b9a1a66e09e5fb9df9e7584a6c",
+    "utils.py": "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632"
+  },
+  "cases": [
+    {
+      "instruction": "startend:end_checker",
+      "kwargs": {
+        "end_phrase": "The End"
+      },
+      "response": "The End",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "startend:end_checker",
+      "kwargs": {
+        "end_phrase": "The End"
+      },
+      "response": "the end\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "startend:end_checker",
+      "kwargs": {
+        "end_phrase": "The End"
+      },
+      "response": "\"THE END\"",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "startend:end_checker",
+      "kwargs": {
+        "end_phrase": "The End"
+      },
+      "response": "The End.",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "startend:end_checker",
+      "kwargs": {
+        "end_phrase": "The End"
+      },
+      "response": "The End\" ",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "startend:end_checker",
+      "kwargs": {
+        "end_phrase": "The End"
+      },
+      "response": "the end\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "cat"
+        ]
+      },
+      "response": "cat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "cat"
+        ]
+      },
+      "response": "CAT",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "cat"
+        ]
+      },
+      "response": "concatenate",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "cat"
+        ]
+      },
+      "response": "dog",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "cat"
+        ]
+      },
+      "response": "a cat\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "city"
+        ]
+      },
+      "response": "CITY",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "city"
+        ]
+      },
+      "response": "cİty",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "city"
+        ]
+      },
+      "response": "cıty",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "a.b"
+        ]
+      },
+      "response": "a.b",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "a.b"
+        ]
+      },
+      "response": "acb",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:existence",
+      "kwargs": {
+        "keywords": [
+          "a.b"
+        ]
+      },
+      "response": "a\nb",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "cat",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "CAT",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "concatenate",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "a_cat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "écat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "caté",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "cat!",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:forbidden_words",
+      "kwargs": {
+        "forbidden_words": [
+          "cat"
+        ]
+      },
+      "response": "cat́",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    }
+  ]
+}

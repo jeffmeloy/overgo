@@ -94,8 +94,9 @@ func gatedDeltaMixForwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW,
 	return c, nil
 }
 
-// gatedDeltaMixBackwardDeviceW computes the resident-or-host matrix VJP.
-func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state, dOut []float32) (hostmath.GatedDeltaMixGrads, error) {
+// gatedDeltaMixBackwardCachedW reuses the same projection and recurrent forward
+// values as the enclosing layer; no second forward pass is needed.
+func gatedDeltaMixBackwardCachedW(worker *device.Worker, x []float32, mw gdnMatW, w hostmath.GatedDeltaMixWeights, d hostmath.GatedDeltaMixDims, state, dOut []float32, fc gatedDeltaMixDeviceCache) (hostmath.GatedDeltaMixGrads, error) {
 	T, H, hk, hv, hd, K := d.Tokens, d.Hidden, d.KeyHeads, d.ValueHeads, d.HeadDim, d.ConvK
 	keyDim, valDim := hk*hd, hv*hd
 	eps := d.Eps
@@ -104,11 +105,6 @@ func gatedDeltaMixBackwardDeviceW(worker *device.Worker, x []float32, mw gdnMatW
 		return g, fmt.Errorf("gatedDeltaMixBackwardDeviceW: shape mismatch (T=%d H=%d OutDim=%d x=%d dOut=%d)", T, H, d.OutDim, len(x), len(dOut))
 	}
 
-	// --- forward recompute: only the intermediates the VJP consumes ---
-	fc, err := gatedDeltaMixForwardDeviceW(worker, x, mw, w, d, state)
-	if err != nil {
-		return g, err
-	}
 	qProj, kProj, vProj := fc.qProj, fc.kProj, fc.vProj
 	qConv, kConv, vConv := fc.qConv, fc.kConv, fc.vConv
 	qL2, kL2 := fc.qL2, fc.kL2

@@ -4,6 +4,7 @@ package adaptiveparity_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -86,18 +87,44 @@ func TestQwen35RealTraining(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
+	before, err := worker.ExecutionStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 	trajectory, residency, err := trained.TrainDeviceResident(worker, qwen35TrainingSteps, optimizer.Config{
 		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trained.MatrixParamCount() + trained.VectorParamCount()),
 		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
 		Schedule:         optimizer.ScheduleConstant,
-	})
+	}, hybridtrain.TrainingOptions{})
 	trainWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
 	}
+	after, err := worker.ExecutionStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The pinned cohort used 469543936/462947408 bytes and 134 stream
+	// synchronizations at d16441de. Require the measured MLP/cache reduction
+	// with the same checkpoint, input, two steps and built-in optimizer policy.
+	removed := uint64(qwen35TrainingSteps * trained.MatrixParamCount() * 4)
+	uploads := after.HostToDeviceBytes - before.HostToDeviceBytes
+	downloads := after.DeviceToHostBytes - before.DeviceToHostBytes
+	synchronizations := after.StreamSynchronizations - before.StreamSynchronizations
+	if uploads > 466830336 || downloads > 459797584 || synchronizations > 88 {
+		t.Fatalf("training cache transfer budget exceeded: upload=%d download=%d sync=%d", uploads, downloads, synchronizations)
+	}
 	testutil.RequireFiniteDecrease(t, "Qwen3.5 real-layer trajectory", trajectory, qwen35TrainingSteps)
+	baseline := []float64{13.185788754552203, 11.505549275705816}
+	// Retain the existing mixed hybrid training trajectory's relative bound.
+	for step, loss := range trajectory {
+		if math.Abs(loss-baseline[step]) > 5e-3*math.Abs(baseline[step]) {
+			t.Fatalf("step %d loss=%g baseline=%g", step, loss, baseline[step])
+		}
+	}
+	t.Logf("actual transfer bytes: upload=%d download=%d sync=%d gradient_slab_bytes_eliminated=%d", uploads, downloads, synchronizations, removed)
 	if residency.WeightUploads != 1 || residency.MomentumUploads != 1 || residency.MomentumReads != 0 ||
-		residency.WeightReads != 0 || residency.FinalWeightRead != 1 || residency.GradUploads != 2 {
+		residency.WeightReads != 0 || residency.FinalWeightRead != 1 || residency.GradUploads != 0 {
 		t.Fatalf("Qwen3.5 residency differs: %+v", residency)
 	}
 	memory, err := worker.MemoryStats(t.Context())

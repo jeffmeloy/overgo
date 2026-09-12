@@ -1,18 +1,15 @@
 package plan
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"overgo/internal/testutil"
 )
 
 // TestPlanOnlyCommitsAreMergesOnly pins the owner's rule of 2026-09-10: a
 // lane commit whose planned paths carry only the plan is refused unless it
 // is a merge, an implementation commit carries its re-planning in the same
 // plan path, and master's plan, which declares no lane, is untouched. The
-// lane's live doctrine states the rule.
+// rule applies independently of a lane's doctrine wording.
 func TestPlanOnlyCommitsAreMergesOnly(t *testing.T) {
 	lane := Plan{Lane: "hatchet"}
 	if err := PlanOnlyCommitRefusal(lane, "gate-wall/validate-first", []string{Path}, false); err == nil || !strings.Contains(err.Error(), "plan-only lane commit") {
@@ -35,11 +32,13 @@ func TestPlanOnlyCommitsAreMergesOnly(t *testing.T) {
 	if err := PlanOnlyCommitRefusal(Plan{}, "modality-verification/do", []string{Path}, false); err != nil {
 		t.Fatalf("master's plan = %v, want admission", err)
 	}
-	document, err := Load(filepath.Join(testutil.RepoRoot(t), filepath.FromSlash(Path)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "" && !strings.Contains(document.Doctrine, "only a merge lands a plan-only commit") {
-		t.Fatal("the lane doctrine omits the plan-only commit rule")
+	for _, document := range []Plan{
+		{Lane: "audio"},
+		{Lane: "audio", Doctrine: "Keep the campaign focused on audio capabilities."},
+		{Lane: "hatchet", Doctrine: "only a merge lands a plan-only commit"},
+	} {
+		if err := PlanOnlyCommitRefusal(document, "implementation/do", []string{Path}, false); err == nil {
+			t.Fatalf("lane %q doctrine %q admitted a plan-only commit", document.Lane, document.Doctrine)
+		}
 	}
 }

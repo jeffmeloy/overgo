@@ -3,6 +3,7 @@
 package hybridtrain
 
 import (
+	"errors"
 	"fmt"
 
 	"overgo/internal/cuda/device"
@@ -10,6 +11,7 @@ import (
 	"overgo/internal/devicemath"
 	"overgo/internal/hostmath"
 	"overgo/internal/optimizer"
+	"overgo/internal/tensor/dtype"
 )
 
 // residency records device-loop weight and momentum movement.
@@ -20,44 +22,51 @@ type residency struct {
 	MomentumReads   int // zero before checkpoint
 	WeightReads     int // zero per step
 	FinalWeightRead int // one checkpoint read
-	GradUploads     int // one per step
+	GradUploads     int // zero: matrix VJPs write directly into the resident slab
 	Steps           int
 }
 
 type residentTraining struct {
-	model            *Model
-	worker           *device.Worker
-	weights          []devicemath.HybridLayerResidentWeights
-	inputs           [][]float32
-	grads            []hostmath.HybridDecoderLayerGrads
-	matGrad, vecGrad []float32
-	dGradient        driver.DevicePtr
-	updates          []optimizer.ResidentMatrix
-	matOpt           *optimizer.ResidentMuonPlan
-	vecOpt           *optimizer.Optimizer
-	residency        *residency
+	model     *Model
+	worker    *device.Worker
+	weights   []devicemath.HybridLayerResidentMatrices
+	gradients []devicemath.HybridLayerResidentMatrices
+	inputs    [][]float32
+	caches    []devicemath.HybridLayerDeviceCache
+	grads     []hostmath.HybridDecoderLayerGrads
+	vecGrad   []float32
+	updates   []optimizer.ResidentMatrix
+	matOpt    *optimizer.ResidentMuonPlan
+	vecOpt    *optimizer.Optimizer
 }
 
 func (training *residentTraining) Forward() ([]float32, error) {
 	model := training.model
 	if len(training.inputs) != len(model.Weights) {
 		training.inputs = make([][]float32, len(model.Weights))
+		training.caches = make([]devicemath.HybridLayerDeviceCache, len(model.Weights))
 	}
 	x := model.X
 	for index := range model.Weights {
 		training.inputs[index] = x
-		output, _, err := devicemath.HybridDecoderLayerForwardDeviceResident(
+		output, cache, err := devicemath.HybridDecoderLayerForwardDeviceResident(
 			training.worker, x, training.weights[index], model.Weights[index], model.Dims[index], model.States[index],
 		)
 		if err != nil {
+			clear(training.caches)
+			clear(training.inputs)
 			return nil, err
 		}
+		training.caches[index] = cache
 		x = output
 	}
 	return x, nil
 }
 
 func (training *residentTraining) Backward(dTop []float32) error {
+	defer clear(training.caches)
+	defer clear(training.inputs)
+	defer func() { clear(training.grads) }()
 	model := training.model
 	if len(training.grads) != len(model.Weights) {
 		training.grads = make([]hostmath.HybridDecoderLayerGrads, len(model.Weights))
@@ -65,7 +74,7 @@ func (training *residentTraining) Backward(dTop []float32) error {
 	dOut := dTop
 	for index := len(model.Weights) - 1; index >= 0; index-- {
 		gradient, err := devicemath.HybridDecoderLayerBackwardDeviceResident(
-			training.worker, training.inputs[index], training.weights[index], model.Weights[index], model.Dims[index], model.States[index], dOut,
+			training.worker, training.inputs[index], training.weights[index], training.gradients[index], model.Weights[index], model.Dims[index], model.States[index], dOut, &training.caches[index],
 		)
 		if err != nil {
 			return err
@@ -73,15 +82,11 @@ func (training *residentTraining) Backward(dTop []float32) error {
 		training.grads[index] = gradient
 		dOut = gradient.DX
 	}
-	model.packGradients(training.grads, training.matGrad, training.vecGrad)
+	model.packGradients(training.grads, nil, training.vecGrad)
 	return nil
 }
 
 func (training *residentTraining) Step(step int) error {
-	if err := devicemath.WriteResident(training.worker, training.dGradient, devicemath.ResidentSlice{Data: training.matGrad}); err != nil {
-		return err
-	}
-	training.residency.GradUploads++
 	if err := training.matOpt.StepMatrices(training.updates, step); err != nil {
 		return err
 	}
@@ -112,12 +117,19 @@ func (training *hostMasterTraining) Step(step int) error {
 // gradients, streaming each Muon matrix group across the device per step.
 // Peak device memory is bounded by the largest single matrix, never the
 // parameter count, so the full stack of a multi-billion-parameter artifact
-// trains on a device that cannot hold its weights. observe (optional) sees
+// trains on a device that cannot hold its weights. options.Observe sees
 // each committed step's loss and may stop training by returning an error.
-func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg optimizer.Config, observe func(step int, loss float64) error) ([]float64, error) {
+func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg optimizer.Config, options TrainingOptions) ([]float64, error) {
+	mat, vec, err := m.resumeParts(steps, cfg, options, true)
+	if err != nil {
+		return nil, err
+	}
 	pass := newHostBackwardPass(m)
 	vecOpt, err := optimizer.New(m.vecW, pass.vecGrad, m.vecPlan, cfg)
 	if err != nil {
+		return nil, err
+	}
+	if err := restoreOptimizer(vecOpt, vec); err != nil {
 		return nil, err
 	}
 	training := &hostMasterTraining{
@@ -125,7 +137,14 @@ func (m *Model) TrainHostMasterStreamed(worker *device.Worker, steps int, cfg op
 		worker:           worker, config: cfg,
 		momentum: make([]float32, len(m.matW)), vecOpt: vecOpt,
 	}
-	return runTrainingObserved(m.program, training, m.Target, steps, observe)
+	for index, value := range mat.Momentum {
+		training.momentum[index] = float32(value)
+	}
+	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
+	if trajectory != nil && options.Checkpoint != nil {
+		err = errors.Join(err, m.checkpointF32(options, training.momentum, mat.Step+len(trajectory), cfg, vecOpt))
+	}
+	return trajectory, err
 }
 
 // hostMasterLayerStreamedTraining: forward on host f32 masters; the backward
@@ -192,7 +211,11 @@ func (training *hostMasterLayerStreamedTraining) Step(step int) error {
 // memory stays bounded by the largest single matrix. The Muon math is the
 // full-slab lane's unchanged — per-group f32 momentum and device
 // Newton-Schulz — so the trajectory matches TrainHostMasterStreamed exactly.
-func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, cfg optimizer.Config, observe func(step int, loss float64) error) ([]float64, error) {
+func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, cfg optimizer.Config, options TrainingOptions) ([]float64, error) {
+	mat, vec, err := m.resumeParts(steps, cfg, options, true)
+	if err != nil {
+		return nil, err
+	}
 	plans, err := m.layerStreamPlans()
 	if err != nil {
 		return nil, err
@@ -206,6 +229,9 @@ func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, c
 	if err != nil {
 		return nil, err
 	}
+	if err := restoreOptimizer(vecOpt, vec); err != nil {
+		return nil, err
+	}
 	training := &hostMasterLayerStreamedTraining{
 		hostForwardPass: hostForwardPass{model: m},
 		worker:          worker, config: cfg,
@@ -214,12 +240,24 @@ func (m *Model) TrainHostMasterLayerStreamed(worker *device.Worker, steps int, c
 		momentum:   make([]float32, len(m.matW)),
 		vecGrad:    vecGrad, vecOpt: vecOpt,
 	}
-	return runTrainingObserved(m.program, training, m.Target, steps, observe)
+	training.stepped = mat.Step
+	for index, value := range mat.Momentum {
+		training.momentum[index] = float32(value)
+	}
+	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
+	if trajectory != nil && options.Checkpoint != nil {
+		err = errors.Join(err, m.checkpointF32(options, training.momentum, training.stepped, cfg, vecOpt))
+	}
+	return trajectory, err
 }
 
 // TrainDeviceResident keeps matrix state resident through the compiled loop.
-func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimizer.Config) ([]float64, residency, error) {
-	acc := residency{MatrixElems: len(m.matW), Steps: steps}
+func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimizer.Config, options TrainingOptions) ([]float64, residency, error) {
+	acc := residency{MatrixElems: len(m.matW)}
+	mat, vec, err := m.resumeParts(steps, cfg, options, true)
+	if err != nil {
+		return nil, acc, err
+	}
 
 	plans, err := m.matrixPlans()
 	if err != nil {
@@ -240,12 +278,16 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 		_ = devicemath.FreeResident(worker, dW)
 		return nil, acc, err
 	}
-	dM, err := devicemath.AllocResidentF32(worker, len(m.matW), nil)
+	var initialMomentum []float32
+	if options.Resume != nil {
+		initialMomentum = dtype.Float64SliceToFloat32(mat.Momentum)
+	}
+	dM, err := devicemath.AllocResidentF32(worker, len(m.matW), initialMomentum)
 	if err != nil {
 		_ = devicemath.FreeResident(worker, dW, dG)
 		return nil, acc, err
 	}
-	acc.MomentumUploads++ // dM zero-initialised on the device, once
+	acc.MomentumUploads++ // one initial state upload or device zero initialization
 	defer func() { _ = devicemath.FreeResident(worker, dW, dG, dM) }()
 
 	// Matrix update views.
@@ -264,50 +306,67 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 	}
 	defer residentMuon.Close()
 
-	// Per-layer resident views.
-	rw := make([]devicemath.HybridLayerResidentWeights, len(plans))
-	for i, p := range plans {
-		rw[i] = devicemath.HybridLayerResidentWeights{
-			IsLinear: p.IsLinear,
-			MLPGate:  devicemath.ResidentPtr(dW, p.Gate.Off),
-			MLPUp:    devicemath.ResidentPtr(dW, p.Up.Off),
-			MLPDown:  devicemath.ResidentPtr(dW, p.Down.Off),
-		}
-		if p.IsLinear {
-			rw[i].GDNWq = devicemath.ResidentPtr(dW, p.GWq.Off)
-			rw[i].GDNWk = devicemath.ResidentPtr(dW, p.GWk.Off)
-			rw[i].GDNWv = devicemath.ResidentPtr(dW, p.GWv.Off)
-			rw[i].GDNWbeta = devicemath.ResidentPtr(dW, p.GWbeta.Off)
-			rw[i].GDNWalpha = devicemath.ResidentPtr(dW, p.GWalpha.Off)
-			rw[i].GDNWz = devicemath.ResidentPtr(dW, p.GWz.Off)
-			rw[i].GDNWout = devicemath.ResidentPtr(dW, p.GWout.Off)
-		} else {
-			rw[i].AttnWq = devicemath.ResidentPtr(dW, p.Wq.Off)
-			rw[i].AttnWk = devicemath.ResidentPtr(dW, p.Wk.Off)
-			rw[i].AttnWv = devicemath.ResidentPtr(dW, p.Wv.Off)
-			rw[i].AttnWo = devicemath.ResidentPtr(dW, p.Wo.Off)
-		}
+	// Weight and gradient views share the validated optimizer layout.
+	weights := make([]devicemath.HybridLayerResidentMatrices, len(plans))
+	gradients := make([]devicemath.HybridLayerResidentMatrices, len(plans))
+	for i, plan := range plans {
+		weights[i] = plan.residentViews(dW)
+		gradients[i] = plan.residentViews(dG)
 	}
-
 	vecGrad := make([]float32, len(m.vecW))
 	vecOpt, err := optimizer.New(m.vecW, vecGrad, m.vecPlan, cfg)
 	if err != nil {
 		return nil, acc, err
 	}
-	training := &residentTraining{
-		model: m, worker: worker, weights: rw,
-		matGrad: make([]float32, len(m.matW)), vecGrad: vecGrad,
-		dGradient: dG, updates: updates, matOpt: residentMuon, vecOpt: vecOpt, residency: &acc,
-	}
-	trajectory, err := runTraining(m.program, training, m.Target, steps)
-	if err != nil {
+	if err := restoreOptimizer(vecOpt, vec); err != nil {
 		return nil, acc, err
 	}
+	training := &residentTraining{
+		model: m, worker: worker, weights: weights, gradients: gradients,
+		vecGrad: vecGrad, updates: updates, matOpt: residentMuon, vecOpt: vecOpt,
+	}
+	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
+	if trajectory == nil {
+		return nil, acc, err
+	}
+	acc.Steps = len(trajectory)
 
 	// Final checkpoint readback.
-	if err := devicemath.ReadResident(worker, dW, devicemath.ResidentSlice{ElemOffset: 0, Data: m.matW}); err != nil {
-		return nil, acc, err
+	if readErr := devicemath.ReadResident(worker, dW, devicemath.ResidentSlice{ElemOffset: 0, Data: m.matW}); readErr != nil {
+		return trajectory, acc, errors.Join(err, readErr)
 	}
 	acc.FinalWeightRead++
-	return trajectory, acc, nil
+	if options.Checkpoint != nil {
+		momentum := make([]float32, len(m.matW))
+		if readErr := devicemath.ReadResident(worker, dM, devicemath.ResidentSlice{Data: momentum}); readErr != nil {
+			return trajectory, acc, errors.Join(err, readErr)
+		}
+		acc.MomentumReads++
+		err = errors.Join(err, m.checkpointF32(options, momentum, mat.Step+len(trajectory), cfg, vecOpt))
+	}
+	return trajectory, acc, err
+}
+
+func (p layerMatrixPlan) residentViews(base driver.DevicePtr) devicemath.HybridLayerResidentMatrices {
+	views := devicemath.HybridLayerResidentMatrices{
+		IsLinear: p.IsLinear,
+		MLPGate:  devicemath.ResidentPtr(base, p.Gate.Off),
+		MLPUp:    devicemath.ResidentPtr(base, p.Up.Off),
+		MLPDown:  devicemath.ResidentPtr(base, p.Down.Off),
+	}
+	if p.IsLinear {
+		views.GDNWq = devicemath.ResidentPtr(base, p.GWq.Off)
+		views.GDNWk = devicemath.ResidentPtr(base, p.GWk.Off)
+		views.GDNWv = devicemath.ResidentPtr(base, p.GWv.Off)
+		views.GDNWbeta = devicemath.ResidentPtr(base, p.GWbeta.Off)
+		views.GDNWalpha = devicemath.ResidentPtr(base, p.GWalpha.Off)
+		views.GDNWz = devicemath.ResidentPtr(base, p.GWz.Off)
+		views.GDNWout = devicemath.ResidentPtr(base, p.GWout.Off)
+	} else {
+		views.AttnWq = devicemath.ResidentPtr(base, p.Wq.Off)
+		views.AttnWk = devicemath.ResidentPtr(base, p.Wk.Off)
+		views.AttnWv = devicemath.ResidentPtr(base, p.Wv.Off)
+		views.AttnWo = devicemath.ResidentPtr(base, p.Wo.Off)
+	}
+	return views
 }

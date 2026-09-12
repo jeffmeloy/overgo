@@ -20,7 +20,15 @@ func TestValidationPlanExtensibleChecks(t *testing.T) {
 		{"nonacceptance verification", "go run ./cmd/plan -status", true, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			document := loadCampaignPlan(t)
+			document := Plan{
+				Campaign: "Bounded validation fixture",
+				Doctrine: "capability freeze enforced by structure; report UNAVAILABLE; bind acceptance with plan -setverify",
+				Items: []Item{{
+					ID: "campaign-closeout", Title: "Close validation campaign", Status: StatusOpen,
+					Steps: []Step{{ID: "closeout", Title: "Verify campaign structure", Status: StatusOpen,
+						Verify: "go test ./internal/plan -run '^TestSingleCanonicalCampaignPlan$' -count=1"}},
+				}},
+			}
 			document.Items = append(document.Items, Item{
 				ID: "validation-probe", Title: "Bounded validation check", Status: StatusOpen,
 				Steps: []Step{{ID: "bounded-check", Title: "Validate existing behavior", Status: StatusOpen, Verify: test.verify}},

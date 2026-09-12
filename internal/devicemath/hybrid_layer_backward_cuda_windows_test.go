@@ -63,6 +63,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		verifyHybridCachedBackward(t, worker, x, w, d, nil, dOut, got)
 
 		check := func(name string, a, b []float32) {
 			diff := testutil.MaxAbsDiff(a, b)
@@ -132,6 +133,7 @@ func TestHybridDecoderLayerBackwardDeviceMatchesHost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		verifyHybridCachedBackward(t, worker, x, w, d, state, dOut, got)
 		if !got.IsLinear {
 			t.Fatal("device grads not flagged IsLinear for the GDN mix")
 		}

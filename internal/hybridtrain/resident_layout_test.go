@@ -69,7 +69,7 @@ func TestHybridCompiledHostLifecycle(t *testing.T) {
 	}
 	trajectory, err := model.TrainHost(testSteps, optimizer.Config{
 		BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: optimizer.ScheduleConstant,
-	})
+	}, TrainingOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

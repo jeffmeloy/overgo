@@ -192,7 +192,7 @@ func run() error {
 	}
 	trainStart := time.Now()
 	previous := trainStart
-	trajectory, err := train(worker, session.Updates(), config, func(step int, loss float64) error {
+	trajectory, err := train(worker, session.Updates(), config, hybridtrain.TrainingOptions{Observe: func(step int, loss float64) error {
 		now := time.Now()
 		wall := now.Sub(previous)
 		previous = now
@@ -210,7 +210,7 @@ func run() error {
 			}
 		}
 		return nil
-	})
+	}})
 	trainWall := time.Since(trainStart)
 	observer.Phase(runrecord.PhaseForwardBackward, trainWall)
 	runErr := err

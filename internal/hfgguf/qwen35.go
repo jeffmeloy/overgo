@@ -158,7 +158,8 @@ func qwen35Metadata(repository *hfrepo.Repository) ([]gguf.Metadata, uint32, err
 	if len(layerTypes) != int(blockCount) {
 		return nil, 0, errors.New("HF/GGUF adapter: Qwen 3.5 layer type count is invalid")
 	}
-	recurrentLayers := make([]bool, len(layerTypes))
+	// Prediction blocks use dense attention and occupy the declared tail.
+	recurrentLayers := make([]bool, blockCount+mtpBlocks)
 	for index, layerType := range layerTypes {
 		switch layerType {
 		case "linear_attention":

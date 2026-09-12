@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"slices"
 	"testing"
@@ -21,41 +20,6 @@ const (
 	miniNativeModel  = "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32"
 	miniNativeRecipe = "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c"
 )
-
-type miniNativeCase struct {
-	Name      string  `json:"name"`
-	Prompt    string  `json:"prompt"`
-	MaxTokens int     `json:"max_tokens"`
-	Chat      bool    `json:"chat"`
-	Input     []int32 `json:"input"`
-	Output    []int32 `json:"output"`
-	Text      string  `json:"text"`
-}
-
-type miniNativeCapture struct {
-	Cases []miniNativeCase `json:"cases"`
-}
-
-func checkMiniNativeCaptures(goCapture, native miniNativeCapture) error {
-	names := []string{"capital", "count", "code", "integer-addition"}
-	if len(goCapture.Cases) != len(names) || len(native.Cases) != len(names) {
-		return fmt.Errorf("MiniCPM native reference: incomplete case denominator")
-	}
-	inputs, outputs := 0, 0
-	for i, name := range names {
-		a, b := goCapture.Cases[i], native.Cases[i]
-		if a.Name != name || b.Name != name || a.Prompt == "" || len(a.Input) == 0 || len(a.Output) == 0 || len(a.Output) > a.MaxTokens ||
-			!slices.Equal(a.Input, b.Input) || !slices.Equal(a.Output, b.Output) || a.Text != b.Text {
-			return fmt.Errorf("MiniCPM native reference: case %s differs", name)
-		}
-		inputs += len(a.Input)
-		outputs += len(a.Output)
-	}
-	if inputs != 48 || outputs != 82 {
-		return fmt.Errorf("MiniCPM native reference: token denominator differs")
-	}
-	return nil
-}
 
 func readMiniNativeCaptures(t testing.TB) {
 	t.Helper()
@@ -93,7 +57,7 @@ func readMiniNativeCaptures(t testing.TB) {
 		provenance.GoCommit != "f278ca230121df1d0bedf8fc58bf7881a9ebc475" || provenance.NativeCommit != "42fc243060709331ff9b158a9ed2cbe37219ae83" {
 		t.Fatal("MiniCPM native reference: producer or model authority differs")
 	}
-	var goCapture, native miniNativeCapture
+	var goCapture, native nativeTextCapture
 	for _, name := range []string{"go_capture", "native_capture", "native_input", "go_source", "native_source", "native_build", "conversion_source", "conversion_verifier", "conversion_verification"} {
 		content, err := artifact.RequireTypedContent(t.Context(), store, provenance.Inputs[name])
 		if err != nil {
@@ -118,7 +82,7 @@ func readMiniNativeCaptures(t testing.TB) {
 			t.Fatal(err)
 		}
 	}
-	if err := checkMiniNativeCaptures(goCapture, native); err != nil {
+	if err := checkNativeTextCaptures(goCapture, native, 48, 82); err != nil {
 		t.Fatal(err)
 	}
 	deviceID, err := artifact.ParseID("evidence:sha256:2b3944a01a6fad3a8db1c5742aea84ea95ffccccd0929c4730b15196f33ef7d9")
@@ -149,7 +113,7 @@ func readMiniNativeCaptures(t testing.TB) {
 		t.Fatal(err)
 	}
 	var device struct {
-		miniNativeCapture
+		nativeTextCapture
 		Identity    modelrecipe.ProgramIdentity `json:"identity"`
 		Environment runrecord.Environment       `json:"environment"`
 		Source      string                      `json:"source"`
@@ -177,7 +141,7 @@ func readMiniNativeCaptures(t testing.TB) {
 			t.Fatalf("MiniCPM device reference: recipe %s binding differs", role)
 		}
 	}
-	if err := checkMiniNativeCaptures(device.miniNativeCapture, native); err != nil {
+	if err := checkNativeTextCaptures(device.nativeTextCapture, native, 48, 82); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -196,9 +160,9 @@ func TestAcceptedMiniCPMNativeReference(t *testing.T) {
 func TestMiniCPMNativeContract(t *testing.T) {
 	for _, mutation := range []string{"valid", "missing", "duplicate", "input", "output", "text", "budget", "denominator"} {
 		t.Run(mutation, func(t *testing.T) {
-			var a, b miniNativeCapture
+			var a, b nativeTextCapture
 			for i, name := range []string{"capital", "count", "code", "integer-addition"} {
-				row := miniNativeCase{Name: name, Prompt: name, MaxTokens: []int{24, 24, 32, 16}[i], Input: make([]int32, []int{6, 9, 6, 27}[i]), Output: make([]int32, []int{24, 24, 32, 2}[i]), Text: name}
+				row := nativeTextCase{Name: name, Prompt: name, MaxTokens: []int{24, 24, 32, 16}[i], Input: make([]int32, []int{6, 9, 6, 27}[i]), Output: make([]int32, []int{24, 24, 32, 2}[i]), Text: name}
 				a.Cases = append(a.Cases, row)
 				row.Input, row.Output = slices.Clone(row.Input), slices.Clone(row.Output)
 				b.Cases = append(b.Cases, row)
@@ -220,7 +184,7 @@ func TestMiniCPMNativeContract(t *testing.T) {
 				a.Cases[0].Input = append(a.Cases[0].Input, 0)
 				b.Cases[0].Input = append(b.Cases[0].Input, 0)
 			}
-			err := checkMiniNativeCaptures(a, b)
+			err := checkNativeTextCaptures(a, b, 48, 82)
 			if (err == nil) != (mutation == "valid") {
 				t.Fatalf("acceptance error = %v", err)
 			}

@@ -1321,6 +1321,9 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
 	}, short, clioptions.DiagnosticTailBytes, observe)
+	if len(report.ClassifiedSkipped) != 0 {
+		g.note(fmt.Sprintf("short-profile exclusions (no full-test credit): %d [%s]", len(report.ClassifiedSkipped), strings.Join(report.ClassifiedSkipped, ",")))
+	}
 	err = errors.Join(err, release())
 	if short || len(report.Failed)+len(report.Unfinished) > 0 {
 		err = errors.Join(err, testevidence.RequireComplete(report))

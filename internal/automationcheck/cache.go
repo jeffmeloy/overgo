@@ -86,11 +86,15 @@ func PackageInvocation(packagePath, mode string) (artifact.ID, error) {
 	if packagePath == "" || mode == "" {
 		return artifact.ID{}, fmt.Errorf("automation check: package invocation requires package and mode")
 	}
+	policy := "go-test-complete-package/v1"
+	if mode == "short" {
+		policy = "go-test-short-profile/v1"
+	}
 	return artifact.JSONID(artifact.KindRecipe, struct {
 		Policy  string `json:"policy"`
 		Package string `json:"package"`
 		Mode    string `json:"mode"`
-	}{"go-test-complete-package/v1", packagePath, mode})
+	}{policy, packagePath, mode})
 }
 
 // PackageReusable reports whether an exact package input already passed.

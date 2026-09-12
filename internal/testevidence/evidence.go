@@ -63,11 +63,12 @@ type testResult struct {
 	Unavailable string
 	started     bool
 	ineligible  bool
+	excluded    bool
 }
 
 // PackagePassed reports complete, non-vacuous package evidence independently
-// of sibling failures. Skips, missing terminal events and malformed streams
-// never qualify, including classified short-mode exclusions.
+// of sibling failures, within the parsed execution profile. Declared short
+// exclusions contribute no passes; all other skips prevent reuse.
 func (report GoTestReport) PackagePassed(packagePath string) bool {
 	result := report.packages[packagePath]
 	return packagePath != "" && result.passed && result.tested && !result.incomplete
@@ -199,7 +200,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		if results[key] == nil {
 			results[key] = &testResult{Package: event.Package, Name: event.Test}
 		}
-		if results[key].Action != "" && event.Action != "output" || event.Action == "skip" || event.Action == "fail" {
+		if results[key].Action != "" && event.Action != "output" || event.Action == "fail" {
 			results[key].ineligible = true
 		}
 		if event.Action == "run" || event.Action == "start" {
@@ -226,6 +227,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		case event.Action == "pass" && event.Test == "":
 			report.PassedPackages++
 		case event.Action == "skip" && event.Test != "" && classified[key]:
+			results[key].excluded = true
 			report.ClassifiedSkipped = append(report.ClassifiedSkipped, event.Package+": "+event.Test)
 		case event.Action == "skip" && event.Test != "":
 			report.Skipped = append(report.Skipped, event.Package+": "+event.Test)

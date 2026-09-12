@@ -1,0 +1,340 @@
+{
+  "schema": "overgo/ifeval-json-oracle/v1",
+  "reference_version": "0.4.9.1",
+  "sources": {
+    "instructions.py": "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32",
+    "utils.py": "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632"
+  },
+  "cases": [
+    {
+      "response": "{}",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "[]",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "null",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "true",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "false",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "0",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "-1",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "1.5e+3",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "1e999",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\"hello\"",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "```json\n{}\n```",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "```Json\n[1]\n```",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "```JSON\ntrue\n```",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "```\nnull\n```",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "```jSoN\n{}\n```",
+      "strict": false,
+      "loose": true
+    },
+    {
+      "response": "```json{}",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "{}```",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "```json```Json```JSON```{}```",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\u001c\u0085{}\u2029",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\u0000{}",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\ufeff{}",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "NaN",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "Infinity",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "-Infinity",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "{\"x\":NaN}",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "[NaN,Infinity,-Infinity]",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\"NaN Infinity -Infinity\"",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "{\"NaN\":\"Infinity\",\"x\":-Infinity}",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\"escaped \\\" NaN\"",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\"\\\\\"",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "-NaN",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "+Infinity",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "nan",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "infinity",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "NaNNaN",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "Infinity0",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "0Infinity",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "- Infinity",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "--Infinity",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "[NaN Infinity]",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "{NaN:1}",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "{\"x\":NaN,}",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "[,NaN]",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "[NaN,]",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "[+NaN]",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "NaN null",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "{\"x\": 1,}",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "01",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": ".1",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "1.",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\"unterminated",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\"NaN\n\"",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\"\\x00\"",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\"\\uD800\"",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "\"\\uZZZZ\"",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": " ",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\n",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "header\n{}\nfooter",
+      "strict": false,
+      "loose": true
+    },
+    {
+      "response": "*{}*",
+      "strict": false,
+      "loose": true
+    },
+    {
+      "response": "```\nnot JSON\n```",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "truefalse",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "[]{}",
+      "strict": false,
+      "loose": false
+    },
+    {
+      "response": "\u000b{}",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "{\"x\":\"-NaN\"}",
+      "strict": true,
+      "loose": true
+    },
+    {
+      "response": "{\"x\":1,\"x\":2}",
+      "strict": true,
+      "loose": true
+    }
+  ]
+}

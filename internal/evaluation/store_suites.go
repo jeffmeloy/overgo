@@ -450,7 +450,7 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 		}
 		return []InstructionRule{{Name: id, Kind: RuleSuffix, Values: []string{phrase}}}, true
 	case "detectable_format:json_format":
-		return []InstructionRule{{Name: id, Kind: RuleJSON}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalJSONRule}}, true
 	default:
 		return nil, false
 	}

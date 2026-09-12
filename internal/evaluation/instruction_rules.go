@@ -249,7 +249,7 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 		if len(source.Values) != 1 || source.Values[0] == "" || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction boundary rule")
 		}
-	case RuleJSON, RuleUppercase, RuleLowercase, RuleNoComma:
+	case RuleJSON, ifevalJSONRule, RuleUppercase, RuleLowercase, RuleNoComma:
 		if len(source.Values) != 0 || source.Count != nil {
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction unary rule")
 		}
@@ -322,6 +322,8 @@ func (rule compiledInstructionRule) matches(response string) bool {
 		return rule.pattern.MatchString(response)
 	case RuleJSON:
 		return json.Valid([]byte(response))
+	case ifevalJSONRule:
+		return matchesIFEvalJSON(response)
 	case RuleUppercase:
 		return uniformLetterCase(response, unicode.IsUpper)
 	case RuleLowercase:

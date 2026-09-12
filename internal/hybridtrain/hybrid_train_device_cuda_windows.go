@@ -30,6 +30,7 @@ type residentTraining struct {
 	weights   []devicemath.HybridLayerResidentMatrices
 	gradients []devicemath.HybridLayerResidentMatrices
 	inputs    [][]float32
+	caches    []devicemath.HybridLayerDeviceCache
 	grads     []hostmath.HybridDecoderLayerGrads
 	vecGrad   []float32
 	updates   []optimizer.ResidentMatrix
@@ -41,22 +42,29 @@ func (training *residentTraining) Forward() ([]float32, error) {
 	model := training.model
 	if len(training.inputs) != len(model.Weights) {
 		training.inputs = make([][]float32, len(model.Weights))
+		training.caches = make([]devicemath.HybridLayerDeviceCache, len(model.Weights))
 	}
 	x := model.X
 	for index := range model.Weights {
 		training.inputs[index] = x
-		output, _, err := devicemath.HybridDecoderLayerForwardDeviceResident(
+		output, cache, err := devicemath.HybridDecoderLayerForwardDeviceResident(
 			training.worker, x, training.weights[index], model.Weights[index], model.Dims[index], model.States[index],
 		)
 		if err != nil {
+			clear(training.caches)
+			clear(training.inputs)
 			return nil, err
 		}
+		training.caches[index] = cache
 		x = output
 	}
 	return x, nil
 }
 
 func (training *residentTraining) Backward(dTop []float32) error {
+	defer clear(training.caches)
+	defer clear(training.inputs)
+	defer func() { clear(training.grads) }()
 	model := training.model
 	if len(training.grads) != len(model.Weights) {
 		training.grads = make([]hostmath.HybridDecoderLayerGrads, len(model.Weights))
@@ -64,7 +72,7 @@ func (training *residentTraining) Backward(dTop []float32) error {
 	dOut := dTop
 	for index := len(model.Weights) - 1; index >= 0; index-- {
 		gradient, err := devicemath.HybridDecoderLayerBackwardDeviceResident(
-			training.worker, training.inputs[index], training.weights[index], training.gradients[index], model.Weights[index], model.Dims[index], model.States[index], dOut,
+			training.worker, training.inputs[index], training.weights[index], training.gradients[index], model.Weights[index], model.Dims[index], model.States[index], dOut, &training.caches[index],
 		)
 		if err != nil {
 			return err

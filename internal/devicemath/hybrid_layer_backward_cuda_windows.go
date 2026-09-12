@@ -41,61 +41,44 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 // host slices. Matrix gradients follow their linWeight binding: a borrowed
 // destination keeps them resident, otherwise they return as host slices.
 func hybridLayerBackwardW(worker *device.Worker, x []float32, mw hybridMatW, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
-	T, H := d.Tokens, d.Hidden
-	if len(x) != T*H || len(dOut) != T*H {
-		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("hybridLayerBackwardW: shape mismatch (T=%d H=%d x=%d dOut=%d)", T, H, len(x), len(dOut))
+	if len(x) != d.Tokens*d.Hidden || len(dOut) != len(x) {
+		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("hybrid backward: input or gradient shape mismatch")
 	}
+	cache, err := hybridLayerCacheW(worker, x, mw, w, d, state)
+	if err != nil {
+		return hostmath.HybridDecoderLayerGrads{}, err
+	}
+	return hybridLayerBackwardCachedW(worker, x, mw, w, d, state, dOut, &cache)
+}
 
+// hybridLayerBackwardCachedW consumes one forward cache before parameters change.
+// Consuming it even on failure prevents accidental reuse of a partial backward.
+func hybridLayerBackwardCachedW(worker *device.Worker, x []float32, mw hybridMatW, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32, cache *HybridLayerDeviceCache) (hostmath.HybridDecoderLayerGrads, error) {
+	T, H := d.Tokens, d.Hidden
 	var g hostmath.HybridDecoderLayerGrads
+	if cache == nil || !cache.ready {
+		return g, fmt.Errorf("hybrid backward: forward cache absent or consumed")
+	}
+	fc := *cache
+	*cache = HybridLayerDeviceCache{}
+	if T <= 0 || H <= 0 || len(x) != T*H || len(dOut) != T*H || fc.dims != d || fc.IsLinear != w.IsLinear {
+		return g, fmt.Errorf("hybrid backward: invalid shape or forward cache")
+	}
+	for _, values := range [][]float32{fc.Xn, fc.H, fc.Hn} {
+		if len(values) != T*H {
+			return g, fmt.Errorf("hybrid backward: malformed residual cache")
+		}
+	}
+	for _, values := range [][]float32{fc.GateP, fc.AP, fc.UpP, fc.HMLP} {
+		if len(values) != T*d.Inter {
+			return g, fmt.Errorf("hybrid backward: malformed MLP cache")
+		}
+	}
 	g.IsLinear = w.IsLinear
 	eps := d.Eps
-
-	// --- forward recompute (device): only the intermediates the VJP consumes ---
-	xn, err := RMSNormForward(worker, x, w.InputNorm, T, H, eps)
-	if err != nil {
-		return g, err
-	}
-	// mix forward on device from mw (resident-safe): attention returns its VJP cache;
-	// the GDN residual mixOut is gated·Woutᵀ recomputed from mw (the backward's own
-	// GatedDeltaMixBackwardDeviceW recomputes the rest of its intermediates).
-	var mixOut []float32
-	var ac attnMixDeviceCache
-	if w.IsLinear {
-		gc, err := gatedDeltaMixForwardDeviceW(worker, xn, mw.gdn, w.GDN, d.GDN, state)
-		if err != nil {
-			return g, err
-		}
-		valDim := d.GDN.ValueHeads * d.GDN.HeadDim
-		mixOut, err = linearForwardTW(worker, gc.gated, mw.gdn.wout, T, valDim, d.GDN.OutDim)
-		if err != nil {
-			return g, err
-		}
-	} else {
-		mixOut, ac, err = attentionMixForwardDeviceW(worker, xn, mw.attn, w.Attn, d.Attn)
-		if err != nil {
-			return g, err
-		}
-	}
-	h := make([]float32, T*H)
-	for i := range h {
-		h[i] = x[i] + mixOut[i]
-	}
-	hn, err := RMSNormForward(worker, h, w.PostNorm, T, H, eps)
-	if err != nil {
-		return g, err
-	}
-	gateP, err := linearForwardTW(worker, hn, mw.mlp.gate, T, H, d.Inter)
-	if err != nil {
-		return g, err
-	}
-	upP, err := linearForwardTW(worker, hn, mw.mlp.up, T, H, d.Inter)
-	if err != nil {
-		return g, err
-	}
-	aP, hMLP, err := SiLUGateForward(worker, gateP, upP)
-	if err != nil {
-		return g, err
-	}
+	xn, h, hn := fc.Xn, fc.H, fc.Hn
+	gateP, aP, upP, hMLP := fc.GateP, fc.AP, fc.UpP, fc.HMLP
+	ac := fc.Attn
 
 	// --- MLP branch backward (SwiGLU): out = h + MLP(RMSNorm(h,PostNorm)) ---
 	mlp, err := gatedMLPBackwardTW(worker, hn, mw.mlp, gateP, aP, upP, hMLP, dOut, T, H, d.Inter)
@@ -117,7 +100,7 @@ func hybridLayerBackwardW(worker *device.Worker, x []float32, mw hybridMatW, w h
 	// --- mix branch backward: h = x + Mix(RMSNorm(x,InputNorm)) ---
 	var dXn []float32
 	if w.IsLinear {
-		mg, err := gatedDeltaMixBackwardDeviceW(worker, xn, mw.gdn, w.GDN, d.GDN, state, dh)
+		mg, err := gatedDeltaMixBackwardCachedW(worker, xn, mw.gdn, w.GDN, d.GDN, state, dh, fc.GDN)
 		if err != nil {
 			return g, err
 		}

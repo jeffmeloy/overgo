@@ -46,6 +46,22 @@ func (w linWeight) resolve(s *cudaBLAS, want int) (driver.DevicePtr, error) {
 	return s.upload(w.host)
 }
 
+// allocateGradient borrows the declared destination or allocates a session
+// destination and its host readback. Borrowed storage is never session-owned.
+func (w linWeight) allocateGradient(s *cudaBLAS, count int) (driver.DevicePtr, []float32, error) {
+	if w.gradient != 0 {
+		if w.gradient == w.dev {
+			return 0, nil, fmt.Errorf("linear gradient aliases weight")
+		}
+		return w.gradient, nil, nil
+	}
+	pointer, err := s.alloc(count)
+	if err != nil {
+		return 0, nil, err
+	}
+	return pointer, make([]float32, count), nil
+}
+
 type linearWeightLayout uint8
 
 const (
@@ -207,9 +223,6 @@ func linearBackwardTW(worker *device.Worker, x []float32, w linWeight, dY []floa
 		return nil, nil, fmt.Errorf("linearBackwardTW: gradient aliases weight")
 	}
 	dX = make([]float32, rows*in)
-	if w.gradient == 0 {
-		dW = make([]float32, outDim*in)
-	}
 	err = withCUDABLAS(worker, func(s *cudaBLAS) error {
 		xPtr, err := s.upload(x)
 		if err != nil {
@@ -227,13 +240,11 @@ func linearBackwardTW(worker *device.Worker, x []float32, w linWeight, dY []floa
 		if err != nil {
 			return err
 		}
-		dwPtr := w.gradient
-		if dwPtr == 0 {
-			dwPtr, err = s.alloc(len(dW))
-			if err != nil {
-				return err
-			}
+		dwPtr, hostGradient, err := w.allocateGradient(s, outDim*in)
+		if err != nil {
+			return err
 		}
+		dW = hostGradient
 		if err := s.gemm(false, false, rows, outDim, in, dyPtr, wPtr, dxPtr); err != nil {
 			return err
 		}

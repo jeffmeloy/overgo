@@ -16,7 +16,8 @@
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath -run '^TestResidentTrainingSequenceAcceptance$' -count=1 -v",
           "rationale": "Profile the real hybrid training consumer of MultiHeadAttentionBackwardResident and adjacent projection, normalization and rotary operations: host arrays, head-major packing and gradient downloads remain at these boundaries. Inspect densecausal resident stacks, device training glue, scratch pools and resident Muon before extending the existing owners. Elect the measured dominant sequence and carry activations, gradients, matrix weights and optimizer state on device across that sequence; preserve explicit host observations, declared unsupported components and checkpoint boundaries. Extend established pointer/buffer contracts only where needed; no second trainer or global rewrite. Preserve frozen-component gradient propagation, tied-parameter accumulation, dtype/reduction semantics, data order and RNG/optimizer/scheduler/data-stream resume. CPU parity precedes device update and interrupted/resumed training acceptance. Compare the actual admitted training path before/after at identical batch, sequence, trainable parameter set and artifact; report transfer bytes, layout work, synchronizations, forward/backward/update time, end-to-end step time and host/device peaks alongside loss and held-out quality. A faster isolated backward operator is not faster training. Derive gates from the changed training and optimizer cones, include gradient and checkpoint counterexamples, and run applicable device/race checks. GPU residency is implementation reuse for later ASR work, not proof of ASR gradients or model coverage.",
           "depends_on": [
-            "shared-training-residency/resident-matrix-gradients"
+            "shared-training-residency/resident-matrix-gradients",
+            "shared-training-cache/do"
           ],
           "capabilities": [
             "resident-training-sequences",

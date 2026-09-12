@@ -179,15 +179,17 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Measured on d10cfe0b with this exact eight-step fixture. Exclude the
-	// gradient slab round trip; hand-maintained residency flags are not proof.
+	// This fixed eight-step fixture used 432384/299680 bytes and 932 stream
+	// synchronizations at d16441de. Require the measured MLP/cache reduction;
+	// hand-maintained residency flags are not proof of actual driver work.
 	removed := uint64(testSteps * dev.MatrixParamCount() * 4)
 	uploads := after.HostToDeviceBytes - before.HostToDeviceBytes
 	downloads := after.DeviceToHostBytes - before.DeviceToHostBytes
-	if uploads > 553216-removed || downloads > 420512-removed {
-		t.Fatalf("matrix gradients still cross host boundary: upload=%d download=%d", uploads, downloads)
+	synchronizations := after.StreamSynchronizations - before.StreamSynchronizations
+	if uploads > 304256 || downloads > 186784 || synchronizations > 612 {
+		t.Fatalf("training cache transfer budget exceeded: upload=%d download=%d sync=%d", uploads, downloads, synchronizations)
 	}
-	t.Logf("actual transfer bytes: upload=%d download=%d removed_each_direction=%d", uploads, downloads, removed)
+	t.Logf("actual transfer bytes: upload=%d download=%d sync=%d gradient_slab_bytes_eliminated=%d", uploads, downloads, synchronizations, removed)
 
 	// Trajectory parity.
 	var maxAbs, maxRel float64

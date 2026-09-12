@@ -154,6 +154,7 @@ func (campaign *Campaign) publishSuccess(
 	measured uint64,
 ) (CampaignResult, error) {
 	plan := suite.plan
+	retained := CampaignResult{Report: result.Report, Metrics: result.Metrics}
 	run, err := runrecord.NewBoundRun(
 		campaign.identity.Recipe, runrecord.OutcomeSucceeded,
 		[]artifact.ID{plan.Identity()}, []artifact.ID{result.Report}, "", campaign.commit,
@@ -161,29 +162,36 @@ func (campaign *Campaign) publishSuccess(
 		[]runrecord.PhaseMetric{{Phase: runrecord.PhaseValidate, DurationNS: measured}},
 	)
 	if err != nil {
-		return CampaignResult{}, err
+		return retained, err
 	}
 	resources, err := campaign.resourceFitness(plan.Identity(), run)
 	if err != nil {
-		return CampaignResult{}, err
+		return retained, err
 	}
 	record, err := runrecord.NewEvaluation(campaign.identity.Recipe, run.ID, plan.Dataset(), result.Metrics)
 	if err != nil {
-		return CampaignResult{}, err
+		return retained, err
 	}
 	batch, observation, err := campaign.preparePublication(ctx, run, &record, resources)
 	if err != nil {
-		return CampaignResult{}, err
+		return retained, err
 	}
-	evidence, err := prepareIsolatedEvaluationEvidence(
-		ctx, campaign.repository, &batch, plan, suite.acceptance, suite.evaluator,
-		result.Report, run, record, observation,
+	var isolated *runrecord.ObservationChunkSummary
+	if campaign.lifecycle == LifecycleIsolated {
+		isolated = &observation
+	}
+	evidence, err := newEvaluationEvidence(
+		ctx, campaign.repository, plan, suite.acceptance, suite.evaluator,
+		result.Report, run, record, isolated,
 	)
 	if err != nil {
-		return CampaignResult{}, err
+		return retained, err
+	}
+	if err := appendEvaluationEvidence(&batch, suite.acceptance, suite.evaluator, evidence); err != nil {
+		return retained, err
 	}
 	if _, err := artifact.CommitBatch(ctx, campaign.repository, batch); err != nil {
-		return CampaignResult{}, err
+		return retained, err
 	}
 	return CampaignResult{
 		Run: run.ID, Evaluation: record.ID, Report: result.Report, Evidence: evidence.ID, Metrics: result.Metrics,

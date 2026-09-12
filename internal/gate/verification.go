@@ -1632,7 +1632,7 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	if _, err := gitWriterCommand(worktree, "read-tree", tree); err != nil {
 		return err
 	}
-	if _, err := gitWriterCommand(worktree, "checkout-index", "--all", "--force"); err != nil {
+	if _, err := gitWriterCommand(worktree, "checkout-index", "--all", "--force", "--index"); err != nil {
 		return err
 	}
 	g.candidateRoot, g.candidateTree = worktree, tree

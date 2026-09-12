@@ -348,7 +348,7 @@ func Run(options Options) (runErr error) {
 			return errors.Join(
 				pipelineErr,
 				fmt.Errorf(
-					"commit landed but automatic recovery failed; run `go run ./cmd/gate -recover-interrupted`: %w",
+					"automatic commit recovery failed; run `go run ./cmd/gate -recover-interrupted`: %w",
 					errors.Join(closeErr, recoveryErr),
 				),
 			)

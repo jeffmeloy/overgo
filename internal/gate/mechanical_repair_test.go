@@ -111,6 +111,14 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if len(recorded) != 3 {
 		t.Fatalf("commands = %v, want the rebind and the two census modes", recorded)
 	}
+	// A retry starts with the caller's original paths and already repaired files.
+	g.paths = g.paths[:1]
+	if err := g.stageMechanicalRepairs(); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(g.paths, wantPaths) {
+		t.Fatalf("retry omitted byte-identical repaired outputs: got %v, want %v", g.paths, wantPaths)
+	}
 
 	raised := surface
 	raised.ProductionFiles = 0

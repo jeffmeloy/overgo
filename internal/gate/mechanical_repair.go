@@ -31,6 +31,8 @@ type mechanicalRepair struct {
 	phase string
 	files func(g *gateContext) []string
 	apply func(g *gateContext) error
+	// Retain outputs authored on every successful apply, including retries.
+	retainOutputs bool
 }
 
 // mechanicalRepairs lists the registry: the formatter first, since every
@@ -44,6 +46,7 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 		{name: "closure rebind", phase: "magics", files: none, apply: (*gateContext).remediateStaleClosureBindings},
 		{
 			name: "modern-Go census", phase: "modern-go",
+			retainOutputs: true,
 			files: func(*gateContext) []string {
 				return []string{repoanalysis.ModernGoPublishedCensusFile, repoanalysis.ModernGoBaselineFile}
 			},
@@ -114,10 +117,11 @@ func (g *gateContext) stageRepairs(repairs []mechanicalRepair) error {
 		}
 		var changed []string
 		for _, file := range result.files {
-			if result.before[file] == after[file] {
+			if result.before[file] != after[file] {
+				changed = append(changed, file)
+			} else if !repair.retainOutputs {
 				continue
 			}
-			changed = append(changed, file)
 			if !slices.Contains(g.paths, file) {
 				g.paths = append(g.paths, file)
 			}

@@ -2,6 +2,7 @@ package gate
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -138,4 +139,67 @@ func (g *gateContext) batchCostAudit(ctx context.Context, store *overgodb.Store,
 		time.Duration(wallNS), time.Duration(current.StepNS), current.Failed, time.Duration(current.FailedNS), current.Other, time.Duration(current.OtherNS),
 		current.Accepted, current.Reused, time.Duration(current.ExecutedNS), time.Duration(saved), len(prior), unmeasured,
 	))
+}
+
+// dependencyCostAudit explains the costliest executed package group using the
+// frozen graph. It reports attribution, never savings or new test evidence.
+func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
+	if g.testPlan == nil || g.packageGraph == nil {
+		return
+	}
+	began := time.Now()
+	var selected runrecord.GateStep
+	for _, step := range steps {
+		if step.Name != "test-owners" && step.Name != "test-device" && step.Name != "test" {
+			continue
+		}
+		if step.Outcome != runrecord.StepSucceeded && step.Outcome != runrecord.StepFailed && step.Outcome != runrecord.StepCancelled {
+			continue
+		}
+		if step.DurationNS > selected.DurationNS || step.DurationNS == selected.DurationNS && step.Name < selected.Name {
+			selected = step
+		}
+	}
+	if selected.Name == "" {
+		return
+	}
+	packages := slices.Clone(g.testPlan.edited)
+	if selected.Name != "test-owners" {
+		packages = slices.Concat(g.testPlan.remaining, g.testPlan.dependent)
+		device, err := g.packageGraph.devicePackages(packages)
+		if err != nil {
+			g.note("test input attribution unavailable: " + err.Error())
+			return
+		}
+		packages = slices.DeleteFunc(packages, func(target string) bool {
+			return slices.Contains(device, target) != (selected.Name == "test-device")
+		})
+	}
+	slices.Sort(packages)
+	packages = slices.Compact(packages)
+	report := struct {
+		Step       string                    `json:"step"`
+		DurationNS uint64                    `json:"duration_ns"`
+		AnalysisNS uint64                    `json:"analysis_ns"`
+		Packages   []packageInputAttribution `json:"packages"`
+	}{Step: selected.Name, DurationNS: selected.DurationNS}
+	for _, target := range packages {
+		attribution, err := g.packageGraph.attributeInputs(target, g.paths)
+		if err != nil {
+			g.note("test input attribution unavailable: " + err.Error())
+			return
+		}
+		attribution.Input = g.testPlan.directInputs[target]
+		if !attribution.Input.Valid() {
+			attribution.Input = g.testPlan.dependentInputs[target]
+		}
+		report.Packages = append(report.Packages, attribution)
+	}
+	report.AnalysisNS = uint64(time.Since(began).Nanoseconds())
+	data, err := json.Marshal(report)
+	if err != nil {
+		g.note("test input attribution unavailable: " + err.Error())
+		return
+	}
+	g.note("test input attribution: " + string(data))
 }

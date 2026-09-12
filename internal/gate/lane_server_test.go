@@ -1,11 +1,14 @@
 package gate
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -21,66 +24,120 @@ import (
 func TestLaneServerEndsWithRun(t *testing.T) {
 	switch os.Getenv("OVERGO_GATE_LANE_HELPER") {
 	case "server":
+		if os.Getenv("OVERGO_GATE_LANE_SERVER_FAIL") != "" {
+			t.Fatal("intentional server refusal")
+		}
 		if err := processcontrol.ClaimResource(os.Getenv("OVERGO_GATE_LANE_RESOURCE")); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(os.Getenv("OVERGO_GATE_LANE_MARKER"), []byte("claimed"), 0o600); err != nil {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(2 * time.Minute)
+		defer listener.Close()
+		fmt.Fprintln(os.Stdout, "ready")
+		// Stay alive until the supervisor ends the tree. No timer can turn a
+		// leaked server into an apparent successful cleanup.
+		connection, err := listener.Accept()
+		if connection != nil {
+			connection.Close()
+		}
+		t.Fatalf("server outlived its expected termination: %v", err)
 		return
 	case "lane":
-		// The server's output goes nowhere: a real lane's server writes to
-		// pipes the lane drains, never to the lane's own.
+		// EOF reports failed readiness; an exited child cannot strand the lane.
 		server := exec.Command(os.Args[0], "-test.run=^TestLaneServerEndsWithRun$")
 		server.Env = append(os.Environ(), "OVERGO_GATE_LANE_HELPER=server")
+		server.Stderr = os.Stderr
+		output, err := server.StdoutPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer output.Close()
 		if err := server.Start(); err != nil {
 			t.Fatal(err)
 		}
-		awaitLaneMarker(os.Getenv("OVERGO_GATE_LANE_MARKER"))
+		reader := bufio.NewReader(output)
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil || line != "ready\n" {
+			_ = server.Process.Kill()
+			tail, _ := io.ReadAll(reader)
+			t.Fatalf("server exited before readiness: output=%q read=%v exit=%v", line+string(tail), readErr, server.Wait())
+		}
+		connection, err := net.Dial("tcp", os.Getenv("OVERGO_GATE_LANE_READY"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ack, err := io.ReadAll(connection)
+		connection.Close()
+		if err != nil || string(ack) != "ready" {
+			t.Fatalf("readiness acknowledgement: %q, %v", ack, err)
+		}
 		if os.Getenv("OVERGO_GATE_LANE_BLOCK") != "" {
-			time.Sleep(2 * time.Minute)
+			t.Fatalf("server ended before lane cancellation: %v", server.Wait())
 		}
 		return
 	}
-	for _, blocking := range []bool{false, true} {
-		dir := t.TempDir()
-		marker := filepath.Join(dir, "claimed")
-		resource := "gate-lane-test-" + filepath.Base(dir)
-		environment := append(os.Environ(), "OVERGO_GATE_LANE_HELPER=lane", "OVERGO_GATE_LANE_RESOURCE="+resource, "OVERGO_GATE_LANE_MARKER="+marker)
-		ctx, cancel := context.WithCancelCause(t.Context())
-		if blocking {
-			environment = append(environment, "OVERGO_GATE_LANE_BLOCK=1")
-			go func() {
-				awaitLaneMarker(marker)
-				cancel(errors.New("the check ended"))
-			}()
-		}
-		receipt, err := superviseLane(ctx, environment, dir, os.Args[0], "-test.run=^TestLaneServerEndsWithRun$")
-		cancel(nil)
-		if blocking {
-			if err == nil || !strings.Contains(err.Error(), "lane tree terminated") || !strings.Contains(err.Error(), "the check ended") {
-				t.Fatalf("blocking lane: receipt %q, err %v; want the tree terminated by the check's end", receipt, err)
+	t.Parallel()
+	for _, tc := range []struct {
+		name              string
+		blocking, refusal bool
+	}{{name: "normal"}, {name: "cancelled", blocking: true}, {name: "refused readiness", refusal: true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
 			}
-		} else if err != nil || !strings.HasPrefix(receipt, "lane tree ended: exit=0 tree_terminated=false") {
-			t.Fatalf("exiting lane: receipt %q, err %v", receipt, err)
-		}
-		// The server's claim is gone once the runner has returned.
-		admitted, done := context.WithTimeoutCause(t.Context(), 10*time.Second, errors.New("the lane's server still holds its resource"))
-		err = processcontrol.AwaitResource(admitted, func() error { return processcontrol.ClaimResource(resource) })
-		done()
-		if err != nil {
-			t.Fatalf("blocking=%t: %v", blocking, err)
-		}
-	}
-}
-
-// awaitLaneMarker waits for the server's claim marker to appear.
-func awaitLaneMarker(marker string) {
-	for {
-		if _, err := os.Stat(marker); err == nil {
-			return
-		}
-		time.Sleep(20 * time.Millisecond)
+			defer listener.Close()
+			// Process and temporary directory isolate concurrent fixture claims.
+			resource := fmt.Sprintf("gate-lane-test-%d-%s", os.Getpid(), dir)
+			environment := append(os.Environ(), "OVERGO_GATE_LANE_HELPER=lane", "OVERGO_GATE_LANE_RESOURCE="+resource, "OVERGO_GATE_LANE_READY="+listener.Addr().String())
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(nil)
+			if tc.blocking {
+				environment = append(environment, "OVERGO_GATE_LANE_BLOCK=1")
+			}
+			if tc.refusal {
+				environment = append(environment, "OVERGO_GATE_LANE_SERVER_FAIL=1")
+			}
+			ready := make(chan error, 1)
+			go func() {
+				connection, err := listener.Accept()
+				if err == nil {
+					_, err = io.WriteString(connection, "ready")
+					connection.Close()
+					if tc.blocking {
+						cancel(errors.New("the check ended"))
+					}
+				}
+				ready <- err
+			}()
+			receipt, err := superviseLane(ctx, environment, dir, os.Args[0], "-test.run=^TestLaneServerEndsWithRun$")
+			listener.Close()
+			readyErr := <-ready
+			cancel(nil)
+			if tc.refusal {
+				if err == nil || !strings.Contains(err.Error(), "server exited before readiness") {
+					t.Fatalf("readiness failure lost: receipt %q, err %v", receipt, err)
+				}
+			} else if readyErr != nil {
+				t.Fatalf("readiness: %v", readyErr)
+			} else if tc.blocking {
+				if err == nil || !strings.Contains(err.Error(), "lane tree terminated") || !strings.Contains(err.Error(), "the check ended") {
+					t.Fatalf("blocking lane: receipt %q, err %v; want the tree terminated by the check's end", receipt, err)
+				}
+			} else if err != nil || !strings.HasPrefix(receipt, "lane tree ended: exit=0 tree_terminated=false") {
+				t.Fatalf("exiting lane: receipt %q, err %v", receipt, err)
+			}
+			// The server's claim is gone once the runner has returned.
+			admitted, done := context.WithTimeoutCause(t.Context(), 10*time.Second, errors.New("the lane's server still holds its resource"))
+			err = processcontrol.AwaitResource(admitted, func() error { return processcontrol.ClaimResource(resource) })
+			done()
+			if err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+		})
 	}
 }

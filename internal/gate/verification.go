@@ -1311,6 +1311,19 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	if err != nil {
 		return testevidence.GoTestReport{}, err
 	}
+	// Preserve explicit GOFLAGS, including values persisted by go env -w.
+	flags, err := commandEnvironment(g.sourceRoot(), environment, "go", "env", "GOFLAGS")
+	if err != nil {
+		return testevidence.GoTestReport{}, err
+	}
+	options := testevidence.GoTestOptions{Short: short, DiagnosticBytes: clioptions.DiagnosticTailBytes, Observe: observe}
+	if !strings.Contains(flags, "-timeout") && !strings.Contains(flags, "-test.timeout") {
+		// Apply Go's default ten-minute bound to active tests, not accumulated
+		// suite time. Lifecycle silence remains bounded; output cannot renew it.
+		const activeTestBudget = 10 * time.Minute
+		args = append(args, "-timeout=0")
+		options.ActiveTimeout = activeTestBudget
+	}
 	release := func() error { return nil }
 	if leased {
 		release, err = g.admitTestResources(ctx, packages, environment)
@@ -1320,7 +1333,7 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	}
 	report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 		Path: "go", Args: append(args, packages...), Dir: g.sourceRoot(), Env: environment,
-	}, short, clioptions.DiagnosticTailBytes, observe)
+	}, options)
 	if len(report.ClassifiedSkipped) != 0 {
 		g.note(fmt.Sprintf("short-profile exclusions (no full-test credit): %d [%s]", len(report.ClassifiedSkipped), strings.Join(report.ClassifiedSkipped, ",")))
 	}
@@ -1638,6 +1651,7 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	g.candidateRoot, g.candidateTree = worktree, tree
 	g.packageGraph = nil
 	defer func() {
+		g.dependencyCostAudit(g.steps)
 		g.candidateRoot, g.candidateTree = "", ""
 		g.packageGraph = nil
 	}()

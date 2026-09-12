@@ -41,7 +41,7 @@ func TestSharedModelValidationAdmission(t *testing.T) {
 	report, err := testevidence.RunGoTestCommand(t.Context(), processcontrol.Command{
 		Path: "go", Dir: root,
 		Args: []string{"test", "-json", "./internal/cuda/device", "-run", "^TestCUDAContextSharedAdmission$", "-count=1"},
-	}, false, clioptions.DiagnosticTailBytes, nil)
+	}, testevidence.GoTestOptions{DiagnosticBytes: clioptions.DiagnosticTailBytes})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -118,8 +118,22 @@ func TestE4BServingModalities(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(prompt.AttentionBlocks) != 2 {
-			t.Fatal("video frame attention blocks lost")
+		// This pinned artifact declares causal image attention. Frame presence
+		// is independent of bidirectional blocks, which would change its mask.
+		if candidate.Config == nil || candidate.Config.Generation == nil || candidate.Config.Generation.ImageAttention != "causal" {
+			t.Fatal("pinned E4B causal media policy is unavailable")
+		}
+		if len(prompt.AttentionBlocks) != 0 {
+			t.Fatal("causal video acquired bidirectional attention blocks")
+		}
+		frames := 0
+		for index, token := range prompt.EmbeddingTokenIndices {
+			if index == 0 || token != prompt.EmbeddingTokenIndices[index-1]+1 {
+				frames++
+			}
+		}
+		if frames != 2 || len(prompt.Embeddings) != len(prompt.EmbeddingTokenIndices)*prompt.EmbeddingWidth {
+			t.Fatal("video frame embeddings lost")
 		}
 		t.Logf("video compiled through language; first token=%d; task quality remains a separate dataset assertion", generatePromptFirstToken(t, language, prompt))
 	})

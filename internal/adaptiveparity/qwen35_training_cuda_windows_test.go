@@ -4,6 +4,7 @@ package adaptiveparity_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -86,6 +87,10 @@ func TestQwen35RealTraining(t *testing.T) {
 		t.Fatal(err)
 	}
 	started := time.Now()
+	before, err := worker.ExecutionStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 	trajectory, residency, err := trained.TrainDeviceResident(worker, qwen35TrainingSteps, optimizer.Config{
 		BaseLearningRate: trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(trained.MatrixParamCount() + trained.VectorParamCount()),
 		Momentum:         trainingprogram.BuiltinOptimizerPolicy().Momentum(),
@@ -95,9 +100,29 @@ func TestQwen35RealTraining(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	after, err := worker.ExecutionStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Matched pre-change d10cfe0b measurement, bound above to the checkpoint,
+	// input fixture, two-step program and unchanged built-in optimizer policy.
+	removed := uint64(qwen35TrainingSteps * trained.MatrixParamCount() * 4)
+	uploads := after.HostToDeviceBytes - before.HostToDeviceBytes
+	downloads := after.DeviceToHostBytes - before.DeviceToHostBytes
+	if uploads > 1372630016-removed || downloads > 1366033488-removed {
+		t.Fatalf("matrix-gradient transfer budget exceeded: upload=%d download=%d", uploads, downloads)
+	}
+	baseline := []float64{13.185788754552203, 11.505549275705816}
+	// Retain the existing mixed hybrid training trajectory's relative bound.
+	for step, loss := range trajectory {
+		if math.Abs(loss-baseline[step]) > 5e-3*math.Abs(baseline[step]) {
+			t.Fatalf("step %d loss=%g baseline=%g", step, loss, baseline[step])
+		}
+	}
+	t.Logf("actual transfer bytes: upload=%d download=%d removed_each_direction=%d", uploads, downloads, removed)
 	testutil.RequireFiniteDecrease(t, "Qwen3.5 real-layer trajectory", trajectory, qwen35TrainingSteps)
 	if residency.WeightUploads != 1 || residency.MomentumUploads != 1 || residency.MomentumReads != 0 ||
-		residency.WeightReads != 0 || residency.FinalWeightRead != 1 || residency.GradUploads != 2 {
+		residency.WeightReads != 0 || residency.FinalWeightRead != 1 || residency.GradUploads != 0 {
 		t.Fatalf("Qwen3.5 residency differs: %+v", residency)
 	}
 	memory, err := worker.MemoryStats(t.Context())

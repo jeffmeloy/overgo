@@ -20,22 +20,21 @@ type residency struct {
 	MomentumReads   int // zero before checkpoint
 	WeightReads     int // zero per step
 	FinalWeightRead int // one checkpoint read
-	GradUploads     int // one per step
+	GradUploads     int // zero: matrix VJPs write directly into the resident slab
 	Steps           int
 }
 
 type residentTraining struct {
-	model            *Model
-	worker           *device.Worker
-	weights          []devicemath.HybridLayerResidentWeights
-	inputs           [][]float32
-	grads            []hostmath.HybridDecoderLayerGrads
-	matGrad, vecGrad []float32
-	dGradient        driver.DevicePtr
-	updates          []optimizer.ResidentMatrix
-	matOpt           *optimizer.ResidentMuonPlan
-	vecOpt           *optimizer.Optimizer
-	residency        *residency
+	model     *Model
+	worker    *device.Worker
+	weights   []devicemath.HybridLayerResidentMatrices
+	gradients []devicemath.HybridLayerResidentMatrices
+	inputs    [][]float32
+	grads     []hostmath.HybridDecoderLayerGrads
+	vecGrad   []float32
+	updates   []optimizer.ResidentMatrix
+	matOpt    *optimizer.ResidentMuonPlan
+	vecOpt    *optimizer.Optimizer
 }
 
 func (training *residentTraining) Forward() ([]float32, error) {
@@ -65,7 +64,7 @@ func (training *residentTraining) Backward(dTop []float32) error {
 	dOut := dTop
 	for index := len(model.Weights) - 1; index >= 0; index-- {
 		gradient, err := devicemath.HybridDecoderLayerBackwardDeviceResident(
-			training.worker, training.inputs[index], training.weights[index], model.Weights[index], model.Dims[index], model.States[index], dOut,
+			training.worker, training.inputs[index], training.weights[index], training.gradients[index], model.Weights[index], model.Dims[index], model.States[index], dOut,
 		)
 		if err != nil {
 			return err
@@ -73,15 +72,11 @@ func (training *residentTraining) Backward(dTop []float32) error {
 		training.grads[index] = gradient
 		dOut = gradient.DX
 	}
-	model.packGradients(training.grads, training.matGrad, training.vecGrad)
+	model.packGradients(training.grads, nil, training.vecGrad)
 	return nil
 }
 
 func (training *residentTraining) Step(step int) error {
-	if err := devicemath.WriteResident(training.worker, training.dGradient, devicemath.ResidentSlice{Data: training.matGrad}); err != nil {
-		return err
-	}
-	training.residency.GradUploads++
 	if err := training.matOpt.StepMatrices(training.updates, step); err != nil {
 		return err
 	}
@@ -264,40 +259,21 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 	}
 	defer residentMuon.Close()
 
-	// Per-layer resident views.
-	rw := make([]devicemath.HybridLayerResidentWeights, len(plans))
-	for i, p := range plans {
-		rw[i] = devicemath.HybridLayerResidentWeights{
-			IsLinear: p.IsLinear,
-			MLPGate:  devicemath.ResidentPtr(dW, p.Gate.Off),
-			MLPUp:    devicemath.ResidentPtr(dW, p.Up.Off),
-			MLPDown:  devicemath.ResidentPtr(dW, p.Down.Off),
-		}
-		if p.IsLinear {
-			rw[i].GDNWq = devicemath.ResidentPtr(dW, p.GWq.Off)
-			rw[i].GDNWk = devicemath.ResidentPtr(dW, p.GWk.Off)
-			rw[i].GDNWv = devicemath.ResidentPtr(dW, p.GWv.Off)
-			rw[i].GDNWbeta = devicemath.ResidentPtr(dW, p.GWbeta.Off)
-			rw[i].GDNWalpha = devicemath.ResidentPtr(dW, p.GWalpha.Off)
-			rw[i].GDNWz = devicemath.ResidentPtr(dW, p.GWz.Off)
-			rw[i].GDNWout = devicemath.ResidentPtr(dW, p.GWout.Off)
-		} else {
-			rw[i].AttnWq = devicemath.ResidentPtr(dW, p.Wq.Off)
-			rw[i].AttnWk = devicemath.ResidentPtr(dW, p.Wk.Off)
-			rw[i].AttnWv = devicemath.ResidentPtr(dW, p.Wv.Off)
-			rw[i].AttnWo = devicemath.ResidentPtr(dW, p.Wo.Off)
-		}
+	// Weight and gradient views share the validated optimizer layout.
+	weights := make([]devicemath.HybridLayerResidentMatrices, len(plans))
+	gradients := make([]devicemath.HybridLayerResidentMatrices, len(plans))
+	for i, plan := range plans {
+		weights[i] = plan.residentViews(dW)
+		gradients[i] = plan.residentViews(dG)
 	}
-
 	vecGrad := make([]float32, len(m.vecW))
 	vecOpt, err := optimizer.New(m.vecW, vecGrad, m.vecPlan, cfg)
 	if err != nil {
 		return nil, acc, err
 	}
 	training := &residentTraining{
-		model: m, worker: worker, weights: rw,
-		matGrad: make([]float32, len(m.matW)), vecGrad: vecGrad,
-		dGradient: dG, updates: updates, matOpt: residentMuon, vecOpt: vecOpt, residency: &acc,
+		model: m, worker: worker, weights: weights, gradients: gradients,
+		vecGrad: vecGrad, updates: updates, matOpt: residentMuon, vecOpt: vecOpt,
 	}
 	trajectory, err := runTraining(m.program, training, m.Target, steps)
 	if err != nil {
@@ -310,4 +286,28 @@ func (m *Model) TrainDeviceResident(worker *device.Worker, steps int, cfg optimi
 	}
 	acc.FinalWeightRead++
 	return trajectory, acc, nil
+}
+
+func (p layerMatrixPlan) residentViews(base driver.DevicePtr) devicemath.HybridLayerResidentMatrices {
+	views := devicemath.HybridLayerResidentMatrices{
+		IsLinear: p.IsLinear,
+		MLPGate:  devicemath.ResidentPtr(base, p.Gate.Off),
+		MLPUp:    devicemath.ResidentPtr(base, p.Up.Off),
+		MLPDown:  devicemath.ResidentPtr(base, p.Down.Off),
+	}
+	if p.IsLinear {
+		views.GDNWq = devicemath.ResidentPtr(base, p.GWq.Off)
+		views.GDNWk = devicemath.ResidentPtr(base, p.GWk.Off)
+		views.GDNWv = devicemath.ResidentPtr(base, p.GWv.Off)
+		views.GDNWbeta = devicemath.ResidentPtr(base, p.GWbeta.Off)
+		views.GDNWalpha = devicemath.ResidentPtr(base, p.GWalpha.Off)
+		views.GDNWz = devicemath.ResidentPtr(base, p.GWz.Off)
+		views.GDNWout = devicemath.ResidentPtr(base, p.GWout.Off)
+	} else {
+		views.AttnWq = devicemath.ResidentPtr(base, p.Wq.Off)
+		views.AttnWk = devicemath.ResidentPtr(base, p.Wk.Off)
+		views.AttnWv = devicemath.ResidentPtr(base, p.Wv.Off)
+		views.AttnWo = devicemath.ResidentPtr(base, p.Wo.Off)
+	}
+	return views
 }

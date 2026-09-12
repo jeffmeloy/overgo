@@ -167,10 +167,27 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	before, err := worker.ExecutionStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 	devTraj, acc, err := dev.TrainDeviceResident(worker, testSteps, ocfg)
 	if err != nil {
 		t.Fatal(err)
 	}
+	after, err := worker.ExecutionStats(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Measured on d10cfe0b with this exact eight-step fixture. Exclude the
+	// gradient slab round trip; hand-maintained residency flags are not proof.
+	removed := uint64(testSteps * dev.MatrixParamCount() * 4)
+	uploads := after.HostToDeviceBytes - before.HostToDeviceBytes
+	downloads := after.DeviceToHostBytes - before.DeviceToHostBytes
+	if uploads > 553216-removed || downloads > 420512-removed {
+		t.Fatalf("matrix gradients still cross host boundary: upload=%d download=%d", uploads, downloads)
+	}
+	t.Logf("actual transfer bytes: upload=%d download=%d removed_each_direction=%d", uploads, downloads, removed)
 
 	// Trajectory parity.
 	var maxAbs, maxRel float64
@@ -214,8 +231,8 @@ func TestHybridTrainDeviceResidentMatchesHost(t *testing.T) {
 	if acc.FinalWeightRead != 1 {
 		t.Errorf("final weight read-backs = %d, want 1 (single checkpoint read)", acc.FinalWeightRead)
 	}
-	if acc.GradUploads != testSteps {
-		t.Errorf("per-step grad uploads = %d, want %d (grads recomputed each step)", acc.GradUploads, testSteps)
+	if acc.GradUploads != 0 {
+		t.Errorf("per-step matrix gradient uploads = %d, want 0", acc.GradUploads)
 	}
 	t.Logf("residency: matrixElems=%d weightUploads=%d momentumUploads=%d momentumReads=%d gradUploads=%d weightReads=%d finalWeightRead=%d",
 		acc.MatrixElems, acc.WeightUploads, acc.MomentumUploads, acc.MomentumReads, acc.GradUploads, acc.WeightReads, acc.FinalWeightRead)

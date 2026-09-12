@@ -38,8 +38,8 @@ func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w host
 // host shortcut, the GDN residual mixOut is recomputed on DEVICE from mw (via
 // gatedDeltaMixForwardDeviceW + Wout) rather than from the host GDN forward -- so
 // with resident mw it reads the CURRENT resident weights, never the (now-unrefreshed)
-// host slices. Weight GRADIENTS return as host slices for the caller to pack and
-// upload into the resident grad buffer; no matrix weight is read back.
+// host slices. Matrix gradients follow their linWeight binding: a borrowed
+// destination keeps them resident, otherwise they return as host slices.
 func hybridLayerBackwardW(worker *device.Worker, x []float32, mw hybridMatW, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
 	T, H := d.Tokens, d.Hidden
 	if len(x) != T*H || len(dOut) != T*H {

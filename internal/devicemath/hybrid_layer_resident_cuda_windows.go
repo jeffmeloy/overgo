@@ -3,6 +3,7 @@
 package devicemath
 
 import (
+	"fmt"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/hostmath"
@@ -45,13 +46,11 @@ func hybridHostMatW(w hostmath.HybridLayerWeights) hybridMatW {
 	return m
 }
 
-// HybridLayerResidentWeights carries one hybrid layer's MATRIX weights as device
-// pointers into a persistent resident buffer (dW), computed once by the caller
-// (ResidentPtr(dW, off) per matrix). The vector weights (norms, GDN conv/bias/
-// scalars) are NOT here: they take the host Sign update and are passed as the
-// host hostmath.HybridLayerWeights alongside. Populate the mix set matching
-// IsLinear; the other set is ignored.
-type HybridLayerResidentWeights struct {
+// HybridLayerResidentMatrices binds matrix views in a caller-owned weight or
+// gradient slab. Both slabs use the caller's validated optimizer layout.
+// Vector weights and gradients remain host-owned. Populate the active mix;
+// views for the other mix are ignored.
+type HybridLayerResidentMatrices struct {
 	IsLinear bool
 	// SwiGLU MLP matrices (resident).
 	MLPGate, MLPUp, MLPDown driver.DevicePtr
@@ -64,7 +63,7 @@ type HybridLayerResidentWeights struct {
 // matW converts the resident pointers into the linWeight bundle the shared layer
 // forward/backward consume -- every matrix a devW (read in place, never uploaded
 // or freed by the op session).
-func (rw HybridLayerResidentWeights) matW() hybridMatW {
+func (rw HybridLayerResidentMatrices) matW() hybridMatW {
 	m := hybridMatW{mlp: mlpMatW{gate: devW(rw.MLPGate), up: devW(rw.MLPUp), down: devW(rw.MLPDown)}}
 	if rw.IsLinear {
 		m.gdn = gdnMatW{
@@ -77,23 +76,73 @@ func (rw HybridLayerResidentWeights) matW() hybridMatW {
 	return m
 }
 
+func (rw HybridLayerResidentMatrices) withGradients(gradients HybridLayerResidentMatrices) (hybridMatW, error) {
+	weights := rw.matW()
+	if rw.IsLinear != gradients.IsLinear {
+		return hybridMatW{}, fmt.Errorf("hybrid resident matrices: gradient mix differs")
+	}
+	type binding struct {
+		weight   *linWeight
+		gradient driver.DevicePtr
+	}
+	bindings := []binding{
+		{&weights.mlp.gate, gradients.MLPGate},
+		{&weights.mlp.up, gradients.MLPUp},
+		{&weights.mlp.down, gradients.MLPDown},
+	}
+	if rw.IsLinear {
+		bindings = append(bindings,
+			binding{&weights.gdn.wq, gradients.GDNWq}, binding{&weights.gdn.wk, gradients.GDNWk},
+			binding{&weights.gdn.wv, gradients.GDNWv}, binding{&weights.gdn.wbeta, gradients.GDNWbeta},
+			binding{&weights.gdn.walpha, gradients.GDNWalpha}, binding{&weights.gdn.wz, gradients.GDNWz},
+			binding{&weights.gdn.wout, gradients.GDNWout})
+	} else {
+		bindings = append(bindings,
+			binding{&weights.attn.wq, gradients.AttnWq}, binding{&weights.attn.wk, gradients.AttnWk},
+			binding{&weights.attn.wv, gradients.AttnWv}, binding{&weights.attn.wo, gradients.AttnWo})
+	}
+	for index, target := range bindings {
+		if target.weight.dev == 0 || target.gradient == 0 {
+			return hybridMatW{}, fmt.Errorf("hybrid resident matrices: missing weight or gradient")
+		}
+		for other, source := range bindings {
+			if target.gradient == source.weight.dev {
+				return hybridMatW{}, fmt.Errorf("hybrid resident matrices: gradient aliases weight")
+			}
+			if index != other && target.gradient == source.gradient {
+				return hybridMatW{}, fmt.Errorf("hybrid resident matrices: duplicate gradient view")
+			}
+		}
+		target.weight.gradient = target.gradient
+	}
+	return weights, nil
+}
+
 // HybridDecoderLayerForwardDeviceResident is HybridDecoderLayerForwardDevice with
 // the layer's MATRIX weights read from resident device pointers (rw) instead of
 // uploaded host slices; the vector weights come from w. Composed from the exact
 // same parity-verified ops -- it is the resident-weight arm of the one-owner
 // hybridLayerForwardW. No matrix weight is uploaded or read back.
-func HybridDecoderLayerForwardDeviceResident(worker *device.Worker, x []float32, rw HybridLayerResidentWeights, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state []float32) ([]float32, HybridLayerDeviceCache, error) {
+func HybridDecoderLayerForwardDeviceResident(worker *device.Worker, x []float32, rw HybridLayerResidentMatrices, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state []float32) ([]float32, HybridLayerDeviceCache, error) {
 	return hybridLayerForwardW(worker, x, rw.matW(), w, d, state)
 }
 
 // HybridDecoderLayerBackwardDeviceResident is the resident-weight arm of
 // hybridLayerBackwardW: matrix weights read from rw, vector weights from w. The
 // GDN residual mixOut is recomputed on device from rw, so it reads the CURRENT
-// resident weights (the host slices are no longer refreshed per step). Weight
-// gradients return as host slices for the caller to pack/upload; no matrix weight
-// is read back.
-func HybridDecoderLayerBackwardDeviceResident(worker *device.Worker, x []float32, rw HybridLayerResidentWeights, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
-	return hybridLayerBackwardW(worker, x, rw.matW(), w, d, state, dOut)
+// resident weights (the host slices are no longer refreshed per step). Matrix
+// gradients overwrite the caller's disjoint gradient views and remain resident;
+// their returned host slices are nil. Vector and activation gradients return
+// to the host. Neither slab is owned or released by the operator.
+func HybridDecoderLayerBackwardDeviceResident(worker *device.Worker, x []float32, rw, gradients HybridLayerResidentMatrices, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
+	if rw.IsLinear != w.IsLinear {
+		return hostmath.HybridDecoderLayerGrads{}, fmt.Errorf("hybrid resident matrices: weight mix differs")
+	}
+	mw, err := rw.withGradients(gradients)
+	if err != nil {
+		return hostmath.HybridDecoderLayerGrads{}, err
+	}
+	return hybridLayerBackwardW(worker, x, mw, w, d, state, dOut)
 }
 
 // gatedMLPBackwardTW is GatedMLPBackwardT over resident-or-host matrix weights

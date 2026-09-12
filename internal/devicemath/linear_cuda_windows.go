@@ -21,8 +21,9 @@ import (
 // hybrid runStack (weights live in a persistent dW buffer across the K-step
 // loop -- no per-step weight motion).
 type linWeight struct {
-	host []float32        // non-nil => upload this slice per call
-	dev  driver.DevicePtr // used when host == nil: a resident buffer sub-pointer
+	host     []float32        // non-nil => upload this slice per call
+	dev      driver.DevicePtr // used when host == nil: a resident buffer sub-pointer
+	gradient driver.DevicePtr // optional borrowed VJP destination; never session-owned
 }
 
 // hostW: upload-per-call host weight.
@@ -195,15 +196,20 @@ func linearForwardTW(worker *device.Worker, x []float32, w linWeight, rows, in, 
 // linearBackwardTW is LinearBackwardT over a linWeight (HF layout, W stored
 // [out,in]): dX = dY·W [rows,in], dW = dYᵀ·X [out,in]. The two GEMMs share one
 // session; x and dY upload, the weight uploads (host) or is read in place
-// (resident dev), and dX/dW come back. Same math as linearBackward's
-// linearOutputInput branch; the resident-weight path just skips the weight
-// upload.
+// (resident dev), and dX comes back. A borrowed gradient destination keeps dW
+// resident and returns a nil host gradient; otherwise dW also comes back.
+// The GEMM layout and overwrite semantics are unchanged.
 func linearBackwardTW(worker *device.Worker, x []float32, w linWeight, dY []float32, rows, in, outDim int) (dX, dW []float32, err error) {
 	if rows <= 0 || in <= 0 || outDim <= 0 || len(x) != rows*in || len(dY) != rows*outDim {
 		return nil, nil, fmt.Errorf("linearBackwardTW: shape mismatch (rows=%d in=%d out=%d x=%d dY=%d)", rows, in, outDim, len(x), len(dY))
 	}
+	if w.gradient != 0 && w.gradient == w.dev {
+		return nil, nil, fmt.Errorf("linearBackwardTW: gradient aliases weight")
+	}
 	dX = make([]float32, rows*in)
-	dW = make([]float32, outDim*in)
+	if w.gradient == 0 {
+		dW = make([]float32, outDim*in)
+	}
 	err = withCUDABLAS(worker, func(s *cudaBLAS) error {
 		xPtr, err := s.upload(x)
 		if err != nil {
@@ -221,9 +227,12 @@ func linearBackwardTW(worker *device.Worker, x []float32, w linWeight, dY []floa
 		if err != nil {
 			return err
 		}
-		dwPtr, err := s.alloc(len(dW))
-		if err != nil {
-			return err
+		dwPtr := w.gradient
+		if dwPtr == 0 {
+			dwPtr, err = s.alloc(len(dW))
+			if err != nil {
+				return err
+			}
 		}
 		if err := s.gemm(false, false, rows, outDim, in, dyPtr, wPtr, dxPtr); err != nil {
 			return err

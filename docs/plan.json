@@ -9,13 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "ifeval-tokenizer",
-          "title": "Port frozen native sentence and capital-word counting",
-          "status": "open",
-          "verify": "test -f internal/evaluation/ifeval_tokenizer_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalTokenizerAcceptance$' -count=1",
-          "rationale": "Two native checks require more than word-regex counting: 52 sentence-count instructions use the pinned NLTK English Punkt tokenizer; 25 capital-word-frequency instructions use nltk.word_tokenize, including its hyphen/token and Unicode case behavior. Native code, NLTK 3.9.2 package identity and punkt_tab data hashes are already retained by native score root 78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839. Find and reuse these inputs through existing artifact/dataset owners. Port and compare the actual tokenization rules; do not approximate with punctuation splits or whitespace words. Bind token-level adversarial fixtures and the 77 retained verdict pairs. Split at dispatch if profile loading and tokenization exceed a bounded implementation slice. No new model acquisition."
-        },
-        {
           "id": "ifeval-language",
           "title": "Match native language detection and language-dependent case checks",
           "status": "open",

@@ -62,7 +62,10 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("paragraph denominator expanded")
 		}
-		strict, loose := evaluateInstructionViews(c.Response, compiled.rules[0])
+		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("%d %q: strict=%v/%v loose=%v/%v", index, c.Response, strict, c.Strict, loose, c.Loose)
 		}
@@ -99,7 +102,10 @@ func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
 		}
 		suite.Cases[0].Rules[0].Count.Value = 1
 		suite.Cases[0].Rules[0].Values[0] = "dog"
-		strict, _ := evaluateInstructionViews("one\n\ncat meows", compiled.rules[0])
+		strict, _, err := evaluateInstructionViews("one\n\ncat meows", compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, []bool{true}) {
 			t.Fatal("caller mutation changed paragraph acceptance")
 		}

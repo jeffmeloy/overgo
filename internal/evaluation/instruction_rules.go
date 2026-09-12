@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -78,10 +79,11 @@ type InstructionRulesSuite struct {
 }
 
 type compiledInstructionRule struct {
-	source   InstructionRule
-	pattern  *regexp.Regexp
-	patterns []*regexp.Regexp
-	loose    *compiledInstructionRule
+	tokenizer *ifevalTokenizer
+	source    InstructionRule
+	pattern   *regexp.Regexp
+	patterns  []*regexp.Regexp
+	loose     *compiledInstructionRule
 }
 
 type InstructionRulesPlan struct {
@@ -197,7 +199,10 @@ func EvaluateInstructionRules(
 		if err != nil {
 			return InstructionRulesReport{}, err
 		}
-		strict, loose := evaluateInstructionViews(result.Text, compiled.rules[index])
+		strict, loose, err := evaluateInstructionViews(result.Text, compiled.rules[index])
+		if err != nil {
+			return InstructionRulesReport{}, fmt.Errorf("evaluation: case %s: %w", testCase.Name, err)
+		}
 		progress.hit(allTrue(strict))
 		if allTrue(strict) {
 			strictPrompts++
@@ -318,22 +323,35 @@ func validCountRule(rule *CountRule) bool {
 	return rule != nil && rule.Value >= 0 && (rule.Relation == RelationEqual || rule.Relation == RelationAtLeast || rule.Relation == RelationAtMost || rule.Relation == ifevalLessThan)
 }
 
-func evaluateInstructionViews(response string, rules []compiledInstructionRule) ([]bool, []bool) {
+func evaluateInstructionViews(response string, rules []compiledInstructionRule) ([]bool, []bool, error) {
 	views := looseInstructionViews(response)
 	strict, loose := make([]bool, len(rules)), make([]bool, len(rules))
 	for index, rule := range rules {
-		strict[index] = trimIFEvalSpace(response) != "" && rule.matches(response)
+		var err error
+		if trimIFEvalSpace(response) != "" {
+			strict[index], err = rule.matches(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("instruction %s strict: %w", rule.source.Name, err)
+			}
+		}
 		if rule.loose != nil {
 			rule = *rule.loose
 		}
 		for _, view := range views {
-			if trimIFEvalSpace(view) != "" && rule.matches(view) {
+			if trimIFEvalSpace(view) == "" {
+				continue
+			}
+			matched, err := rule.matches(view)
+			if err != nil {
+				return nil, nil, fmt.Errorf("instruction %s loose: %w", rule.source.Name, err)
+			}
+			if matched {
 				loose[index] = true
 				break
 			}
 		}
 	}
-	return strict, loose
+	return strict, loose, nil
 }
 
 func looseInstructionViews(response string) []string {
@@ -353,51 +371,54 @@ func looseInstructionViews(response string) []string {
 	}
 }
 
-func (rule compiledInstructionRule) matches(response string) bool {
+func (rule compiledInstructionRule) matches(response string) (bool, error) {
+	if rule.tokenizer != nil {
+		return rule.matchesIFEvalTokenizer(response)
+	}
 	switch rule.source.Kind {
 	case ifevalKeywordsRule, ifevalForbiddenRule:
 		for _, pattern := range rule.patterns {
 			if pattern.MatchString(response) == (rule.source.Kind == ifevalForbiddenRule) {
-				return false
+				return false, nil
 			}
 		}
-		return true
+		return true, nil
 	case ifevalEndRule:
-		return matchesIFEvalEnd(response, rule.source.Values[0])
+		return matchesIFEvalEnd(response, rule.source.Values[0]), nil
 	case RuleContainsAll:
 		for _, value := range rule.source.Values {
 			if !strings.Contains(response, value) {
-				return false
+				return false, nil
 			}
 		}
-		return true
+		return true, nil
 	case RuleExcludesAll:
 		for _, value := range rule.source.Values {
 			if strings.Contains(response, value) {
-				return false
+				return false, nil
 			}
 		}
-		return true
+		return true, nil
 	case RuleSubstringCount:
-		return compareCount(strings.Count(response, rule.source.Values[0]), *rule.source.Count)
+		return compareCount(strings.Count(response, rule.source.Values[0]), *rule.source.Count), nil
 	case RuleRegex:
-		return rule.pattern.MatchString(response)
+		return rule.pattern.MatchString(response), nil
 	case RuleJSON:
-		return json.Valid([]byte(response))
+		return json.Valid([]byte(response)), nil
 	case ifevalJSONRule:
-		return matchesIFEvalJSON(response)
+		return matchesIFEvalJSON(response), nil
 	case RuleUppercase:
-		return uniformLetterCase(response, unicode.IsUpper)
+		return uniformLetterCase(response, unicode.IsUpper), nil
 	case RuleLowercase:
-		return uniformLetterCase(response, unicode.IsLower)
+		return uniformLetterCase(response, unicode.IsLower), nil
 	case RulePrefix:
-		return strings.HasPrefix(response, rule.source.Values[0])
+		return strings.HasPrefix(response, rule.source.Values[0]), nil
 	case RuleSuffix:
-		return strings.HasSuffix(response, rule.source.Values[0])
+		return strings.HasSuffix(response, rule.source.Values[0]), nil
 	case RuleNoComma:
-		return !strings.ContainsRune(response, ',')
+		return !strings.ContainsRune(response, ','), nil
 	default:
-		return rule.matchesIFEvalStructure(response)
+		return rule.matchesIFEvalStructure(response), nil
 	}
 }
 

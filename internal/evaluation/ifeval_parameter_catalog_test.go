@@ -105,7 +105,10 @@ func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
 			response      string
 			strict, loose bool
 		}{{"aa", true, false}, {"bb", false, true}} {
-			a, b := evaluateInstructionViews(sample.response, want.rules[0])
+			a, b, err := evaluateInstructionViews(sample.response, want.rules[0])
+			if err != nil {
+				t.Fatal(err)
+			}
 			if a[0] != sample.strict || b[0] != sample.loose {
 				t.Fatal("view binding changed")
 			}

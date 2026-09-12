@@ -42,7 +42,10 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("one instruction must produce one verdict")
 		}
-		strict, loose := evaluateInstructionViews(c.Response, compiled.rules[0])
+		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("%d %s %q strict=%v/%v loose=%v/%v", index, c.Instruction, c.Response, strict, c.Strict, loose, c.Loose)
 		}
@@ -57,7 +60,10 @@ func TestIFEvalTextContractAcceptance(t *testing.T) {
 		if prior.identity == compiled.identity || prior.dataset == compiled.dataset || prior.split == compiled.split {
 			t.Fatal("scorer correction reused prior identity")
 		}
-		oldStrict, oldLoose := evaluateInstructionViews(c.Response, prior.rules[0])
+		oldStrict, oldLoose, err := evaluateInstructionViews(c.Response, prior.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(oldStrict, c.Strict) || !slices.Equal(oldLoose, c.Loose) {
 			corrected++
 		}

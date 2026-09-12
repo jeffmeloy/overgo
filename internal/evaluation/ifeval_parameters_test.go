@@ -52,7 +52,10 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		strict, loose := evaluateInstructionViews(c.Response, []compiledInstructionRule{rule})
+		strict, loose, err := evaluateInstructionViews(c.Response, []compiledInstructionRule{rule})
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("case %d %q: strict=%v/%v loose=%v/%v", index, c.Response, strict, c.Strict, loose, c.Loose)
 		}
@@ -70,11 +73,17 @@ func TestIFEvalNativeParameterAcceptance(t *testing.T) {
 		}
 		loose.Values[0] = "c"
 		loose.Count.Value = 4
-		gotStrict, gotLoose := evaluateInstructionViews("aa", compiled.rules[0])
+		gotStrict, gotLoose, err := evaluateInstructionViews("aa", compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !gotStrict[0] || gotLoose[0] {
 			t.Fatal("loose operands did not remain independent")
 		}
-		gotStrict, gotLoose = evaluateInstructionViews("bb", compiled.rules[0])
+		gotStrict, gotLoose, err = evaluateInstructionViews("bb", compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if gotStrict[0] || !gotLoose[0] {
 			t.Fatal("caller mutation changed resolved loose operands")
 		}

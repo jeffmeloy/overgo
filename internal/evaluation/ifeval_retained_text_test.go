@@ -33,13 +33,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	}
 	read := func(id artifact.ID, target any) {
 		t.Helper()
-		content, err := artifact.RequireTypedContent(t.Context(), store, id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := json.Unmarshal(content.Data, target); err != nil {
-			t.Fatal(err)
-		}
+		readIFEvalEvidence(t, store, id, target)
 	}
 	var native struct{ Profile, Selection, Scores artifact.ID }
 	read(parse("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839"), &native)
@@ -55,51 +49,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	if scores.Selection != native.Selection || scores.Profile != native.Profile || scores.Prompts != 541 || scores.Instructions != 834 || len(scores.Rows) != scores.Prompts {
 		t.Fatal("native scoring denominator or acquisition changed")
 	}
-	var acquisition struct {
-		Profile, Prior artifact.ID
-		Cells          []struct {
-			Name        string
-			Output      artifact.ID
-			ReusedPrior bool `json:"reused_prior"`
-		}
-	}
-	read(native.Selection, &acquisition)
-	if acquisition.Profile != native.Profile || len(acquisition.Cells) != scores.Prompts {
-		t.Fatal("raw acquisition denominator changed")
-	}
-	prior, err := RequireEvaluationEvidence(t.Context(), store, acquisition.Prior)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var old InstructionRulesReport
-	read(prior.Report, &old)
-	retained := map[string]string{}
-	for _, row := range old.Observations {
-		retained[row.Name] = row.Raw
-	}
-	responses := map[string]string{}
-	for _, cell := range acquisition.Cells {
-		if _, duplicate := responses[cell.Name]; duplicate {
-			t.Fatal("duplicate raw response")
-		}
-		if cell.ReusedPrior {
-			raw, found := retained[cell.Name]
-			if !found {
-				t.Fatal("retained response absent")
-			}
-			responses[cell.Name] = raw
-		} else {
-			var output struct {
-				Profile artifact.ID
-				Result  ExactResult
-			}
-			read(cell.Output, &output)
-			if output.Profile != native.Profile || output.Result.Name != cell.Name {
-				t.Fatal("response acquisition binding changed")
-			}
-			responses[cell.Name] = output.Result.Text
-		}
-	}
+	responses := retainedIFEvalResponses(t, store, native.Selection, native.Profile)
 	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, parse("dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f8486dfa492c4f301cf9155ca8e4d7cd4"))
 	if err != nil || !found || len(imported.Records) != scores.Prompts {
 		t.Fatalf("corpus denominator: found=%t err=%v", found, err)
@@ -137,7 +87,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]int{"length_constraints:nth_paragraph_first_word": 12, "keywords:letter_frequency": 33, "keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
+	want := map[string]int{"length_constraints:number_sentences": 52, "change_case:capital_word_frequency": 25, "length_constraints:nth_paragraph_first_word": 12, "keywords:letter_frequency": 33, "keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
 	counts := map[string]int{}
 	instructions := 0
 	for ordinal, recordID := range imported.Records {
@@ -180,7 +130,10 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			strict, loose := evaluateInstructionViews(raw, []compiledInstructionRule{rule})
+			strict, loose, err := evaluateInstructionViews(raw, []compiledInstructionRule{rule})
+			if err != nil {
+				t.Fatal(err)
+			}
 			if strict[0] != row.Strict[index] || loose[0] != row.Loose[index] {
 				t.Errorf("%s %s: strict=%t/%t loose=%t/%t", name, id, strict[0], row.Strict[index], loose[0], row.Loose[index])
 			}
@@ -190,5 +143,67 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	if instructions != scores.Instructions || !maps.Equal(counts, want) {
 		t.Fatalf("instruction denominator total=%d selected=%v", instructions, counts)
 	}
-	t.Logf("662/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
+	t.Logf("739/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
+}
+
+func readIFEvalEvidence(t *testing.T, store *overgodb.Store, id artifact.ID, target any) {
+	t.Helper()
+	content, err := artifact.RequireTypedContent(t.Context(), store, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(content.Data, target); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, profile artifact.ID) map[string]string {
+	t.Helper()
+	var acquisition struct {
+		Profile, Prior artifact.ID
+		Cells          []struct {
+			Name        string
+			Output      artifact.ID
+			ReusedPrior bool `json:"reused_prior"`
+		}
+	}
+	readIFEvalEvidence(t, store, selection, &acquisition)
+	if acquisition.Profile != profile || len(acquisition.Cells) != 541 {
+		t.Fatal("raw acquisition denominator changed")
+	}
+	prior, err := RequireEvaluationEvidence(t.Context(), store, acquisition.Prior)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var old InstructionRulesReport
+	readIFEvalEvidence(t, store, prior.Report, &old)
+	retained := map[string]string{}
+	for _, row := range old.Observations {
+		retained[row.Name] = row.Raw
+	}
+	responses := map[string]string{}
+	for _, cell := range acquisition.Cells {
+		if _, duplicate := responses[cell.Name]; duplicate {
+			t.Fatal("duplicate raw response")
+		}
+		if cell.ReusedPrior {
+			raw, found := retained[cell.Name]
+			if !found {
+				t.Fatal("retained response absent")
+			}
+			responses[cell.Name] = raw
+		} else {
+			var output struct {
+				Profile artifact.ID
+				Result  ExactResult
+			}
+			readIFEvalEvidence(t, store, cell.Output, &output)
+			if output.Profile != profile || output.Result.Name != cell.Name {
+				t.Fatal("response acquisition binding changed")
+			}
+			responses[cell.Name] = output.Result.Text
+		}
+	}
+
+	return responses
 }

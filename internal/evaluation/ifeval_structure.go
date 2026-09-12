@@ -25,6 +25,9 @@ const (
 )
 
 func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, error) {
+	if source.Kind == ifevalSentences || source.Kind == ifevalCapitalWords {
+		return compileIFEvalTokenizerRule(source)
+	}
 	if source.Kind == ifevalIndexedParagraph {
 		return compileIFEvalParagraph(source)
 	}
@@ -221,6 +224,12 @@ func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]Instruc
 	rule := InstructionRule{Name: id}
 	arg := ""
 	switch id {
+	case "length_constraints:number_sentences":
+		rule.Kind = ifevalSentences
+		rule.Count = count("num_sentences", "relation", "")
+	case "change_case:capital_word_frequency":
+		rule.Kind = ifevalCapitalWords
+		rule.Count = count("capital_frequency", "capital_relation", "")
 	case "length_constraints:number_words":
 		rule.Kind = ifevalWords
 		rule.Count = count("num_words", "relation", "")

@@ -39,7 +39,10 @@ func TestIFEvalProtocolAcceptance(t *testing.T) {
 		{"\"first\nsecond\"", true, true},
 		{"header\n\"hello\"\nfooter", false, true},
 	} {
-		strict, loose := evaluateInstructionViews(c.response, compiled.rules[0])
+		strict, loose, err := evaluateInstructionViews(c.response, compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, []bool{c.strict}) || !slices.Equal(loose, []bool{c.loose}) {
 			t.Errorf("response=%q strict=%v loose=%v want=%t/%t", c.response, strict, loose, c.strict, c.loose)
 		}

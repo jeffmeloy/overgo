@@ -21,7 +21,10 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 		}
 		suite.Cases[0].Rules[0].Values[0] = "dog"
 		suite.Cases[0].Rules[0].Count.Value = 3
-		strict, loose := evaluateInstructionViews("catcat", compiled.rules[0])
+		strict, loose, err := evaluateInstructionViews("catcat", compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, []bool{true}) || !slices.Equal(loose, []bool{true}) {
 			t.Fatal("caller mutation changed compiled criteria")
 		}
@@ -59,7 +62,10 @@ func TestIFEvalStructureContractAcceptance(t *testing.T) {
 		if len(compiled.rules) != 1 || len(compiled.rules[0]) != 1 {
 			t.Fatal("instruction denominator expanded")
 		}
-		strict, loose := evaluateInstructionViews(c.Response, compiled.rules[0])
+		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, c.Strict) || !slices.Equal(loose, c.Loose) {
 			t.Errorf("%d %s %q: strict=%v/%v loose=%v/%v", index, c.Instruction, c.Response, strict, c.Strict, loose, c.Loose)
 		}

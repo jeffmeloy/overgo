@@ -47,7 +47,10 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 		t.Fatal("one native instruction must produce one metric entry")
 	}
 	for index, c := range oracle.Cases {
-		strict, loose := evaluateInstructionViews(c.Response, compiled.rules[0])
+		strict, loose, err := evaluateInstructionViews(c.Response, compiled.rules[0])
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !slices.Equal(strict, []bool{c.Strict}) || !slices.Equal(loose, []bool{c.Loose}) {
 			t.Errorf("case %d response=%q strict=%v loose=%v want=%t/%t", index, c.Response, strict, loose, c.Strict, c.Loose)
 		}
@@ -63,11 +66,11 @@ func TestIFEvalJSONAcceptance(t *testing.T) {
 		t.Fatal("changed scorer reused the old evaluator identity")
 	}
 	for _, response := range []string{"NaN", "Infinity", "-Infinity", "```json\n{}\n```"} {
-		if prior.rules[0][0].matches(response) {
+		if matched, err := prior.rules[0][0].matches(response); err != nil || matched {
 			t.Errorf("strict JSON rule now accepts %q", response)
 		}
 	}
-	if !prior.rules[0][0].matches(`{"NaN":"Infinity"}`) {
+	if matched, err := prior.rules[0][0].matches(`{"NaN":"Infinity"}`); err != nil || !matched {
 		t.Fatal("strict JSON string semantics changed")
 	}
 	for _, invalid := range []InstructionRule{

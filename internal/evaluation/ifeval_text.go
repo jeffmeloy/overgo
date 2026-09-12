@@ -44,7 +44,11 @@ func compileIFEvalKeyword(value string, boundary bool) (*regexp.Regexp, error) {
 
 // Python str.strip includes the ASCII information separators.
 func trimIFEvalSpace(value string) string {
-	return strings.TrimFunc(value, func(r rune) bool { return unicode.IsSpace(r) || r >= '\x1c' && r <= '\x1f' })
+	return strings.TrimFunc(value, isIFEvalSpace)
+}
+
+func isIFEvalSpace(r rune) bool {
+	return unicode.IsSpace(r) || r >= '\x1c' && r <= '\x1f'
 }
 
 func matchesIFEvalEnd(response, phrase string) bool {

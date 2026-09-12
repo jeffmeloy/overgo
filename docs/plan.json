@@ -9,13 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "ifeval-indexed-paragraph",
-          "title": "Match indexed paragraph checks against retained native results",
-          "status": "open",
-          "verify": "test -f internal/evaluation/ifeval_paragraph_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalIndexedParagraphAcceptance$' -count=1",
-          "rationale": "Port the twelve nth-paragraph/first-word instances using the pinned native paragraph segmentation, punctuation handling and explicit ordinal/count parameters. Reuse the existing instruction and paragraph owners. Bind native boundary cases and all twelve retained strict/loose outcomes; reject unresolved or invalid operands. Preserve accepted counting/formatting behavior. This is independent of sentence tokenizer and language profile work and needs no inference."
-        },
-        {
           "id": "ifeval-tokenizer",
           "title": "Port frozen native sentence and capital-word counting",
           "status": "open",

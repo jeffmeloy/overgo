@@ -57,6 +57,8 @@ type InstructionRule struct {
 	Kind   string     `json:"kind"`
 	Values []string   `json:"values,omitempty"`
 	Count  *CountRule `json:"count,omitempty"`
+	// Ordinal selects the one-based paragraph in indexed paragraph rules.
+	Ordinal int `json:"ordinal,omitzero"`
 	// Loose binds independently resolved native operands for the loose view.
 	Loose *InstructionRule `json:"loose,omitempty"`
 }
@@ -227,6 +229,9 @@ func EvaluateInstructionRules(
 }
 
 func compileInstructionRule(source InstructionRule) (compiledInstructionRule, error) {
+	if source.Ordinal != 0 && source.Kind != ifevalIndexedParagraph {
+		return compiledInstructionRule{}, errors.New("evaluation: ordinal requires an indexed paragraph rule")
+	}
 	source.Values = slices.Clone(source.Values)
 	if source.Count != nil {
 		count := *source.Count

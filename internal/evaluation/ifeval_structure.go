@@ -25,6 +25,9 @@ const (
 )
 
 func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, error) {
+	if source.Kind == ifevalIndexedParagraph {
+		return compileIFEvalParagraph(source)
+	}
 	result := compiledInstructionRule{source: source}
 	valueOperand, counted := false, false
 	var patterns []string
@@ -124,6 +127,9 @@ func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, er
 }
 
 func (rule compiledInstructionRule) matchesIFEvalStructure(response string) bool {
+	if rule.source.Kind == ifevalIndexedParagraph {
+		return rule.matchesIFEvalParagraph(response)
+	}
 	count := 0
 	switch rule.source.Kind {
 	case ifevalWords, ifevalFrequency, ifevalPlaceholders, ifevalBullets, ifevalSections:
@@ -183,6 +189,9 @@ func splitIFEvalSections(response, separator string) ([]string, bool) {
 }
 
 func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]InstructionRule, bool) {
+	if id == "length_constraints:nth_paragraph_first_word" {
+		return ifevalParagraphFor(id, kwargs)
+	}
 	text := func(name string) (string, bool) {
 		var value string
 		err := json.Unmarshal(kwargs[name], &value)

@@ -22,6 +22,18 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
+// Run both fixed-output references under one exclusive measurement owner.
+// The references cover the production device peripherals and the independent
+// host-peripheral trajectory, including its native intermediate comparisons.
+func TestSenseNovaOutputReferenceAcceptance(t *testing.T) {
+	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
+	t.Run("production", TestSenseNovaProductionImageGeneration)
+	t.Run("native", TestSenseNovaGenerationLeadership)
+}
+
 func TestSenseNovaProductionImageGeneration(t *testing.T) {
 	cudatest.Require(t)
 	var oracle generationLeadershipOracle

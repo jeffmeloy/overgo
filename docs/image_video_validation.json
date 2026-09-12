@@ -1,6 +1,43 @@
 {
   "checks": [
     {
+      "changed_source_sha256": {
+        "internal/routedlm/prefixdevicegraph.go": "3e289f4d6a1132f73a66c0663a8ea67c005a4caf6f3195320c1e66af17a5f1ae",
+        "internal/sensenovarecipe/runtime_cuda_windows_test.go": "e794227553c4bc27ebe02f350ad9297fef2ff5402cafd5360f6f29b1dab0eaa3"
+      },
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaOutputReferenceAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:9b9ff5101c1a11fe4ead51c4d1a9a8e1ec39cfff735b0b71f493fe0ed43f1527",
+      "name": "SenseNova exact-output recovery",
+      "scope": "The production and independent native-intermediate trajectories both pass their unchanged exact PNG hashes: 6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0 and bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617. The fix selects the existing per-query F32 attention path for strict-causal routed prefixes.",
+      "source_base": "b1206a564de013d6af4f0e00180a79bd83c0b481"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/routedlm/prefixdevicegraph.go": "3e289f4d6a1132f73a66c0663a8ea67c005a4caf6f3195320c1e66af17a5f1ae",
+        "internal/sensenovarecipe/runtime_cuda_windows_test.go": "e794227553c4bc27ebe02f350ad9297fef2ff5402cafd5360f6f29b1dab0eaa3"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_FULL=1 go test -overlay=tmp/media-sensenova-full-fixed-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaFullFixed$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:e2ee03e661c7f3bbb8ce736c6143fe69836f2f0208c38725372beb856e5081c3",
+      "name": "SenseNova full-resolution recovery",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/full_generation_cuda_windows_test.go": "evidence:sha256:81dda6e50d1cf3b90bae218387a8d165d9617287b243172e263dd395278a2735",
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_full_fixed_test.go": "evidence:sha256:2ecfe4ea6ae78805c76c325394a87c1eac29720a07de7e292cf881b3256bcf76"
+      },
+      "scope": "1536x2720, 50 steps, seed 42: the generated PNG exactly matches the reviewed reference 5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68. Existing quality and performance limits pass: wall 139.180 s, worker-tracked device peak 17.100 GiB. The retained native measurements are 206.010 s and 18.162 GiB; this is a correctness repair, not a matched optimization claim.",
+      "source_base": "b1206a564de013d6af4f0e00180a79bd83c0b481"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-sensenova-causal-probe-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaCausalProbe$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:27aad4439178d79ee6219190e008d7cd6698f7c837b3442cc8c1a5de51073b97",
+      "name": "SenseNova causal-attention isolation probe",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/cuda/executor/launch_attention_layout.go": "evidence:sha256:3c223fa91851fb84c39f6981c6848362e0c27d83105057467cd03a1417f2ff33",
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_causal_probe_test.go": "evidence:sha256:f6b60c80514b33362af0db506487863f57702803224b9f4274181234c1975b26"
+      },
+      "scope": "Diagnostic only: disabling the newer causal SGEMM admission in an overlay restored both original small-image hashes before the targeted fix. The broad executor change was not adopted; production changes only the reference-bound prefix graph.",
+      "source_base": "b1206a564de013d6af4f0e00180a79bd83c0b481"
+    },
+    {
       "command": "go test ./internal/oscillatorimage -run '^(TestArtifactLoadDerivesDims|TestArtifactPublishesReferencePNG|TestArtifactPublishesReferenceGIF|TestArtifactGenerateDeterministicAndClassSensitive|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch)$' -count=1 -json",
       "evidence": "evidence:sha256:1b76ebf297818aec6b26dce434375cedaa0ee7bc4b7fa980775c853fdf7856de",
       "name": "Un-0 image and video references (before timing fix)",
@@ -42,7 +79,7 @@
     {
       "command": "OVERGO_SENSENOVA_FULL=1 go test -overlay=tmp/media-current-sensenova-overlay.json ./internal/sensenovarecipe -run '^TestMediaCurrentSenseNovaValidation$' -count=1 -timeout=20m -json",
       "evidence": "evidence:sha256:974857c7279e1e3e149fd001d546654e7c0e5278ff97f88891ee07ce0eb76ade",
-      "name": "SenseNova production and full-resolution quality",
+      "name": "Historical: SenseNova production and full-resolution quality",
       "overlay_sources": {
         "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_current_sensenova_test.go": "evidence:sha256:e2efda5515273b683c0e94f16842355c57b0325193aea39fcbef89a2b2dc0658"
       },
@@ -51,11 +88,11 @@
     {
       "command": "go test -overlay=tmp/media-sensenova-diagnosis-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaDiagnosis$' -count=1 -timeout=20m -json",
       "evidence": "evidence:sha256:a0d1acb69623ea35be8bde2ce15f11cda2f9962c1bf4d62b419e9a90628cc8f4",
-      "name": "SenseNova native diagnostic",
+      "name": "Historical: SenseNova native diagnostic",
       "overlay_sources": {
         "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_diagnosis_test.go": "evidence:sha256:8d69f21a08fa69158e4e52163a85407e09ad2266cf7f6fa0fd127f2e6cc4761c"
       },
-      "scope": "Native source/input identity and all sampled latent, layer, boundary and velocity comparisons passed their existing bounds. The final PNG hash check still FAILED: expected bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617, observed 1b63ee276369cf58735ac90ccaf3656faf5696214380bf16a3526cbac20d8640. The cause remains unresolved; neither exact reference was changed."
+      "scope": "Native source/input identity and all sampled latent, layer, boundary and velocity comparisons passed their existing bounds. The final PNG hash check still FAILED: expected bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617, observed 1b63ee276369cf58735ac90ccaf3656faf5696214380bf16a3526cbac20d8640. This historical failure is resolved by the prefix correction recorded above; neither exact reference was changed."
     },
     {
       "changed_source_sha256": {
@@ -75,10 +112,12 @@
   ],
   "environment": "Acquired September 12, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. GPU acquisitions used the existing exclusive measurement-process owner. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
   "notes": [
-    "Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. The tests below establish only their stated shapes and comparisons. SenseNova has an unresolved exact-output regression, so current image/video validation is incomplete.",
-    "This checkpoint fixes shared GIF timing and the report reader's rejection of valid external JSON-array oracle files. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates are predictions, not measured optimization gains.",
-    "Remaining work includes resolving the SenseNova exact-output mismatch, fresh full-length Wan generation and visual/temporal review, complete frozen-case coverage, public workflow and cancellation checks, and matched speed/memory/transfer comparisons. The operator requested a stop after this checkpoint commit; these obligations remain open in the plan.",
-    "The GIF checks were repeated after converting the test loop to Go's integer-range syntax. The earlier passing acquisition remains stored as evidence:sha256:436bf59f286ab85b48abb5aa7c3d13b37a6198ab2e6f2e634c17a6fd488e31de; the table cites the final test source."
+    "Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. Selected test results and their actual workload sizes appear below; complete frozen-case and public-workflow coverage remains open.",
+    "The SenseNova exact-output regression is corrected. A later shared attention optimization admitted strict-causal prefixes to batched SGEMM, changing accumulation order and BF16-rounded prefix states. Selecting the existing per-query attention option for those reference-bound prefixes restores both small-image hashes and the full-resolution reviewed PNG. No model weights, prompts, seeds, reference hashes or quality limits changed.",
+    "The freshly generated [SenseNova full-size image](docs/media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png) is byte-identical to the retained reviewed image. Visual inspection confirms readable main headings and a coherent layout; the first-day marker resembles a caret and small text/icon defects remain features of that reference output.",
+    "The prior checkpoint fixed shared GIF timing and external JSON-array oracle handling. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates remain predictions rather than measured optimization gains.",
+    "Remaining work includes fresh full-length Wan generation and visual/temporal review, complete frozen-case coverage, public workflow and cancellation checks, and matched speed/memory/transfer comparisons. The earlier operator stop was fulfilled at b1206a56; work resumed on request.",
+    "The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes."
   ],
   "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
   "version": 1

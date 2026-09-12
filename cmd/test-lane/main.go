@@ -77,5 +77,5 @@ func run(args []string, stdout, stderr io.Writer, runner testRunner) int {
 
 func runGoTest(ctx context.Context, packages []string) (testevidence.GoTestReport, error) {
 	args := append([]string{"test", "-short", "-json", "-count=1"}, packages...)
-	return testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args}, true, clioptions.DiagnosticTailBytes, nil)
+	return testevidence.RunGoTestCommand(ctx, processcontrol.Command{Path: "go", Args: args}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
 }

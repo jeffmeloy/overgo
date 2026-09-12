@@ -55,14 +55,14 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 		report, runErr = RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestSlowPublicationProcess$"},
 			Env: append(os.Environ(), "OVERGO_TEST_SLOW_PUBLICATION="+marker),
-		}, false, 1024, func(name string, passed bool) error {
+		}, GoTestOptions{DiagnosticBytes: 1024, Observe: func(name string, passed bool) error {
 			if name == "first" {
 				close(entered)
 				<-release
 			}
 			updates = append(updates, name)
 			return nil
-		})
+		}})
 		close(done)
 	}()
 	defer func() { unblock(); <-done }()

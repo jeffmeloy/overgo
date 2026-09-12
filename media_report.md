@@ -1,0 +1,270 @@
+# Image and video generation report
+
+This report covers generation validation, resource use, and targeted optimization
+in `codex/image_video_gen`. The worktree starts from master commit `a5798b52`.
+[docs/plan.json](docs/plan.json) defines the execution steps and acceptance checks.
+
+**Status: isolated storage and readiness checks passed.** No
+image/video generation or optimization comparison has run in this worktree.
+The entries below identify existing implementations and the evidence the
+campaign must collect or verify. They do not claim new model results.
+
+## Scope
+
+Validate existing image and video generation recipes, including conditioning and
+editing where the active recipe declares support. Compare outputs with pinned
+references, inspect visual and temporal quality, measure complete generation
+cost, and optimize measured bottlenecks while preserving required behavior.
+Prioritize common code components, processing speed, CPU/GPU memory reduction,
+and fewer transfers between host and device memory.
+
+Use the worktree's private evidence store for all new records. Reuse inherited
+results only after checking their model, recipe, source, environment, and request
+identities. Keep model weights read-only at their declared locations.
+
+Speech, transcription, VQA, model training, and unrelated text benchmarks remain
+outside this campaign. Model names alone do not establish a supported task.
+
+## Initial coverage inventory
+
+The inherited [all-media report](docs/MEDIA_REPORT.md) supplies this discovery
+list. The first inventory step must verify current recipes and freeze the
+required model/task/input combinations before generation.
+
+| Model | Inherited task entry | Existing implementation | Worktree status |
+| --- | --- | --- | --- |
+| Krea-2-Turbo | Image generation | [Latent image runtime](internal/latentimage) | Inventory and evidence review pending |
+| SimpleDiffusion-TensorProductAttentionRope | Image generation | [Diffusion image runtime](internal/diffusionimage) | Inventory and evidence review pending |
+| SenseNova-U1-8B-MoT-Infographic-V3 | Image generation | [Image recipe integration](internal/mediacapability/image_cuda_windows.go) | Inventory and evidence review pending |
+| Un-0 | Image and video generation | [Oscillator runtime](internal/oscillatorimage) | Inventory and evidence review pending |
+| Wan2.1-T2V-1.3B | Video generation | [Latent video runtime](internal/latentvideo), [runner](cmd/latentvideo-run) | Inventory and evidence review pending |
+| LiveEdit | Video generation; inspect declared edit inputs | [Media recipe integration](internal/mediacapability), [latent video runtime](internal/latentvideo) | Inventory and evidence review pending |
+| Declared compositions | Determine from active recipes | [Composition validation](cmd/composite-generation-lane) | Applicability review pending |
+
+Record candidate-only implementations separately from activated recipes. Add or
+remove discovery entries only after inspecting the catalog; retain the reason.
+Mark missing required evidence as unavailable or incomplete, never as passed.
+
+## Worktree readiness
+
+The existing `cmd/overgodb-backup` copied and byte-verified 77,508 files
+(2,260,357,507 bytes) in 9 minutes 34 seconds. Replay matched imported sequence
+26279 and head
+`131030a35385ba8a46e7eba525befdff8a06793cebf32ccfb2bebe4a2980356c`.
+The source was `C:/Users/jeffm/overgo/overgodb-store`; the independent writable
+copy is `C:/Users/jeffm/image_video_gen/overgodb-store`.
+
+The ignored `local-models.json` references existing model files under
+`C:/Users/jeffm/adaptive_new/models` and datasets under
+`C:/Users/jeffm/overgo/datasets`. Checkpoints resolve inside this worktree.
+Run campaign commands with `OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen`.
+The existing media resolver found FFmpeg at
+`C:/Program Files/DownloadHelper CoApp/ffmpeg.exe`.
+
+The local configuration also uses the existing `audio_reference_store` setting
+to locate inherited regression fixtures beside the original store. Those checks
+read the existing models and datasets and write to temporary test stores.
+
+The readiness acceptance verifies the imported commit and inherited census,
+checks independent store files and data roots, and validates embedded kernel
+assets. Its fixtures reject missing roots, an external store, a mismatched
+snapshot, missing evidence, and hardlinked files; a valid local append retains
+the imported identity. These checks execute no model.
+
+Dispatch initially rejected the two local planning commits because they removed
+unfinished plan identities. They remain recoverable on
+`codex/image_video_gen-planning-backup`. The corrected plan retains inherited
+obligations under `master` or their existing `operator` owner, and assigns the
+media steps to `image_video_gen`. This lane does not execute inherited master
+work. Its final step is `media-closeout/closeout`.
+
+Two gate attempts took 828.1 and 870.9 seconds. The first exposed missing
+audio-reference paths and a package-wide test timeout. The configured reference
+root resolved the path failures; both affected fixture tests passed. The second
+attempt failed only because the gate package exceeded Go's default ten-minute
+aggregate timeout while other tests remained paused or unfinished.
+
+This worktree incorporates the relevant active-test deadline implementation and
+caller updates from master commit `bd3d1dc1`. It applies Go's default bound to
+each top-level test's active time and event silence, excludes paused time, and
+preserves explicit operator timeouts. The accompanying deadline and caller
+tests remain required. This prerequisite does not change generation behavior.
+
+## Retained evidence inspection
+
+A read-only query of the private snapshot found seven active image/video
+capabilities across six models. All seven resolved their model files and
+activation evidence without a stale status. This establishes the catalog state;
+the inventory acceptance and quality review remain open.
+
+| Model | Declared task | Inputs | Retained runs with output artifacts |
+| --- | --- | --- | ---: |
+| Krea-2-Turbo | Image generation | Conditioning | 1 |
+| SimpleDiffusion-TensorProductAttentionRope | Image generation | Conditioning | 2 |
+| SenseNova-U1-8B-MoT-Infographic-V3 | Image generation | Conditioning | 3 |
+| Un-0 | Image generation | Conditioning | 244 |
+| Un-0 | Video generation | Conditioning | 162 |
+| Wan2.1-T2V-1.3B | Video generation | Conditioning | 3 |
+| LiveEdit | Video generation | Conditioning and source | 2 |
+
+The catalog contains no active `video-edit` recipe. LiveEdit's active recipe
+declares source-conditioned video generation. Its name does not expand that
+contract.
+
+The 417 retained successful generation records lack source revision, environment,
+and elapsed-time fields; 389 retain input artifacts. Separate activation verifier
+records contain source identity and timings, but their outputs contain verification
+evidence rather than the generated image or clip. The campaign must establish an
+execution-specific link before combining these records in a performance result.
+Retained samples can inform case selection after their inputs and output content
+are checked.
+
+The shared workflow runtime returns per-node timing separately from its persisted
+generation record. Capability verification publishes measured records through
+`internal/modelintake`, which does not currently bind the measured request or
+generated output to that verification record. These existing owners are the
+first places to address the measurement gap.
+
+Source inspection also identified a transfer candidate in Wan's denoiser session:
+each forward step uploads host inputs and reads the output head back to the host.
+The latent-image and diffusion-image implementations already use retained device
+storage. Profiling must establish which boundaries can share device buffers while
+preserving each model's sampler and tensor-lifetime requirements. No transfer or
+memory improvement has been measured yet.
+
+## Validation requirements
+
+| Area | Required evidence |
+| --- | --- |
+| Identity and reproducibility | Model/component hashes, recipe and sampling policy, source and reference revisions, environment, exact prompt/input artifacts, seed, dimensions, precision, and frame settings |
+| Image correctness | Successful decode, expected dimensions/channel order, finite values, declared numerical reference comparisons, and input-to-output lineage |
+| Image quality | Fixed review cases for prompt adherence, conditioning preservation, composition, and visible artifacts; justified quantitative measures where applicable |
+| Video correctness | Expected frame count, order, timing, duration, spatial dimensions, causal decoding, and supplied clip/conditioning preservation |
+| Video quality | Fixed review cases for motion, flicker, temporal consistency, requested content, and declared editing behavior |
+| Reliability | Cancellation and error handling during each phase, resource release, bounded repeated use, retained completed outputs, and explicit restart/resume behavior |
+| Public workflows | API request/response behavior, declared controls, progress, cancellation, output retrieval, downloads, and browser evidence where required |
+
+Freeze criteria and reference inputs before comparing an implementation change.
+Keep functional, numerical, visual, performance, and interaction results separate.
+Store negative results and evaluate the complete required case set.
+
+## Compute environment and measurements
+
+Initial host discovery on 2026-09-12 found an AMD Ryzen 9 9950X with 32 logical
+threads, 93.6 GiB of visible RAM, and an NVIDIA RTX 4090 D with 48.0 GiB VRAM,
+114 multiprocessors, and compute capability 8.9. The CUDA driver reports version
+13.4; the installed driver is 616.64. About 59.3 GiB RAM and 47.5 GiB VRAM were
+free at discovery. These observations do not reserve capacity for later work.
+The existing CUDA metadata command and kernel-manifest validation passed.
+
+Recheck usable RAM, per-device VRAM, CPU/GPU capacity, driver/kernel versions,
+disk capacity, and concurrent reservations at admission.
+Use existing resource admission and supported execution policies. Derive batching,
+tiling, and concurrency from the workload and available capacity.
+
+For each model and request, record:
+
+- Cold-start and warm-run elapsed time, with preparation and warmup identified.
+- Model load, conditioning/encode, denoise/integrate, decode, export, and cleanup time.
+- Host-to-device, device-to-host, and device-to-device transfer bytes and call counts,
+  classified by weights, conditioning, latents, intermediates, and final outputs.
+- Transfer/compute waiting, synchronization, CPU conversion and staging costs.
+- Active and cached allocations, buffer lifetimes, changing-shape reuse, host and
+  pinned RAM, and process/device peaks as distinct measurements.
+- Output size, frame count/rate, and throughput under the same quality requirements.
+- Waiting, failed attempts, verification, and publication cost in the full comparison.
+
+Choose repetitions and stopping criteria from observed variability and declared
+measurement needs. Record unmeasured quantities explicitly. Do not report summed
+parallel phase durations as total elapsed time.
+
+## Optimization comparisons
+
+No optimization comparison has run in this worktree. Review existing improvements
+before proposing new work: the resident diffusion sampler retains GPU state,
+and decoder cleanup releases temporary outputs after cancellation.
+
+Each proposed change must identify its existing implementation owner, measured
+cost, expected effect, unchanged acceptance criteria, and rollback. Compare
+baseline and candidate on matched artifacts, requests, hardware, and protocols.
+Start with retained evidence and a small baseline set that exercises the actual
+shared image/video components. Collect quality, timing, memory, transfer, and
+sample evidence together where measurement requirements permit. Reuse these
+results in the full model validation; do not wait for unrelated models before
+testing a bounded improvement.
+
+| Optimization area | Planned work and acceptance |
+| --- | --- |
+| Common components | Consolidate equivalent preparation, retained-output handoff, conversion, or cleanup in existing owners. Migrate real callers, delete duplicate implementations, and preserve intentional model differences. |
+| CPU/GPU transfers | Retain compatible intermediate tensors on the GPU, reuse weights and conditioning, eliminate unnecessary round trips, and combine required small transfers. Measure bytes, calls, waits, and complete generation time. |
+| Memory use | Remove duplicate copies, shorten live allocations, reuse existing scratch pools, and use supported incremental decode or tiling. Measure host and device peaks, retained storage, and repeated-request behavior. |
+| Processing speed | Reuse preparation and compiled graphs, remove redundant conversion and synchronization, and consider fusion or overlap only where measured cost and numerical requirements justify them. |
+| Combined behavior | Compare accepted changes together across affected image/video consumers and supported capacity profiles. Preserve quality, cancellation, request isolation, and declared resource limits. |
+
+Use [resident graph sessions](internal/graphruntime/resident.go),
+[executor buffer pools](internal/cuda/executor/device_buffer_pool.go), existing
+device/driver operations, and the current image/video runtimes. Add shared
+behavior where real callers need it; do not add a second allocator, transfer
+scheduler, or media engine. Include owning-component tests as well as model-level
+comparisons when changing shared code.
+
+Retain buffers until their final consumer completes. If measurements justify
+pinned memory or asynchronous transfer, bound host storage and verify stream
+ordering, cancellation, and release after transfer completion. Passing a device
+pointer alone does not establish compatible layout, lifetime, or device ownership.
+
+Report tradeoffs explicitly. Keeping tensors on the GPU can reduce transfer time
+while increasing retained VRAM; freeing or recomputing them can reduce memory
+while increasing latency. Adopt changes against the declared quality, speed,
+and memory requirements, using the actual compute environment.
+
+| Required comparison field | Publication requirement |
+| --- | --- |
+| Change and causal hypothesis | Identify the code change and the measured cost it should reduce |
+| Common-code refactoring | Identify shared owners, migrated callers, deleted duplicate paths, and added code |
+| Baseline and candidate | Record exact source, model, recipe, request, and environment identities |
+| Quality and reliability | Preserve the required numerical, visual, temporal, and lifecycle checks |
+| Cost | Compare cold/warm latency, active/retained/peak host and device memory, transfer bytes/calls, synchronization, and total experiment cost |
+| Decision | Accept, reject, or retain further work with the recorded reason and evidence |
+
+## Image and video samples
+
+No samples have been generated or exported by this worktree yet. Export actual
+stored outputs through the existing compatibility/sample code into
+`docs/media_samples`. Show representative baseline/candidate images, playable
+clips, and video frames from the frozen case set, including material failures.
+
+For every sample, retain the prompt or conditioning artifact, seed, model/recipe,
+source commit, environment, dimensions/frame settings, output hash, and run/result
+identities. Identify thumbnails and transcodes as derivatives and link the original.
+
+## Execution and reproducibility
+
+The plan prepares the private data root and freezes coverage, quality, and
+resource requirements. It maps common components and data movement, selects a
+representative baseline, and evaluates refactoring, transfer, memory, and processing
+changes. Independent model validation and report preparation can proceed when
+their prerequisites are ready. Serialize edits to the same component and exclusive
+measurements through existing ownership controls.
+
+Export samples as model bundles complete. The final checks reconcile affected
+consumer results, combined optimization behavior, constrained-capacity behavior,
+lifecycle and public workflows, and report completeness without repeating valid
+generation work.
+
+Existing execution paths include `cmd/recipe verify`, `cmd/recipe run`,
+`cmd/latentvideo-run`, and `cmd/composite-generation-lane`. Resolve each command's
+actual recipe, store, inputs, and resource requirements before execution. Use
+`cmd/device-lane` and `cmd/webui-lane` for the applicable checks; direct tests that
+skip required device/browser work do not satisfy acceptance.
+
+The existing all-media generator uses `cmd/compatibility -update-media` and exports
+samples with `-export-samples`. The report-contract step will extend that owner
+for this focused report as needed; no focused generation flag exists yet.
+
+## Remaining work
+
+The [plan](docs/plan.json) records remaining steps and their dependencies. Next
+reconcile the discovery list with actual active recipes and retained evidence.
+Implement the named acceptance checks before their corresponding acquisitions.
+Model quality, performance, lifecycle, and workflow validation remain open.

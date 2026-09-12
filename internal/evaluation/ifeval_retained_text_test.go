@@ -33,7 +33,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	}
 	read := func(id artifact.ID, target any) {
 		t.Helper()
-		readIFEvalEvidence(t, store, id, target)
+		readRetainedEvidence(t, store, id, target)
 	}
 	var native struct{ Profile, Selection, Scores artifact.ID }
 	read(parse("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839"), &native)
@@ -146,7 +146,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	t.Logf("834/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
 }
 
-func readIFEvalEvidence(t *testing.T, store *overgodb.Store, id artifact.ID, target any) {
+func readRetainedEvidence(t *testing.T, store *overgodb.Store, id artifact.ID, target any) {
 	t.Helper()
 	content, err := artifact.RequireTypedContent(t.Context(), store, id)
 	if err != nil {
@@ -167,7 +167,7 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 			ReusedPrior bool `json:"reused_prior"`
 		}
 	}
-	readIFEvalEvidence(t, store, selection, &acquisition)
+	readRetainedEvidence(t, store, selection, &acquisition)
 	if acquisition.Profile != profile || len(acquisition.Cells) != 541 {
 		t.Fatal("raw acquisition denominator changed")
 	}
@@ -176,7 +176,7 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 		t.Fatal(err)
 	}
 	var old InstructionRulesReport
-	readIFEvalEvidence(t, store, prior.Report, &old)
+	readRetainedEvidence(t, store, prior.Report, &old)
 	retained := map[string]string{}
 	for _, row := range old.Observations {
 		retained[row.Name] = row.Raw
@@ -197,7 +197,7 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 				Profile artifact.ID
 				Result  ExactResult
 			}
-			readIFEvalEvidence(t, store, cell.Output, &output)
+			readRetainedEvidence(t, store, cell.Output, &output)
 			if output.Profile != profile || output.Result.Name != cell.Name {
 				t.Fatal("response acquisition binding changed")
 			}

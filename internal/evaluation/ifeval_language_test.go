@@ -49,7 +49,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 		Views    int         `json:"retained_views"`
 		Distinct int         `json:"distinct_retained"`
 	}
-	readIFEvalEvidence(t, store, parse("evidence:sha256:7af0c46db65d189c70cde72baef789b7c5a894b8112bd5baa551be8e1ac0d4a4"), &selection)
+	readRetainedEvidence(t, store, parse("evidence:sha256:7af0c46db65d189c70cde72baef789b7c5a894b8112bd5baa551be8e1ac0d4a4"), &selection)
 	if selection.Native.DigestHex() != "78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839" || selection.Profile != fmt.Sprintf("%x", sha256.Sum256(ifevalLanguageProfile)) || selection.Boundary != 24 || selection.Views != 760 || selection.Distinct != 341 {
 		t.Fatal("native language selection changed")
 	}
@@ -88,7 +88,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 			Strict, Loose []bool
 		}
 	}
-	readIFEvalEvidence(t, store, selection.Oracle, &oracle)
+	readRetainedEvidence(t, store, selection.Oracle, &oracle)
 	if len(oracle.Boundary) != selection.Boundary || len(oracle.Retained) != selection.Views || len(oracle.Observations) != selection.Distinct || len(oracle.Checks) != 72 || len(oracle.RNG) != 35 || oracle.WordCount != 1024 {
 		t.Fatal("native language denominator changed")
 	}
@@ -191,7 +191,7 @@ func TestIFEvalLanguageAcceptance(t *testing.T) {
 		}
 	}
 	var native struct{ Selection, Profile artifact.ID }
-	readIFEvalEvidence(t, store, selection.Native, &native)
+	readRetainedEvidence(t, store, selection.Native, &native)
 	responses := retainedIFEvalResponses(t, store, native.Selection, native.Profile)
 	seen, viewKeys := map[string]bool{}, map[string]bool{}
 	for _, row := range oracle.Retained {

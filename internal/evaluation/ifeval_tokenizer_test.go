@@ -45,7 +45,7 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		Views    int         `json:"retained_views"`
 		Distinct int         `json:"distinct_retained"`
 	}
-	readIFEvalEvidence(t, store, parse("evidence:sha256:00c1a0e3c5c7080967bf434df2e418b6c511c9d2d3b896248d901f16da7568e9"), &selection)
+	readRetainedEvidence(t, store, parse("evidence:sha256:00c1a0e3c5c7080967bf434df2e418b6c511c9d2d3b896248d901f16da7568e9"), &selection)
 	if selection.Native.DigestHex() != "78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839" || selection.Profile != fmt.Sprintf("%x", sha256.Sum256(ifevalNLTKProfile)) || selection.Boundary != 48 || selection.Views != 512 || selection.Distinct != 225 {
 		t.Fatal("native tokenizer selection changed")
 	}
@@ -65,7 +65,7 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		}
 		Observations map[string]observation
 	}
-	readIFEvalEvidence(t, store, selection.Oracle, &oracle)
+	readRetainedEvidence(t, store, selection.Oracle, &oracle)
 	if len(oracle.Boundary) != selection.Boundary || len(oracle.Retained) != selection.Views || len(oracle.Observations) != selection.Distinct {
 		t.Fatal("native tokenization denominator changed")
 	}
@@ -99,7 +99,7 @@ func TestIFEvalTokenizerAcceptance(t *testing.T) {
 		compare(fmt.Sprintf("boundary/%d", index), c.Response, c.observation)
 	}
 	var native struct{ Selection, Profile artifact.ID }
-	readIFEvalEvidence(t, store, selection.Native, &native)
+	readRetainedEvidence(t, store, selection.Native, &native)
 	responses := retainedIFEvalResponses(t, store, native.Selection, native.Profile)
 	seen := map[string]bool{}
 	viewKeys := map[string]bool{}

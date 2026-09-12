@@ -125,6 +125,9 @@ func deriveStoreSuites(
 		"mmlu":     assembleMMLUSuite,
 		"mmlu-pro": assembleMMLUProSuite,
 		"bbh": func(cases []storeCase) (any, int, error) {
+			if authorities.Execution.Prompting == PromptingRawCompletion {
+				return assembleNativeBBH(cases)
+			}
 			return assembleChoiceGroups("bbh", "lm-eval/leaderboard-bbh/v1.0", cases)
 		},
 		"musr":   assembleMuSRSuite,
@@ -264,10 +267,8 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 // glued to the colon.
 const targetDelimiter = " "
 
-// assembleChoiceGroups renders extractive-answer records (BBH) as one
-// grouped-choice suite: each task is a group, its candidate space is
-// the distinct targets the task actually uses, and the recorded target
-// picks the answer -- the leaderboard's per-task option-set scoring.
+// assembleChoiceGroups retains the generated-answer protocol's observed option
+// sets. Native raw likelihood uses assembleNativeBBH's declared options.
 func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, error) {
 	targetsByGroup := map[string][]string{}
 	seen := map[string]map[string]int{}

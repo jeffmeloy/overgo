@@ -60,6 +60,10 @@ type imageVideoObservation struct {
 }
 
 func checkImageVideoProtocolIdentity(data []byte) error {
+	return checkMediaProtocolIdentity(data, imageVideoProtocolSHA256)
+}
+
+func checkMediaProtocolIdentity(data []byte, digest string) error {
 	var value any
 	if err := json.Unmarshal(data, &value); err != nil {
 		return err
@@ -68,7 +72,7 @@ func checkImageVideoProtocolIdentity(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if fmt.Sprintf("%x", sha256.Sum256(canonical)) != imageVideoProtocolSHA256 {
+	if fmt.Sprintf("%x", sha256.Sum256(canonical)) != digest {
 		return errors.New("media protocol: frozen inputs, references, or criteria changed")
 	}
 	return nil

@@ -11,16 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "resources",
-          "title": "Bind actual compute capacity, measurement scope, and run limits",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_resource_protocol_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoResourceProtocolAcceptance$' -count=1",
-          "rationale": "Resolve usable RAM, per-device VRAM, CPU capacity, GPU/driver/kernel identity, current reservations and available disk through existing owners. Record operator ceilings and derive per-run admission from the selected model, output shape, intermediates and existing timing observations. Queue shared correctness work and serialize exclusive measurements through the current resource owner; never create a separate GPU scheduler or steal another lane's reservation. Derive step counts, tiling, batch sizes and concurrency from model policy and memory requirements; do not add arbitrary margins or model-specific tuning flags. Measure model load, encode/prepare, denoise/integrate, decode, export, cleanup and total wall separately, including waits, warmup and failed attempts. Distinguish driver-owned memory from process/device peak, and report unmeasured quantities explicitly. Compare cold and warm runs separately; choose repeat count and stopping criteria from observed variability and declared accuracy/budget needs. Preserve cumulative budgets across interruption. Acceptance rejects overlapping exclusive measurements, reset budgets, unsupported reduced-capacity plans and silently missing metrics. Record HtoD, DtoH and DtoD bytes and call counts separately; distinguish weight, conditioning, latent, intermediate, decoded-output and diagnostic transfers. Record CPU serialization/layout conversion, pinned host storage when used, transfer/compute wait time and device synchronization. Track active versus cached allocations, allocation lifetimes, repeated-shape reuse and variable-shape fragmentation. CPU RAM, pinned RAM, live/retained VRAM and process/device peaks need distinct scopes. Derive limits from current usable capacity and known live ranges rather than installed memory or arbitrary fractions. Instrument through existing driver/executor counters and record measurement overhead; hardware estimates must not masquerade as observed peaks.",
-          "depends_on": [
-            "media-readiness/inventory"
-          ]
-        },
-        {
           "id": "report-contract",
           "title": "Define report rows and sample provenance through existing report code",
           "status": "open",

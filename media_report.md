@@ -9,6 +9,11 @@ image/video generation or optimization comparison has run in this worktree.
 The entries below identify existing implementations and the evidence the
 campaign must collect or verify. They do not claim new model results.
 
+Quality protocol acceptance passed and committed as `d79294cc`. It validates
+case definitions and evidence bindings, while retaining the historical output
+failures described below. Resource protocol checks also pass locally; their
+gate remains pending.
+
 ## Scope
 
 Validate existing image and video generation recipes, including conditioning and
@@ -109,6 +114,10 @@ The inventory gate passed in 1,031.7 seconds and committed as `5eeba8ba`.
 It executed 230 package checks with no reused package receipts. Concurrent
 work continued in the master worktree; these gate durations are validation
 cost observations, not isolated generation benchmarks.
+
+The quality gate passed in 1,014.4 seconds, again executing 230 package checks
+with no reused receipts. A preceding admission attempt refused three outdated
+JSON omission tags; those tags now follow the repository's Go 1.26 convention.
 
 ## Retained evidence inspection
 
@@ -233,6 +242,20 @@ For each model and request, record:
 Choose repetitions and stopping criteria from observed variability and declared
 measurement needs. Record unmeasured quantities explicitly. Do not report summed
 parallel phase durations as total elapsed time.
+
+The [resource protocol](docs/image_video_resources.json) binds these requirements
+to the frozen quality criteria. Its acceptance reads current host RAM, CPU load,
+disk capacity, GPU identity and free VRAM without reserving a device. It exercises
+the existing capacity and budget owners, rejects omitted measurement requirements,
+and preserves the difference between an observed zero and an unknown value.
+Separate owner tests verify shared/exclusive admission and process-exit cleanup.
+
+Use the existing `processmeasure` owner for process working-set peaks and the
+CUDA driver's `MemoryStats` and `ExecutionStats` for scoped allocation and copy
+observations. The common resource record does not currently carry every driver
+counter or retained-memory scope; preserve those details alongside it. The user
+specified no additional numeric ceiling. Existing command deadlines still apply,
+and each acquisition group must fit a declared workload and current capacity.
 
 ## Optimization comparisons
 

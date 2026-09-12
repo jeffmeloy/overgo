@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "quality_protocol_sha256": "9a270a1847acc8b478fb2b7595fb254f9d89d315bf0dfc23e6a0d97a9ceb3eb2",
+  "admission": [
+    "Read current available host RAM, logical CPU capacity and load, free disk, GPU UUID, driver/kernel identity, free VRAM and current ownership before each acquisition group. Recheck after waiting. Installed capacity and earlier discovery are not an allocation grant.",
+    "Use processcontrol shared admission for correctness and exclusive physical-device admission for measurements. Resource names remain hardware identities across worktrees. Expired advisory leases do not release an OS-owned resource.",
+    "Resolve exact component identities and request-scoped lifetimes with modelrecipe.CompileDefinitionSessionPlan. Artifact extent is a storage measurement, not a host or device peak estimate. Include dtype conversion, transient tensors, retained caches, source preparation and export in the live-range estimate.",
+    "Compare the selected workload's known live ranges and retained observations with current available capacity. Use the maximum known applicable requirement, including decode. Unknown required capacity remains unavailable until a bounded probe or source-derived bound resolves it. Do not infer sufficiency from weight size alone.",
+    "Account for allocations already reflected in free memory separately from declared work that has not allocated yet; do not subtract the same reservation twice. plan.AssessResources supplies advisory overlap and capacity checks; the OS resource owner and CUDA allocator enforce actual admission.",
+    "Retain exact model policy, precision, sampler and requested output. Use existing supported tiling, streaming and bounded concurrency when they fit. If no supported execution fits, retain the obligation and report unavailable rather than silently shrinking the quality request.",
+    "The user supplied no additional numeric time or memory ceiling. Preserve supported command deadlines and existing device-lane package/admission bounds. Select the first baseline and candidate acquisitions from the affected-consumer profile before execution; this protocol does not authorize an unbounded sweep or invented exploration grant."
+  ],
+  "measurement": [
+    "Bind every observation to exact source revision, environment, model, recipe, full request and generated output/run identities. A verifier and an unrelated generation record cannot form one performance result.",
+    "Measure cold model/session preparation separately from warm reuse. Group required cases for a loaded model, and state the cache and process lifetime. Include warmup, waiting, failed attempts, cleanup, serialization, export and verification in campaign cost without adding overlapping intervals as elapsed wall.",
+    "Record per-phase deltas of the existing driver.ExecutionStats and driver.MemoryStats around actual owners. Transfer bytes and calls include host-to-device, device-to-host and device-to-device separately. Report weight, condition, latent, intermediate, decoded output and diagnostic boundaries from the actual call graph.",
+    "Driver current/peak allocation bytes cover one Library instance. They exclude other contexts, driver workspaces and other processes. Report runtime-owned peak, retained allocations, process host peak and whole-device observations as distinct scopes; do not relabel one as another.",
+    "Use processcontrol receipts for supervised wall observations, processmeasure.SelfPeakWorkingSet for the process lifetime peak, and existing runrecord resource/observation-stream owners for durable evidence. Use isolated processes when comparing lifetime peaks. Preserve driver detail alongside the common integer metrics where the common vocabulary lacks a dimension. Missing metrics remain absent with an explicit reason; zero means observed zero.",
+    "Record CPU layout conversion and serialization time, Go allocations, pinned host allocations if used, device synchronization counts and waits. Graph launches and kernel launches are separate; host submission duration does not establish GPU active duration.",
+    "For cached memory report retained bytes after the final consumer, after cancellation, after session close, and across repeated and changed shapes. Capture the ownership and last-use boundary for each eliminated copy or shortened allocation.",
+    "Use identical measurement instrumentation for baseline and candidate. Record instrumentation overhead with a scoped control where it could affect the decision. Do not subtract an estimated overhead from observed end-to-end timing.",
+    "Report paired raw measurements before statistical interpretation. Request repeats only when observed variability could change the decision and the declared acquisition budget permits them. The existing comparison owner supports a measured min/max envelope; do not attach distribution-free probabilities without justified exchangeability. No fixed repeat count, CLT sample-size rule or arbitrary speedup percentage applies.",
+    "Preserve every attempt and cumulative cost across interruption. Reuse exact completed artifacts; do not reset a recorded budget or discard a failed attempt to obtain a favorable comparison. When an externally issued exploration grant applies, use plan.ExplorationBalance and committed charges; do not create a replacement grant locally."
+  ],
+  "required_common_metrics": [
+    "wall_ns",
+    "peak_host_bytes",
+    "peak_device_bytes",
+    "host_to_device_bytes",
+    "device_to_host_bytes"
+  ],
+  "required_driver_counters": [
+    "hostToDeviceBytes",
+    "hostToDeviceCopies",
+    "deviceToHostBytes",
+    "deviceToHostCopies",
+    "deviceToDeviceBytes",
+    "deviceToDeviceCopies",
+    "streamSynchronizations",
+    "contextSynchronizations",
+    "kernelLaunches",
+    "graphLaunches"
+  ],
+  "required_memory_scopes": [
+    "host-process-peak",
+    "host-go-allocations",
+    "host-pinned-live",
+    "driver-library-live",
+    "driver-library-peak",
+    "device-free-at-admission",
+    "session-retained-after-use",
+    "session-retained-after-cancellation",
+    "session-retained-after-close"
+  ],
+  "acceptance_owners": [
+    "internal/processcontrol:TestGPUExclusiveMeasurementAdmission",
+    "internal/processcontrol:TestGPUCapacityAdmissionConcurrent",
+    "internal/processcontrol:TestGPUCapacityAdmissionProcessExit",
+    "internal/plan:TestResourceAdvisory",
+    "internal/runrecord:TestResourceFitnessContract",
+    "internal/runrecord:TestImprovementFitnessRejectsTransferredCost",
+    "internal/capabilityruntime:TestBoundedSessionAdmission"
+  ],
+  "known_gaps": [
+    "Historical generation runs lack source, environment and elapsed-time bindings; activation verifier timings do not identify their generated output.",
+    "Whole-process host peak and pinned-host lifetime measurements are not supplied by capabilityruntime.Measured. Use the existing processmeasure owner for host peak; required comparison rows must publish scoped observations or remain incomplete.",
+    "The common ResourceMetric vocabulary includes HtoD/DtoH byte counts but not DtoD bytes, transfer call counts, retained memory or per-boundary classification. Existing driver counters hold the transfer details; do not discard them during publication.",
+    "Work-lease RAM and VRAM are advisory integer GiB. CUDA allocation checks use current free bytes. Unknown advisory capacity is not a positive fit decision for this campaign."
+  ]
+}
+
+

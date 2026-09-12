@@ -2,7 +2,6 @@ package audioparity
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
-	"overgo/internal/testutil"
 )
 
 func TestCanonicalAudioModelRegistration(t *testing.T) {
@@ -22,13 +20,10 @@ func TestCanonicalAudioModelRegistration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := cmp.Or(os.Getenv("OVERGO_DATA_ROOT"), testutil.RepoRoot(t))
-	storeRoot := filepath.Join(root, "overgodb-store")
-	// Use the same explicit reference store as CPU ASR acceptance without
-	// redirecting unrelated package tests to the reference catalog.
-	if reference := os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"); reference != "" {
-		storeRoot, root = reference, filepath.Dir(reference)
-	}
+	// The reference store and the models beside it come from the declared
+	// roots, the same reference the CPU ASR acceptance reads.
+	reference := resolveReferenceRoots(t)
+	storeRoot, root := reference.store, filepath.Dir(reference.store)
 	empty, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

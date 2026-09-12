@@ -86,8 +86,9 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
   };
   navigator.mediaDevices.enumerateDevices=async()=>[{kind:'audioinput',deviceId:'fixture-mic',label:'Fixture microphone'},{kind:'videoinput',deviceId:'fixture-camera',label:'Fixture camera'}];
   window.captureGet=overgo.api.get;
-  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'capture-fixture',recipe:'capture-fixture-recipe',name:'Synthetic media fixture',controls:[{name:'audio',label:'Audio input',type:'artifact',media:'audio'},{name:'image',label:'Image input',type:'artifact',media:'image'}]}];return captureGet.call(this,path,options);};
   const caps=overgo.capabilities();caps.modes.push({id:'capture-fixture',label:'Capture fixture',enabled:true});
+  const captureCaps=structuredClone(caps);
+  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'capture-fixture',recipe:'capture-fixture-recipe',name:'Synthetic media fixture',controls:[{name:'audio',label:'Audio input',type:'artifact',media:'audio'},{name:'image',label:'Image input',type:'artifact',media:'image'}]}];const result=await captureGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(captureCaps);return result;};
   window.captureOld=document.querySelector('.composer');overgo.openConversation(null);
   window.captureDialog=()=>document.querySelector('.capture-dialog');
   window.captureOpen=()=>document.querySelector('.composer .attach-button').click();

@@ -1,12 +1,10 @@
 package audioparity
 
 import (
-	"cmp"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -67,7 +65,7 @@ type ctcTrainingFixture struct {
 func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 	t.Helper()
 	root := testutil.RepoRoot(t)
-	storeRoot := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), filepath.Join(root, "overgodb-store"))
+	storeRoot := resolveReferenceRoots(t).store
 	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +93,7 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 		record.Normalization != "lowercase" || record.GeneratorSHA256 != "8c1a76d8fff3cee8ca6442f93a936c7c47224c84f3fecc5d988e2ab2fa46dc39" {
 		t.Fatal("training record provenance differs")
 	}
-	corpus := filepath.Join(filepath.Dir(storeRoot), "datasets", "librispeech_asr-clean-xet", "clean", record.Split, record.Shard)
+	corpus := librispeechPath(t, "clean", record.Split, record.Shard)
 	shardID, err := artifact.ParseID("file:sha256:" + record.ShardSHA256)
 	if err != nil {
 		t.Fatal(err)

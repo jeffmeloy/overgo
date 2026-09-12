@@ -28,13 +28,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
 
 const (
-	boundedPath = "docs/.bounded_request"
 	// turnBasePath snapshots dirt at UserPromptSubmit so the Stop gate
 	// blocks only on TURN-CREATED dirt. Pre-existing dirt is another lane's
 	// parked in-flight work.
@@ -98,20 +96,24 @@ func runStop(hookJSON string) int {
 	if strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`) {
 		return 0
 	}
-	// The bounded marker scopes the ANSWER, never the loop; consume it so it
-	// cannot go stale, but it renders no verdict.
-	consumeBoundedRequest(boundedPath)
 	freshStop := freshStopAtHead(gitHead())
 	gateRunning := gateProcessRunning()
-	next, complete := nextAction()
+	dispatch := nextDispatch()
 	dirtyWork := hasTurnCreatedDirt()
 	progressed := headAdvancedSinceTurnStart()
 
-	verdict := stopDecision(false, freshStop, gateRunning, complete, dirtyWork)
+	verdict := stopDecision(false, freshStop, gateRunning, dispatch.Complete, dirtyWork)
 	if verdict == stopAllow {
 		return 0
 	}
+	fmt.Fprint(os.Stderr, stopMessage(verdict, progressed, dispatch))
+	return 2
+}
 
+// stopMessage renders the refusal for a verdict, naming the dispatched row
+// from the dispatch's own fields.
+func stopMessage(verdict string, progressed bool, dispatch plan.Dispatch) string {
+	next := dispatch.Line
 	if len(next) > 150 {
 		next = next[:150]
 	}
@@ -132,8 +134,7 @@ func runStop(hookJSON string) int {
 		}
 	}
 	b.WriteString("  Dispatched now: " + next + "\n")
-	fmt.Fprint(os.Stderr, b.String())
-	return 2
+	return b.String()
 }
 
 // runPostCommit re-baselines the turn-dirt snapshot at a gate commit boundary
@@ -147,13 +148,11 @@ func runPostCommit(hookJSON string) {
 
 func runDoctrine() {
 	// A turn never spans sessions -- any pending boundary is stale.
-	_ = os.Remove(boundedPath)
 	_ = os.Remove(turnBasePath)
 	fmt.Println(doctrineText)
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
-	next, _ := nextAction()
-	fmt.Println(next)
+	fmt.Println(nextDispatch().Line)
 }
 
 func runPrompt(hookJSON string) {
@@ -164,11 +163,9 @@ func runPrompt(hookJSON string) {
 		Prompt string `json:"prompt"`
 	}
 	if json.Unmarshal([]byte(hookJSON), &input) == nil && boundedRequestText(input.Prompt) {
-		_ = os.WriteFile(boundedPath, []byte("bounded\n"), 0o644)
 		fmt.Println("OVERGO BOUNDED REQUEST: answer this request concisely, THEN continue the dispatched plan row in this same turn -- a prompt never pauses the loop (owner rule). Only an explicit user stop pauses; record it with go run ./cmd/plan -stop user-stop:<detail>.")
 		return
 	}
-	_ = os.Remove(boundedPath)
 	command := exec.Command("go", "run", "./cmd/plan", "-prompt")
 	command.Stdout, command.Stderr = os.Stdout, os.Stderr
 	_ = command.Run()
@@ -195,14 +192,6 @@ func boundedRequestText(prompt string) bool {
 		return true
 	}
 	return false
-}
-
-func consumeBoundedRequest(path string) bool {
-	if !fileExists(path) {
-		return false
-	}
-	_ = os.Remove(path)
-	return true
 }
 
 // --- IO helpers (git + plan + marker), thin wrappers around the pure verdict ---
@@ -378,37 +367,13 @@ func gateProcessRunning() bool {
 	return false
 }
 
-// nextAction returns the one-line dispatched step and whether the plan is done.
-func nextAction() (string, bool) {
-	doc, err := plan.Load("")
+// nextDispatch resolves the dispatched row through the plan's own resolver,
+// which reuses the dispatch cached for this HEAD, plan and store head; a
+// resolver failure is reported in the line and never ends the loop.
+func nextDispatch() plan.Dispatch {
+	dispatch, err := plan.ResolveDispatch(context.Background(), ".", "")
 	if err != nil {
-		return "plan: " + err.Error(), false
+		return plan.Dispatch{Line: "plan: " + err.Error()}
 	}
-	role, err := plan.AutomationRole("")
-	if err != nil {
-		return "", false
-	}
-	store, err := overgodb.OpenReadOnly("overgodb-store")
-	if err != nil {
-		return "plan: " + err.Error(), false
-	}
-	defer store.Close()
-	authority, err := plan.ResolveCompletionAuthority(context.Background(), ".", "HEAD", doc, store)
-	if err != nil {
-		return "plan: " + err.Error(), false
-	}
-	it, st, ok := plan.Current(doc, role, authority)
-	if !ok {
-		return "plan complete: every item is done", true
-	}
-	title := st.Title
-	if title == "" {
-		title = it.Title
-	}
-	return fmt.Sprintf("%s / %s: %s", it.ID, st.ID, title), false
-}
-
-func fileExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+	return dispatch
 }

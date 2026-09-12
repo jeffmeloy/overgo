@@ -1,250 +1,194 @@
 {
   "document_type": "system_architecture_graphic",
-  "schema_version": "3.0",
+  "schema_version": "6.0",
   "figure": {
-    "id": "overgo-governed-rsi-architecture",
-    "title": "OVERGO GOVERNED RSI ARCHITECTURE",
-    "subtitle": "Model cognition proposes · deterministic Go controls · durable evidence decides",
+    "id": "overgo-recursive-self-improvement",
+    "title": "Overgo — Recursive self-improvement",
     "image": "docs/assets/overgo-platform-technical-architecture.png",
-    "purpose": "Technical architecture plate showing the governed recursive control boundary and its execution substrate.",
+    "purpose": "Show the RSI implementation intent: durable observations trigger the next experiment, improving task capability, robustness and efficiency through derived methods and resource-aware execution.",
     "tone": [
       "technical",
-      "scientific",
       "neutral",
-      "non-promotional"
-    ]
+      "non-promotional",
+      "implementation-and-intent"
+    ],
+    "source": "docs/assets/overgo-platform-technical-architecture.svg"
   },
   "canvas": {
-    "width": 1536,
-    "height": 1024,
+    "width": 3072,
+    "height": 1880,
     "unit": "px",
-    "background": "#ffffff",
-    "layout": "wide landscape"
+    "layout": "landscape",
+    "view_box": "0 0 1536 940"
   },
   "visual_language": {
-    "grid": "8px",
-    "typography": "condensed sans-serif headings with monospaced secondary annotations",
-    "control_path": "teal",
-    "evidence_path": "green",
-    "policy_path": "amber",
-    "section_frames": "navy",
-    "external_adapter": "navy dashed",
-    "effects": "flat fills and linework; no gradients, shadows, or three-dimensional effects"
+    "background": "#101820",
+    "typography": "modern sans-serif; one main title, functional stage labels, regular-weight supporting text; no subheaders",
+    "text": "#E5EDF2",
+    "feedback": "#58C8C5",
+    "decision": "#D9A45B border; #342B21 fill",
+    "effects": "Uniform solid SVG fills and strokes; no textures, gradients, filters, shadows or image layers",
+    "secondary_text": "#CBD5DF",
+    "cards": "#192731",
+    "bands": "#1C303B",
+    "number_badges": "#24474D",
+    "dividers": "#526776",
+    "theme": "dark"
   },
-  "layers": [
+  "operator_direction": {
+    "text": "Operators set goals, budgets, constraints and stop conditions.",
+    "entry": "propose"
+  },
+  "cycle": [
     {
-      "order": 1,
-      "id": "steering-and-access",
-      "label": "STEERING AND ACCESS",
-      "components": [
-        {
-          "label": "OPERATOR STEERING",
-          "detail": "goals · constraints · intervention"
-        },
-        {
-          "label": "MODEL STEERING",
-          "detail": "typed proposals · no direct authority"
-        },
-        {
-          "label": "COMPATIBILITY APIS",
-          "detail": "OpenAI · Anthropic · native"
-        },
-        {
-          "label": "AUTOMATION AND PEERS",
-          "detail": "schedules · webhooks · bounded delegation"
-        }
-      ],
-      "external_adapter": {
-        "label": "REMOTE PEER EXECUTION",
-        "detail": "adapter · not owner of control"
-      }
-    },
-    {
-      "order": 2,
-      "id": "deterministic-control-plane",
-      "label": "DETERMINISTIC CONTROL PLANE",
-      "pipeline": [
-        {
-          "label": "STEER",
-          "detail": "goals + constraints"
-        },
-        {
-          "label": "COMPILE",
-          "detail": "typed plans"
-        },
-        {
-          "label": "ADMIT",
-          "detail": "limits + placement"
-        },
-        {
-          "label": "EXECUTE",
-          "detail": "bounded runs"
-        },
-        {
-          "label": "EVALUATE",
-          "detail": "suites + metrics"
-        },
-        {
-          "label": "DECIDE",
-          "detail": "evidence + policy"
-        },
-        {
-          "label": "ACTIVATE",
-          "detail": "versioned state"
-        },
-        {
-          "label": "OBSERVE",
-          "detail": "telemetry + outcomes"
-        }
-      ],
-      "feedback": {
-        "from": "OBSERVE",
-        "to": "STEER",
-        "label": "MEASURED FEEDBACK"
-      },
-      "decision_outcomes": [
-        "PROMOTE",
-        "REJECT",
-        "QUARANTINE",
-        "ROLLBACK"
+      "id": "propose",
+      "number": "01",
+      "position": "top-left",
+      "label": "Propose",
+      "details": [
+        "Use observations and prior attempts",
+        "Predict benefit and total cost"
       ]
     },
     {
-      "order": 3,
-      "id": "governed-improvement-cycle",
-      "label": "GOVERNED IMPROVEMENT CYCLE",
-      "pipeline": [
-        {
-          "label": "MEASURE GAP",
-          "detail": "quality · safety · resources"
-        },
-        {
-          "label": "FORM CANDIDATE",
-          "detail": "model · recipe · code · policy"
-        },
-        {
-          "label": "COMPILE AND REALIZE",
-          "detail": "closure · training · artifacts"
-        },
-        {
-          "label": "CONTROLLED EVALUATION",
-          "detail": "baseline · ablation · benchmarks"
-        },
-        {
-          "label": "ROLLOUT AND SAFETY",
-          "detail": "cohorts · live windows · breaker"
-        },
-        {
-          "label": "DECIDE AND RECORD",
-          "detail": "promote · reject · quarantine · rollback"
-        }
-      ],
-      "feedback": {
-        "from": "DECIDE AND RECORD",
-        "to": "MEASURE GAP",
-        "label": "DURABLE OUTCOMES DRIVE THE NEXT PROPOSAL"
-      }
+      "id": "admit",
+      "number": "02",
+      "position": "top-center",
+      "label": "Admit",
+      "details": [
+        "Check authority and dependencies",
+        "Bind available compute and limits"
+      ]
     },
     {
-      "order": 4,
-      "id": "execution-domains-and-runtime",
-      "label": "EXECUTION DOMAINS AND RUNTIME",
-      "domains": [
-        {
-          "label": "SERVING",
-          "detail": "chat · responses · embeddings · media"
-        },
-        {
-          "label": "MODEL ARTIFACTS",
-          "detail": "GGUF · safetensors · HF · LoRA"
-        },
-        {
-          "label": "TRAINING",
-          "detail": "SFT · DPO · GRPO · Muon · resume"
-        },
-        {
-          "label": "EVALUATION",
-          "detail": "suites · likelihood · retrieval · routing"
-        },
-        {
-          "label": "COMPOSITION",
-          "detail": "donors · seams · adapters · ablations"
-        },
-        {
-          "label": "AGENTS AND DATA",
-          "detail": "tools · workflows · datasets · obligations"
-        }
-      ],
-      "runtime": [
-        {
-          "label": "GO HOST REFERENCE",
-          "detail": "portable semantics · verification path"
-        },
-        {
-          "label": "CUDA RUNTIME",
-          "detail": "kernels · ABI · device lanes"
-        },
-        {
-          "label": "MULTIMODAL COMPUTE",
-          "detail": "text · image · audio · video · tabular · time series"
-        }
-      ],
-      "runtime_features": "continuous scheduling · prompt cache · context shift · speculative decoding"
+      "id": "realize",
+      "number": "03",
+      "position": "top-right",
+      "label": "Realize",
+      "details": [
+        "Derive execution choices",
+        "Train, compose or edit"
+      ]
     },
     {
-      "order": 5,
-      "id": "overgodb-durable-state-and-evidence",
-      "label": "OVERGODB — DURABLE STATE AND EVIDENCE",
-      "components": [
-        {
-          "label": "CONTENT IDENTITY AND LINEAGE"
-        },
-        {
-          "label": "RECIPES AND CHECKPOINTS"
-        },
-        {
-          "label": "RUN RECORDS AND RECEIPTS"
-        },
-        {
-          "label": "METRICS AND DECISIONS"
-        },
-        {
-          "label": "JOURNALS AND PROJECTIONS"
-        },
-        {
-          "label": "BACKUP · REBUILD · REPAIR"
-        }
+      "id": "evaluate",
+      "number": "04",
+      "position": "bottom-right",
+      "label": "Evaluate",
+      "details": [
+        "Fixed tasks, baseline and ablation",
+        "Capability, robustness and total cost"
+      ]
+    },
+    {
+      "id": "decide",
+      "number": "05",
+      "position": "bottom-center",
+      "label": "Decide",
+      "details": [
+        "Apply executable evidence rules",
+        "Promote, reject, investigate or wait"
+      ]
+    },
+    {
+      "id": "observe",
+      "number": "06",
+      "position": "bottom-left",
+      "label": "Observe",
+      "details": [
+        "Record outcomes and detect gaps",
+        "Resume work; roll back regressions"
       ]
     }
   ],
-  "relationships": [
-    "Operator and model steering submit proposals without acquiring execution or activation authority.",
-    "Compatibility APIs, automation, and peers feed the same deterministic control plane.",
-    "The control plane compiles, admits, executes, evaluates, decides, activates, and observes bounded work.",
-    "Measured gaps become typed candidates that are realized, evaluated, rolled out, and decided through one governed improvement cycle.",
-    "Durable outcomes drive the next proposal under explicit budgets and stop conditions.",
-    "Execution domains use the Go host reference, CUDA runtime, and multimodal compute substrate.",
-    "OvergoDB records the identities, lineage, receipts, metrics, decisions, checkpoints, and active state required to reproduce every transition.",
-    "Remote peers remain bounded execution adapters and do not own control-plane state."
+  "connections": [
+    {
+      "from": "propose",
+      "to": "admit"
+    },
+    {
+      "from": "admit",
+      "to": "realize"
+    },
+    {
+      "from": "realize",
+      "to": "evaluate"
+    },
+    {
+      "from": "evaluate",
+      "to": "decide"
+    },
+    {
+      "from": "decide",
+      "to": "observe"
+    },
+    {
+      "from": "observe",
+      "to": "propose",
+      "label": "Use outcomes to identify improvements in capability, robustness and efficiency, then generate the next proposal."
+    }
   ],
-  "claim_boundary": [
-    "The figure describes supervised system-level RSI implemented in the repository.",
-    "The figure does not claim unattended operation at scale.",
-    "The figure does not claim autonomous improvement of the proposing model's cognition.",
-    "A compiled mechanism is not a model-specific compatibility claim without corresponding artifact evidence."
+  "recursive_step": {
+    "text": "Outcomes improve models, methods and the improvement process itself."
+  },
+  "foundation": {
+    "lines": [
+      "OvergoDB records evidence and state across every stage:",
+      "identities and lineage · runs and decisions · checkpoints and active versions",
+      "pending work · consumed budgets"
+    ]
+  },
+  "support": [
+    {
+      "id": "methods",
+      "lines": [
+        "Derive values; eliminate unnecessary literals and magic numbers.",
+        "Justify assumptions about shape, distribution and geometry."
+      ]
+    },
+    {
+      "id": "resources",
+      "lines": [
+        "Scale Go and CUDA execution to available RAM, VRAM,",
+        "CPU and GPU capacity.",
+        "Adapt placement, batching and concurrency; preserve correctness."
+      ]
+    }
+  ],
+  "semantic_constraints": [
+    "Present implementation and RSI intent without promotional or maturity framing.",
+    "Proposals do not themselves authorize execution or activation; executable policy owns admission and decisions.",
+    "Observe-to-propose is intended to become durable automatic feedback through the existing driver.",
+    "Rejection, waiting, resumption and rollback remain part of the process.",
+    "Derive values and justify assumptions rather than prohibiting mathematically or contractually required operations.",
+    "Use available RAM, VRAM, CPU and GPU capacity within operator limits.",
+    "OvergoDB retains pending work and consumed budgets as well as results.",
+    "Capability, robustness and total resource cost are joint evaluation dimensions."
   ],
   "rendering_constraints": [
-    "Keep the five numbered layers visually distinct and aligned.",
-    "Preserve the eight-stage deterministic control plane as the dominant left-to-right sequence.",
-    "Keep the governed improvement cycle visually distinct from the execution domains.",
-    "Use orthogonal connectors with visible arrowheads.",
-    "Terminate every connector exactly at a box, bus, or foundation-band border.",
-    "Do not route connectors through component boxes, labels, section titles, or runtime annotations.",
-    "Keep control, evidence, and policy paths visually distinct.",
-    "Do not imply that model steering or remote peers own control-plane authority.",
-    "Do not imply that every execution domain supports every modality.",
-    "Keep all labels legible at approximately 1200 pixels display width.",
-    "Do not add claims that are not represented in the repository.",
-    "Treat this JSON as the editable semantic specification and the PNG as its reviewed rendering."
-  ]
+    "One main title and no subtitle or section subheaders.",
+    "Retain the functional stage labels and numbers; all supporting statements use regular-weight text.",
+    "Preserve one clockwise six-stage loop with a clearly labelled Observe-to-Propose return.",
+    "Keep connectors outside labels with visible arrowheads and no crossings.",
+    "Show OvergoDB as a foundation shared across every stage.",
+    "Keep the two supporting columns unheaded and readable at 1200px display width.",
+    "Use native SVG geometry and text for uniform fills and crisp lettering; export PNG at twice the SVG viewBox resolution.",
+    "No footer slogan.",
+    "Keep the JSON semantic definition, SVG source, and PNG export synchronized."
+  ],
+  "source_anchors": [
+    "README.md",
+    "skill.md",
+    "internal/loop/driver.go",
+    "internal/loop/circuit_breaker.go",
+    "internal/loop/live_rollback.go",
+    "internal/recipe/lifecycle.go",
+    "internal/workflowruntime/runtime.go",
+    "internal/overgodb/store.go"
+  ],
+  "rendering": {
+    "method": "native SVG with PNG export",
+    "source": "docs/assets/overgo-platform-technical-architecture.svg",
+    "scale": 2
+  }
 }

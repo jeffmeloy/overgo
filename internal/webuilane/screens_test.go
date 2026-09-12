@@ -11,6 +11,31 @@ import (
 	"overgo/internal/testevidence"
 )
 
+func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
+	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
+		t.Skip(testevidence.ShortIntegrationSkip + ": capture settling runs through cmd/webui-lane")
+	}
+	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("capture did not settle"))
+	defer cancel()
+	html := `<style>body{margin:0;background:rgb(0,0,0);color:rgb(255,255,255);transition:background-color 1s linear}body.light{background:rgb(255,255,255);color:rgb(0,0,0)}@keyframes pulse{to{opacity:.5}}.spinner{animation:pulse 1s infinite}.paused{animation:pulse 1s paused}</style><body><span class="spinner"></span><span class="paused"></span><p>Readable after the theme transition.</p></body>`
+	browser, err := Open(ctx, path, "data:text/html,"+strings.ReplaceAll(html, " ", "%20"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer browser.Close()
+	if err := browser.Evaluate(ctx, `(() => { void document.body.offsetWidth; document.body.className = "light"; return getComputedStyle(document.body).backgroundColor; })()`, nil); err != nil {
+		t.Fatal(err)
+	}
+	findings, err := CaptureState(ctx, browser, "", ScreenViewports[0], "theme-transition")
+	if err != nil || len(findings) != 0 {
+		t.Fatalf("transient layout captured: %v, %v", findings, err)
+	}
+}
+
 // TestWebUIBrowserLayoutAudit pins the audit over a page built to fault in
 // every measured way: a block wider than the viewport, a control past its
 // edge and one too small, two fixed surfaces overlapping, a line cut

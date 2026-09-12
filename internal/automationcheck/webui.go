@@ -24,21 +24,20 @@ const (
 var webuiPathPrefixes = []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/"}
 
 // WebUICheck returns the real-browser lane as a gate check: it runs when
-// the web UI fact is present and holds the device exclusively, since the
-// first-run journey serves a real model.
-func WebUICheck(root string, command Command) Check {
+// the web UI fact is present. The full journey shares device admission.
+func WebUICheck(root string, command LaneCommand) Check {
 	return Check{
 		Descriptor: Descriptor{
 			Name: WebUICheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{WebUIImpact},
 			Inapplicable: "no web UI asset, shell or lane implementation changed",
-			Resources:    []Resource{{Name: "device", Exclusive: true}},
+			Resources:    []Resource{{Name: "device"}},
 			Ownership: Ownership{
 				Fact: WebUIImpact, Packages: []string{"internal/server", "internal/webuilane", "cmd/webui-lane"},
 			},
 		},
-		Run: func(context.Context, Invocation) (bool, string, error) {
-			_, err := command(root, "go", "run", "./cmd/webui-lane")
-			return false, "", err
+		Run: func(ctx context.Context, _ Invocation) (bool, string, error) {
+			receipt, err := command(ctx, root, "go", "run", "./cmd/webui-lane")
+			return false, receipt, err
 		},
 	}
 }

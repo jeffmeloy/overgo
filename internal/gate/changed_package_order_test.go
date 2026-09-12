@@ -16,10 +16,12 @@ func TestChangedPackageFailurePreventsBroadSweep(t *testing.T) {
 	root, _ := packageIdentityFixture(t)
 	marker := filepath.Join(t.TempDir(), "consumer-ran")
 	files := map[string]string{
-		".gitignore":          "tmp/\novergodb-store/\n",
-		"NOTES.md":            "changed documentation\n",
-		"app/app_test.go":     "package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Fatal(\"changed owner failed\") }\n",
-		"other/other_test.go": fmt.Sprintf("package other\nimport (\"os\"; \"testing\")\nfunc TestRequired(t *testing.T) { if err := os.WriteFile(%q, []byte(\"ran\"), 0600); err != nil { t.Fatal(err) } }\n", marker),
+		".gitignore":      "tmp/\novergodb-store/\n",
+		"NOTES.md":        "changed documentation\n",
+		"app/app_test.go": "package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Fatal(\"changed owner failed\") }\n",
+		// The consumer names the changed document, so it is required; a
+		// reader that names nothing outside its package is confined.
+		"other/other_test.go": fmt.Sprintf("package other\nimport (\"os\"; \"testing\")\nfunc TestRequired(t *testing.T) { if _, err := os.ReadFile(\"../NOTES.md\"); err != nil { t.Fatal(err) }; if err := os.WriteFile(%q, []byte(\"ran\"), 0600); err != nil { t.Fatal(err) } }\n", marker),
 	}
 	for name, content := range files {
 		path := filepath.Join(root, name)

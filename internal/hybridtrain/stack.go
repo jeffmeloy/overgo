@@ -2,6 +2,7 @@
 package hybridtrain
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -545,13 +546,10 @@ func (state *trainingState) lossGradient() error {
 
 func (state *trainingState) backward() error { return state.backend.Backward(state.dTop) }
 func (state *trainingState) optimize() error { return state.backend.Step(state.step + 1) }
-func runTraining(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int) ([]float64, error) {
-	return runTrainingObserved(program, backend, target, steps, nil)
-}
 
 // runTrainingObserved runs the compiled loop, reporting each committed step's
 // loss to observe; an observer error stops training with the trajectory so far.
-func runTrainingObserved(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps int, observe func(step int, loss float64) error) ([]float64, error) {
+func runTrainingObserved(program trainingprogram.TrainingProgram, backend trainingBackend, target []float32, steps, start int, observe func(step int, loss float64) error) ([]float64, error) {
 	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingState]{
 		{Operator: "hybrid-forward", Execute: (*trainingState).forward},
 		{Operator: "squared-error", Execute: (*trainingState).lossGradient},
@@ -563,15 +561,16 @@ func runTrainingObserved(program trainingprogram.TrainingProgram, backend traini
 	}
 	trajectory := make([]float64, steps)
 	state := trainingState{backend: backend, target: target}
-	for state.step = range steps {
+	for index := range steps {
+		state.step = start + index
 		state.loss = 0
 		if err := execution.Run(&state); err != nil {
 			return nil, err
 		}
-		trajectory[state.step] = state.loss
+		trajectory[index] = state.loss
 		if observe != nil {
 			if err := observe(state.step, state.loss); err != nil {
-				return trajectory[:state.step+1], err
+				return trajectory[:index+1], err
 			}
 		}
 	}
@@ -623,9 +622,12 @@ func (training *hostTraining) Step(_ int) error {
 }
 
 // TrainHost runs the host parity lane.
-func (m *Model) TrainHost(steps int, cfg optimizer.Config) ([]float64, error) {
+func (m *Model) TrainHost(steps int, cfg optimizer.Config, options TrainingOptions) ([]float64, error) {
+	mat, vec, err := m.resumeParts(steps, cfg, options, false)
+	if err != nil {
+		return nil, err
+	}
 	training := &hostTraining{hostBackwardPass: newHostBackwardPass(m)}
-	var err error
 	training.matOpt, err = optimizer.New(m.matW, training.matGrad, m.matPlan, cfg)
 	if err != nil {
 		return nil, err
@@ -634,5 +636,12 @@ func (m *Model) TrainHost(steps int, cfg optimizer.Config) ([]float64, error) {
 	if err != nil {
 		return nil, err
 	}
-	return runTraining(m.program, training, m.Target, steps)
+	if err := errors.Join(restoreOptimizer(training.matOpt, mat), restoreOptimizer(training.vecOpt, vec)); err != nil {
+		return nil, err
+	}
+	trajectory, err := runTrainingObserved(m.program, training, m.Target, steps, mat.Step, options.Observe)
+	if trajectory != nil && options.Checkpoint != nil {
+		err = errors.Join(err, m.checkpoint(options, training.matOpt.Snapshot(), training.vecOpt))
+	}
+	return trajectory, err
 }

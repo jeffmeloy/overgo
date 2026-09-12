@@ -190,7 +190,8 @@ func testAudioTranscriptionsFLAC(t *testing.T) {
 
 func testAudioTranscriptionsNative(t *testing.T) {
 	fixture := newTranscriptionHTTPFixture(t, nil)
-	runs := make(map[artifact.ID]bool)
+	attempts := make(map[artifact.ID]bool)
+	operations := make(map[artifact.ID]bool)
 	for range 2 {
 		response := httptest.NewRecorder()
 		fixture.handler.ServeHTTP(response, fixture.request(t, fixture.wave, nil))
@@ -203,12 +204,17 @@ func testAudioTranscriptionsNative(t *testing.T) {
 	if len(statuses) != 2 {
 		t.Fatalf("operations=%d", len(statuses))
 	}
-	// Two outputs per run: the transcription document and the transcript's text beside it.
+	// Equal run contents may deduplicate when measured durations coincide.
+	// Fresh requests require distinct operations and operation-bound attempts.
 	for _, status := range statuses {
-		if status.State != operation.StateCompleted || status.Run == nil || len(status.Outputs) != 2 || len(status.Attempts) != 1 || runs[*status.Run] {
+		if status.State != operation.StateCompleted || status.Run == nil || len(status.Outputs) != 2 || len(status.Attempts) != 1 || operations[status.ID] {
 			t.Fatalf("incomplete or reused operation: %+v", status)
 		}
-		runs[*status.Run] = true
+		operations[status.ID] = true
+		if attempts[status.Attempts[0]] {
+			t.Fatalf("reused serving attempt: %s", status.Attempts[0])
+		}
+		attempts[status.Attempts[0]] = true
 		run, err := runrecord.RequireExactRun(t.Context(), fixture.store, *status.Run)
 		if err != nil || run.CodeCommit != transcriptionHTTPCommit || run.Recipe != fixture.workspace.policy.Recipe || run.Environment != fixture.workspace.environment {
 			t.Fatalf("bound run=%+v err=%v", run, err)
@@ -222,7 +228,7 @@ func testAudioTranscriptionsNative(t *testing.T) {
 			t.Fatalf("observation content: found=%t err=%v", found, err)
 		}
 		observation, err := runrecord.ParseServingObservation(content.Data)
-		if err != nil || observation.Model != fixture.workspace.program.Definition().Model || observation.Recipe != run.Recipe || observation.Run != run.ID {
+		if err != nil || observation.Operation != status.ID || observation.Model != fixture.workspace.program.Definition().Model || observation.Recipe != run.Recipe || observation.Run != run.ID {
 			t.Fatalf("wrong serving model/run: %+v err=%v", observation, err)
 		}
 	}

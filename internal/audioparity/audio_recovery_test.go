@@ -299,7 +299,8 @@ func TestAudioPublicationRecoveryAcceptance(t *testing.T) {
 	alias := artifact.AliasBinding{Name: "test/audio-recovery/checkpoint", Target: checkpoint.ID()}
 	l.commit(t, artifact.Batch{Key: alias.Name, Aliases: []artifact.AliasBinding{alias}}, nil)
 	backup := filepath.Join(t.TempDir(), "backup")
-	head, sequence, err = l.store.Backup(backup)
+	backupReport, err := l.store.Backup(t.Context(), backup)
+	head, sequence = backupReport.Head, backupReport.Sequence
 	if err != nil {
 		t.Fatal(err)
 	}

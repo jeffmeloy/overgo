@@ -105,7 +105,7 @@ func TestBatchedGateCostEvidence(t *testing.T) {
 	}
 	g.audit = nil
 	g.batchCostAudit(t.Context(), store, []runrecord.GateStep{{Name: "protection", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 1}}, 1)
-	if len(g.audit) != 0 {
+	if len(g.audit) != 1 || !strings.Contains(g.audit[0], "accepted=0 reused=0") || !strings.Contains(g.audit[0], "other_phases=1/1ns") {
 		t.Fatalf("audit without acceptance steps = %v", g.audit)
 	}
 }

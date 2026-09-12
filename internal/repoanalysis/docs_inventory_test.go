@@ -21,7 +21,7 @@ func TestDocsInventoryPolicy(t *testing.T) {
 	}{
 		{"nested/readme.md", true}, {"plan.json", true}, {"records.jsonl", true},
 		{"notes.txt", true}, {"template.jinja", true}, {".loop_state", true},
-		{".bounded_request", true}, {"assets/nested/view.PNG", true},
+		{".dispatch", true}, {"assets/nested/view.PNG", true},
 		{"media_samples/speech.wav", true}, {"verification/trace.svg", true},
 		{"assets/demo.gif", true}, {"gui/screens/view.png", false},
 		{"assets-extra/view.png", false}, {"assets/paper.pdf", false},
@@ -29,6 +29,9 @@ func TestDocsInventoryPolicy(t *testing.T) {
 	} {
 		t.Run(test.path, func(t *testing.T) {
 			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "README.md"), nil, 0o644); err != nil {
+				t.Fatal(err)
+			}
 			path := filepath.Join(root, "docs", filepath.FromSlash(test.path))
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
@@ -50,4 +53,28 @@ func TestDocsInventoryPolicy(t *testing.T) {
 			t.Fatalf("want missing directory: %v", err)
 		}
 	})
+}
+
+func TestReadmeReferences(t *testing.T) {
+	root := t.TempDir()
+	for _, directory := range []string{"docs", "cmd/live"} {
+		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, test := range []struct {
+		text  string
+		valid bool
+	}{
+		{"[docs](docs) [anchor](#local) [external](https://example.com) `cmd/live`", true},
+		{"[missing](docs/missing.json)", false},
+		{"`cmd/missing`", false},
+	} {
+		if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(test.text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ValidateDocsInventory(root); (err == nil) != test.valid {
+			t.Fatalf("valid=%v error=%v", test.valid, err)
+		}
+	}
 }

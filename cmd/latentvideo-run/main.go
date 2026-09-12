@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // latentvideo-run: resident Wan denoise, causal decode, and clip evidence.
 package main
 

@@ -3,6 +3,8 @@ package evaluation
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -38,12 +40,38 @@ func (*observedRuntime) ScoreContinuations(
 }
 
 func TestIsolatedModelPerformanceEvidence(t *testing.T) {
+	testCampaignPublication(t, LifecycleIsolated, false)
+}
+
+func TestResidentCampaignPublication(t *testing.T) {
+	t.Run("success", func(t *testing.T) { testCampaignPublication(t, LifecycleResident, false) })
+	t.Run("publication recovery", func(t *testing.T) { testCampaignPublication(t, LifecycleResident, true) })
+}
+
+type publicationFaultStore struct {
+	*overgodb.Store
+	fail bool
+}
+
+var errPublicationFixture = errors.New("fixture publication failure")
+
+func (store *publicationFaultStore) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
+	if store.fail && strings.HasPrefix(batch.Key, "evaluation/run/") {
+		return artifact.CommitID{}, errPublicationFixture
+	}
+	return store.Store.Commit(ctx, batch)
+}
+
+func testCampaignPublication(t *testing.T, lifecycle Lifecycle, failPublication bool) {
+	t.Helper()
 	ctx := t.Context()
-	store, err := overgodb.Open(t.TempDir())
+	root := t.TempDir()
+	database, err := overgodb.Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	store := &publicationFaultStore{Store: database, fail: failPublication}
+	t.Cleanup(func() { _ = store.Close() })
 	identity := modelrecipe.ProgramIdentity{
 		Model:      planID(t, artifact.KindModel, "model"),
 		Definition: planID(t, artifact.KindModelDefinition, "definition"),
@@ -65,7 +93,7 @@ func TestIsolatedModelPerformanceEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	runtime := &observedRuntime{}
-	campaign, err := NewIsolatedCampaign(store, runtime, identity, environment, runtimeLedgerCommit)
+	campaign, err := newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,6 +106,29 @@ func TestIsolatedModelPerformanceEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := campaign.Evaluate(ctx, suite)
+	if failPublication {
+		if !errors.Is(err, errPublicationFixture) || result.Report.Kind() != artifact.KindEvaluation ||
+			len(result.Metrics) == 0 || result.Run.Valid() || result.Evidence.Valid() || result.Evaluation.Valid() {
+			t.Fatalf("publication failure lost report or claimed completion: %+v, %v", result, err)
+		}
+		retained := result.Report
+		if err := store.Close(); err != nil {
+			t.Fatal(err)
+		}
+		database, err = overgodb.Open(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store = &publicationFaultStore{Store: database}
+		campaign, err = newCampaign(store, runtime, identity, environment, runtimeLedgerCommit, lifecycle)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err = campaign.Evaluate(ctx, suite)
+		if result.Report != retained || runtime.generateCalls != len(exactFixture().Cases) {
+			t.Fatalf("restart reacquired completed generation: report=%s, calls=%d", result.Report, runtime.generateCalls)
+		}
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,11 +138,39 @@ func TestIsolatedModelPerformanceEvidence(t *testing.T) {
 	}
 	wall, wallObserved := result.Resources.Measure(runrecord.ResourceWallNS)
 	_, gpuObserved := result.Resources.Measure(runrecord.ResourceGPUNS)
-	if evidence.Resources == nil || evidence.ResourceObservation.Kind() != artifact.KindEvidence ||
-		!wallObserved || wall == 0 || gpuObserved ||
+	if !wallObserved || wall == 0 || gpuObserved ||
 		result.Resources.Scope.Model != identity.Model || result.Resources.Scope.Hardware != environment.ID ||
 		result.Resources.Scope.Workload != suite.Plan().Identity() || result.Resources.Scope.Attempt != result.Run {
 		t.Fatalf("isolated resource evidence = %+v; bundle = %+v", result.Resources, evidence)
+	}
+	if lifecycle == LifecycleIsolated {
+		if evidence.Resources == nil || evidence.ResourceObservation.Kind() != artifact.KindEvidence {
+			t.Fatal("isolated resource proof absent")
+		}
+	} else {
+		if evidence.Resources != nil || evidence.ResourceObservation.Valid() {
+			t.Fatal("resident evaluation claimed isolated resources")
+		}
+		run, err := runrecord.RequireRun(ctx, store, result.Run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		observationID, found, err := artifact.ResolveAlias(ctx, store, runrecord.ObservationChunkAlias(run.ID))
+		if err != nil || !found {
+			t.Fatalf("resident observation absent: %v", err)
+		}
+		observation, err := runrecord.RequireObservationChunkSummary(ctx, store, observationID)
+		if err != nil || observation.Aggregate.Scope.Attempt != run.ID {
+			t.Fatalf("resident observation differs: %+v, %v", observation, err)
+		}
+		record, err := runrecord.NewEvaluation(identity.Recipe, run.ID, suite.plan.Dataset(), result.Metrics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := newEvaluationEvidence(ctx, store, suite.plan, suite.acceptance, suite.evaluator,
+			result.Report, run, record, &observation); err == nil {
+			t.Fatal("resident observation accepted as isolated proof")
+		}
 	}
 	history, err := campaign.History(ctx, []CompiledSuite{suite}, 1)
 	if err != nil {

@@ -39,7 +39,7 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 		t.Fatalf("architecture descriptor is not ownership-free and always required: %+v", descriptor)
 	}
 	if !slices.Equal(descriptor.Dependencies, []string{"scope"}) ||
-		!slices.Equal(checks[positions["profile"]].Descriptor.Dependencies, []string{"architecture"}) ||
+		!slices.Equal(checks[positions["profile"]].Descriptor.Dependencies, []string{"scope"}) ||
 		positions["scope"] >= positions["architecture"] || positions["architecture"] >= positions["profile"] {
 		t.Fatalf("architecture dependency order = scope:%d architecture:%d profile:%d", positions["scope"], positions["architecture"], positions["profile"])
 	}

@@ -1,0 +1,80 @@
+{
+  "native_source_sha256": "0884cd7ce13ba0dc83224fcb98e1f436f4c862e4b6e1d4723f7a5d4a2b6aeccb",
+  "fixtures": [
+    {
+      "name": "character-ranking",
+      "choices": [
+        "a",
+        "bbbbbbbbbb"
+      ],
+      "log_probabilities": [
+        -2,
+        -4
+      ],
+      "token_counts": [
+        1,
+        1
+      ],
+      "character_counts": [
+        1,
+        10
+      ],
+      "values": [
+        -2.0,
+        -0.4
+      ],
+      "selected": 1,
+      "tied": false
+    },
+    {
+      "name": "unicode-and-delimiter",
+      "choices": [
+        "é",
+        "xx"
+      ],
+      "log_probabilities": [
+        -1.5,
+        -2
+      ],
+      "token_counts": [
+        1,
+        1
+      ],
+      "character_counts": [
+        1,
+        2
+      ],
+      "values": [
+        -1.5,
+        -1.0
+      ],
+      "selected": 1,
+      "tied": false
+    },
+    {
+      "name": "first-tie",
+      "choices": [
+        "a",
+        "bb"
+      ],
+      "log_probabilities": [
+        -1,
+        -2
+      ],
+      "token_counts": [
+        1,
+        1
+      ],
+      "character_counts": [
+        1,
+        2
+      ],
+      "values": [
+        -1.0,
+        -1.0
+      ],
+      "selected": 0,
+      "tied": true
+    }
+  ]
+}

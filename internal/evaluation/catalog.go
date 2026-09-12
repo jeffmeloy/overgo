@@ -3,8 +3,10 @@ package evaluation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -31,9 +33,11 @@ var benchmarkCatalogCodec = artifact.JSONDocumentCodec(
 )
 
 type benchmarkDeclaration struct {
-	Name string                      `json:"name"`
-	Path string                      `json:"path"`
-	Spec dataset.BenchmarkImportSpec `json:"spec"`
+	Name       string                      `json:"name"`
+	Dataset    artifact.ID                 `json:"dataset,omitzero"`
+	Parameters artifact.ID                 `json:"parameters,omitzero"`
+	Path       string                      `json:"path"`
+	Spec       dataset.BenchmarkImportSpec `json:"spec"`
 }
 
 type benchmarkManifest struct {
@@ -41,10 +45,11 @@ type benchmarkManifest struct {
 }
 
 type benchmarkEntry struct {
-	Name    string      `json:"name"`
-	Split   string      `json:"split"`
-	Dataset artifact.ID `json:"dataset"`
-	Profile artifact.ID `json:"profile"`
+	Name       string      `json:"name"`
+	Split      string      `json:"split"`
+	Dataset    artifact.ID `json:"dataset"`
+	Profile    artifact.ID `json:"profile"`
+	Parameters artifact.ID `json:"parameters,omitzero"`
 }
 
 type benchmarkCatalog struct {
@@ -80,6 +85,9 @@ func catalogBenchmarkDeclarations(
 	base string,
 	declarations []benchmarkDeclaration,
 ) (artifact.ID, error) {
+	standing := map[string]benchmarkEntry{}
+	var previous artifact.ID
+	exists := false
 	catalog := benchmarkCatalog{Version: artifact.InitialDocumentVersion, Entries: make([]benchmarkEntry, 0, len(declarations))}
 	// Publishing merges onto the standing catalog: a DNA corpus import
 	// must not evict the lm_eval entries, and re-imports overwrite their
@@ -88,6 +96,7 @@ func catalogBenchmarkDeclarations(
 	if currentID, bound, err := artifact.ResolveAlias(ctx, repository, benchmarkCatalogAlias); err != nil {
 		return artifact.ID{}, err
 	} else if bound {
+		previous, exists = currentID, true
 		current, found, err := benchmarkCatalogCodec.Read(ctx, repository, currentID)
 		if err != nil || !found {
 			return artifact.ID{}, errors.Join(err, errors.New("evaluation: standing benchmark catalog is unreadable"))
@@ -97,6 +106,7 @@ func catalogBenchmarkDeclarations(
 			replaced[strings.TrimSpace(declaration.Name)] = true
 		}
 		for _, entry := range current.Entries {
+			standing[entry.Name] = entry
 			if !replaced[entry.Name] {
 				catalog.Entries = append(catalog.Entries, entry)
 			}
@@ -104,40 +114,39 @@ func catalogBenchmarkDeclarations(
 	}
 	for _, declaration := range declarations {
 		name := strings.TrimSpace(declaration.Name)
-		path := declaration.Path
-		if base != "" {
-			var err error
-			if path, err = localBenchmarkPath(base, declaration.Path); err != nil {
-				return artifact.ID{}, errors.New("evaluation: invalid benchmark declaration")
-			}
-		} else if !filepath.IsAbs(path) {
-			return artifact.ID{}, errors.New("evaluation: derived benchmark path must be absolute")
-		}
 		if name == "" {
 			return artifact.ID{}, errors.New("evaluation: invalid benchmark declaration")
 		}
-		imported, err := dataset.ImportBenchmark(ctx, repository, path, declaration.Spec)
+		imported, err := benchmarkImportForDeclaration(ctx, repository, base, declaration)
 		if err != nil {
 			return artifact.ID{}, err
 		}
+		parameters := declaration.Parameters
+		if prior, present := standing[name]; present && prior.Dataset == imported.ID && parameters.Kind() == artifact.KindInvalid {
+			parameters = prior.Parameters
+		}
+		if parameters.Kind() != artifact.KindInvalid {
+			if _, err := readIFEvalParameters(ctx, repository, imported, parameters); err != nil {
+				return artifact.ID{}, err
+			}
+		}
 		catalog.Entries = append(catalog.Entries, benchmarkEntry{
-			Name: name, Split: imported.Spec.Split, Dataset: imported.ID, Profile: imported.Profile,
+			Name: name, Split: imported.Spec.Split, Dataset: imported.ID, Profile: imported.Profile, Parameters: parameters,
 		})
 	}
 	catalog, err := benchmarkCatalogCodec.New(catalog)
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	previous, exists, err := artifact.ResolveAlias(ctx, repository, benchmarkCatalogAlias)
-	if err != nil {
-		return artifact.ID{}, err
-	}
 	if exists && previous == catalog.ID {
 		return catalog.ID, nil
 	}
-	parents := make([]artifact.ID, len(catalog.Entries))
-	for index := range catalog.Entries {
-		parents[index] = catalog.Entries[index].Dataset
+	var parents []artifact.ID
+	for _, entry := range catalog.Entries {
+		parents = append(parents, entry.Dataset)
+		if entry.Parameters.Kind() != artifact.KindInvalid {
+			parents = append(parents, entry.Parameters)
+		}
 	}
 	alias := artifact.AliasBinding{Name: benchmarkCatalogAlias, Target: catalog.ID}
 	if exists {
@@ -168,6 +177,7 @@ func canonicalizeBenchmarkCatalog(catalog *benchmarkCatalog) error {
 	})
 	for index, entry := range catalog.Entries {
 		if strings.TrimSpace(entry.Name) != entry.Name || entry.Name == "" || strings.TrimSpace(entry.Split) != entry.Split ||
+			(entry.Parameters.Kind() != artifact.KindInvalid && entry.Parameters.Kind() != artifact.KindProfile) ||
 			entry.Split == "" || entry.Dataset.Kind() != artifact.KindDataset || entry.Profile.Kind() != artifact.KindProfile ||
 			index > 0 && catalog.Entries[index-1].Name == entry.Name && catalog.Entries[index-1].Split == entry.Split {
 			return errors.New("evaluation: invalid benchmark catalog entry")
@@ -182,4 +192,29 @@ func localBenchmarkPath(base, relative string) (string, error) {
 		return "", errors.New("evaluation: benchmark path is not local")
 	}
 	return filepath.Join(base, relative), nil
+}
+
+func benchmarkImportForDeclaration(ctx context.Context, repository artifact.Repository, base string, declaration benchmarkDeclaration) (dataset.BenchmarkImport, error) {
+	if declaration.Dataset.Kind() != artifact.KindInvalid {
+		if declaration.Path != "" || !reflect.DeepEqual(declaration.Spec, dataset.BenchmarkImportSpec{}) {
+			return dataset.BenchmarkImport{}, errors.New("evaluation: benchmark declaration combines an existing dataset and import inputs")
+		}
+		imported, found, err := dataset.ReadBenchmarkImport(ctx, repository, declaration.Dataset)
+		if err != nil || !found {
+			return imported, errors.Join(err, fmt.Errorf("evaluation: declared dataset %s is absent", declaration.Dataset))
+		}
+		return imported, nil
+	}
+	path := declaration.Path
+	if base != "" {
+		var err error
+		path, err = localBenchmarkPath(base, path)
+		if err != nil {
+			return dataset.BenchmarkImport{}, err
+		}
+	}
+	if base == "" && !filepath.IsAbs(path) {
+		return dataset.BenchmarkImport{}, errors.New("evaluation: benchmark path must be absolute")
+	}
+	return dataset.ImportBenchmark(ctx, repository, path, declaration.Spec)
 }

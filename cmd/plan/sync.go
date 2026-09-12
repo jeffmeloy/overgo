@@ -8,11 +8,14 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
+	"overgo/internal/lanestore"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
@@ -20,7 +23,6 @@ import (
 const (
 	compatibilityDocumentPath         = "docs/COMPATIBILITY.md"
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
-	apiManifestDocumentPath           = "docs/API_MANIFEST.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
 	modernGoBaselinePath              = "docs/modern_go_baseline.json"
 	modernGoCensusPath                = "docs/modern_go_census.json"
@@ -42,6 +44,10 @@ func prepareMergeWithProjection(
 	if parsedProjection != projection {
 		return errors.New("prepare-merge projection is not canonical")
 	}
+	// The lane case is measured from the request to the staged merge.
+	started := time.Now()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
 	canonicalRoot, err := gitauthority.RepositoryRoot(context.Background(), root)
 	if err != nil {
 		return err
@@ -65,27 +71,16 @@ func prepareMergeWithProjection(
 			return err
 		}
 		snapshot := strings.TrimSpace(string(sourceRaw))
-		closureSnapshot, err := captureClosureEvidence(root, source, snapshot)
-		if err != nil {
-			return err
-		}
-		if closureSnapshot.cleanup != nil {
-			defer closureSnapshot.cleanup()
-		}
 		contains := exec.Command("git", "--no-replace-objects", "merge-base", "--is-ancestor", snapshot, "HEAD")
 		contains.Dir = root
 		contains.Env = gitauthority.RepositoryEnvironment()
-		if contains.Run() == nil {
+		if err := contains.Run(); err == nil {
 			fmt.Fprintf(output, "prepare-merge: HEAD already contains %s at %s\n", source, snapshot)
 			return nil
-		}
-		liveSourceStore := ""
-		if projection == plan.MergeProjectionFirstParentTarget {
-			liveSourceStore, err = firstParentTargetSourceStore(
-				context.Background(), root, snapshot, closureSnapshot.source,
-			)
-			if err != nil {
-				return err
+		} else {
+			exit, found := errors.AsType[*exec.ExitError](err)
+			if !found || exit.ExitCode() != 1 {
+				return fmt.Errorf("prepare-merge ancestry: %w", err)
 			}
 		}
 		baseRef, err := uniqueMergeBase(root, localRevision, snapshot)
@@ -99,6 +94,26 @@ func prepareMergeWithProjection(
 		incoming, err := planAtRef(root, snapshot)
 		if err != nil {
 			return err
+		}
+		if err := preflightMergeConflicts(root, localRevision, snapshot); err != nil {
+			return err
+		}
+		closureSnapshot, err := captureClosureEvidence(ctx, root, source, snapshot)
+		if err != nil {
+			return err
+		}
+		if closureSnapshot.cleanup != nil {
+			defer closureSnapshot.cleanup()
+			fmt.Fprintf(output, "prepare-merge: evidence snapshot IO=%+v; store-file counters exclude seal IO and replay\n", closureSnapshot.backup)
+		}
+		liveSourceStore := ""
+		if projection == plan.MergeProjectionFirstParentTarget {
+			liveSourceStore, err = firstParentTargetSourceStore(
+				context.Background(), root, snapshot, closureSnapshot.source,
+			)
+			if err != nil {
+				return err
+			}
 		}
 		var localAuthority, incomingAuthority plan.CompletionAuthority
 		if projection == plan.MergeProjectionSemanticUnion {
@@ -114,7 +129,8 @@ func prepareMergeWithProjection(
 			return err
 		}
 		mergeID := "merge-" + snapshot[:12]
-		merged, err = insertItem(merged, mergeID, "Merge "+source+" at "+snapshot[:12], "", "go run ./cmd/compatibility -check")
+		lane := laneMerge(projection, local)
+		merged, err = insertMergeRow(merged, mergeID, "Merge "+source+" at "+snapshot[:12], local.Lane, lane)
 		if err != nil {
 			return err
 		}
@@ -178,7 +194,6 @@ func prepareMergeWithProjection(
 			"compatibility.json",
 			compatibilityDocumentPath,
 			trainingCompatibilityDocumentPath,
-			apiManifestDocumentPath,
 			apiManifestJSONPath,
 			modernGoBaselinePath,
 			modernGoCensusPath,
@@ -198,6 +213,20 @@ func prepareMergeWithProjection(
 		} else {
 			fmt.Fprintln(output, "prepare-merge: closure evidence unavailable (source snapshot has no local OvergoDB worktree)")
 		}
+		if lane {
+			// The lane's store rebinds its own decisions over the imported
+			// ones and mirrors the source's activations, so the one gate
+			// reads the same activation truth as the source's.
+			if _, err := commandOutput(root, "go", "run", "./cmd/closure-scan", "-store", gitauthority.CanonicalOvergoDBDirectory, "-import-store", gitauthority.CanonicalOvergoDBDirectory); err != nil {
+				return fmt.Errorf("prepare-merge lane closure rebind: %w", err)
+			}
+			report, err := mirrorLaneActivations(root, liveSourceStore)
+			if err != nil {
+				return fmt.Errorf("prepare-merge lane activations: %w", err)
+			}
+			fmt.Fprintf(output, "prepare-merge: lane store mirrors %d source activation(s): closure=%d copied=%v bindings=%d released=%d\n",
+				report.SourceActive, report.ClosureRecords, report.Copied, report.Bindings, len(report.Released))
+		}
 		keepMerge = true
 		projectionArguments, err := mergeFinalizeProjectionArguments(projection, liveSourceStore)
 		if err != nil {
@@ -208,8 +237,79 @@ func prepareMergeWithProjection(
 			"prepare-merge: %s@%s staged; finalize with cmd/gate -merge%s -plan %s/do\n",
 			source, snapshot, projectionArguments, mergeID,
 		)
+		if lane {
+			fmt.Fprintf(output, "prepare-merge: lane merge prepared in %s from the request to the staged merge\n", time.Since(started).Round(time.Millisecond))
+		}
 		return nil
 	})
+}
+
+// laneMerge reports the lane case: a first-parent-target merge into a plan
+// that names its lane.
+func laneMerge(projection plan.MergeProjection, local plan.Plan) bool {
+	return projection == plan.MergeProjectionFirstParentTarget && local.Lane != ""
+}
+
+// insertMergeRow puts the merge row at the top of the plan; a lane's row is
+// owned by the lane, since the lane dispatches only rows it owns, and is
+// proven by the build.
+func insertMergeRow(document plan.Plan, mergeID, title, owner string, lane bool) (plan.Plan, error) {
+	merged, err := insertItem(document, mergeID, title, "", mergeVerify(lane))
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	if lane {
+		merged.Items[0].Owner = owner
+	}
+	return merged, nil
+}
+
+// mergeVerify names the merge row's verify: a lane's merge row is proven by
+// the build, since the compatibility check regenerates on the target's
+// own line, not the lane's.
+func mergeVerify(lane bool) string {
+	if lane {
+		return "go build ./..."
+	}
+	return "go run ./cmd/compatibility -check"
+}
+
+// mirrorLaneActivations mirrors the live source store's active inference
+// activations into the lane's canonical store.
+func mirrorLaneActivations(root, liveSourceStore string) (lanestore.Report, error) {
+	source, err := overgodb.OpenReadOnly(liveSourceStore)
+	if err != nil {
+		return lanestore.Report{}, err
+	}
+	defer source.Close()
+	target, err := overgodb.Open(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
+	if err != nil {
+		return lanestore.Report{}, err
+	}
+	defer target.Close()
+	return lanestore.MirrorActivations(context.Background(), source, target, lanestore.MirrorDepth)
+}
+
+// Preflight writes Git objects only; HEAD, index and worktree stay unchanged.
+func preflightMergeConflicts(root, target, source string) error {
+	out, err := gitOutput(root, "merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", target, source)
+	if err == nil {
+		return nil
+	}
+	exit, found := errors.AsType[*exec.ExitError](err)
+	if !found || exit.ExitCode() != 1 {
+		return fmt.Errorf("prepare-merge conflict preflight: %w", err)
+	}
+	_, paths, found := bytes.Cut(out, []byte{0})
+	if !found || len(bytes.Trim(paths, "\x00")) == 0 {
+		return fmt.Errorf("prepare-merge conflict preflight returned no conflict paths: %w", err)
+	}
+	for path := range bytes.SplitSeq(paths, []byte{0}) {
+		if len(path) != 0 && !mergeOwnedDocument(string(path)) {
+			return fmt.Errorf("prepare-merge source conflict in %q; evidence snapshot not copied", path)
+		}
+	}
+	return nil
 }
 
 func mergeOwnedDocument(path string) bool {
@@ -217,7 +317,6 @@ func mergeOwnedDocument(path string) bool {
 	case plan.Path,
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
-		apiManifestDocumentPath,
 		apiManifestJSONPath,
 		modernGoBaselinePath,
 		modernGoCensusPath:

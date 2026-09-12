@@ -9,6 +9,9 @@ import (
 	"overgo/internal/cuda/driver"
 )
 
+// mlpMatW binds the three projection matrices and optional gradient destinations.
+type mlpMatW struct{ gate, up, down linWeight }
+
 // GatedMLPBackwardTResident is the resident counterpart to GatedMLPBackwardT: it
 // runs the entire densecausal-convention SwiGLU MLP backward inside ONE
 // worker.Do, with a single cuBLAS handle and ops_f32 module, uploading the
@@ -17,15 +20,33 @@ import (
 // three weight grads come back. Same math as GatedMLPBackwardT; this addresses
 // SQA finding 2/3 (residency) for the MLP block.
 func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
+	return gatedMLPBackwardTW(worker, x, mlpMatW{hostW(wGate), hostW(wUp), hostW(wDown)}, g, a, u, h, dY, rows, d, inter)
+}
+
+// gatedMLPBackwardTW shares the resident SwiGLU VJP for host and borrowed
+// matrix bindings. Intermediate gradients stay in this session; optional
+// caller-owned matrix gradients remain resident after it closes.
+func gatedMLPBackwardTW(worker *device.Worker, x []float32, mw mlpMatW, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
 	if rows <= 0 || d <= 0 || inter <= 0 ||
-		len(x) != rows*d || len(wGate) != inter*d || len(wUp) != inter*d || len(wDown) != d*inter ||
+		len(x) != rows*d ||
 		len(g) != rows*inter || len(a) != rows*inter || len(u) != rows*inter || len(h) != rows*inter || len(dY) != rows*d {
 		return GatedMLPGrads{}, fmt.Errorf("GatedMLPBackwardTResident: shape mismatch (rows=%d d=%d inter=%d)", rows, d, inter)
 	}
+	bindings := []linWeight{mw.gate, mw.up, mw.down}
+	for index, binding := range bindings {
+		if binding.host == nil && binding.dev == 0 || binding.host != nil && len(binding.host) != d*inter {
+			return GatedMLPGrads{}, fmt.Errorf("resident MLP: missing or malformed matrix %d", index)
+		}
+		if binding.gradient != 0 {
+			for other, source := range bindings {
+				if binding.gradient == source.dev || index != other && binding.gradient == source.gradient {
+					return GatedMLPGrads{}, fmt.Errorf("resident MLP: aliased gradient %d", index)
+				}
+			}
+		}
+	}
 	dX := make([]float32, rows*d)
-	dWGate := make([]float32, inter*d)
-	dWUp := make([]float32, inter*d)
-	dWDown := make([]float32, d*inter)
+	var dWGate, dWUp, dWDown []float32
 
 	err := withCUDABLAS(worker, func(session *cudaBLAS) error {
 		mulFn, err := session.function("multiply_f32")
@@ -46,15 +67,15 @@ func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a
 		if err != nil {
 			return err
 		}
-		wGateP, err := session.upload(wGate)
+		wGateP, err := mw.gate.resolve(session, inter*d)
 		if err != nil {
 			return err
 		}
-		wUpP, err := session.upload(wUp)
+		wUpP, err := mw.up.resolve(session, inter*d)
 		if err != nil {
 			return err
 		}
-		wDownP, err := session.upload(wDown)
+		wDownP, err := mw.down.resolve(session, d*inter)
 		if err != nil {
 			return err
 		}
@@ -107,18 +128,19 @@ func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a
 		if err != nil {
 			return err
 		}
-		dwGateP, err := session.alloc(inter * d)
+		dwGateP, hostGate, err := mw.gate.allocateGradient(session, inter*d)
 		if err != nil {
 			return err
 		}
-		dwUpP, err := session.alloc(inter * d)
+		dwUpP, hostUp, err := mw.up.allocateGradient(session, inter*d)
 		if err != nil {
 			return err
 		}
-		dwDownP, err := session.alloc(d * inter)
+		dwDownP, hostDown, err := mw.down.allocateGradient(session, d*inter)
 		if err != nil {
 			return err
 		}
+		dWGate, dWUp, dWDown = hostGate, hostUp, hostDown
 
 		mul := func(x, y, out driver.DevicePtr, n int) error {
 			return session.launchVector3(mulFn, x, y, out, n)

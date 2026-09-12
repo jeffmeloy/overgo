@@ -489,11 +489,11 @@ func (p *ResidentImagePipeline) DecodeHWC(ctx context.Context) ([]float32, int, 
 	}
 	value, ok := bridged.Value(p.vaeOutput)
 	if !ok {
-		_ = bridged.Release(ctx)
+		_ = bridged.Release(context.WithoutCancel(ctx))
 		return nil, 0, 0, errors.New("resident image pipeline: VAE latent is unavailable")
 	}
 	results, err := p.runtime.ExecuteDevice(ctx, p.vae, nil, []driver.DevicePtr{value.Pointer})
-	releaseErr := bridged.Release(ctx)
+	releaseErr := bridged.Release(context.WithoutCancel(ctx))
 	if err != nil || releaseErr != nil {
 		return nil, 0, 0, errors.Join(err, releaseErr)
 	}

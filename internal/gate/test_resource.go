@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"time"
 
@@ -26,22 +24,11 @@ func (g *gateContext) admitTestResources(ctx context.Context, packages, environm
 	if err != nil {
 		return nil, err
 	}
-	directories, err := graph.dependentDirectories("internal/cuda")
+	devices, err := graph.devicePackages(packages)
 	if err != nil {
 		return nil, err
 	}
-	needsDevice := false
-	for _, node := range graph.nodes {
-		if !slices.Contains(packages, node.ImportPath) {
-			continue
-		}
-		relative, err := filepath.Rel(graph.root, node.Dir)
-		if err != nil {
-			return nil, err
-		}
-		needsDevice = needsDevice || slices.Contains(directories, filepath.ToSlash(relative))
-	}
-	if !needsDevice {
+	if len(devices) == 0 {
 		return noop, nil
 	}
 	// Exclusive measurement children cannot run beneath a shared batch lease.

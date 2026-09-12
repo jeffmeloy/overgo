@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package pytorchzip reads PyTorch ZIP checkpoints (.pth/.pt): data.pkl is a
 // pickle stream carrying tensor metadata; sibling data/<key> entries hold raw
 // little-endian storages (required uncompressed, so bodies stream by offset).

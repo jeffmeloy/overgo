@@ -79,10 +79,11 @@ type historicalDecisionMatch struct {
 }
 
 type unclassifiedCandidate struct {
-	Current  closurescan.Candidate     `json:"current"`
-	Category string                    `json:"category"`
-	History  []historicalDecisionMatch `json:"history,omitempty"`
-	Proposed *triageRow                `json:"proposed_triage_row,omitempty"`
+	ActiveRebind bool                      `json:"active_rebind,omitzero"`
+	Current      closurescan.Candidate     `json:"current"`
+	Category     string                    `json:"category"`
+	History      []historicalDecisionMatch `json:"history,omitempty"`
+	Proposed     *triageRow                `json:"proposed_triage_row,omitempty"`
 }
 
 type recoveredAliasAudit struct {
@@ -103,6 +104,7 @@ type recoveredAliasBinding struct {
 }
 
 type unclassifiedReport struct {
+	review          *closureReview
 	Version         uint16                   `json:"version"`
 	Selection       string                   `json:"selection,omitzero"`
 	Source          string                   `json:"source"`
@@ -146,9 +148,13 @@ func buildUnclassifiedHistoryReport(
 	store *overgodb.Store,
 	selection unclassifiedSelection,
 ) (unclassifiedReport, error) {
-	candidates, err := closurescan.ScanSnapshot(snapshot, nil, selection.kinds)
+	allCandidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
 	if err != nil {
 		return unclassifiedReport{}, err
+	}
+	candidates := slices.Clone(allCandidates)
+	if selection.kinds == closurescan.CandidateConstants {
+		candidates = slices.DeleteFunc(candidates, func(candidate closurescan.Candidate) bool { return candidate.Kind != closureledger.BindingConstant })
 	}
 	if selection.policyOnly {
 		candidates = slices.DeleteFunc(candidates, func(candidate closurescan.Candidate) bool {
@@ -158,6 +164,17 @@ func buildUnclassifiedHistoryReport(
 	activeDocuments, activeAliases, err := activeClosureDocuments(ctx, store)
 	if err != nil {
 		return unclassifiedReport{}, err
+	}
+	index := closurescan.CompileRebindIndex(allCandidates)
+	projection, err := projectActiveClosures(index, allCandidates, activeDocuments, activeAliases, true, false, nil)
+	if err != nil {
+		return unclassifiedReport{}, err
+	}
+	projectedBindings := map[closureledger.SourceBinding]bool{}
+	for _, document := range projection.resolved {
+		for _, binding := range document.Bindings {
+			projectedBindings[binding] = true
+		}
 	}
 	historicalDocuments, err := allClosureDocuments(ctx, store)
 	if err != nil {
@@ -169,6 +186,7 @@ func buildUnclassifiedHistoryReport(
 	}
 	head, sequence := store.Head()
 	report := unclassifiedReport{
+		review:  &closureReview{source: snapshot.Identity(), head: head, sequence: sequence, candidates: allCandidates, index: index, documents: activeDocuments, history: historicalDocuments, aliases: activeAliases, recovery: recoveryAnalysis, projection: projection},
 		Version: artifact.InitialDocumentVersion, Selection: selection.name, Source: snapshot.Identity(),
 		CatalogHead: head.String(), CatalogSequence: sequence,
 	}
@@ -257,12 +275,15 @@ func buildUnclassifiedHistoryReport(
 	}
 	matches := make(map[int][]historicalDecisionMatch)
 	matchGroups := make(map[int]map[string]int)
-	index := closurescan.CompileRebindIndex(candidates)
 	for _, document := range historicalDocuments {
-		current, matched, _, err := rebindClosure(index, document, false)
+		current, projected := projection.resolved[document.ID]
+		matched := projected
 		mode := historyMatchExact
-		if err != nil {
-			return unclassifiedReport{}, err
+		if !projected {
+			current, matched, _, err = rebindClosure(index, document, false)
+			if err != nil {
+				return unclassifiedReport{}, err
+			}
 		}
 		if !matched {
 			current, matched, _, err = rebindClosure(index, document, true)
@@ -287,7 +308,7 @@ func buildUnclassifiedHistoryReport(
 			provenance := historicalDecisionProvenance{
 				Document: document.ID, CurrentDocument: current.ID, Match: mode,
 				BindingCount: len(document.Bindings), Fixture: document.Fixture,
-				SelectedByAlias: activeTargets[candidateIndex] == document.ID,
+				SelectedByAlias: projected || activeTargets[candidateIndex] == document.ID,
 			}
 			if len(document.Bindings) == 1 {
 				provenance.Alias, err = closureledger.ActiveAlias(document.Bindings[0])
@@ -330,7 +351,11 @@ func buildUnclassifiedHistoryReport(
 		if !unclassified[candidateIndex] {
 			continue
 		}
-		entry := unclassifiedCandidate{Current: candidate, History: matches[candidateIndex]}
+		binding, err := candidate.Binding()
+		if err != nil {
+			return unclassifiedReport{}, err
+		}
+		entry := unclassifiedCandidate{Current: candidate, History: matches[candidateIndex], ActiveRebind: projectedBindings[binding]}
 		decisionHistory := entry.History
 		if slices.ContainsFunc(entry.History, decisionSelectedByActiveAlias) {
 			decisionHistory = slices.DeleteFunc(slices.Clone(entry.History), func(match historicalDecisionMatch) bool {

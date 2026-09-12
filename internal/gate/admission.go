@@ -150,7 +150,7 @@ func (g *gateContext) stepProtection() (bool, error) {
 		)
 	}
 	g.stepEvidence["protection"] = configured + ";activation=" + activated
-	g.audit = append(g.audit, "protection: "+g.stepEvidence["protection"])
+	g.note("protection: " + g.stepEvidence["protection"])
 	return false, nil
 }
 
@@ -199,7 +199,7 @@ func (g *gateContext) stepScope() (bool, error) {
 	dirtyPaths, unplanned := scopeDirty(g.paths, dirty)
 	var verificationInputs []string
 	for _, path := range unplanned {
-		g.audit = append(g.audit, "unplanned dirty (not shipped): "+path)
+		g.note("unplanned dirty (not shipped): " + path)
 		g.profileDirty = g.profileDirty || strings.HasSuffix(path, ".go")
 		if unplannedVerificationInput(path) {
 			verificationInputs = append(verificationInputs, path)
@@ -248,4 +248,14 @@ func scopeDirty(planned []string, dirty []repoanalysis.DirtyPath) (map[string]bo
 		}
 	}
 	return visible, unplanned
+}
+
+// applies the plan-only lane commit rule to the operator's planned paths
+// before the plan path joins them
+func (g *gateContext) refusePlanOnlyCommit(merge bool) error {
+	document, err := g.loadPlan()
+	if err != nil {
+		return err
+	}
+	return plan.PlanOnlyCommitRefusal(document, g.planRef, g.paths, merge)
 }

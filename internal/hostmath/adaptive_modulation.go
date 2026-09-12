@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Adaptive shift/scale modulation (AdaLN chunks): y = x*(1+scale) + shift
 // with the [d] shift/scale rows broadcast over tokens, and its VJP. The
 // caller owns the chunk table layout (which [d] slice of a modulation vector

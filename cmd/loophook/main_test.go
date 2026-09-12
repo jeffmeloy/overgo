@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -39,18 +37,11 @@ func TestStopDecision(t *testing.T) {
 	}
 }
 
-// TestBoundedRequestScopesAnswerNotTurn pins the owner rule: the bounded
-// marker classifies the ANSWER's scope and is consumed without rendering a
-// verdict — a bounded turn with no committed progress still draws the
-// continue block, and only a valve (e.g. a recorded user stop) allows it.
+// TestBoundedRequestScopesAnswerNotTurn pins the owner rule: a bounded
+// request classifies the ANSWER's scope and renders no verdict, with no
+// marker to consume; a bounded turn with no committed progress still draws
+// the continue block, and only a valve (e.g. a recorded user stop) allows it.
 func TestBoundedRequestScopesAnswerNotTurn(t *testing.T) {
-	marker := filepath.Join(t.TempDir(), "bounded")
-	if err := os.WriteFile(marker, []byte("bounded\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if !consumeBoundedRequest(marker) || fileExists(marker) {
-		t.Fatal("bounded request marker was not consumed")
-	}
 	if got := stopDecision(false, false, false, false, false); got != stopContinue {
 		t.Fatalf("bounded no-progress turn = %q, want the continue block", got)
 	}

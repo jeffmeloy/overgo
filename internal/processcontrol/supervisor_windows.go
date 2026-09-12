@@ -16,17 +16,19 @@ import (
 // through supervisor death -- kills anything still running. Reached
 // through loaded DLLs per repository doctrine; no cgo.
 var (
-	kernel32               = syscall.NewLazyDLL("kernel32.dll")
-	procCreateJobObjectW   = kernel32.NewProc("CreateJobObjectW")
-	procSetInformationJob  = kernel32.NewProc("SetInformationJobObject")
-	procAssignProcessToJob = kernel32.NewProc("AssignProcessToJobObject")
-	procTerminateJobObject = kernel32.NewProc("TerminateJobObject")
-	procOpenProcess        = kernel32.NewProc("OpenProcess")
-	procCloseHandle        = kernel32.NewProc("CloseHandle")
-	procThread32First      = kernel32.NewProc("Thread32First")
-	procThread32Next       = kernel32.NewProc("Thread32Next")
-	procOpenThread         = kernel32.NewProc("OpenThread")
-	procResumeThread       = kernel32.NewProc("ResumeThread")
+	kernel32                 = syscall.NewLazyDLL("kernel32.dll")
+	procCreateJobObjectW     = kernel32.NewProc("CreateJobObjectW")
+	procSetInformationJob    = kernel32.NewProc("SetInformationJobObject")
+	procAssignProcessToJob   = kernel32.NewProc("AssignProcessToJobObject")
+	procTerminateJobObject   = kernel32.NewProc("TerminateJobObject")
+	procOpenProcess          = kernel32.NewProc("OpenProcess")
+	procCloseHandle          = kernel32.NewProc("CloseHandle")
+	procThread32First        = kernel32.NewProc("Thread32First")
+	procThread32Next         = kernel32.NewProc("Thread32Next")
+	procOpenThread           = kernel32.NewProc("OpenThread")
+	procResumeThread         = kernel32.NewProc("ResumeThread")
+	procCreateCompletionPort = kernel32.NewProc("CreateIoCompletionPort")
+	procGetCompletionStatus  = kernel32.NewProc("GetQueuedCompletionStatus")
 )
 
 const (
@@ -50,6 +52,9 @@ const (
 	createSuspended = 0x00000004
 	// threadSuspendResume is THREAD_SUSPEND_RESUME, the minimum ResumeThread right.
 	threadSuspendResume = 0x0002
+	// JobObjectAssociateCompletionPortInformation and JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO.
+	jobCompletionPortClass = 7
+	jobActiveProcessZero   = 4
 )
 
 type jobBasicLimits struct {
@@ -83,7 +88,9 @@ type jobExtendedLimits struct {
 }
 
 type processTree struct {
-	job uintptr
+	job        uintptr
+	completion uintptr
+	process    uintptr
 }
 
 func configureSysProc(command *exec.Cmd) {
@@ -110,20 +117,41 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 		_, _, _ = procCloseHandle.Call(job)
 		return processTree{}, fmt.Errorf("configure job object: %w", callErr)
 	}
-	process, _, callErr := procOpenProcess.Call(processAccessForJob, windowsFalse, uintptr(command.Process.Pid))
+	// A standalone port uses the Windows concurrency default; wait is its sole consumer.
+	completion, _, callErr := procCreateCompletionPort.Call(uintptr(syscall.InvalidHandle), 0, 0, 0)
+	if completion == 0 {
+		_, _, _ = procCloseHandle.Call(job)
+		return processTree{}, fmt.Errorf("create job completion port: %w", callErr)
+	}
+	ready := false
+	defer func() {
+		if !ready {
+			_, _, _ = procCloseHandle.Call(completion)
+		}
+	}()
+	association := struct{ Key, Port uintptr }{job, completion}
+	if ok, _, callErr := procSetInformationJob.Call(job, jobCompletionPortClass,
+		uintptr(unsafe.Pointer(&association)), unsafe.Sizeof(association)); ok == 0 {
+		_, _, _ = procCloseHandle.Call(job)
+		return processTree{}, fmt.Errorf("associate job completion port: %w", callErr)
+	}
+	process, _, callErr := procOpenProcess.Call(processAccessForJob|syscall.SYNCHRONIZE, windowsFalse, uintptr(command.Process.Pid))
 	if process == 0 {
 		_, _, _ = procCloseHandle.Call(job)
 		return processTree{}, fmt.Errorf("open process %d: %w", command.Process.Pid, callErr)
 	}
+	defer func() {
+		if !ready {
+			_, _, _ = procCloseHandle.Call(process)
+		}
+	}()
 	assigned, _, callErr := procAssignProcessToJob.Call(job, process)
 	if assigned != 0 {
 		if err := retainChildResources(process); err != nil {
-			_, _, _ = procCloseHandle.Call(process)
 			_, _, _ = procCloseHandle.Call(job)
 			return processTree{}, err
 		}
 	}
-	_, _, _ = procCloseHandle.Call(process)
 	if assigned == 0 {
 		_, _, _ = procCloseHandle.Call(job)
 		return processTree{}, fmt.Errorf("assign process %d to job: %w", command.Process.Pid, callErr)
@@ -132,7 +160,8 @@ func newProcessTree(command *exec.Cmd) (processTree, error) {
 		_, _, _ = procCloseHandle.Call(job)
 		return processTree{}, err
 	}
-	return processTree{job: job}, nil
+	ready = true
+	return processTree{job: job, completion: completion, process: process}, nil
 }
 
 // threadEntry has the documented THREADENTRY32 ABI from tlhelp32.h.
@@ -207,5 +236,35 @@ func (t processTree) close() error {
 		return nil
 	}
 	_, _, _ = procCloseHandle.Call(t.job)
+	if t.process != 0 {
+		_, _, _ = procCloseHandle.Call(t.process)
+	}
+	if t.completion != 0 {
+		_, _, _ = procCloseHandle.Call(t.completion)
+	}
 	return nil
+}
+
+// Parent exit ends its owned tree. Terminate leftover descendants, then wait for
+// the empty-job notification before draining pipes or releasing resources.
+func (t processTree) wait() error {
+	state, err := syscall.WaitForSingleObject(syscall.Handle(t.process), syscall.INFINITE)
+	if err != nil || state != syscall.WAIT_OBJECT_0 {
+		return errors.Join(fmt.Errorf("parent wait returned state %d", state), err, t.terminate())
+	}
+	if err := t.terminate(); err != nil {
+		return err
+	}
+	for {
+		var message uint32
+		var key, overlapped uintptr
+		if ok, _, callErr := procGetCompletionStatus.Call(t.completion,
+			uintptr(unsafe.Pointer(&message)), uintptr(unsafe.Pointer(&key)),
+			uintptr(unsafe.Pointer(&overlapped)), syscall.INFINITE); ok == 0 {
+			return fmt.Errorf("wait for job completion: %w", callErr)
+		}
+		if key == t.job && message == jobActiveProcessZero {
+			return nil
+		}
+	}
 }

@@ -54,6 +54,7 @@ type testRequirements struct {
 
 type closureAliasReview struct {
 	Reviewed, Retired, Preserved int
+	HistoryReused                bool
 }
 
 type closureCommitOperation string
@@ -78,6 +79,14 @@ func main() {
 	inventoryUnclassified := flag.Bool("inventory-unclassified", false, "report every current constant without exact active authority and matching history")
 	inventoryUnclassifiedPolicy := flag.Bool("inventory-unclassified-policy", false, "report every current production policy candidate without exact active authority and matching history")
 	propose := flag.String("propose", "", "emit ready-to-apply triage rows with exact scanner coordinates for the named uncatalogued candidates (comma-separated)")
+	catalog := flag.String("catalog", "", "catalogue the named uncatalogued candidates (comma-separated) in one store transaction: propose their coordinates, bind them under the reviewed text, and commit them with any drifted rebinding")
+	catalogTier := flag.String("tier", "", "with -catalog: the reviewed tier (implementation-constraint or mathematical-fact)")
+	catalogUnderstanding := flag.String("understanding", "", "with -catalog: the reviewed understanding")
+	catalogClosurePath := flag.String("closure-path", "", "with -catalog: the closure path")
+	catalogRerank := flag.String("rerank-trigger", "", "with -catalog: the rerank trigger")
+	stage := flag.String("stage", "", "declare new unconsumed surface from the gate's own report of it (file:Name=class entries, comma-separated) in docs/staged_surface.json")
+	stageReason := flag.String("stage-reason", "", "with -stage: why the surface lands before its consumer")
+	stageRetireWith := flag.String("retire-with", "", "with -stage: the exact open plan item/step that retires the staging")
 	format := flag.String("format", "text", "structured report format: text or json")
 	publish := flag.Bool("publish", false, "publish census evidence to OvergoDB")
 	importStore := flag.String("import-store", "", "import matching active decisions; same-store mode safely rebinds unambiguous history")
@@ -159,7 +168,7 @@ func main() {
 	}
 	tests := testRequirements{noPolicyCopies: *requireNoPolicyCopies, classifiedFixtures: *requireClassifiedFixtures}
 	if *checkScope != "" || *checkAll {
-		if err := checkProductionClosures(root, *storePath, *checkScope, *checkAll, productionRequirements); err != nil {
+		if err := checkProductionClosures(root, *storePath, *checkScope, *checkAll, productionRequirements, os.Stdout); err != nil {
 			fatal(err)
 		}
 		if *requireNoPolicyCopies || *requireClassifiedFixtures {
@@ -195,6 +204,23 @@ func main() {
 		if err := clioptions.WritePrettyJSON(os.Stdout, proposal); err != nil {
 			fatal(err)
 		}
+		return
+	}
+	if *catalog != "" {
+		text := catalogText{tier: *catalogTier, understanding: *catalogUnderstanding, closurePath: *catalogClosurePath, rerankTrigger: *catalogRerank}
+		catalogued, rebound, err := catalogCandidates(root, *storePath, mustSnapshot(root), strings.Split(*catalog, ","), text)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf("catalogued %d closure document(s) in one transaction with %d rebound\n", catalogued, rebound)
+		return
+	}
+	if *stage != "" {
+		added, err := stageSurface(root, *stage, *stageReason, *stageRetireWith)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf("staged %d surface entr(ies) in docs/staged_surface.json retired with %s\n", added, *stageRetireWith)
 		return
 	}
 	if *inventoryUnclassified || *inventoryUnclassifiedPolicy {
@@ -317,8 +343,8 @@ func main() {
 			fatal(err)
 		}
 		fmt.Printf(
-			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d\n",
-			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved,
+			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d history_reused=%t\n",
+			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved, aliases.HistoryReused,
 		)
 		return
 	}
@@ -363,7 +389,7 @@ func main() {
 	}
 }
 
-func checkProductionClosures(root, storePath, scopeList string, all bool, requirements closureRequirements) error {
+func checkProductionClosures(root, storePath, scopeList string, all bool, requirements closureRequirements, output io.Writer) error {
 	snapshot := mustSnapshot(root)
 	var prefixes []string
 	if !all {
@@ -400,7 +426,7 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			// edit shifts every literal offset after it), and a report
 			// naming only the first costs one gate run per binding.
 			for _, issue := range issues {
-				fmt.Printf("stale %s %s:%s\n", issue.Kind, issue.File, issue.Name)
+				fmt.Fprintf(output, "stale %s %s:%s\n", issue.Kind, issue.File, issue.Name)
 			}
 			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
 		}
@@ -433,7 +459,11 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			}
 		}
 	}
-	fmt.Printf("closure-scan: scoped sites=%d classified=%d stale=0\n", len(candidates), classified)
+	stale := "unchecked"
+	if requirements.noStale {
+		stale = "0"
+	}
+	fmt.Fprintf(output, "closure-scan: scoped sites=%d classified=%d stale=%s\n", len(candidates), classified, stale)
 	return nil
 }
 
@@ -593,9 +623,32 @@ func importClosureDocuments(
 	snapshot repoanalysis.SourceSnapshot,
 	reviewCallsites, retireUnmatched bool,
 ) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
-	candidates, err := closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
-	if err != nil {
-		return count, unmatched, first, aliases, err
+	return importClosureDocumentsWith(root, storePath, sourcePath, snapshot, reviewCallsites, retireUnmatched, nil, nil)
+}
+
+// importClosureDocumentsWith imports as importClosureDocuments does and
+// commits the catalogued documents in the same transaction as the
+// rebinding the import decides, so a new catalogue entry and the drift the
+// same scan found land together or not at all.
+func importClosureDocumentsWith(
+	root, storePath, sourcePath string,
+	snapshot repoanalysis.SourceSnapshot,
+	reviewCallsites, retireUnmatched bool,
+	catalogued []closureledger.Document,
+	reviewed *closureReview,
+) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
+	if retireUnmatched && len(catalogued) != 0 {
+		return 0, 0, "", closureAliasReview{}, errors.New("-retire-unmatched cannot catalogue documents")
+	}
+	var candidates []closurescan.Candidate
+	var err error
+	if reviewed != nil && reviewed.source == snapshot.Identity() {
+		candidates = reviewed.candidates
+	} else {
+		candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateAll)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
 	}
 	destinationPath := filepath.Join(root, storePath)
 	sourceInfo, sourceErr := os.Stat(sourcePath)
@@ -617,9 +670,18 @@ func importClosureDocuments(
 			finalErr = errors.Join(finalErr, target.Close())
 		}
 	}()
-	documents, sourceAliases, err := activeClosureDocuments(context.Background(), source)
-	if err != nil {
-		return count, unmatched, first, aliases, err
+	head, sequence := source.Head()
+	reuseReview := sameStore && !retireUnmatched && reviewed != nil && reviewed.source == snapshot.Identity() && reviewed.head == head && reviewed.sequence == sequence
+	var documents []closureledger.Document
+	var sourceAliases map[string]artifact.ID
+	if reuseReview {
+		documents, sourceAliases = reviewed.documents, reviewed.aliases
+		aliases.HistoryReused = true
+	} else {
+		documents, sourceAliases, err = activeClosureDocuments(context.Background(), source)
+		if err != nil {
+			return count, unmatched, first, aliases, err
+		}
 	}
 	if sameStore {
 		aliases.Reviewed = len(sourceAliases)
@@ -627,7 +689,9 @@ func importClosureDocuments(
 	}
 	historicalDocuments := documents
 	recoveryAuthority := map[string]artifact.ID{}
-	if sameStore && !retireUnmatched {
+	if reuseReview {
+		historicalDocuments, recoveryAuthority = reviewed.history, reviewed.recovery.Authorized
+	} else if sameStore && !retireUnmatched {
 		historicalDocuments, err = allClosureDocuments(context.Background(), source)
 		if err != nil {
 			return count, unmatched, first, aliases, err
@@ -655,7 +719,12 @@ func importClosureDocuments(
 	var retirements []artifact.AliasBinding
 	var unmatchedRetirements []artifact.AliasBinding
 	retired := map[string]bool{}
-	index := closurescan.CompileRebindIndex(candidates)
+	var index closurescan.RebindIndex
+	if reuseReview {
+		index = reviewed.index
+	} else {
+		index = closurescan.CompileRebindIndex(candidates)
+	}
 	if !sameStore {
 		for _, document := range targetDocuments {
 			if len(document.Bindings) != 1 {
@@ -687,87 +756,30 @@ func importClosureDocuments(
 			}
 		}
 	}
-	claimedAliases := make(map[string]bool, len(sourceAliases))
-	for alias := range sourceAliases {
-		claimedAliases[alias] = true
-	}
-	type contentRetry struct {
-		document      closureledger.Document
-		previousAlias string
-		reason        string
-	}
-	var contentRetries []contentRetry
-	for _, document := range documents {
-		if len(document.Bindings) != 1 {
-			unmatched++
-			first = cmp.Or(first, document.Name+":bindings")
-			continue
-		}
-		previousAlias, err := closureledger.ActiveAlias(document.Bindings[0])
-		if err != nil || sourceAliases[previousAlias] != document.ID {
-			unmatched++
-			first = cmp.Or(first, document.Name+":source-alias")
-			continue
-		}
-		current, matched, reason, err := rebindClosure(index, document, reviewCallsites)
+
+	var projection closureProjection
+	if reuseReview && !reviewCallsites {
+		projection = reviewed.projection
+	} else {
+		projection, err = projectActiveClosures(index, candidates, documents, sourceAliases, sameStore, reviewCallsites, retired)
 		if err != nil {
 			return count, unmatched, first, aliases, err
 		}
-		if !matched {
-			contentRetries = append(contentRetries, contentRetry{
-				document: document, previousAlias: previousAlias, reason: reason,
-			})
-			continue
-		}
-		if sameStore && current.ID == document.ID {
-			continue
-		}
-		currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
-		if err != nil {
-			return count, unmatched, first, aliases, err
-		}
-		claimedAliases[currentAlias] = true
-		if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
-			retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
-			retired[previousAlias] = true
-		}
-		rebound = append(rebound, current)
 	}
-	// Content-matched recovery runs after every structural rebind has
-	// claimed its alias, so the only free candidates left are genuinely
-	// new sites; an offset-shifted successor with the same file, scope,
-	// and exact value inherits the reviewed closure instead of being
-	// retired and retyped.
-	for _, retry := range contentRetries {
-		document, previousAlias, reason := retry.document, retry.previousAlias, retry.reason
-		current, matched, _, err := closurescan.ContentMatchedRebind(
-			document, candidates, func(alias string) bool { return claimedAliases[alias] },
-		)
-		if err != nil {
-			return count, unmatched, first, aliases, err
-		}
-		if matched {
-			currentAlias, err := closureledger.ActiveAlias(current.Bindings[0])
-			if err != nil {
-				return count, unmatched, first, aliases, err
-			}
-			claimedAliases[currentAlias] = true
-			if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
-				retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
+	rebound = append(rebound, projection.rebound...)
+	retirements = append(retirements, projection.retirements...)
+	retired, claimedAliases := maps.Clone(projection.retired), maps.Clone(projection.claimed)
+	unmatched += projection.unmatched
+	first = cmp.Or(first, projection.first)
+	if sameStore && retireUnmatched {
+		for _, retry := range projection.pending {
+			document, previousAlias := retry.document, retry.previousAlias
+			if !retired[previousAlias] {
+				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true})
 				retired[previousAlias] = true
+				aliases.Retired++
+				aliases.Preserved--
 			}
-			rebound = append(rebound, current)
-			continue
-		}
-		unmatched++
-		first = cmp.Or(first, document.Name+":"+reason)
-		if sameStore && retireUnmatched && !retired[previousAlias] {
-			unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{
-				Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true,
-			})
-			retired[previousAlias] = true
-			aliases.Retired++
-			aliases.Preserved--
 		}
 	}
 	if sameStore && !retireUnmatched {
@@ -881,11 +893,16 @@ func importClosureDocuments(
 			"closure-scan: retirement requires a settled rebind; run same-store import without -retire-unmatched first",
 		)
 	}
+	// The catalogued documents ride in the rebind's own commit.
+	rebound = append(rebound, catalogued...)
 	if rebound == nil && retirements == nil && unmatchedRetirements == nil {
 		return count, unmatched, first, aliases, nil
 	}
 	operation := closureImportOperation
-	if sameStore {
+	switch {
+	case len(catalogued) != 0:
+		operation = closurePublishOperation
+	case sameStore:
 		operation = closureRebindOperation
 	}
 	commitHead := reviewedTargetHead
@@ -1537,37 +1554,9 @@ func emit(root, storePath, triagePath string, candidates []closurescan.Candidate
 	if err := strictjson.DecodeBytes(raw, &triage); err != nil {
 		return fmt.Errorf("triage file: %w", err)
 	}
-	if len(triage.Rows) == 0 {
-		return fmt.Errorf("triage file has no rows")
-	}
-	byKey := map[string]closurescan.Candidate{}
-	for _, row := range candidates {
-		byKey[row.DeclarationKey()] = row
-		byKey[row.LegacyDeclarationKey()] = row
-	}
-	documents := make([]closureledger.Document, 0, len(triage.Rows))
-	for _, row := range triage.Rows {
-		found, ok := byKey[(closurescan.Candidate{
-			Kind: row.Kind, File: row.File, Scope: row.Scope, Line: row.Line, Name: row.Name,
-		}).DeclarationKey()]
-		if !ok {
-			return fmt.Errorf("triage row %s not found by scan in %s (stale triage?)", row.Name, row.File)
-		}
-		valueJSON := found.ValueJSON()
-		binding, err := found.Binding()
-		if err != nil {
-			return err
-		}
-		document, err := closureledger.New(
-			row.Name, valueJSON,
-			closureledger.Tier(row.Tier), closureledger.Status(row.Status),
-			row.Understanding, []closureledger.SourceBinding{binding},
-			row.ClosurePath, row.RerankTrigger, binding.Owner,
-		)
-		if err != nil {
-			return fmt.Errorf("row %s: %w", row.Name, err)
-		}
-		documents = append(documents, document)
+	documents, err := triageDocuments(triage, candidates)
+	if err != nil {
+		return err
 	}
 	owners, commit, err := commitClosureDocuments(
 		root, filepath.Join(root, storePath), closurePublishOperation, documents, nil, nil,

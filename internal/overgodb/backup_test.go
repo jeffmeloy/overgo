@@ -24,7 +24,8 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	}
 
 	destination := filepath.Join(t.TempDir(), "backup")
-	head, sequence, err := store.Backup(destination)
+	backupReport, err := store.Backup(t.Context(), destination)
+	head, sequence := backupReport.Head, backupReport.Sequence
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,7 +47,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 		t.Fatalf("replica resolve = (%s, %v, %v)", resolved, ok, err)
 	}
 
-	if _, _, err := store.Backup(destination); err == nil || !strings.Contains(err.Error(), "already exists") {
+	if _, err := store.Backup(t.Context(), destination); err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("existing destination not refused: %v", err)
 	}
 
@@ -54,8 +55,8 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 	if err := os.MkdirAll(partialTarget+".partial", 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := store.Backup(partialTarget); err == nil || !strings.Contains(err.Error(), "stale partial") {
-		t.Fatalf("stale partial not refused: %v", err)
+	if _, err := store.Backup(t.Context(), partialTarget); err != nil {
+		t.Fatalf("empty partial did not resume: %v", err)
 	}
 
 	empty, err := Open(t.TempDir())
@@ -63,7 +64,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer empty.Close()
-	if _, _, err := empty.Backup(filepath.Join(t.TempDir(), "empty-backup")); err == nil || !strings.Contains(err.Error(), "no commits") {
+	if _, err := empty.Backup(t.Context(), filepath.Join(t.TempDir(), "empty-backup")); err == nil || !strings.Contains(err.Error(), "no commits") {
 		t.Fatalf("empty store not refused: %v", err)
 	}
 }
@@ -89,8 +90,9 @@ func TestConcurrentBackupExtent(t *testing.T) {
 		t.Fatal(err)
 	}
 	destination := t.TempDir()
-	if err := copyFileSync(
-		filepath.Join(root, storeFilename), filepath.Join(destination, storeFilename), extent,
+	var copied BackupReport
+	if err := copied.copyFile(ctx,
+		filepath.Join(root, storeFilename), filepath.Join(destination, storeFilename), extent, "", false,
 	); err != nil {
 		t.Fatal(err)
 	}

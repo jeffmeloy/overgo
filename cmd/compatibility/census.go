@@ -20,13 +20,44 @@ import (
 // every registered identity has been verified. Later evidence may improve while
 // the expected model/task/recipe set remains fixed.
 type capabilityCensus struct {
-	Version        uint16                   `json:"version"`
-	ProducerCommit string                   `json:"producer_commit"`
-	StoreCommit    artifact.CommitID        `json:"store_commit"`
-	StoreSequence  uint64                   `json:"store_sequence"`
-	Models         []discovery.CatalogEntry `json:"models"`
-	Verifications  []artifact.ID            `json:"verifications"`
-	ID             artifact.ID              `json:"-"`
+	Version        uint16            `json:"version"`
+	ProducerCommit string            `json:"producer_commit"`
+	StoreCommit    artifact.CommitID `json:"store_commit"`
+	StoreSequence  uint64            `json:"store_sequence"`
+	Models         []censusModel     `json:"models"`
+	Verifications  []artifact.ID     `json:"verifications"`
+	ID             artifact.ID       `json:"-"`
+}
+
+// These fields freeze the stored census contract independently of discovery's UI view.
+type censusModel struct {
+	Model        artifact.ID
+	Location     string
+	Present      bool
+	Capabilities []censusCapability
+	// Preserve both historical absence and the later explicit empty field.
+	KeyEnvironment *string `json:",omitzero"`
+}
+
+type censusCapability struct {
+	Task   recipe.Task
+	Recipe artifact.ID
+	Tier   recipe.EvidenceTier
+	Stale  string
+}
+
+func censusModels(entries []discovery.CatalogEntry) []censusModel {
+	result := make([]censusModel, len(entries))
+	for i, entry := range entries {
+		result[i] = censusModel{Model: entry.Model, Location: entry.Location, Present: entry.Present, KeyEnvironment: new(entry.KeyEnvironment)}
+		if entry.Capabilities != nil {
+			result[i].Capabilities = make([]censusCapability, len(entry.Capabilities))
+			for j, capability := range entry.Capabilities {
+				result[i].Capabilities[j] = censusCapability(capability)
+			}
+		}
+	}
+	return result
 }
 
 var capabilityCensusCodec = artifact.JSONDocumentCodec(
@@ -39,6 +70,7 @@ var capabilityCensusCodec = artifact.JSONDocumentCodec(
 		value.Models = slices.Clone(value.Models)
 		for index := range value.Models {
 			value.Models[index].Capabilities = slices.Clone(value.Models[index].Capabilities)
+			value.Models[index].KeyEnvironment = artifact.ClonePointer(value.Models[index].KeyEnvironment)
 		}
 		value.Verifications = slices.Clone(value.Verifications)
 		return value
@@ -84,7 +116,7 @@ func buildCapabilityCensus(ctx context.Context, store *overgodb.Store, commit st
 	if truncated {
 		return capabilityCensus{}, errors.New("capability census: registered catalog is truncated")
 	}
-	value := capabilityCensus{ProducerCommit: commit, Models: models}
+	value := capabilityCensus{ProducerCommit: commit, Models: censusModels(models)}
 	page, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: runrecord.ModelVerificationMediaType, Schema: runrecord.ModelVerificationSchema}},
 		Order:     overgodb.DocumentOldestFirst,
@@ -111,7 +143,7 @@ func checkCapabilityCensus(ctx context.Context, store *overgodb.Store, value cap
 	if truncated {
 		return errors.New("capability census: live registered catalog is truncated")
 	}
-	if !slices.EqualFunc(value.Models, current, func(expected, actual discovery.CatalogEntry) bool {
+	if !slices.EqualFunc(value.Models, censusModels(current), func(expected, actual censusModel) bool {
 		return expected.Model == actual.Model && expected.Location == actual.Location && expected.Present == actual.Present &&
 			slices.Equal(expected.Capabilities, actual.Capabilities)
 	}) {

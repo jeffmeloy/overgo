@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command generate runs local inference with text or projected media inputs.
 package main
 

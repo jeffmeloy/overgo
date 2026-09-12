@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Forward chain for tabular in-context prediction, ported behavior written
 // fresh: Fourier cell embedding (train rows carry their label embedding),
 // induced-set column towers whose inducing queries see only train rows,

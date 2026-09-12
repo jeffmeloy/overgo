@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package modelintake owns the steps that take a model file into the
 // store's catalog: preparing its inference candidate (the model's facts,
 // definition and recipe), registering that candidate, recording and

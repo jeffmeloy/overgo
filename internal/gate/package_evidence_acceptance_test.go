@@ -23,7 +23,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		files := map[string]string{
 			"app/app_test.go":          "package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Fatal(\"declared failure\") }\n",
 			"other/other.go":           "package other\nconst Value = 1\n",
-			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\n",
+			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\nfunc TestIntegration(t *testing.T) { if testing.Short() { t.Skip(\"" + testevidence.ShortIntegrationSkip + "\") }; if Value != 1 { t.Fatal(Value) } }\n",
 			"other/testdata/value.txt": "pass",
 		}
 		for name, data := range files {
@@ -55,6 +55,15 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		if _, err := g.stepTest(t.Context()); err == nil || !strings.Contains(err.Error(), "declared failure") {
 			t.Fatalf("group failure lost: %v", err)
 		}
+		if !slices.Contains(g.audit, "short-profile exclusions (no full-test credit): 1 [example/other: TestIntegration]") {
+			t.Fatalf("profile denominator lost: %v", g.audit)
+		}
+		if err := g.closeStore(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(filepath.Join(root, filepath.FromSlash(gateRetryFile))); err != nil {
+			t.Fatal(err)
+		}
 		g = newGate()
 		graph, err := g.inputGraph()
 		if err != nil {
@@ -63,6 +72,13 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		packages := []string{"example/app", "example/other"}
 		inputs, err := packageInputIdentities(graph, packages)
 		if err != nil {
+			t.Fatal(err)
+		}
+		ledger, err := g.openPackageEvidence()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ledger.prepare(t.Context(), packages, "short", inputs, g.retryCache); err != nil {
 			t.Fatal(err)
 		}
 		pending, reused, err := g.packageCachePartition(packages, "short", inputs)

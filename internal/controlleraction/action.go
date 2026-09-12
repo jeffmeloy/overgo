@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Package controlleraction defines the allowlisted artifact-transformation
 // action language the workflow controller emits. Every action is a typed
 // document naming one transformation kind with typed parameters; deterministic

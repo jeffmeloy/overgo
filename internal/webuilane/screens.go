@@ -122,12 +122,21 @@ func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Vi
 	if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
 		return nil, err
 	}
-	// The page reports the new size and paints twice before the measurement, so a
-	// layout mid-transition from the previous viewport is never captured.
+	// Paint the new viewport, then await finite visual transitions. Perpetual
+	// spinners and deliberately paused animations do not block capture.
 	if err := browser.Eventually(ctx, fmt.Sprintf("window.innerWidth === %d && window.innerHeight === %d", viewport.Width, viewport.Height)); err != nil {
 		return nil, err
 	}
-	if err := browser.Evaluate(ctx, `new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(() => settled(true))))`, nil); err != nil {
+	if err := browser.Evaluate(ctx, `(async () => {
+      await new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(settled)));
+      for (;;) {
+        const moving = document.getAnimations().filter((animation) =>
+          Number.isFinite(animation.effect?.getComputedTiming().endTime) &&
+          (animation.playState === "running" || animation.pending));
+        if (!moving.length) return true;
+        await Promise.all(moving.map((animation) => animation.finished.catch(() => {})));
+      }
+    })()`, nil); err != nil {
 		return nil, err
 	}
 	if dir != "" {
@@ -347,7 +356,7 @@ const layoutAuditTemplate = `(() => {
     const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
     const size = parseFloat(style.fontSize), weight = parseInt(style.fontWeight, 10) || 400;
     const threshold = size >= 24 || (size >= 18.66 && weight >= 700) ? readableLarge : readable;
-    if (ratio < threshold) note("KIND_CONTRAST", node, ratio.toFixed(2) + ":1 at " + size + "px (" + style.color + " on " + style.backgroundColor + ")");
+    if (ratio < threshold) note("KIND_CONTRAST", node, ratio.toFixed(2) + ":1 at " + size + "px (" + style.color + " on " + JSON.stringify(background) + ")");
   }
   return JSON.stringify(findings);
 })()`

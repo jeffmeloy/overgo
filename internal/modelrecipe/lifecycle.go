@@ -833,3 +833,14 @@ const activeAliasPrefix = "recipe.active."
 func activeAlias(modelID artifact.ID, task recipe.Task) string {
 	return activeAliasPrefix + string(task) + "." + modelID.String()
 }
+
+// ActiveAliasPrefix opens every activation alias of one task; ParseActiveAlias
+// inverts the names it opens.
+func ActiveAliasPrefix(task recipe.Task) string {
+	return activeAliasPrefix + string(task) + "."
+}
+
+// ActiveAlias names the activation alias of one model and task.
+func ActiveAlias(modelID artifact.ID, task recipe.Task) string {
+	return activeAlias(modelID, task)
+}

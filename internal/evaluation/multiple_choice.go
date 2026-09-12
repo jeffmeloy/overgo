@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	MultipleChoiceKind         = "multiple-choice"
-	AggregationAccuracy        = "accuracy"
+	MultipleChoiceKind  = "multiple-choice"
+	AggregationAccuracy = "accuracy"
+	// TieBreakFirst accepts the first maximum when candidate scores tie.
+	TieBreakFirst              = "first"
 	multipleChoiceMediaType    = "application/vnd.overgo.multiple-choice-dataset+json"
 	multipleChoiceSchema       = "overgo/multiple-choice-dataset/v1"
 	multipleChoiceSplitMedia   = "application/vnd.overgo.multiple-choice-split+json"
@@ -37,10 +39,11 @@ var (
 )
 
 type MultipleChoiceCase struct {
-	Name       string   `json:"name"`
-	Prompt     string   `json:"prompt"`
-	Candidates []string `json:"candidates"`
-	Answer     int      `json:"answer"`
+	Name                string   `json:"name"`
+	Prompt              string   `json:"prompt"`
+	Candidates          []string `json:"candidates"`
+	CandidateCharacters []uint64 `json:"candidate_characters,omitzero"`
+	Answer              int      `json:"answer"`
 }
 
 type MultipleChoiceSuite struct {
@@ -48,6 +51,7 @@ type MultipleChoiceSuite struct {
 	Schema        string                      `json:"schema"`
 	Source        string                      `json:"source"`
 	Normalization sequencescore.Normalization `json:"normalization"`
+	TieBreak      string                      `json:"tie_break,omitzero"`
 	Aggregation   string                      `json:"aggregation"`
 	Cases         []MultipleChoiceCase        `json:"cases"`
 }
@@ -60,11 +64,12 @@ type MultipleChoicePlan struct {
 }
 
 type ChoiceObservation struct {
-	Name     string    `json:"name"`
-	Values   []float64 `json:"values"`
-	Selected int       `json:"selected"`
-	Answer   int       `json:"answer"`
-	Tied     bool      `json:"tied"`
+	Name     string                `json:"name"`
+	Values   []float64             `json:"values"`
+	Scores   []sequencescore.Score `json:"scores,omitzero"`
+	Selected int                   `json:"selected"`
+	Answer   int                   `json:"answer"`
+	Tied     bool                  `json:"tied"`
 	// Raw is the generated answer text when the case was answered by
 	// generation through the chat template; likelihood scoring leaves
 	// it empty and Selected below zero means no candidate letter was
@@ -96,7 +101,8 @@ func CompileMultipleChoice(suite MultipleChoiceSuite) (MultipleChoicePlan, error
 	if suite.Kind != MultipleChoiceKind || strings.TrimSpace(suite.Schema) == "" ||
 		strings.TrimSpace(suite.Source) == "" || suite.Aggregation != AggregationAccuracy ||
 		len(suite.Cases) == 0 || suite.Normalization != sequencescore.NormalizationSum &&
-		suite.Normalization != sequencescore.NormalizationMean {
+		suite.Normalization != sequencescore.NormalizationMean && suite.Normalization != sequencescore.NormalizationCharacters ||
+		suite.TieBreak != "" && suite.TieBreak != TieBreakFirst {
 		return MultipleChoicePlan{}, errors.New("evaluation: invalid multiple-choice suite")
 	}
 	suite.Cases = slices.Clone(suite.Cases)
@@ -104,6 +110,10 @@ func CompileMultipleChoice(suite MultipleChoiceSuite) (MultipleChoicePlan, error
 	for index := range suite.Cases {
 		testCase := &suite.Cases[index]
 		testCase.Candidates = slices.Clone(testCase.Candidates)
+		testCase.CandidateCharacters = slices.Clone(testCase.CandidateCharacters)
+		if suite.Normalization == sequencescore.NormalizationCharacters && len(testCase.CandidateCharacters) != len(testCase.Candidates) {
+			return MultipleChoicePlan{}, errors.New("evaluation: candidate character extent differs")
+		}
 		if err := validateMultipleChoiceCase(*testCase); err != nil {
 			return MultipleChoicePlan{}, err
 		}
@@ -134,6 +144,14 @@ func validateMultipleChoiceCase(testCase MultipleChoiceCase) error {
 		testCase.Answer < 0 || testCase.Answer >= len(testCase.Candidates) {
 		return errors.New("evaluation: invalid multiple-choice case")
 	}
+	if len(testCase.CandidateCharacters) != 0 && len(testCase.CandidateCharacters) != len(testCase.Candidates) {
+		return errors.New("evaluation: candidate character extent differs")
+	}
+	for _, count := range testCase.CandidateCharacters {
+		if count == 0 {
+			return errors.New("evaluation: candidate character count is zero")
+		}
+	}
 	candidates := make(map[string]struct{}, len(testCase.Candidates))
 	for _, candidate := range testCase.Candidates {
 		if candidate == "" {
@@ -152,6 +170,7 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 		Version       uint16                      `json:"version"`
 		Kind          string                      `json:"kind"`
 		Normalization sequencescore.Normalization `json:"normalization"`
+		TieBreak      string                      `json:"tie_break,omitzero"`
 		Aggregation   string                      `json:"aggregation"`
 		// Method is empty for likelihood scoring (every earlier plan)
 		// and names the generated-letter method under the chat-template
@@ -159,7 +178,7 @@ func BindMultipleChoice(compiled MultipleChoicePlan, authorities ExactAuthoritie
 		Method string `json:"method,omitzero"`
 	}{
 		Version: artifact.InitialDocumentVersion, Kind: MultipleChoiceKind,
-		Normalization: compiled.suite.Normalization, Aggregation: compiled.suite.Aggregation,
+		Normalization: compiled.suite.Normalization, TieBreak: compiled.suite.TieBreak, Aggregation: compiled.suite.Aggregation,
 	}
 	if prompting := authorities.Execution.Prompting; prompting == PromptingChatTemplate || prompting == PromptingHostedChat {
 		if err := validateChatChoiceSuite(compiled.suite.Cases); err != nil {
@@ -240,16 +259,25 @@ func scoreMultipleChoice(
 			if err != nil {
 				return nil, 0, err
 			}
+			if len(scores) != len(testCase.Candidates) {
+				return nil, 0, errors.New("evaluation: candidate score extent differs")
+			}
+			scores = slices.Clone(scores)
+			if suite.Normalization == sequencescore.NormalizationCharacters {
+				for index := range scores {
+					scores[index].Characters = testCase.CandidateCharacters[index]
+				}
+			}
 			selection, err := sequencescore.Select(scores, suite.Normalization)
 			if err != nil {
 				return nil, 0, err
 			}
 			observations[index] = ChoiceObservation{
-				Name: testCase.Name, Values: selection.Values, Selected: selection.Index,
+				Name: testCase.Name, Values: selection.Values, Scores: scores, Selected: selection.Index,
 				Answer: testCase.Answer, Tied: selection.Tied,
 			}
 		}
-		hit := !observations[index].Tied && observations[index].Selected == testCase.Answer
+		hit := choiceCorrect(observations[index], suite.TieBreak)
 		if hit {
 			correct++
 		}
@@ -262,13 +290,17 @@ func scoreMultipleChoice(
 	return observations, accuracy, nil
 }
 
-func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation) ([]AccuracyGroup, error) {
+func choiceCorrect(observation ChoiceObservation, tieBreak string) bool {
+	return observation.Selected == observation.Answer && (!observation.Tied || tieBreak == TieBreakFirst)
+}
+
+func aggregateChoiceAccuracy(groups []string, observations []ChoiceObservation, tieBreak string) ([]AccuracyGroup, error) {
 	if len(groups) != len(observations) {
 		return nil, errors.New("evaluation: choice groups differ from observations")
 	}
 	correct := make([]bool, len(observations))
 	for index, observation := range observations {
-		correct[index] = !observation.Tied && observation.Selected == observation.Answer
+		correct[index] = choiceCorrect(observation, tieBreak)
 	}
 	return aggregateAccuracy(groups, correct)
 }
@@ -308,7 +340,7 @@ func scoreChoiceGroups(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	metrics, err := aggregateChoiceAccuracy(groups, observations)
+	metrics, err := aggregateChoiceAccuracy(groups, observations, suite.TieBreak)
 	return observations, metrics, accuracy, err
 }
 

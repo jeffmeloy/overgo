@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +52,7 @@ func TestConfigurationClosureGates(t *testing.T) {
 		},
 	}
 	for _, check := range checks {
-		if err := checkProductionClosures(root, "overgodb-store", check.scope, false, check.requirements); err != nil {
+		if err := checkProductionClosures(root, "overgodb-store", check.scope, false, check.requirements, io.Discard); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -66,7 +67,7 @@ func TestPermanentMagicGateRepositoryZeroDebt(t *testing.T) {
 	requirements := closureRequirements{
 		classified: true, noStale: true, noUncatalogued: true, noModelFacts: true, zeroOpen: true,
 	}
-	if err := checkProductionClosures(root, "overgodb-store", "", true, requirements); err != nil {
+	if err := checkProductionClosures(root, "overgodb-store", "", true, requirements, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkTestAuthority(mustSnapshot(root), testRequirements{noPolicyCopies: true}); err != nil {
@@ -1276,7 +1277,7 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	requirements := closureRequirements{classified: true, noStale: true}
-	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements); err == nil {
+	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements, io.Discard); err == nil {
 		t.Fatal("unclassified constant passed scoped closure check")
 	}
 	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateConstants)
@@ -1299,12 +1300,33 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 	if err := emit(root, "store", triagePath, candidates); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements); err != nil {
+	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	write("9")
-	if err := checkProductionClosures(root, "store", "internal/policy", false, requirements); err == nil {
-		t.Fatal("stale constant passed scoped closure check")
+
+	var output bytes.Buffer
+	if err := checkProductionClosures(root, "store", "", true, requirements, &output); err != nil || !strings.Contains(output.String(), "stale=0") {
+		t.Fatalf("checked current bindings: output=%s err=%v", output.String(), err)
+	}
+	for _, change := range []string{"changed", "removed"} {
+		t.Run(change, func(t *testing.T) {
+			if change == "changed" {
+				write("9")
+			} else if err := os.WriteFile(path, []byte("package policy\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			output.Reset()
+			if err := checkProductionClosures(root, "store", "", true, closureRequirements{}, &output); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output.String(), "stale=unchecked") || strings.Contains(output.String(), "stale=0") {
+				t.Fatalf("unrequested drift check claimed success: %s", output.String())
+			}
+			output.Reset()
+			if err := checkProductionClosures(root, "store", "", true, requirements, &output); err == nil || !strings.Contains(output.String(), "stale ") {
+				t.Fatalf("requested drift check failed to expose %s binding: output=%s err=%v", change, output.String(), err)
+			}
+		})
 	}
 }
 
@@ -1329,7 +1351,7 @@ func TestPermanentMagicGateAuthorityEnforcement(t *testing.T) {
 		t.Fatal(err)
 	}
 	requirements := closureRequirements{classified: true, noStale: true, noUncatalogued: true, noModelFacts: true}
-	if err := checkProductionClosures(root, "store", "internal/model", false, requirements); err == nil {
+	if err := checkProductionClosures(root, "store", "internal/model", false, requirements, io.Discard); err == nil {
 		t.Fatal("uncatalogued model policy passed")
 	}
 	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateAll)
@@ -1357,15 +1379,15 @@ func TestPermanentMagicGateAuthorityEnforcement(t *testing.T) {
 		}
 	}
 	emitTriage()
-	if err := checkProductionClosures(root, "store", "internal/model", false, requirements); err != nil {
+	if err := checkProductionClosures(root, "store", "internal/model", false, requirements, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 	row.Tier, row.Status = string(closureledger.TierDerivationBlocked), string(closureledger.StatusOpen)
 	emitTriage()
-	if err := checkProductionClosures(root, "store", "internal/model", false, requirements); err == nil {
+	if err := checkProductionClosures(root, "store", "internal/model", false, requirements, io.Discard); err == nil {
 		t.Fatal("open model fact passed")
 	}
-	if err := checkProductionClosures(root, "store", "internal/model", false, closureRequirements{zeroOpen: true}); err == nil {
+	if err := checkProductionClosures(root, "store", "internal/model", false, closureRequirements{zeroOpen: true}, io.Discard); err == nil {
 		t.Fatal("open closure row passed")
 	}
 	testPath := filepath.Join(root, "internal", "model", "policy_test.go")

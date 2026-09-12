@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
@@ -18,18 +19,20 @@ import (
 // cases stop at the same output budgets lm_eval grants them, so scores
 // compare across models on identical envelopes.
 const (
-	mathDerivedMaxTokens   = 512
-	ifevalDerivedMaxTokens = 256
+	mathDerivedMaxTokens = 512
+	// lm_eval 0.4.9.1, IFEval task v4.0: generation_kwargs.max_gen_toks.
+	ifevalDerivedMaxTokens = 1280
 )
 
 // storeCase is one benchmark record joined with the catalog entry it
 // came from: the entry name carries family/subset/split, the fields
 // carry the case.
 type storeCase struct {
-	entry   string
-	subset  string
-	ordinal int
-	fields  map[string]json.RawMessage
+	entry      string
+	subset     string
+	ordinal    int
+	fields     map[string]json.RawMessage
+	parameters map[string]ifevalParameterBinding
 }
 
 // DeriveStoreSuites compiles evaluation suites from the store's active
@@ -91,6 +94,13 @@ func deriveStoreSuites(
 				subset = imported.Spec.Split
 			}
 		}
+		var parameters map[artifact.ID]map[string]ifevalParameterBinding
+		if entry.Parameters.Kind() != artifact.KindInvalid {
+			parameters, err = readIFEvalParameters(ctx, reader, imported, entry.Parameters)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		for ordinal, recordID := range imported.Records {
 			record, found, err := dataset.ReadBenchmarkRecord(ctx, reader, recordID)
 			if err != nil || !found {
@@ -101,7 +111,7 @@ func deriveStoreSuites(
 				fields[field.Name] = field.Value
 			}
 			families[family.family] = append(families[family.family], storeCase{
-				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields,
+				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields, parameters: parameters[recordID],
 			})
 		}
 	}
@@ -115,6 +125,9 @@ func deriveStoreSuites(
 		"mmlu":     assembleMMLUSuite,
 		"mmlu-pro": assembleMMLUProSuite,
 		"bbh": func(cases []storeCase) (any, int, error) {
+			if authorities.Execution.Prompting == PromptingRawCompletion {
+				return assembleNativeBBH(cases)
+			}
 			return assembleChoiceGroups("bbh", "lm-eval/leaderboard-bbh/v1.0", cases)
 		},
 		"musr":   assembleMuSRSuite,
@@ -254,10 +267,8 @@ func assembleMMLUProSuite(cases []storeCase) (any, int, error) {
 // glued to the colon.
 const targetDelimiter = " "
 
-// assembleChoiceGroups renders extractive-answer records (BBH) as one
-// grouped-choice suite: each task is a group, its candidate space is
-// the distinct targets the task actually uses, and the recorded target
-// picks the answer -- the leaderboard's per-task option-set scoring.
+// assembleChoiceGroups retains the generated-answer protocol's observed option
+// sets. Native raw likelihood uses assembleNativeBBH's declared options.
 func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, error) {
 	targetsByGroup := map[string][]string{}
 	seen := map[string]map[string]int{}
@@ -308,7 +319,7 @@ func assembleChoiceGroups(family, schema string, cases []storeCase) (any, int, e
 func assembleMuSRSuite(cases []storeCase) (any, int, error) {
 	suite := GroupedChoiceSuite{
 		Kind: GroupedChoiceKind, Schema: "lm-eval/leaderboard-musr/v1.0", Source: "store/musr",
-		Normalization: sequencescore.NormalizationMean,
+		Normalization: sequencescore.NormalizationCharacters, TieBreak: TieBreakFirst,
 	}
 	for _, entry := range cases {
 		narrative, err := caseString(entry.fields, "narrative")
@@ -344,12 +355,14 @@ func assembleMuSRSuite(cases []storeCase) (any, int, error) {
 		}
 		prompt.WriteString("Answer:")
 		candidates := make([]string, len(choices))
+		characters := make([]uint64, len(choices))
 		for index, choice := range choices {
 			candidates[index] = targetDelimiter + choice
+			characters[index] = uint64(utf8.RuneCountInString(choice))
 		}
 		suite.Cases = append(suite.Cases, DemonstratedChoice{
 			Name: fmt.Sprintf("%s/%d", entry.entry, entry.ordinal), Group: entry.subset,
-			Prompt: prompt.String(), Candidates: candidates, Answer: answer,
+			Prompt: prompt.String(), Candidates: candidates, CandidateCharacters: characters, Answer: answer,
 		})
 	}
 	return suite, 0, nil
@@ -425,34 +438,43 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 		if !ok {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: RuleContainsAll, Values: values}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalKeywordsRule, Values: values}}, true
 	case "keywords:forbidden_words":
 		values, ok := stringsOf("forbidden_words")
 		if !ok {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: RuleExcludesAll, Values: values}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalForbiddenRule, Values: values}}, true
+	case "language:response_language":
+		language, err := caseString(kwargs, "language")
+		if err != nil {
+			return nil, false
+		}
+		rule := InstructionRule{Name: id, Kind: ifevalLanguageRule, Values: []string{language}}
+		if _, err := compileIFEvalLanguageRule(rule); err != nil {
+			return nil, false
+		}
+		return []InstructionRule{rule}, true
 	case "change_case:english_capital":
-		return []InstructionRule{{Name: id, Kind: RuleUppercase}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalEnglishUpper}}, true
 	case "change_case:english_lowercase":
-		return []InstructionRule{{Name: id, Kind: RuleLowercase}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalEnglishLower}}, true
 	case "punctuation:no_comma":
 		return []InstructionRule{{Name: id, Kind: RuleNoComma}}, true
 	case "startend:quotation":
-		return []InstructionRule{
-			{Name: id + "/open", Kind: RulePrefix, Values: []string{`"`}},
-			{Name: id + "/close", Kind: RuleSuffix, Values: []string{`"`}},
-		}, true
+		// Python str.strip whitespace; the native check requires two quotes.
+		const space = ifevalSpaceClass + "*"
+		return []InstructionRule{{Name: id, Kind: RuleRegex, Values: []string{`(?s)^` + space + `".*"` + space + `$`}}}, true
 	case "startend:end_checker":
 		var phrase string
 		if err := json.Unmarshal(kwargs["end_phrase"], &phrase); err != nil || phrase == "" {
 			return nil, false
 		}
-		return []InstructionRule{{Name: id, Kind: RuleSuffix, Values: []string{phrase}}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalEndRule, Values: []string{phrase}}}, true
 	case "detectable_format:json_format":
-		return []InstructionRule{{Name: id, Kind: RuleJSON}}, true
+		return []InstructionRule{{Name: id, Kind: ifevalJSONRule}}, true
 	default:
-		return nil, false
+		return ifevalStructureFor(id, kwargs)
 	}
 }
 
@@ -483,7 +505,11 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 			if index < len(kwargsList) && kwargsList[index] != nil {
 				kwargs = kwargsList[index]
 			}
-			ruleSet, ok := ifevalRuleFor(id, kwargs)
+			var binding *ifevalParameterBinding
+			if bound, present := entry.parameters[id]; present {
+				binding = &bound
+			}
+			ruleSet, ok := ifevalRuleWithParameters(id, kwargs, binding)
 			if !ok {
 				mapped = false
 				break

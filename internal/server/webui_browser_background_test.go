@@ -174,7 +174,8 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	check(`(() => {
   [...document.querySelectorAll('.composer-extras button')].find(button=>button.textContent==='Allow sending again').click();
   overgo.capabilities().modes.push({id:'image',label:'Image fixture',enabled:true});window.backgroundGet=overgo.api.get;window.backgroundPost=overgo.api.post;
-  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'image',recipe:'background-image-fixture',name:'Image fixture',controls:[{name:'source',label:'Source file',type:'artifact',required:true}]}];return backgroundGet.call(this,path,options);};
+  const backgroundCaps=structuredClone(overgo.capabilities());
+  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'image',recipe:'background-image-fixture',name:'Image fixture',controls:[{name:'source',label:'Source file',type:'artifact',required:true}]}];const result=await backgroundGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(backgroundCaps);return result;};
   window.backgroundComposer=document.querySelector('.composer');overgo.openConversation(null);return true;
 })()`)
 	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==backgroundComposer`)

@@ -116,7 +116,7 @@ func TestCapabilityCensusContract(t *testing.T) {
 	if len(value.Models) != 4 || !slices.Equal(value.Verifications, []artifact.ID{verification.ID}) {
 		t.Fatalf("incomplete census: %+v", value)
 	}
-	byID := map[artifact.ID]discovery.CatalogEntry{}
+	byID := map[artifact.ID]censusModel{}
 	for _, model := range value.Models {
 		byID[model.Model] = model
 	}

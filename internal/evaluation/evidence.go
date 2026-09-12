@@ -265,30 +265,6 @@ func appendEvaluationEvidence(
 	return batch.Validate()
 }
 
-func prepareIsolatedEvaluationEvidence(
-	ctx context.Context,
-	repository artifact.Reader,
-	batch *artifact.Batch,
-	plan Plan,
-	acceptance AcceptancePolicy,
-	evaluator Evaluator,
-	report artifact.ID,
-	run runrecord.Run,
-	record runrecord.Evaluation,
-	observation runrecord.ObservationChunkSummary,
-) (EvaluationEvidence, error) {
-	evidence, err := newEvaluationEvidence(
-		ctx, repository, plan, acceptance, evaluator, report, run, record, &observation,
-	)
-	if err != nil {
-		return EvaluationEvidence{}, err
-	}
-	if err := appendEvaluationEvidence(batch, acceptance, evaluator, evidence); err != nil {
-		return EvaluationEvidence{}, err
-	}
-	return evidence, nil
-}
-
 func validateIsolatedResources(
 	ctx context.Context,
 	reader artifact.Reader,

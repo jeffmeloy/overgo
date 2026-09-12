@@ -47,10 +47,13 @@ type smokeObservation struct {
 	Claim      string                       `json:"claim"`
 }
 
-func readSmokeOracles(path string, entries []discovery.Entry) (map[artifact.ID]smokeOracle, error) {
+func readSmokeOracles(path string, entries []discovery.Entry, selected string) (map[artifact.ID]smokeOracle, error) {
 	var declarations []smokeOracle
 	if err := jsonfile.DecodeStrict(path, &declarations); err != nil {
 		return nil, err
+	}
+	if selected != "" {
+		declarations = slices.DeleteFunc(declarations, func(value smokeOracle) bool { return value.Model.String() != selected })
 	}
 	return bindSmokeOracles(declarations, entries)
 }

@@ -12,6 +12,7 @@ func TestGeneratorBootstrap(t *testing.T) {
 	for _, name := range []string{
 		"internal/codemanifest/generate.go", "internal/codeprofile/profile.go",
 		"internal/repoanalysis/source.go", "internal/automationcheck/manifest.go", "cmd/gate/main.go",
+		"internal/gate/documentation_scope.go",
 	} {
 		if !requiresManifestBootstrap([]string{name}) {
 			t.Errorf("analyzer-owned path %s did not force bootstrap", name)

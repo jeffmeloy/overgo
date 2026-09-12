@@ -238,7 +238,7 @@ func TestFirstParentTargetSourcePreflightRequiresSharedStoreAncestry(t *testing.
 		t.Fatal(err)
 	}
 	sourcePath := filepath.Join(t.TempDir(), "source-store")
-	if _, _, err := targetStore.Backup(sourcePath); err != nil {
+	if _, err := targetStore.Backup(t.Context(), sourcePath); err != nil {
 		t.Fatal(err)
 	}
 	sourceStore, err := overgodb.Open(sourcePath)
@@ -347,7 +347,7 @@ func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T
 
 	sourceStorePath := filepath.Join(t.TempDir(), "source-store")
 	// Fork the store at the common preparation, before either final attempt.
-	if _, _, err := fixture.store.Backup(sourceStorePath); err != nil {
+	if _, err := fixture.store.Backup(t.Context(), sourceStorePath); err != nil {
 		t.Fatal(err)
 	}
 	localCompletion := fixture.commit(fixture.canonicalMessage(), true)
@@ -667,7 +667,7 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 		runGit(t, fixture.repository, nil, "add", "--", Path)
 		runGit(t, fixture.repository, nil, "commit", "-q", "-m", "source-only plan work")
 		sourceStorePath := filepath.Join(t.TempDir(), "source-store")
-		if _, _, err := fixture.store.Backup(sourceStorePath); err != nil {
+		if _, err := fixture.store.Backup(t.Context(), sourceStorePath); err != nil {
 			t.Fatal(err)
 		}
 		sourceStore, err := overgodb.Open(sourceStorePath)

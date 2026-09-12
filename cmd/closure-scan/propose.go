@@ -27,6 +27,10 @@ func proposeTriageRows(
 	if err != nil {
 		return triageFile{}, err
 	}
+	return proposeTriageRowsFromReport(report, names)
+}
+
+func proposeTriageRowsFromReport(report unclassifiedReport, names []string) (triageFile, error) {
 	index := make(map[string]unclassifiedCandidate, len(report.Candidates))
 	current := make([]string, 0, len(report.Candidates))
 	for _, candidate := range report.Candidates {

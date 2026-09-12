@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,11 +10,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
 	"overgo/internal/webuilane"
 )
@@ -125,6 +128,10 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	if err := browser.Eventually(ctx, `document.querySelector('#protected-image').naturalWidth===1 && document.querySelector('#protected-image').src.startsWith('blob:')`); err != nil {
 		t.Fatal(err)
 	}
+	downloadDirectory := t.TempDir()
+	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloadDirectory}, nil); err != nil {
+		t.Fatal(err)
+	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {const link=overgo.el('a',{href:'/artifacts/content?id=gui-test-image',download:'preview.png',text:'download'});document.body.append(link);link.click();return true;})()`)
 	if err := browser.Eventually(ctx, `document.querySelector('#protected-image').complete`); err != nil {
 		t.Fatal(err)
@@ -134,6 +141,27 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("authenticated download did not request its bytes")
 	case <-downloaded:
+	}
+	// A requested payload is not a completed download. Wait for the final
+	// file before ending the browser and verify the authenticated bytes.
+	var expected bytes.Buffer
+	if err := png.Encode(&expected, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	if err := processcontrol.AwaitResource(ctx, func() error {
+		data, err := os.ReadFile(filepath.Join(downloadDirectory, "preview.png"))
+		if errors.Is(err, os.ErrNotExist) {
+			return processcontrol.ErrResourceBusy
+		}
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(data, expected.Bytes()) {
+			return errors.New("authenticated download bytes differ")
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 	say(t, ctx, browser, "First conversation")
 	if err := browser.Eventually(ctx, `overgo.conversation() && overgo.conversation().root==='resp_gui_1'`); err != nil {

@@ -358,8 +358,16 @@
   function openConversation(item) {
     setFront(true);
     rememberConversation(item);
-    for (const tab of tabs) { if (tab.id === "chat") tab.mounted = false; }
-    activate("chat");
+    const tab = tabs.find(tab => tab.id === "chat");
+    if (tab) {
+      if (tab.onDeactivate) tab.onDeactivate();
+      tab.mountAttempt = {};
+      clear(tab.panel);
+    }
+    return remountActive(null, "chat").catch(err => {
+      if (tab) renderMountError(tab, err);
+      return false;
+    });
   }
   const historyHost = document.getElementById("conversation-list");
   const historyRows = el('div', { id: 'history-rows' });
@@ -482,24 +490,39 @@
 
   // remountActive: the active tab reloads under a new key, a newly served model or a
   // changed store, from the capability document re-read for it.
-  async function remountActive(manifest) {
-    const next = manifest || await api.get("/workspace/manifest");
-    workspaceManifest = next;
-    capabilityDocument = next.model || null;
-    for (const tab of tabs) {
-      if (tab.onDeactivate) tab.onDeactivate();
-      tab.mounted = false;
-      // The newly served model's refusals replace the last one's, so the nav shows what works now.
-      const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
-      if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; }
+  let remountAttempt = 0;
+  async function remountActive(manifest, target) {
+    const attempt = ++remountAttempt;
+    const targetTab = tabs.find(tab => tab.id === target);
+    const targetAttempt = targetTab && targetTab.mountAttempt;
+    try {
+      const next = manifest || await api.get("/workspace/manifest");
+      if (attempt !== remountAttempt || (targetTab && targetTab.mountAttempt !== targetAttempt)) return false;
+      workspaceManifest = next;
+      capabilityDocument = next.model || null;
+      for (const tab of tabs) {
+        if (!target || tab.id === target) {
+          if (!target && tab.onDeactivate) tab.onDeactivate();
+          tab.mounted = false;
+        }
+        // The newly served model's refusals replace the last one's, so the nav shows what works now.
+        const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
+        if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; }
+      }
+      applyCapabilities();
+      const current = target || location.hash.slice(1) || (tabs[0] && tabs[0].id);
+      if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
+        const ready = await activate(current);
+        if (attempt !== remountAttempt) return false;
+        if (!ready) throw new Error("The selected workspace could not load. Choose the model again to retry.");
+      }
+      syncColdStart();
+      await refreshStatus();
+      return true;
+    } catch (err) {
+      if (attempt !== remountAttempt || (targetTab && targetTab.mountAttempt !== targetAttempt)) return false;
+      throw err;
     }
-    applyCapabilities();
-    const current = location.hash.slice(1) || (tabs[0] && tabs[0].id);
-    if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
-      if (!await activate(current)) throw new Error("The selected workspace could not load. Choose the model again to retry.");
-    }
-    syncColdStart();
-    await refreshStatus();
   }
 
   // syncColdStart: the landing while no model serves (no capability document: the proxy answers alone) and no tab
@@ -525,6 +548,7 @@
     for (const t of tabs) {
       const on = t.id === id;
       const wasActive = t.panel.classList.contains("active");
+      if (!on && t.id === "chat") t.mountAttempt = {};
       if (!on && wasActive && t.onDeactivate) t.onDeactivate();
       t.button.classList.toggle("active", on);
       t.panel.classList.toggle("active", on);

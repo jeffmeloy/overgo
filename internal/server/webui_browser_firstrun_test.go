@@ -15,12 +15,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
-	"path/filepath"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
@@ -34,9 +35,9 @@ import (
 
 // TestWebUIBrowserFirstRun drives the front page end to end against a
 // served model through the real swap proxy (professional GUI campaign,
-// gui-quality/acceptance-lane). cmd/webui-lane prepares the journey: the
-// server binary, the store and the smallest servable models; without them
-// the journey reports UNAVAILABLE and is skipped. The journey: the page boots once
+// gui-quality/acceptance-lane). The test prepares its server
+// binary, store and smallest servable models; missing prerequisites fail
+// this journey without affecting independently selected browser tests. The journey: the page boots once
 // the default model serves (the pill names it, the proxy dot is on), the
 // first message receives a streamed reply with the context meter filled,
 // an image attachment is either taken to a grounded reply (a vision-capable
@@ -54,11 +55,21 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testevidence.ShortIntegrationSkip + ": the journey runs through cmd/webui-lane")
 	}
-	binary, store := os.Getenv("OVERGO_WEBUI_LANE_SERVER"), os.Getenv("OVERGO_WEBUI_LANE_STORE")
-	modelName, modelLocation := os.Getenv("OVERGO_WEBUI_LANE_MODEL"), os.Getenv("OVERGO_WEBUI_LANE_MODEL_LOCATION")
-	if binary == "" || store == "" || modelName == "" || modelLocation == "" {
-		t.Skip("first-run journey UNAVAILABLE: cmd/webui-lane prepared no served model")
+	journey, err := prepareBrowserJourney(t)
+	if err != nil {
+		t.Fatal(err)
 	}
+	binary, store := journey.binary, journey.store
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceInfo, sourceErr := os.Stat(roots.Store)
+	storeInfo, storeErr := os.Stat(store)
+	if sourceErr == nil && storeErr == nil && os.SameFile(sourceInfo, storeInfo) {
+		t.Fatal("first-run journey requires an isolated store before publishing browser fixtures")
+	}
+	modelName, modelLocation := journey.model, journey.location
 	t.Logf("first-run journey: model %s at %s", modelName, modelLocation)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
@@ -74,17 +85,27 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// Leg 15's page-declared provider: its key set before any child launches, so the running child can list and serve it.
 	t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: filepath.Dir(store)}, 0)
+	serverDir := testutil.RepoRoot(t)
+	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer supervisor.Close()
-	repository, err := overgodb.Open(store)
+	repository, err := overgodb.OpenContext(t.Context(), store)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = repository.Close() })
-	resolver := &modelswap.CatalogResolver{Store: repository, Limit: 256}
+	// The resolver only reads: a read-only view refreshes without the
+	// store's process lock, so the picker never waits behind other
+	// processes' transactions on the lane store, while the writer handle
+	// stays the idle shell's, whose refresh is its writer admission.
+	catalog, err := overgodb.OpenReadOnly(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = catalog.Close() })
+	resolver := &modelswap.CatalogResolver{Store: catalog, Limit: 256}
 	// No default: the journey opens on the cold proxy, as overgo_gui.bat
 	// without a model does, and chooses the first model from the picker.
 	proxy := &modelswap.Proxy{
@@ -93,18 +114,29 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	}
 	front := httptest.NewServer(proxy)
 	defer front.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 8*time.Minute, errors.New("webui lane: the first-run journey did not complete"))
+	// The journey's bound caps the sum of its steps, each bounded on its
+	// own: alone the journey's real model loads take about seven minutes,
+	// and beside the gate's test groups they take longer.
+	ctx, cancel := context.WithTimeoutCause(t.Context(), 15*time.Minute, errors.New("webui lane: the first-run journey did not complete"))
 	defer cancel()
 	browser, err := webuilane.Open(ctx, browserPath, front.URL+"/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer browser.Close()
+	// Desktop journey: the narrower default viewport leaves the history drawer inert.
+	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
+		t.Fatal(err)
+	}
 	// Each step settles within its own bound so a leg that cannot settle
 	// fails with the page's state rather than spending the journey's budget.
-	settle := func(what, expression string) {
+	// A model switch loads real weights, which took over two minutes for the
+	// multimodal model beside the gate's test groups, so it settles under
+	// the load bound; every other step settles under the step bound.
+	const stepBound, loadBound = 2 * time.Minute, 6 * time.Minute
+	settleWithin := func(what string, bound time.Duration, expression string) {
 		t.Helper()
-		step, done := context.WithTimeoutCause(ctx, 2*time.Minute, errors.New("webui lane: the step did not settle"))
+		step, done := context.WithTimeoutCause(ctx, bound, errors.New("webui lane: the step did not settle"))
 		defer done()
 		if err := browser.Eventually(step, expression); err != nil {
 			var page string
@@ -116,10 +148,23 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
         assistant: document.querySelectorAll("#panel-chat .msg.assistant").length, busy: (document.querySelector(".composer .btn") || {}).disabled,
         failures: [...document.querySelectorAll("#panel-chat .msg.error .body")].map((node) => node.textContent.slice(0, 200)),
         last: ([...document.querySelectorAll("#panel-chat .msg.assistant .body")].at(-1) || {}).textContent, text: document.body.innerText.slice(0, 120),
-        notes: [...document.querySelectorAll(".note, .err-banner")].map((node) => node.textContent.slice(0, 160)).filter(Boolean),
+        notes: [...document.querySelectorAll(".note, .err-banner")].filter((node) => !node.closest("#history-rows")).map((node) => node.textContent.slice(0, 160)).filter(Boolean),
+        focused: document.hasFocus(), active: document.activeElement ? document.activeElement.outerHTML.slice(0, 160) : "",
+        editor: !!document.querySelector("#history-rows form"), reload: [...document.querySelectorAll("button")].some((button) => button.textContent === "Reload history" && !button.hidden),
         predicate: (() => { try { return String(`+expression+`); } catch (failure) { return "throws: " + failure; } })()})`, &page)
-			t.Fatalf("%s: %v; page: %s", what, err, page)
+			// The exhausted bound is named: the step's own, or the journey's;
+			// the resolver's stage timing shows a picker stalled behind the
+			// catalog, with the stage the request waits in.
+			var stacks bytes.Buffer
+			_ = pprof.Lookup("goroutine").WriteTo(&stacks, 1)
+			t.Logf("blocked request stacks:\n%s", stacks.String())
+			t.Fatalf("%s: %v (%v); catalog resolver: %+v; page: %s", what, err, context.Cause(step), resolver.Progress(), page)
 		}
+	}
+	defer func() { t.Logf("catalog resolver stages, slowest: %v", resolver.Progress().Slowest) }()
+	settle := func(what, expression string) {
+		t.Helper()
+		settleWithin(what, stepBound, expression)
 	}
 	// captureStates: the page as it stands at this leg, captured and audited
 	// at both viewports (written when the lane writes screens); the journey
@@ -191,7 +236,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 		// The pill names the served file; the welcome card, when the
 		// conversation is empty, names the model by its own declared name.
-		settle("model switched and the composer re-derived", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
+		settleWithin("model switched and the composer re-derived", loadBound, `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
       !!document.querySelector("#panel-chat.active .composer textarea") && !document.querySelector(".composer").dataset.laneBefore &&
       !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       (window.overgo.capabilities() || {}).id !== `+strconv.Quote(previous)+``)
@@ -260,6 +305,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const row=document.querySelector('#history-rows .conversation');row.querySelector('.history-options').click();row.querySelector('[aria-label="rename conversation"]').click();
       const field=row.querySelector('input');field.value='renamed by the lane';field.focus();return true;
     })()`)
+	settle("the rename editor holds focus", `document.hasFocus() && document.activeElement === document.querySelector('#history-rows form input')`)
 	pressKey(t, ctx, browser, "Enter", 13)
 	settle("the rail shows the new title", `[...document.querySelectorAll('#conversation-list .conversation-title')].some(node=>node.textContent==='renamed by the lane')`)
 	t.Log("rename leg: the conversation renamed in place from the rail")
@@ -281,7 +327,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
 			t.Fatal(err)
 		}
-		if multimodal := os.Getenv("OVERGO_WEBUI_LANE_MULTIMODAL_MODEL"); !vision && multimodal != "" && multimodal != modelName {
+		if multimodal := journey.multimodal; !vision && multimodal != "" && multimodal != modelName {
 			switchTo(multimodal)
 			if err := browser.Evaluate(ctx, `!!(window.overgo.capabilities().modalities || {}).image`, &vision); err != nil {
 				t.Fatal(err)
@@ -742,7 +788,8 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 			retirement = `document.querySelector("[data-lane-retirement]")?.textContent === "executable was built from modified source; exact code revision unavailable"`
 		}
 		if !stamped {
-			if _, err := runrecord.VerifyingCommit(testutil.RepoRoot(t)); err != nil {
+			// Match the child's fallback directory, not the gate's candidate tree.
+			if _, err := runrecord.VerifyingCommit(serverDir); err != nil {
 				retirement = `document.querySelector("[data-lane-retirement]")?.textContent === ` + strconv.Quote(err.Error())
 			}
 		}
@@ -796,7 +843,7 @@ func retireLaneRemote(t *testing.T, storePath, location string) {
 		t.Error(err)
 		return
 	}
-	laneStore, err := overgodb.Open(storePath)
+	laneStore, err := overgodb.OpenContext(context.WithoutCancel(t.Context()), storePath)
 	if err != nil {
 		t.Errorf("retire %s: %v", location, err)
 		return
@@ -832,7 +879,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	if err != nil {
 		t.Fatal(err)
 	}
-	laneStore, err := overgodb.Open(storePath)
+	laneStore, err := overgodb.OpenContext(t.Context(), storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -2,6 +2,7 @@ package closurescan
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -77,17 +78,21 @@ func validatePermanentAuthority(
 		}
 	}
 	report := AuthorityReport{ProductionSites: len(candidates)}
+	var missing []error
 	for _, candidate := range candidates {
 		found := exactAuthority(active[candidate.DeclarationKey()], candidate)
 		if found {
 			report.ClassifiedSites++
 		}
 		if candidate.Policy && !found {
-			return AuthorityReport{}, fmt.Errorf(
+			missing = append(missing, fmt.Errorf(
 				"permanent authority: uncatalogued production policy %s at %s:%d",
 				candidate.Name, candidate.File, candidate.Line,
-			)
+			))
 		}
+	}
+	if len(missing) != 0 {
+		return AuthorityReport{}, errors.Join(missing...)
 	}
 	tests, err := CensusTestLiterals(snapshot)
 	if err != nil {

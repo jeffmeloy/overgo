@@ -1,0 +1,585 @@
+{
+  "schema": "overgo/ifeval-paragraph-oracle/v1",
+  "reference_version": "0.4.9.1",
+  "sources": {
+    "instructions.py": "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32",
+    "instructions_util.py": "e8c4d9187bac1482d93941fb46469609c3ae78d896195bfcb300a0707d492567",
+    "utils.py": "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632"
+  },
+  "cases": [
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat meows",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\nCat, meows",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat-like meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat: meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n'\"cat! meows",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n\"'cat! meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n(cat) meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat.meows",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat?",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat meows",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n\u001cCAT\u001f meows",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\r\n\r\ncat meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "\n\none\n\ncat meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n\n\ncat meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat meows\n\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "\n\ncat meows\n\none",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n \n\ncat meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\ncat meows\n\nthree",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\ncat meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one***cat meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "one\n\n**cat** meows",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "header\none\n\ncat meows\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 2,
+        "first_word": "cat"
+      },
+      "response": " \u001c ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "I agree",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "İ agree",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "ı agree",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "i agree",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "'I agree",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "\"I agree",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "''\"I. agree",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "I-agree",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "I"
+      },
+      "response": "i: agree",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "café"
+      },
+      "response": "CAFÉ yes",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "café"
+      },
+      "response": "Café. yes",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "café"
+      },
+      "response": "café yes",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 1,
+        "nth_paragraph": 1,
+        "first_word": "café"
+      },
+      "response": "caféyes",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 1,
+        "first_word": "cat"
+      },
+      "response": "cat first\n\ndog last",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 1,
+        "first_word": "cat"
+      },
+      "response": "\n\ncat first\n\ndog last",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 1,
+        "first_word": "cat"
+      },
+      "response": "cat first\n\n\n\ndog last",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "num_paragraphs": 2,
+        "nth_paragraph": 1,
+        "first_word": "cat"
+      },
+      "response": "cat first\n\ndog last\n\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    }
+  ]
+}

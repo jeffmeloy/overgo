@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command overgodb-import ingests a wire-format import stream into the
 // catalog through streaming object storage.
 package main

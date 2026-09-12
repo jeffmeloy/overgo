@@ -1,3 +1,5 @@
+//overgo:runtime-inputs caller
+
 // Command tabular-train-probe runs bounded decoder training.
 package main
 

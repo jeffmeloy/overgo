@@ -28,7 +28,7 @@ import (
 // dirty entry is not a failure -- it ships with the next commit -- but
 // an unexpected one means a regeneration ran without an owner.
 var generatedFiles = []string{
-	"docs/api_manifest.json", "docs/API_MANIFEST.md",
+	"docs/api_manifest.json",
 	"compatibility.json", "docs/COMPATIBILITY.md",
 	"SBOM.cdx.json", "kernels/manifest.json",
 	"docs/modern_go_census.json", "docs/modern_go_baseline.json",

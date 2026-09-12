@@ -45,10 +45,23 @@ type goPackageInput struct {
 	XTestGoFiles    []string
 	TestEmbedFiles  []string
 	XTestEmbedFiles []string
-	// Non-import edges derived from opaque runtime inputs.
+	// Non-import edges derived from runtime inputs: the command packages
+	// the source names, or every root when the reach is not named.
 	inputDependencies []string
+	// Test commands and opaque reads belong to the package's own test execution.
+	testInputDependencies []string
 	// Execution edges alone propagate device requirements.
 	executionDependencies []string
+	// opaqueReader marks a package whose compiled runtime reach the source
+	// does not name, so it and its importers may observe any candidate
+	// source; testOpaque marks the same for the package's tests alone, so
+	// only its own tests run on any change. The reason is audited.
+	opaqueReader bool
+	testOpaque   bool
+	// runtimeReason explains a broad binding: what the source left unnamed.
+	runtimeReason string
+	// Named repository inputs retain runtime acceptance even when Markdown.
+	declaredFiles []string
 }
 
 type packageInputGraph struct {
@@ -56,6 +69,15 @@ type packageInputGraph struct {
 	nodes         []goPackageInput
 	byID          map[string][]int
 	resourceFiles map[string][]string
+	// Includes tracked Go files omitted by the host build selection.
+	sourceDirectories map[string]bool
+	// testResourceFiles are repository paths a package's tests name at run
+	// time: inputs of that package's tests alone, never of its importers.
+	testResourceFiles map[string][]string
+	// runtimeResourceFiles are repository paths a package's compiled
+	// sources name at run time: inputs of the package's own tests, and of
+	// importers whose tests reach the repository root.
+	runtimeResourceFiles map[string][]string
 	// Scoped to one identity batch; never retained across candidate reads.
 	fileInputs map[string][]byte
 }
@@ -100,6 +122,14 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 	if graph.resourceFiles == nil {
 		graph.resourceFiles = map[string][]string{}
 	}
+	if graph.sourceDirectories == nil {
+		graph.sourceDirectories = map[string]bool{}
+	}
+	for _, name := range paths {
+		if strings.EqualFold(filepath.Ext(name), ".go") {
+			graph.sourceDirectories[filepath.Dir(filepath.Join(graph.root, filepath.FromSlash(name)))] = true
+		}
+	}
 	compiled := map[string]bool{}
 	var directories, roots []string
 	for _, node := range graph.nodes {
@@ -112,20 +142,99 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			compiled[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
 		}
 	}
-	// Opaque commands and file readers may consume any candidate source.
-	// Share conservative edges until a declared contract proves independence.
+	// Commands and file readers reach beyond their package at run time. A
+	// package whose source names what it runs and reads binds only those
+	// edges: the named command packages and the named repository paths. A
+	// program or path the source does not name keeps the conservative
+	// binding to every root until a declared runtime contract narrows it.
+	byDirectory := map[string]string{}
+	for _, node := range graph.nodes {
+		if len(node.Match) == 0 || node.ForTest != "" {
+			continue
+		}
+		if relative, err := filepath.Rel(graph.root, node.Dir); err == nil {
+			byDirectory[filepath.ToSlash(relative)] = node.ImportPath
+		}
+	}
 	var runtimeDirectories []string
+	broadTest := map[string]bool{}
+	namedPaths, namedTestPaths := map[string][]string{}, map[string][]string{}
+	if graph.testResourceFiles == nil {
+		graph.testResourceFiles = map[string][]string{}
+	}
+	if graph.runtimeResourceFiles == nil {
+		graph.runtimeResourceFiles = map[string][]string{}
+	}
 	for index := range graph.nodes {
 		node := &graph.nodes[index]
 		if !slices.Contains(directories, node.Dir) || len(node.Match) == 0 && node.ForTest == "" {
 			continue
 		}
-		runtimeReader := slices.Contains(node.Imports, "os/exec") || slices.Contains(node.Imports, "os") || slices.Contains(node.Imports, "io/ioutil")
+		inputs, err := classifyRuntimeInputs(graph.root, node.Dir, packageSources(*node))
+		node.declaredFiles = slices.Concat(inputs.files, inputs.testFiles)
+		// Tests read and run at run time as production code does; a package
+		// whose tests alone import os is a runtime reader of its own tests.
+		edges := slices.Concat(node.Imports, node.TestImports, node.XTestImports)
+		runtimeReader := slices.Contains(edges, "os/exec") || slices.Contains(edges, "os") || slices.Contains(edges, "io/ioutil")
 		if !runtimeReader {
 			continue
 		}
+		reason := ""
+		switch {
+		case err != nil:
+			reason = "runtime inputs unreadable: " + err.Error()
+		case len(inputs.dynamic) != 0:
+			reason = strings.Join(inputs.dynamic, "; ")
+		}
+		absent := ""
+		if reason == "" {
+			// A named command the graph does not hold (deleted or renamed)
+			// leaves the consumer's reach unexplained: its tests run on any
+			// change until the name resolves again.
+			for _, command := range inputs.commands {
+				if target, ok := byDirectory[command]; ok {
+					node.inputDependencies = append(node.inputDependencies, target)
+					node.executionDependencies = append(node.executionDependencies, target)
+				} else {
+					absent = "runs the command " + command + " the graph does not hold"
+				}
+			}
+			for _, command := range inputs.testCommands {
+				if target, ok := byDirectory[command]; ok {
+					node.testInputDependencies = append(node.testInputDependencies, target)
+					node.executionDependencies = append(node.executionDependencies, target)
+				} else {
+					inputs.testDynamic = append(inputs.testDynamic, "runs the command "+command+" the graph does not hold")
+				}
+			}
+		}
+		if reason == "" && absent != "" {
+			reason = absent
+		}
+		if reason == "" && absent == "" && inputs.confined() {
+			// Temporary files, the test binary and external tools: no edge.
+			continue
+		}
+		if reason == "" {
+			namedPaths[node.Dir] = append(namedPaths[node.Dir], inputs.files...)
+			namedTestPaths[node.Dir] = append(namedTestPaths[node.Dir], inputs.testFiles...)
+			if len(inputs.testDynamic) != 0 {
+				// The tests alone reach what they do not name: they run on
+				// any change, but importers observe only the compiled reach.
+				node.testOpaque = true
+				node.runtimeReason = "tests: " + strings.Join(inputs.testDynamic, "; ")
+				node.testInputDependencies = slices.Clone(roots)
+				if !slices.Contains(runtimeDirectories, node.Dir) {
+					runtimeDirectories = append(runtimeDirectories, node.Dir)
+					broadTest[node.Dir] = true
+				}
+			}
+			continue
+		}
+		node.opaqueReader = true
+		node.runtimeReason = reason
 		node.inputDependencies = slices.Clone(roots)
-		if slices.Contains(node.Imports, "os/exec") {
+		if slices.Contains(edges, "os/exec") {
 			node.executionDependencies = node.inputDependencies
 		}
 		if !slices.Contains(runtimeDirectories, node.Dir) {
@@ -134,19 +243,46 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 	}
 	for _, name := range paths {
 		absolute := filepath.Join(graph.root, filepath.FromSlash(name))
-		if strings.EqualFold(filepath.Ext(name), ".go") {
+		if documentationChanges([]string{name}, *graph) {
 			continue
 		}
-		owner := ""
-		for _, directory := range directories {
-			relative, err := filepath.Rel(directory, absolute)
-			if err == nil && relative != ".." && !filepath.IsAbs(relative) && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && len(directory) > len(owner) {
-				owner = directory
+		// A reader that names a source tree consumes its Go files as data;
+		// compiled inputs otherwise arrive through imports alone.
+		var owners []string
+		for directory, named := range namedPaths {
+			if namesPath(named, name) && !slices.Contains(graph.runtimeResourceFiles[directory], absolute) {
+				graph.runtimeResourceFiles[directory] = append(graph.runtimeResourceFiles[directory], absolute)
 			}
 		}
-		owners := slices.Clone(runtimeDirectories)
-		if owner != "" && !compiled[absolute] {
-			owners = append(owners, owner)
+		for directory, named := range namedTestPaths {
+			if namesPath(named, name) && !slices.Contains(graph.testResourceFiles[directory], absolute) {
+				graph.testResourceFiles[directory] = append(graph.testResourceFiles[directory], absolute)
+			}
+		}
+		if !strings.EqualFold(filepath.Ext(name), ".go") {
+			owner := ""
+			for _, directory := range directories {
+				relative, err := filepath.Rel(directory, absolute)
+				if err == nil && relative != ".." && !filepath.IsAbs(relative) && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) && len(directory) > len(owner) {
+					owner = directory
+				}
+			}
+			// A reader whose reach the source does not name may read any
+			// repository file: its tests' input when only the tests are
+			// unnamed, otherwise a runtime input that taints importers whose
+			// tests reach the repository. Adjacent assets stay compiled inputs.
+			for _, directory := range runtimeDirectories {
+				target := graph.runtimeResourceFiles
+				if broadTest[directory] {
+					target = graph.testResourceFiles
+				}
+				if !slices.Contains(target[directory], absolute) {
+					target[directory] = append(target[directory], absolute)
+				}
+			}
+			if owner != "" && !compiled[absolute] && !slices.Contains(owners, owner) {
+				owners = append(owners, owner)
+			}
 		}
 		for _, directory := range owners {
 			if !slices.Contains(graph.resourceFiles[directory], absolute) {
@@ -210,7 +346,7 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 	return result, nil
 }
 
-func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
+func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error) {
 	queue := append([]int(nil), graph.byID[target]...)
 	for index, node := range graph.nodes {
 		if node.ForTest == target {
@@ -218,40 +354,63 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		}
 	}
 	if len(queue) == 0 {
-		return artifact.ID{}, fmt.Errorf("package input identity: package %q is absent", target)
+		return nil, fmt.Errorf("package input identity: package %q is absent", target)
 	}
-	rootNodes := make(map[int]bool, len(queue))
-	for _, index := range queue {
-		rootNodes[index] = true
-	}
-	seen := map[int]bool{}
-	var visit func(int)
-	visit = func(index int) {
-		if seen[index] {
+	seen, withTests := map[int]bool{}, map[int]bool{}
+	var visit func(int, bool)
+	visit = func(index int, tests bool) {
+		if seen[index] && (!tests || withTests[index]) {
 			return
 		}
 		seen[index] = true
-		imports := slices.Concat(graph.nodes[index].Imports, graph.nodes[index].inputDependencies)
-		if rootNodes[index] {
+		withTests[index] = withTests[index] || tests
+		imports := slices.Clone(graph.nodes[index].Imports)
+		if tests {
 			imports = append(imports, graph.nodes[index].TestImports...)
 			imports = append(imports, graph.nodes[index].XTestImports...)
 		}
 		for _, imported := range imports {
 			for _, dependency := range graph.byID[imported] {
-				visit(dependency)
+				visit(dependency, false)
+			}
+		}
+		runtime := slices.Clone(graph.nodes[index].inputDependencies)
+		if tests {
+			runtime = append(runtime, graph.nodes[index].testInputDependencies...)
+		}
+		for _, imported := range runtime {
+			for _, dependency := range graph.byID[imported] {
+				// Runtime commands may run tests; opaque readers may read test source.
+				visit(dependency, true)
 			}
 		}
 	}
 	for _, index := range queue {
-		visit(index)
+		visit(index, true)
 	}
 	files := map[string]bool{}
 	for index := range seen {
 		node := graph.nodes[index]
-		for _, name := range node.files() {
+		names := node.productionFiles()
+		if withTests[index] {
+			names = node.files()
+		}
+		for _, name := range names {
 			files[filepath.Join(node.Dir, filepath.FromSlash(name))] = true
 		}
 		for _, path := range graph.resourceFiles[node.Dir] {
+			files[path] = true
+		}
+		// The target's own tests read what they name; an imported package's
+		// test inputs do not reach this identity, and its runtime-named
+		// inputs always do: the target's tests run the import's reads, and
+		// nothing establishes their isolation from them.
+		if withTests[index] {
+			for _, path := range graph.testResourceFiles[node.Dir] {
+				files[path] = true
+			}
+		}
+		for _, path := range graph.runtimeResourceFiles[node.Dir] {
 			files[path] = true
 		}
 		if node.Module != nil && node.Module.GoMod != "" {
@@ -263,8 +422,16 @@ func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
 		if _, err := os.Stat(path); err == nil {
 			files[path] = true
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return artifact.ID{}, err
+			return nil, err
 		}
+	}
+	return files, nil
+}
+
+func (graph packageInputGraph) identity(target string) (artifact.ID, error) {
+	files, err := graph.inputFiles(target)
+	if err != nil {
+		return artifact.ID{}, err
 	}
 	// Repository paths are logical inputs; temporary checkout locations are not.
 	logical := make(map[string]string, len(files))
@@ -339,4 +506,32 @@ func packageInputIdentities(graph packageInputGraph, packages []string) (map[str
 		identities[packagePath] = identity
 	}
 	return identities, nil
+}
+
+// devicePackages names, among the packages given and in their order, the
+// ones whose tests need the device: every package that is or transitively
+// depends on internal/cuda. It is the one fact the batch admission and the
+// batch order read.
+func (graph packageInputGraph) devicePackages(packages []string) ([]string, error) {
+	directories, err := graph.dependentDirectories("internal/cuda")
+	if err != nil {
+		return nil, err
+	}
+	needing := map[string]bool{}
+	for _, node := range graph.nodes {
+		relative, err := filepath.Rel(graph.root, node.Dir)
+		if err != nil {
+			return nil, err
+		}
+		if slices.Contains(directories, filepath.ToSlash(relative)) {
+			needing[node.ImportPath] = true
+		}
+	}
+	var devices []string
+	for _, pkg := range packages {
+		if needing[pkg] {
+			devices = append(devices, pkg)
+		}
+	}
+	return devices, nil
 }

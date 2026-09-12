@@ -137,6 +137,7 @@ func CompileInstructionRules(suite InstructionRulesSuite) (InstructionRulesPlan,
 			}
 			ruleNames[rule.source.Name] = struct{}{}
 			compiled[index][ruleIndex] = rule
+			testCase.Rules[ruleIndex] = rule.source
 		}
 	}
 	identity, err := artifact.JSONID(artifact.KindProfile, suite)
@@ -224,6 +225,10 @@ func EvaluateInstructionRules(
 
 func compileInstructionRule(source InstructionRule) (compiledInstructionRule, error) {
 	source.Values = slices.Clone(source.Values)
+	if source.Count != nil {
+		count := *source.Count
+		source.Count = &count
+	}
 	if strings.TrimSpace(source.Name) == "" {
 		return compiledInstructionRule{}, errors.New("evaluation: instruction rule name is absent")
 	}
@@ -275,7 +280,11 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 			return compiledInstructionRule{}, errors.New("evaluation: invalid instruction unary rule")
 		}
 	default:
-		return compiledInstructionRule{}, errors.New("evaluation: unknown instruction rule")
+		var err error
+		result, err = compileIFEvalStructure(source)
+		if err != nil {
+			return compiledInstructionRule{}, err
+		}
 	}
 	for _, value := range source.Values {
 		if value == "" {
@@ -286,7 +295,7 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 }
 
 func validCountRule(rule *CountRule) bool {
-	return rule != nil && rule.Value >= 0 && (rule.Relation == RelationEqual || rule.Relation == RelationAtLeast || rule.Relation == RelationAtMost)
+	return rule != nil && rule.Value >= 0 && (rule.Relation == RelationEqual || rule.Relation == RelationAtLeast || rule.Relation == RelationAtMost || rule.Relation == ifevalLessThan)
 }
 
 func evaluateInstructionViews(response string, rules []compiledInstructionRule) ([]bool, []bool) {
@@ -365,12 +374,14 @@ func (rule compiledInstructionRule) matches(response string) bool {
 	case RuleNoComma:
 		return !strings.ContainsRune(response, ',')
 	default:
-		return false
+		return rule.matchesIFEvalStructure(response)
 	}
 }
 
 func compareCount(observed int, rule CountRule) bool {
 	switch rule.Relation {
+	case ifevalLessThan:
+		return observed < rule.Value
 	case RelationEqual:
 		return observed == rule.Value
 	case RelationAtLeast:

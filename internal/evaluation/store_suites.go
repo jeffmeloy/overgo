@@ -444,7 +444,7 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 		return []InstructionRule{{Name: id, Kind: RuleNoComma}}, true
 	case "startend:quotation":
 		// Python str.strip whitespace; the native check requires two quotes.
-		const space = `[[:space:]\x{001c}-\x{001f}\x{0085}\p{Z}]*`
+		const space = ifevalSpaceClass + "*"
 		return []InstructionRule{{Name: id, Kind: RuleRegex, Values: []string{`(?s)^` + space + `".*"` + space + `$`}}}, true
 	case "startend:end_checker":
 		var phrase string
@@ -455,7 +455,7 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 	case "detectable_format:json_format":
 		return []InstructionRule{{Name: id, Kind: ifevalJSONRule}}, true
 	default:
-		return nil, false
+		return ifevalStructureFor(id, kwargs)
 	}
 }
 

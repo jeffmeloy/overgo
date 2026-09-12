@@ -9,6 +9,37 @@
       "status": "open",
       "steps": [
         {
+          "id": "ifeval-native-parameters",
+          "title": "Bind resolved native checker inputs for strict and loose views",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestIFEvalRetainedTextAcceptance$' -count=1 \u0026\u0026 test -f internal/evaluation/ifeval_parameters_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalNativeParameterAcceptance$' -count=1",
+          "rationale": "Native input gap is resolved and preserved in evidence a22bc68f7a187fe0837df61348960d5d3e676831e5757296783b190ce6c6e3f7. A 1.133-second replay with the original global and language seeds matches all 1668 saved verdicts and records constructor normalization. Rows 19 and 22 declare # and ! as letters; lm_eval replaces these with y/w and a/c for strict/loose respectively. These four choices must be separate frozen inputs, not guessed symbol counts or a new random draw. Extend the existing catalog, compiled-suite and evidence owners to bind case/view parameters to the original dataset and retained reference. Preserve legacy omitted-field identities and the 541/834 denominator; reject wrong-source, duplicate, missing, unused or cross-view bindings. Reuse original records and responses rather than copying the 541-record corpus to change two operand bindings. Port the 33 letter-frequency instances against the retained resolved inputs and preserve an explicit distinction between typed rule implementation, production parameter consumption and complete scorer promotion. No new evaluator framework, fallback heuristic or repeated model acquisition.",
+          "depends_on": [
+            "modality-verification/ifeval-structure"
+          ]
+        },
+        {
+          "id": "ifeval-indexed-paragraph",
+          "title": "Match indexed paragraph checks against retained native results",
+          "status": "open",
+          "verify": "test -f internal/evaluation/ifeval_paragraph_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalIndexedParagraphAcceptance$' -count=1",
+          "rationale": "Port the twelve nth-paragraph/first-word instances using the pinned native paragraph segmentation, punctuation handling and explicit ordinal/count parameters. Reuse the existing instruction and paragraph owners. Bind native boundary cases and all twelve retained strict/loose outcomes; reject unresolved or invalid operands. Preserve accepted counting/formatting behavior. This is independent of sentence tokenizer and language profile work and needs no inference."
+        },
+        {
+          "id": "ifeval-tokenizer",
+          "title": "Port frozen native sentence and capital-word counting",
+          "status": "open",
+          "verify": "test -f internal/evaluation/ifeval_tokenizer_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalTokenizerAcceptance$' -count=1",
+          "rationale": "Two native checks require more than word-regex counting: 52 sentence-count instructions use the pinned NLTK English Punkt tokenizer; 25 capital-word-frequency instructions use nltk.word_tokenize, including its hyphen/token and Unicode case behavior. Native code, NLTK 3.9.2 package identity and punkt_tab data hashes are already retained by native score root 78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839. Find and reuse these inputs through existing artifact/dataset owners. Port and compare the actual tokenization rules; do not approximate with punctuation splits or whitespace words. Bind token-level adversarial fixtures and the 77 retained verdict pairs. Split at dispatch if profile loading and tokenization exceed a bounded implementation slice. No new model acquisition."
+        },
+        {
+          "id": "ifeval-language",
+          "title": "Match native language detection and language-dependent case checks",
+          "status": "open",
+          "verify": "test -f internal/evaluation/ifeval_language_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalLanguageAcceptance$' -count=1",
+          "rationale": "Close 31 response-language instructions plus 64 English uppercase/lowercase instructions. The native case checks require langdetect English classification as well as Unicode case, so generic case-only predicates are insufficient. Preserve the four adversarial counterexamples (HELLO/hello and French text) and compare all 95 retained strict/loose outcomes. Reuse langdetect 1.0.9 code/profile hashes and seed 0 already recorded by native scoring; bind actual profile data, normalization, sampling and tie behavior rather than substituting a heuristic. Keep the original external scores immutable. Split profile binding and numerical behavior at dispatch if needed; no model reload or native score rerun without a specific missing measurement."
+        },
+        {
           "id": "text-and-vision",
           "title": "Verify chat, embedding, rerank and vision-language activations",
           "status": "open",
@@ -23,7 +54,12 @@
             "validation-ifeval-json/do",
             "minicpm-ifeval-acquisition/do",
             "musr-normalization-contract/do",
-            "modality-verification/ifeval-text-checkers"
+            "modality-verification/ifeval-text-checkers",
+            "modality-verification/ifeval-structure",
+            "modality-verification/ifeval-native-parameters",
+            "modality-verification/ifeval-indexed-paragraph",
+            "modality-verification/ifeval-tokenizer",
+            "modality-verification/ifeval-language"
           ]
         },
         {
@@ -588,7 +624,12 @@
             "minicpm-native-parity/do",
             "validation-device-sharing/do",
             "validation-gate-selection/short-profile-reuse",
-            "modality-verification/ifeval-text-checkers"
+            "modality-verification/ifeval-text-checkers",
+            "modality-verification/ifeval-structure",
+            "modality-verification/ifeval-native-parameters",
+            "modality-verification/ifeval-indexed-paragraph",
+            "modality-verification/ifeval-tokenizer",
+            "modality-verification/ifeval-language"
           ]
         }
       ]

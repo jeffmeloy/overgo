@@ -8,6 +8,7 @@ import (
 )
 
 const (
+	ifevalSpaceClass    = `[[:space:]\x{001c}-\x{001f}\x{0085}\p{Z}]`
 	ifevalKeywordsRule  = "lm-eval/ifeval/keywords/v1"
 	ifevalForbiddenRule = "lm-eval/ifeval/forbidden-words/v1"
 	ifevalEndRule       = "lm-eval/ifeval/end-phrase/v1"
@@ -48,6 +49,9 @@ func trimIFEvalSpace(value string) string {
 
 func matchesIFEvalEnd(response, phrase string) bool {
 	// Python lower expands dotted I; the admitted phrase vocabulary is ASCII.
-	lower := func(value string) string { return strings.ToLower(strings.ReplaceAll(value, "İ", "i\u0307")) }
-	return strings.HasSuffix(lower(strings.Trim(trimIFEvalSpace(response), `"`)), lower(trimIFEvalSpace(phrase)))
+	return strings.HasSuffix(lowerIFEvalASCIIComparison(strings.Trim(trimIFEvalSpace(response), `"`)), lowerIFEvalASCIIComparison(trimIFEvalSpace(phrase)))
+}
+
+func lowerIFEvalASCIIComparison(value string) string {
+	return strings.ToLower(strings.ReplaceAll(value, "İ", "i\u0307"))
 }

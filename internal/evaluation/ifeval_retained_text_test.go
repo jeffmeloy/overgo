@@ -112,7 +112,7 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 		}
 		byName[row.Name] = verdict{row.Strict, row.Loose}
 	}
-	want := map[string]int{"keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26}
+	want := map[string]int{"keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
 	counts := map[string]int{}
 	instructions := 0
 	for ordinal, recordID := range imported.Records {
@@ -161,5 +161,5 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	if instructions != scores.Instructions || !maps.Equal(counts, want) {
 		t.Fatalf("instruction denominator total=%d selected=%v", instructions, counts)
 	}
-	t.Logf("114/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
+	t.Logf("617/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
 }

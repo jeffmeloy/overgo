@@ -1,0 +1,1733 @@
+{
+  "schema": "overgo/ifeval-structure-oracle/v1",
+  "reference_version": "0.4.9.1",
+  "sources": {
+    "instructions.py": "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32",
+    "instructions_util.py": "e8c4d9187bac1482d93941fb46469609c3ae78d896195bfcb300a0707d492567",
+    "utils.py": "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632"
+  },
+  "cases": [
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "one",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "one two",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "one two three",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "one two three four",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "can't",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "a-b",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "a_cat42 café 中文 ²",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "cat́cat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "🙂",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "less than"
+      },
+      "response": "header\none two\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "cat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "catCAT",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "concatenate CAT",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "cat cat",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "Cat\ncat",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "header\nCATcat\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "cAtCaT",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "less than"
+      },
+      "response": "catcatcat",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "one",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "one two",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "one two three",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "one two three four",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "can't",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "a-b",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "a_cat42 café 中文 ²",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "cat́cat",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "🙂",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_words",
+      "kwargs": {
+        "num_words": 3,
+        "relation": "at least"
+      },
+      "response": "header\none two\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "cat",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "catCAT",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "concatenate CAT",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "cat cat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "Cat\ncat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "header\nCATcat\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "cAtCaT",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": "cat",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "catcatcat",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": " city ",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "CITYcity",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": " city ",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "cİtycıty",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": " city ",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "city",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "keywords:frequency",
+      "kwargs": {
+        "keyword": " city ",
+        "frequency": 2,
+        "relation": "at least"
+      },
+      "response": "cityCITYcity",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "[][]",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "[x][y]",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "[\n] []",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "[[x]]",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "[] blah [ ]",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "[a][b][c]",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "header\n[a][b]\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:number_placeholders",
+      "kwargs": {
+        "num_placeholders": 2
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "* one\n* two",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "-one\n--two",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "*",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "*\none\n* two",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "**bold**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": " * point\n-\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "*a*\n*b*\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_bullet_lists",
+      "kwargs": {
+        "num_bullets": 2
+      },
+      "response": "header\n- a\n- b\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "**bold** *plain*",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "*one**two*",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "****",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "* *",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "**first\nsecond**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "header\n* x *\n* y *\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "*a* *b* *c*",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:number_highlighted_sections",
+      "kwargs": {
+        "num_highlights": 2
+      },
+      "response": "**a**b**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "Section 1Section 2",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "section1 Section2",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "Section ١ Section ٢",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "Section1 Section2 Section3",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "Section 1",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "Section\n1 Section\n2",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:multiple_sections",
+      "kwargs": {
+        "section_spliter": " Section ",
+        "num_sections": 2
+      },
+      "response": "header\nSection1 Section2\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "a***b",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "***a***b***",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "a******b",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "a***\n \n***b",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "a\n\nb",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "a***b***c",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "header\na***b\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "length_constraints:number_paragraphs",
+      "kwargs": {
+        "num_paragraphs": 2
+      },
+      "response": "a***b",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "Hi P.S. bye",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "p. s. end",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "P.S.\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "P.S",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "P.S. \n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "P. S. end",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "P.S.",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "PS.",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "Pſ.",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.S."
+      },
+      "response": "p.\ns.",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.P.S"
+      },
+      "response": "p.p.s",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.P.S"
+      },
+      "response": "p. p. s",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.P.S"
+      },
+      "response": "P.P.S.\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.P.S"
+      },
+      "response": "p.p.s\r\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.P.S"
+      },
+      "response": "pp.s",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_content:postscript",
+      "kwargs": {
+        "postscript_marker": "P.P.S"
+      },
+      "response": "p.pſ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<<x>>",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<< >>",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<<>>>>",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<<<>>> <<<>>>",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<<\n>>",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "a <<first>> and <<second>>",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<< >>",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "<<first> second>>",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:title",
+      "kwargs": {},
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "My answer is yes.",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "prefix My answer is no. suffix",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "My answer is maybe.",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "My answer is YES.",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "my answer is yes.",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "My answer is yes!",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "detectable_format:constrained_response",
+      "kwargs": {},
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "a******b",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "\n******a******b******\n",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "a******a",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "a************b",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "A******a",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": " a ****** a ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "a******b******c",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "a",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:two_responses",
+      "kwargs": {},
+      "response": "header\na******b\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "Repeat this.",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "REPEAT THIS. answer",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "\"Repeat this.\"",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "\u001c repeat this. \u001f",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "repeat thıs.",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "Repeat thİs. answer",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "header\nRepeat this.\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "instruction": "combination:repeat_prompt",
+      "kwargs": {
+        "prompt_to_repeat": "Repeat this."
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    }
+  ]
+}

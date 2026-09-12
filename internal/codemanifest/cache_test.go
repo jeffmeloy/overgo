@@ -7,7 +7,7 @@ import (
 
 func TestCacheIdentity(t *testing.T) {
 	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
-	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
+	key := cacheKey{fixtureDigest, manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
 	cache, _ := NewCache(2)
 	if err := cache.put(key, manifest); err != nil {
 		t.Fatal(err)
@@ -28,7 +28,7 @@ func TestCacheCanonicalizesAuthorityBeforeComparison(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema,
+	key := cacheKey{fixtureDigest, manifest.SourceIdentity, manifest.Analyzer, Schema,
 		slices.Clone(manifest.BuildContexts), slices.Clone(manifest.ExternalInputs)}
 	slices.Reverse(key.BuildContexts)
 	slices.Reverse(key.ExternalInputs)
@@ -43,7 +43,7 @@ func TestCacheCanonicalizesAuthorityBeforeComparison(t *testing.T) {
 
 func TestCacheInvalidation(t *testing.T) {
 	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
-	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
+	key := cacheKey{fixtureDigest, manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
 	cache, _ := NewCache(2)
 	if err := cache.put(key, manifest); err != nil {
 		t.Fatal(err)
@@ -56,7 +56,7 @@ func TestCacheInvalidation(t *testing.T) {
 
 func TestSchemaChangeInvalidatesCache(t *testing.T) {
 	manifest := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
-	key := CacheKey{manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
+	key := cacheKey{fixtureDigest, manifest.SourceIdentity, manifest.Analyzer, Schema, manifest.BuildContexts, manifest.ExternalInputs}
 	cache, _ := NewCache(2)
 	if err := cache.put(key, manifest); err != nil {
 		t.Fatal(err)
@@ -71,8 +71,8 @@ func TestBoundedEviction(t *testing.T) {
 	cache, _ := NewCache(1)
 	first := cacheManifestFixture(t, "package example\nfunc Value() int { return 1 }\n")
 	second := cacheManifestFixture(t, "package example\nfunc Value() int { return 2 }\n")
-	firstKey := CacheKey{first.SourceIdentity, first.Analyzer, Schema, first.BuildContexts, first.ExternalInputs}
-	secondKey := CacheKey{second.SourceIdentity, second.Analyzer, Schema, second.BuildContexts, second.ExternalInputs}
+	firstKey := cacheKey{fixtureDigest, first.SourceIdentity, first.Analyzer, Schema, first.BuildContexts, first.ExternalInputs}
+	secondKey := cacheKey{fixtureDigest, second.SourceIdentity, second.Analyzer, Schema, second.BuildContexts, second.ExternalInputs}
 	if err := cache.put(firstKey, first); err != nil {
 		t.Fatal(err)
 	}

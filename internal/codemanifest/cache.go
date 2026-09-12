@@ -10,19 +10,21 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-// CacheKey binds every input that can change generated manifest semantics.
-type CacheKey struct {
-	SourceIdentity string          `json:"source_identity"`
-	Analyzer       Analyzer        `json:"analyzer"`
-	Schema         string          `json:"schema"`
-	BuildContexts  []BuildContext  `json:"build_contexts"`
-	ExternalInputs []ExternalInput `json:"external_inputs,omitempty"`
+// cacheKey binds every input that can change generated manifest semantics.
+type cacheKey struct {
+	SelectionIdentity string          `json:"selection_identity"`
+	SourceIdentity    string          `json:"source_identity"`
+	Analyzer          Analyzer        `json:"analyzer"`
+	Schema            string          `json:"schema"`
+	BuildContexts     []BuildContext  `json:"build_contexts"`
+	ExternalInputs    []ExternalInput `json:"external_inputs,omitempty"`
 }
 
 type cacheEntry struct {
-	key      artifact.ID
-	manifest Manifest
-	used     uint64
+	selectionIdentity string
+	key               artifact.ID
+	manifest          Manifest
+	used              uint64
 }
 
 // Cache owns a caller-declared capacity; Put evicts the least-recently used
@@ -42,19 +44,19 @@ func NewCache(capacity int) (*Cache, error) {
 }
 
 // Key returns the canonical identity for one complete manifest authority.
-func (key CacheKey) canonical() (CacheKey, error) {
+func (key cacheKey) canonical() (cacheKey, error) {
 	canonical := key
 	canonical.BuildContexts = slices.Clone(key.BuildContexts)
 	canonical.ExternalInputs = slices.Clone(key.ExternalInputs)
 	slices.SortFunc(canonical.BuildContexts, func(left, right BuildContext) int { return strings.Compare(left.ID, right.ID) })
 	slices.SortFunc(canonical.ExternalInputs, func(left, right ExternalInput) int { return strings.Compare(left.Path, right.Path) })
-	if !validDigest(canonical.SourceIdentity) || canonical.Analyzer.Name == "" || canonical.Analyzer.Version == "" || canonical.Schema == "" || len(canonical.BuildContexts) == 0 {
-		return CacheKey{}, errors.New("code manifest cache: incomplete authority key")
+	if !validDigest(canonical.SelectionIdentity) || !validDigest(canonical.SourceIdentity) || canonical.Analyzer.Name == "" || canonical.Analyzer.Version == "" || canonical.Schema == "" || len(canonical.BuildContexts) == 0 {
+		return cacheKey{}, errors.New("code manifest cache: incomplete authority key")
 	}
 	return canonical, nil
 }
 
-func (key CacheKey) id() (artifact.ID, error) {
+func (key cacheKey) id() (artifact.ID, error) {
 	canonical, err := key.canonical()
 	if err != nil {
 		return artifact.ID{}, err
@@ -62,7 +64,7 @@ func (key CacheKey) id() (artifact.ID, error) {
 	return artifact.JSONID(artifact.KindRecipe, canonical)
 }
 
-func (cache *Cache) get(key CacheKey) (Manifest, bool) {
+func (cache *Cache) get(key cacheKey) (Manifest, bool) {
 	if cache == nil {
 		return Manifest{}, false
 	}
@@ -80,7 +82,7 @@ func (cache *Cache) get(key CacheKey) (Manifest, bool) {
 	return clone(entry.manifest), true
 }
 
-func (cache *Cache) put(key CacheKey, manifest Manifest) error {
+func (cache *Cache) put(key cacheKey, manifest Manifest) error {
 	if cache == nil || cache.capacity <= 0 {
 		return errors.New("code manifest cache: uninitialized")
 	}
@@ -100,7 +102,7 @@ func (cache *Cache) put(key CacheKey, manifest Manifest) error {
 		return errors.New("code manifest cache: manifest differs from authority key")
 	}
 	cache.clock++
-	cache.entries[id] = cacheEntry{key: id, manifest: clone(manifest), used: cache.clock}
+	cache.entries[id] = cacheEntry{key: id, selectionIdentity: canonical.SelectionIdentity, manifest: clone(manifest), used: cache.clock}
 	for len(cache.entries) > cache.capacity {
 		var victim cacheEntry
 		first := true
@@ -128,12 +130,49 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 	slices.SortFunc(contexts, func(left, right BuildContext) int { return strings.Compare(left.ID, right.ID) })
 	inputs := slices.Clone(external)
 	slices.SortFunc(inputs, func(left, right ExternalInput) int { return strings.Compare(left.Path, right.Path) })
-	key := CacheKey{
-		SourceIdentity: snapshot.Identity(), Analyzer: Analyzer{Name: analyzerName, Version: analyzerVersion},
+	type analysisSelection struct {
+		Selection   repoanalysis.BuildSelection
+		ImportNames map[string]string
+	}
+	selected := make([]analysisSelection, len(selections))
+	for index, selection := range selections {
+		names, err := repoanalysis.PackageNames(snapshot, selection)
+		if err != nil {
+			return Manifest{}, false, err
+		}
+		selection.Root = ""
+		selected[index] = analysisSelection{selection, names}
+	}
+	slices.SortFunc(selected, func(left, right analysisSelection) int {
+		return strings.Compare(left.Selection.Context, right.Selection.Context)
+	})
+	selectionID, err := artifact.JSONID(artifact.KindRecipe, selected)
+	if err != nil {
+		return Manifest{}, false, err
+	}
+	key := cacheKey{
+		SelectionIdentity: selectionID.DigestHex(),
+		SourceIdentity:    snapshot.Identity(), Analyzer: Analyzer{Name: analyzerName, Version: analyzerVersion},
 		Schema: Schema, BuildContexts: contexts, ExternalInputs: inputs,
 	}
 	if manifest, found := cache.get(key); found {
 		return manifest, true, nil
+	}
+	// Source, compiler membership and resolved import names bind analysis.
+	if cache != nil {
+		for _, entry := range cache.entries {
+			prior := entry.manifest
+			if entry.selectionIdentity != key.SelectionIdentity || prior.SourceIdentity != key.SourceIdentity || prior.Analyzer != key.Analyzer || !reflect.DeepEqual(prior.BuildContexts, contexts) {
+				continue
+			}
+			manifest = clone(prior)
+			manifest.ExternalInputs = inputs
+			manifest, err = identifyManifest(manifest)
+			if err != nil {
+				return Manifest{}, false, err
+			}
+			return manifest, false, cache.put(key, manifest)
+		}
 	}
 	manifest, err = Generate(snapshot, selections, external)
 	if err != nil {

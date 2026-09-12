@@ -962,9 +962,12 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		previous, err := repoanalysis.ModernGoCensusSnapshot(base, selection, baseline.TargetGo)
-		if err != nil {
-			return false, err
+		previous := candidate
+		if base.Identity() != snapshot.Identity() {
+			previous, err = repoanalysis.ModernGoCensusSnapshot(base, selection, baseline.TargetGo)
+			if err != nil {
+				return false, err
+			}
 		}
 		if err := repoanalysis.AdmitModernGoDelta(baseline, previous, candidate, g.paths); err != nil {
 			return false, err
@@ -1300,7 +1303,7 @@ func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short 
 // when leased, else with no lease, so a package claiming the device
 // exclusively is not refused by the gate's own lease.
 func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error) {
-	args := []string{"test", "-json", "-count=1"}
+	args := []string{"test", "-json", "-count=1", "-failfast"}
 	if short {
 		args = append(args, "-short")
 	}

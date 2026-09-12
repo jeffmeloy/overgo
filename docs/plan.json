@@ -9,16 +9,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "documentation-cost",
-          "title": "Remove repeated analysis and delayed failure from unchanged-source commits",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestGateReusesUnchangedCheckEvidence|TestModernGoPreflightBindsCandidateCensus|TestCampaignStructurePreflight)$' -count=1 \u0026\u0026 test -f internal/gate/documentation_cost_test.go \u0026\u0026 go test ./internal/gate -run '^TestDocumentationCostAcceptance$' -count=1",
-          "rationale": "Use the measured documentation publication to choose a bounded repair in existing gate and evidence owners. Known costs: the 783.548-second reference spent 42.106 seconds in modern-Go and 84.018 seconds in commit. The first boundary adoption retry spent 859.5 seconds before failure: a missing README in a synthetic campaign fixture failed immediately, but the package kept starting tests until Go's aggregate ten-minute timeout. The fixture is repaired; preserve the failed record. Stop launching further tests in a failed package, retain successful independent package evidence and report unfinished checks without credit. Prove this with an early failing fixture and an observable later acquisition, plus a passing sibling. Reuse identical base/candidate analysis rather than recomputing it. Reuse successful static verdicts only when their complete source, policy, configuration, environment and base-dependent inputs match; validate time-sensitive exceptions through their existing owner. Do not introduce another cache, wrapper or deadline policy. Keep cheap campaign checks ahead of expensive tests and preserve the full gate-policy adoption scope. Compare whole-attempt wall and repeated work; each optimization must retain a seeded counterexample for a changed relevant input. Do not gate independent model validation on this optimization or on general call-reach analysis.",
-          "depends_on": [
-            "documentation-publication/do"
-          ]
-        },
-        {
           "id": "measured-adoption",
           "title": "Adopt reduced scope only after equivalent detection and measured savings",
           "status": "open",

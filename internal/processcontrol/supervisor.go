@@ -111,8 +111,12 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	go supervised.drainPipe(stdout, stdoutSink, &supervised.stdoutBytes)
 	go supervised.drainPipe(stderr, stderrSink, &supervised.stderrBytes)
 	go func() {
+		treeErr := supervised.tree.wait()
 		supervised.drain.Wait()
 		supervised.waitErr = run.Wait()
+		if treeErr != nil {
+			supervised.waitErr = treeErr
+		}
 		close(supervised.exited)
 	}()
 	return supervised, nil
@@ -156,8 +160,11 @@ func (s *Supervised) Interrupt() error {
 // Terminate kills the entire process tree, descendants included.
 func (s *Supervised) Terminate() error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finished {
+		return nil
+	}
 	s.terminated = true
-	s.mu.Unlock()
 	return s.tree.terminate()
 }
 
@@ -184,10 +191,13 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 		<-s.exited
 	}
 	waitErr := s.waitErr
-	_ = s.tree.close()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.finished {
+		return s.receipt, nil
+	}
+	_ = s.tree.close()
 	s.finished = true
 	s.receipt = Receipt{
 		ExitCode:       s.command.ProcessState.ExitCode(),

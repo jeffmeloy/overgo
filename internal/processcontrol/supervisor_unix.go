@@ -54,3 +54,5 @@ func (t processTree) terminate() error {
 }
 
 func (t processTree) close() error { return nil }
+
+func (t processTree) wait() error { return nil }

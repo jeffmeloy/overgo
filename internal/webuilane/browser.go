@@ -114,16 +114,13 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 		"savefile": map[string]any{"default_directory": downloads},
 	})
 	if err != nil {
-		removeProfile(profile)
-		return nil, err
+		return nil, errors.Join(err, removeProfile(profile))
 	}
 	if err := os.MkdirAll(filepath.Join(profile, "Default"), clioptions.OutputDirectoryMode); err != nil {
-		removeProfile(profile)
-		return nil, err
+		return nil, errors.Join(err, removeProfile(profile))
 	}
 	if err := os.WriteFile(filepath.Join(profile, "Default", "Preferences"), preferences, clioptions.PrivateFileMode); err != nil {
-		removeProfile(profile)
-		return nil, err
+		return nil, errors.Join(err, removeProfile(profile))
 	}
 	output := &bytes.Buffer{}
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
@@ -137,43 +134,36 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 		Stderr: output,
 	})
 	if err != nil {
-		removeProfile(profile)
-		return nil, err
+		return nil, errors.Join(err, removeProfile(profile))
 	}
 	browser := &Browser{supervised: supervised, wait: ctx, profile: profile, output: output}
 	port, err := waitDevToolsPort(ctx, profile, supervised)
 	if err != nil {
-		browser.Close()
-		return nil, fmt.Errorf("webui lane: browser debugging endpoint: %w: %s", err, output.String())
+		closeErr := browser.Close()
+		return nil, errors.Join(fmt.Errorf("webui lane: browser debugging endpoint: %w: %s", err, output.String()), closeErr)
 	}
 	target, err := createTarget(ctx, port, "about:blank")
 	if err != nil {
-		browser.Close()
-		return nil, err
+		return nil, errors.Join(err, browser.Close())
 	}
 	browser.socket, err = dialWebSocket(ctx, target)
 	if err != nil {
-		browser.Close()
-		return nil, err
+		return nil, errors.Join(err, browser.Close())
 	}
 	if err := browser.Call(ctx, "Runtime.enable", nil, nil); err != nil {
-		browser.Close()
-		return nil, err
+		return nil, errors.Join(err, browser.Close())
 	}
 	// Downloads belong to this run and leave with its temporary profile.
 	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{
 		"behavior": "allow", "downloadPath": downloads,
 	}, nil); err != nil {
-		browser.Close()
-		return nil, err
+		return nil, errors.Join(err, browser.Close())
 	}
 	if err := browser.Call(ctx, "Page.navigate", map[string]any{"url": pageURL}, nil); err != nil {
-		browser.Close()
-		return nil, err
+		return nil, errors.Join(err, browser.Close())
 	}
 	if err := browser.Eventually(ctx, `document.readyState === "complete"`); err != nil {
-		browser.Close()
-		return nil, err
+		return nil, errors.Join(err, browser.Close())
 	}
 	return browser, nil
 }
@@ -186,12 +176,14 @@ func (browser *Browser) Close() error {
 	if browser.socket != nil {
 		_ = browser.socket.close()
 	}
+	var stopErr, waitErr error
 	if browser.supervised != nil {
-		_ = browser.supervised.Terminate()
-		_, _ = browser.supervised.Wait(browser.wait)
+		if !browser.supervised.Exited() {
+			stopErr = browser.supervised.Terminate()
+		}
+		_, waitErr = browser.supervised.Wait(context.WithoutCancel(browser.wait))
 	}
-	removeProfile(browser.profile)
-	return nil
+	return errors.Join(stopErr, waitErr, removeProfile(browser.profile))
 }
 
 // Call invokes one DevTools method.
@@ -299,14 +291,17 @@ func createTarget(ctx context.Context, port int, pageURL string) (string, error)
 	return target.WebSocket, nil
 }
 
-func removeProfile(profile string) {
+func removeProfile(profile string) error {
+	if profile == "" {
+		return nil
+	}
 	temporary, err := filepath.Abs(os.TempDir())
 	resolved, resolveErr := filepath.Abs(profile)
 	if err != nil || resolveErr != nil || filepath.Dir(resolved) != temporary ||
 		!strings.HasPrefix(filepath.Base(resolved), "overgo-webui-lane-") {
-		return
+		return errors.New("webui lane: cleanup path is not an owned temporary profile")
 	}
-	_ = os.RemoveAll(resolved)
+	return os.RemoveAll(resolved)
 }
 
 type webSocket struct {

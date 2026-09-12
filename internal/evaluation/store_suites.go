@@ -18,8 +18,9 @@ import (
 // cases stop at the same output budgets lm_eval grants them, so scores
 // compare across models on identical envelopes.
 const (
-	mathDerivedMaxTokens   = 512
-	ifevalDerivedMaxTokens = 256
+	mathDerivedMaxTokens = 512
+	// lm_eval 0.4.9.1, IFEval task v4.0: generation_kwargs.max_gen_toks.
+	ifevalDerivedMaxTokens = 1280
 )
 
 // storeCase is one benchmark record joined with the catalog entry it
@@ -439,10 +440,9 @@ func ifevalRuleFor(id string, kwargs map[string]json.RawMessage) ([]InstructionR
 	case "punctuation:no_comma":
 		return []InstructionRule{{Name: id, Kind: RuleNoComma}}, true
 	case "startend:quotation":
-		return []InstructionRule{
-			{Name: id + "/open", Kind: RulePrefix, Values: []string{`"`}},
-			{Name: id + "/close", Kind: RuleSuffix, Values: []string{`"`}},
-		}, true
+		// Python str.strip whitespace; the native check requires two quotes.
+		const space = `[[:space:]\x{001c}-\x{001f}\x{0085}\p{Z}]*`
+		return []InstructionRule{{Name: id, Kind: RuleRegex, Values: []string{`(?s)^` + space + `".*"` + space + `$`}}}, true
 	case "startend:end_checker":
 		var phrase string
 		if err := json.Unmarshal(kwargs["end_phrase"], &phrase); err != nil || phrase == "" {

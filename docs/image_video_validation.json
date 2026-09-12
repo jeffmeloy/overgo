@@ -1,0 +1,85 @@
+{
+  "checks": [
+    {
+      "command": "go test ./internal/oscillatorimage -run '^(TestArtifactLoadDerivesDims|TestArtifactPublishesReferencePNG|TestArtifactPublishesReferenceGIF|TestArtifactGenerateDeterministicAndClassSensitive|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch)$' -count=1 -json",
+      "evidence": "evidence:sha256:1b76ebf297818aec6b26dce434375cedaa0ee7bc4b7fa980775c853fdf7856de",
+      "name": "Un-0 image and video references (before timing fix)",
+      "scope": "Six tests passed: artifact-derived dimensions, native PNG and GIF bytes, deterministic repeat, class sensitivity, and Torch dynamics/generator parity. The original 6-frame, 8-fps GIF byte oracle passed before the timing correction."
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-wan-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaCurrentWanValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:4c147dfaa703e01d75ed7ea35368baaa34990408e7b0aa2626da133764c0e57a",
+      "name": "Wan denoiser and temporal VAE",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_current_wan_test.go": "evidence:sha256:2452c3bbe570769b865153005fc7751bc2ef3e58cfc70bc9d12e62d1c26140dd"
+      },
+      "scope": "G3 F32/BF16 and G4 F32 denoiser golden comparisons passed; G3/G4 temporal VAE decode comparisons passed. These small reference trajectories do not validate a newly generated 81-frame full-resolution clip."
+    },
+    {
+      "command": "go test ./internal/latentimage -run '^TestResidentLifetimeResourceAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:dbbffc09e070acd8c1d3507b443ed25af28edd93d5bc3270e5faf0da2782df0e",
+      "name": "Krea generation and cancellation recovery",
+      "scope": "256x256, 8 steps, seed 42: real generation, in-flight decoder cancellation and subsequent decode passed. Owned storage stayed at 25,997,788,492 bytes and 496 allocations across cancellation; observed decoder peak was 26,925,269,372 bytes. Recovered PNG SHA-256: 3bf4ea50f7cfa6991dcd7ef76de20e67a5928f974c5f7279508ad7a1cf180da2. This lifecycle check is not full-resolution visual parity."
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-diffusion-overlay.json ./internal/diffusionimage -tags=modeltest -run '^TestMediaCurrentDiffusionValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:a9605a631c21bf1d48ac1f321dfdade6ac4121fa3ae454621841e16aa62ae745",
+      "name": "SimpleDiffusion host/CUDA comparison",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/diffusionimage/media_current_diffusion_test.go": "evidence:sha256:1c677095de11924b7749444fd2f467000ae4339df897da047c053919e41f9f64"
+      },
+      "scope": "64x64, 2 steps, seed 7: warm CUDA median 22.3562 ms versus host 325.7646 ms across the existing three-call comparison. Float maximum error 2.265e-6; one PNG channel differed by one byte level, within the unchanged bounds. This measures warm generation, excluding cold loading."
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-liveedit-overlay.json ./internal/latentvideo -run '^TestMediaCurrentLiveEditValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:e2538f05d33e5fb2b58270cdf2711beb05b4f73e11c6c4904bbd7e6495465428",
+      "name": "LiveEdit device runtime",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_current_liveedit_test.go": "evidence:sha256:f4feb673193ab2d92e094d93536bae8599225baa7b36e4c1ddf9aba4665b4c44"
+      },
+      "scope": "Two requests passed exact latent/frame identities for a real-weight, 5-frame 16x32 source crop with explicit conditioning and noise. Observed walls: 0.534 s and 0.100 s. Context projections remained at one. Component peaks are separate ownership measurements, not a combined process peak. This does not establish full-size video-edit quality."
+    },
+    {
+      "command": "OVERGO_SENSENOVA_FULL=1 go test -overlay=tmp/media-current-sensenova-overlay.json ./internal/sensenovarecipe -run '^TestMediaCurrentSenseNovaValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:974857c7279e1e3e149fd001d546654e7c0e5278ff97f88891ee07ce0eb76ade",
+      "name": "SenseNova production and full-resolution quality",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_current_sensenova_test.go": "evidence:sha256:e2efda5515273b683c0e94f16842355c57b0325193aea39fcbef89a2b2dc0658"
+      },
+      "scope": "The 256x256, 2-step production PNG hash check FAILED: expected 6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0, observed 03a5a657b1a9c4690dad0673a730a379a4d579a6d46ae8079b5f9218fc3c179c. Separately, the 1536x2720, 50-step quality/performance test passed its unchanged signature bounds: wall 140.804 s and device peak 17.100 GiB. Its PNG differs from the reviewed reference; the whole acquisition remains failed."
+    },
+    {
+      "command": "go test -overlay=tmp/media-sensenova-diagnosis-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaDiagnosis$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:a0d1acb69623ea35be8bde2ce15f11cda2f9962c1bf4d62b419e9a90628cc8f4",
+      "name": "SenseNova native diagnostic",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_diagnosis_test.go": "evidence:sha256:8d69f21a08fa69158e4e52163a85407e09ad2266cf7f6fa0fd127f2e6cc4761c"
+      },
+      "scope": "Native source/input identity and all sampled latent, layer, boundary and velocity comparisons passed their existing bounds. The final PNG hash check still FAILED: expected bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617, observed 1b63ee276369cf58735ac90ccaf3656faf5696214380bf16a3526cbac20d8640. The cause remains unresolved; neither exact reference was changed."
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/production.go": "b2f8aef5cbbcfbe43f7d70268ace25a636df473355f7d5494c49cfb9020362d3",
+        "internal/latentvideo/production_test.go": "57945bfb3640caf7568f74b60bf3c9bca41edecd0094b13426a37349eb4f604d",
+        "internal/media/gif_timing_test.go": "96eecb9e8c21b0b4505834a60f24e604a523c801be6bd3f39a9e62f7d607cb05",
+        "internal/media/video.go": "95e51aea27cd2e03002dd99b862b67a08e96d98b95bfeb8c1cc9ef2ecb9168bf",
+        "internal/mediacapability/output_oscillator_test.go": "33b1dc6f8d9c73aeebea56426cc1c3d98dc7d36b793eee2cb373b41e27bf9c3e",
+        "internal/oscillatorimage/load_test.go": "cc42c4bd9721bc43e8c58caec4275eae782b1635bb7e806e1427d815dc781c21",
+        "internal/oscillatorimage/video.go": "916be2ec394750c4c30a1d10548519a7928c98b3e702c1cc2c380f7838f5964f"
+      },
+      "command": "go test ./internal/media ./internal/latentvideo ./internal/oscillatorimage ./internal/mediacapability -run '^(TestGIFFrameTimingPreservesDuration|TestGIFEncoderFrameOrderAndTiming|TestGIFEncoderRejectsUnknownPixelRange|TestArtifactPublishesReferenceGIF|TestOutputContentPublishesOscillatorClip)$' -count=1 -json",
+      "evidence": "evidence:sha256:cda3894fe09d2e3ff22bb181445f08e9c7e1d6a5cd0b50d038445bfcce33c1d5",
+      "name": "Shared GIF timing correction",
+      "scope": "All representable positive integer GIF frame rates (1-100 fps), large frame indices, frame ordering, and migrated consumers passed. Cumulative timing now stays within half a centisecond: 81 frames at 16 fps encode as 5.06 s rather than 4.86 s. Un-0 native frame pixels, order, palette and other metadata remain exact; six frames at 8 fps now total 0.75 s. Original retained exports remain unchanged."
+    }
+  ],
+  "environment": "Acquired September 12, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. GPU acquisitions used the existing exclusive measurement-process owner. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
+  "notes": [
+    "Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. The tests below establish only their stated shapes and comparisons. SenseNova has an unresolved exact-output regression, so current image/video validation is incomplete.",
+    "This checkpoint fixes shared GIF timing and the report reader's rejection of valid external JSON-array oracle files. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates are predictions, not measured optimization gains.",
+    "Remaining work includes resolving the SenseNova exact-output mismatch, fresh full-length Wan generation and visual/temporal review, complete frozen-case coverage, public workflow and cancellation checks, and matched speed/memory/transfer comparisons. The operator requested a stop after this checkpoint commit; these obligations remain open in the plan.",
+    "The GIF checks were repeated after converting the test loop to Go's integer-range syntax. The earlier passing acquisition remains stored as evidence:sha256:436bf59f286ab85b48abb5aa7c3d13b37a6198ab2e6f2e634c17a6fd488e31de; the table cites the final test source."
+  ],
+  "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
+  "version": 1
+}

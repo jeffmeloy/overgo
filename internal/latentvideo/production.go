@@ -188,10 +188,21 @@ func NewGIFEncoder(fps int, pixels PixelRange) (*GIFEncoder, error) {
 	if !checked.PositiveInts(fps) || !pixels.valid() {
 		return nil, errors.New("latent video: invalid GIF encoding policy")
 	}
-	return &GIFEncoder{fps: fps, pixels: pixels}, nil
+	encoder := &GIFEncoder{fps: fps, pixels: pixels}
+	if _, err := media.GIFFrameDelay(fps, len(encoder.animation.Image)); err != nil {
+		return nil, err
+	}
+	return encoder, nil
 }
 
-func (s *GIFEncoder) Add(_ int, frame []float32, height, width int) error {
+func (s *GIFEncoder) Add(index int, frame []float32, height, width int) error {
+	if index != len(s.animation.Image) {
+		return errors.New("latent video: frame index is out of order")
+	}
+	delay, err := media.GIFFrameDelay(s.fps, index)
+	if err != nil {
+		return err
+	}
 	raw := make([]uint8, len(frame))
 	if err := media.EncodePlanarRGB8Into(raw, frame, height, width, func(value float32) uint8 {
 		return encodeVideoByte(value, s.pixels)
@@ -225,7 +236,7 @@ func (s *GIFEncoder) Add(_ int, frame []float32, height, width int) error {
 	paletted := image.NewPaletted(rgba.Bounds(), palette.Plan9)
 	draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
 	s.animation.Image = append(s.animation.Image, paletted)
-	s.animation.Delay = append(s.animation.Delay, media.GIFFrameDelay(s.fps))
+	s.animation.Delay = append(s.animation.Delay, delay)
 	return nil
 }
 

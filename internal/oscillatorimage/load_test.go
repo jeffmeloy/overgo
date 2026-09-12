@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -72,10 +73,28 @@ func TestArtifactPublishesReferenceGIF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: reference video %s: %v", referencePath, err)
 	}
-	if !bytes.Equal(encoded.Data, reference) {
-		t.Fatalf("GIF differs from adaptive_new reference: bytes=%d want=%d", len(encoded.Data), len(reference))
+	original, err := gif.DecodeAll(bytes.NewReader(reference))
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Logf("real Un-0 GIF: class=1 seed=202 frames=6 size=64x64 encoded_bytes=%d changed_source_pixels=%d exact_reference=true", len(encoded.Data), encoded.ChangedPixels)
+	// The frozen campaign protocol corrects cumulative GIF timing. Preserve
+	// every other native field, including all frame pixels, order and palette.
+	original.Delay = decoded.Delay
+	if !reflect.DeepEqual(decoded, original) {
+		t.Fatal("GIF differs from the native reference beyond corrected delays")
+	}
+	total := 0
+	for _, delay := range decoded.Delay {
+		total += delay
+	}
+	errorNumerator := total*encoded.FPS - encoded.Frames*100
+	if errorNumerator < 0 {
+		errorNumerator = -errorNumerator
+	}
+	if errorNumerator*2 > encoded.FPS {
+		t.Fatal("GIF duration differs from the declared frame rate")
+	}
+	t.Logf("real Un-0 GIF: class=1 seed=202 frames=6 size=64x64 encoded_bytes=%d changed_source_pixels=%d exact_reference_pixels=true original_reference_bytes_equal=%v corrected_duration_centiseconds=%d", len(encoded.Data), encoded.ChangedPixels, bytes.Equal(encoded.Data, reference), total)
 }
 
 // Generation is deterministic and class-sensitive.

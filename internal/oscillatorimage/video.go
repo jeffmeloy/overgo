@@ -80,7 +80,11 @@ func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
 	animation := &gif.GIF{}
 	var previous []uint8
 	changed := 0
-	for _, feature := range features.frames {
+	for frameIndex, feature := range features.frames {
+		delay, err := media.GIFFrameDelay(videoFPS, frameIndex)
+		if err != nil {
+			return EncodedVideo{}, err
+		}
 		frame, err := m.decodePlanar(feature)
 		if err != nil {
 			return EncodedVideo{}, err
@@ -100,7 +104,7 @@ func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
 		paletted := image.NewPaletted(rgba.Bounds(), palette.Plan9)
 		draw.FloydSteinberg.Draw(paletted, rgba.Bounds(), rgba, image.Point{})
 		animation.Image = append(animation.Image, paletted)
-		animation.Delay = append(animation.Delay, media.GIFFrameDelay(videoFPS))
+		animation.Delay = append(animation.Delay, delay)
 	}
 	var encoded bytes.Buffer
 	if err := gif.EncodeAll(&encoded, animation); err != nil {

@@ -57,6 +57,8 @@ type InstructionRule struct {
 	Kind   string     `json:"kind"`
 	Values []string   `json:"values,omitempty"`
 	Count  *CountRule `json:"count,omitempty"`
+	// Loose binds independently resolved native operands for the loose view.
+	Loose *InstructionRule `json:"loose,omitempty"`
 }
 
 type InstructionRulesCase struct {
@@ -77,6 +79,7 @@ type compiledInstructionRule struct {
 	source   InstructionRule
 	pattern  *regexp.Regexp
 	patterns []*regexp.Regexp
+	loose    *compiledInstructionRule
 }
 
 type InstructionRulesPlan struct {
@@ -291,6 +294,18 @@ func compileInstructionRule(source InstructionRule) (compiledInstructionRule, er
 			return compiledInstructionRule{}, errors.New("evaluation: empty instruction rule value")
 		}
 	}
+
+	if source.Loose != nil {
+		if source.Loose.Loose != nil || source.Loose.Name != source.Name || source.Loose.Kind != source.Kind {
+			return compiledInstructionRule{}, errors.New("evaluation: incompatible loose instruction operands")
+		}
+		loose, err := compileInstructionRule(*source.Loose)
+		if err != nil {
+			return compiledInstructionRule{}, err
+		}
+		result.loose = &loose
+		result.source.Loose = &loose.source
+	}
 	return result, nil
 }
 
@@ -302,9 +317,12 @@ func evaluateInstructionViews(response string, rules []compiledInstructionRule) 
 	views := looseInstructionViews(response)
 	strict, loose := make([]bool, len(rules)), make([]bool, len(rules))
 	for index, rule := range rules {
-		strict[index] = strings.TrimSpace(response) != "" && rule.matches(response)
+		strict[index] = trimIFEvalSpace(response) != "" && rule.matches(response)
+		if rule.loose != nil {
+			rule = *rule.loose
+		}
 		for _, view := range views {
-			if strings.TrimSpace(view) != "" && rule.matches(view) {
+			if trimIFEvalSpace(view) != "" && rule.matches(view) {
 				loose[index] = true
 				break
 			}
@@ -317,11 +335,11 @@ func looseInstructionViews(response string) []string {
 	lines := strings.Split(response, "\n")
 	removeFirst, removeLast, removeBoth := "", "", ""
 	if len(lines) > 1 {
-		removeFirst = strings.TrimSpace(strings.Join(lines[1:], "\n"))
-		removeLast = strings.TrimSpace(strings.Join(lines[:len(lines)-1], "\n"))
+		removeFirst = trimIFEvalSpace(strings.Join(lines[1:], "\n"))
+		removeLast = trimIFEvalSpace(strings.Join(lines[:len(lines)-1], "\n"))
 	}
 	if len(lines) > 2 {
-		removeBoth = strings.TrimSpace(strings.Join(lines[1:len(lines)-1], "\n"))
+		removeBoth = trimIFEvalSpace(strings.Join(lines[1:len(lines)-1], "\n"))
 	}
 	withoutMarks := func(value string) string { return strings.ReplaceAll(value, "*", "") }
 	return []string{

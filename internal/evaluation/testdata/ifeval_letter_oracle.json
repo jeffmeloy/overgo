@@ -1,0 +1,1355 @@
+{
+  "schema": "overgo/ifeval-letter-oracle/v1",
+  "reference_version": "0.4.9.1",
+  "sources": {
+    "instructions.py": "1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32",
+    "instructions_util.py": "e8c4d9187bac1482d93941fb46469609c3ae78d896195bfcb300a0707d492567",
+    "utils.py": "1ab8f14808c826f93f2364883487ed63cf4267980bf4761fda8053899c013632"
+  },
+  "cases": [
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "aA",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "Iİıi",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "kKK",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "sSſ",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "café",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "🙂",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "aA",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "Iİıi",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "kKK",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "sSſ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "café",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "🙂",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "a",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "aA",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "Iİıi",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "kKK",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "sSſ",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "café",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "🙂",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "aA",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "Iİıi",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "kKK",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "sSſ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "café",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "🙂",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "i",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "aA",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "Iİıi",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "kKK",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "sSſ",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "café",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "🙂",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "aA",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "Iİıi",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "kKK",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "sSſ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "café",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "🙂",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "K",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "aA",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "Iİıi",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "kKK",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "sSſ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "café",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "🙂",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "less than"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": " ",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "\u001c\u001d\u001e\u001f",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "aA",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "Iİıi",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "kKK",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "sSſ",
+      "strict": [
+        true
+      ],
+      "loose": [
+        true
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "café",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "header\niİ\nfooter",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "**aaaa**",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "🙂",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    },
+    {
+      "kwargs": {
+        "letter": "s",
+        "let_frequency": 2,
+        "let_relation": "at least"
+      },
+      "response": "AAAaaa",
+      "strict": [
+        false
+      ],
+      "loose": [
+        false
+      ]
+    }
+  ]
+}

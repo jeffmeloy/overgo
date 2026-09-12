@@ -112,7 +112,32 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 		}
 		byName[row.Name] = verdict{row.Strict, row.Loose}
 	}
-	want := map[string]int{"keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
+	parameterID := parse("profile:sha256:78fff5aa9eb2bc5015aadba767afe49003cb813117422ecfbfa4fb65a19b8a4f")
+	active, bound, err := store.ResolveAlias(t.Context(), benchmarkCatalogAlias)
+	if err != nil || !bound {
+		t.Fatal("active benchmark catalog is absent")
+	}
+	catalog, found, err := benchmarkCatalogCodec.Read(t.Context(), store, active)
+	if err != nil || !found {
+		t.Fatal("active benchmark catalog is unreadable")
+	}
+	boundEntries := 0
+	for _, entry := range catalog.Entries {
+		if entry.Dataset == imported.ID {
+			if entry.Parameters != parameterID {
+				t.Fatal("active dataset parameters differ from the retained reference")
+			}
+			boundEntries++
+		}
+	}
+	if boundEntries != 1 {
+		t.Fatal("retained parameter catalog binding is absent or ambiguous")
+	}
+	parameters, err := readIFEvalParameters(t.Context(), store, imported, parameterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{"keywords:letter_frequency": 33, "keywords:existence": 39, "keywords:forbidden_words": 49, "startend:end_checker": 26, "punctuation:no_comma": 66, "startend:quotation": 41, "detectable_format:json_format": 17, "length_constraints:number_words": 52, "keywords:frequency": 42, "detectable_content:number_placeholders": 27, "detectable_format:number_bullet_lists": 31, "detectable_format:number_highlighted_sections": 48, "detectable_format:multiple_sections": 14, "length_constraints:number_paragraphs": 27, "detectable_content:postscript": 26, "detectable_format:title": 37, "detectable_format:constrained_response": 10, "combination:two_responses": 24, "combination:repeat_prompt": 41}
 	counts := map[string]int{}
 	instructions := 0
 	for ordinal, recordID := range imported.Records {
@@ -143,7 +168,11 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 			if _, selected := want[id]; !selected {
 				continue
 			}
-			rules, mapped := ifevalRuleFor(id, kwargs[index])
+			var binding *ifevalParameterBinding
+			if bound, present := parameters[recordID][id]; present {
+				binding = &bound
+			}
+			rules, mapped := ifevalRuleWithParameters(id, kwargs[index], binding)
 			if !mapped || len(rules) != 1 {
 				t.Fatalf("native instruction %s is not mapped once", id)
 			}
@@ -161,5 +190,5 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	if instructions != scores.Instructions || !maps.Equal(counts, want) {
 		t.Fatalf("instruction denominator total=%d selected=%v", instructions, counts)
 	}
-	t.Logf("617/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
+	t.Logf("650/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
 }

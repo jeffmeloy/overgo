@@ -4,20 +4,27 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "validation-preflight-recovery",
+      "title": "Remove repeated closure-preflight work",
+      "status": "open",
+      "steps": [
+        {
+          "id": "closure-rebind",
+          "title": "Resolve moved closure bindings in one consistent preflight",
+          "status": "open",
+          "verify": "go test ./cmd/closure-scan -run '^(TestCatalogBindsInOneTransaction|TestClosureImportRefusesConflictingDecisionClaims|TestSameStoreImportRecoversAutomaticTechnicalRebind|TestSameStoreImportLeavesUnprovenMatchingRetirementInactive)$' -count=1 \u0026\u0026 test -f cmd/closure-scan/rebind_projection_test.go \u0026\u0026 go test ./cmd/closure-scan -run '^TestClosureRebindProjectionAcceptance$' -count=1",
+          "rationale": "Resolve measured preflight friction before the next scorer extension, then return to modality validation. Finding e5a1335bb2ad1ffa906e090b746d413b9189e94db8b8ad2935e13c1fdba67bd7 records a catalogue collision and two multi-minute imports after inserting an unrelated switch branch. Inventory called existing regex literals new, catalogue admission also rebound their old decisions, and old alias claims kept a unique successor unresolved until a second transaction. Reproduce this exact repeated-literal/shifted-branch case in a temporary repository. Reconcile planned retirements and successor claims through one shared projection; use it in inventory and admission so a restored review cannot also be proposed as new. Preserve reviewed text, exact values, conflicting-decision refusal, unproven-retirement refusal and store-head comparison. Acceptance: one transaction settles every uniquely justified successor, unrelated decisions remain unchanged, restart/repeat performs zero writes, ambiguous or competing claims make no partial publication, and no literal is silently reclassified. Measure scan/history passes and total attempt cost before/after. Reuse parsed snapshot/history within the attempt; do not add another command, wrapper, policy bypass or cache without a complete invalidation key. This bounded repair does not gate already accepted model evidence or authorize whole-model reacquisition.",
+          "depends_on": [
+            "modality-verification/ifeval-native-parameters"
+          ]
+        }
+      ]
+    },
+    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",
       "steps": [
-        {
-          "id": "ifeval-native-parameters",
-          "title": "Bind resolved native checker inputs for strict and loose views",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestIFEvalRetainedTextAcceptance$' -count=1 \u0026\u0026 test -f internal/evaluation/ifeval_parameters_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestIFEvalNativeParameterAcceptance$' -count=1",
-          "rationale": "Native input gap is resolved and preserved in evidence a22bc68f7a187fe0837df61348960d5d3e676831e5757296783b190ce6c6e3f7. A 1.133-second replay with the original global and language seeds matches all 1668 saved verdicts and records constructor normalization. Rows 19 and 22 declare # and ! as letters; lm_eval replaces these with y/w and a/c for strict/loose respectively. These four choices must be separate frozen inputs, not guessed symbol counts or a new random draw. Extend the existing catalog, compiled-suite and evidence owners to bind case/view parameters to the original dataset and retained reference. Preserve legacy omitted-field identities and the 541/834 denominator; reject wrong-source, duplicate, missing, unused or cross-view bindings. Reuse original records and responses rather than copying the 541-record corpus to change two operand bindings. Port the 33 letter-frequency instances against the retained resolved inputs and preserve an explicit distinction between typed rule implementation, production parameter consumption and complete scorer promotion. No new evaluator framework, fallback heuristic or repeated model acquisition.",
-          "depends_on": [
-            "modality-verification/ifeval-structure"
-          ]
-        },
         {
           "id": "ifeval-indexed-paragraph",
           "title": "Match indexed paragraph checks against retained native results",
@@ -629,7 +636,8 @@
             "modality-verification/ifeval-native-parameters",
             "modality-verification/ifeval-indexed-paragraph",
             "modality-verification/ifeval-tokenizer",
-            "modality-verification/ifeval-language"
+            "modality-verification/ifeval-language",
+            "validation-preflight-recovery/closure-rebind"
           ]
         }
       ]

@@ -28,10 +28,11 @@ const (
 // came from: the entry name carries family/subset/split, the fields
 // carry the case.
 type storeCase struct {
-	entry   string
-	subset  string
-	ordinal int
-	fields  map[string]json.RawMessage
+	entry      string
+	subset     string
+	ordinal    int
+	fields     map[string]json.RawMessage
+	parameters map[string]ifevalParameterBinding
 }
 
 // DeriveStoreSuites compiles evaluation suites from the store's active
@@ -93,6 +94,13 @@ func deriveStoreSuites(
 				subset = imported.Spec.Split
 			}
 		}
+		var parameters map[artifact.ID]map[string]ifevalParameterBinding
+		if entry.Parameters.Kind() != artifact.KindInvalid {
+			parameters, err = readIFEvalParameters(ctx, reader, imported, entry.Parameters)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 		for ordinal, recordID := range imported.Records {
 			record, found, err := dataset.ReadBenchmarkRecord(ctx, reader, recordID)
 			if err != nil || !found {
@@ -103,7 +111,7 @@ func deriveStoreSuites(
 				fields[field.Name] = field.Value
 			}
 			families[family.family] = append(families[family.family], storeCase{
-				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields,
+				entry: entry.Name, subset: subset, ordinal: ordinal, fields: fields, parameters: parameters[recordID],
 			})
 		}
 	}
@@ -486,7 +494,11 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 			if index < len(kwargsList) && kwargsList[index] != nil {
 				kwargs = kwargsList[index]
 			}
-			ruleSet, ok := ifevalRuleFor(id, kwargs)
+			var binding *ifevalParameterBinding
+			if bound, present := entry.parameters[id]; present {
+				binding = &bound
+			}
+			ruleSet, ok := ifevalRuleWithParameters(id, kwargs, binding)
 			if !ok {
 				mapped = false
 				break

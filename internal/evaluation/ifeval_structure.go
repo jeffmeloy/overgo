@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	ifevalLetters      = "lm-eval/ifeval/letter-frequency/v1"
 	ifevalLessThan     = "less-than"
 	ifevalWords        = "lm-eval/ifeval/words/v1"
 	ifevalFrequency    = "lm-eval/ifeval/keyword-frequency/v1"
@@ -31,7 +32,7 @@ func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, er
 	case ifevalWords:
 		counted = true
 		patterns = []string{`[\p{L}\p{N}_]+`}
-	case ifevalFrequency:
+	case ifevalFrequency, ifevalLetters:
 		counted = true
 		valueOperand = true
 	case ifevalPlaceholders:
@@ -76,6 +77,10 @@ func compileIFEvalStructure(source InstructionRule) (compiledInstructionRule, er
 			}
 		}
 		switch source.Kind {
+		case ifevalLetters:
+			if len(value) != 1 || !strings.ContainsAny(value, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+				return result, errors.New("evaluation: unresolved IFEval letter")
+			}
 		case ifevalFrequency:
 			value = trimIFEvalSpace(value)
 			if value == "" {
@@ -125,6 +130,8 @@ func (rule compiledInstructionRule) matchesIFEvalStructure(response string) bool
 		for _, pattern := range rule.patterns {
 			count += len(pattern.FindAllStringIndex(response, -1))
 		}
+	case ifevalLetters:
+		count = strings.Count(lowerIFEvalASCIIComparison(response), strings.ToLower(rule.source.Values[0]))
 	case ifevalHighlights:
 		for _, pattern := range rule.patterns {
 			for _, match := range pattern.FindAllString(response, -1) {
@@ -208,6 +215,10 @@ func ifevalStructureFor(id string, kwargs map[string]json.RawMessage) ([]Instruc
 	case "length_constraints:number_words":
 		rule.Kind = ifevalWords
 		rule.Count = count("num_words", "relation", "")
+	case "keywords:letter_frequency":
+		rule.Kind = ifevalLetters
+		rule.Count = count("let_frequency", "let_relation", "")
+		arg = "letter"
 	case "keywords:frequency":
 		rule.Kind = ifevalFrequency
 		rule.Count = count("frequency", "relation", "")

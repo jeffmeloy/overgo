@@ -11,17 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "baseline",
-          "title": "Capture one representative baseline cohort and freeze change acceptance",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_baseline_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoOptimizationBaselineAcceptance$' -count=1",
-          "rationale": "Use the profile's selected real image/video consumers, preserving their frozen quality protocols and existing reference checks. Reuse exact retained baselines where available; acquire only missing observations and gather numerical/visual quality, phase timing, transfer counts, memory lifetime/peak information, cancellation recovery and representative samples in the same supported session. Exercise representative supported shapes and a constrained resource case selected from the actual workload. Capture cold and warm results separately and account for all attempts. Freeze each candidate's expected effect, quality requirements, memory/latency tradeoffs, measurement stopping conditions and rollback before editing. An optimization on a single consumer may use its own minimal baseline, but a common-code claim needs baselines for the real consumers it migrates. Do not wait for the remaining catalog or report-rendering work. Persist per-case identities so the full model rows can reuse this work. Acceptance rejects incomplete affected-consumer coverage, changed protocols, absent resource observations and baseline/candidate identity substitution.",
-          "depends_on": [
-            "media-optimization/profile",
-            "media-protocol/quality"
-          ]
-        },
-        {
           "id": "common-components",
           "title": "Consolidate duplicated generation operations in existing shared components",
           "status": "open",

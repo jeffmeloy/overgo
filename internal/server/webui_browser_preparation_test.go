@@ -47,7 +47,11 @@ func prepareBrowserJourney(t *testing.T) (browserJourneyConfig, error) {
 	if _, err := os.Stat(roots.Store); err != nil {
 		return browserJourneyConfig{}, err
 	}
-	servables, multimodal, err := smallestServables(t.Context(), roots.Store)
+	privateStore := filepath.Join(t.TempDir(), "store")
+	if err := prepareBrowserJourneyStore(t.Context(), roots.Store, privateStore); err != nil {
+		return browserJourneyConfig{}, err
+	}
+	servables, multimodal, err := smallestServables(t.Context(), privateStore)
 	if err != nil {
 		return browserJourneyConfig{}, err
 	}
@@ -64,7 +68,7 @@ func prepareBrowserJourney(t *testing.T) (browserJourneyConfig, error) {
 	if receipt.ExitCode != 0 {
 		return browserJourneyConfig{}, fmt.Errorf("first-run journey: server build exited %d", receipt.ExitCode)
 	}
-	configured = browserJourneyConfig{binary: binary, store: roots.Store, model: filepath.Base(servables[0]), location: servables[0]}
+	configured = browserJourneyConfig{binary: binary, store: privateStore, model: filepath.Base(servables[0]), location: servables[0]}
 	if len(multimodal) > 0 {
 		configured.multimodal = filepath.Base(multimodal[0])
 	}

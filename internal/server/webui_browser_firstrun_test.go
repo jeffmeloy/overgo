@@ -15,13 +15,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime/pprof"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"overgo/internal/dataroot"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
@@ -60,6 +60,15 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	binary, store := journey.binary, journey.store
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourceInfo, sourceErr := os.Stat(roots.Store)
+	storeInfo, storeErr := os.Stat(store)
+	if sourceErr == nil && storeErr == nil && os.SameFile(sourceInfo, storeInfo) {
+		t.Fatal("first-run journey requires an isolated store before publishing browser fixtures")
+	}
 	modelName, modelLocation := journey.model, journey.location
 	t.Logf("first-run journey: model %s at %s", modelName, modelLocation)
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
@@ -76,7 +85,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// Leg 15's page-declared provider: its key set before any child launches, so the running child can list and serve it.
 	t.Setenv("OVERGO_WEBUI_LANE_PAGE_KEY", "lane-key")
 	entryName := declareLaneRemote(t, store, "webui-lane-entry", "OVERGO_WEBUI_LANE_ENTRY_KEY", "", []string{"Hello", " after the key"})
-	serverDir := filepath.Dir(store)
+	serverDir := testutil.RepoRoot(t)
 	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: binary, Store: store, Dir: serverDir}, 0)
 	if err != nil {
 		t.Fatal(err)

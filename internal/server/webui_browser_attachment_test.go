@@ -84,7 +84,8 @@ func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
   const caps=overgo.capabilities();caps.media.accept.push('image/png');caps.media.max_image_bytes=1048576;caps.media.max_image_dimension=1024;caps.media.max_image_pixels=1048576;
   caps.modes.push({id:'image',label:'Image fixture',enabled:true});
   window.attachmentGet=overgo.api.get;window.attachmentUpload=overgo.api.upload;
-  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'image',recipe:'attachment-fixture-recipe',name:'Attachment fixture',controls:[{name:'source',label:'Source file',type:'artifact',required:true}]}];return attachmentGet.call(this,path,options);};
+  const attachmentCaps=structuredClone(caps);
+  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'image',recipe:'attachment-fixture-recipe',name:'Attachment fixture',controls:[{name:'source',label:'Source file',type:'artifact',required:true}]}];const result=await attachmentGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(attachmentCaps);return result;};
   window.attachmentOldComposer=document.querySelector('.composer');overgo.openConversation(null);return true;
 })()`)
 	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==attachmentOldComposer`)

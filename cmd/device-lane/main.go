@@ -83,12 +83,8 @@ func run() error {
 		}
 		var stdout, stderr bytes.Buffer
 		var receipt processcontrol.Receipt
-		// A built command claims the device exclusively for as long as it
-		// runs and, when refused, runs again under the lane budget. A test
-		// step's correctness tests open contexts of their own and run under
-		// a shared lease the lane waits for like the gate's batches; its
-		// measurement tests run outside that lease, since their exclusive
-		// children would otherwise wait on their own ancestor.
+		// Commands and correctness tests share admission. Measurement tests
+		// run outside that lease so their exclusive children can acquire.
 		run := func(ctx context.Context, command []string) (int, error) {
 			stdout.Reset()
 			stderr.Reset()
@@ -100,7 +96,10 @@ func run() error {
 			return receipt.ExitCode, err
 		}
 		var code int
-		if slices.Equal(command, step) {
+		if index == 0 {
+			// Device metadata creates no context and needs no GPU lease.
+			code, err = run(ctx, command)
+		} else if slices.Equal(command, step) {
 			code, err = runTestStep(ctx, os.Stdout, identity, step, run)
 		} else {
 			code, err = runStepAdmitted(ctx, os.Stdout, identity, deviceAdmissionBudget, func(ctx context.Context) (int, error) { return run(ctx, command) })

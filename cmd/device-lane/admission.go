@@ -71,40 +71,17 @@ func executableStep(ctx context.Context, root, buildDir string, step []string) (
 	return []string{binary}, nil
 }
 
-// runs one step again while it exits with the typed contention status, so a
-// foreign holder is waited out under the budget and each exclusive hold
-// stays as short as the step itself; the budget bounds that wait alone,
-// while a running attempt keeps the caller's context, whose own bound ends
-// a stuck step, so a step admitted at once is never cancelled for the
-// waiting it did not do
+// Admit correctness work under the shared lease, then execute once. The
+// admission budget ends at acquisition; execution retains the caller's context.
 func runStepAdmitted(ctx context.Context, output io.Writer, name string, budget time.Duration, run func(context.Context) (int, error)) (int, error) {
-	wait, cancel := context.WithTimeoutCause(ctx, budget, errAdmissionBudget)
-	defer cancel()
-	began := time.Now()
-	waiting := false
-	code := 0
-	err := processcontrol.AwaitResource(wait, func() error {
-		var err error
-		code, err = run(ctx)
-		if err != nil || code != processcontrol.ResourceBusyExitCode {
-			return err
-		}
-		if !waiting {
-			waiting = true
-			fmt.Fprintf(output, "[device] resource=%s mode=exclusive state=waiting budget=%s\n", name, budget)
-		}
-		return processcontrol.ErrResourceBusy
+	release, err := holdSharedLease(ctx, output, name, budget, func() (func() error, error) {
+		return processcontrol.ShareResource(name)
 	})
 	if err != nil {
-		if errors.Is(err, processcontrol.ErrResourceBusy) {
-			return code, fmt.Errorf("device admission: %w", err)
-		}
-		return code, err
+		return 0, err
 	}
-	if waiting {
-		fmt.Fprintf(output, "[device] resource=%s mode=exclusive state=admitted wait=%s\n", name, time.Since(began).Round(time.Millisecond))
-	}
-	return code, nil
+	code, err := run(ctx)
+	return code, errors.Join(err, release())
 }
 
 // holds a shared lease around the correctness tests of a step, waiting for
@@ -148,12 +125,10 @@ func runTestStep(ctx context.Context, output io.Writer, name string, step []stri
 		return 0, err
 	}
 	correctness, measurement := splitTestStep(step, names)
-	release, err := holdSharedLease(ctx, output, name, deviceAdmissionBudget, func() (func() error, error) { return processcontrol.ShareResource(name) })
-	if err != nil {
-		return 0, err
-	}
-	code, err := run(ctx, correctness)
-	if err = errors.Join(err, release()); err != nil || code != 0 || measurement == nil {
+	code, err := runStepAdmitted(ctx, output, name, deviceAdmissionBudget, func(ctx context.Context) (int, error) {
+		return run(ctx, correctness)
+	})
+	if err != nil || code != 0 || measurement == nil {
 		return code, err
 	}
 	fmt.Fprintf(output, "[device] resource=%s mode=measurement tests=%d outside the shared lease\n", name, len(names))

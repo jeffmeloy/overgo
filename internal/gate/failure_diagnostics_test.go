@@ -17,6 +17,7 @@ func TestGateTestFailureDiagnostics(t *testing.T) {
 		"go.mod": "module failurefixture\n\ngo 1.23\n",
 		"failure_test.go": `package failurefixture
 import ("strings"; "testing")
+func TestPriorPass(t *testing.T) {}
 func TestBroken(t *testing.T) { t.Error("expected retained owning assertion, got wrong value") }
 func TestLater(t *testing.T) {
  for range 100 { t.Log(strings.Repeat("irrelevant later output ", 100)) }

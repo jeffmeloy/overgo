@@ -60,6 +60,8 @@ type goPackageInput struct {
 	testOpaque   bool
 	// runtimeReason explains a broad binding: what the source left unnamed.
 	runtimeReason string
+	// Named repository inputs retain runtime acceptance even when Markdown.
+	declaredFiles []string
 }
 
 type packageInputGraph struct {
@@ -67,6 +69,8 @@ type packageInputGraph struct {
 	nodes         []goPackageInput
 	byID          map[string][]int
 	resourceFiles map[string][]string
+	// Includes tracked Go files omitted by the host build selection.
+	sourceDirectories map[string]bool
 	// testResourceFiles are repository paths a package's tests name at run
 	// time: inputs of that package's tests alone, never of its importers.
 	testResourceFiles map[string][]string
@@ -118,6 +122,14 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 	if graph.resourceFiles == nil {
 		graph.resourceFiles = map[string][]string{}
 	}
+	if graph.sourceDirectories == nil {
+		graph.sourceDirectories = map[string]bool{}
+	}
+	for _, name := range paths {
+		if strings.EqualFold(filepath.Ext(name), ".go") {
+			graph.sourceDirectories[filepath.Dir(filepath.Join(graph.root, filepath.FromSlash(name)))] = true
+		}
+	}
 	compiled := map[string]bool{}
 	var directories, roots []string
 	for _, node := range graph.nodes {
@@ -159,6 +171,7 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			continue
 		}
 		inputs, err := classifyRuntimeInputs(graph.root, node.Dir, packageSources(*node))
+		node.declaredFiles = slices.Concat(inputs.files, inputs.testFiles)
 		// Tests read and run at run time as production code does; a package
 		// whose tests alone import os is a runtime reader of its own tests.
 		edges := slices.Concat(node.Imports, node.TestImports, node.XTestImports)
@@ -230,6 +243,9 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 	}
 	for _, name := range paths {
 		absolute := filepath.Join(graph.root, filepath.FromSlash(name))
+		if documentationChanges([]string{name}, *graph) {
+			continue
+		}
 		// A reader that names a source tree consumes its Go files as data;
 		// compiled inputs otherwise arrive through imports alone.
 		var owners []string

@@ -82,7 +82,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer supervisor.Close()
-	repository, err := overgodb.Open(store)
+	repository, err := overgodb.OpenContext(t.Context(), store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -834,7 +834,7 @@ func retireLaneRemote(t *testing.T, storePath, location string) {
 		t.Error(err)
 		return
 	}
-	laneStore, err := overgodb.Open(storePath)
+	laneStore, err := overgodb.OpenContext(context.WithoutCancel(t.Context()), storePath)
 	if err != nil {
 		t.Errorf("retire %s: %v", location, err)
 		return
@@ -870,7 +870,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 	if err != nil {
 		t.Fatal(err)
 	}
-	laneStore, err := overgodb.Open(storePath)
+	laneStore, err := overgodb.OpenContext(t.Context(), storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

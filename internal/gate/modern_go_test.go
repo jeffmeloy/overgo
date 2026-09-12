@@ -74,6 +74,12 @@ func TestModernGoPreflightBindsCandidateCensus(t *testing.T) {
 				}
 			}
 			g := &gateContext{repo: repo, candidateRoot: candidate}
+			if mode == "valid" {
+				runGitFixture(t, candidate, "init")
+				runGitFixture(t, candidate, "add", ".")
+				runGitFixture(t, candidate, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "baseline")
+				g.repo = candidate
+			}
 			skipped, err := g.stepModernGoRatchet()
 			if skipped || (err != nil) != (mode != "valid") {
 				t.Fatalf("candidate %s: skipped=%v err=%v", mode, skipped, err)

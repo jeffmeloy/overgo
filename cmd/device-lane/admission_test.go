@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,60 +19,71 @@ import (
 	"overgo/internal/testutil"
 )
 
-// TestDeviceLaneAdmissionWaitsWithinBudget pins the lane's step admission:
-// a step refused by a foreign holder is run again until admitted, the wait
-// is reported like the gate's shared lease, an exhausted budget names the
-// contention and its cause, and any other outcome returns at once.
+// Correctness commands coexist with a foreign shared holder. Admission precedes
+// the single execution; command failures retain their own disposition.
 func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
-	var output bytes.Buffer
-	runs := 0
-	step := func(context.Context) (int, error) {
-		runs++
-		if runs <= 3 {
-			return processcontrol.ResourceBusyExitCode, nil
+	t.Run("exclusive_owner_prevents_launch", func(t *testing.T) {
+		name := "device-lane-wait/" + t.TempDir()
+		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$")
+		command.Env = append(os.Environ(), admissionProbeEnvironment+"="+name, "OVERGO_DEVICE_LANE_EXCLUSIVE_HOLD=1")
+		input, err := command.StdinPipe()
+		if err != nil {
+			t.Fatal(err)
 		}
-		return 0, nil
+		output, err := command.StdoutPipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := command.Start(); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = input.Close(); _ = command.Process.Kill(); _ = command.Wait() })
+		if line, err := bufio.NewReader(output).ReadString('\n'); err != nil || strings.TrimSpace(line) != "probe: admitted" {
+			t.Fatalf("exclusive owner readiness: %q, %v", line, err)
+		}
+		runs := 0
+		_, err = runStepAdmitted(t.Context(), &bytes.Buffer{}, name, 50*time.Millisecond, func(context.Context) (int, error) {
+			runs++
+			return 0, nil
+		})
+		if runs != 0 || !errors.Is(err, errAdmissionBudget) || !errors.Is(err, processcontrol.ErrResourceBusy) {
+			t.Fatalf("waiting launched %d commands, error %v; want zero launches and admission expiry", runs, err)
+		}
+		if err := input.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := command.Wait(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := runStepAdmitted(t.Context(), &bytes.Buffer{}, name, deviceAdmissionBudget, func(context.Context) (int, error) { runs++; return 0, nil }); err != nil || runs != 1 {
+			t.Fatalf("released owner: %d launches, %v", runs, err)
+		}
+	})
+	name := "device-lane-command/" + filepath.Base(t.TempDir())
+	release, err := processcontrol.ShareResource(name)
+	if err != nil {
+		t.Fatal(err)
 	}
-	code, err := runStepAdmitted(t.Context(), &output, "GPU-test", deviceAdmissionBudget, step)
-	if err != nil || code != 0 {
-		t.Fatalf("admitted step = code %d, %v", code, err)
-	}
-	if runs != 4 {
-		t.Fatalf("step ran %d times before admission, want 4", runs)
-	}
-	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	if len(lines) != 2 || !strings.Contains(lines[0], "mode=exclusive state=waiting budget=") || !strings.Contains(lines[1], "state=admitted wait=") {
-		t.Fatalf("admission report = %q", output.String())
-	}
-	output.Reset()
-	if code, err := runStepAdmitted(t.Context(), &output, "GPU-test", deviceAdmissionBudget, func(context.Context) (int, error) { return 0, nil }); err != nil || code != 0 || output.Len() != 0 {
-		t.Fatalf("uncontended step = code %d, %v, report %q", code, err, output.String())
-	}
-	errTestDeadline := errors.New("test deadline")
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 120*time.Millisecond, errTestDeadline)
+	defer release()
+	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("shared command probe did not terminate"))
 	defer cancel()
-	code, err = runStepAdmitted(ctx, &output, "GPU-test", deviceAdmissionBudget, func(context.Context) (int, error) { return processcontrol.ResourceBusyExitCode, nil })
-	if code != processcontrol.ResourceBusyExitCode || !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, errTestDeadline) {
-		t.Fatalf("exhausted budget = code %d, %v, want the contention and the deadline", code, err)
+	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
+	command.Env = append(os.Environ(), admissionProbeEnvironment+"="+name, "OVERGO_DEVICE_LANE_SHARED_STEP=1")
+	result, err := command.CombinedOutput()
+	if err != nil || !strings.Contains(string(result), "probe: admitted") || !strings.Contains(string(result), "mode=shared state=admitted") {
+		t.Fatalf("correctness command alongside a foreign shared holder: %v\n%s", err, result)
 	}
-	if strings.Contains(output.String(), "state=admitted") {
-		t.Fatal("an exhausted budget reported admission")
-	}
-	if code, err := runStepAdmitted(t.Context(), &output, "GPU-test", deviceAdmissionBudget, func(context.Context) (int, error) { return 1, nil }); err != nil || code != 1 {
+	var output bytes.Buffer
+	if code, err := runStepAdmitted(t.Context(), &output, name, deviceAdmissionBudget, func(context.Context) (int, error) { return 1, nil }); err != nil || code != 1 {
 		t.Fatalf("failed step = code %d, %v, want its own exit code at once", code, err)
 	}
 	launch := errors.New("launch failed")
-	if _, err := runStepAdmitted(t.Context(), &output, "GPU-test", deviceAdmissionBudget, func(context.Context) (int, error) { return 0, launch }); !errors.Is(err, launch) {
+	if _, err := runStepAdmitted(t.Context(), &output, name, deviceAdmissionBudget, func(context.Context) (int, error) { return 0, launch }); !errors.Is(err, launch) {
 		t.Fatalf("launch failure = %v, want it returned at once", err)
 	}
 }
 
-// TestDeviceLaneAdmissionSeparatesWaitingFromExecution pins the owner's
-// review of 96a447c1: the admission budget bounds only the wait for the
-// device. A step admitted at once completes legitimate work longer than
-// the budget; a stuck step ends with the caller's own bound and its cause,
-// never the admission budget's; and a step refused past the budget still
-// ends with the budget's cause.
+// Admission cannot shorten execution or turn a command result into a retry.
 func TestDeviceLaneAdmissionSeparatesWaitingFromExecution(t *testing.T) {
 	var output bytes.Buffer
 	budget := 50 * time.Millisecond
@@ -99,11 +112,13 @@ func TestDeviceLaneAdmissionSeparatesWaitingFromExecution(t *testing.T) {
 	if elapsed := time.Since(began); elapsed < 3*budget || elapsed > 5*time.Second {
 		t.Fatalf("stuck step ended after %s, want the caller's bound", elapsed)
 	}
+	runs := 0
 	code, err = runStepAdmitted(t.Context(), &output, "GPU-test", budget, func(context.Context) (int, error) {
+		runs++
 		return processcontrol.ResourceBusyExitCode, nil
 	})
-	if code != processcontrol.ResourceBusyExitCode || !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, errAdmissionBudget) {
-		t.Fatalf("refused past the budget = code %d, %v, want the contention and the budget cause", code, err)
+	if code != processcontrol.ResourceBusyExitCode || err != nil || runs != 1 {
+		t.Fatalf("command returned code %d, %v, executions %d; want original status after one execution", code, err, runs)
 	}
 }
 
@@ -148,24 +163,53 @@ func TestDeviceLaneTestStepsHoldSharedLease(t *testing.T) {
 
 const admissionProbeEnvironment = "OVERGO_DEVICE_LANE_ADMISSION_PROBE"
 
-// TestMain runs the child of the parent/child test below when the probe
-// environment names a resource: the child claims it exclusively, as a
-// measurement child does, and reports whether the claim was admitted or
-// refused as contention. Every other run is the ordinary test binary.
+// Child probes exercise shared command admission and exclusive measurement
+// admission against a foreign holder. Other runs execute the test suite.
 func TestMain(m *testing.M) {
 	name := os.Getenv(admissionProbeEnvironment)
 	if name == "" {
 		os.Exit(m.Run())
 	}
-	err := processcontrol.ClaimResource(name)
+	if os.Getenv("OVERGO_DEVICE_LANE_SHARED_STEP") != "" {
+		code, err := runStepAdmitted(context.Background(), os.Stdout, name, 50*time.Millisecond, func(ctx context.Context) (int, error) {
+			receipt, err := processcontrol.Run(ctx, processcontrol.Command{
+				Path: os.Args[0], Args: []string{"-test.run=^$"},
+				Env:    append(os.Environ(), "OVERGO_DEVICE_LANE_SHARED_STEP=", "OVERGO_DEVICE_LANE_COMMAND_REQUIRED=1"),
+				Stdout: os.Stdout, Stderr: os.Stderr,
+			})
+			return receipt.ExitCode, err
+		})
+		if err != nil || code != 0 {
+			fmt.Println("probe:", code, err)
+			os.Exit(1)
+		}
+		fmt.Println("probe: admitted")
+		return
+	}
+	var err error
+	if os.Getenv("OVERGO_DEVICE_LANE_COMMAND_REQUIRED") != "" {
+		var release func() error
+		release, err = processcontrol.ShareResource(name)
+		if err == nil {
+			defer release()
+		}
+	} else {
+		err = processcontrol.ClaimResource(name)
+	}
 	switch {
 	case err == nil:
 		fmt.Println("probe: admitted")
 	case errors.Is(err, processcontrol.ErrResourceBusy):
 		fmt.Println("probe: busy")
+		if os.Getenv("OVERGO_DEVICE_LANE_COMMAND_REQUIRED") != "" {
+			os.Exit(processcontrol.ResourceBusyExitCode)
+		}
 	default:
 		fmt.Println("probe:", err)
 		os.Exit(1)
+	}
+	if err == nil && os.Getenv("OVERGO_DEVICE_LANE_EXCLUSIVE_HOLD") != "" {
+		_, _ = io.Copy(io.Discard, os.Stdin)
 	}
 }
 

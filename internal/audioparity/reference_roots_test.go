@@ -2,11 +2,14 @@ package audioparity
 
 import (
 	"cmp"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/testutil"
 )
 
@@ -18,6 +21,32 @@ import (
 // operator environment is needed.
 type referenceRoots struct {
 	store, datasets, models string
+}
+
+// Bind repository Go sources compiled into the acceptance and its CLI producers.
+// Models, corpus, native artifacts and protocol identities remain separate inputs.
+func audioSources(t *testing.T, root string) repoanalysis.SourceSnapshot {
+	t.Helper()
+	paths := map[string]bool{}
+	for _, patterns := range [][]string{
+		{"-deps", "-test", "./internal/audioparity"},
+		{"-deps", "./cmd/evaluate", "./cmd/recipe"},
+	} {
+		selection, err := repoanalysis.HostBuildSelection(root, patterns...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for path, selected := range selection.Files {
+			if selected {
+				paths[path] = true
+			}
+		}
+	}
+	source, err := repoanalysis.LoadGo(root, slices.Sorted(maps.Keys(paths)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return source
 }
 
 func resolveReferenceRoots(t *testing.T) referenceRoots {

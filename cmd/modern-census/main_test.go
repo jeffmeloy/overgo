@@ -68,61 +68,15 @@ func TestModernGoWorkSelectionReportsCoverage(t *testing.T) {
 }
 
 func TestModernCensusExtremaFixReportsAudit(t *testing.T) {
-	root := t.TempDir()
-	directory := filepath.Join(root, "internal", "sample")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	source := []byte("package sample\n\nimport \"math\"\n\nfunc maximum(left, right float64) float64 { return math.Max(left, right) }\n")
-	if err := os.WriteFile(filepath.Join(directory, "sample.go"), source, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var output bytes.Buffer
-	if err := run([]string{"-fix-extrema", "-root", root}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(output.String()); got != "modern-census: extrema rewritten=1 files=1 retained=0 source=typed-ordered-extrema-policy" {
-		t.Fatalf("first extrema audit line = %q", got)
-	}
-	output.Reset()
-	if err := run([]string{"-fix-extrema", "-root", root}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(output.String()); got != "modern-census: extrema rewritten=0 files=0 retained=0 source=typed-ordered-extrema-policy" {
-		t.Fatalf("second extrema audit line = %q", got)
-	}
+	checkRewriteAudit(t, "sample", "package sample\n\nimport \"math\"\n\nfunc maximum(left, right float64) float64 { return math.Max(left, right) }\n", "-fix-extrema",
+		"modern-census: extrema rewritten=1 files=1 retained=0 source=typed-ordered-extrema-policy",
+		"modern-census: extrema rewritten=0 files=0 retained=0 source=typed-ordered-extrema-policy")
 }
 
 func TestModernCensusNumericRangeFixReportsAudit(t *testing.T) {
-	root := t.TempDir()
-	directory := filepath.Join(root, "internal", "hostmath")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	source := []byte("package hostmath\n\nfunc fill(values []int) { for index := 0; index < len(values); index++ { values[index] = index } }\n")
-	if err := os.WriteFile(filepath.Join(directory, "sample.go"), source, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var output bytes.Buffer
-	if err := run([]string{"-fix-numeric-range", "-root", root}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(output.String()); got != "modern-census: numeric-range rewritten=1 files=1 retained=0 source=typed-stable-integer-bounds" {
-		t.Fatalf("first numeric range audit line = %q", got)
-	}
-	output.Reset()
-	if err := run([]string{"-fix-numeric-range", "-root", root}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(output.String()); got != "modern-census: numeric-range rewritten=0 files=0 retained=0 source=typed-stable-integer-bounds" {
-		t.Fatalf("second numeric range audit line = %q", got)
-	}
+	checkRewriteAudit(t, "hostmath", "package hostmath\n\nfunc fill(values []int) { for index := 0; index < len(values); index++ { values[index] = index } }\n", "-fix-numeric-range",
+		"modern-census: numeric-range rewritten=1 files=1 retained=0 source=typed-stable-integer-bounds",
+		"modern-census: numeric-range rewritten=0 files=0 retained=0 source=typed-stable-integer-bounds")
 }
 
 func TestModernCensusCheckRequiresCompleteRatchetAdmission(t *testing.T) {
@@ -164,32 +118,9 @@ func TestModernCensusCheckRequiresCompleteRatchetAdmission(t *testing.T) {
 }
 
 func TestModernCensusManualIdiomFixReportsAudit(t *testing.T) {
-	root := t.TempDir()
-	directory := filepath.Join(root, "internal", "sample")
-	if err := os.MkdirAll(directory, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example\n\ngo 1.26\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	source := []byte("package sample\n\nfunc fallback(value, other string) string { if value == \"\" { value = other }; return value }\n")
-	if err := os.WriteFile(filepath.Join(directory, "sample.go"), source, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var output bytes.Buffer
-	if err := run([]string{"-fix-manual-idioms", "-root", root}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(output.String()); got != "modern-census: manual-idioms fallback=1 ticker=0 slice-clone=0 typed-sort=0 files=1 retained=0 source=typed-eager-safe-equivalence" {
-		t.Fatalf("first manual audit line=%q", got)
-	}
-	output.Reset()
-	if err := run([]string{"-fix-manual-idioms", "-root", root}, &output); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.TrimSpace(output.String()); got != "modern-census: manual-idioms fallback=0 ticker=0 slice-clone=0 typed-sort=0 files=0 retained=0 source=typed-eager-safe-equivalence" {
-		t.Fatalf("second manual audit line=%q", got)
-	}
+	checkRewriteAudit(t, "sample", "package sample\n\nfunc fallback(value, other string) string { if value == \"\" { value = other }; return value }\n", "-fix-manual-idioms",
+		"modern-census: manual-idioms fallback=1 ticker=0 slice-clone=0 typed-sort=0 files=1 retained=0 source=typed-eager-safe-equivalence",
+		"modern-census: manual-idioms fallback=0 ticker=0 slice-clone=0 typed-sort=0 files=0 retained=0 source=typed-eager-safe-equivalence")
 }
 
 func TestModernCensusExceptionClosureIsDeterministic(t *testing.T) {
@@ -266,5 +197,29 @@ func TestModernCensusExceptionClosureIsDeterministic(t *testing.T) {
 func TestModernCensusCommandRejectsInvalidVersion(t *testing.T) {
 	if err := run([]string{"-go-version", "future"}, io.Discard); err == nil {
 		t.Fatal("invalid Go version accepted")
+	}
+}
+
+func checkRewriteAudit(t *testing.T, packageName, source, fixFlag, first, second string) {
+	t.Helper()
+	root := t.TempDir()
+	directory := filepath.Join(root, "internal", packageName)
+	if err := os.MkdirAll(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example\n\ngo 1.26\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "sample.go"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{first, second} {
+		var output bytes.Buffer
+		if err := run([]string{fixFlag, "-root", root}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.TrimSpace(output.String()); got != want {
+			t.Fatalf("audit line = %q, want %q", got, want)
+		}
 	}
 }

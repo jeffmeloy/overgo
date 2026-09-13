@@ -11,13 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "census-pilot",
-          "title": "Share the three census rewrite fixture lifecycles",
-          "status": "open",
-          "verify": "test -f cmd/modern-census/surface_reduction_test.go \u0026\u0026 go test ./cmd/modern-census -run '^TestCensusFixtureReduction$' -count=1",
-          "rationale": "First independent reduction: main_test.go has three 196-node structural clones, potential duplicate excess 392 nodes, in TestModernCensusExtremaFixReportsAudit, TestModernCensusManualIdiomFixReportsAudit and TestModernCensusNumericRangeFixReportsAudit. Source inspection confirms the common sequence: isolated module/source fixture -\u003e run repair -\u003e assert exact first audit -\u003e rerun -\u003e assert idempotent audit. Extract only common setup/execution into a local test helper or typed case runner; retain independently specified source, flags and both expected outputs for each transformation. Preserve discoverable test identities or migrate every exact verifier atomically. Add no public export or cross-package helper for this slice. Acceptance runs all three distinct cases, proves one common harness and positive net AST/duplicate reduction with no added import reach. Do not claim this alone reduces gate wall time."
-        },
-        {
           "id": "training-boundary",
           "title": "Consolidate the shared DPO fixture if dependency cost stays bounded",
           "status": "open",

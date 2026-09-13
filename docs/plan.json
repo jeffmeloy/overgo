@@ -5,21 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-library-validation",
-      "title": "Validate a registered model with a projector from the Library, independently of the working directory",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate a registered model with a projector from the Library, independently of the working directory",
-          "status": "open",
-          "verify": "test -f internal/libraryintake/projector_validation_test.go \u0026\u0026 go test ./internal/libraryintake -run '^TestValidateTextWithProjector$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(LibraryValidation|LayoutAudit)$' -require 'library validation leg'",
-          "rationale": "ModelFiles returns a sibling projector automatically and the page posts it back, but Validate refuses any projector before text validation runs (internal/libraryintake/intake.go:81-82, :123-124), so a model downloaded with its mmproj never becomes servable through the Library. library_validation.json is opened relative to the process working directory (internal/server/library_workspace.go:104), CleanRevision refuses any dirty Go file, and the idle shell routes neither /library/validate nor /hub/downloads. Validate text inference when a projector is present, resolve the validation policy from the repository root, and route validation through the idle shell so an empty store reaches a served model. Acceptance: register-plus-validate on a real small GGUF with a projector activates a text recipe; the journey downloads, registers, validates and selects the model from a cold proxy."
-        }
-      ]
-    },
-    {
       "id": "gui-video-routes",
       "title": "Deliver the declared video output on the native video routes",
       "owner": "professional_overgo_gui",

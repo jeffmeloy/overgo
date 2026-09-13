@@ -61,6 +61,18 @@ type Generator interface {
 	) ([]tokenizer.TokenID, string, error)
 }
 
+// GenerationRefused is the generator of a runtime that serves no text: the
+// cold proxy's workbench and a transcription-only server embed it, and
+// every text request answers with the reason.
+type GenerationRefused struct {
+	Reason string
+}
+
+// Generate refuses with the reason.
+func (refused GenerationRefused) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	return nil, "", errors.New(refused.Reason)
+}
+
 type runtimePolicyProvider interface {
 	RuntimePolicy() modelrecipe.RuntimePolicy
 }

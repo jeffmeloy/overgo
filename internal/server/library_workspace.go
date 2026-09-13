@@ -3,7 +3,10 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"overgo/internal/apimanifest"
@@ -109,6 +112,44 @@ type libraryValidationPolicy struct {
 	Doc       string   `json:"doc,omitzero"`
 	Prompts   []string `json:"prompts"`
 	MaxTokens int      `json:"max_tokens"`
+}
+
+// loadLibraryValidationPolicy reads the policy from the nearest ancestor of
+// the working directory that holds it, the repository root, so a process
+// started from a subdirectory still finds it.
+func loadLibraryValidationPolicy(context.Context) (libraryValidationPolicy, error) {
+	path, err := locateRootDocument(libraryValidationPolicyPath)
+	if err != nil {
+		return libraryValidationPolicy{}, err
+	}
+	var policy libraryValidationPolicy
+	if err := loadPolicyDocument(path, &policy); err != nil {
+		return libraryValidationPolicy{}, err
+	}
+	if len(policy.Prompts) == 0 || policy.MaxTokens <= 0 {
+		return libraryValidationPolicy{}, errors.New("library: the validation policy is incomplete")
+	}
+	return policy, nil
+}
+
+// locateRootDocument walks up from the working directory to the first
+// directory holding the named root document.
+func locateRootDocument(name string) (string, error) {
+	directory, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		candidate := filepath.Join(directory, name)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", fmt.Errorf("library: %s is absent from the working directory and its ancestors", name)
+		}
+		directory = parent
+	}
 }
 
 type libraryRegisterRequest struct {
@@ -305,8 +346,8 @@ func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Re
 	if !requireLibraryStore(response, request, h.repository) {
 		return
 	}
-	var policy libraryValidationPolicy
-	if err := loadPolicyDocument(libraryValidationPolicyPath, &policy); err != nil || len(policy.Prompts) == 0 || policy.MaxTokens <= 0 {
+	policy, err := loadLibraryValidationPolicy(request.Context())
+	if err != nil {
 		writeError(response, http.StatusServiceUnavailable, "library_unavailable", "the library validation policy is absent or incomplete")
 		return
 	}

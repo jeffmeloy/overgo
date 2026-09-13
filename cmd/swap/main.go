@@ -8,7 +8,9 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -17,10 +19,13 @@ import (
 	"time"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/dataroot"
 	"overgo/internal/libraryintake"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
 	"overgo/internal/providerintake"
+	"overgo/internal/recipe"
 	"overgo/internal/server"
 )
 
@@ -56,11 +61,20 @@ func run() error {
 	}
 	defer supervisor.Close()
 	// The cold start: with no default and no child the proxy serves the shell itself; the picker launches the first child,
-	// and the Library shares the retained repository with the catalog resolver.
+	// and the Library shares the retained repository with the catalog resolver. The workbench behind the shell answers
+	// downloads, validation and operations over the store, so an empty store reaches a served model without a child.
+	intake := providerintake.Intake{CatalogLimit: *catalogLimit}.Library(libraryintake.ModelFiles, libraryintake.Register)
+	intake.Validate = libraryintake.Validate
+	workbench, err := idleWorkbench(repository, intake)
+	if err != nil {
+		return err
+	}
+	defer workbench.Close()
 	shell := &server.IdleShell{
 		Catalog:    resolver.Catalog,
 		Repository: repository,
-		Intake:     providerintake.Intake{CatalogLimit: *catalogLimit}.Library(libraryintake.ModelFiles, libraryintake.Register),
+		Intake:     intake,
+		Workbench:  workbench,
 	}
 	proxy := &modelswap.Proxy{Supervisor: supervisor, Resolver: resolver, Keys: resolver, Idle: shell}
 	if *defaultModel != "" {
@@ -84,4 +98,23 @@ func run() error {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+// idleWorkbench opens the store's workbench for the cold proxy: hub
+// downloads into the data root's models directory, library validation
+// through the model intake, and the operations those produce.
+func idleWorkbench(repository *overgodb.Store, intake server.LibraryIntake) (*server.Handler, error) {
+	policy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
+	if err != nil || !found {
+		return nil, fmt.Errorf("swap: inference runtime policy: %w", cmp.Or(err, errors.New("absent from the catalog")))
+	}
+	hubRoot := ""
+	if roots, err := dataroot.Resolve("."); err == nil {
+		hubRoot = roots.Models
+	}
+	// The workbench exists for the store's routes, never for text: generation refuses while no model serves.
+	return server.New(server.Config{
+		RuntimePolicy: policy, Repository: repository, LibraryIntake: intake,
+		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: hubRoot,
+	}, server.GenerationRefused{Reason: "no model serves; choose one from the model pill"})
 }

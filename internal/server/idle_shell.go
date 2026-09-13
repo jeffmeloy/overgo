@@ -25,6 +25,10 @@ type IdleShell struct {
 	Intake LibraryIntake
 	// WebUIDir serves the client from disk when set (development), as the server's own option does.
 	WebUIDir string
+	// Workbench answers the API routes the shell has no owner for (hub
+	// downloads, library validation, operations, runs) over the same
+	// store while no model serves; absent, those routes refuse.
+	Workbench http.Handler
 }
 
 // idleRefusal: the reason every refused route and every refused manifest tab carries while nothing serves.
@@ -61,6 +65,10 @@ func (s *IdleShell) ServeHTTP(response http.ResponseWriter, request *http.Reques
 		libraryProviderRetireRoute(response, request, s.Repository, s.Intake.RetireProvider, body)
 	default:
 		if _, api := resolveRoute(request.URL.Path); api {
+			if s.Workbench != nil {
+				s.Workbench.ServeHTTP(response, request)
+				return
+			}
 			writeError(response, http.StatusServiceUnavailable, "no_model_serves", idleRefusal)
 			return
 		}

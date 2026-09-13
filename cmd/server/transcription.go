@@ -9,13 +9,11 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
-	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	llamaserver "overgo/internal/server"
-	"overgo/internal/tokenizer"
 )
 
 // resolveTranscriptionServing selects declared native transcription without
@@ -45,18 +43,15 @@ func resolveTranscriptionServing(ctx context.Context, repository, reference stri
 	return &activation.Definition, nil
 }
 
+// transcriptionRuntime serves transcription only; its text generation refuses.
 type transcriptionRuntime struct {
 	*llamaserver.TranscriptionWorkspace
+	llamaserver.GenerationRefused
 	model artifact.ID
 }
 
 // ModelID binds HTTP observations and the served display alias to exact weights.
 func (runtime *transcriptionRuntime) ModelID() artifact.ID { return runtime.model }
-
-// Generate refuses the text-generation API for a transcription-only runtime.
-func (*transcriptionRuntime) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
-	return nil, "", errors.New("the selected model serves transcription, not text generation")
-}
 
 func serveTranscription(ctx context.Context, definition recipe.Definition, configured *llamaserver.TranscriptionPolicy, options serveOptions) error {
 	var policy llamaserver.TranscriptionPolicy
@@ -101,7 +96,10 @@ func serveTranscription(ctx context.Context, definition recipe.Definition, confi
 		MaxConcurrent: options.maxConcurrent, RequestTimeout: options.requestTimeout,
 		Repository: store, OvergoDBPath: options.repository, WebUIDir: options.webuiDir,
 		LibraryIntake: serverLibraryIntake(), ProviderKeys: providerIntake.Keys,
-	}, &transcriptionRuntime{TranscriptionWorkspace: workspace, model: definition.Model})
+	}, &transcriptionRuntime{
+		TranscriptionWorkspace: workspace, model: definition.Model,
+		GenerationRefused: llamaserver.GenerationRefused{Reason: "the selected model serves transcription, not text generation"},
+	})
 	if err != nil {
 		return err
 	}

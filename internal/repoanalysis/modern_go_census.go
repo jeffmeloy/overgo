@@ -200,6 +200,8 @@ func parseModernGoFiles(snapshot SourceSnapshot, selection BuildSelection) ([]mo
 		keys = append(keys, key)
 	}
 	slices.Sort(keys)
+	// Package checks share immutable imported types within this census.
+	sharedImporter := importer.Default()
 	for _, key := range keys {
 		owner := groups[key]
 		info := &types.Info{
@@ -207,7 +209,7 @@ func parseModernGoFiles(snapshot SourceSnapshot, selection BuildSelection) ([]mo
 			Uses: make(map[*ast.Ident]types.Object), Selections: make(map[*ast.SelectorExpr]*types.Selection),
 			Scopes: make(map[ast.Node]*types.Scope),
 		}
-		config := types.Config{Importer: importer.Default(), Error: func(error) {}}
+		config := types.Config{Importer: sharedImporter, Error: func(error) {}}
 		packagePath, _ := strings.CutSuffix(key, "#"+owner.files[0].Name.Name)
 		_, _ = config.Check(packagePath, owner.fileSet, owner.files, info)
 		for _, parsed := range owner.parsed {

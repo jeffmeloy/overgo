@@ -944,7 +944,8 @@
             "plan-publication-cost/cli-dependency-boundary",
             "plan-publication-cost/internal-consumer-contract",
             "surface-priority-replan/do",
-            "plan-publication-cost/fuse-census-preparation"
+            "plan-publication-cost/fuse-census-preparation",
+            "plan-publication-cost/share-census-imports"
           ]
         }
       ]

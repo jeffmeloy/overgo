@@ -76,7 +76,12 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	}
 	// The proxy carries no credential and mutates its own process (a key, a launch) before the child
 	// sees the request, so it admits exactly as the credential-less server does, first.
-	if refusal := apimanifest.AdmitCredentialless(request); refusal != nil {
+	admit := apimanifest.AdmitCredentialless
+	if request.URL.Query().Get("swap") != "" {
+		// The swap query launches or replaces a child on a GET, so it is admitted as a mutation.
+		admit = apimanifest.AdmitCredentiallessEffect
+	}
+	if refusal := admit(request); refusal != nil {
 		response.Header().Set("Content-Type", "application/json")
 		response.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"message": refusal.Message, "type": refusal.Type}})

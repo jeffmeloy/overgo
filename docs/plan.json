@@ -5,21 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-credentialless-get",
-      "title": "Refuse cross-site side-effecting GET requests at the shared admission",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse cross-site side-effecting GET requests at the shared admission",
-          "status": "open",
-          "verify": "test -f internal/apimanifest/admission_get_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestCredentiallessGETSideEffects$' -count=1 \u0026\u0026 test -f internal/modelswap/proxy_cross_site_test.go \u0026\u0026 go test ./internal/modelswap -run '^TestProxyRefusesCrossSiteSwap$' -count=1",
-          "rationale": "AdmitCredentialless relies on net/http CrossOriginProtection, which admits GET, HEAD and OPTIONS before any Origin or Sec-Fetch-Site check (internal/apimanifest/admission.go:40-43). The proxy honours ?swap= on GET, which is the model pill's own path, so a foreign page can launch or swap a model; GET /library/providers/models takes endpoint and key_environment from the query and the intake sends the named environment variable as a bearer token to that endpoint. SECURITY.md states neither is possible. Require a same-origin Sec-Fetch-Site or the bearer key for every GET with a side effect, or move those effects to POST, keep the same-origin workbench working, and correct SECURITY.md in the same batch. Acceptance: cross-site GET swap and provider listing are refused without any mutation; same-origin and authenticated requests pass; the workbench journeys still pass."
-        }
-      ]
-    },
-    {
       "id": "gui-refused-workspaces",
       "title": "Explain refused workspaces instead of hiding them and release tab resources on remount",
       "owner": "professional_overgo_gui",

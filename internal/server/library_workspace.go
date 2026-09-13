@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"overgo/internal/apimanifest"
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/operation"
@@ -228,9 +229,15 @@ func (h *Handler) libraryProviderModels(response http.ResponseWriter, request *h
 	libraryProviderModelsRoute(response, request, h.config.LibraryIntake.ListProviderModels)
 }
 
-// libraryProviderModelsRoute: the listing over one intake; the idle shell serves it too.
+// libraryProviderModelsRoute: the listing over one intake; the idle shell
+// serves it too. The listing sends the named variable as a bearer token to
+// the named endpoint, so the GET is admitted as a mutation.
 func libraryProviderModelsRoute(response http.ResponseWriter, request *http.Request, list func(context.Context, string, string) ([]ProviderModel, error)) {
 	if !requireMethod(response, request, http.MethodGet) {
+		return
+	}
+	if refusal := apimanifest.AdmitCredentiallessEffect(request); refusal != nil {
+		writeError(response, http.StatusForbidden, refusal.Type, refusal.Message)
 		return
 	}
 	endpoint, variable := strings.TrimSpace(request.URL.Query().Get("endpoint")), strings.TrimSpace(request.URL.Query().Get("key_environment"))

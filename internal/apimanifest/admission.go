@@ -43,3 +43,22 @@ func AdmitCredentialless(request *http.Request) *Refusal {
 	}
 	return nil
 }
+
+// AdmitCredentiallessEffect admits a request whose handling has a side
+// effect whatever its method: the proxy's swap on the health probe and the
+// provider listing that sends a key to the named endpoint are GETs, and
+// the browser's cross-origin protection reads fetch metadata and Origin
+// only for unsafe methods, so the check runs over the request as a POST.
+// A loopback client without fetch metadata still passes.
+func AdmitCredentiallessEffect(request *http.Request) *Refusal {
+	if refusal := AdmitCredentialless(request); refusal != nil {
+		return refusal
+	}
+	unsafe := request.Clone(request.Context())
+	unsafe.Method = http.MethodPost
+	var protection http.CrossOriginProtection
+	if err := protection.Check(unsafe); err != nil {
+		return &Refusal{Type: RefusalOrigin, Message: err.Error()}
+	}
+	return nil
+}

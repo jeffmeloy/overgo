@@ -76,18 +76,6 @@ func loadG1Tensor(t *testing.T, dir string, spec g1Tensor) []float32 {
 	return out
 }
 
-func wanModelDir(t testing.TB) string {
-	t.Helper()
-	dir := os.Getenv("OVERGO_WAN_MODEL")
-	if dir == "" {
-		t.Skip("set OVERGO_WAN_MODEL to run real Wan integration tests")
-	}
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("Wan model directory %s: %v", dir, err)
-	}
-	return dir
-}
-
 // Cross-engine gates: the golden context was captured on the CUDA BF16
 // engine; this port is the host BF16 path. Host fidelity is proven
 // separately at tolerance 0 (encoder_real_test.go bit-parity vs adaptive's
@@ -137,7 +125,7 @@ func TestTextConditioningGoldenParity(t *testing.T) {
 		{"unconditional", g.NegativePrompt, g.Unconditional},
 	} {
 		want := loadG1Tensor(t, fixtureDir, branch.golden.Tensor)
-		got, err := TextConditioning(spec, branch.prompt)
+		got, err := TextConditioning(t.Context(), spec, branch.prompt)
 		if err != nil {
 			t.Fatalf("%s: %v", branch.name, err)
 		}

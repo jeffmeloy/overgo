@@ -141,7 +141,7 @@ type ditProbeFixture struct {
 
 // rawTextRows: real streamed-encoder rows for the prompt, with an optional
 // deterministic on-disk cache (content-addressed; recomputed on mismatch).
-func rawTextRows(spec latentvideo.TextConditioningSpec, prompt, cacheBase string) ([]float32, int, int, error) {
+func rawTextRows(ctx context.Context, spec latentvideo.TextConditioningSpec, prompt, cacheBase string) ([]float32, int, int, error) {
 	if cacheBase != "" {
 		var meta rawTextCache
 		if err := jsonfile.Decode(cacheBase+".json", &meta); err == nil && meta.Prompt == prompt {
@@ -160,7 +160,7 @@ func rawTextRows(spec latentvideo.TextConditioningSpec, prompt, cacheBase string
 		}
 	}
 	started := time.Now()
-	rows, tokens, textDim, err := latentvideo.RawTextRows(spec, prompt)
+	rows, tokens, textDim, err := latentvideo.RawTextRows(ctx, spec, prompt)
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -301,7 +301,7 @@ func run() error {
 		RelativeMaxDistance: g1.EncoderPolicy.RelativeMaxDistance,
 		NormEps:             g1.EncoderPolicy.NormEps,
 	}
-	rawText, textTokens, rawTextDim, err := rawTextRows(textSpec, g1.Prompt, *t5Cache)
+	rawText, textTokens, rawTextDim, err := rawTextRows(ctx, textSpec, g1.Prompt, *t5Cache)
 	if err != nil {
 		return err
 	}
@@ -459,7 +459,7 @@ func run() error {
 			if *t5Cache != "" {
 				clipCache = *t5Cache + "-" + clip.Name
 			}
-			text, tokens, clipTextDim, err := rawTextRows(textSpec, clip.Caption, clipCache)
+			text, tokens, clipTextDim, err := rawTextRows(ctx, textSpec, clip.Caption, clipCache)
 			if err != nil {
 				return err
 			}

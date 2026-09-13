@@ -401,6 +401,10 @@ func (r *Runtime) executeReadySet(
 				entry := r.adapterEntry(stage.stage.Module.ID)
 				entry.Lock()
 				defer entry.Unlock()
+				if err := context.Cause(runContext); err != nil {
+					results <- stageResult{index: index, err: err}
+					return
+				}
 				started := time.Now()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
 				results <- stageResult{index: index, outputs: outputs, wallNS: uint64(time.Since(started).Nanoseconds()), err: err}

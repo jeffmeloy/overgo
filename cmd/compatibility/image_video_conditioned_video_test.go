@@ -181,7 +181,13 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fmt.Sprintf("%x", sha256.Sum256([]byte(strings.ReplaceAll(string(working), "\r\n", "\n")))) != fix.After {
-		t.Fatal("current production correction differs")
+		if _, err := checkMediaLifecycleSource(root, "", []string{fix.Path}); err != nil {
+			t.Fatal("current production correction differs", err)
+		}
+		lifecycle, err := readMediaLifecycleBundle(root)
+		if err != nil || lifecycle.Changes[fix.Path].Before != fix.After {
+			t.Fatal("lifecycle patch does not preserve the recorded pixel-range correction", err)
+		}
 	}
 	checkTest(fix.BaselineTest)
 	read(fix.Baseline)

@@ -7,13 +7,11 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"math"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/testutil"
 )
 
@@ -22,17 +20,10 @@ const (
 	liveEditDeviceFrameOracle  = "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1"
 )
 
-func TestLiveEditDeviceRuntime(t *testing.T) {
-	cudatest.Require(t)
+func newLiveEditRuntimeFixture(t *testing.T) (*ReferenceEditRuntime, []float32, []float32) {
+	t.Helper()
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wanDir := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
-	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
-		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
-	}
+	wanDir := wanModelDir(t)
 	policy := DenoiserPolicy{
 		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
 		VAEStride: [3]int{4, 8, 8},
@@ -60,9 +51,22 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer runtime.Close()
+	t.Cleanup(func() {
+		if err := runtime.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	source := loadRealSourceCrops(t, filepath.Join(repo, "build", "latentvideo", "current_prod50", "frame_00.f32le"), runtime.sourcePlan.Source)
 	initial := loadRetainedDenoiserCurrent(t)
+	return runtime, source, initial
+}
+
+func TestLiveEditDeviceRuntime(t *testing.T) {
+	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
+	runtime, source, initial := newLiveEditRuntimeFixture(t)
 	var priorFrameHash string
 	for run := range 2 {
 		var frames [][]float32
@@ -86,7 +90,7 @@ func TestLiveEditDeviceRuntime(t *testing.T) {
 		if latentHash != liveEditDeviceLatentOracle || frameHash != liveEditDeviceFrameOracle {
 			t.Fatalf("device runtime oracle latent=%s frames=%s", latentHash, frameHash)
 		}
-		if result.Denoiser.Layers != base.NumLayers || result.Denoiser.ContextProjections != 1 || result.Denoiser.Runs != (run+1)*4 {
+		if result.Denoiser.Layers != runtime.base.NumLayers || result.Denoiser.ContextProjections != 1 || result.Denoiser.Runs != (run+1)*4 {
 			t.Fatalf("device denoiser lifecycle=%+v", result.Denoiser)
 		}
 		if run > 0 && frameHash != priorFrameHash {

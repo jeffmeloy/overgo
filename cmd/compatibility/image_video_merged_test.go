@@ -75,6 +75,18 @@ func compareMediaRuntimeIdentity(expected, actual string) error {
 // production file and every other byte of the corrected file must still match.
 // An empty revision checks the working tree before gate publication.
 func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected string) error {
+	prior := checkMediaRuntimeBeforeLifecycle(root, revision, paths, expected)
+	if prior == nil {
+		return nil
+	}
+	base, err := checkMediaLifecycleSource(root, revision, paths)
+	if err != nil {
+		return errors.Join(prior, err)
+	}
+	return checkMediaRuntimeBeforeLifecycle(root, base, paths, expected)
+}
+
+func checkMediaRuntimeBeforeLifecycle(root, revision string, paths []string, expected string) error {
 	if revision != "" {
 		actual, err := mediaRuntimeIdentity(root, revision, paths)
 		if err != nil {

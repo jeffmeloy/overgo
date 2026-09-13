@@ -118,11 +118,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		}
 	}
 	for _, revision := range []string{bundle.Previous, bundle.Source, "HEAD"} {
-		identity, err := mediaRuntimeIdentity(root, revision, bundle.StablePaths)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := compareMediaRuntimeIdentity(bundle.StableSHA, identity); err != nil {
+		if err := checkMediaRuntimeAtRevision(root, revision, bundle.StablePaths, bundle.StableSHA); err != nil {
 			t.Fatal(err)
 		}
 	}

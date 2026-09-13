@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,22 +20,6 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/testevidence"
 )
-
-// samplingCancellation cancels at a context-check boundary learned from an
-// executed single-step control, without a timer or a production observer hook.
-type samplingCancellation struct {
-	context.Context
-	checks atomic.Int64
-	limit  int64
-	cancel context.CancelCauseFunc
-}
-
-func (ctx *samplingCancellation) Err() error {
-	if count := ctx.checks.Add(1); ctx.limit > 0 && count >= ctx.limit {
-		ctx.cancel(context.Canceled)
-	}
-	return ctx.Context.Err()
-}
 
 // samplingHostBoundary retains the pre-residency sampling contract as an A/B
 // reference: the same CUDA forward, followed by the original host Euler update.
@@ -61,6 +44,9 @@ func samplingHostBoundary(ctx context.Context, forward *ResidentForward, steps i
 
 func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	model, err := Load(artifactDir(t))
 	if err != nil {
 		t.Fatalf("required sampling artifact: %v", err)

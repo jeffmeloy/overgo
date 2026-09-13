@@ -3,6 +3,7 @@ package workflowruntime
 import (
 	"context"
 	"errors"
+	goruntime "runtime"
 	"strings"
 	"testing"
 
@@ -13,6 +14,70 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/workflowrecipe"
 )
+
+func TestCancellationWhileWaitingForStageLock(t *testing.T) {
+	store, program := runtimeFixture(t)
+	defer store.Close()
+	executor, err := NewForProgram(store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := false
+	if err := executor.Register(workflowrecipe.ModuleTokenize, AdapterFunc(func(context.Context, StepRequest) (map[recipe.PortName]Value, error) {
+		started = true
+		return nil, errors.New("canceled stage started computation")
+	})); err != nil {
+		t.Fatal(err)
+	}
+	entry := executor.adapterEntry(workflowrecipe.ModuleTokenize)
+	entry.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			entry.Unlock()
+		}
+	}()
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(context.Canceled)
+	key := "runtime/canceled-stage-lock"
+	operation := runtimeExecutionID(t, program, key)
+	inputs := map[recipe.PortName]Value{
+		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "retry"}}},
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := executor.ExecuteProgram(ctx, key, operation, nil, program, inputs)
+		done <- err
+	}()
+	// An occupied admission slot establishes that the stage reached execution
+	// while this test still holds its module lock. No wall-time race is needed.
+	for len(executor.slots) == 0 {
+		select {
+		case err := <-done:
+			t.Fatal("execution ended before reaching the stage lock", err)
+		case <-t.Context().Done():
+			t.Fatal("test canceled before stage admission")
+		default:
+			goruntime.Gosched()
+		}
+	}
+	cancel(context.Canceled)
+	entry.Unlock()
+	locked = false
+	err = <-done
+	if started || !errors.Is(err, context.Canceled) || len(executor.slots) != 0 {
+		t.Fatalf("canceled waiter: started=%t occupied=%d error=%v", started, len(executor.slots), err)
+	}
+	recovered, err := NewForProgram(store, program)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registerGenerationAdapters(t, recovered, false)
+	result, err := recovered.ExecuteProgram(t.Context(), key, operation, nil, program, inputs)
+	if err != nil || result.Run.Outcome != runrecord.OutcomeSucceeded {
+		t.Fatalf("retry after canceled stage lock: outcome=%s error=%v", result.Run.Outcome, err)
+	}
+}
 
 func TestRuntimeExecutesWorkflowAndPublishesRun(t *testing.T) {
 	ctx := t.Context()
@@ -82,8 +147,8 @@ func TestRuntimePublishesCancelledRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	registerGenerationAdapters(t, runtime, false)
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(context.Canceled)
 	result, err := runtime.ExecuteProgram(ctx, "runtime/cancelled", runtimeExecutionID(t, program, "runtime/cancelled"), nil, program, map[recipe.PortName]Value{
 		"prompt": {Kind: recipe.DataText, Items: []Datum{{Value: "hello"}}},
 	})

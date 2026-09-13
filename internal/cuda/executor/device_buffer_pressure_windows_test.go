@@ -8,9 +8,14 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	cudatest "overgo/internal/cuda/testutil"
 )
 
 func TestDeviceBufferPoolCapacityRefusalReclaimsIdle(t *testing.T) {
+	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	cuda := newFixtureExecutor(t)
 	err := cuda.worker.Do(t.Context(), func(state *device.State) error {
 		pool := &cuda.resources.buffers

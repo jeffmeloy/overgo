@@ -10,12 +10,12 @@ import (
 	"testing"
 )
 
-func generatePlanar(model *Model, request Request) ([]float32, error) {
-	plan, err := model.prepare(request)
+func generatePlanar(t testing.TB, model *Model, request Request) ([]float32, error) {
+	plan, err := model.prepare(t.Context(), request)
 	if err != nil {
 		return nil, err
 	}
-	features, err := model.integrate(plan)
+	features, err := model.integrate(t.Context(), plan)
 	if err != nil {
 		return nil, err
 	}
@@ -46,15 +46,15 @@ func TestArtifactLoadDerivesDims(t *testing.T) {
 
 func TestArtifactPublishesReferenceGIF(t *testing.T) {
 	m := loadArtifactModel(t)
-	plan, err := m.prepareVideo(VideoRequest{Class: 1, Seed: 202, Frames: 6, Scale: 8})
+	plan, err := m.prepareVideo(t.Context(), VideoRequest{Class: 1, Seed: 202, Frames: 6, Scale: 8})
 	if err != nil {
 		t.Fatal(err)
 	}
-	features, err := m.integrateVideo(plan)
+	features, err := m.integrateVideo(t.Context(), plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := m.decodeVideo(features)
+	encoded, err := m.decodeVideo(t.Context(), features)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestArtifactPublishesReferenceGIF(t *testing.T) {
 func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	m := loadArtifactModel(t)
 	cfg := m.Cfg
-	img, err := generatePlanar(m, Request{Class: 1, Seed: 42})
+	img, err := generatePlanar(t, m, Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,11 +115,11 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 			}
 		}
 	}
-	again, err := generatePlanar(m, Request{Class: 1, Seed: 42})
+	again, err := generatePlanar(t, m, Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := generatePlanar(m, Request{Class: 2, Seed: 42})
+	other, err := generatePlanar(t, m, Request{Class: 2, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,22 +133,22 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	if !diff {
 		t.Fatal("class change did not change the image")
 	}
-	if _, err := generatePlanar(m, Request{Class: cfg.NClasses, Seed: 42}); err == nil {
+	if _, err := generatePlanar(t, m, Request{Class: cfg.NClasses, Seed: 42}); err == nil {
 		t.Fatal("out-of-range class accepted")
 	}
 }
 
 func TestArtifactPublishesReferencePNG(t *testing.T) {
 	m := loadArtifactModel(t)
-	plan, err := m.prepare(Request{Class: 1, Seed: 42})
+	plan, err := m.prepare(t.Context(), Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	features, err := m.integrate(plan)
+	features, err := m.integrate(t.Context(), plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := m.decode(features)
+	encoded, err := m.decode(t.Context(), features)
 	if err != nil {
 		t.Fatal(err)
 	}

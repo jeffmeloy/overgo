@@ -36,17 +36,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "lifecycle",
-          "title": "Verify cancellation, failure cleanup, retry, and resource release",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_lifecycle_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoLifecycleAcceptance$' -count=1",
-          "rationale": "Exercise cancellation before acquisition and during prepare, integration, decode, export and publication through existing process, resource, artifact and runrecord owners. Test real error boundaries and bounded repeated generate/cancel/reuse cycles; assert no growth in retained allocations, orphan processes, unfinished writes or leaked reservations. Keep cleanup independent of a canceled request context where ownership requires release. Distinguish exact resume when supported from a documented restart when it is not; do not claim sampling checkpoint support based only on recipe/run persistence. Retain completed samples and failed run records, and verify atomic publication and duplicate-free retry. Cover device unavailable, insufficient capacity, corrupt inputs, interruption and subsequent successful generation. Bind fixtures to each affected backend and store full failure/recovery outcomes. Apply the same ownership tests to migrated common components, borrowed device views, reused scratch and any in-flight host staging. Verify release ordering at actual stream completion and prevent use-after-free or cross-request data reuse. Keep assertions in the existing resource/executor/media owners and reference their stored results from the final bundle.",
-          "depends_on": [
-            "media-protocol/quality",
-            "media-protocol/resources"
-          ]
-        },
-        {
           "id": "public-workflows",
           "title": "Verify API/workbench request, output, and cancellation behavior",
           "status": "open",

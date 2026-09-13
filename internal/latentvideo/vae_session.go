@@ -570,6 +570,14 @@ func (s *VAEDecoderCUDASession) temporalDownsample(state *device.State, out, x, 
 // (z*std+mean) per chunk, upload, the op chain with device temporal caches,
 // clamp to [-1,1], then per-frame device-to-host emission through the sink.
 func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
+	return s.DecodeContext(s.ctx, stats, z, latentFrames, latentH, latentW, sink)
+}
+
+// DecodeContext streams frames using the request's cancellation context.
+func (s *VAEDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
+	if err := ctx.Err(); err != nil {
+		return VAEDecodeStats{}, err
+	}
 	plan := s.Plan
 	decodeStats, geometry, err := prepareVAEDecode("vae cuda decode", "cuda_streamed_chunks", plan, len(s.weights), stats, z, latentFrames, latentH, latentW, sink)
 	if err != nil {
@@ -582,7 +590,7 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 	var frameScratch []float32
 	frameIndex := tensor.FirstOffset
 	for chunkIndex := range latentFrames {
-		if err := s.worker.Do(s.ctx, func(state *device.State) error {
+		if err := s.worker.Do(ctx, func(state *device.State) error {
 			denormalizeLatentChunk(staging, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
 			x, err := s.buffer(state, media.ProgramCodecWorkspace(media.CodecWorkspaceActivation, tensor.FirstOffset), plan.ZDim*spatial)
 			if err != nil {
@@ -595,7 +603,7 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			volume, runErr := media.ExecuteCodecProgram("vae cuda decode", plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
 				Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
 			}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
-				if err := s.ctx.Err(); err != nil {
+				if err := ctx.Err(); err != nil {
 					return media.CodecVolume[driver.DevicePtr]{}, err
 				}
 				actIndex = tensor.SingletonExtent - actIndex
@@ -642,7 +650,7 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			}
 			frame := frameScratch[:frameElements]
 			for chunkFrame := range frames {
-				if err := s.ctx.Err(); err != nil {
+				if err := ctx.Err(); err != nil {
 					return err
 				}
 				for ch := range geometry.channels {

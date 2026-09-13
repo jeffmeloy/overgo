@@ -2,6 +2,7 @@ package oscillatorimage
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"image"
 	"image/color"
@@ -48,7 +49,10 @@ func ValidateVideoRequest(request VideoRequest) error {
 	return nil
 }
 
-func (m *Model) prepareVideo(request VideoRequest) (videoPlan, error) {
+func (m *Model) prepareVideo(ctx context.Context, request VideoRequest) (videoPlan, error) {
+	if err := ctx.Err(); err != nil {
+		return videoPlan{}, err
+	}
 	if err := ValidateVideoRequest(request); err != nil {
 		return videoPlan{}, err
 	}
@@ -58,14 +62,17 @@ func (m *Model) prepareVideo(request VideoRequest) (videoPlan, error) {
 	return videoPlan{request: request}, nil
 }
 
-func (m *Model) integrateVideo(plan videoPlan) (videoFeatures, error) {
+func (m *Model) integrateVideo(ctx context.Context, plan videoPlan) (videoFeatures, error) {
+	if err := ctx.Err(); err != nil {
+		return videoFeatures{}, err
+	}
 	features := videoFeatures{frames: make([][]float32, plan.request.Frames), scale: plan.request.Scale}
 	for frame := range features.frames {
-		phase, err := m.prepare(Request{Class: plan.request.Class, Seed: plan.request.Seed + int64(frame)})
+		phase, err := m.prepare(ctx, Request{Class: plan.request.Class, Seed: plan.request.Seed + int64(frame)})
 		if err != nil {
 			return videoFeatures{}, err
 		}
-		features.frames[frame], err = m.integrate(phase)
+		features.frames[frame], err = m.integrate(ctx, phase)
 		if err != nil {
 			return videoFeatures{}, err
 		}
@@ -73,7 +80,10 @@ func (m *Model) integrateVideo(plan videoPlan) (videoFeatures, error) {
 	return features, nil
 }
 
-func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
+func (m *Model) decodeVideo(ctx context.Context, features videoFeatures) (EncodedVideo, error) {
+	if err := ctx.Err(); err != nil {
+		return EncodedVideo{}, err
+	}
 	if len(features.frames) == 0 {
 		return EncodedVideo{}, errors.New("oscillatorimage: video features are empty")
 	}
@@ -81,6 +91,9 @@ func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
 	var previous []uint8
 	changed := 0
 	for frameIndex, feature := range features.frames {
+		if err := ctx.Err(); err != nil {
+			return EncodedVideo{}, err
+		}
 		delay, err := media.GIFFrameDelay(videoFPS, frameIndex)
 		if err != nil {
 			return EncodedVideo{}, err
@@ -107,6 +120,9 @@ func (m *Model) decodeVideo(features videoFeatures) (EncodedVideo, error) {
 		animation.Delay = append(animation.Delay, delay)
 	}
 	var encoded bytes.Buffer
+	if err := ctx.Err(); err != nil {
+		return EncodedVideo{}, err
+	}
 	if err := gif.EncodeAll(&encoded, animation); err != nil {
 		return EncodedVideo{}, err
 	}

@@ -3,6 +3,8 @@
 package latentvideo
 
 import (
+	"context"
+	"errors"
 	"math"
 	"path/filepath"
 	"testing"
@@ -45,7 +47,16 @@ func TestEncodeTokensStreamedMatchesReferenceHost(t *testing.T) {
 	if !plan.OK {
 		t.Fatalf("plan not ok: %+v", plan)
 	}
-	got, stats, err := EncodeTokensStreamed(checkpoint, plan, []int{154424, 3914, 1}, []int{1, 1, 1})
+	tokens, mask := []int{154424, 3914, 1}, []int{1, 1, 1}
+	ctx, cancel := context.WithCancelCause(t.Context())
+	defer cancel(context.Canceled)
+	interrupted := &encoderCancellationAfterEntry{Context: ctx, cancel: cancel}
+	partial, stopped, err := EncodeTokensStreamed(interrupted, checkpoint, plan, tokens, mask)
+	if !errors.Is(err, context.Canceled) || len(partial) != 0 || stopped.TokenRows != len(tokens) || stopped.Layers != 0 || stopped.BlockWeightBytes != 0 {
+		t.Fatalf("encoder cancellation after embedding: output=%d stats=%+v error=%v", len(partial), stopped, err)
+	}
+	t.Logf("canceled after %d embedding rows; no encoder block weights loaded", stopped.TokenRows)
+	got, stats, err := EncodeTokensStreamed(t.Context(), checkpoint, plan, tokens, mask)
 	if err != nil {
 		t.Fatal(err)
 	}

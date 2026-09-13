@@ -11,15 +11,15 @@ import (
 
 func TestRealCheckpointPublishesReferencePNG(t *testing.T) {
 	model := loadArtifactModel(t)
-	plan, err := model.prepare(Request{Seed: 7, Steps: 2, Height: 64, Width: 64})
+	plan, err := model.prepare(t.Context(), Request{Seed: 7, Steps: 2, Height: 64, Width: 64})
 	if err != nil {
 		t.Fatal(err)
 	}
-	features, err := model.integrate(plan)
+	features, err := model.integrate(t.Context(), plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := model.decode(features)
+	encoded, err := model.decode(t.Context(), features)
 	if err != nil {
 		t.Fatal(err)
 	}

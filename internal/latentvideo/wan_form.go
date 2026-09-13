@@ -1,6 +1,7 @@
 package latentvideo
 
 import (
+	"context"
 	"errors"
 	"math"
 	"path/filepath"
@@ -109,16 +110,19 @@ func (request WanRequest) withGeneration(policy generationPolicy) WanRequest {
 // promptContexts derives the conditional and unconditional contexts of a
 // prompt-form request through the model's text pipeline, reading the
 // projection once for both branches.
-func promptContexts(spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
+func promptContexts(ctx context.Context, spec TextConditioningSpec, request WanRequest) (cond, uncond []float32, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
 	if err != nil {
 		return nil, nil, err
 	}
-	conditional, err := textConditioningWithWeights(spec, request.Prompt, weights, sourceBytes)
+	conditional, err := textConditioningWithWeights(ctx, spec, request.Prompt, weights, sourceBytes)
 	if err != nil {
 		return nil, nil, err
 	}
-	unconditional, err := textConditioningWithWeights(spec, request.NegativePrompt, weights, sourceBytes)
+	unconditional, err := textConditioningWithWeights(ctx, spec, request.NegativePrompt, weights, sourceBytes)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -202,6 +202,9 @@ func TestWanDecodeCancellation(t *testing.T) {
 
 func TestWanLifecycleAcceptance(t *testing.T) {
 	cudatest.Require(t)
+	if cudatest.MeasurementProcess(t, 0) {
+		return
+	}
 	if testing.Short() {
 		t.Skip("integration excluded by -short: checks real Wan lifecycle and references")
 	}

@@ -30,25 +30,6 @@
       ]
     },
     {
-      "id": "video-validation",
-      "title": "Validate video generation, conditioning, and editing where declared",
-      "owner": "image_video_gen",
-      "status": "open",
-      "steps": [
-        {
-          "id": "composition",
-          "title": "Validate declared image/video compositions against native baselines",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_composition_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoCompositionAcceptance$' -count=1",
-          "rationale": "Determine whether the frozen inventory requires any composed or bridge-selected image/video recipe. Where required, use cmd/composite-generation-lane and its existing catalog/source/target bindings on identical artifacts and held-out inputs. Record conditioning conversion, layout/shape constraints, numerical tolerances, source/target identities and quality/resource comparisons against the native baseline. The lane does not establish blanket coverage for every media model. Reuse accepted composition outputs and isolate only affected conversions. If the inventory declares no composition, record an explicit not-applicable disposition checked against the inventory rather than fabricate an experiment. Acceptance rejects missing required compositions, an unrelated baseline, changed input conversions and unsupported promotion.",
-          "depends_on": [
-            "image-validation/latent-diffusion",
-            "video-validation/wan"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-reliability",
       "title": "Verify interruption recovery and public generation workflows",
       "owner": "image_video_gen",

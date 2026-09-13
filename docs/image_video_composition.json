@@ -1,0 +1,81 @@
+{
+  "cells": [
+    {
+      "disposition": "single-model-native",
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "task": "image-gen"
+    },
+    {
+      "disposition": "single-model-native",
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+      "task": "image-gen"
+    },
+    {
+      "disposition": "single-model-native",
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+      "task": "video-gen"
+    },
+    {
+      "disposition": "single-model-native",
+      "model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+      "task": "image-gen"
+    },
+    {
+      "disposition": "single-model-native",
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+      "task": "video-gen"
+    },
+    {
+      "disposition": "single-model-native",
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "task": "video-gen"
+    },
+    {
+      "disposition": "native-component-chain",
+      "model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+      "recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+      "task": "image-gen"
+    }
+  ],
+  "components": [
+    {
+      "directory": "text_encoder",
+      "members": 2,
+      "model": "model:sha256:f56d447bad2b83262f85476f3dd3b33be2ca5700bee7010dbc620212837f8d77",
+      "node": "prepare"
+    },
+    {
+      "directory": "transformer",
+      "members": 5,
+      "model": "model:sha256:8f2e2c875364a9c71bac996c899547a706b44fbc4f65dd9c368ff2ed03fb757c",
+      "node": "integrate"
+    },
+    {
+      "directory": "vae",
+      "members": 2,
+      "model": "model:sha256:1b7acc66c8e9c396e08a8145009a3db39c52fd500db2c4df11dd26c040073df2",
+      "node": "decode"
+    }
+  ],
+  "failed_attempts": [
+    "evidence:sha256:aa3b63c4b0309a5cebe593471a7345f80c30b07c3543c16e360422ce8bda8d13",
+    "evidence:sha256:b950a07b3c172f4c3839d5c33a9c4360f8789a6e67a307d5945f47340858b46a"
+  ],
+  "harness": "evidence:sha256:5a8735b673602f1ce3d5172edce07b490c63346a0b3a33df08418728bc37c2ee",
+  "native_acquisition": "evidence:sha256:4ca63d86f398cdd69da2eef81a9d04fbb8801d73870e17eace8aea82144777fc",
+  "native_test": "evidence:sha256:860dbcbf3a5e26376d5cc32a3a848d74f3dbcabfe5d8a687029e341be8f1fa2e",
+  "owner_test": "evidence:sha256:c2dccde41f12a8e3ffbd586fa7e60826489ed474ecfdff19392dfee03641c85f",
+  "protocol": "evidence:sha256:16febb6d1be67932330cccf92f940c80858f8612c3af0c4040b02af344bb07da",
+  "retained_acquisition": "evidence:sha256:72ad19c8a417664de6dd19f18a3dd512e1b42d1bb4bce427cdc6053438658311",
+  "retained_run": "run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22",
+  "scope": "The seven frozen active media recipes contain one typed native component chain (Krea text encoder, transformer and VAE) and six single-model bindings. Child manifests preserve the exact native parent file identities, roles and ordinals; profile and compiled typed stage order are unchanged. A new direct prepare/integrate/decode acquisition on the identical frozen Krea request produces the exact complete PNG from the retained compiled-recipe run. This tests routing equivalence using the same production numerical implementation, not an independent full-model numerical oracle. No learned representation bridge, projector, adapter or arbitrary component substitution occurs in these recipes; the separate Wan composite-generation bridge experiment is not required by this inventory and no bridge promotion is claimed. Measurements retain original acquisition scopes and do not establish a speedup. Krea visual limitations and partial native numerical checks remain in the image bundle. The initial 3.252-second acceptance failed because its dependency-role check omitted SenseNova's existing flow-profile role; the corrected check retains that exact profile identity and the failure receipt. No generation was repeated. A second 3.268-second verification failed because it called identity validation directly on a decoded environment body whose identity field is intentionally not serialized. The corrected check reconstructs that identity through NewEnvironment. Both verification failures are retained; the acquisition is unchanged.",
+  "scope_evidence": "evidence:sha256:78c24c69f0071403e8a166f8d24b65ce3e6acc6a62c6a917d5c2eb1562b73b0e",
+  "source_base": "7da98c3bef0a1b9f27778e15dfa935ffa0f79619",
+  "version": 1
+}

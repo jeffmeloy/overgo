@@ -6,7 +6,7 @@
     {
       "id": "validation-gate-selection",
       "title": "Determine unnecessary testing and deliver one measured gate reduction",
-      "owner": "codex-validation",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -19,13 +19,6 @@
             "validation-gate-selection/package-execution-cost",
             "validation-gate-selection/edge-provenance"
           ]
-        },
-        {
-          "id": "static-preflight",
-          "title": "Run the gate's cheap contract checks before expensive preparation and tests",
-          "status": "open",
-          "verify": "test -f internal/gate/preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateEquivalentStaticPreflight$' -count=1",
-          "rationale": "Extend gate -preflight -paths and its existing check definitions; do not add a command, duplicate phase list, runner or acceptance registry. The present preflight selects PhaseValidate only, so it misses vet and cheap structural assertions classified as tests. Identify eligible checks by explicit effects and requirements: scope/claim/stop/data-root readiness, fmt, vet, plan/automation contracts, orchestration/composer contracts, literal/clone/modern-Go ratchets and closure scope. Share the candidate/environment/input resolver with the normal gate; never quietly run a live-store, subprocess-heavy, browser or model test as a static check. Cheap local refusals precede replay and mechanical preparation; later checks consume the exact repaired candidate once it is frozen. Run independent cheap checks and report all findings together; prevent expensive dependent work on failure. Reuse existing deterministic repairs, never adjust thresholds or acceptance to pass. Pure results may receive existing evidence credit only with complete input identities; recheck live admission and keep unresolved receipts diagnostic until their binding is sound. Standalone preflight grants no publication or promotion. This slice has no dependency on histogram completion, deeper analysis, repair-iteration or a new cache. Acceptance seeds each supported cheap failure and proves both paths agree on the check, input/environment identity and finding before long-work callbacks run; cover changed baselines, selected paths, dirty candidate, missing bindings, missing/zero-match assertions, stale claims, active stops and a mutation after preflight. Measure wall to actionable refusal and additional cost on a successful attempt; retain existing broad acceptance for this gate-policy change.\n\nThis GUI integration exercised all 13 current preflight checks before expensive validation: 12 passed and magics identified a displaced review binding for the existing two-element logit-bias tuple. The closure importer repaired the binding without changing the protocol or a ceiling. Preserve this regression in the early-feedback comparison; preflight is not wholly sub-second or already gate-equivalent because census/profile and preparation also incur measured cost. Prefer stable content/site identity and exact repair reuse over repeated manual rebinding."
         },
         {
           "id": "reduction-contract",
@@ -179,7 +172,7 @@
     {
       "id": "plan-publication-cost",
       "title": "Reduce recurring build and gate cost, then simplify dispatch and publication",
-      "owner": "codex-publication",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {

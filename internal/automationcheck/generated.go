@@ -30,6 +30,7 @@ func GeneratedChecks(root string, command Command) []Check {
 			Descriptor: Descriptor{
 				Name: manifestCheckName, Phase: runrecord.PhaseValidate,
 				Triggers: []Fact{manifestImpact}, Inapplicable: "no kernel authority changed",
+				Requirements: Requirements{Process: ProcessToolchain},
 				Ownership: Ownership{Fact: manifestImpact, Packages: []string{
 					"cmd/kernel-manifest", "cmd/build-kernels", "cmd/kernel-bindings", "internal/cuda/kernel",
 				}},
@@ -46,7 +47,8 @@ func GeneratedChecks(root string, command Command) []Check {
 			Descriptor: Descriptor{
 				Name: sbomCheckName, Phase: runrecord.PhaseValidate,
 				Triggers: []Fact{sbomImpact}, Inapplicable: "no dependency authority changed",
-				Ownership: Ownership{Fact: sbomImpact, Packages: []string{"cmd/sbom"}},
+				Requirements: Requirements{Process: ProcessToolchain},
+				Ownership:    Ownership{Fact: sbomImpact, Packages: []string{"cmd/sbom"}},
 			},
 			Run: commandRunner(root, command, "go", "run", "./cmd/sbom", "-check"),
 		},
@@ -54,7 +56,8 @@ func GeneratedChecks(root string, command Command) []Check {
 			Descriptor: Descriptor{
 				Name: compatibilityCheckName, Phase: runrecord.PhaseValidate,
 				Triggers: []Fact{compatibilityImpact}, Inapplicable: "no compatibility evidence changed",
-				Ownership: Ownership{Fact: compatibilityImpact, Packages: []string{"cmd/compatibility", "internal/model"}},
+				Requirements: Requirements{Process: ProcessToolchain},
+				Ownership:    Ownership{Fact: compatibilityImpact, Packages: []string{"cmd/compatibility", "internal/model"}},
 			},
 			Run: commandRunner(root, command, "go", "run", "./cmd/compatibility", "-check"),
 		},

@@ -16,6 +16,7 @@ func PublishedCheck(root string, command Command) Check {
 		Descriptor: Descriptor{
 			Name: "published", Phase: runrecord.PhaseValidate,
 			Triggers: []Fact{publishedImpact}, Inapplicable: "no document schema owner changed",
+			Requirements: Requirements{Process: ProcessToolchain},
 			Ownership: Ownership{Fact: publishedImpact, Packages: []string{
 				"internal/modelrecipe", "internal/recipe", "internal/artifact",
 				"internal/modelartifact", "internal/runrecord", "cmd/store-check",

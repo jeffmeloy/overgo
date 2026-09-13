@@ -50,6 +50,7 @@ func DeviceCheck(root string, paths, packages []string, command LaneCommand) Che
 			Name: deviceCheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{deviceImpact},
 			Inapplicable: "no kernel or device implementation changed",
 			Resources:    []Resource{{Name: "device"}},
+			Requirements: Requirements{Process: ProcessDevice},
 			Ownership: Ownership{
 				Fact: deviceImpact, Packages: slices.Clone(packages),
 				PackagePrefixes: []string{"internal/cuda"},

@@ -5,12 +5,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
@@ -75,27 +78,31 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/preflight.go"}}
 	var names []string
 	for _, check := range g.preflightChecks() {
-		if check.Descriptor.Phase != runrecord.PhaseValidate {
-			t.Fatalf("preflight selected %s of phase %s", check.Descriptor.Name, check.Descriptor.Phase)
+		if !check.Descriptor.Requirements.Static() {
+			t.Fatalf("preflight selected %s with requirements %+v", check.Descriptor.Name, check.Descriptor.Requirements)
 		}
 		names = append(names, check.Descriptor.Name)
 	}
 	want := append([]string{"protection", "scope"}, validateWave...)
 	want = slices.DeleteFunc(want, func(name string) bool { return name == modernCensusCheckName })
+	want = append(want, "vet", "build")
 	if !slices.Equal(names, want) {
 		t.Fatalf("preflight checks = %v, want %v", names, want)
 	}
-	for _, excluded := range []string{modernCensusCheckName, "acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName, "commit"} {
+	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, "commit"} {
 		if slices.Contains(names, excluded) {
-			t.Fatalf("preflight selected the %s phase", excluded)
+			t.Fatalf("preflight selected the %s check", excluded)
 		}
 	}
 
+	var callsMutex sync.Mutex
 	fake := func(name string, err error, calls *[]string) automationcheck.Check {
 		return automationcheck.Check{
 			Descriptor: automationcheck.Descriptor{Name: name, Phase: runrecord.PhaseValidate, Always: true},
 			Run: func(context.Context, automationcheck.Invocation) (bool, string, error) {
+				callsMutex.Lock()
 				*calls = append(*calls, name)
+				callsMutex.Unlock()
 				return false, "", err
 			},
 		}
@@ -109,7 +116,8 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "2 finding(s); first=second") {
 		t.Fatalf("preflight error = %v", err)
 	}
-	if !slices.Equal(calls, []string{"first", "second", "third", "fourth"}) {
+	slices.Sort(calls)
+	if !slices.Equal(calls, []string{"first", "fourth", "second", "third"}) {
 		t.Fatalf("preflight stopped early: %v", calls)
 	}
 	report := output.String()
@@ -129,7 +137,7 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 
 func TestPreflightSeparatesSkippedChecks(t *testing.T) {
 	checks := []automationcheck.Check{{
-		Descriptor: automationcheck.Descriptor{Name: "fixture"},
+		Descriptor: automationcheck.Descriptor{Name: "fixture", Phase: runrecord.PhaseValidate, Always: true},
 		Run: func(context.Context, automationcheck.Invocation) (bool, string, error) {
 			return true, "fixture unavailable", nil
 		},
@@ -173,5 +181,169 @@ func TestPreflightNeverRepairsStore(t *testing.T) {
 func TestPreflightRejectsCombinedInspection(t *testing.T) {
 	if err := Run(Options{Preflight: true, InspectPlan: true}); err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Fatalf("combined modes accepted: %v", err)
+	}
+}
+
+// TestGateEquivalentStaticPreflight proves preflight and the gate select the
+// same static checks by declared requirements, plan the same invocation
+// identities, report the same seeded findings, and never start the expensive
+// work behind a failed check.
+func TestGateEquivalentStaticPreflight(t *testing.T) {
+	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/preflight.go"}}
+	pipeline := g.pipelineChecks()
+	var wantStatic []string
+	for _, check := range pipeline {
+		requirements := check.Descriptor.Requirements
+		expensive := requirements.Process == automationcheck.ProcessSuite || requirements.Process == automationcheck.ProcessBrowser || requirements.Process == automationcheck.ProcessDevice
+		if (check.Descriptor.Phase == runrecord.PhaseTest || check.Descriptor.Phase == runrecord.PhasePackage) && requirements.Static() {
+			t.Fatalf("%s: %s phase declared static", check.Descriptor.Name, check.Descriptor.Phase)
+		}
+		if expensive && requirements.Static() {
+			t.Fatalf("%s: %s process declared static", check.Descriptor.Name, requirements.Process)
+		}
+		if requirements.Static() {
+			wantStatic = append(wantStatic, check.Descriptor.Name)
+		}
+	}
+	static, satisfied, err := preflightInvocations(pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned, err := automationcheck.Plan(pipeline, automationcheck.Impact{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateIDs := map[string]artifact.ID{}
+	for _, invocation := range planned {
+		gateIDs[invocation.Check.Name] = invocation.ID
+	}
+	var names []string
+	for _, invocation := range static {
+		names = append(names, invocation.Check.Name)
+		if invocation.ID != gateIDs[invocation.Check.Name] {
+			t.Fatalf("%s: preflight identity differs from the gate plan", invocation.Check.Name)
+		}
+		if satisfied[invocation.Check.Name] {
+			t.Fatalf("%s: static check counted as satisfied", invocation.Check.Name)
+		}
+	}
+	if !slices.Equal(names, wantStatic) {
+		t.Fatalf("preflight invocations = %v, want %v", names, wantStatic)
+	}
+	for _, required := range []string{"vet", "build", "fmt", "magics", "modern-go", "architecture", "docs"} {
+		if !slices.Contains(names, required) {
+			t.Fatalf("preflight omits %s", required)
+		}
+	}
+	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, "commit"} {
+		if !satisfied[excluded] || slices.Contains(names, excluded) {
+			t.Fatalf("preflight would run %s", excluded)
+		}
+	}
+
+	// Seeded findings: two independent cheap failures report together; the
+	// suite behind them never starts on either path.
+	var mutex sync.Mutex
+	started := map[string]int{}
+	fake := func(name string, requirements automationcheck.Requirements, dependencies []string, err error) automationcheck.Check {
+		return automationcheck.Check{
+			Descriptor: automationcheck.Descriptor{Name: name, Phase: runrecord.PhaseValidate, Always: true, Dependencies: dependencies, Requirements: requirements},
+			Run: func(context.Context, automationcheck.Invocation) (bool, string, error) {
+				mutex.Lock()
+				started[name]++
+				mutex.Unlock()
+				return false, "", err
+			},
+		}
+	}
+	// The census intermediate is skipped, so style inherits its scope
+	// dependency; build follows style and still runs after the two failures
+	// beside it, while vet waits on a failed check and the suite behind them
+	// never starts.
+	seeded := []automationcheck.Check{
+		fake("scope", automationcheck.Requirements{}, nil, nil),
+		fake("census", automationcheck.Requirements{Intermediate: true}, []string{"scope"}, nil),
+		fake("baseline", automationcheck.Requirements{}, []string{"scope"}, errors.New("changed baseline: ceiling 1 exceeded by 3")),
+		fake("assertion", automationcheck.Requirements{Process: automationcheck.ProcessToolchain}, []string{"scope"}, errors.New("zero tests matched -run")),
+		fake("style", automationcheck.Requirements{}, []string{"census"}, nil),
+		fake("vet", automationcheck.Requirements{Process: automationcheck.ProcessToolchain}, []string{"baseline", "style"}, nil),
+		fake("build", automationcheck.Requirements{Process: automationcheck.ProcessToolchain}, []string{"style"}, nil),
+		fake("suite", automationcheck.Requirements{Candidate: true, Process: automationcheck.ProcessSuite}, []string{"vet", "build"}, nil),
+		fake("commit", automationcheck.Requirements{Candidate: true}, []string{"suite"}, nil),
+	}
+	preflightStatic, _, err := preflightInvocations(seeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	styleIndex := slices.IndexFunc(preflightStatic, func(invocation automationcheck.Invocation) bool { return invocation.Check.Name == "style" })
+	if styleIndex < 0 || !slices.Equal(preflightStatic[styleIndex].Check.Dependencies, []string{"scope"}) {
+		t.Fatalf("style dependencies through the skipped census = %v", preflightStatic)
+	}
+	var output bytes.Buffer
+	err = runPreflight(t.Context(), seeded, &output)
+	if err == nil || !strings.Contains(err.Error(), "2 finding(s)") {
+		t.Fatalf("preflight = %v:\n%s", err, output.String())
+	}
+	for _, want := range []string{"baseline FAIL", "changed baseline: ceiling 1 exceeded by 3", "assertion FAIL", "zero tests matched -run", "build ok", "vet not run", "1 not run", "first finding after", "total "} {
+		if !strings.Contains(output.String(), want) {
+			t.Fatalf("preflight report lacks %q:\n%s", want, output.String())
+		}
+	}
+	preflightStarted := map[string]int{}
+	mutex.Lock()
+	maps.Copy(preflightStarted, started)
+	clear(started)
+	mutex.Unlock()
+	if preflightStarted["suite"] != 0 || preflightStarted["commit"] != 0 || preflightStarted["census"] != 0 || preflightStarted["vet"] != 0 ||
+		preflightStarted["baseline"] != 1 || preflightStarted["assertion"] != 1 || preflightStarted["style"] != 1 || preflightStarted["build"] != 1 {
+		t.Fatalf("preflight started %v", preflightStarted)
+	}
+	gatePlanned, err := automationcheck.Plan(seeded, automationcheck.Impact{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := automationcheck.ExecuteDAG(t.Context(), gatePlanned, nil, func(ctx context.Context, invocation automationcheck.Invocation) (automationcheck.Evidence, error) {
+		return automationcheck.Run(ctx, invocation)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflightStatic, _, err = preflightInvocations(seeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for position, result := range results {
+		name := gatePlanned[position].Check.Name
+		executed := result.Err != nil || result.Evidence.ID.Valid()
+		index := slices.IndexFunc(preflightStatic, func(invocation automationcheck.Invocation) bool { return invocation.Check.Name == name })
+		if !gatePlanned[position].Check.Requirements.Static() {
+			if index >= 0 || (name != "census" && (executed || started[name] != 0)) {
+				t.Fatalf("gate started %s behind a failed check: %+v", name, result)
+			}
+			continue
+		}
+		if index < 0 || preflightStatic[index].ID != gatePlanned[position].ID {
+			t.Fatalf("%s: gate and preflight identities differ", name)
+		}
+		switch {
+		case executed && result.Err != nil:
+			if !strings.Contains(output.String(), name+" FAIL") || !strings.Contains(output.String(), result.Err.Error()) {
+				t.Fatalf("%s: gate finding %v is not the preflight finding:\n%s", name, result.Err, output.String())
+			}
+		case executed:
+			if !strings.Contains(output.String(), name+" ok") {
+				t.Fatalf("%s: gate pass is not the preflight pass:\n%s", name, output.String())
+			}
+		case name == "vet":
+			if started[name] != 0 || preflightStarted[name] != 0 {
+				t.Fatalf("%s started behind a failed check: gate %v, preflight %v", name, started, preflightStarted)
+			}
+		default:
+			// The gate stops at the failed wave; the diagnostic still runs
+			// the independent work behind it.
+			if started[name] != 0 || preflightStarted[name] != 1 {
+				t.Fatalf("%s: gate %v, preflight %v", name, started, preflightStarted)
+			}
+		}
 	}
 }

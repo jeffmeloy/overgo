@@ -37,7 +37,7 @@ type suiteTestCost struct {
 }
 
 // The plan bounds this diagnostic to the two costliest measured packages.
-// Parent elapsed includes child tests; summed top-level time is not package wall.
+// Parent/child elapsed may overlap. Top-level sums omit parallel-child work.
 const suiteCostPackageLimit = 2
 
 func suiteCostRanking(report testevidence.GoTestReport) []suiteTestCost {
@@ -89,7 +89,7 @@ func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID)
 		Result      artifact.ID  `json:"result"`
 		Invocations []invocation `json:"invocations"`
 		Limitations string       `json:"limitations"`
-	}{Result: result, Limitations: "Elapsed test work can overlap; parent tests include subtests. Top-level sums are not package wall. Child-execution and assertion costs are unknown without child spans. Diagnostic observations grant no test or reuse credit."}
+	}{Result: result, Limitations: "Parent and child elapsed may overlap. Top-level sums are neither package wall nor complete work: parallel children need not appear in parent elapsed. Child-execution and assertion costs are unknown without child spans. Diagnostic observations grant no test or reuse credit."}
 	for _, batch := range g.testExecutions {
 		if len(batch.TestCosts) != 0 {
 			record.Invocations = append(record.Invocations, invocation{batch.StreamDigest, batch.Short, batch.Failed, batch.WallNS, batch.TestCosts})

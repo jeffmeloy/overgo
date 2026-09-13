@@ -15,10 +15,9 @@ import (
 	"overgo/internal/processlock"
 )
 
-// TestTestGroupsOverlapUnderLedger pins the overlap: the changed source
-// owners precede the shared browser and dependency tests. The commit waits
-// for all checks, a skipped owners check skips the rest, and the store handle
-// waits for another writer instead of refusing on the OS exclusion.
+// Owners follow required preparation; lanes overlap after owner acceptance.
+// Commit joins the required work. Missing preparation fails explicitly;
+// store contention waits for the writer's release.
 func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/gate.go"}}
 	checks := g.pipelineChecks()
@@ -26,8 +25,13 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	for _, check := range checks {
 		byName[check.Descriptor.Name] = check.Descriptor
 	}
-	if !slices.Equal(byName["test-owners"].Dependencies, []string{"acceptance"}) || !slices.Equal(byName["test-device"].Dependencies, []string{"test-owners"}) || !slices.Equal(byName["test"].Dependencies, []string{"test-device"}) {
-		t.Fatalf("test groups depend on %v, %v and %v", byName["test-owners"].Dependencies, byName["test-device"].Dependencies, byName["test"].Dependencies)
+	for name, prerequisites := range map[string][]string{
+		testPlanCheckName: {"acceptance"}, testOwnersCheckName: {testPlanCheckName},
+		testDeviceCheckName: {testOwnersCheckName}, testRestCheckName: {testDeviceCheckName},
+	} {
+		if !slices.Equal(byName[name].Dependencies, prerequisites) {
+			t.Fatalf("%s depends on %v, want %v", name, byName[name].Dependencies, prerequisites)
+		}
 	}
 	for _, lane := range []string{"device", automationcheck.WebUICheckName} {
 		prerequisite := "test-device"
@@ -84,8 +88,11 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 		t.Fatalf("the remaining groups did not run beside the lanes: %v", spans)
 	}
 
-	if skipped, err := (&gateContext{}).stepTestRest(t.Context()); err != nil || !skipped {
-		t.Fatalf("rest without prepared groups = skipped %t, %v; want skipped", skipped, err)
+	if skipped, err := (&gateContext{}).stepTestRest(t.Context()); err == nil || skipped {
+		t.Fatalf("rest without prepared groups = skipped %t, %v; want failure", skipped, err)
+	}
+	if skipped, err := (&gateContext{testPlan: &testGroups{}}).stepTestRest(t.Context()); err != nil || !skipped {
+		t.Fatalf("rest with an explicitly empty scope = skipped %t, %v; want inapplicable", skipped, err)
 	}
 
 	// The gate's store handle waits for another writer holding the store

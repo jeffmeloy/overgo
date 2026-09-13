@@ -907,7 +907,8 @@
             "plan-publication-cost/internal-consumer-contract",
             "surface-priority-replan/do",
             "plan-publication-cost/fuse-census-preparation",
-            "plan-publication-cost/share-census-imports"
+            "plan-publication-cost/share-census-imports",
+            "plan-publication-cost/reuse-planning-state"
           ]
         }
       ]

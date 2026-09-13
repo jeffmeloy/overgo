@@ -8,7 +8,8 @@ import (
 )
 
 // TestExecution is an observation, never pass or reuse authority.
-// Elapsed excludes testing.T pauses; parent tests include their subtests.
+// Elapsed excludes testing.T pauses. Parent and child elapsed may overlap;
+// parallel children need not appear in their parent's elapsed.
 type TestExecution struct {
 	Package string   `json:"package"`
 	Name    string   `json:"name"`

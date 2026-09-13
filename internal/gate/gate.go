@@ -107,6 +107,7 @@ type gateContext struct {
 	strategy            *loop.Strategy
 	diff                runrecord.AttemptDiff
 	completionAuthority plan.CompletionAuthority
+	dispatchClaim       *plan.WorkLease
 	store               *overgodb.Store
 	indexBefore         gateIndexSnapshot
 	mergeBefore         *gateMergeIntent

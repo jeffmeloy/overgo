@@ -85,7 +85,7 @@ func admitProposal(root, specPath string, output io.Writer) error {
 			return err
 		}
 		document.Items = append([]plan.Item{row}, document.Items...)
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
+		if err := savePlanMutation(root, document); err != nil {
 			return err
 		}
 		_, err = fmt.Fprintf(output, "admitted candidate %s as plan row %s\n", candidate.ID(), row.ID)

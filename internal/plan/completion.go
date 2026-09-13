@@ -882,7 +882,7 @@ func resolveCompletionRevision(ctx context.Context, repository, revision string)
 		return "", "", fmt.Errorf("plan: %w", err)
 	}
 	commitOutput, err := gitCompletionCommand(
-		ctx, canonicalRepository, "rev-parse", "--verify", "--end-of-options", revision+"^{commit}",
+		ctx, canonicalRepository, gitRevisionCommand, "--verify", "--end-of-options", revision+"^{commit}",
 	)
 	if err != nil {
 		return "", "", fmt.Errorf("plan: resolve completion revision: %w", err)

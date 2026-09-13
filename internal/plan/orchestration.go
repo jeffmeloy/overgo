@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -17,12 +18,17 @@ import (
 
 const (
 	workLeaseVersion uint16 = 1
+	// Dispatch ownership has a separate wire schema; legacy retirement only sees v1.
+	dispatchLeaseVersion uint16 = 2
+	dispatchLeaseSchema         = "overgo/work-lease/v2"
 	// WorkLeaseMediaType identifies work leases.
 	WorkLeaseMediaType = "application/vnd.overgo.work-lease+json"
 	// WorkLeaseSchema identifies the work-lease schema.
 	WorkLeaseSchema = "overgo/work-lease/v1"
 	// WorkLeaseAliasRoot scopes current worktree leases.
-	WorkLeaseAliasRoot = "automation/worktree/"
+	WorkLeaseAliasRoot  = "automation/worktree/"
+	workTaskAliasRoot   = "automation/dispatch/task/"
+	workWorkerAliasRoot = "automation/dispatch/worker/"
 )
 
 // Resources is advisory capacity metadata; it never acquires hardware.
@@ -31,6 +37,11 @@ type Resources struct {
 	HostRAMGiB   int  `json:"host_ram_gib"`
 	VRAMGiB      int  `json:"vram_gib"`
 	GPUExclusive bool `json:"gpu_exclusive"`
+}
+
+func validLeaseResources(resources Resources) bool {
+	return resources.CPUThreads > 0 && resources.HostRAMGiB > 0 && resources.VRAMGiB >= 0 &&
+		(!resources.GPUExclusive || resources.VRAMGiB > 0)
 }
 
 // WorkspaceClaimMode distinguishes read from write path access.
@@ -70,6 +81,12 @@ type WorkLease struct {
 	Resources     Resources       `json:"resources"`
 	Claims        WorkspaceClaims `json:"claims"`
 	ExpiresAt     string          `json:"expires_at"`
+	// Dispatch claims retain their worker and contract until explicit release.
+	// Acquisition binds the observed store head, distinguishing reacquisition.
+	Worker      string      `json:"worker,omitzero"`
+	Contract    string      `json:"contract,omitzero"`
+	Acquisition string      `json:"acquisition,omitzero"`
+	Previous    artifact.ID `json:"previous,omitzero"`
 	// Optional experiment retry state.
 	Experiment      artifact.ID `json:"experiment,omitzero"`
 	Checkpoint      artifact.ID `json:"checkpoint,omitzero"`
@@ -80,17 +97,38 @@ type WorkLease struct {
 
 // NewWorkLease validates and identifies one immutable lease declaration.
 func NewWorkLease(value WorkLease) (WorkLease, error) {
+	if value.Worker != "" {
+		value.Version = dispatchLeaseVersion
+		return workLeaseCodec.New(value)
+	}
 	return workLeaseCodec.NewInitial(value)
 }
 
-var workLeaseCodec = artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, WorkLeaseMediaType, WorkLeaseSchema,
-	canonicalizeWorkLease, func(value WorkLease) artifact.ID { return value.ID },
-	func(value *WorkLease, id artifact.ID) { value.ID = id }, func(value WorkLease) WorkLease {
-		value.ConflictsWith = slices.Clone(value.ConflictsWith)
-		value.Claims.Read = slices.Clone(value.Claims.Read)
-		value.Claims.Write = slices.Clone(value.Claims.Write)
-		return value
-	})
+var workLeaseCodec = func() artifact.DocumentCodec[WorkLease] {
+	codec := artifact.JSONDocumentCodec("work lease", artifact.KindEvidence, WorkLeaseMediaType, WorkLeaseSchema,
+		canonicalizeWorkLease, func(value WorkLease) artifact.ID { return value.ID },
+		func(value *WorkLease, id artifact.ID) { value.ID = id }, func(value WorkLease) WorkLease {
+			value.ConflictsWith = slices.Clone(value.ConflictsWith)
+			value.Claims.Read = slices.Clone(value.Claims.Read)
+			value.Claims.Write = slices.Clone(value.Claims.Write)
+			return value
+		})
+	codec.ContractFor = workLeaseContract
+	return codec
+}()
+
+func workLeaseContract(value WorkLease) artifact.DocumentContract {
+	schema := WorkLeaseSchema
+	if value.Version == dispatchLeaseVersion {
+		schema = dispatchLeaseSchema
+	}
+	return artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: WorkLeaseMediaType, Schema: schema}
+}
+
+// WorkLeaseContracts is the shared query contract for advisory leases and dispatch claims.
+func WorkLeaseContracts() []artifact.DocumentContract {
+	return []artifact.DocumentContract{workLeaseContract(WorkLease{Version: workLeaseVersion}), workLeaseContract(WorkLease{Version: dispatchLeaseVersion})}
+}
 
 // RecordWorkLease: normalize and move the worktree alias by CAS.
 func RecordWorkLease(ctx context.Context, repository artifact.Repository, data []byte) (WorkLease, error) {
@@ -101,6 +139,21 @@ func RecordWorkLease(ctx context.Context, repository artifact.Repository, data [
 	current, exists, err := artifact.ResolveAlias(ctx, repository, workLeaseAlias(value.Worktree))
 	if err != nil {
 		return WorkLease{}, err
+	}
+	if exists && current == value.ID {
+		return value, ResolveWorkLeaseOwner(ctx, repository, value)
+	}
+	if value.Worker != "" {
+		return recordDispatchLease(ctx, repository, value)
+	}
+	if exists {
+		owner, found, err := ReadWorkLease(ctx, repository, current)
+		if err != nil {
+			return WorkLease{}, err
+		}
+		if found && owner.Worker != "" {
+			return WorkLease{}, errors.New("plan: advisory lease cannot replace a dispatch claim")
+		}
 	}
 	var previous *artifact.ID
 	if exists {
@@ -117,14 +170,18 @@ func RecordWorkLease(ctx context.Context, repository artifact.Repository, data [
 
 // ReadWorkLease returns false for a non-lease artifact.
 func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) (WorkLease, bool, error) {
-	return readTypedDocument(ctx, reader, id, workLeaseCodec.Contract, workLeaseCodec.Read)
+	descriptor, found, err := reader.Artifact(ctx, id)
+	if err != nil || !found || descriptor.MediaType != WorkLeaseMediaType || descriptor.Schema != WorkLeaseSchema && descriptor.Schema != dispatchLeaseSchema {
+		return WorkLease{}, false, err
+	}
+	return workLeaseCodec.Read(ctx, reader, id)
 }
 
 // ParseWorkLease decodes one canonical work lease.
 func ParseWorkLease(content []byte) (WorkLease, error) { return workLeaseCodec.Parse(content) }
 
 // ValidateIdentity checks the lease's canonical form and content-addressed identity.
-func (value WorkLease) ValidateIdentity() error { return workLeaseCodec.ValidateIdentity(value) }
+func (lease WorkLease) ValidateIdentity() error { return workLeaseCodec.ValidateIdentity(lease) }
 
 // WorkLeaseAlias names the existing CAS ownership binding for a worktree.
 func WorkLeaseAlias(worktree string) string { return workLeaseAlias(worktree) }
@@ -134,12 +191,14 @@ func ResolveWorkLeaseOwner(ctx context.Context, reader artifact.Reader, lease Wo
 	if err := lease.ValidateIdentity(); err != nil {
 		return err
 	}
-	current, found, err := reader.ResolveAlias(ctx, workLeaseAlias(lease.Worktree))
-	if err != nil {
-		return err
-	}
-	if !found || current != lease.ID {
-		return errors.New("plan: work lease is not the current worktree owner")
+	for _, alias := range workLeaseAliases(lease) {
+		current, found, err := reader.ResolveAlias(ctx, alias)
+		if err != nil {
+			return err
+		}
+		if !found || current != lease.ID {
+			return fmt.Errorf("plan: work lease is not the current owner of %s", alias)
+		}
 	}
 	return nil
 }
@@ -154,23 +213,47 @@ func readTypedDocument[T any](ctx context.Context, reader artifact.Reader, id ar
 }
 
 func workLeaseAlias(worktree string) string {
-	digest := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(worktree))))
-	return fmt.Sprintf("%s%x", WorkLeaseAliasRoot, digest)
+	return leaseAlias(WorkLeaseAliasRoot, strings.ToLower(strings.TrimSpace(worktree)))
 }
 
 func canonicalizeWorkLease(value *WorkLease) error {
-	if value == nil || value.Version != workLeaseVersion || !validAutomationText(value.Task) ||
+	if value == nil || value.Version != workLeaseVersion && value.Version != dispatchLeaseVersion || !validAutomationText(value.Task) ||
 		!validAutomationText(value.Worktree) || strings.Contains(value.Worktree, "\\") ||
-		!validAutomationText(value.Branch) || !validAutomationText(value.Role) || !validCommit(value.TargetHead) ||
-		value.Resources.CPUThreads <= 0 || value.Resources.HostRAMGiB <= 0 || value.Resources.VRAMGiB < 0 ||
-		value.Resources.GPUExclusive && value.Resources.VRAMGiB == 0 {
+		!validAutomationText(value.Branch) || !validAutomationText(value.Role) || !validCommit(value.TargetHead) {
 		return errors.New("plan: invalid work lease")
 	}
-	parsed, err := time.Parse(time.RFC3339Nano, value.ExpiresAt)
-	if err != nil {
-		return errors.New("plan: invalid work lease expiry")
+	if !validLeaseResources(value.Resources) && !(value.Worker != "" && value.Resources == (Resources{})) {
+		return errors.New("plan: invalid work lease resources")
 	}
-	value.ExpiresAt = parsed.UTC().Format(time.RFC3339Nano)
+	if value.Worker == "" {
+		if value.Version != workLeaseVersion {
+			return errors.New("plan: dispatch schema requires a worker")
+		}
+		if value.Contract != "" || value.Acquisition != "" || value.Previous.Valid() {
+			return errors.New("plan: dispatch metadata requires a worker")
+		}
+		parsed, err := time.Parse(time.RFC3339Nano, value.ExpiresAt)
+		if err != nil {
+			return errors.New("plan: invalid work lease expiry")
+		}
+		value.ExpiresAt = parsed.UTC().Format(time.RFC3339Nano)
+	} else {
+		if value.Version != dispatchLeaseVersion {
+			return errors.New("plan: dispatch ownership requires the v2 schema")
+		}
+		item, step, found := strings.Cut(value.Task, "/")
+		if !validAutomationText(value.Worker) || value.Worker == UnassignedRole ||
+			!found || !validPlanID(item) || !validPlanID(step) || value.ExpiresAt != "" ||
+			value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence {
+			return errors.New("plan: invalid dispatch claim")
+		}
+		for _, digest := range []string{value.Contract, value.Acquisition} {
+			decoded, err := hex.DecodeString(digest)
+			if err != nil || len(decoded) != sha256.Size || digest != strings.ToLower(digest) {
+				return errors.New("plan: dispatch claim requires exact contract and acquisition digests")
+			}
+		}
+	}
 	if value.ConflictsWith == nil {
 		return errors.New("plan: work lease conflicts must not be nil")
 	}
@@ -304,7 +387,7 @@ func AssessResources(now time.Time, capacity Resources, leases []WorkLease) Reso
 	active := make([]WorkLease, 0, len(leases))
 	for _, lease := range leases {
 		expires, err := time.Parse(time.RFC3339Nano, lease.ExpiresAt)
-		if err == nil && expires.After(now) {
+		if lease.Worker != "" || err == nil && expires.After(now) {
 			active = append(active, lease)
 		}
 	}
@@ -353,4 +436,67 @@ func validCommit(value string) bool {
 		}
 	}
 	return true
+}
+
+func workLeaseAliases(lease WorkLease) []string {
+	aliases := []string{workLeaseAlias(lease.Worktree)}
+	if lease.Worker != "" {
+		aliases = append(aliases, leaseAlias(workTaskAliasRoot, lease.Task), leaseAlias(workWorkerAliasRoot, lease.Worker))
+	}
+	return aliases
+}
+
+func leaseAlias(prefix, identity string) string {
+	digest := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("%s%x", prefix, digest)
+}
+
+// All aliases move in one transaction; distinct worktrees cannot claim the same task.
+func recordDispatchLease(ctx context.Context, repository artifact.Repository, value WorkLease) (WorkLease, error) {
+	var previous *artifact.ID
+	var lineage []artifact.Lineage
+	if value.Previous.Valid() {
+		owner, found, err := ReadWorkLease(ctx, repository, value.Previous)
+		if err != nil {
+			return WorkLease{}, err
+		}
+		if !found || owner.Worker != value.Worker || owner.Task != value.Task ||
+			owner.Role != value.Role || !strings.EqualFold(owner.Worktree, value.Worktree) {
+			return WorkLease{}, errors.New("plan: claim renewal requires the same worker, task, role and worktree")
+		}
+		previous = &value.Previous
+		lineage = []artifact.Lineage{{Child: value.ID, Parent: owner.ID, Relation: artifact.RelationDerivedFrom}}
+	}
+	var aliases []artifact.AliasBinding
+	for _, name := range workLeaseAliases(value) {
+		aliases = append(aliases, artifact.AliasBinding{Name: name, Target: value.ID, Previous: previous})
+	}
+	batch, err := workLeaseCodec.Batch("automation/work-lease/"+value.ID.String(), value, lineage, aliases)
+	if err != nil {
+		return WorkLease{}, err
+	}
+	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+		return WorkLease{}, err
+	}
+	return value, ResolveWorkLeaseOwner(ctx, repository, value)
+}
+
+// ReleaseBatch retires exact ownership with CAS, for atomic composition with
+// completion evidence. Lease contents, results and outstanding checks survive.
+func (lease WorkLease) ReleaseBatch(worker, reason string) (artifact.Batch, error) {
+	if reason != "completed" && reason != "cancelled" && reason != "handoff" {
+		return artifact.Batch{}, errors.New("plan: claim release requires completed, cancelled or handoff")
+	}
+	if err := lease.ValidateIdentity(); err != nil {
+		return artifact.Batch{}, err
+	}
+	if worker == "" || lease.Worker != worker {
+		return artifact.Batch{}, errors.New("plan: claim release requires its exact worker and lease")
+	}
+	id := lease.ID
+	batch := artifact.Batch{Key: "automation/work-lease/release/" + id.String() + "/" + reason}
+	for _, name := range workLeaseAliases(lease) {
+		batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: name, Target: id, Previous: &id, Remove: true})
+	}
+	return batch, nil
 }

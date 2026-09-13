@@ -131,6 +131,13 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read work lease: %w", err)
 	}
+	var leaseInput plan.WorkLease
+	if err := json.Unmarshal(data, &leaseInput); err != nil {
+		return err
+	}
+	if leaseInput.Worker != "" {
+		return errors.New("plan: executable claims are acquired with -prompt, not advisory -record-lease")
+	}
 	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
@@ -258,9 +265,7 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	leases := make([]plan.WorkLease, 0)
 	legacyUnreadable := 0
 	_, err = store.VisitDocuments(ctx, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindEvidence, MediaType: plan.WorkLeaseMediaType, Schema: plan.WorkLeaseSchema,
-		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
+		Contracts: plan.WorkLeaseContracts(), AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
 	}, func(view overgodb.DocumentView) error {
 		lease, parseErr := plan.ParseWorkLease(view.Content.Data)
 		if parseErr != nil {
@@ -276,10 +281,20 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 		return err
 	}
 	if err := plan.ValidateFrontierLeases(frontier, leases); err != nil {
-		return err
+		fmt.Fprintf(output, "warning: %v; ownership needs review, not timeout retirement\n", err)
 	}
 	if len(frontier) != 0 {
 		fmt.Fprintln(output, plan.FormatFrontier(frontier))
+	}
+	for _, lease := range leases {
+		claims, err := json.Marshal(lease.Claims)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "claim=%s task=%s worker=%s role=%s worktree=%s scope=%s\n", lease.ID, lease.Task, lease.Worker, lease.Role, lease.Worktree, claims)
+	}
+	if legacyUnreadable != 0 {
+		fmt.Fprintf(output, "warning: review %d legacy unreadable lease(s), then retire with go run ./cmd/plan -retire-legacy-leases %d\n", legacyUnreadable, legacyUnreadable)
 	}
 	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d legacy unreadable lease(s)\n",
 		len(frontier), len(leases), legacyUnreadable)
@@ -295,9 +310,7 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	ctx := context.Background()
 	leases := make([]plan.WorkLease, 0)
 	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindEvidence, MediaType: plan.WorkLeaseMediaType, Schema: plan.WorkLeaseSchema,
-		}}, AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
+		Contracts: plan.WorkLeaseContracts(), AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
 	}, plan.ParseWorkLease, func(_ overgodb.DocumentView, lease plan.WorkLease) error {
 		leases = append(leases, lease)
 		return nil

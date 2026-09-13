@@ -43,12 +43,9 @@ func ReadyFrontier(d Plan, authority CompletionAuthority) ([]Ref, error) {
 	return frontier, nil
 }
 
-// ValidateFrontierLeases admits a set of live worktree leases against the
-// ready frontier: every lease must own exactly one frontier row, no two
-// leases may own the same row or the same role, and no two leases may hold
-// overlapping repo-relative workspace claims, whatever worktree each lease
-// runs in. Shared-worktree subagents stay limited to audit, design, and
-// testing precisely because implementation leases must be isolated here.
+// ValidateFrontierLeases requires distinct ready rows and isolated ownership.
+// Worker claims allow shared roles across worktrees. Legacy advisory leases
+// retain their conservative role and repository-relative overlap checks.
 func ValidateFrontierLeases(frontier []Ref, leases []WorkLease) error {
 	ready := make(map[string]bool, len(frontier))
 	for _, ref := range frontier {
@@ -68,12 +65,21 @@ func ValidateFrontierLeases(frontier []Ref, leases []WorkLease) error {
 		}
 		taskOwners[lease.Task] = lease.Worktree
 		role := normalizedRole(lease.Role)
+		if lease.Worker != "" {
+			role = "worker:" + lease.Worker
+		} else {
+			role = "role:" + role
+		}
 		if owner, taken := roleOwners[role]; taken {
 			return fmt.Errorf("plan: role %q holds leases %q and %q; one role owns one row at a time", role, owner, lease.Worktree)
 		}
 		roleOwners[role] = lease.Worktree
 		for _, other := range leases[:index] {
-			if frontierClaimsOverlap(lease.Claims, other.Claims) {
+			overlap := frontierClaimsOverlap(lease.Claims, other.Claims)
+			if lease.Worker != "" && other.Worker != "" {
+				overlap = WorkspaceClaimsConflict(lease, other)
+			}
+			if overlap {
 				return fmt.Errorf(
 					"plan: leases %q and %q hold overlapping workspace claims", other.Worktree, lease.Worktree,
 				)

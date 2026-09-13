@@ -77,14 +77,12 @@ func gateMergeSourceStore(value string, merge bool, projection plan.MergeProject
 	return resolved, nil
 }
 
-// checkPlanBinding refuses any commit whose -plan is not the plan's current open
-// step. This is the enforcement that makes off-plan work impossible to commit:
-// the shared internal/plan.Current is the same "current step" cmd/plan dispatches
-// and verifies, so the gate and the dispatcher can never disagree.
-func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, error) {
+// Resolve the claimed ready row, or the legacy current row when unclaimed.
+// Admission and commit share the plan owner's contract and ownership checks.
+func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, *plan.WorkLease, error) {
 	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
-		return plan.CompletionAuthority{}, "", err
+		return plan.CompletionAuthority{}, "", nil, err
 	}
 	defer store.Close()
 	return resolvePlanBindingWithStore(repo, ref, store)
@@ -98,42 +96,40 @@ func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, 
 func resolvePlanBindingWithStore(
 	repo, ref string,
 	store *overgodb.Store,
-) (plan.CompletionAuthority, string, error) {
+) (plan.CompletionAuthority, string, *plan.WorkLease, error) {
 	if ref == "" {
-		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
+		return plan.CompletionAuthority{}, "", nil, fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
 	}
 	item, stepID, ok := strings.Cut(ref, "/")
 	if !ok || item == "" || stepID == "" {
-		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan must be <item>/<step>, got %q", ref)
+		return plan.CompletionAuthority{}, "", nil, fmt.Errorf("gate: -plan must be <item>/<step>, got %q", ref)
 	}
 	document, err := plan.Load(filepath.Join(repo, plan.Path))
 	if err != nil {
-		return plan.CompletionAuthority{}, "", err
+		return plan.CompletionAuthority{}, "", nil, err
 	}
 	if err := plan.Validate(document); err != nil {
-		return plan.CompletionAuthority{}, "", err
+		return plan.CompletionAuthority{}, "", nil, err
 	}
 	role, err := plan.AutomationRole("")
 	if err != nil {
-		return plan.CompletionAuthority{}, "", err
+		return plan.CompletionAuthority{}, "", nil, err
 	}
 	head, err := command(repo, "git", "rev-parse", "HEAD")
 	if err != nil {
-		return plan.CompletionAuthority{}, "", err
+		return plan.CompletionAuthority{}, "", nil, err
 	}
 	head = strings.TrimSpace(head)
 	authority, err := plan.ResolveCompletionAuthority(context.Background(), repo, head, document, store)
 	if err != nil {
-		return plan.CompletionAuthority{}, "", err
+		return plan.CompletionAuthority{}, "", nil, err
 	}
-	it, st, open := plan.Current(document, role, authority)
-	if !open {
-		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan %s given but the plan is COMPLETE (no open step) -- nothing to commit against", ref)
+
+	_, _, claim, err := plan.RequireDispatch(context.Background(), store, document, authority, repo, role, ref)
+	if err != nil {
+		return plan.CompletionAuthority{}, "", nil, fmt.Errorf("gate: dispatched plan binding: %w", err)
 	}
-	if item != it.ID || stepID != st.ID {
-		return plan.CompletionAuthority{}, "", fmt.Errorf("gate: -plan %s does NOT match the plan's current open step %s/%s -- commit only the dispatched step (off-plan commit REFUSED). If the plan is wrong, fix the plan first; do not commit around it", ref, it.ID, st.ID)
-	}
-	return authority, head, nil
+	return authority, head, claim, nil
 }
 
 func (g *gateContext) stepProtection() (bool, error) {

@@ -159,6 +159,7 @@ func Run(options Options) (runErr error) {
 	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
 	var completionAuthority plan.CompletionAuthority
 	var planHead string
+	var dispatchClaim *plan.WorkLease
 	var indexBefore gateIndexSnapshot
 	var mergeBefore *gateMergeIntent
 	var admissionStore *overgodb.Store
@@ -205,7 +206,7 @@ func Run(options Options) (runErr error) {
 			fmt.Fprintln(os.Stderr, "gate: admission published a checkpoint for the verified cold replay")
 		}
 		err = reportGateAdmissionPhase("resolve plan authority", func() error {
-			completionAuthority, planHead, err = resolvePlanBindingWithStore(repo, *planRef, admissionStore)
+			completionAuthority, planHead, dispatchClaim, err = resolvePlanBindingWithStore(repo, *planRef, admissionStore)
 			return err
 		})
 		if err != nil {
@@ -215,7 +216,7 @@ func Run(options Options) (runErr error) {
 	g := &gateContext{
 		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
-		completionAuthority: completionAuthority, planHead: planHead,
+		completionAuthority: completionAuthority, planHead: planHead, dispatchClaim: dispatchClaim,
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
 		planProjection: planProjection, mergeSourceStore: mergeSourceStore,
 	}

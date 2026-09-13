@@ -127,9 +127,11 @@ type Outcome struct {
 
 const (
 	ReasonPlanComplete = "plan-complete"
-	ReasonPaused       = "paused"
-	ReasonBudget       = "invocation-budget-exhausted"
-	ReasonParked       = "step-parked"
+	// ReasonWorkWaiting preserves eligible work while another worker owns its dispatch.
+	ReasonWorkWaiting = "work-ownership-waiting"
+	ReasonPaused      = "paused"
+	ReasonBudget      = "invocation-budget-exhausted"
+	ReasonParked      = "step-parked"
 	// ReasonClosureBlocked reports outstanding obligations or lease
 	// conflicts blocking further proposal consumption.
 	ReasonClosureBlocked = "proposal-closure-blocked"
@@ -138,6 +140,9 @@ const (
 	// ReasonOperatorStop reports an explicit operator stop fact.
 	ReasonOperatorStop = "operator-stop"
 )
+
+// ErrWorkWaiting marks expected ownership contention, not a failed task.
+var ErrWorkWaiting = errors.New("loop: waiting for work ownership")
 
 // Run drives the cycle until a terminal condition. It returns an error only
 // when the world itself fails (plan unreadable, worker unlaunchable); a parked
@@ -168,6 +173,10 @@ func Run(world World, config Config) (Outcome, error) {
 			outcome.ObligationsDue = due
 		}
 		step, open, err := world.Current()
+		if errors.Is(err, ErrWorkWaiting) {
+			outcome.Reason = ReasonWorkWaiting
+			return outcome, nil
+		}
 		if err != nil {
 			return outcome, fmt.Errorf("loop: read plan: %w", err)
 		}

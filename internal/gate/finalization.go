@@ -103,6 +103,14 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
+	if outcome == runrecord.OutcomeSucceeded && g.dispatchClaim != nil {
+		release, err := g.dispatchClaim.ReleaseBatch(g.dispatchClaim.Worker, "completed")
+		if err != nil {
+			return err
+		}
+		batch.Aliases = append(batch.Aliases, release.Aliases...)
+	}
+
 	batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
 	if outcome == runrecord.OutcomeSucceeded {
 		switch g.planProjection {

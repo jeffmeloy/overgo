@@ -4,6 +4,44 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "plan-publication-cost",
+      "title": "Publish documentation-only and plan-only changes in seconds",
+      "status": "open",
+      "steps": [
+        {
+          "id": "measure",
+          "title": "Attribute every second of a plan-only gate to its phase and its inputs",
+          "status": "open",
+          "verify": "test -f internal/gate/plan_publication_cost_test.go \u0026\u0026 go test ./internal/gate -run '^TestPlanPublicationCostBreakdown$' -count=1",
+          "rationale": "The plan-only publication 6ca71474 took 100.1 s of gate wall with one changed file and zero runtime packages: admission 16.5 s (open canonical store 3.9 s, resolve plan authority 11.2 s), modern-go census 29.2 s, commit and finalization 13.3 s, docs 7.6 s, acceptance 2.2 s, architecture 1.4 s, scope 0.1 s; the remainder is candidate worktree preparation, manifest planning and building the gate itself. The preceding plan-only publication 5564cad1 took 1m47 s and the documentation publication 7367a3f8 87.4 s. Only docs and acceptance read the changed file; every other phase runs over an unchanged Go source snapshot and an unchanged store head. Derive the breakdown from retained gate records and the existing phase-wall and cost-attribution owners; add no timer of its own. For each phase record whether its inputs include the changed paths, and name the content identity that would make its result reusable: source snapshot identity for the census and manifest, HEAD plus store head for plan authority, candidate tree for preparation. Acceptance: TestPlanPublicationCostBreakdown binds the breakdown to the retained records of 6ca71474 and 5564cad1, requires every recorded second to belong to one phase, and rejects a phase classified as plan-independent while its inputs include the changed paths.",
+          "depends_on": [
+            "validation-gate-selection/package-execution-cost"
+          ]
+        },
+        {
+          "id": "memoize-fixed-phases",
+          "title": "Reuse the plan-independent phases by content identity",
+          "status": "open",
+          "verify": "test -f internal/gate/plan_publication_reuse_test.go \u0026\u0026 go test ./internal/gate -run '^TestPlanOnlyPublicationReusesUnchangedPhases$' -count=1",
+          "rationale": "Reuse, through the existing receipt and retry-cache owners, every phase the measurement classified as plan-independent when its bound identity is unchanged: the modern-go census and the code manifest by source snapshot identity, plan-authority resolution by HEAD and store head, candidate preparation by candidate tree. A reused result keeps its original provenance under the successor plan exactly as source-evidence-binding establishes; a changed identity executes the phase. Do not add a fast path, a documentation-only mode flag or a second cache: the same selection and reuse rules apply to every commit, and a plan-only change simply matches more receipts. Target: a plan-only or documentation-only publication executes docs, acceptance and commit only, with wall bounded by those phases plus admission; measure before and after on the frozen cases 6ca71474 and 5564cad1 and record the ratio against the 1006.894-second documentation incident. Acceptance: TestPlanOnlyPublicationReusesUnchangedPhases proves that an unchanged source snapshot reuses the census and manifest results with their original identities, that a changed Go file invalidates exactly those receipts, that a changed store head re-resolves plan authority, and that reuse never credits a failed, skipped or unfinished phase.",
+          "depends_on": [
+            "plan-publication-cost/measure",
+            "validation-gate-selection/source-evidence-binding"
+          ]
+        },
+        {
+          "id": "one-command-publication",
+          "title": "Publish a plan edit through the gate with one command",
+          "status": "open",
+          "verify": "test -f cmd/plan/publish_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPlanPublishCommand$' -count=1",
+          "rationale": "A plan-only edit today needs a hand-authored publication row, a message file, a gate invocation with the plan path and a manual check that no unrelated verification input is dirty; the last refusal cost one full gate attempt. Extend cmd/plan so one command publishes the current plan edit through the existing gate: it derives the publication row and its structure-test verifier, writes the message from the operator's text, passes docs/plan.json as the only path, reports the scope refusal for dirty verification inputs before the gate starts, and prunes the row on success. No new executable, no bypass of admission, scope, docs or acceptance, and no change to what the gate checks. Acceptance: TestPlanPublishCommand proves the derived row and verifier, the early scope refusal, the exact gate invocation, and that a failed gate leaves the plan and the worktree unchanged. Measure the operator wall from edit to commit before and after.",
+          "depends_on": [
+            "plan-publication-cost/measure"
+          ]
+        }
+      ]
+    },
+    {
       "id": "validation-gate-selection",
       "title": "Determine unnecessary testing and deliver one measured gate reduction",
       "status": "open",
@@ -792,7 +830,10 @@
             "qwen9-ifeval-bundle/do",
             "validation-gate-selection/runtime-value-flow",
             "testing-reduction-replan/do",
-            "testing-reduction-split/do"
+            "testing-reduction-split/do",
+            "plan-publication-cost/memoize-fixed-phases",
+            "plan-publication-cost/one-command-publication",
+            "plan-publication-replan/do"
           ]
         }
       ]

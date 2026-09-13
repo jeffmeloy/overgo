@@ -77,7 +77,7 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 	} else if !os.IsNotExist(err) {
 		return report, err
 	}
-	// Rotation changes the active extent; pin the source through publication.
+	// Pin mutable journal and checkpoint paths through capture.
 	lock, err := processlock.AcquireContext(ctx, filepath.Join(s.root, lockFilename), storeFileMode)
 	if err != nil {
 		return report, err
@@ -120,6 +120,14 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 	if err := report.copyFile(ctx, filepath.Join(sourceRoot, storeFilename), filepath.Join(partial, storeFilename), report.Extent, "", durable); err != nil {
 		return report, err
 	}
+	if err := report.copyTree(ctx, filepath.Join(sourceRoot, checkpointDirectory), filepath.Join(partial, checkpointDirectory), durable); err != nil {
+		return report, err
+	}
+	// Published blobs are immutable and retained across commits and rotation.
+	// The captured metadata and blob identities no longer depend on the writer.
+	if err := lock.Close(); err != nil {
+		return report, err
+	}
 	sourceBlobs, destinationBlobs := newBlobStore(sourceRoot), newBlobStore(partial)
 	if err := backupDirectory(destinationBlobs.root); err != nil {
 		return report, err
@@ -160,9 +168,6 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 		}
 		return fsatomic.Remove(path)
 	}); err != nil {
-		return report, err
-	}
-	if err := report.copyTree(ctx, filepath.Join(sourceRoot, checkpointDirectory), filepath.Join(partial, checkpointDirectory), durable); err != nil {
 		return report, err
 	}
 	if err := ctx.Err(); err != nil {

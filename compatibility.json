@@ -456,7 +456,7 @@
      "contains": "func ValidateDenseRepository(",
      "path": "internal/hfgguf/catalog.go",
      "role": "source",
-     "identity": "file:sha256:1601b45a2fb85c313498c3d77c3973e421ddaf212779e07956af6080108c8a65"
+     "identity": "file:sha256:eab47b5fb248aa92efdb6f4d1f5b59eaf0077005caeda85a9990398334110718"
     },
     {
      "contains": "func TestValidateDenseRepositoryUsesRuntimeCatalog(",
@@ -477,7 +477,7 @@
      "contains": "func ValidateQwen35Repository(",
      "path": "internal/hfgguf/qwen35.go",
      "role": "source",
-     "identity": "file:sha256:a441dded5abdf8bf9cecc55b576bcc4b32a881a5c1268fbca83db08765b38471"
+     "identity": "file:sha256:e51c136ec291057069beed0b8822f37bedf801fcc713b9524fbbc46384f7decb"
     },
     {
      "contains": "func TestValidateQwen35RepositoryUsesRuntimeCatalog(",

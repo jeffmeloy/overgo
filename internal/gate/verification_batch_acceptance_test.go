@@ -18,6 +18,7 @@ import (
 )
 
 func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
+	t.Parallel()
 	for _, mode := range []string{"pass", "failure", "skip", "unavailable", "no-match", "mutation"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()

@@ -136,6 +136,8 @@ type gateContext struct {
 	// testPlan carries the prepared test groups from the changed-owners
 	// check to the check that runs the rest beside the lanes.
 	testPlan *testGroups
+	// Protected by auditMutex; each invocation retains its own cost and profile.
+	testExecutions []packageExecutionBatch
 }
 
 // appends one audit line under the lock the concurrent validate wave shares
@@ -611,6 +613,12 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 func compactAudit(lines []string) []string {
 	var output []string
 	for _, line := range lines {
+		// Keep the costliest group's typed explanation parseable. It contains
+		// input paths and reasons, never copied source or test output.
+		if strings.HasPrefix(line, "test input attribution: ") {
+			output = append(output, "advisory: dependency: "+line)
+			continue
+		}
 		label := ""
 		switch {
 		case strings.Contains(line, "code profile delta vs HEAD"):

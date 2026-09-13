@@ -165,7 +165,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestFailureDiagnostics$"},
 			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=1"),
-		}, true, clioptions.DiagnosticTailBytes, nil)
+		}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
 		if ctx.Err() != nil {
 			t.Fatal(context.Cause(ctx))
 		}
@@ -188,13 +188,13 @@ func TestFailureDiagnostics(t *testing.T) {
 		report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestFailureDiagnostics$"},
 			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=wait"),
-		}, true, clioptions.DiagnosticTailBytes, nil)
+		}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
 		if !errors.Is(err, context.DeadlineExceeded) || len(report.Unfinished) != 1 || report.Unfinished[0] != "fixture: TestBlocked" {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}
 	})
 	t.Run("start failure returns without a blocked pipe", func(t *testing.T) {
-		if _, err := testevidence.RunGoTestCommand(t.Context(), processcontrol.Command{}, true, clioptions.DiagnosticTailBytes, nil); err == nil {
+		if _, err := testevidence.RunGoTestCommand(t.Context(), processcontrol.Command{}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes}); err == nil {
 			t.Fatal("absent process accepted")
 		}
 	})

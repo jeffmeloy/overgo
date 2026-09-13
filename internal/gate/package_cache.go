@@ -346,7 +346,9 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 	return result, nil
 }
 
-func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error) {
+// inputNodes follows the identity owner's edges. Compiler-only traversal is a
+// diagnostic view; it cannot authorize test exclusion or evidence reuse.
+func (graph packageInputGraph) inputNodes(target string, runtimeInputs bool) (map[int]bool, error) {
 	queue := append([]int(nil), graph.byID[target]...)
 	for index, node := range graph.nodes {
 		if node.ForTest == target {
@@ -356,14 +358,14 @@ func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error
 	if len(queue) == 0 {
 		return nil, fmt.Errorf("package input identity: package %q is absent", target)
 	}
-	seen, withTests := map[int]bool{}, map[int]bool{}
+	withTests := map[int]bool{}
 	var visit func(int, bool)
 	visit = func(index int, tests bool) {
-		if seen[index] && (!tests || withTests[index]) {
+		prior, seen := withTests[index]
+		if seen && (!tests || prior) {
 			return
 		}
-		seen[index] = true
-		withTests[index] = withTests[index] || tests
+		withTests[index] = prior || tests
 		imports := slices.Clone(graph.nodes[index].Imports)
 		if tests {
 			imports = append(imports, graph.nodes[index].TestImports...)
@@ -373,6 +375,9 @@ func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error
 			for _, dependency := range graph.byID[imported] {
 				visit(dependency, false)
 			}
+		}
+		if !runtimeInputs {
+			return
 		}
 		runtime := slices.Clone(graph.nodes[index].inputDependencies)
 		if tests {
@@ -388,8 +393,16 @@ func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error
 	for _, index := range queue {
 		visit(index, true)
 	}
+	return withTests, nil
+}
+
+func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error) {
+	withTests, err := graph.inputNodes(target, true)
+	if err != nil {
+		return nil, err
+	}
 	files := map[string]bool{}
-	for index := range seen {
+	for index := range withTests {
 		node := graph.nodes[index]
 		names := node.productionFiles()
 		if withTests[index] {

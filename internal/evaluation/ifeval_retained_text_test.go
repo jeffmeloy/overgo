@@ -13,6 +13,16 @@ import (
 	"overgo/internal/testutil"
 )
 
+type ifevalNativeScores struct {
+	Selection, Profile    artifact.ID
+	Prompts, Instructions int
+	Rows                  []struct {
+		Name          string
+		Strict, Loose []bool
+	}
+	Metrics map[string]float64
+}
+
 func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
@@ -37,19 +47,27 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	}
 	var native struct{ Profile, Selection, Scores artifact.ID }
 	read(parse("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839"), &native)
-	var scores struct {
-		Selection, Profile    artifact.ID
-		Prompts, Instructions int
-		Rows                  []struct {
-			Name          string
-			Strict, Loose []bool
-		}
-	}
+	var scores ifevalNativeScores
 	read(native.Scores, &scores)
 	if scores.Selection != native.Selection || scores.Profile != native.Profile || scores.Prompts != 541 || scores.Instructions != 834 || len(scores.Rows) != scores.Prompts {
 		t.Fatal("native scoring denominator or acquisition changed")
 	}
 	responses := retainedIFEvalResponses(t, store, native.Selection, native.Profile)
+	checkRetainedIFEvalScores(t, store, scores, responses)
+}
+
+func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifevalNativeScores, responses map[string]string) {
+	t.Helper()
+	parse := func(value string) artifact.ID {
+		id, err := artifact.ParseID(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	if len(responses) != 541 || len(scores.Rows) != 541 || scores.Prompts != 541 || scores.Instructions != 834 {
+		t.Fatal("native scoring denominator differs")
+	}
 	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, parse("dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f8486dfa492c4f301cf9155ca8e4d7cd4"))
 	if err != nil || !found || len(imported.Records) != scores.Prompts {
 		t.Fatalf("corpus denominator: found=%t err=%v", found, err)
@@ -143,7 +161,27 @@ func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	if instructions != scores.Instructions || !maps.Equal(counts, want) {
 		t.Fatalf("instruction denominator total=%d selected=%v", instructions, counts)
 	}
-	t.Logf("834/834 instructions compared from 541 retained responses: %v; no model acquisition", counts)
+	strictPrompts, loosePrompts, strictInstructions, looseInstructions := 0, 0, 0, 0
+	for _, row := range scores.Rows {
+		if allTrue(row.Strict) {
+			strictPrompts++
+		}
+		if allTrue(row.Loose) {
+			loosePrompts++
+		}
+		strictInstructions += countTrue(row.Strict)
+		looseInstructions += countTrue(row.Loose)
+	}
+	metrics := map[string]float64{
+		"prompt_strict":      float64(strictPrompts) / float64(scores.Prompts),
+		"prompt_loose":       float64(loosePrompts) / float64(scores.Prompts),
+		"instruction_strict": float64(strictInstructions) / float64(scores.Instructions),
+		"instruction_loose":  float64(looseInstructions) / float64(scores.Instructions),
+	}
+	if !maps.Equal(scores.Metrics, metrics) {
+		t.Fatalf("metrics do not match verdict counts: got=%v want=%v", scores.Metrics, metrics)
+	}
+	t.Logf("native parity: 541 prompts, 834 instructions, 1668 verdicts; prompt strict=%d loose=%d; instruction strict=%d loose=%d; no model acquisition", strictPrompts, loosePrompts, strictInstructions, looseInstructions)
 }
 
 func readRetainedEvidence(t *testing.T, store *overgodb.Store, id artifact.ID, target any) {
@@ -206,4 +244,35 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 	}
 
 	return responses
+}
+
+func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID artifact.ID) {
+	t.Helper()
+	// Keep the native implementation and its operand dependencies independent
+	// of this model's responses and the Go checker under evaluation.
+	type nativeReference struct {
+		Version      string            `json:"reference_version"`
+		Sources      map[string]string `json:"sources"`
+		Packages     map[string]string `json:"runtime_packages"`
+		Dependencies map[string]string `json:"runtime_dependencies"`
+		InputSHA256  string            `json:"native_input_sha256"`
+		LanguageSeed int               `json:"langdetect_seed"`
+		RandomSeed   int               `json:"random_seed"`
+	}
+	var previous struct{ Scores artifact.ID }
+	referenceID, err := artifact.ParseID("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readRetainedEvidence(t, store, referenceID, &previous)
+	var reference, actual nativeReference
+	readRetainedEvidence(t, store, previous.Scores, &reference)
+	readRetainedEvidence(t, store, nativeID, &actual)
+	if actual.Version != "0.4.9.1" || actual.Version != reference.Version ||
+		actual.InputSHA256 != reference.InputSHA256 || actual.LanguageSeed != 0 || actual.RandomSeed != 0 ||
+		len(actual.Sources) == 0 || len(actual.Dependencies) == 0 ||
+		!maps.Equal(actual.Sources, reference.Sources) || !maps.Equal(actual.Packages, reference.Packages) ||
+		!maps.Equal(actual.Dependencies, reference.Dependencies) {
+		t.Fatal("pinned native judge or task inputs changed")
+	}
 }

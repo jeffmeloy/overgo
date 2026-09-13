@@ -136,11 +136,12 @@ func denseMetadata(repository *hfrepo.Repository, architecture string) ([]gguf.M
 }
 
 type tensorMapping struct {
-	name   string
-	tensor safetensors.Tensor
-	shape  []uint64
+	name    string
+	tensor  safetensors.Tensor
+	shape   []uint64
+	storage gguf.DType
 	// transform mutates the materialized payload (elementSize is the stored
-	// element width after any rank-1 F32 promotion).
+	// element width after F32 promotion).
 	transform func(data []byte, elementSize uint64) error
 }
 
@@ -153,10 +154,7 @@ func mappedTensorCatalog(mappings []tensorMapping) ([]gguf.TensorInfo, error) {
 	for _, mapping := range mappings {
 		tensor, name := mapping.tensor, mapping.name
 		shape := mapping.shape
-		storage, ok := ggufStorage(tensor.DType, len(shape) == 1)
-		if !ok {
-			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
-		}
+		storage := mapping.storage
 		info := gguf.TensorInfo{Name: name, Type: storage, Dimensions: uint32(len(shape))}
 		for index, dimension := range shape {
 			info.Shape[len(shape)-1-index] = dimension
@@ -210,7 +208,12 @@ func collectTensorMappings(
 		if len(shape) == 0 || len(shape) > gguf.MaxDimensions {
 			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q rank %d is unsupported", sourceName, len(shape))
 		}
-		mapping := tensorMapping{name: name, tensor: tensor, shape: shape}
+		// Native scalar/vector and SSM convolution kernels consume F32.
+		storage, ok := ggufStorage(tensor.DType, len(shape) == 1 || strings.HasSuffix(name, ".ssm_conv1d.weight"))
+		if !ok {
+			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
+		}
+		mapping := tensorMapping{name: name, tensor: tensor, shape: shape, storage: storage}
 		if valueMapper != nil {
 			mapping.transform = valueMapper(sourceName)
 		}
@@ -224,12 +227,9 @@ func mappedTensorData(mappings []tensorMapping) ([]gguf.TensorData, error) {
 	for _, mapping := range mappings {
 		tensor := mapping.tensor
 		shape := mapping.shape
-		storage, ok := ggufStorage(tensor.DType, len(shape) == 1)
-		if !ok {
-			return nil, fmt.Errorf("HF/GGUF adapter: tensor %q dtype %q needs conversion", tensor.Name, tensor.DType)
-		}
+		storage := mapping.storage
 		var reader io.Reader = tensor.Reader()
-		if len(shape) == 1 && tensor.DType != "F32" {
+		if storage == gguf.DTypeF32 && tensor.DType != "F32" {
 			converted, err := safetensors.F32Reader(tensor)
 			if err != nil {
 				return nil, fmt.Errorf("HF/GGUF adapter: tensor %q: %w", tensor.Name, err)

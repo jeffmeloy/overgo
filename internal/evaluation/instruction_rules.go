@@ -196,7 +196,7 @@ func EvaluateInstructionRules(
 	strictPrompts, loosePrompts, strictRules, looseRules, rules := 0, 0, 0, 0, 0
 	progress := trackProgress(ctx, compiled.suite.Source, len(compiled.suite.Cases))
 	for index, testCase := range compiled.suite.Cases {
-		result, err := recordInstruction(ctx, generator, testCase.Name, testCase.Prompt, testCase.MaxTokens)
+		result, err := recordInstructionCase(ctx, repository, generator, plan, testCase)
 		if err != nil {
 			return InstructionRulesReport{}, err
 		}

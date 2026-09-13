@@ -8,6 +8,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -27,6 +28,8 @@ type BuildSelection struct {
 // HostBuildSelection derives file membership through the Go toolchain so build
 // tags, legacy tags, filename constraints, cgo, tests, and external tests share
 // one repository owner.
+// With -deps, retain compiled repository Go sources only; -test adds the
+// requested test variants. Module, native and runtime inputs are separate.
 func HostBuildSelection(root string, patterns ...string) (BuildSelection, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
@@ -41,23 +44,58 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 		selection.Context = strings.Join(strings.Fields(context), "/")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(output))
+	dependencies := slices.Contains(patterns, "-deps")
 	for {
 		var pkg struct {
 			ImportPath                                                   string
 			Dir                                                          string
 			GoFiles, CgoFiles, TestGoFiles, XTestGoFiles, IgnoredGoFiles []string
+			Error                                                        *struct{ Err string }
+			DepsErrors                                                   []struct{ Err string }
 		}
 		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return BuildSelection{}, err
 		}
-		for _, names := range [][]string{pkg.GoFiles, pkg.CgoFiles, pkg.TestGoFiles, pkg.XTestGoFiles} {
+		if dependencies {
+			if pkg.Error != nil {
+				return BuildSelection{}, fmt.Errorf("dependency source selection: %s: %s", pkg.ImportPath, pkg.Error.Err)
+			}
+			if len(pkg.DepsErrors) != 0 {
+				return BuildSelection{}, fmt.Errorf("dependency source selection: %s: %s", pkg.ImportPath, pkg.DepsErrors[0].Err)
+			}
+			pkg.ImportPath, _, _ = strings.Cut(pkg.ImportPath, " [")
+			relative, err := filepath.Rel(root, pkg.Dir)
+			if err != nil || !filepath.IsLocal(relative) {
+				continue
+			}
+		}
+		groups := [][]string{pkg.GoFiles, pkg.CgoFiles}
+		if !dependencies {
+			groups = append(groups, pkg.TestGoFiles, pkg.XTestGoFiles)
+		}
+		for _, names := range groups {
 			for _, name := range names {
+				// With -test, Go emits a generated test main outside the repository.
+				// Its repository inputs arrive through the selected test variant.
+				if dependencies && filepath.IsAbs(name) {
+					relative, err := filepath.Rel(root, name)
+					if err != nil || !filepath.IsLocal(relative) {
+						continue
+					}
+					name, err = filepath.Rel(pkg.Dir, name)
+					if err != nil {
+						return BuildSelection{}, err
+					}
+				}
 				if err := recordBuildFile(root, pkg.Dir, pkg.ImportPath, name, true, selection); err != nil {
 					return BuildSelection{}, err
 				}
 			}
+		}
+		if dependencies {
+			continue
 		}
 		for _, name := range pkg.IgnoredGoFiles {
 			if err := recordBuildFile(root, pkg.Dir, pkg.ImportPath, name, false, selection); err != nil {

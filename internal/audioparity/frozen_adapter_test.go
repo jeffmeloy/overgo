@@ -18,7 +18,6 @@ import (
 	"overgo/internal/hfbpe"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
@@ -305,11 +304,8 @@ func retainFrozenAdapterObservation(t *testing.T, root string, base, program art
 	if err != nil {
 		t.Fatal(err)
 	}
-	code, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s", code.Identity()))
+	sourceIdentity := audioSources(t, root).Identity()
+	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s", sourceIdentity))
 	if err != nil {
 		t.Fatal(err)
 	}

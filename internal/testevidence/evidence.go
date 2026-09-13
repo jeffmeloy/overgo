@@ -32,8 +32,10 @@ type GoTestReport struct {
 	// device exclusively and cannot under a holder's lease.
 	Contended   []string
 	Diagnostics []string
-	tests       []testResult
-	packages    map[string]packageEvidence
+	// Executions retain package lifecycle costs independently of evidence credit.
+	Executions []PackageExecution
+	tests      []testResult
+	packages   map[string]packageEvidence
 }
 
 // ContentionOnly reports a failed run whose every failure was a refused
@@ -64,6 +66,16 @@ type testResult struct {
 	started     bool
 	ineligible  bool
 	excluded    bool
+	elapsed     *float64
+}
+
+// PackageExecution reports a package process, not a test or compiler duration.
+// Empty Action means interrupted; absent Elapsed means no terminal measurement.
+type PackageExecution struct {
+	Package string   `json:"package"`
+	Action  string   `json:"action"`
+	Started bool     `json:"started"`
+	Elapsed *float64 `json:"elapsed_seconds,omitempty"`
 }
 
 // PackagePassed reports complete, non-vacuous package evidence independently
@@ -114,7 +126,7 @@ func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe
 	if diagnosticBytes <= 0 {
 		return GoTestReport{}, fmt.Errorf("diagnostic byte limit must be positive")
 	}
-	return readGoTestJSON(reader, short, false, diagnosticBytes, observe)
+	return readGoTestJSON(reader, short, false, diagnosticBytes, observe, nil)
 }
 
 // GoTestJSONReport decodes complete test evidence without crediting skips.
@@ -124,10 +136,15 @@ func GoTestJSONReport(out string) (GoTestReport, error) {
 }
 
 func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, error) {
-	return readGoTestJSON(strings.NewReader(out), short, allowAuxiliary, 0, nil)
+	return readGoTestJSON(strings.NewReader(out), short, allowAuxiliary, 0, nil, nil)
 }
 
-func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error) (report GoTestReport, err error) {
+type goTestEvent struct {
+	Action, Package, ImportPath, Test, Output string
+	Elapsed                                   *float64
+}
+
+func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
@@ -145,6 +162,11 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		for _, key := range slices.Sorted(maps.Keys(results)) {
 			result := results[key]
+			if result.Name == "" && result.Package != "" && (result.started || result.Action != "") {
+				report.Executions = append(report.Executions, PackageExecution{
+					Package: result.Package, Action: result.Action, Started: result.started, Elapsed: result.elapsed,
+				})
+			}
 			if result.Name != "" {
 				report.tests = append(report.tests, *result)
 			}
@@ -168,13 +190,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		if line == "" {
 			continue
 		}
-		var event struct {
-			Action     string
-			Package    string
-			ImportPath string
-			Test       string
-			Output     string
-		}
+		var event goTestEvent
 		if allowAuxiliary && !strings.HasPrefix(line, "{") {
 			if reason := unavailable(line); reason != "" {
 				return report, fmt.Errorf("auxiliary verifier: %s", reason)
@@ -193,6 +209,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		seen = true
 		event.Package = cmp.Or(event.Package, event.ImportPath)
+		if eventObserved != nil {
+			eventObserved(event)
+		}
 		if terminal := results[event.Package+"\x00"]; terminal != nil && terminal.Action != "" && event.Test != "" {
 			terminal.ineligible = true
 		}
@@ -243,6 +262,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		if event.Action == "pass" || event.Action == "skip" || event.Action == "fail" {
 			results[key].Action = event.Action
+			if event.Test == "" && event.Elapsed != nil && *event.Elapsed >= 0 {
+				results[key].elapsed = event.Elapsed
+			}
 			if event.Action == "pass" || event.Action == "skip" && (!short || event.Test == "" || classified[key]) {
 				delete(tails, key)
 			}

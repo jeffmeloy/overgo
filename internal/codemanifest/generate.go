@@ -13,7 +13,7 @@ import (
 
 const (
 	analyzerName    = "overgo-codeprofile"
-	analyzerVersion = "consumer-graph-v1"
+	analyzerVersion = "consumer-graph-v2"
 )
 
 type contextGraph struct {
@@ -106,7 +106,7 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.Bu
 			if !fromKnown || !toKnown {
 				continue
 			}
-			manifest.References = append(manifest.References, Reference{From: from, To: to, Kind: referenceKind(to.Kind)})
+			manifest.References = append(manifest.References, Reference{From: from, To: to, Kind: ReferenceKind(edge.Kind), Line: edge.Line, Offset: edge.Offset})
 		}
 	}
 	return identifyManifest(manifest)
@@ -184,13 +184,6 @@ func functionKind(kind string) (SymbolKind, bool) {
 	default:
 		return "", false
 	}
-}
-
-func referenceKind(kind SymbolKind) ReferenceKind {
-	if kind == SymbolFunction || kind == SymbolMethod {
-		return ReferenceCall
-	}
-	return ReferenceUse
 }
 
 func declarationKey(value codeprofile.ConsumerDeclaration) string {

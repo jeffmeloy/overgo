@@ -36,8 +36,17 @@ type ConsumerSummary struct {
 // observes another declaration. The same conservative index used for impact
 // closure owns these edges.
 type ConsumerReference struct {
-	From ConsumerDeclaration `json:"from"`
-	To   ConsumerDeclaration `json:"to"`
+	From   ConsumerDeclaration `json:"from"`
+	To     ConsumerDeclaration `json:"to"`
+	Kind   string              `json:"kind"`
+	Line   int                 `json:"line"`
+	Offset int                 `json:"offset"`
+}
+
+// referenceSite keeps syntax provenance in the existing reverse edge index.
+type referenceSite struct {
+	kind         string
+	line, offset int
 }
 
 // NewUnconsumedSurface returns candidate declarations that did not exist in
@@ -66,7 +75,7 @@ type consumerIndex struct {
 	methods      map[string][]int
 	objects      map[*ast.Object]int
 	definitions  map[*ast.Ident]int
-	reverse      map[int]map[int]bool
+	reverse      map[int]map[int]map[referenceSite]bool
 	// interfaceMethods holds every method name declared by any interface in
 	// the snapshot; only concrete methods matching one (or exported methods,
 	// which may satisfy interfaces outside the snapshot such as io.Reader)
@@ -106,16 +115,25 @@ func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection rep
 		if target < 0 || target >= len(index.declarations) {
 			return nil, nil, ConsumerSummary{}, errors.New("code profile: consumer graph target is invalid")
 		}
-		for caller := range callers {
+		for caller, sites := range callers {
 			if caller < 0 || caller >= len(index.declarations) {
 				return nil, nil, ConsumerSummary{}, errors.New("code profile: consumer graph caller is invalid")
 			}
-			references = append(references, ConsumerReference{From: index.declarations[caller], To: index.declarations[target]})
+			for site := range sites {
+				references = append(references, ConsumerReference{From: index.declarations[caller], To: index.declarations[target], Kind: site.kind, Line: site.line, Offset: site.offset})
+			}
 		}
 	}
 	sort.Slice(references, func(i, j int) bool {
 		left, right := references[i], references[j]
-		return declarationIdentity(left.From)+"\x00"+declarationIdentity(left.To) < declarationIdentity(right.From)+"\x00"+declarationIdentity(right.To)
+		leftKey, rightKey := declarationIdentity(left.From)+"\x00"+declarationIdentity(left.To), declarationIdentity(right.From)+"\x00"+declarationIdentity(right.To)
+		if leftKey != rightKey {
+			return leftKey < rightKey
+		}
+		if left.Offset != right.Offset {
+			return left.Offset < right.Offset
+		}
+		return left.Kind < right.Kind
 	})
 	return index.declarations, references, summarizeConsumers(index.declarations), nil
 }
@@ -123,7 +141,7 @@ func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection rep
 func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) (consumerIndex, error) {
 	index := consumerIndex{
 		keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{},
-		definitions: map[*ast.Ident]int{}, reverse: map[int]map[int]bool{},
+		definitions: map[*ast.Ident]int{}, reverse: map[int]map[int]map[referenceSite]bool{},
 		interfaceMethods: map[string]bool{}, testOnlyImports: map[string]bool{},
 	}
 	packageNames, err := repoanalysis.PackageNames(snapshot, selection)
@@ -341,20 +359,45 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 
 func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node, packagePath string, aliases map[string]string, active bool, caller referenceCaller) {
 	selectorNames := map[*ast.Ident]bool{}
+	invocations := map[ast.Node]bool{}
+	var ancestors []ast.Node
 	ast.Inspect(root, func(node ast.Node) bool {
+		if node == nil {
+			ancestors = ancestors[:len(ancestors)-1]
+			return true
+		}
+		ancestors = append(ancestors, node)
 		if selector, ok := node.(*ast.SelectorExpr); ok {
 			selectorNames[selector.Sel] = true
+		}
+		if call, ok := node.(*ast.CallExpr); ok {
+			// Deferred bodies and asynchronous execution retain a use edge
+			// until execution context is resolved; syntax is not a trace.
+			for _, parent := range ancestors {
+				switch parent.(type) {
+				case *ast.FuncLit, *ast.GoStmt, *ast.DeferStmt:
+					return true
+				}
+			}
+			invocations[referenceCallee(call.Fun)] = true
 		}
 		return true
 	})
 	ast.Inspect(root, func(node ast.Node) bool {
+		site := referenceSite{kind: "use"}
+		if node != nil {
+			site.line, site.offset = source.Line(node.Pos()), int(node.Pos())-1
+			if invocations[node] {
+				site.kind = "call"
+			}
+		}
 		switch value := node.(type) {
 		case *ast.CallExpr:
 			c.reflectionBoundary(value)
 		case *ast.SelectorExpr:
 			if qualifier, ok := value.X.(*ast.Ident); ok {
 				if imported := aliases[qualifier.Name]; imported != "" {
-					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true, caller)
+					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true, caller, site)
 					return true
 				}
 			}
@@ -363,7 +406,10 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 			// over-credit errs toward "used", never toward a false dead
 			// report). The old blanket method-dispatch marking hid every
 			// unused concrete method from the census.
-			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false, caller)
+			if site.kind == "call" {
+				site.kind = "interface"
+			}
+			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false, caller, site)
 		case *ast.Ident:
 			if _, defined := c.definitions[value]; defined {
 				return true
@@ -373,16 +419,31 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 			}
 			if value.Obj != nil {
 				if index, ok := c.objects[value.Obj]; ok {
-					c.count([]int{index}, source.Test, false, caller)
+					c.count([]int{index}, source.Test, false, caller, site)
 				}
 				return true
 			}
 			if candidates := c.resolve(c.keys[symbolKey(packagePath, value.Name)], active); len(candidates) == 1 {
-				c.count(candidates, source.Test, false, caller)
+				c.count(candidates, source.Test, false, caller, site)
 			}
 		}
 		return true
 	})
+}
+
+func referenceCallee(expression ast.Expr) ast.Expr {
+	for {
+		switch value := expression.(type) {
+		case *ast.ParenExpr:
+			expression = value.X
+		case *ast.IndexExpr:
+			expression = value.X
+		case *ast.IndexListExpr:
+			expression = value.X
+		default:
+			return expression
+		}
+	}
 }
 
 func (c *consumerIndex) resolve(indices []int, active bool) []int {
@@ -416,7 +477,7 @@ func (c *consumerIndex) reflectionBoundary(call *ast.CallExpr) {
 	}
 }
 
-func (c *consumerIndex) count(indices []int, test, external bool, caller referenceCaller) {
+func (c *consumerIndex) count(indices []int, test, external bool, caller referenceCaller, site referenceSite) {
 	for _, index := range indices {
 		if external {
 			c.declarations[index].ExternalReferences++
@@ -427,10 +488,17 @@ func (c *consumerIndex) count(indices []int, test, external bool, caller referen
 			c.declarations[index].ProductionReferences++
 		}
 		if caller.valid {
-			if c.reverse[index] == nil {
-				c.reverse[index] = map[int]bool{}
+			edgeSite := site
+			if edgeSite.kind == "call" && c.declarations[index].Kind != "function" && c.declarations[index].Kind != "method" {
+				edgeSite.kind = "use"
 			}
-			c.reverse[index][caller.index] = true
+			if c.reverse[index] == nil {
+				c.reverse[index] = map[int]map[referenceSite]bool{}
+			}
+			if c.reverse[index][caller.index] == nil {
+				c.reverse[index][caller.index] = map[referenceSite]bool{}
+			}
+			c.reverse[index][caller.index][edgeSite] = true
 		}
 	}
 }

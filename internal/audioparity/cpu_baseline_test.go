@@ -20,7 +20,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/testutil"
@@ -224,11 +223,8 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 			Locations: []artifact.LocationEvent{{Location: location, Action: artifact.LocationAdd}}}, nil)
 		add(name, "negative-controls", path, target, dataset.AudioPayloadOrigin{Container: id}, encoded, uint64(len(samples)), rate, name == "silence")
 	}
-	snapshot, err := repoanalysis.DiscoverGo(root, "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", snapshot.Identity(), runtime.GOMAXPROCS(0)))
+	sourceIdentity := audioSources(t, root).Identity()
+	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +329,7 @@ func TestASRCPUBaselineAcceptance(t *testing.T) {
 	for _, group := range quality.Groups {
 		t.Logf("group=%s utterances=%d WER=%.6f CER=%.6f admission_failures=%d inference_failures=%d", group.Name, group.Utterances, group.WordErrorRate, group.CharacterErrorRate, group.AdmissionFailures, group.InferenceFailures)
 	}
-	t.Logf("CPU baseline report=%s model=%s recipe=%s source=%s cold_load=%s measured_runs=%d audio_seconds=%.6f wall_seconds=%.6f RTF=%.6f; source I/O excluded, peak memory and interaction counters unavailable; no GPU, training, held-out scoring or promotion", reportID, report.Model, definition.ID, snapshot.Identity(), time.Duration(report.Load.WallNS), report.Summary.Runs, report.Summary.AudioSeconds, report.Summary.WallSeconds, report.Summary.RealTimeFactor)
+	t.Logf("CPU baseline report=%s model=%s recipe=%s source=%s cold_load=%s measured_runs=%d audio_seconds=%.6f wall_seconds=%.6f RTF=%.6f; source I/O excluded, peak memory and interaction counters unavailable; no GPU, training, held-out scoring or promotion", reportID, report.Model, definition.ID, sourceIdentity, time.Duration(report.Load.WallNS), report.Summary.Runs, report.Summary.AudioSeconds, report.Summary.WallSeconds, report.Summary.RealTimeFactor)
 }
 
 func baselineCommand(t *testing.T, root, name string, arguments ...string) string {

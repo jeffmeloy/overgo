@@ -292,6 +292,76 @@
       "name": "Wan current host layout ownership",
       "scope": "After restoring the baseline implementation, the new CPU test passes across three nonsquare temporal/spatial shapes. It verifies independent public arrays and conditional step traces, rejects malformed input lengths, preserves the borrowed initial sample and confirms exact traced/untraced final latents.",
       "source_base": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/samples.go": "16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./internal/discovery ./cmd/compatibility -run '^(TestIdentityMemoPersistence|TestMemoReusesOnlyUnchangedFiles|TestWeightsIdentityDigestsThroughTheMemo|TestWeightsIdentityReusesPersistedTensorDigest|TestCapabilityCatalogForTasksSkipsUnselectedPresence|TestImageVideoMergedCapabilitiesAcceptance|TestImageVideoReportContract|TestMedia.*|TestExport.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:f56fb019bfc7c26f56dcc727a82e9f5f46894d02898b28d6c0995b44f88ef156",
+      "name": "Master integration and retained media capability coverage",
+      "scope": "Master a9de6d29 was merged at ee78f361 while preserving this lane's plan. The named generation implementation directories and kernel/module identities match the local parent, so existing numerical outputs remain reusable within that scope. All seven frozen active media cells retain their model/recipe/input bindings. Separate retained CLI and active-test deadline checks passed. Memo validity, file change handling, scoped catalog coverage, report truth and sample validation checks passed; these checks do not acquire new model quality results.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "9c681c0b747bb1592a7eb745748776ba793b74015d4d5dce5d9305330f9be6c9",
+        "cmd/compatibility/samples.go": "fbb11f695e8c090fd2d86c766910391a9a74d7a4dac98f0b96aba7c2c19e22c6"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen MEDIA_PROCESSING_VARIANT=baseline go test -overlay=tmp/media-processing-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:1dfe8341ccf3f61f24a968c36ea103aa249236ffeb894e62d64887bc701e6663",
+      "name": "Report and sample preparation: baseline",
+      "overlay_sources": {
+        "cmd/compatibility/media.go": "evidence:sha256:9c681c0b747bb1592a7eb745748776ba793b74015d4d5dce5d9305330f9be6c9",
+        "cmd/compatibility/media_processing_probe_test.go": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+        "cmd/compatibility/samples.go": "evidence:sha256:fbb11f695e8c090fd2d86c766910391a9a74d7a4dac98f0b96aba7c2c19e22c6"
+      },
+      "scope": "Complete report generation plus sample export took 194.585892/366.660168 seconds for first/repeated use. Go allocated 7941017040/8055850792 bytes in 73293550/73335203 calls; process lifetime peak was 651067392 bytes. The complete acquisition process took 577.260 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/samples.go": "16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen MEDIA_PROCESSING_VARIANT=candidate go test -overlay=tmp/media-processing-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:625b65b1ce46796c6243ff81018e12ea23f0429a49700b9fb351a7814993a0f4",
+      "name": "Report and sample preparation: candidate",
+      "overlay_sources": {
+        "cmd/compatibility/media.go": "evidence:sha256:f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/media_processing_probe_test.go": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+        "cmd/compatibility/samples.go": "evidence:sha256:16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "scope": "Complete report generation plus sample export took 14.948463/8.880287 seconds for first/repeated use. Go allocated 7893347928/7944231584 bytes in 73298434/73339827 calls; process lifetime peak was 715808768 bytes. The complete acquisition process took 38.306 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "eca55e51ffbfdbd22c0fc4574ee7f82c901a42fd6f88795f2fcdddb9706e1cd2",
+        "cmd/compatibility/samples.go": "2d876cf065f35b8afe834a54c41a72d052410732cf1929628e07d0813339a5b0"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen MEDIA_PROCESSING_VARIANT=ablation go test -overlay=tmp/media-processing-ablation-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:a64ff4b2689bfd7df94ed07dcac0dd79e3874f69ae1c175ff6263e85e5c06936",
+      "name": "Report and sample preparation: ablation",
+      "overlay_sources": {
+        "cmd/compatibility/media.go": "evidence:sha256:eca55e51ffbfdbd22c0fc4574ee7f82c901a42fd6f88795f2fcdddb9706e1cd2",
+        "cmd/compatibility/media_processing_probe_test.go": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+        "cmd/compatibility/samples.go": "evidence:sha256:2d876cf065f35b8afe834a54c41a72d052410732cf1929628e07d0813339a5b0"
+      },
+      "scope": "Complete report generation plus sample export took 200.286504/180.711376 seconds for first/repeated use. Go allocated 7962946776/8039484688 bytes in 73298983/73340480 calls; process lifetime peak was 638566400 bytes. The complete acquisition process took 390.774 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/samples.go": "16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^(TestImageVideoMergedCapabilitiesAcceptance|TestImageVideoProcessingOptimizationAcceptance)$' -count=1 -json",
+      "evidence": "evidence:sha256:cc1b79ded6cc27398f3e3fa7e41cc3677fd335c122b8f70425ff7af3d84a4df6",
+      "name": "Frozen processing optimization decision",
+      "scope": "The acceptance reads retained acquisition logs, checks exact report/sample/store identities, both request lifetimes, the frozen allocation allowance and source snapshots, then derives the recorded decision. It rejects changed output bytes and loss of latency benefit. The candidate decision is accepted; neither publication latency nor sample decoding establishes generation quality.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
     }
   ],
   "environment": "Acquired September 12-13, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. Correctness checks use existing shared resource admission. Explicitly profiled GPU measurements use the exclusive measurement-process owner; each acquisition retains its scope. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
@@ -300,7 +370,7 @@
     "The SenseNova exact-output regression is corrected. A later shared attention optimization admitted strict-causal prefixes to batched SGEMM, changing accumulation order and BF16-rounded prefix states. Selecting the existing per-query attention option for those reference-bound prefixes restores both small-image hashes and the full-resolution reviewed PNG. No model weights, prompts, seeds, reference hashes or quality limits changed.",
     "The freshly generated [SenseNova full-size image](docs/media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png) is byte-identical to the retained reviewed image. Visual inspection confirms readable main headings and a coherent layout; the first-day marker resembles a caret and small text/icon defects remain features of that reference output.",
     "The prior checkpoint fixed shared GIF timing and external JSON-array oracle handling. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates remain predictions rather than measured optimization gains.",
-    "Fresh full-length Wan generation and the declared loader, transfer and memory comparisons are complete. Remaining work includes full temporal visual review, complete frozen-case coverage, public workflow and cancellation checks, and the remaining processing and capacity experiments. The earlier operator stop was fulfilled at b1206a56; work resumed on request.",
+    "Fresh full-length Wan generation and the declared loader, transfer and memory comparisons are complete. Remaining work includes full temporal visual review, complete frozen-case coverage, public workflow and cancellation checks, and the remaining capacity experiments. The earlier operator stop was fulfilled at b1206a56; work resumed on request.",
     "The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes.",
     "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. That checkpoint records the unchanged loaders before the following comparison.",
     "Wan now returns initialization errors without a cleanup panic, releases session resources after request cancellation, and stops decoding when the request is canceled. The G4 recovery check stops after one frame and then reproduces all five frames exactly on the same generator. The unchanged G3 reference and changed-negative fresh-session comparison also pass. Original failures, the skipped setup attempt, isolation probes and both corrected cohorts remain in OvergoDB as evidence:sha256:4ead158b1a90b0c5b13e17cf09049508f80fdf0d80592c9996f49c29b6ec15b2. These small lifecycle cases do not replace the remaining full-resolution video validation.",
@@ -308,7 +378,9 @@
     "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:d389b255d50abf529557b3ad8a2df7f78ef16e5c3bfad5f0e7babc5aaa76631d. The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6.",
     "Guidance-pair ownership and fresh full-video baseline: history evidence:sha256:68184f017f8d75e51292a3209770210c5413315393eda51dfbf98ae5cf78ed56 retains the failing handle assertion, the first repair's excess retained projection, the final source snapshots, the disabled-timing control and a 20-minute exclusive-admission timeout. The grouped acquisition subsequently completed. Visual inspection of the first, middle and last full-resolution frames shows a consistent fox, snowy forest and facial motion; it does not establish smoothness across every transition. The following comparison rejects the transfer candidate and retains the conditioning repairs.",
     "The [Wan transfer comparison](docs/image_video_transfers.json) retains the frozen acceptance, baseline/candidate/ablation source snapshots, raw request measurements and quality checks. Both candidate requests preserve exact output and reduce uploads, but their observed complete-request times exceed the baseline. Current code restores the original step uploads and keeps the independently tested conditioning ownership repairs. Ordinary host activity and file cache remain uncontrolled; driver copy timers measure host API duration, and component memory peaks are separate, not a combined GPU peak. This closes the declared transfer experiment with rejection; the remaining image/video campaign work stays open.",
-    "The [Wan memory comparison](docs/image_video_memory.json) preserves its frozen protocol, source snapshots, raw measurements and allocation-lifetime ablation. Request-local layout reuse reduced host allocation by about 1.23 GB per full request but failed the declared first-request timing requirement; current code retains the baseline allocation behavior. This single paired acquisition does not establish a population timing effect. Separate driver peaks remained 7,725,035,776 bytes for the denoiser and 10,329,897,932 bytes for the decoder. Post-request snapshots record 591,470,592 bytes of denoiser pool storage (545,259,520 live and 46,211,072 free), a 3,555,901,440-byte arena, and 10,036,715,520 bytes in 69 decoder workspace buffers. These ownership scopes are not additive whole-device peaks. Both driver instances report zero owned bytes after close."
+    "The [Wan memory comparison](docs/image_video_memory.json) preserves its frozen protocol, source snapshots, raw measurements and allocation-lifetime ablation. Request-local layout reuse reduced host allocation by about 1.23 GB per full request but failed the declared first-request timing requirement; current code retains the baseline allocation behavior. This single paired acquisition does not establish a population timing effect. Separate driver peaks remained 7,725,035,776 bytes for the denoiser and 10,329,897,932 bytes for the decoder. Post-request snapshots record 591,470,592 bytes of denoiser pool storage (545,259,520 live and 46,211,072 free), a 3,555,901,440-byte arena, and 10,036,715,520 bytes in 69 decoder workspace buffers. These ownership scopes are not additive whole-device peaks. Both driver instances report zero owned bytes after close.",
+    "The [master integration record](docs/image_video_merged.json) binds retained media capabilities to merge ee78f361 and master a9de6d29. This worktree retains its own image/video plan. Incoming changes separate generic CLI options from model loading, attribute verification costs, and improve retained evaluation and backup behavior; the declared image/video runtime scope is unchanged.",
+    "The [processing comparison](docs/image_video_processing.json) records an accepted candidate that reuses the existing file-identity memo in report generation and sample export. First/repeat preparation fell from 194.586/366.660 seconds to 14.948/8.880 seconds in this acquisition. Candidate Go allocation fell by about 47.7/111.6 MB, while process lifetime peak increased from 651.1 to 715.8 MB. The frozen rule allowed only the measured memo allocation overhead and required available host capacity; this is a latency improvement with a higher observed process peak. Memo validity assumes immutable model artifacts and matching file size/modification time; missing or unreadable memo evidence falls back to hashing. The ablation restores hashing without changing outputs. Filesystem cache state and background load varied, so these observations do not establish a population speedup or a generation-kernel improvement."
   ],
   "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
   "version": 1

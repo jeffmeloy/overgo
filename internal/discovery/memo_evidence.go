@@ -23,8 +23,9 @@ const (
 
 // identityRow is one persisted digest claim: this digest held for these
 // bytes while the file carried this size and modification time. A row
-// whose stat no longer matches simply misses and the file re-hashes,
-// so a stale row can never serve a wrong identity.
+// whose stat no longer matches misses and the file re-hashes. Reuse assumes
+// immutable artifacts; stat checks do not detect edits that preserve both
+// file size and modification time.
 type identityRow struct {
 	Path       string      `json:"path"`
 	Kind       string      `json:"kind"`

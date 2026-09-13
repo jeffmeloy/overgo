@@ -72,7 +72,7 @@ func generateMediaReport(root, repository string, scope mediaReportScope) ([]byt
 	}
 	defer store.Close()
 	ctx := context.Background()
-	entries, truncated, err := discovery.CapabilityCatalogForTasks(ctx, store, mediaCatalogLimit, nil, scope.Tasks...)
+	entries, truncated, err := discovery.CapabilityCatalogForTasks(ctx, store, mediaCatalogLimit, discovery.LoadMemo(ctx, store), scope.Tasks...)
 	if err != nil {
 		return nil, err
 	}

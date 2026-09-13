@@ -28,7 +28,9 @@ func TestCheckpointCacheMeasurementEligibility(t *testing.T) {
 	}{
 		{"acceptance-reference", true, true},
 		{"acceptance-reference", false, true},
-		{"test", true, true},
+		{"vet", true, true},
+		{"vet", false, false},
+		{"test", true, false},
 		{"test", false, false},
 		{"acceptance", true, false},
 		{"acceptance-undeclared", true, false},
@@ -39,11 +41,11 @@ func TestCheckpointCacheMeasurementEligibility(t *testing.T) {
 			ID:    testutil.ArtifactID(t, artifact.KindRecipe, test.name),
 			Check: automationcheck.Descriptor{Name: test.name},
 		}
-		inputs := map[artifact.ID]artifact.ID{}
+		var phaseInput artifact.ID
 		if test.input {
-			inputs[check.ID] = input
+			phaseInput = input
 		}
-		slot, actualInput, eligible := g.checkCacheKey(check, inputs)
+		slot, actualInput, eligible := g.checkCacheKey(check, phaseInput)
 		if eligible != test.eligible {
 			t.Fatalf("%s input=%t eligible=%t, want %t", test.name, test.input, eligible, test.eligible)
 		}
@@ -80,7 +82,7 @@ func TestCheckpointCacheMeasurementEligibility(t *testing.T) {
 		t.Fatal(err)
 	}
 	eligible := 0
-	if _, _, canReuse := g2.checkCacheKey(invocations[0], nil); canReuse {
+	if _, _, canReuse := g2.checkCacheKey(invocations[0], artifact.ID{}); canReuse {
 		eligible++
 	}
 	measurements := automationcheck.MeasureManifest(len(checks), len(invocations), 0, 0, eligible, 1, 0, 0)
@@ -140,7 +142,7 @@ func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
 	g.manifestPlan = &manifest
 	var producer automationcheck.Invocation
 	for index, invocation := range invocations {
-		invocations[index], err = automationcheck.BindManifestExecution(manifest, invocation, []artifact.ID{manifest.CandidateManifest})
+		invocations[index], err = g.bindCheckExecution(manifest, invocation, manifest.CandidateManifest)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -156,7 +158,7 @@ func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
 		t.Fatal("the parent acceptance check must not be memoised")
 	}
 
-	cache := automationcheck.NewEvidenceCache(testutil.ArtifactID(t, artifact.KindProfile, "memo environment"))
+	cache := automationcheck.NewEvidenceCache(g.environment.ID)
 	if _, found := cache.Lookup(slot, input); found {
 		t.Fatal("empty cache reused a checkpoint")
 	}

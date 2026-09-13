@@ -1,0 +1,104 @@
+{
+  "cases": [
+    {
+      "acquisition": "evidence:sha256:fd280d8d642e32767a44a44f0ef245f08ecf1bd52452cc0923f887d399a6aacb",
+      "case": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/1",
+      "mode": "acquired-cuda",
+      "output": "output:sha256:e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d",
+      "review": "evidence:sha256:601d4c1f752f69e54a1e7de18550dbe51894e1c1a41b2790adf00c1d97a77278",
+      "run": "run:sha256:1b5d9694f11155d4d42a27b7845ef482c28cf0508df19b3bdbae1289c3ff5b42",
+      "test_evidence": "evidence:sha256:b6d245944f70201f84b1236b2e3f9997f19957d0851ff47a36960e92751534f3"
+    },
+    {
+      "acquisition": "evidence:sha256:81791cd7c3982cc1a369db88e24a88e26d99a54f78db420f9d531b585199ab46",
+      "case": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
+      "mode": "reused-source-compatible",
+      "output": "output:sha256:5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68",
+      "review": "evidence:sha256:f1d11f015bfe186d66af4e55d0fe29a0db75835257f9df19adcdb606f0d1b313",
+      "run": "run:sha256:c71ee19cbc2dc5bfdba69ee809e0d072f8dd662d5e445454a766cb0daf8e98eb",
+      "test_evidence": "evidence:sha256:e2ee03e661c7f3bbb8ce736c6143fe69836f2f0208c38725372beb856e5081c3"
+    },
+    {
+      "acquisition": "evidence:sha256:fd280d8d642e32767a44a44f0ef245f08ecf1bd52452cc0923f887d399a6aacb",
+      "case": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
+      "mode": "acquired-cuda",
+      "output": "output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637",
+      "review": "evidence:sha256:0571948a357500562e0c4e643c89f5cbd6aa8eca9646decd353fec2a41811ba2",
+      "run": "run:sha256:c40dd951984329bb3db5be28f1ac20fca3e6c115f346241987614bfafbfe25c6",
+      "test_evidence": "evidence:sha256:b6d245944f70201f84b1236b2e3f9997f19957d0851ff47a36960e92751534f3"
+    },
+    {
+      "acquisition": "evidence:sha256:0ca012e05cf42d4059234c03c42d25fed37f3f4ce4d711aa89e3c50f21a22700",
+      "case": "Un-0/image-gen/1",
+      "mode": "acquired-host",
+      "output": "output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28",
+      "review": "evidence:sha256:2d2bd09d77b3f7ba85502f7d1e7cef36f0385ea884d34bdfd0393ba9c1c06b71",
+      "run": "run:sha256:454185fd57242a50ff4b5e9e9d39fad4f4af101a56c4e4e145b3922426ff87c0",
+      "test_evidence": "evidence:sha256:d749dd9ac22308ba2d71e1a089ac77ebbf172783ffc5f613a54f9d9e2a14218b"
+    },
+    {
+      "acquisition": "evidence:sha256:0ca012e05cf42d4059234c03c42d25fed37f3f4ce4d711aa89e3c50f21a22700",
+      "case": "Un-0/image-gen/2",
+      "mode": "acquired-host",
+      "output": "output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3",
+      "review": "evidence:sha256:b7c5d6bb5370dab94c51156bf9e84c7bb9a81b1319c6c1ab7eb8a91c6b40ba11",
+      "run": "run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343",
+      "test_evidence": "evidence:sha256:d749dd9ac22308ba2d71e1a089ac77ebbf172783ffc5f613a54f9d9e2a14218b"
+    }
+  ],
+  "converter_after_sha256": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78",
+  "converter_before_sha256": "fc31ac36ee0548ad190946ed127986ef86cf0ca59de47ab17f20650ce215e461",
+  "failed_attempts": [
+    "evidence:sha256:dd8d8ff2a3755bf20c515cbbfadf33a2259a293840b48a2c182731cb5bb985a7"
+  ],
+  "instrumentation": {
+    "media-sensenova-acquisition-instrumentation.json": "evidence:sha256:bf67346b090915d8d976ba06faa376c869dca32bf607b075bd0d05b16f45c122",
+    "media-un0-acquisition-instrumentation-corrected.json": "evidence:sha256:5662749165eb2d151be0c045da2e006544ac349cad40cb9e92c9367f3d141c2a",
+    "media-un0-acquisition-instrumentation.json": "evidence:sha256:8ccb83fccc4641395428994574d4464ab4fa48433dc41c2bcb0c53aff4a830f1",
+    "media_sensenova_acquisition_test.go": "evidence:sha256:5b0d57d54ad76d796db2090ac86189f210caaa96295a2639a60f645b6e767454",
+    "media_un0_acquisition_initial_test.go": "evidence:sha256:8cc52d75a473f1275c9818c935b79b11c168f8f1a66fb4584e9b86c11103704e",
+    "media_un0_acquisition_test.go": "evidence:sha256:fa89d8b76bf5970b251d51e426aa18807bce1d18c193c3d045f016f71f903988"
+  },
+  "numerical": [
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaOutputReferenceAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:9b9ff5101c1a11fe4ead51c4d1a9a8e1ec39cfff735b0b71f493fe0ed43f1527",
+      "name": "SenseNova exact-output recovery"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_FULL=1 go test -overlay=tmp/media-sensenova-full-fixed-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaFullFixed$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:e2ee03e661c7f3bbb8ce736c6143fe69836f2f0208c38725372beb856e5081c3",
+      "name": "SenseNova full-resolution recovery"
+    },
+    {
+      "command": "go test ./internal/oscillatorimage ./internal/safetensors -run '^(TestArtifactLoadDerivesDims|TestArtifactPublishesReferencePNG|TestArtifactGenerateDeterministicAndClassSensitive|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch|TestReadF32.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:5c3b99531b837e4f06f907cc28384a3197ef8bdd19d806f48b89fa0f66633db8",
+      "name": "Current Un-0 native image and shared converter checks"
+    }
+  ],
+  "previous_source": "4adc06c7fd9581171527f5c60218f5cd7aebb7c8",
+  "protocol": "evidence:sha256:d3b9c0c69acf838e15373fa0f748f5028f318ff327738c32c085f8606fa3c125",
+  "reuse_scope": "The retained SenseNova recovery used base b1206a56 plus the recorded prefix repair and test capture overlays, committed at 4adc06c7. Declared generation dependencies are identical from that commit to f20d5419 except safetensors/convert.go: the already committed change moves unsupported-dtype rejection ahead of allocation and leaves supported F32/F16/BF16 decoding unchanged. Exact before/after file identities and current converter promotion, malformed/truncated-input checks retain this bounded exception. Full native fixture is unchanged. Reused output and logged 139.180-second wall/17.100-GiB owner peak retain their September12 acquisition scope; no new full-size run, timestamp, complete resource telemetry or current-source binding is invented.",
+  "scope": "All five frozen routed/oscillator image cases are accounted for: four new actual compiled-recipe runs and one explicitly reused full-size SenseNova result. New outputs exactly match their historical PNG bytes and inherit content-specific reviews. New CUDA acquisitions include raw copy/kernel counters and zero owned GPU bytes after close. CPU acquisitions have host metrics only. SenseNova smoke label/mark defects and Un-0's 8x8 quality limits remain visible. Initial LoadGenerator timing excludes deferred per-request resident preparation, which remains inside request timing. No matched speedup claim. Broader cancellation, transport and video checks remain separate.",
+  "source_base": "f20d54190d8591d721bb38eb9cc9005d828cd86e",
+  "stable_paths": [
+    "go.mod",
+    "go.sum",
+    "internal/sensenovarecipe",
+    "internal/routedlm",
+    "internal/cuda",
+    "internal/graphruntime",
+    "internal/hostmath",
+    "internal/devicemath",
+    "internal/latentimage",
+    "internal/media",
+    "internal/tensor",
+    "kernels",
+    "internal/safetensors/rows.go",
+    "internal/safetensors/source.go",
+    "internal/safetensors/stream_writer.go",
+    "internal/safetensors/write.go"
+  ],
+  "stable_sha256": "0ffd67ca58ea5c04137066b7853b785ccbc7bd10e8c0b9523573a84db45a25a0",
+  "version": 1
+}

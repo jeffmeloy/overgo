@@ -33,7 +33,7 @@ func TestCommitAdmissionUsesManifestPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	input, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("inputs"))
-	bound, err := automationcheck.BindManifestExecution(manifest, invocations[0], []artifact.ID{input})
+	bound, err := automationcheck.BindManifestExecution(manifest, invocations[0], []artifact.ID{input}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

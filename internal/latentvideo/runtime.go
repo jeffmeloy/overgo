@@ -1,6 +1,7 @@
 package latentvideo
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -130,9 +131,9 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 		return result, errors.New("latent video generator: frame sink is nil")
 	}
 
-	if ctx != nil {
-		g.denoiser.ctx = ctx
-	}
+	ctx = cmp.Or(ctx, context.Background())
+	g.denoiser.ctx = ctx
+	g.decoder.ctx = ctx
 	result.Denoise, err = g.denoiser.Program.DenoiseWithBackend(g, DenoiseRequest{
 		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
 		CondContext: request.CondContext, UncondContext: request.UncondContext,
@@ -162,24 +163,37 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 	return result, err
 }
 
-// ProjectBranchContext: retain the current prompt pair across requests.
-func (g *Generator) ProjectBranchContext(values []float32) (any, error) {
-	key := sha256.Sum256(driver.Bytes(values))
-	if branch, ok := g.branches[key]; ok {
-		return branch, nil
+// ProjectBranchContexts retains a complete guidance pair across requests.
+// Invalidate a changed pair before returning either handle to its consumer.
+func (g *Generator) ProjectBranchContexts(conditional, unconditional []float32) (any, any, error) {
+	condKey := sha256.Sum256(driver.Bytes(conditional))
+	uncondKey := sha256.Sum256(driver.Bytes(unconditional))
+	cond, condOK := g.branches[condKey]
+	uncond, uncondOK := g.branches[uncondKey]
+	contexts := tensor.PairedExtent
+	if condKey == uncondKey {
+		contexts = tensor.SingletonExtent
 	}
-	if len(g.branches) == tensor.PairedExtent {
-		if err := g.denoiser.ReleaseRequestResources(); err != nil {
-			return nil, err
-		}
-		clear(g.branches)
+	if condOK && uncondOK && len(g.branches) == contexts {
+		return cond, uncond, nil
 	}
-	branch, err := g.denoiser.ProjectBranchContext(values)
+	if err := g.denoiser.ReleaseRequestResources(); err != nil {
+		return nil, nil, err
+	}
+	clear(g.branches)
+	cond, err := g.denoiser.projectBranchContext(conditional)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	g.branches[key] = branch
-	return branch, nil
+	uncond = cond
+	if uncondKey != condKey {
+		uncond, err = g.denoiser.projectBranchContext(unconditional)
+		if err != nil {
+			return nil, nil, errors.Join(err, g.denoiser.ReleaseRequestResources())
+		}
+	}
+	g.branches[condKey], g.branches[uncondKey] = cond, uncond
+	return cond, uncond, nil
 }
 
 // ForwardHead: delegate into the retained denoiser graph.

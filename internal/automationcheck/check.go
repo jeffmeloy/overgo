@@ -87,7 +87,8 @@ type Invocation struct {
 	runner    Runner
 }
 
-// Evidence is the typed terminal result of one invocation.
+// Evidence is the typed terminal result of one invocation. A reused result
+// carries the original execution it stands on in Source.
 type Evidence struct {
 	ID           artifact.ID           `json:"id"`
 	InvocationID artifact.ID           `json:"invocation_id"`
@@ -99,6 +100,32 @@ type Evidence struct {
 	Inapplicable bool                  `json:"inapplicable,omitzero"`
 	Reused       bool                  `json:"reused,omitzero"`
 	Detail       string                `json:"detail,omitzero"`
+	Source       *ReuseSource          `json:"source,omitempty"`
+}
+
+// Identity derives the content identity of the immutable result fields.
+func (evidence Evidence) Identity() (artifact.ID, error) {
+	return artifact.JSONID(artifact.KindEvidence, struct {
+		InvocationID artifact.ID           `json:"invocation_id"`
+		Authority    *ExecutionAuthority   `json:"authority,omitempty"`
+		Outcome      runrecord.LaneOutcome `json:"outcome"`
+		Inapplicable bool                  `json:"inapplicable,omitzero"`
+		Reused       bool                  `json:"reused,omitzero"`
+		Detail       string                `json:"detail,omitzero"`
+		Source       *ReuseSource          `json:"source,omitempty"`
+	}{evidence.InvocationID, evidence.Authority, evidence.Outcome, evidence.Inapplicable, evidence.Reused, evidence.Detail, evidence.Source})
+}
+
+// VerifyIdentity reports whether the ID still names these result fields.
+func (evidence Evidence) VerifyIdentity() error {
+	want, err := evidence.Identity()
+	if err != nil {
+		return err
+	}
+	if !evidence.ID.Valid() || evidence.ID != want {
+		return errors.New("automation check: evidence identity does not match its content")
+	}
+	return nil
 }
 
 // Plan selects applicable checks and returns them in dependency order.
@@ -136,9 +163,6 @@ func Plan(checks []Check, impact Impact) ([]Invocation, error) {
 	}
 	var planned []Invocation
 	done := make(map[string]bool, len(exclusions))
-	for name := range exclusions {
-		done[name] = true
-	}
 	for name := range exclusions {
 		done[name] = true
 	}
@@ -207,14 +231,7 @@ func Run(ctx context.Context, invocation Invocation) (Evidence, error) {
 		Outcome: runrecord.LaneOutcomeOf(runErr), DurationNS: max(uint64(time.Since(begin).Nanoseconds()), uint64(time.Nanosecond)),
 		Inapplicable: inapplicable, Detail: strings.TrimSpace(detail),
 	}
-	id, err := artifact.JSONID(artifact.KindEvidence, struct {
-		InvocationID artifact.ID           `json:"invocation_id"`
-		Authority    *ExecutionAuthority   `json:"authority,omitempty"`
-		Outcome      runrecord.LaneOutcome `json:"outcome"`
-		Inapplicable bool                  `json:"inapplicable,omitzero"`
-		Reused       bool                  `json:"reused,omitzero"`
-		Detail       string                `json:"detail,omitzero"`
-	}{evidence.InvocationID, evidence.Authority, evidence.Outcome, evidence.Inapplicable, evidence.Reused, evidence.Detail})
+	id, err := evidence.Identity()
 	if err != nil {
 		return Evidence{}, fmt.Errorf("automation check %q: identify evidence: %w", evidence.Name, err)
 	}

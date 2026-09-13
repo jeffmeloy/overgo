@@ -53,6 +53,19 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 	writeSpecification(t, root, "external.json", map[string]any{
 		"model": map[string]any{"tool": "external"}, "result": "ignored",
 	})
+	if err := os.WriteFile(filepath.Join(root, "docs", "verification", "external-array.json"), []byte(`[{"result":"external oracle"}]`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	malformed := filepath.Join(root, "docs", "verification", "malformed.json")
+	if err := os.WriteFile(malformed, []byte(`[{`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadVerificationInventory(root); err == nil {
+		t.Fatal("malformed external oracle accepted")
+	}
+	if err := os.Remove(malformed); err != nil {
+		t.Fatal(err)
+	}
 	data, err := generateModelsReport(root, filepath.Join(root, "absent-store"))
 	if err != nil {
 		t.Fatal(err)

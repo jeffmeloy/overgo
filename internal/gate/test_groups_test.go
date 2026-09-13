@@ -45,8 +45,8 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	if !slices.Equal(byName["commit"].Dependencies, []string{"test", "device", automationcheck.WebUICheckName}) {
 		t.Fatalf("commit depends on %v", byName["commit"].Dependencies)
 	}
-	if !phaseReusesEvidence("test-owners") || !phaseReusesEvidence("test-device") || !phaseOwnsPath("test-owners", "internal/gate/gate.go") {
-		t.Fatal("the changed-owners check does not reuse evidence or own Go inputs like the test check")
+	if phaseReusesEvidence(testOwnersCheckName) || phaseReusesEvidence(testDeviceCheckName) || !phaseOwnsPath(testOwnersCheckName, "internal/gate/gate.go") {
+		t.Fatal("package checks must retain source binding and reuse individual receipts")
 	}
 
 	type span struct{ start, end time.Time }

@@ -31,7 +31,7 @@ func (g *gateContext) executeChecks(
 	if g.terminal == nil {
 		g.terminal = map[string]automationcheck.Evidence{}
 	}
-	var cacheMutex, terminalMutex sync.Mutex
+	var cacheMutex sync.Mutex
 	return automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
 		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
 		if drift != nil {
@@ -39,15 +39,22 @@ func (g *gateContext) executeChecks(
 				return automationcheck.Evidence{}, err
 			}
 		}
-		slot, input, cacheCheck := g.checkCacheKey(check, inputs)
+		slot, input, cacheCheck := g.checkCacheKey(check, inputs[check.ID])
 		if cacheCheck {
 			cacheMutex.Lock()
 			evidence, reused := cache.Lookup(slot, input)
 			cacheMutex.Unlock()
 			if reused {
-				terminalMutex.Lock()
+				var err error
+				reused, err = g.reusableOutput(check, evidence)
+				if err != nil {
+					return automationcheck.Evidence{}, err
+				}
+			}
+			if reused {
+				g.terminalMutex.Lock()
 				g.terminal[check.Check.Name] = evidence
-				terminalMutex.Unlock()
+				g.terminalMutex.Unlock()
 				return evidence, nil
 			}
 		}
@@ -72,9 +79,9 @@ func (g *gateContext) executeChecks(
 			}
 		}
 		if evidence.ID.Valid() {
-			terminalMutex.Lock()
+			g.terminalMutex.Lock()
 			g.terminal[check.Check.Name] = evidence
-			terminalMutex.Unlock()
+			g.terminalMutex.Unlock()
 		}
 		return evidence, runErr
 	})
@@ -83,10 +90,19 @@ func (g *gateContext) executeChecks(
 // checkCacheKey keeps execution and measurement eligibility identical. A
 // checkpoint uses its package-scoped memo; ordinary phases require an input
 // fingerprint and permission to reuse evidence.
-func (g *gateContext) checkCacheKey(check automationcheck.Invocation, inputs map[artifact.ID]artifact.ID) (automationcheck.Invocation, artifact.ID, bool) {
+func (g *gateContext) checkCacheKey(check automationcheck.Invocation, input artifact.ID) (automationcheck.Invocation, artifact.ID, bool) {
+	if check.Check.Name == modernCensusCheckName && check.Authority != nil {
+		check.ID = check.Authority.Definition
+	}
 	if slot, input, memoised := g.memoSlot(check); memoised {
 		return slot, input, true
 	}
-	input, found := inputs[check.ID]
-	return check, input, found && phaseReusesEvidence(check.Check.Name)
+	return check, input, input.Valid() && phaseReusesEvidence(check.Check.Name)
+}
+
+// Bind the actual memo input before execution; phase input alone is insufficient.
+func (g *gateContext) bindCheckExecution(manifest automationcheck.ManifestPlan, check automationcheck.Invocation, input artifact.ID) (automationcheck.Invocation, error) {
+	_, memoInput, _ := g.checkCacheKey(check, input)
+	binding := &automationcheck.ReuseBinding{Input: memoInput, Environment: g.environment.ID}
+	return automationcheck.BindManifestExecution(manifest, check, []artifact.ID{input}, binding)
 }

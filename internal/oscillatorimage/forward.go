@@ -1,6 +1,7 @@
 package oscillatorimage
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -199,7 +200,10 @@ type phasePlan struct {
 	drive []float32
 }
 
-func (m *Model) prepare(request Request) (phasePlan, error) {
+func (m *Model) prepare(ctx context.Context, request Request) (phasePlan, error) {
+	if err := ctx.Err(); err != nil {
+		return phasePlan{}, err
+	}
 	if m == nil {
 		return phasePlan{}, fmt.Errorf("oscillatorimage: model is unavailable")
 	}
@@ -216,7 +220,10 @@ func (m *Model) prepare(request Request) (phasePlan, error) {
 	return phasePlan{state: state, drive: m.Drive[start : start+cfg.N*cfg.NCond]}, nil
 }
 
-func (m *Model) integrate(plan phasePlan) ([]float32, error) {
+func (m *Model) integrate(ctx context.Context, plan phasePlan) ([]float32, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	cfg := m.Cfg
 	tot := cfg.N + cfg.NCond
 	// Batch is carried by the plan's state length (b samples of tot phases);
@@ -227,6 +234,9 @@ func (m *Model) integrate(plan phasePlan) ([]float32, error) {
 	vel := make([]float32, len(state))
 	trig := make([]float64, 2*tot)
 	for range cfg.NumSteps {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		conditionalKuramotoForwardInto(
 			vel, state, m.Omega, m.OmegaCond, m.K, m.KCond, plan.drive,
 			b, cfg.N, cfg.NCond, cfg.KScale, cfg.KCondScale, cfg.KDriveScale, trig[:tot], trig[tot:],
@@ -249,7 +259,10 @@ func (m *Model) decodePlanar(features []float32) (planarImage, error) {
 	return planarImage{Pixels: pixels, Channels: cfg.OutChannels, Height: cfg.OutH(), Width: cfg.OutW()}, nil
 }
 
-func (m *Model) decode(features []float32) (latentimage.EncodedImage, error) {
+func (m *Model) decode(ctx context.Context, features []float32) (latentimage.EncodedImage, error) {
+	if err := ctx.Err(); err != nil {
+		return latentimage.EncodedImage{}, err
+	}
 	image, err := m.decodePlanar(features)
 	if err != nil {
 		return latentimage.EncodedImage{}, err

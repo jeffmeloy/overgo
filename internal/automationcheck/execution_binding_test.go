@@ -11,7 +11,7 @@ import (
 func TestManifestExecutionBinding(t *testing.T) {
 	plan, invocation := executionBindingFixture(t, strings.Repeat("b", 64))
 	input, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("relevant inputs"))
-	bound, err := BindManifestExecution(plan, invocation, []artifact.ID{input})
+	bound, err := BindManifestExecution(plan, invocation, []artifact.ID{input}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,16 +20,35 @@ func TestManifestExecutionBinding(t *testing.T) {
 		t.Fatalf("bound invocation = %+v", bound)
 	}
 	otherPlan, otherInvocation := executionBindingFixture(t, strings.Repeat("c", 64))
-	other, err := BindManifestExecution(otherPlan, otherInvocation, []artifact.ID{input})
+	other, err := BindManifestExecution(otherPlan, otherInvocation, []artifact.ID{input}, nil)
 	if err != nil || other.ID == bound.ID {
 		t.Fatal("changed candidate tree did not change execution identity")
+	}
+	environment, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("execution environment"))
+	binding := ReuseBinding{Input: input, Environment: environment}
+	reusable, err := BindManifestExecution(plan, invocation, []artifact.ID{input}, &binding)
+	if err != nil || reusable.ID == bound.ID {
+		t.Fatalf("reuse binding did not change execution identity: %v", err)
+	}
+	binding.Input, binding.Environment = binding.Environment, binding.Input
+	if reusable.Authority.Reuse.Input != input || reusable.Authority.Reuse.Environment != environment {
+		t.Fatal("caller mutation changed bound execution inputs")
+	}
+	swapped, err := BindManifestExecution(plan, invocation, []artifact.ID{input}, &binding)
+	if err != nil || swapped.ID == reusable.ID {
+		t.Fatalf("input/environment roles were lost: %v", err)
+	}
+	if _, err := BindManifestExecution(plan, invocation, []artifact.ID{input}, &ReuseBinding{Input: input}); err == nil {
+		t.Fatal("incomplete reuse binding admitted")
 	}
 }
 
 func TestPlanEvidenceLineage(t *testing.T) {
 	plan, invocation := executionBindingFixture(t, strings.Repeat("b", 64))
 	input, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("relevant inputs"))
-	bound, err := BindManifestExecution(plan, invocation, []artifact.ID{input})
+	memo, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("memo inputs"))
+	environment, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("environment"))
+	bound, err := BindManifestExecution(plan, invocation, []artifact.ID{input}, &ReuseBinding{Input: memo, Environment: environment})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +57,7 @@ func TestPlanEvidenceLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 	lineage := EvidenceLineage(evidence)
-	for _, want := range []artifact.ID{plan.ID, invocation.ID, input} {
+	for _, want := range []artifact.ID{plan.ID, invocation.ID, input, memo, environment} {
 		if !slices.Contains(lineage, want) {
 			t.Fatalf("evidence lineage %v omits %s", lineage, want)
 		}

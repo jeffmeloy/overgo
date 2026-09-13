@@ -33,8 +33,21 @@ const (
 	PDFMediaType = "application/pdf"
 )
 
-// GIFFrameDelay converts frames per second to GIF centisecond delay units.
-func GIFFrameDelay(framesPerSecond int) int { return max(1, 100/framesPerSecond) }
+// GIFFrameDelay quantizes consecutive frame boundaries to GIF centiseconds.
+// Rounding each boundary bounds total duration error to half a centisecond.
+func GIFFrameDelay(framesPerSecond, frameIndex int) (int, error) {
+	const centisecondsPerSecond = 100 // GIF delay field's format unit.
+	if framesPerSecond <= 0 || framesPerSecond > centisecondsPerSecond || frameIndex < 0 {
+		return 0, errors.New("media: frame rate or index cannot be represented by positive GIF delays")
+	}
+	// Whole seconds cancel between boundaries. Reduce the index first to
+	// avoid multiplying an unbounded frame count by the format timebase.
+	withinSecond := frameIndex % framesPerSecond
+	boundary := func(frame int) int {
+		return (frame*centisecondsPerSecond + framesPerSecond/2) / framesPerSecond
+	}
+	return boundary(withinSecond+1) - boundary(withinSecond), nil
+}
 
 // ValidateEncodedRGBVideo validates a typed encoded-video publication.
 func ValidateEncodedRGBVideo(data []byte, mediaType, expectedMediaType string, frames, channels, height, width, fps int) error {

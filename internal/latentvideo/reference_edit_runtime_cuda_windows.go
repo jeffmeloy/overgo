@@ -161,6 +161,9 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	if err := r.denoiser.ResetHistory(); err != nil {
 		return result, err
 	}
@@ -198,7 +201,7 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	result.Latent, result.Sampler, err = RunEditSampler(ctx, EditSamplerRequest{
 		Plan: r.editPlan, InitialNoise: initialNoise, Source: sourceLatent,
 		Sigmas: r.config.Sigmas, ContextTimestep: r.config.ContextTimestep, Arithmetic: EditBF16,
-		Denoise: func(_ context.Context, step EditStep, combined, flow []float32) error {
+		Denoise: func(ctx context.Context, step EditStep, combined, flow []float32) error {
 			headE, blockE, err := CompileTimestepConditioning([]float64{float64(step.Timestep)}, r.denoiser.cold.timestepWeights)
 			if err != nil {
 				return err
@@ -207,7 +210,7 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 			if err != nil {
 				return err
 			}
-			head, err := r.denoiser.RunChunk(patches, blockE, headE, step.StartFrame, step.Pass == EditContextRefresh)
+			head, err := r.denoiser.RunChunk(ctx, patches, blockE, headE, step.StartFrame, step.Pass == EditContextRefresh)
 			if err != nil {
 				return err
 			}
@@ -218,7 +221,10 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 			copy(flow, decoded)
 			return nil
 		},
-		Noise: func(_ context.Context, step EditStep, destination []float32) error {
+		Noise: func(ctx context.Context, step EditStep, destination []float32) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			return noise.FillChannelMajor(destination, r.editPlan.Latent.Channels, step.Frames, r.editPlan.Latent.LatentHeight*r.editPlan.Latent.LatentWidth)
 		},
 	})
@@ -231,8 +237,8 @@ func (r *ReferenceEditRuntime) Run(ctx context.Context, source, initialNoise []f
 	if err != nil {
 		return result, err
 	}
-	result.Decode, err = r.decoder.Decode(
-		r.config.LatentStats, result.Latent,
+	result.Decode, err = r.decoder.DecodeContext(
+		ctx, r.config.LatentStats, result.Latent,
 		r.editPlan.Latent.LatentFrames, r.editPlan.Latent.LatentHeight, r.editPlan.Latent.LatentWidth, sink,
 	)
 	if err == nil {

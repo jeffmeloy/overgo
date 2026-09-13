@@ -1320,6 +1320,39 @@ func (e *Executor) DropGraphExecs(state *device.State) error {
 	return e.resources.graphExecs.drop(state)
 }
 
+// ReleaseWeightStaging ends a weight-streaming phase. Captured graphs must be
+// discarded before releasing the staging storage their launches can reference.
+// Resident values and reusable execution buffers remain owned by the executor.
+func (e *Executor) ReleaseWeightStaging(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if e.closed || e.worker == nil {
+		return nil
+	}
+	return e.worker.Do(ctx, func(state *device.State) error {
+		if err := e.resources.graphExecs.drop(state); err != nil {
+			return err
+		}
+		return e.resources.releaseWeightStaging(state)
+	})
+}
+
+func (r *executorResources) releaseWeightStaging(state *device.State) error {
+	if r.blas == nil || r.blas.staging == 0 {
+		return nil
+	}
+	if err := state.Driver.MemFree(r.blas.staging); err != nil {
+		return err
+	}
+	r.blas.staging = 0
+	r.blas.stagingBytes = 0
+	r.blas.stagedNode = nil
+	return nil
+}
+
 // Metrics returns executor-local graph replay and arena evidence. Reading the
 // snapshot is serialized on the CUDA worker with resource mutations.
 func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
@@ -1558,12 +1591,9 @@ func (e *Executor) runCompiled(
 			// graphs keep their reservation because their captured frames
 			// key on the staging pointer. The free follows the grow path's
 			// established free-after-submission contract on this stream.
-			if freeErr := state.Driver.MemFree(resources.blas.staging); freeErr != nil {
+			if freeErr := resources.releaseWeightStaging(state); freeErr != nil {
 				return freeErr
 			}
-			resources.blas.staging = 0
-			resources.blas.stagingBytes = 0
-			resources.blas.stagedNode = nil
 		}
 		dumpResourceMemory(resources)
 		return executeErr

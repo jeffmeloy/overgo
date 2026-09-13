@@ -29,6 +29,11 @@ func F32Reader(tensor Tensor) (io.Reader, error) {
 // ReadF32 promotes one tensor into its final F32 slab without a tensor-sized
 // byte copy.
 func ReadF32(tensor Tensor) ([]float32, error) {
+	switch tensor.DType {
+	case "F32", "F16", "BF16":
+	default:
+		return nil, fmt.Errorf("safetensors: cannot promote %s to F32", tensor.DType)
+	}
 	elements := tensor.Elements()
 	count := int(elements)
 	if count < 0 || uint64(count) != elements {
@@ -77,8 +82,6 @@ func ReadF32(tensor Tensor) ([]float32, error) {
 			}
 			offset += batch
 		}
-	default:
-		return nil, fmt.Errorf("safetensors: cannot promote %s to F32", tensor.DType)
 	}
 	return values, nil
 }

@@ -67,7 +67,7 @@ func TestRealCheckpointVendorParity(t *testing.T) {
 func TestRealCheckpointSample(t *testing.T) {
 	m := loadArtifactModel(t)
 	const steps = 4
-	img, err := m.Sample(1, 32, 32, steps, 42)
+	img, err := m.Sample(t.Context(), 1, 32, 32, steps, 42)
 	if err != nil {
 		t.Fatal(err)
 	}

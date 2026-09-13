@@ -4,6 +4,7 @@ package routedlm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -46,9 +47,9 @@ func RunDevicePrefixStacks(
 	rope RopePlan,
 	observe func(branch, layer int, hidden, key, value []float32),
 	inputs ...DevicePrefixInput,
-) ([]*PrefixState, DevicePrefixStackStats, error) {
+) (_ []*PrefixState, stats DevicePrefixStackStats, result error) {
 	started := time.Now()
-	stats := DevicePrefixStackStats{Layers: cfg.NumHiddenLayers, Branches: len(inputs)}
+	stats = DevicePrefixStackStats{Layers: cfg.NumHiddenLayers, Branches: len(inputs)}
 	if worker == nil || cuda == nil || source == nil || len(inputs) == 0 {
 		return nil, stats, fmt.Errorf("routed lm prefix stacks: missing runtime or inputs")
 	}
@@ -93,7 +94,10 @@ func RunDevicePrefixStacks(
 		}
 	}
 	uploads := device.NewAllocationSet(worker)
-	defer uploads.Close(context.WithoutCancel(ctx))
+	cleanup := context.WithoutCancel(ctx)
+	defer func() {
+		result = errors.Join(result, cuda.ReleaseWeightStaging(cleanup), uploads.Close(cleanup))
+	}()
 	for layer := 0; layer < cfg.NumHiddenLayers; layer++ {
 		weights, err := LoadBranchLayerWeights(source, cfg, binding, layer, 0)
 		if err != nil {
@@ -115,20 +119,20 @@ func RunDevicePrefixStacks(
 			}
 			hiddenValue, err := retained.CopyToHost(ctx, branch.graph.Output)
 			if err != nil {
-				_ = retained.Release(ctx)
+				_ = retained.Release(cleanup)
 				return nil, stats, err
 			}
 			keyValue, err := retained.CopyToHost(ctx, branch.graph.KeyKV)
 			if err != nil {
-				_ = retained.Release(ctx)
+				_ = retained.Release(cleanup)
 				return nil, stats, err
 			}
 			valueValue, err := retained.CopyToHost(ctx, branch.graph.ValueKV)
 			if err != nil {
-				_ = retained.Release(ctx)
+				_ = retained.Release(cleanup)
 				return nil, stats, err
 			}
-			if err := retained.Release(ctx); err != nil {
+			if err := retained.Release(cleanup); err != nil {
 				return nil, stats, err
 			}
 			branch.hidden = hiddenValue.Data

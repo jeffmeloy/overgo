@@ -11,9 +11,10 @@ import (
 
 // TestGateReusesUnchangedCheckEvidence pins the reuse substrate the gate
 // rides across consecutive attempts: identical invocation and input reuse
-// the recorded terminal evidence without executing, a differing input always
-// executes, and a failed run never enters the cache, so reuse can never
-// launder a failure into a pass.
+// the recorded terminal evidence without executing, under a reuse identity
+// of its own that cites the original; a differing input always executes,
+// and a failed run never enters the cache, so reuse can never launder a
+// failure into a pass.
 func TestGateReusesUnchangedCheckEvidence(t *testing.T) {
 	environment, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("attempt environment"))
 	unchanged, _ := artifact.IdentifyBytes(artifact.KindEvidence, []byte("unchanged inputs"))
@@ -46,7 +47,8 @@ func TestGateReusesUnchangedCheckEvidence(t *testing.T) {
 		t.Fatalf("first passing attempt = (%+v, %t, %v) runs=%d", first, reused, err, runs)
 	}
 	second, reused, err := cache.RunCached(t.Context(), planned[0], unchanged)
-	if err != nil || !reused || runs != 2 || second.ID != first.ID || !second.Reused {
+	if err != nil || !reused || runs != 2 || !second.Reused || second.ID == first.ID ||
+		second.Source == nil || second.Source.Evidence != first.ID || second.VerifyIdentity() != nil {
 		t.Fatalf("unchanged retry = (%+v, %t, %v) runs=%d", second, reused, err, runs)
 	}
 	third, reused, err := cache.RunCached(t.Context(), planned[0], repaired)

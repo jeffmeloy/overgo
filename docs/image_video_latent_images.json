@@ -1,0 +1,71 @@
+{
+  "cases": [
+    {
+      "acquisition": "evidence:sha256:72ad19c8a417664de6dd19f18a3dd512e1b42d1bb4bce427cdc6053438658311",
+      "case": "Krea-2-Turbo/image-gen/1",
+      "review": "evidence:sha256:d16ec1d5d91dd506afca4a9f2a6067cae7e1e9c1ce7e522d215fe2d67d78f6a2",
+      "run": "run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22",
+      "test_evidence": "evidence:sha256:d2c37e873d84215a9b41d4c927e892454ad103494185da25b4227eda26693f54"
+    },
+    {
+      "acquisition": "evidence:sha256:7a5f4da716584081f2c85347d26bb4659a9959e1ad888a73ede4d4c813285468",
+      "case": "SimpleDiffusion-TensorProductAttentionRope/image-gen/1",
+      "review": "evidence:sha256:54bfb2dfd86ca6a6132f3af9fa56fb6ba4320ed0ab328c340f6d4a4d0018c760",
+      "run": "run:sha256:09150155593f97f3f61bcba2e902bd260f33450f8b873c88616b2112c6b06711",
+      "test_evidence": "evidence:sha256:82485b14717574d34e84212866e27544220c119151a624ac0bc8b9ae76c9c536"
+    },
+    {
+      "acquisition": "evidence:sha256:7a5f4da716584081f2c85347d26bb4659a9959e1ad888a73ede4d4c813285468",
+      "case": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
+      "review": "evidence:sha256:a168c78f333408ea1930afc016cd6984d750b786fc50242b7a26a05cb0a61387",
+      "run": "run:sha256:a2a817b8a1084e91add8ebfef51d1fea96318b1d0a7e23e1704b39f1c74f1249",
+      "test_evidence": "evidence:sha256:82485b14717574d34e84212866e27544220c119151a624ac0bc8b9ae76c9c536"
+    }
+  ],
+  "failed_attempts": [
+    "evidence:sha256:8a76846642cee0d1f4b456f8c8a893e9544c60f66880f6d7b9dbe511e0aed0a9",
+    "evidence:sha256:5aa4605fa9230f6d909590e60d7e0176a0a961378a91a455e0201acccab2598f",
+    "evidence:sha256:afd6f40de615b7a5d26efba14cd52e172d2b3eb4e6e7a2df856020666ae57b53"
+  ],
+  "instrumentation": {
+    "media-diffusion-acquisition-instrumentation-corrected.json": "evidence:sha256:d151497fc6739313ea85bc206c385181fdd627fd24e7812f515ae9487ec7f3f3",
+    "media-diffusion-acquisition-instrumentation-third.json": "evidence:sha256:4455c3330e8efd46050d6af8814e381df917252445c022a2f8fe359a0aafe736",
+    "media-diffusion-acquisition-instrumentation.json": "evidence:sha256:639612eecce20fc1c9b790794342f9c110f7323e45ac8b72151d78c43efcd61d",
+    "media_diffusion_acquisition_initial_test.go": "evidence:sha256:e0165226961f90fb1ea007e570373d2ea76926bf54386089896908455bbd9a90",
+    "media_diffusion_acquisition_second_test.go": "evidence:sha256:037e79c18fa71c2afffbc004a6aeee92eb78974093b459429389625429c48a65",
+    "media_diffusion_acquisition_test.go": "evidence:sha256:5db1fca1dcce9ae2eeb13b53c5625100717106a7811d85554cc00423d7887547",
+    "media_krea_acquisition_test.go": "evidence:sha256:c598c2ec4bc38b6a8fa1f4426c059e882109c59ad79ac35415242d5bc394f994",
+    "media_latent_image_acceptance_initial_test.go": "evidence:sha256:74d72f223cee2a1941bf1f358b2f14ff0a005a494c3b9d9f8923a969609213e5"
+  },
+  "numerical": [
+    {
+      "command": "go test ./internal/latentimage -run '^(TestFlowScheduleReproducesG2Exactly|TestRenderKreaTextInputGoldenSHA|TestDenoiserDerivesFromRealCheckpoint|TestVAEDecoderDerivesFromRealCheckpoint)$' -count=1 -json",
+      "evidence": "evidence:sha256:c44d45f058e9384ed029cb7c7e6ad9eed5452bd87f56222118fb9d6bdf2774cd",
+      "name": "Krea schedule and artifact geometry"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^TestDenoiserResidentG2Distribution$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:0f0a1902a4abce80893acba71c43047ccae63271ba3278d630b4f8940e9902cf",
+      "name": "Krea G2 intermediate distribution and determinism"
+    },
+    {
+      "command": "go test ./internal/diffusionimage -tags=modeltest -run '^(TestTinyModelForwardMatchesTorch|TestRealCheckpointPublishesReferencePNG)$' -count=1 -json",
+      "evidence": "evidence:sha256:c6c44930847a4e9cbe2954d5fc2e6fbacb8bf04c83eb6e626f8ef20f7c82ea41",
+      "name": "SimpleDiffusion native owners"
+    },
+    {
+      "command": "go test ./internal/latentimage -run '^TestResidentLifetimeResourceAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:dbbffc09e070acd8c1d3507b443ed25af28edd93d5bc3270e5faf0da2782df0e",
+      "name": "Krea generation and cancellation recovery"
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-diffusion-overlay.json ./internal/diffusionimage -tags=modeltest -run '^TestMediaCurrentDiffusionValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:a9605a631c21bf1d48ac1f321dfdade6ac4121fa3ae454621841e16aa62ae745",
+      "name": "SimpleDiffusion host/CUDA comparison"
+    }
+  ],
+  "protocol": "evidence:sha256:dc23a9d6aab8e8419ddeab130d43b1b7c5a31e84b80319b0e13f8243a58df439",
+  "scope": "Three frozen image cases executed through active compiled recipes with original model, request and policy identities. All outputs are finite before PNG quantization and decode at requested dimensions; both model lifetimes release tracked GPU allocations. Krea G2 uses synthetic conditioning and validates intermediate distributions and determinism, not full native pixel equivalence. SimpleDiffusion retains exact native 64x64 host output plus the existing bounded CUDA comparison; its two 256x256 images remain noisy and do not establish useful semantic quality. All three current encoded images differ from historical outputs and were reviewed anew. Measurements are individual observations, not matched speed comparisons. Krea process duration includes GPU admission waiting; generation timing excludes that wait. First SimpleDiffusion instrumentation rejected a zero-duration prepare phase; a retry reused a completed workflow output and failed its typed-output assertion. The corrected acquisition uses a fresh operation key, preserves raw zero-duration phases, and proves new GPU work. Retain both failed attempts. Public transport and broader lifecycle checks remain separate.",
+  "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19",
+  "version": 1
+}

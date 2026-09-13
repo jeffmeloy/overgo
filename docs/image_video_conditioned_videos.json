@@ -1,0 +1,122 @@
+{
+  "cases": [
+    {
+      "acquisition": "evidence:sha256:6091dfcac964ec5d4e1f3f1d271a4b0739b0de553b56e32b48842f3b7a7d1f95",
+      "case": "Un-0/video-gen/1",
+      "mode": "acquired-host",
+      "output": "output:sha256:8998678c48f16a2d4e73a63e764c030acf022775ea8744836cdd6b1ec2cd4024",
+      "raw_frames": [],
+      "review": "evidence:sha256:95d46943335beb16c1a73adec6cfa46eea703c74c90adc69b6d2b28365900d39",
+      "run": "run:sha256:a9dc9487b4428fb7ed5bdf12747473984254a0726d9f1d326054d1b499ae1091",
+      "test_evidence": "evidence:sha256:be97063dd90ee55ec3501b585b61b3963fe6499b42cc868c25ce91a72a6cd82b"
+    },
+    {
+      "acquisition": "evidence:sha256:6091dfcac964ec5d4e1f3f1d271a4b0739b0de553b56e32b48842f3b7a7d1f95",
+      "case": "Un-0/video-gen/2",
+      "mode": "acquired-host",
+      "output": "output:sha256:5ce8cb116444a2bfbafbe9c8700a898c2e98ae1a20b7b6ca6ba7bcde0b954aee",
+      "raw_frames": [],
+      "review": "evidence:sha256:312032c9c62e63066497af328a41b7d787dd173ce503872b88ee0f39e9d3ed41",
+      "run": "run:sha256:f5b8b33864e3746916a6d6e1aef33c94958883d3c281886c77564e37076ed523",
+      "test_evidence": "evidence:sha256:be97063dd90ee55ec3501b585b61b3963fe6499b42cc868c25ce91a72a6cd82b"
+    },
+    {
+      "acquisition": "evidence:sha256:5598ff13365be07aebb1b8ce6b04c54212500de7710dc55aac4e47622adb5be4",
+      "baseline_run": "run:sha256:9d4a0c8a6447dc3f28b711536dcce76466c899cfaabcd90c795de8cc921c11da",
+      "case": "LiveEdit/video-gen/1",
+      "mode": "acquired-cuda-corrected",
+      "output": "output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21",
+      "raw_frames": [
+        "evidence:sha256:eeba45b457cda88a499e43e0b0815928b73dce8330b1aad8ef75df0ac9ea0bca",
+        "evidence:sha256:4c69af5e155e465e3629174be6f4a2c7063e9abc9e7ccff8320a2a9ee4f04d00",
+        "evidence:sha256:5f9cfcb6b20d3725ce41c183878cd4f591a65693d30203826e2942ea35a64749",
+        "evidence:sha256:01b8ef143042ce4ecb02e372e562e27dccd71f9f5bd4481b77345e96fadf176f",
+        "evidence:sha256:3bd364e3fa265b73c40f148977d1780d5b112bfa7dd625342a09b66033c1c009"
+      ],
+      "review": "evidence:sha256:580f78019409c89c0e79e7b287712aa23e9cd05a2f609b98f09190ee1475e509",
+      "run": "run:sha256:f9f453c777286cd04d7e6b9cdfa2715debb92d1d32a8d9e59b73a210b0cb6ab1",
+      "test_evidence": "evidence:sha256:ab2a281f2db64359c3d8b589397b4d04dab435c459742a45a8b15e7d3db16619"
+    },
+    {
+      "acquisition": "evidence:sha256:5598ff13365be07aebb1b8ce6b04c54212500de7710dc55aac4e47622adb5be4",
+      "baseline_run": "run:sha256:d321f03f09949ba2156aee811115ddc6f59ec36e59639d1f155a3c7bf334ea9e",
+      "case": "LiveEdit/video-gen/2",
+      "mode": "acquired-cuda-corrected",
+      "output": "output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21",
+      "raw_frames": [
+        "evidence:sha256:eeba45b457cda88a499e43e0b0815928b73dce8330b1aad8ef75df0ac9ea0bca",
+        "evidence:sha256:4c69af5e155e465e3629174be6f4a2c7063e9abc9e7ccff8320a2a9ee4f04d00",
+        "evidence:sha256:5f9cfcb6b20d3725ce41c183878cd4f591a65693d30203826e2942ea35a64749",
+        "evidence:sha256:01b8ef143042ce4ecb02e372e562e27dccd71f9f5bd4481b77345e96fadf176f",
+        "evidence:sha256:3bd364e3fa265b73c40f148977d1780d5b112bfa7dd625342a09b66033c1c009"
+      ],
+      "review": "evidence:sha256:5aa150a654f66962cd9addc5502a1daa286f48399441792582b1b62f4cc758e4",
+      "run": "run:sha256:2e3e28ec5b8d18cadd189f7cf4bb03dc67019c0cfa12158386f1d5a83f222ae0",
+      "test_evidence": "evidence:sha256:ab2a281f2db64359c3d8b589397b4d04dab435c459742a45a8b15e7d3db16619"
+    }
+  ],
+  "input_identities": "evidence:sha256:e850b842277e2cdeb76ecfde64b3db5ccae627da3f9505c8a9e1e9c3ab5d8b8a",
+  "inspection": [
+    "evidence:sha256:601f2160a75f93be66f5aadadefa2d8a3a3606c4941155f3409c78399b1a85a0",
+    "evidence:sha256:a36cfceaa303e857c685abb433d6f43f4c4689c2732b234068337dc9f16f3cd7",
+    "evidence:sha256:c5c596dc1f32c329be4c9c26f4f8e62ef8cd4f37aa4b5c569c0bc6bd0d0594a1",
+    "evidence:sha256:1aea864f8e051d863b41e2e69b71e4ef03c9a735b2ecea480fcdd862af46c7a9",
+    "evidence:sha256:146557e00939d61a07a3ad5a09c7ba6b61b71d10e1790e8ce5a74849952237d2",
+    "evidence:sha256:12eede8d447a5d12289e9622c76913df53afcb4c833943d0db094a9f7b037ba0",
+    "evidence:sha256:2bf149491a1e7a483c2b16e0ae6e99c7fe0b18aabb625b1f966554cf0bcbb886",
+    "evidence:sha256:b6210693b618cbba8f397ef2e6c06d6b0726b3d3f32bf49ee71016f0aa3118a4",
+    "evidence:sha256:5e687ce9b5f41536a885af142f8fa1649c6bc826d78606c0518f2dbb4c666442",
+    "evidence:sha256:2bd3aab8dbfb11079a442153070239d7fd5753ac976be9d163b7f40fa3423784",
+    "evidence:sha256:606973345a9aac3cfe98e27173f0b7ec9bcbb6d1232332f34fde76ed8032480b",
+    "evidence:sha256:e773d22e69276611f639a2b4068f3db5af5148871790a5c559c0cf6a63fd3e22"
+  ],
+  "instrumentation": {
+    "check_liveedit_frozen_inputs.go": "evidence:sha256:00238a6d4f8f08e133df9be5d5df83524edbde11fb9cc36a5b2784c7ab7b2f8f",
+    "check_liveedit_source_origin.go": "evidence:sha256:53a4765b7827d83de96fe5fd465a2067c850b4a40dbce8273ea8340b2b5f2dd0",
+    "inspect_conditioned_clips.go": "evidence:sha256:39c7072feb04bd753ce5a66c7f976e1315af39d6811459f9164c17f0f0fbb98a",
+    "measure_liveedit_encoding_correction.go": "evidence:sha256:b55d7cdcb55c31bfc22c5d1995fe643e4ed94d39dc33e6fd84883df22353ed39",
+    "media-liveedit-corrected-instrumentation.json": "evidence:sha256:9b5ad521857c2e8063363b55a3b9b86f0a6b6805a54330bc053e313b761ceb53",
+    "media-liveedit-instrumentation.json": "evidence:sha256:fa57ea66af560df253fa99edaaa30e0f3609b3ae1191adf4f9fdb754f4dcfabc",
+    "media-un0-video-acquisition-failed-1.jsonl": "evidence:sha256:a3b8858e630385d8e1ffb2060155a6c8bcf5970a63aae74207e9586cd1889446",
+    "media-un0-video-instrumentation-initial.json": "evidence:sha256:9ecb7636e29d6a8e566313bbeea75ba1544da3d49fc69201e9deff5ca6b1d03f",
+    "media-un0-video-instrumentation.json": "evidence:sha256:38d730fc4345bb569548befa7858541835b33672664fedc04d3a7a8fbbcc29f8",
+    "media_liveedit_acquisition_test.go": "evidence:sha256:c7f712751c9b9131cd7ce9d36ecb14b1a7655ff725d556e0c5e1d480f5c59946",
+    "media_liveedit_corrected_acquisition_test.go": "evidence:sha256:cec7f5f79fc89a3bcbb4a25e959f2ec58671971df949ca063d83b7fcf3fe8762",
+    "media_liveedit_corrected_audited_owner.go": "evidence:sha256:88bebbe775798e5bd63bfbc1a2f55059ca3b329813b402376e0d57e47c1954a8",
+    "media_un0_video_acquisition_initial_test.go": "evidence:sha256:79fdcae44215fc5950bc5a0ee0f1de564ec166eb71a01a7deba570cca89ed1f4",
+    "media_un0_video_acquisition_test.go": "evidence:sha256:7260450497eab515dbad605bf238d010883c218f20d00cbe96ef24f47fb3af64",
+    "media_un0_video_audited.go": "evidence:sha256:d0e0c448f66045381a557f979ad1d7a064b67b3c7f660fe8b0f0cbb151891b47"
+  },
+  "numerical": [
+    {
+      "command": "go test -overlay=tmp/media-current-liveedit-overlay.json ./internal/latentvideo -run '^TestMediaCurrentLiveEditValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:e2538f05d33e5fb2b58270cdf2711beb05b4f73e11c6c4904bbd7e6495465428",
+      "name": "LiveEdit device runtime"
+    },
+    {
+      "command": "go test ./internal/latentvideo ./internal/oscillatorimage ./internal/mediacapability -run '^(TestEditPolicyDeclaresTheReferenceSchedule|TestReferenceEditRequestFormAdmitsClipOrTensors|TestSourceVideoFromGIFRoundTrips|TestLiveEditSourceCodecBoundary|TestLiveEditReferenceParity|TestArtifactPublishesReferenceGIF|TestOutputContentPublishesOscillatorClip)$' -count=1 -json",
+      "evidence": "evidence:sha256:44ab708cc4e2abcb33abf67375d5d6c45f1470498c0419d510780cf69415a6a1",
+      "name": "Current source-conditioned request, sampler, codec and native Un-0 GIF owners"
+    },
+    {
+      "command": "go test ./internal/latentvideo -run '^(TestVideoPixelRanges|TestGIFEncoderRejectsUnknownPixelRange|TestGIFEncoderFrameOrderAndTiming)$' -count=1 -json",
+      "evidence": "evidence:sha256:857b6a8dc64120c5465fd068c3e683762c325919cac3753d52ed8414e00be8fd",
+      "name": "Existing signed/unit pixel mapping and GIF boundary checks"
+    }
+  ],
+  "pixel_range_correction": {
+    "after_git_sha256": "7f54df5baae0a928fed10620c194e7eaf8dd7b31625b31ee47fa3ccc656deeae",
+    "baseline_acquisition": "evidence:sha256:08e8c5a57726c421250755271b6e34977bfce40e5be5b382fcfacbe363462907",
+    "baseline_test": "evidence:sha256:657401177a6117d740662d994c5ddc7f4b06d97c2979205afcf44d6bfb62edec",
+    "before_git_sha256": "49b36621fe377b2a0b88582ce48095b607cfed5c0997679f4a86d1956e390dca",
+    "native_frame_aggregate_sha256": "19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1",
+    "path": "internal/latentvideo/production_cuda_windows.go",
+    "protocol": "evidence:sha256:e9735e19bfcf84acb30665525f245f74835cf6d0827d2e9f29db333c7712e485",
+    "scope": "The source base plus this exact one-line repair and captured observation overlay identifies the corrected acquisition. Source base alone still contains the erroneous UnitPixels argument. VAE output is signed-unit: all7680 floats in these native clips are negative (-0.981542 to -0.274297), so the old encoder produced entirely black frames. Signed-unit encoding preserves2480 of2560 pixels as nonblack while leaving all raw float frames, model arithmetic, source, conditioning, geometry, ordering and corrected cadence unchanged. Both original and corrected encodings are reconstructed from the same retained raw frames. This is an encoding correctness repair, not a model-quality or speedup claim.",
+    "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce"
+  },
+  "protocol": "evidence:sha256:bb73f9f699dce414258747a423c218dcc15b66e439d96ed421b14ec6cb6e5d42",
+  "scope": "Four frozen cases account for Un-0 CPU video and LiveEdit source-conditioned video-gen. Each executes its active compiled recipe with original immutable inputs, complete stored lineage and resource observations. Un-0 frames preserve historical pixels with corrected GIF cadence. LiveEdit's erroneous output range is corrected without changing native float frames; both old and corrected GIFs reconstruct exactly from those same retained floats. Earlier image/Wan evidence remains source-compatible only through the exact one-line LiveEdit-specific source reconciliation; unrelated changes remain errors. Acquisition source is the declared base plus explicitly hashed instrumentation and, for corrected LiveEdit, the one-line repair. Full semantic editing, natural-motion preservation, other request forms, first streamed-frame latency and broad temporal generation quality are not established by these smoke cases. Public transport, lifecycle, capacity and final publication remain separate.",
+  "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce",
+  "version": 1
+}

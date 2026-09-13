@@ -56,6 +56,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
 		withResources(gateCheck("magics", runrecord.PhaseValidate, g.stepMagics), storeWriter),
+		{Descriptor: automationcheck.Descriptor{Name: modernCensusCheckName, Phase: runrecord.PhaseValidate, Always: true, Resources: storeReader}, Run: g.computeModernGo},
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
@@ -74,6 +75,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	for _, name := range validateWave {
 		dependencies[name] = []string{"scope"}
 	}
+	dependencies["modern-go"] = []string{modernCensusCheckName}
 	dependencies["vet"] = slices.Clone(validateWave)
 	dependencies["build"] = slices.Clone(validateWave)
 	dependencies["acceptance"] = []string{"vet", "build"}
@@ -93,8 +95,9 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	return checks
 }
 
-// validateWave lists the static checks that share no data and run together
-var validateWave = []string{"magics", "modern-go", "architecture", "profile", "fmt", "style", "manifest", "sbom", "claims", "docs", "published"}
+// validateWave lists the static prerequisites of build and vet. Independent
+// checks run together; census output precedes modern-Go admission.
+var validateWave = []string{"magics", modernCensusCheckName, "modern-go", "architecture", "profile", "fmt", "style", "manifest", "sbom", "claims", "docs", "published"}
 
 func withResources(check automationcheck.Check, resources []automationcheck.Resource) automationcheck.Check {
 	check.Descriptor.Resources = resources
@@ -163,7 +166,7 @@ func (g *gateContext) pipeline() error {
 				return inputErr
 			}
 			if planned.manifest != nil {
-				bound, bindErr := automationcheck.BindManifestExecution(*planned.manifest, check, []artifact.ID{input})
+				bound, bindErr := g.bindCheckExecution(*planned.manifest, check, input)
 				if bindErr != nil {
 					return bindErr
 				}
@@ -197,7 +200,7 @@ func (g *gateContext) pipeline() error {
 		cacheHits := 0
 		cacheEligible := 0
 		for _, result := range results {
-			if _, _, eligible := g.checkCacheKey(result.Invocation, inputs); eligible {
+			if _, _, eligible := g.checkCacheKey(result.Invocation, inputs[result.Invocation.ID]); eligible {
 				cacheEligible++
 			}
 			if result.Evidence.Reused {
@@ -745,6 +748,13 @@ func (g *gateContext) saveRetryCache(cache automationcheck.EvidenceCache) error 
 }
 
 func (g *gateContext) phaseInputFingerprint(phase string) (artifact.ID, error) {
+	if phase == modernCensusCheckName {
+		input, err := g.prepareModernGoInput()
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		return input.ID, nil
+	}
 	paths := g.cachePaths
 	var err error
 	if paths == nil {
@@ -791,7 +801,7 @@ func phaseOwnsPath(phase, path string) bool {
 	documentation := strings.HasSuffix(path, ".md") || strings.HasPrefix(path, "docs/") ||
 		path == "compatibility.json" || path == "SBOM.cdx.json"
 	switch phase {
-	case "vet", "build", "fmt", "style", "profile", "architecture":
+	case "vet", "build", "fmt", "style", "profile", "architecture", modernCensusCheckName:
 		return goInput
 	case "scope", "protection":
 		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
@@ -812,10 +822,11 @@ func phaseOwnsPath(phase, path string) bool {
 // not a fingerprintable input; the commit check is never reused.
 func phaseReusesEvidence(phase string) bool {
 	switch phase {
-	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection",
-		"manifest", "sbom", "claims", "docs", testRestCheckName, testOwnersCheckName, testDeviceCheckName:
+	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection", modernCensusCheckName,
+		"manifest", "sbom", "claims", "docs":
 		return true
 	default:
+		// Package receipts own test reuse; a passed phase may contain uncredited skips.
 		return false
 	}
 }
@@ -915,15 +926,7 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	snapshot, err := g.sourceSnapshot()
-	if err != nil {
-		return false, err
-	}
-	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
-	if err != nil {
-		return false, err
-	}
-	candidate, err := repoanalysis.ModernGoCensusSnapshot(snapshot, selection, baseline.TargetGo)
+	candidate, previous, err := g.modernGoResults()
 	if err != nil {
 		return false, err
 	}
@@ -948,17 +951,6 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 		return false, err
 	}
 	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {
-		base, err := g.baseSnapshot(snapshot)
-		if err != nil {
-			return false, err
-		}
-		previous := candidate
-		if base.Identity() != snapshot.Identity() {
-			previous, err = repoanalysis.ModernGoCensusSnapshot(base, selection, baseline.TargetGo)
-			if err != nil {
-				return false, err
-			}
-		}
 		if err := repoanalysis.AdmitModernGoDelta(baseline, previous, candidate, g.paths); err != nil {
 			return false, err
 		}

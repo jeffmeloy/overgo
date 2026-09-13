@@ -7,10 +7,9 @@
 package latentvideo
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"math"
 	"os"
 	"path/filepath"
 
@@ -56,16 +55,22 @@ type projectionWeights struct {
 // TextConditioning tokenizes prompt, streams the encoder, projects, and pads
 // to SequenceLength rows (pad rows repeat the first inactive projected row,
 // the reference's padding convention).
-func TextConditioning(spec TextConditioningSpec, prompt string) (TextConditioningResult, error) {
+func TextConditioning(ctx context.Context, spec TextConditioningSpec, prompt string) (TextConditioningResult, error) {
+	if err := ctx.Err(); err != nil {
+		return TextConditioningResult{}, err
+	}
 	weights, sourceBytes, err := loadProjectionWeights(spec.ProjectionDir)
 	if err != nil {
 		return TextConditioningResult{}, err
 	}
-	return textConditioningWithWeights(spec, prompt, weights, sourceBytes)
+	return textConditioningWithWeights(ctx, spec, prompt, weights, sourceBytes)
 }
 
-func textConditioningWithWeights(spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (TextConditioningResult, error) {
+func textConditioningWithWeights(ctx context.Context, spec TextConditioningSpec, prompt string, weights projectionWeights, sourceBytes int64) (TextConditioningResult, error) {
 	var out TextConditioningResult
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
 	if !checked.PositiveInts(spec.SequenceLength) {
 		return out, fmt.Errorf("text conditioning: positive sequence length required")
 	}
@@ -104,13 +109,19 @@ func textConditioningWithWeights(spec TextConditioningSpec, prompt string, weigh
 	if !checked.PositiveInts(tokenCount) || !checked.AtMostInt(tokenCount, len(ids)) {
 		return out, fmt.Errorf("text conditioning: bad token count %d", tokenCount)
 	}
-	encoded, encoderStats, err := EncodeTokensStreamed(spec.EncoderCheckpoint, plan, ids, mask)
+	encoded, encoderStats, err := EncodeTokensStreamed(ctx, spec.EncoderCheckpoint, plan, ids, mask)
 	if err != nil {
 		return out, err
 	}
 	encoded = encoded[:tokenCount*textDim]
+	if err := ctx.Err(); err != nil {
+		return out, err
+	}
 	context, err := projectCompactTextConditioning(encoded, tokenCount, spec.SequenceLength, textDim, dim, weights, true)
 	if err != nil {
+		return out, err
+	}
+	if err := ctx.Err(); err != nil {
 		return out, err
 	}
 	return TextConditioningResult{
@@ -133,19 +144,9 @@ func loadProjectionWeights(dir string) (projectionWeights, int64, error) {
 		if !ok {
 			return w, 0, fmt.Errorf("text conditioning projection: missing tensor %s", name)
 		}
-		reader, err := safetensors.F32Reader(tensor)
+		decoded, err := safetensors.ReadF32(tensor)
 		if err != nil {
 			return w, 0, fmt.Errorf("text conditioning projection %s: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return w, 0, fmt.Errorf("text conditioning projection %s payload: %w", name, err)
-		}
-		decoded := make([]float32, elements)
-		for i := range decoded {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			decoded[i] = math.Float32frombits(bits)
 		}
 		values[index] = decoded
 		sourceBytes += tensor.Size()

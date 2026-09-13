@@ -894,6 +894,16 @@ func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, term
 		if evidence.Inapplicable && evidence.Reused {
 			return fmt.Errorf("commit admission: %s evidence has contradictory outcomes", invocation.Check.Name)
 		}
+		// The identity must name the fields it is judged by: a restamped
+		// authority or a rewritten original cannot keep the original's ID.
+		if err := evidence.VerifyIdentity(); err != nil {
+			return fmt.Errorf("commit admission: %s: %w", invocation.Check.Name, err)
+		}
+		if evidence.Reused {
+			if err := automationcheck.ValidateReuseAuthority(evidence, invocation.ID); err != nil {
+				return fmt.Errorf("commit admission: %s: %w", invocation.Check.Name, err)
+			}
+		}
 	}
 	return nil
 }

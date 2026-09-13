@@ -50,7 +50,8 @@ var batchEvidenceCodec = artifact.JSONDocumentCodec(
 				return errors.New("gate batch evidence: invalid check")
 			}
 			if check.Result != (automationcheck.CacheEntry{}) && (check.Result.Invocation != check.Slot || check.Result.Input != check.Input ||
-				check.Result.Evidence.Kind() != artifact.KindEvidence || check.Result.Outcome != runrecord.LanePassed) {
+				check.Result.Evidence.Kind() != artifact.KindEvidence || check.Result.Outcome != runrecord.LanePassed ||
+				check.Result.Source != nil && !check.Result.Proven()) {
 				return errors.New("gate batch evidence: invalid terminal result")
 			}
 			if check.Result.Evidence.Valid() != check.Resolution.Valid() || check.Resolution.Valid() && check.Resolution.Kind() != artifact.KindEvidence {
@@ -72,10 +73,11 @@ var batchEvidenceCodec = artifact.JSONDocumentCodec(
 )
 
 type batchEvidenceLedger struct {
-	mutex sync.Mutex
-	store *overgodb.Store
-	state batchEvidence
-	alias string
+	mutex       sync.Mutex
+	store       *overgodb.Store
+	environment artifact.ID
+	state       batchEvidence
+	alias       string
 }
 
 // openBatchEvidence publishes requirements before running any batch member.
@@ -91,7 +93,7 @@ func (g *gateContext) openBatchEvidence(checks []automationcheck.Invocation, inp
 	if err != nil {
 		return nil, err
 	}
-	ledger := &batchEvidenceLedger{store: store}
+	ledger := &batchEvidenceLedger{store: store, environment: g.environment.ID}
 	if err := ledger.prepare(context.Background(), g, checks, inputs, cache); err != nil {
 		return nil, err
 	}
@@ -131,7 +133,7 @@ func (ledger *batchEvidenceLedger) prepare(ctx context.Context, g *gateContext, 
 		if index < 0 {
 			continue
 		}
-		slot, input, _ := g.checkCacheKey(check, inputs)
+		slot, input, _ := g.checkCacheKey(check, inputs[check.ID])
 		contract, err := artifact.JSONID(artifact.KindProfile, struct {
 			Checkpoint plan.VerificationCheckpoint
 			Scope      []string
@@ -155,7 +157,10 @@ func (ledger *batchEvidenceLedger) prepare(ctx context.Context, g *gateContext, 
 		identities[input], identities[contract] = true, true
 		member := batchCheckEvidence{Contract: g.verificationBatch.Checkpoints[index], Obligation: obligation.ID, Slot: slot.ID, Input: input}
 		old := previous.Checks[check.Check.Name]
-		if old.Obligation == member.Obligation && old.Slot == member.Slot && old.Input == member.Input {
+		// A prior result without its original execution, or one recorded in
+		// another environment, proves nothing here: it executes once more.
+		if old.Obligation == member.Obligation && old.Slot == member.Slot && old.Input == member.Input &&
+			(!old.Result.Evidence.Valid() || old.Result.Proven() && old.Result.Source.Environment == ledger.environment) {
 			member.Result = old.Result
 			member.Resolution = old.Resolution
 			if member.Resolution.Valid() {
@@ -250,7 +255,11 @@ func (ledger *batchEvidenceLedger) record(ctx context.Context, name string, evid
 		if !evidence.ID.Valid() || evidence.Name != name {
 			return fmt.Errorf("gate batch evidence: %s has no evidence identity", name)
 		}
-		check.Result = automationcheck.CacheEntry{Invocation: check.Slot, Input: check.Input, Evidence: evidence.ID, Outcome: evidence.Outcome}
+		entry, proven := automationcheck.NewCacheEntry(check.Slot, check.Input, ledger.environment, evidence)
+		if !proven {
+			return fmt.Errorf("gate batch evidence: %s has no reusable execution record", name)
+		}
+		check.Result = entry
 		obligation, err := runrecord.RequireAgentObligation(ctx, ledger.store, check.Obligation)
 		if err != nil {
 			return err

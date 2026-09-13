@@ -9,10 +9,10 @@ import (
 // Memo remembers file digests across Servable calls for interactive surfaces.
 // A remembered identity is reused only while the file's size and modification
 // time are unchanged since it was hashed, so the claim it carries is exact:
-// this is the digest of these bytes as last read, and any change to the file
-// re-hashes. The one-shot CLI keeps hashing every file per invocation; the
-// memo exists because a workbench that re-hashes tens of gigabytes on every
-// catalog view is not usable as a primary interface.
+// this is the digest of these bytes as last read. Callers assume immutable
+// artifact files; a size or modification-time change forces hashing again.
+// Callers without a memo hash every file. Catalog and report consumers can
+// reuse it to avoid reading unchanged model files on each invocation.
 type Memo struct {
 	mu      sync.Mutex
 	entries map[string]memoEntry

@@ -1,0 +1,636 @@
+{
+  "checks": [
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser_session.go": "f6e299e7229da5d936543fdeab15e76abe0b631fb38910825c3001073921d46b",
+        "internal/latentvideo/runtime.go": "dac9f90457f44226e01a24c79c40591bbe412cda5d5f550e3031b57a1905dbe9",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "8ac9c8f9851d54ca71f66f99d4341f18934da4ecbf12e3c2f7ad521102830a53",
+        "internal/latentvideo/vae_session.go": "f036a4061bd8281c2aa22fd75f8adb634012564e73c838171b11d3728dc832a8"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -tags=integration -run '^TestWanLifecycleAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:ed239680eb5ad0b1d4be3179b10b5123075d40ffae34885ea73c06340b55c938",
+      "name": "Wan cancellation, cleanup and reuse",
+      "scope": "Current source passes partial initialization without a panic, the unchanged G3 production reference, changed-negative conditioning against a fresh session, and cleanup after request cancellation. G4 decode stops after the first frame; the next request reproduces all five decoded frames exactly. G3 uses one 32x16 frame and four steps; G4 uses five 32x16 frames and two steps. This is lifecycle and reference coverage, not a new full-resolution clip or a performance comparison.",
+      "source_base": "ac10024df221194eb711495b5b8f6277b78a19ba"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/routedlm/prefixdevicegraph.go": "3e289f4d6a1132f73a66c0663a8ea67c005a4caf6f3195320c1e66af17a5f1ae",
+        "internal/sensenovarecipe/runtime_cuda_windows_test.go": "e794227553c4bc27ebe02f350ad9297fef2ff5402cafd5360f6f29b1dab0eaa3"
+      },
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaOutputReferenceAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:9b9ff5101c1a11fe4ead51c4d1a9a8e1ec39cfff735b0b71f493fe0ed43f1527",
+      "name": "SenseNova exact-output recovery",
+      "scope": "The production and independent native-intermediate trajectories both pass their unchanged exact PNG hashes: 6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0 and bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617. The fix selects the existing per-query F32 attention path for strict-causal routed prefixes.",
+      "source_base": "b1206a564de013d6af4f0e00180a79bd83c0b481"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/routedlm/prefixdevicegraph.go": "3e289f4d6a1132f73a66c0663a8ea67c005a4caf6f3195320c1e66af17a5f1ae",
+        "internal/sensenovarecipe/runtime_cuda_windows_test.go": "e794227553c4bc27ebe02f350ad9297fef2ff5402cafd5360f6f29b1dab0eaa3"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_FULL=1 go test -overlay=tmp/media-sensenova-full-fixed-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaFullFixed$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:e2ee03e661c7f3bbb8ce736c6143fe69836f2f0208c38725372beb856e5081c3",
+      "name": "SenseNova full-resolution recovery",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/full_generation_cuda_windows_test.go": "evidence:sha256:81dda6e50d1cf3b90bae218387a8d165d9617287b243172e263dd395278a2735",
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_full_fixed_test.go": "evidence:sha256:2ecfe4ea6ae78805c76c325394a87c1eac29720a07de7e292cf881b3256bcf76"
+      },
+      "scope": "1536x2720, 50 steps, seed 42: the generated PNG exactly matches the reviewed reference 5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68. Existing quality and performance limits pass: wall 139.180 s, worker-tracked device peak 17.100 GiB. The retained native measurements are 206.010 s and 18.162 GiB; this is a correctness repair, not a matched optimization claim.",
+      "source_base": "b1206a564de013d6af4f0e00180a79bd83c0b481"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-sensenova-causal-probe-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaCausalProbe$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:27aad4439178d79ee6219190e008d7cd6698f7c837b3442cc8c1a5de51073b97",
+      "name": "SenseNova causal-attention isolation probe",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/cuda/executor/launch_attention_layout.go": "evidence:sha256:3c223fa91851fb84c39f6981c6848362e0c27d83105057467cd03a1417f2ff33",
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_causal_probe_test.go": "evidence:sha256:f6b60c80514b33362af0db506487863f57702803224b9f4274181234c1975b26"
+      },
+      "scope": "Diagnostic only: disabling the newer causal SGEMM admission in an overlay restored both original small-image hashes before the targeted fix. The broad executor change was not adopted; production changes only the reference-bound prefix graph.",
+      "source_base": "b1206a564de013d6af4f0e00180a79bd83c0b481"
+    },
+    {
+      "command": "go test ./internal/oscillatorimage -run '^(TestArtifactLoadDerivesDims|TestArtifactPublishesReferencePNG|TestArtifactPublishesReferenceGIF|TestArtifactGenerateDeterministicAndClassSensitive|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch)$' -count=1 -json",
+      "evidence": "evidence:sha256:1b76ebf297818aec6b26dce434375cedaa0ee7bc4b7fa980775c853fdf7856de",
+      "name": "Un-0 image and video references (before timing fix)",
+      "scope": "Six tests passed: artifact-derived dimensions, native PNG and GIF bytes, deterministic repeat, class sensitivity, and Torch dynamics/generator parity. The original 6-frame, 8-fps GIF byte oracle passed before the timing correction."
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-wan-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaCurrentWanValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:4c147dfaa703e01d75ed7ea35368baaa34990408e7b0aa2626da133764c0e57a",
+      "name": "Wan denoiser and temporal VAE",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_current_wan_test.go": "evidence:sha256:2452c3bbe570769b865153005fc7751bc2ef3e58cfc70bc9d12e62d1c26140dd"
+      },
+      "scope": "G3 F32/BF16 and G4 F32 denoiser golden comparisons passed; G3/G4 temporal VAE decode comparisons passed. These small reference trajectories do not validate a newly generated 81-frame full-resolution clip."
+    },
+    {
+      "command": "go test ./internal/latentimage -run '^TestResidentLifetimeResourceAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:dbbffc09e070acd8c1d3507b443ed25af28edd93d5bc3270e5faf0da2782df0e",
+      "name": "Krea generation and cancellation recovery",
+      "scope": "256x256, 8 steps, seed 42: real generation, in-flight decoder cancellation and subsequent decode passed. Owned storage stayed at 25,997,788,492 bytes and 496 allocations across cancellation; observed decoder peak was 26,925,269,372 bytes. Recovered PNG SHA-256: 3bf4ea50f7cfa6991dcd7ef76de20e67a5928f974c5f7279508ad7a1cf180da2. This lifecycle check is not full-resolution visual parity."
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-diffusion-overlay.json ./internal/diffusionimage -tags=modeltest -run '^TestMediaCurrentDiffusionValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:a9605a631c21bf1d48ac1f321dfdade6ac4121fa3ae454621841e16aa62ae745",
+      "name": "SimpleDiffusion host/CUDA comparison",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/diffusionimage/media_current_diffusion_test.go": "evidence:sha256:1c677095de11924b7749444fd2f467000ae4339df897da047c053919e41f9f64"
+      },
+      "scope": "64x64, 2 steps, seed 7: warm CUDA median 22.3562 ms versus host 325.7646 ms across the existing three-call comparison. Float maximum error 2.265e-6; one PNG channel differed by one byte level, within the unchanged bounds. This measures warm generation, excluding cold loading."
+    },
+    {
+      "command": "go test -overlay=tmp/media-current-liveedit-overlay.json ./internal/latentvideo -run '^TestMediaCurrentLiveEditValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:e2538f05d33e5fb2b58270cdf2711beb05b4f73e11c6c4904bbd7e6495465428",
+      "name": "LiveEdit device runtime",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_current_liveedit_test.go": "evidence:sha256:f4feb673193ab2d92e094d93536bae8599225baa7b36e4c1ddf9aba4665b4c44"
+      },
+      "scope": "Two requests passed exact latent/frame identities for a real-weight, 5-frame 16x32 source crop with explicit conditioning and noise. Observed walls: 0.534 s and 0.100 s. Context projections remained at one. Component peaks are separate ownership measurements, not a combined process peak. This does not establish full-size video-edit quality."
+    },
+    {
+      "command": "OVERGO_SENSENOVA_FULL=1 go test -overlay=tmp/media-current-sensenova-overlay.json ./internal/sensenovarecipe -run '^TestMediaCurrentSenseNovaValidation$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:974857c7279e1e3e149fd001d546654e7c0e5278ff97f88891ee07ce0eb76ade",
+      "name": "Historical: SenseNova production and full-resolution quality",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_current_sensenova_test.go": "evidence:sha256:e2efda5515273b683c0e94f16842355c57b0325193aea39fcbef89a2b2dc0658"
+      },
+      "scope": "The 256x256, 2-step production PNG hash check FAILED: expected 6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0, observed 03a5a657b1a9c4690dad0673a730a379a4d579a6d46ae8079b5f9218fc3c179c. Separately, the 1536x2720, 50-step quality/performance test passed its unchanged signature bounds: wall 140.804 s and device peak 17.100 GiB. Its PNG differs from the reviewed reference; the whole acquisition remains failed."
+    },
+    {
+      "command": "go test -overlay=tmp/media-sensenova-diagnosis-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaDiagnosis$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:a0d1acb69623ea35be8bde2ce15f11cda2f9962c1bf4d62b419e9a90628cc8f4",
+      "name": "Historical: SenseNova native diagnostic",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/sensenovarecipe/media_sensenova_diagnosis_test.go": "evidence:sha256:8d69f21a08fa69158e4e52163a85407e09ad2266cf7f6fa0fd127f2e6cc4761c"
+      },
+      "scope": "Native source/input identity and all sampled latent, layer, boundary and velocity comparisons passed their existing bounds. The final PNG hash check still FAILED: expected bc7dabb6526beee13200a1b421e080c5015354bfee66fba75d4dbf1dc44c8617, observed 1b63ee276369cf58735ac90ccaf3656faf5696214380bf16a3526cbac20d8640. This historical failure is resolved by the prefix correction recorded above; neither exact reference was changed."
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/production.go": "b2f8aef5cbbcfbe43f7d70268ace25a636df473355f7d5494c49cfb9020362d3",
+        "internal/latentvideo/production_test.go": "57945bfb3640caf7568f74b60bf3c9bca41edecd0094b13426a37349eb4f604d",
+        "internal/media/gif_timing_test.go": "96eecb9e8c21b0b4505834a60f24e604a523c801be6bd3f39a9e62f7d607cb05",
+        "internal/media/video.go": "95e51aea27cd2e03002dd99b862b67a08e96d98b95bfeb8c1cc9ef2ecb9168bf",
+        "internal/mediacapability/output_oscillator_test.go": "33b1dc6f8d9c73aeebea56426cc1c3d98dc7d36b793eee2cb373b41e27bf9c3e",
+        "internal/oscillatorimage/load_test.go": "cc42c4bd9721bc43e8c58caec4275eae782b1635bb7e806e1427d815dc781c21",
+        "internal/oscillatorimage/video.go": "916be2ec394750c4c30a1d10548519a7928c98b3e702c1cc2c380f7838f5964f"
+      },
+      "command": "go test ./internal/media ./internal/latentvideo ./internal/oscillatorimage ./internal/mediacapability -run '^(TestGIFFrameTimingPreservesDuration|TestGIFEncoderFrameOrderAndTiming|TestGIFEncoderRejectsUnknownPixelRange|TestArtifactPublishesReferenceGIF|TestOutputContentPublishesOscillatorClip)$' -count=1 -json",
+      "evidence": "evidence:sha256:cda3894fe09d2e3ff22bb181445f08e9c7e1d6a5cd0b50d038445bfcce33c1d5",
+      "name": "Shared GIF timing correction",
+      "scope": "All representable positive integer GIF frame rates (1-100 fps), large frame indices, frame ordering, and migrated consumers passed. Cumulative timing now stays within half a centisecond: 81 frames at 16 fps encode as 5.06 s rather than 4.86 s. Un-0 native frame pixels, order, palette and other metadata remain exact; six frames at 8 fps now total 0.75 s. Original retained exports remain unchanged."
+    },
+    {
+      "command": "OVERGO_MEDIA_LOADER=denoiser OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-baseline-uncontended-denoiser.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:b2a91b8acf922b33c70c06d0455c14b036f8fec83a69302dedd06e899e1545b0",
+      "name": "Wan denoiser loader baseline",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_loader_acquisition_test.go": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+      },
+      "scope": "Complete CPU denoiser loading: first/repeat wall 2.245044/2.315935 s, total allocations 11285633280/11285638528 bytes, process lifetime peaks 7560736768/7560753152 bytes; selected source payload 5641371904 bytes. Exact named F32 hashes agree across states. This is the unchanged-loader baseline, not an optimization result. GPU transfers are zero because this acquisition uses no GPU.",
+      "source_base": "4adc06c7fd9581171527f5c60218f5cd7aebb7c8"
+    },
+    {
+      "command": "OVERGO_MEDIA_LOADER=projection OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-baseline-uncontended-projection.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:3b40bb2f46ac23a81e508f661ca5ced9c29739446b8f41e0516e6301f06fc2fc",
+      "name": "Wan projection loader baseline",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_loader_acquisition_test.go": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+      },
+      "scope": "Complete CPU projection loading: first/repeat wall 0.020232/0.014561 s, total allocations 71320568/71325608 bytes, process lifetime peaks 76722176/77131776 bytes; selected source payload 34615296 bytes. Exact named F32 hashes agree across states. This is the unchanged-loader baseline, not an optimization result. GPU transfers are zero because this acquisition uses no GPU.",
+      "source_base": "4adc06c7fd9581171527f5c60218f5cd7aebb7c8"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+        "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+        "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+      },
+      "command": "OVERGO_MEDIA_LOADER=denoiser OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-candidate-denoiser.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:9ed20e4eaf4f90e5f590916dc788272c1c30c52d422a67c5fda9c458a91de138",
+      "name": "Wan denoiser shared decoder",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_loader_acquisition_test.go": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+      },
+      "scope": "Shared decoder, complete CPU denoiser loading: first/repeat wall 1.263982/1.220275 s (baseline 2.245044/2.315935 s); allocated bytes 5643961432/5643956208 (baseline 11285633280/11285638528); process lifetime peak bytes 5706309632/5706661888 (baseline 7560736768/7560753152). Both named F32 hashes match the baseline exactly. These are observed host-loading costs, not generation or GPU transfer measurements.",
+      "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+        "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+        "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+      },
+      "command": "OVERGO_MEDIA_LOADER=projection OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-candidate-projection.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:278ee3949291345d0e66d602d4a4f0a76b32db5fb0464e928eb7a90b3eee6089",
+      "name": "Wan projection shared decoder",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_loader_acquisition_test.go": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+      },
+      "scope": "Shared decoder, complete CPU projection loading: first/repeat wall 0.012819/0.011039 s (baseline 0.020232/0.014561 s); allocated bytes 36700400/36700296 (baseline 71320568/71325608); process lifetime peak bytes 51392512/51924992 (baseline 76722176/77131776). Both named F32 hashes match the baseline exactly. These are observed host-loading costs, not generation or GPU transfer measurements.",
+      "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+        "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+        "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestTextConditioningGoldenParity|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestVAEDecodeCUDAGoldenG[34]|TestWanLifecycleAcceptance)$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:8a4f58b470631e9d2629644d2bb3accd7cca6aa019ffa6e940c8567a3753623a",
+      "name": "Wan references after shared decoding",
+      "scope": "Full text conditioning, G3 F32/BF16 and G4 F32 denoising, every G3/G4 decoded frame, partial initialization, changed-negative reuse, cancellation and exact five-frame recovery pass unchanged references. The G3/G4 clips use small fixture geometry; this is not a new full-resolution video result.",
+      "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+        "internal/latentvideo/denoiser_session.go": "4305446c175294e5686d8928021eca422fc97aae13dd202ec125bc3a9b007c7a",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./internal/latentvideo -tags=integration -run '^TestWanLifecycleAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:4ee2f3f2f05360c4ac5e1fa11231b7e88a3858f33af2c928e0391f3ee4b1cee6",
+      "name": "Wan guidance-pair ownership",
+      "scope": "Preparing a changed negative context previously released the cached positive handle after returning it to the request. The generator now replaces the pair before returning either handle and publishes the cache only after both projections succeed. Changed conditioning retains two live projections; identical conditioning retains one; malformed conditioning releases partial work; cancellation and exact five-frame recovery pass. The initial numerical comparison did not detect the lifetime defect; a retained-handle assertion did.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+        "internal/latentvideo/denoiser_session.go": "4305446c175294e5686d8928021eca422fc97aae13dd202ec125bc3a9b007c7a",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-transfer-baseline go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanTransferAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:5f7c24d262db587f70598b52484980a918cf6113f91e7d516d5c0535e4264653",
+      "name": "Wan full-video transfer baseline",
+      "overlay_sources": {
+        "internal/cuda/driver/driver_windows.go": "evidence:sha256:839c0f468fcac27797b988f3bfcd13d6b3dc801410de0426e1daf674229f80a1",
+        "internal/cuda/driver/media_transfer_probe_windows.go": "evidence:sha256:c0387e71b13a76441b915c2b50552567886691756aed9c5ed48a40f8cb53ef03",
+        "internal/latentvideo/media_transfer_acquisition_test.go": "evidence:sha256:ecefcbfff10ad694dbb42cf9c93282836b51d24959647169c88e526b9570dab0"
+      },
+      "scope": "Fresh 81-frame, 832x480, 50-step BF16 video generation using the frozen conditioning tensors and explicit noise plan passed first/repeat exact latent, all pre-quantization frame and GIF hashes. Both GIFs contain 506 centiseconds at 16 fps. Complete Generate plus GIF finalization took 377.028205/379.221847 seconds, including frame auditing, encoding and progress writes. Both component driver owners released all allocations on close. The grouped exclusive measurement took 926.989 seconds including admission, the small G4 prerequisite, initialization, output verification and cleanup. This baseline precedes step-input upload changes; it is not an optimization result or a fresh text-encoder run.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/context_ownership_cuda_windows_test.go": "1a2c5cff13b6bb2425102ebee2bdcd3034c800d19a430ab12612eafd6c7fc148",
+        "internal/latentvideo/denoiser.go": "414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+        "internal/latentvideo/denoiser_session.go": "1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestWanContextHandleOwnership|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestWanLifecycleAcceptance)$' -count=1 -timeout=15m -json",
+      "evidence": "evidence:sha256:52d4e8887e849425ce49cb81d332ed83807d0025b598c4fa366833ca550e5515",
+      "name": "Wan current conditioning-handle validation",
+      "scope": "Current code retains pair-level conditioning ownership and the original per-branch step uploads. A new session/retained-handle check rejects foreign, released and closed-session handles before device work. The released-handle regression failed on the earlier single-branch implementation and now passes; cancellation and exact recovery, G3 F32/BF16, G4 F32, production reuse and partial initialization also pass. Final native acquisition: 27.369 seconds. Complete-video timings below belong to their earlier, explicitly recorded source snapshots; these handle checks were validated separately.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "553f038474ea7d9ac355831c4aab937e0c65f7da960d77250884d68fe03a7e2e",
+        "internal/latentvideo/denoiser_session.go": "9d9429d992c295382ea1df37ef0abb61d0ebf109e8587e05debf692b309223be",
+        "internal/latentvideo/runtime.go": "4f0681cfe9e7bb6134d49f7d74998850bf3936add9c9979a197a5bf176510f50",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-transfer-candidate go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanTransferAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:411905808902a03e365f36cd7e5fc63c07e0da520d24642ddf123e6684039973",
+      "name": "Wan transfer candidate: complete output parity",
+      "scope": "The candidate uploaded patch tokens, block conditioning and head conditioning once per step through existing pooled device buffers, then executed both guidance branches in order. Both complete 81-frame requests exactly match the baseline latent, all pre-quantization frames and GIF. It removed 421,478,400 HtoD bytes and 150 copies per request, but complete-request time increased from 377.028205/379.221847 to 377.891453/379.700269 seconds. The frozen no-regression criterion rejected adoption; the transfer change has been removed. The group took 1316.085 seconds including admission, its G4 prerequisite, initialization, checking and cleanup.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideoTransferOptimizationAcceptance$' -count=1 -json",
+      "evidence": "evidence:sha256:52b91f3bc0b99c38036e680b4ba6f1ee1709a6f7e6acc5ebaf68f2b841ebe16d",
+      "name": "Wan transfer decision and causal ablation",
+      "scope": "The retained comparison verifies both lifetime states, source snapshots, exact output, measured transfer counts, required DtoH/DtoD copies, resource peaks, copy API timers, cleanup and the rejection decision. The small G4 ablation preserves output and restores exactly 88,064 HtoD bytes and six copies in each request. This passes the experiment's evidence and decision checks; it does not adopt the optimization or establish a generation speedup.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "d06d45e78ac235f018d950a0b5cc7c36206a9ce18e94bb9a426f2e1ede1d434b",
+        "internal/latentvideo/denoiser_session.go": "1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "3d5a1941c00dbebb54784cdd56717352f589060aa9b5af934de51c0fdfed47b2"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_CUDA_TEST=1 OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-baseline go test -overlay=tmp/media-memory-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanMemoryAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:228280de772c84e74a9a851a871df6f48f54c888e7a4125ada2d0bf32843d07f",
+      "name": "Wan current implementation: full video and memory baseline",
+      "scope": "The current implementation completed two 81-frame, 832x480, 50-step requests after the G4 prerequisite. First/repeat request times were 373.920021/376.232408 seconds; Go allocated 2,494,283,640/2,467,036,840 bytes. Process lifetime peak host memory was 10,263,068,672 bytes. Both requests produced identical latents, all float frames and GIF bytes with 506 centiseconds of total GIF delay. These are complete generation and numerical checks; full temporal visual review remains open. The group took 1341.514 seconds including admission, initialization, validation and cleanup.",
+      "source_base": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "2cf30d5d72eaef0d046b18b7a6e0ccb000d41562a4f662577c86f08e72292740",
+        "internal/latentvideo/denoiser_session.go": "1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "3d5a1941c00dbebb54784cdd56717352f589060aa9b5af934de51c0fdfed47b2"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_CUDA_TEST=1 OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-candidate go test -overlay=tmp/media-memory-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanMemoryAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:2cd3722898858e2881306751204d44df7c69ede7e880cf59344c1181e433aa33",
+      "name": "Wan layout reuse experiment: exact output with lower host allocation",
+      "scope": "The candidate reused three request-local host layout arrays, preserving independent public and traced outputs. First/repeat Go allocation fell to 1,261,102,280/1,233,807,424 bytes; process lifetime peak fell to 9,020,514,304 bytes. Outputs and all GPU transfer/synchronization counts matched the baseline. First/repeat request times were 376.367281/375.827959 seconds. The first request exceeded its baseline, so the frozen timing rule rejected adoption and the original implementation was restored. The group took 763.750 seconds including admission, initialization, validation and cleanup; this is not a production memory-reduction claim.",
+      "source_base": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideoMemoryOptimizationAcceptance$' -count=1 -json",
+      "evidence": "evidence:sha256:a3f6b501ed2095fbe403fbd95b6baf65046f9cee58139b3f37a8daa81ecb0d0f",
+      "name": "Wan memory comparison and allocation-lifetime ablation",
+      "scope": "The retained comparison verifies source and instrumentation identities, exact outputs, unchanged GPU transfers and synchronization, both request states, cleanup, storage accounting and rejection. The CPU lifetime ablation restores exactly nine allocations/1728 bytes without tracing and three allocations/576 bytes with tracing while preserving outputs. Synthetic durations were below clock resolution and provide no speed estimate. Native G3 F32/BF16, G4, cancellation/recovery and foreign/stale context-handle checks passed on the candidate; the existing device pool capacity-refusal and idle-reclamation test also passed.",
+      "source_base": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "d06d45e78ac235f018d950a0b5cc7c36206a9ce18e94bb9a426f2e1ede1d434b",
+        "internal/latentvideo/denoiser_test.go": "5b86d20f8cbe925313f58fe7337c83a917cd306890455234404741158fa041c8"
+      },
+      "command": "go test ./internal/latentvideo -run '^TestWanLayoutBufferOwnership$' -count=1 -json",
+      "evidence": "evidence:sha256:91aac5abd1c169d750230091bc45adca6f823076795ee6660a441fc5748b6d70",
+      "name": "Wan current host layout ownership",
+      "scope": "After restoring the baseline implementation, the new CPU test passes across three nonsquare temporal/spatial shapes. It verifies independent public arrays and conditional step traces, rejects malformed input lengths, preserves the borrowed initial sample and confirms exact traced/untraced final latents.",
+      "source_base": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/samples.go": "16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./internal/discovery ./cmd/compatibility -run '^(TestIdentityMemoPersistence|TestMemoReusesOnlyUnchangedFiles|TestWeightsIdentityDigestsThroughTheMemo|TestWeightsIdentityReusesPersistedTensorDigest|TestCapabilityCatalogForTasksSkipsUnselectedPresence|TestImageVideoMergedCapabilitiesAcceptance|TestImageVideoReportContract|TestMedia.*|TestExport.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:f56fb019bfc7c26f56dcc727a82e9f5f46894d02898b28d6c0995b44f88ef156",
+      "name": "Master integration and retained media capability coverage",
+      "scope": "Master a9de6d29 was merged at ee78f361 while preserving this lane's plan. The named generation implementation directories and kernel/module identities match the local parent, so existing numerical outputs remain reusable within that scope. All seven frozen active media cells retain their model/recipe/input bindings. Separate retained CLI and active-test deadline checks passed. Memo validity, file change handling, scoped catalog coverage, report truth and sample validation checks passed; these checks do not acquire new model quality results.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "9c681c0b747bb1592a7eb745748776ba793b74015d4d5dce5d9305330f9be6c9",
+        "cmd/compatibility/samples.go": "fbb11f695e8c090fd2d86c766910391a9a74d7a4dac98f0b96aba7c2c19e22c6"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen MEDIA_PROCESSING_VARIANT=baseline go test -overlay=tmp/media-processing-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:1dfe8341ccf3f61f24a968c36ea103aa249236ffeb894e62d64887bc701e6663",
+      "name": "Report and sample preparation: baseline",
+      "overlay_sources": {
+        "cmd/compatibility/media.go": "evidence:sha256:9c681c0b747bb1592a7eb745748776ba793b74015d4d5dce5d9305330f9be6c9",
+        "cmd/compatibility/media_processing_probe_test.go": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+        "cmd/compatibility/samples.go": "evidence:sha256:fbb11f695e8c090fd2d86c766910391a9a74d7a4dac98f0b96aba7c2c19e22c6"
+      },
+      "scope": "Complete report generation plus sample export took 194.585892/366.660168 seconds for first/repeated use. Go allocated 7941017040/8055850792 bytes in 73293550/73335203 calls; process lifetime peak was 651067392 bytes. The complete acquisition process took 577.260 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/samples.go": "16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen MEDIA_PROCESSING_VARIANT=candidate go test -overlay=tmp/media-processing-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:625b65b1ce46796c6243ff81018e12ea23f0429a49700b9fb351a7814993a0f4",
+      "name": "Report and sample preparation: candidate",
+      "overlay_sources": {
+        "cmd/compatibility/media.go": "evidence:sha256:f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/media_processing_probe_test.go": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+        "cmd/compatibility/samples.go": "evidence:sha256:16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "scope": "Complete report generation plus sample export took 14.948463/8.880287 seconds for first/repeated use. Go allocated 7893347928/7944231584 bytes in 73298434/73339827 calls; process lifetime peak was 715808768 bytes. The complete acquisition process took 38.306 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "eca55e51ffbfdbd22c0fc4574ee7f82c901a42fd6f88795f2fcdddb9706e1cd2",
+        "cmd/compatibility/samples.go": "2d876cf065f35b8afe834a54c41a72d052410732cf1929628e07d0813339a5b0"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen MEDIA_PROCESSING_VARIANT=ablation go test -overlay=tmp/media-processing-ablation-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:a64ff4b2689bfd7df94ed07dcac0dd79e3874f69ae1c175ff6263e85e5c06936",
+      "name": "Report and sample preparation: ablation",
+      "overlay_sources": {
+        "cmd/compatibility/media.go": "evidence:sha256:eca55e51ffbfdbd22c0fc4574ee7f82c901a42fd6f88795f2fcdddb9706e1cd2",
+        "cmd/compatibility/media_processing_probe_test.go": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+        "cmd/compatibility/samples.go": "evidence:sha256:2d876cf065f35b8afe834a54c41a72d052410732cf1929628e07d0813339a5b0"
+      },
+      "scope": "Complete report generation plus sample export took 200.286504/180.711376 seconds for first/repeated use. Go allocated 7962946776/8039484688 bytes in 73298983/73340480 calls; process lifetime peak was 638566400 bytes. The complete acquisition process took 390.774 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/compatibility/media.go": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+        "cmd/compatibility/samples.go": "16e8f70becb3f8e0f20f598e9d9496dc75eff7f5e46057e6d4677cfb3f021db9"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^(TestImageVideoMergedCapabilitiesAcceptance|TestImageVideoProcessingOptimizationAcceptance)$' -count=1 -json",
+      "evidence": "evidence:sha256:cc1b79ded6cc27398f3e3fa7e41cc3677fd335c122b8f70425ff7af3d84a4df6",
+      "name": "Frozen processing optimization decision",
+      "scope": "The acceptance reads retained acquisition logs, checks exact report/sample/store identities, both request lifetimes, the frozen allocation allowance and source snapshots, then derives the recorded decision. It rejects changed output bytes and loss of latency benefit. The candidate decision is accepted; neither publication latency nor sample decoding establishes generation quality.",
+      "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-krea-acquisition-overlay.json ./internal/latentimage -run '^TestMediaKreaFrozenCaseAcquisition$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:d2c37e873d84215a9b41d4c927e892454ad103494185da25b4227eda26693f54",
+      "name": "Krea frozen 512x512 image acquisition",
+      "overlay_sources": {
+        "internal/latentimage/media_krea_acquisition_test.go": "evidence:sha256:c598c2ec4bc38b6a8fa1f4426c059e882109c59ad79ac35415242d5bc394f994"
+      },
+      "scope": "Original prompt, 4 steps and seed 143 through the active compiled recipe. Load 4.697724 s, request 22.815049 s, close 0.269029 s. Process peak 3445284864 bytes; tracked device peak 26925272444 bytes; owned device bytes after close zero. Go allocated 34982717616 bytes over load through close, distinct from peak live memory. The 997.253-second test process includes exclusive GPU admission waiting; that delay is outside generation timing. Output output:sha256:4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44 is finite before PNG quantization, matches requested geometry, and was visually reviewed as a fox licking vanilla ice cream in snow. Encoded bytes differ from the historical sample. Full native pixel equivalence and a matched speed comparison are not established.",
+      "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-diffusion-acquisition-overlay.json ./internal/diffusionimage -run '^TestMediaDiffusionFrozenCasesAcquisition$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:82485b14717574d34e84212866e27544220c119151a624ac0bc8b9ae76c9c536",
+      "name": "SimpleDiffusion frozen 256x256 image acquisitions",
+      "overlay_sources": {
+        "internal/diffusionimage/media_diffusion_acquisition_test.go": "evidence:sha256:5db1fca1dcce9ae2eeb13b53c5625100717106a7811d85554cc00423d7887547"
+      },
+      "scope": "Seeds 5 and 105, 8 steps each, share one loaded resident generator and use original compiled recipe inputs. Load 0.397596 s; requests 1.817956/1.428821 s; close 0.066332 s. Process peak 1650343936 bytes and tracked device peak 559451660 bytes; owned device bytes after close zero. Request Go allocations 10171592/8026712 bytes. Both outputs are finite, decode at 256x256 and retain new source-bound runs. Both differ from historical encoded bytes and were reviewed anew: dense colored noise and coarse blocks remain, with no clear semantic subject. The unconditioned smoke requests do not establish useful image quality. The native 64x64 comparison is separate. Two failed instrumentation attempts cost 5.363 and 5.264 seconds; the successful process took 7.141 seconds. Zero-duration preparation remains in raw timing evidence and is omitted only from the positive-duration run phase list. These are individual observations, not matched speed comparisons.",
+      "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19"
+    },
+    {
+      "command": "go test ./internal/latentimage -run '^(TestFlowScheduleReproducesG2Exactly|TestRenderKreaTextInputGoldenSHA|TestDenoiserDerivesFromRealCheckpoint|TestVAEDecoderDerivesFromRealCheckpoint)$' -count=1 -json",
+      "evidence": "evidence:sha256:c44d45f058e9384ed029cb7c7e6ad9eed5452bd87f56222118fb9d6bdf2774cd",
+      "name": "Krea schedule and artifact geometry",
+      "scope": "Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases.",
+      "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^TestDenoiserResidentG2Distribution$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:0f0a1902a4abce80893acba71c43047ccae63271ba3278d630b4f8940e9902cf",
+      "name": "Krea G2 intermediate distribution and determinism",
+      "scope": "Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases.",
+      "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19"
+    },
+    {
+      "command": "go test ./internal/diffusionimage -tags=modeltest -run '^(TestTinyModelForwardMatchesTorch|TestRealCheckpointPublishesReferencePNG)$' -count=1 -json",
+      "evidence": "evidence:sha256:c6c44930847a4e9cbe2954d5fc2e6fbacb8bf04c83eb6e626f8ef20f7c82ea41",
+      "name": "SimpleDiffusion native owners",
+      "scope": "Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases.",
+      "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideoLatentImageAcceptance$' -count=1 -json",
+      "evidence": "evidence:sha256:f15b491eca289679bdfb1993dfd88154a4327597dca52976fcde851f34ae0554",
+      "name": "Frozen Krea and SimpleDiffusion bundle acceptance",
+      "scope": "Read-only acceptance verifies frozen three-case coverage, source-compatible numerical receipts, actual recipe/input/output lineage, environment, finite output, decoding, raw GPU work and transfer counters, memory cleanup, instrumentation identity and image-specific reviews. It rejects omitted cases, changed output/recipe and failed finiteness. Failed instrumentation attempts remain retained. No model acquisition occurs in this check.",
+      "source_base": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-sensenova-acquisition-overlay.json ./internal/sensenovarecipe -run '^TestMediaSenseNovaFrozenCasesAcquisition$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:b6d245944f70201f84b1236b2e3f9997f19957d0851ff47a36960e92751534f3",
+      "name": "SenseNova frozen 512x512 requests",
+      "overlay_sources": {
+        "internal/sensenovarecipe/media_sensenova_acquisition_test.go": "evidence:sha256:5b0d57d54ad76d796db2090ac86189f210caaa96295a2639a60f645b6e767454"
+      },
+      "scope": "Original infographic prompt, seeds 42/142, four steps, CFG 4.5 and shift 3 through the active compiled recipe. Both PNGs exactly match retained outputs. Requests took 21.092110/11.885268 seconds; initial model setup 0.740504 seconds and close 0.067570 seconds. Request preparation includes resident weight setup/rebuilding, so these are not warm denoising timings. Request Go allocations 33128765512/33126759568 bytes, process peak 2357964800 bytes and tracked device peak 16786499844 bytes. Closing releases all tracked GPU bytes. Raw observations retain node timing, generation stages and actual CPU/GPU copies. The seed42 image has unreadable labels; seed142 has readable labels but stray marks. No source image is supplied. This 37.413-second acquisition reused no completed full-size generation and makes no matched speedup claim.",
+      "source_base": "f20d54190d8591d721bb38eb9cc9005d828cd86e"
+    },
+    {
+      "command": "go test -overlay=tmp/media-un0-acquisition-overlay.json ./internal/oscillatorimage -run '^TestMediaUn0FrozenImageAcquisition$' -count=1 -json",
+      "evidence": "evidence:sha256:d749dd9ac22308ba2d71e1a089ac77ebbf172783ffc5f613a54f9d9e2a14218b",
+      "name": "Un-0 frozen CPU image requests",
+      "overlay_sources": {
+        "internal/oscillatorimage/media_un0_acquisition_test.go": "evidence:sha256:fa89d8b76bf5970b251d51e426aa18807bce1d18c193c3d045f016f71f903988"
+      },
+      "scope": "Class 1, seeds 111/11, artifact-derived 8x8 output. Both PNGs match their retained bytes exactly. Initial load 0.010221 seconds; requests 0.035606/0.036167 seconds. Process peak 479653888 bytes; per-request Go allocations 1394144/1354160 bytes. CPU execution uses no GPU reservation or fabricated GPU metrics. The output is a low-contrast color tile without recognizable semantic detail. The 3.228-second successful process follows a 3.367-second environment-metadata failure that loaded no model. New bound runs retain original recipe/input/output identities.",
+      "source_base": "f20d54190d8591d721bb38eb9cc9005d828cd86e"
+    },
+    {
+      "command": "go test ./internal/oscillatorimage ./internal/safetensors -run '^(TestArtifactLoadDerivesDims|TestArtifactPublishesReferencePNG|TestArtifactGenerateDeterministicAndClassSensitive|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch|TestReadF32.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:5c3b99531b837e4f06f907cc28384a3197ef8bdd19d806f48b89fa0f66633db8",
+      "name": "Current Un-0 native image and converter checks",
+      "scope": "Artifact-derived dimensions, exact native seed42 PNG pixels, deterministic generation, class sensitivity, Torch dynamics and generator comparisons pass. Shared F32 promotion and malformed-input checks pass after the existing early dtype guard change. These current CPU checks preserve the original numerical criteria and do not establish meaningful semantic image quality at 8x8.",
+      "source_base": "f20d54190d8591d721bb38eb9cc9005d828cd86e"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideoRoutedImageAcceptance$' -count=1 -json",
+      "evidence": "evidence:sha256:c7ab78023e273eed3b0c8a5adb95c462f4f0f48ebd2a4f25ed863cd822a0bb20",
+      "name": "Frozen SenseNova and Un-0 image bundle acceptance",
+      "scope": "Accounts for all five frozen cases: four new source/environment-bound runs and one explicitly reused full-size SenseNova result. Checks raw execution, exact request/output lineage, dimensions, finiteness, CPU/GPU resource scopes, cleanup and visual reviews. Reused full-size input parameters and prompt hash match the unchanged native fixture; the exact reviewed PNG and original test receipt remain bound to their original acquisition. Dependency identities are unchanged except the explicitly checked supported-dtype-preserving converter guard. Missing cases, changed inputs, nonfinite outputs and mislabeled historical runs are rejected.",
+      "source_base": "f20d54190d8591d721bb38eb9cc9005d828cd86e"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-wan-small-acquisition-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanFrozenSmallAcquisition$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:bef98ebec4b32b7c5ddd9c3b5ad7d39bb8b5808e5d75f287f179c2125e1c8487",
+      "name": "Wan frozen small compiled-recipe clips",
+      "overlay_sources": {
+        "internal/latentvideo/media_wan_frozen_acquisition_test.go": "evidence:sha256:1e0795ce98635a74d6c85dc2f76bfd9f8bc07292fc605295048e062d539f13a2"
+      },
+      "scope": "Two frozen five-frame 64x64, two-step clips, noise seeds 131 and 31. One loaded WanRuntime executes both active compiled-recipe requests. Load 3.409330 seconds, request walls 0.879840 and 0.323130 seconds, close 0.111697 seconds; successful acquisition process 8.493 seconds. Request Go allocation 414,367,248 and 292,663,856 bytes; process lifetime peak 8,893,042,688 bytes. Separate denoiser/decoder Library peaks are 3,527,123,200 and 376,261,580 bytes; both close with zero owned bytes. Raw transfer counters and direct/captured graph launches establish actual GPU work. Outputs preserve every historical decoded pixel and all metadata except total GIF duration corrected from 30 to 31 centiseconds. The two-step clips show colored patterns with no recognizable prompt subject. A preceding 112.262-second attempt generated the clips but failed a measurement assertion that omitted captured graph launches; its incomplete telemetry required reacquisition. Production code and frozen inputs did not change.",
+      "source_base": "cfcc9a405a3055c8666cc21892877024c4d0ef58"
+    },
+    {
+      "command": "go test ./internal/latentvideo ./internal/media -run '^(TestProfileControlBoundsFollowTheStrides|TestWanRequestFormAdmitsPromptOrTensors|TestWanTextConditioningSpecLocatesThePipeline|TestUniPCScheduleGoldenG3|TestTimestepConditioningGoldenG2|TestWanLayoutBufferOwnership|Test.*GIF.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:3b37a839f8e06a8d7b2a4937bd61ac1e2481bc3bdcac0f89ae4bb890e72611a5",
+      "name": "Current Wan schedule, request, bounds, layout and GIF owners",
+      "scope": "Current CPU checks cover stride-derived supported controls, prompt-or-tensor request form, declared text pipeline, native UniPC and timestep conditioning references, layout ownership and cumulative GIF cadence. Existing source-compatible CUDA G1/G3/G4, VAE, cancellation and context-lifetime evidence is reused rather than loading the model again.",
+      "source_base": "cfcc9a405a3055c8666cc21892877024c4d0ef58"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideoWan' -count=1 -json",
+      "evidence": "evidence:sha256:e4de9fff127fd3ff73035e8d17ae78434f0850ed608e039e92f7239044358afd",
+      "name": "Wan frozen full clip publication and bundle acceptance",
+      "scope": "Read-only acceptance accounts for all three frozen cases, complete stored lineage, actual acquired GPU work, corrected timing, visual review, retained native checks and original full-acquisition source/environment. Mutation cases reject truncation, reordered frames, changed pixels and wrong duration. The reused 81-frame 832x480, 50-step production requests took 373.920021 and 376.232408 seconds including frame audit/encoding; no new full generation ran. The retained full GIF has 506 centiseconds of duration and exactly preserves the historical 486-centisecond clip's pixels and other metadata. All 81 frames were inspected as a storyboard, with original-resolution frames 0, 40 and 80 retained; review is not native-rate playback. The fox and snowy forest are visible, with limited head/mouth movement and palette dithering, but the requested ice-cream cone is absent. Supplied conditioning arrays exactly match the native G1 fixture; these tensor-form requests did not run a text encoder. First streamed-frame latency was not measured.",
+      "source_base": "cfcc9a405a3055c8666cc21892877024c4d0ef58"
+    },
+    {
+      "command": "go test -overlay=tmp/media-un0-video-overlay.json ./internal/oscillatorimage -run '^TestMediaUn0FrozenVideoAcquisition$' -count=1 -json",
+      "evidence": "evidence:sha256:be97063dd90ee55ec3501b585b61b3963fe6499b42cc868c25ce91a72a6cd82b",
+      "name": "Un-0 frozen CPU video requests",
+      "overlay_sources": {
+        "internal/oscillatorimage/media_un0_video_acquisition_test.go": "evidence:sha256:7260450497eab515dbad605bf238d010883c218f20d00cbe96ef24f47fb3af64",
+        "internal/oscillatorimage/video.go": "evidence:sha256:d0e0c448f66045381a557f979ad1d7a064b67b3c7f660fe8b0f0cbb151891b47"
+      },
+      "scope": "Two class-1 requests, seeds 11/111, twelve frames and scale 2 produce 16x16 clips at 8 fps. A transparent hook hashes and checks finite decoded float frames immediately before existing quantization. Load took 0.000891 seconds, requests 0.106756/0.115700 seconds, and load through release 0.234181 seconds. Per-request Go allocation was 2,258,792/2,262,944 bytes; process lifetime peak 442,519,552 bytes. CPU only, with no GPU reservation or fabricated GPU metrics. Both GIFs retain historical pixels and frame metadata while duration changes from 144 to 150 centiseconds. Frames are independent images at consecutive seeds and show low-contrast gray/color patterns, not coherent semantic motion. A 3.498-second reference-reading failure is retained; the corrected acquisition process passed in 3.651 seconds. Production replay already supports JSON envelopes through its existing fallback.",
+      "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-liveedit-corrected-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaLiveEditCorrectedFrozenAcquisition$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:ab2a281f2db64359c3d8b589397b4d04dab435c459742a45a8b15e7d3db16619",
+      "name": "LiveEdit signed-pixel encoding correction and frozen clips",
+      "overlay_sources": {
+        "internal/latentvideo/media_liveedit_corrected_acquisition_test.go": "evidence:sha256:cec7f5f79fc89a3bcbb4a25e959f2ec58671971df949ca063d83b7fcf3fe8762",
+        "internal/latentvideo/production_cuda_windows.go": "evidence:sha256:88bebbe775798e5bd63bfbc1a2f55059ca3b329813b402376e0d57e47c1954a8"
+      },
+      "scope": "The VAE emits signed-unit floats, but LiveEdit selected unit-range GIF encoding. Changing that one argument fixes entirely black clips without changing the native frame aggregate 19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1. All 7,680 values are negative, between -0.981542 and -0.274297; corrected encoding restores 2,480 of 2,560 pixels as nonblack. Both old and corrected encodings reconstruct exactly from the same captured raw frames. Each seed-specific session loads and closes separately: loads 4.119502/3.997097 seconds, requests 0.714855/0.372293 seconds, closes 0.126644/0.150960 seconds. Request Go allocations 243,039,112/241,559,888 bytes; process lifetime peaks 9,236,320,256/9,950,199,808 bytes. Separate encoder/denoiser/decoder Library peaks are 221,938,688/3,260,313,344/303,567,308 bytes; all close with zero owned bytes. The 429.335-second process includes resource admission and setup; request timing is not complete attempt time. The earlier old-range acquisition passed in 342.454 seconds and remains the encoding-defect baseline. This is a correctness repair with observed costs, not a matched speedup claim. Source identity is the declared base plus the exact recorded repair and observation overlay.",
+      "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideo(ConditionedVideoAcceptance|MergedCapabilitiesAcceptance|LatentImageAcceptance|RoutedImageAcceptance|Wan|TransferOptimizationAcceptance|MemoryOptimizationAcceptance)' -count=1 -json",
+      "evidence": "evidence:sha256:990ac1126d185870f34c83adba34438797f1895ff1466a94ca9c3b56a0b62717",
+      "name": "Conditioned video and current-source bundle acceptance",
+      "scope": "All four frozen source-conditioned/oscillator cases have actual compiled-recipe execution, complete input/output/source/environment lineage, resource observations and content-specific visual review. Acceptance checks current working source and permits exactly the documented one-line LiveEdit correction; every other generation file and every other byte of that file must match the prior source. Raw float artifacts reconstruct both faulty and corrected encodings and retain native frame order/hash. Existing image, Wan and rejected-optimization evidence remains valid in its original scope. Un-0 cadence and current source/request/sampler/codec/native reference checks pass. The full frozen corpus now accounts for eight image and seven video cases; public workflows, broader lifecycle, composition, capacity and final publication remain separate.",
+      "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce"
+    },
+    {
+      "command": "go test ./internal/latentvideo ./internal/oscillatorimage ./internal/mediacapability -run '^(TestEditPolicyDeclaresTheReferenceSchedule|TestReferenceEditRequestFormAdmitsClipOrTensors|TestSourceVideoFromGIFRoundTrips|TestLiveEditSourceCodecBoundary|TestLiveEditReferenceParity|TestArtifactPublishesReferenceGIF|TestOutputContentPublishesOscillatorClip)$' -count=1 -json",
+      "evidence": "evidence:sha256:44ab708cc4e2abcb33abf67375d5d6c45f1470498c0419d510780cf69415a6a1",
+      "name": "Current source-conditioned request, sampler, codec and native Un-0 GIF owners",
+      "scope": "Existing numerical, request-form, source-codec and encoding owners retain their original criteria. These CPU checks establish their declared mechanics and reference comparisons, not full semantic editing quality.",
+      "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce"
+    },
+    {
+      "command": "go test ./internal/latentvideo -run '^(TestVideoPixelRanges|TestGIFEncoderRejectsUnknownPixelRange|TestGIFEncoderFrameOrderAndTiming)$' -count=1 -json",
+      "evidence": "evidence:sha256:857b6a8dc64120c5465fd068c3e683762c325919cac3753d52ed8414e00be8fd",
+      "name": "Existing signed/unit pixel mapping and GIF boundary checks",
+      "scope": "Existing numerical, request-form, source-codec and encoding owners retain their original criteria. These CPU checks establish their declared mechanics and reference comparisons, not full semantic editing quality.",
+      "source_base": "23e0128b16654d64925c2fbd72af30a79fe82bce"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test -overlay=tmp/media-composition-native-overlay.json ./internal/latentimage -run '^TestMediaKreaCompositionNative$' -count=1 -timeout=30m -json",
+      "evidence": "evidence:sha256:860dbcbf3a5e26376d5cc32a3a848d74f3dbcabfe5d8a687029e341be8f1fa2e",
+      "name": "Krea native component chain: identical-request routing comparison",
+      "overlay_sources": {
+        "internal/latentimage/media_composition_native_test.go": "evidence:sha256:5a8735b673602f1ce3d5172edce07b490c63346a0b3a33df08418728bc37c2ee"
+      },
+      "scope": "One direct native prepare/integrate/decode acquisition on the same frozen 512x512, four-step, seed-143 request exactly matches the complete retained compiled-recipe PNG. Native parent/profile and component file identities are unchanged. Load 4.897838 seconds, generation 23.443009 seconds, close 0.253088 seconds, load through close 28.594077 seconds; process receipt 155.287 seconds includes admission and harness work. Go allocation 34,976,031,192 bytes across load through close; process peak 3,179,003,904 bytes; GPU owner peak 26,925,272,444 bytes and zero retained after close. This is routing equivalence using the same numerical implementation, not an independent full-model oracle or a performance comparison.",
+      "source_base": "7da98c3bef0a1b9f27778e15dfa935ffa0f79619"
+    },
+    {
+      "command": "go test ./internal/modelrecipe ./internal/mediacapability ./internal/workflowruntime -run '^(TestCapabilityComponentSlots|TestLatentImageInventoryAcceptsDiffusersShards|TestTypedImageRecipeSelectsRuntimeWithoutPlacement|TestImagePolicyComesFromRecipeProfile)$' -count=1 -json",
+      "evidence": "evidence:sha256:c2dccde41f12a8e3ffbd586fa7e60826489ed474ecfdff19392dfee03641c85f",
+      "name": "Native component recipe construction and inventory owners",
+      "scope": "Existing CPU checks compile component slots, retain composite identity and reject duplicate or unknown stage bindings; validate inventory shards, typed runtime selection and profile ownership. Packages with no matching tests provide no additional coverage.",
+      "source_base": "7da98c3bef0a1b9f27778e15dfa935ffa0f79619"
+    },
+    {
+      "command": "go test ./cmd/compatibility -run '^TestImageVideoComposition' -count=1 -json",
+      "evidence": "evidence:sha256:18ee83fce1a5d0fd0e1902527c88e403cff728932c603c7dfe2858d0bf230d81",
+      "name": "Frozen media composition coverage and evidence acceptance",
+      "scope": "Checks every frozen recipe against active definitions: six single-model recipes and the Krea native component chain. Reconstructs exact text-encoder, transformer and VAE manifests with two, five and two file members; verifies typed stage order, model selection and profile identity. Binds the identical-request native PNG comparison, measurements, source compatibility and retained failures. Rejects omitted cells, components, retained run or native acquisition. Two verification defects were corrected without regenerating the image.",
+      "source_base": "7da98c3bef0a1b9f27778e15dfa935ffa0f79619"
+    },
+    {
+      "changed_source_sha256": {
+        "cmd/dit-train-probe/main.go": "25d972785e23a99d675a5c0d5b7c25194de00097eb0466a9da31ca83fe798e15",
+        "internal/cuda/executor/executor.go": "26b3df89f37537916c51cc57bf6b1e08b2ec09c7413d2b3fb40ffd8225f98854",
+        "internal/cuda/testutil/cancellation.go": "86fbe38f9f2f9f5d616d5918dd53333257bcdc76955c113b552e5d338e39d88d",
+        "internal/diffusionimage/forward.go": "397d8de87221cd3ed58b0292d48427aab2fe2006b6ba02c5b12487bf2150b19d",
+        "internal/diffusionimage/resident_runtime.go": "6d02ec638488ffa5b8b524842ab51d7d058ff0d37733b61fb3f1b0ffb8ea0277",
+        "internal/diffusionimage/runtime.go": "0442f552712cb1225c7f87c97f74bad57269a552b68cc34359be4b74c7a74701",
+        "internal/latentimage/runtime_cuda_windows.go": "b80c21ca685efdadb496108cb8b2d911f680a0201a78fed94e74b30a21370290",
+        "internal/latentvideo/dittrain.go": "568cf5fea8fafe0105609acc828b681f379175ef1dfd687acde742a24f0cd8cc",
+        "internal/latentvideo/edit_form.go": "7c241ff20b762c3ca3ea4332d908da48a2eab4bda6e21c0a72d60f0dd41c1494",
+        "internal/latentvideo/encoder.go": "10378b0570f14706ff4ec2370c2939dceed690a0475fac7d641bc3aa0b34ff62",
+        "internal/latentvideo/production_cuda_windows.go": "3ad8f943b451e250cafb9b60eb6cc1d10ff09afd06128dc65ba1e2553188756e",
+        "internal/latentvideo/reference_edit_denoiser_session_windows.go": "e4bd028b6d60b6319525f9b9d5c357cda49171d96e1224913cab24ed0bc48d00",
+        "internal/latentvideo/reference_edit_runtime_cuda_windows.go": "e13b7cb2183736df7d96e2150f4a7bc5f37dea382099a6bb8d69ec48f71c1ae7",
+        "internal/latentvideo/textcond.go": "b0b6aeb075b94984af35ef2011272b40a4eddcdf6fab5fd2434dad20cea2ccd9",
+        "internal/latentvideo/vae_session.go": "64fc8981f809c4635b8b1ce56f0b81528c9cb76bf66d67567b4fffbd227787c1",
+        "internal/latentvideo/wan_form.go": "be6b7a0bfdf537d79fd5214e4e8373abd40f4310392b5c02f704b167bdc91486",
+        "internal/oscillatorimage/forward.go": "41dde46c97a44ca6be2f9c420137bbd2723e6371b3445b3fc2f7684f02a6ed37",
+        "internal/oscillatorimage/runtime.go": "f1f1ffcd1046db210249004477b81809299fba6662e6234ac58bc4653a8c13f5",
+        "internal/oscillatorimage/video.go": "c2b8a322e78f5daffb454be4efb4e9678cc6ffd7ca79e0fbebf71e2dff14da14",
+        "internal/routedlm/generationstack_cuda_windows.go": "b647b808563fce67fba5874e3a55013c2c4fc1709df497bb7475ed4da58ffa4e",
+        "internal/routedlm/prefixstack_cuda_windows.go": "fd5e39e63a50c957820a662cddc5b4beea6b75529671878c3cffed61c9bbaeab",
+        "internal/sensenovarecipe/runtime_cuda_windows.go": "ca3e09bf6deec3fdf3aba86ac9da822c98f7073d7d4a5f3c123039083f386ab9",
+        "internal/workflowruntime/json_stage.go": "b101a2d931197b2e76e9f45ae62a5959efc4a5d9945a3d71c4fa43b0a88e795e",
+        "internal/workflowruntime/runtime.go": "b62dbe325b7c4f62a856e836694e74eccb993f36990fbe0b671953024b041300"
+      },
+      "command": "go test ./cmd/compatibility -run '^TestImageVideo' -count=1 -json",
+      "evidence": "evidence:sha256:5b937a02ba2a7aa60b6ff66375f56f5773be04b4b71514909eece5039c9a08ba",
+      "name": "Image/video cancellation, cleanup and native recovery",
+      "prior_evidence": "evidence:sha256:0116789b365f3a6fa2f3a9314ee12dab4c18d2e5f138be9ef8427b0284b398e4",
+      "scope": "The lifecycle bundle binds native image/video recovery, shared request cancellation, process/resource admission, failed-run persistence and atomic publication to the exact source patch. SenseNova now releases abandoned prefix outputs and its 201,326,592-byte prefix weight-staging allocation, preserves its native PNG, returns to 80,068,736 idle device bytes after cancellation and closes to zero. LiveEdit cancels source encoding, denoising, decoding and frame publication, then reproduces its native latent and all five frames with stable per-owner device memory; each owner closes to zero. Wan, Krea, SimpleDiffusion and Un-0 retain their bounded reference and recovery criteria. Physical allocation refusal and unavailable-device recovery are checked separately from model capacity. Earlier failed attempts and source identities remain retained; no sampling checkpoint, speedup or visual quality gain is claimed. See docs/image_video_lifecycle.json for the individual executions, source protocols, limits and test sources.",
+      "source_base": "fcf4f3dd9f28fff719ff6a6c02621948750ea6b4"
+    },
+    {
+      "command": "go test ./cmd/compatibility -run '^TestImageVideo' -count=1 -json",
+      "evidence": "evidence:sha256:d9f0af865015efe35ef7d639241f337e00acbb0d68f644b80ebaf0ef59ced705",
+      "name": "Combined image/video capacity validation",
+      "scope": "All existing image/video acceptance checks pass with the capacity bundle: retained frozen corpus, accepted shared loader and report/export changes, unchanged rejected-candidate decisions, and cancellation/recovery evidence. This verifies the current implementation against retained acquisitions; it does not rerun every full model or establish a new combined speedup.",
+      "source_base": "9b8c9a953ff888087b6a3f4de09b5a1efe7441f9"
+    },
+    {
+      "command": "go test ./cmd/compatibility -run '^TestImageVideoCapacity' -count=1 -json",
+      "evidence": "evidence:sha256:1db74dddf9dde842e108bc35625ff68ca6f9f4bf9c7fbbd9c5f7033e3ca0ab67",
+      "name": "Capacity evidence identity and altered-evidence rejection",
+      "scope": "Capacity acceptance, missing evidence-field counterexamples and split Go test output reconstruction pass. The bundle retains exact source identities, original failed attempts, native measurements and prior comparison decisions.",
+      "source_base": "9b8c9a953ff888087b6a3f4de09b5a1efe7441f9"
+    }
+  ],
+  "environment": "Acquired September 12-13, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. Correctness checks use existing shared resource admission. Explicitly profiled GPU measurements use the exclusive measurement-process owner; each acquisition retains its scope. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
+  "notes": [
+    "Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. The frozen corpus now accounts for all eight image and seven video requests through new execution or explicitly source-compatible retained results. Numerical, visual and resource limits remain specific to each workload. Public workflows, capacity optimization and final publication remain open.",
+    "The SenseNova exact-output regression is corrected. A later shared attention optimization admitted strict-causal prefixes to batched SGEMM, changing accumulation order and BF16-rounded prefix states. Selecting the existing per-query attention option for those reference-bound prefixes restores both small-image hashes and the full-resolution reviewed PNG. No model weights, prompts, seeds, reference hashes or quality limits changed.",
+    "The freshly generated [SenseNova full-size image](docs/media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png) is byte-identical to the retained reviewed image. Visual inspection confirms readable main headings and a coherent layout; the first-day marker resembles a caret and small text/icon defects remain features of that reference output.",
+    "The prior checkpoint fixed shared GIF timing and external JSON-array oracle handling. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates remain predictions rather than measured optimization gains.",
+    "Full Wan generation, complete frame-sequence visual review, the frozen image/video cases, and the declared loader/transfer/memory comparisons are accounted for. Remaining work covers public workflows, capacity optimization and final publication. Native-rate playback was not part of the recorded frame-sequence reviews.",
+    "The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes.",
+    "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. That checkpoint records the unchanged loaders before the following comparison.",
+    "Wan now returns initialization errors without a cleanup panic, releases session resources after request cancellation, and stops decoding when the request is canceled. The G4 recovery check stops after one frame and then reproduces all five frames exactly on the same generator. The unchanged G3 reference and changed-negative fresh-session comparison also pass. Original failures, the skipped setup attempt, isolation probes and both corrected cohorts remain in OvergoDB as evidence:sha256:4ead158b1a90b0c5b13e17cf09049508f80fdf0d80592c9996f49c29b6ec15b2. These small lifecycle cases do not replace the remaining full-resolution video validation.",
+    "The [shared decoder comparison](docs/image_video_shared_components.json) retains both actual loader acquisitions, exact output hashes, source snapshots, malformed-input regression and unchanged Wan reference results. Both consumers meet the frozen host-allocation, process-peak and complete-loader wall requirements in both load states; the shared implementation removes the two independent decoding loops. Observed CPU load was 39%/40% before/after this cohort, versus 6%/1% for the baseline; the timing observations are not an isolated causal or population estimate. GPU transfer and full-generation claims remain open.",
+    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:d389b255d50abf529557b3ad8a2df7f78ef16e5c3bfad5f0e7babc5aaa76631d. The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6.",
+    "Guidance-pair ownership and fresh full-video baseline: history evidence:sha256:68184f017f8d75e51292a3209770210c5413315393eda51dfbf98ae5cf78ed56 retains the failing handle assertion, the first repair's excess retained projection, the final source snapshots, the disabled-timing control and a 20-minute exclusive-admission timeout. The grouped acquisition subsequently completed. Visual inspection of the first, middle and last full-resolution frames shows a consistent fox, snowy forest and facial motion; it does not establish smoothness across every transition. The following comparison rejects the transfer candidate and retains the conditioning repairs.",
+    "The [Wan transfer comparison](docs/image_video_transfers.json) retains the frozen acceptance, baseline/candidate/ablation source snapshots, raw request measurements and quality checks. Both candidate requests preserve exact output and reduce uploads, but their observed complete-request times exceed the baseline. Current code restores the original step uploads and keeps the independently tested conditioning ownership repairs. Ordinary host activity and file cache remain uncontrolled; driver copy timers measure host API duration, and component memory peaks are separate, not a combined GPU peak. This closes the declared transfer experiment with rejection; the remaining image/video campaign work stays open.",
+    "The [Wan memory comparison](docs/image_video_memory.json) preserves its frozen protocol, source snapshots, raw measurements and allocation-lifetime ablation. Request-local layout reuse reduced host allocation by about 1.23 GB per full request but failed the declared first-request timing requirement; current code retains the baseline allocation behavior. This single paired acquisition does not establish a population timing effect. Separate driver peaks remained 7,725,035,776 bytes for the denoiser and 10,329,897,932 bytes for the decoder. Post-request snapshots record 591,470,592 bytes of denoiser pool storage (545,259,520 live and 46,211,072 free), a 3,555,901,440-byte arena, and 10,036,715,520 bytes in 69 decoder workspace buffers. These ownership scopes are not additive whole-device peaks. Both driver instances report zero owned bytes after close.",
+    "The [master integration record](docs/image_video_merged.json) binds retained media capabilities to merge ee78f361 and master a9de6d29. This worktree retains its own image/video plan. Incoming changes separate generic CLI options from model loading, attribute verification costs, and improve retained evaluation and backup behavior; the declared image/video runtime scope is unchanged.",
+    "The [processing comparison](docs/image_video_processing.json) records an accepted candidate that reuses the existing file-identity memo in report generation and sample export. First/repeat preparation fell from 194.586/366.660 seconds to 14.948/8.880 seconds in this acquisition. Candidate Go allocation fell by about 47.7/111.6 MB, while process lifetime peak increased from 651.1 to 715.8 MB. The frozen rule allowed only the measured memo allocation overhead and required available host capacity; this is a latency improvement with a higher observed process peak. Memo validity assumes immutable model artifacts and matching file size/modification time; missing or unreadable memo evidence falls back to hashing. The ablation restores hashing without changing outputs. Filesystem cache state and background load varied, so these observations do not establish a population speedup or a generation-kernel improvement.",
+    "The [Krea and SimpleDiffusion image bundle](docs/image_video_latent_images.json) completes acquisition and review of the three frozen cases on source 4b9e8697. Krea produces a coherent prompt-matching image. SimpleDiffusion's two unconditioned 256x256 samples remain visibly noisy; numerical correctness within the existing smaller native checks does not establish useful image quality. Each new image has a source/environment-bound run and measured model lifetime, with original requests and policy defaults preserved. Public transport, broader lifecycle, remaining models and video coverage are still open.",
+    "Current sample [Krea-2-Turbo/image-gen/1](docs/media_samples/4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44.png): validation run `run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22`; source `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. The gallery may show the original workflow record for the same bytes; use this bound validation record and the image bundle for current execution provenance.",
+    "Current sample [SimpleDiffusion-TensorProductAttentionRope/image-gen/1](docs/media_samples/939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78.png): validation run `run:sha256:09150155593f97f3f61bcba2e902bd260f33450f8b873c88616b2112c6b06711`; source `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. The gallery may show the original workflow record for the same bytes; use this bound validation record and the image bundle for current execution provenance.",
+    "Current sample [SimpleDiffusion-TensorProductAttentionRope/image-gen/2](docs/media_samples/e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef.png): validation run `run:sha256:a2a817b8a1084e91add8ebfef51d1fea96318b1d0a7e23e1704b39f1c74f1249`; source `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. The gallery may show the original workflow record for the same bytes; use this bound validation record and the image bundle for current execution provenance.",
+    "Decoded historical/current PNG comparison: SimpleDiffusion seeds 5/105 differ in two/one RGBA channels, each by one 8-bit level. Krea differs in 474,150 channels, with maximum difference 165 levels, while retaining the requested scene. These comparisons describe output changes, not native numerical acceptance. Raw comparison `evidence:sha256:1f31ebccece67f4c0c9dfe69431d683ef1b2b531c272430d7344e330afbfedb8`; comparison source `evidence:sha256:8eda686e940375d5bd508c14396228d3d02a93e24c95e3f6fa45c46751bd3bda`.",
+    "The [SenseNova and Un-0 image bundle](docs/image_video_routed_images.json) accounts for five frozen cases. The two newly executed SenseNova 512x512 requests and two Un-0 CPU images exactly reproduce retained PNGs. The full-size 1536x2720 SenseNova result reuses the existing exact-output recovery, source dependencies and visual review; it was not regenerated. Semantic limits remain explicit: SenseNova smoke labels/marks have defects, and Un-0's 8x8 output is only a smoke capability.",
+    "Initial model-load timing covers the constructor call. Krea's 22.815-second first request includes 21.186 seconds of preparation, including deferred generation-weight setup, followed by 1.433 seconds of integration and 0.142 seconds of decode. SenseNova similarly rebuilds resident request state during preparation, even for a seed-only change; its two requests each allocate about 33.1 GB cumulatively. These costs are distinct from peak live memory and identify an existing-owner reuse candidate for capacity analysis, not an accepted optimization.",
+    "Current sample [SenseNova-U1-8B-MoT-Infographic-V3/image-gen/1](docs/media_samples/e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d.png): validation run `run:sha256:1b5d9694f11155d4d42a27b7845ef482c28cf0508df19b3bdbae1289c3ff5b42`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.",
+    "Current sample [SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3](docs/media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png): validation run `run:sha256:c40dd951984329bb3db5be28f1ac20fca3e6c115f346241987614bfafbfe25c6`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.",
+    "Current sample [Un-0/image-gen/1](docs/media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png): validation run `run:sha256:454185fd57242a50ff4b5e9e9d39fad4f4af101a56c4e4e145b3922426ff87c0`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.",
+    "Current sample [Un-0/image-gen/2](docs/media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png): validation run `run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.",
+    "The [Wan validation bundle](docs/image_video_wan.json) accounts for the three frozen Wan requests. Two new small compiled-recipe clips validate execution and timing; the existing full production acquisition provides the complete 81-frame sample. Both are tensor-conditioned paths. The full clip depicts a fox in snow but omits the requested ice-cream cone; this remains a prompt-adherence limitation. Small two-step clips contain colored patterns rather than recognizable subjects.",
+    "Full Wan sample [81 frames at 832x480](docs/media_samples/d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif): run `run:sha256:ab252bb624d3ca3535fba2e862febd01a5df44823d6fca2012c43181a8a30066`, original source `fcda318afa6edecd9cdeed8b2d4a65f9be66c237`, reuse binding `evidence:sha256:23d0b7123d24102f860baececabab4f9f61fe8c6c10c0f1c9c6564a185f898d2`. Publication retains the original measurements and instrumentation. Host name was not recorded; GPU UUID, driver and Go runtime are retained. A metadata-only publication failure used unsupported phase names; it was corrected to the existing generate/postprocess phases without rerunning generation. Failure receipt `evidence:sha256:6855bfcc8bd73e0baaea0baf3ee13aee2ffe98c1bc918d1d83739ab58a440f12`.",
+    "Wan memory scopes remain separate: the full acquisition's denoiser and decoder Library peaks are 7,725,035,776 and 10,329,897,932 bytes, not an observed simultaneous total. Its process lifetime host peak was 10,263,068,672 bytes and includes the earlier G4 case in the acquisition group. Full first/repeat Go allocations were 2,494,283,640 and 2,467,036,840 bytes. The earlier transfer and host-layout candidates remain rejected under their original latency criteria.",
+    "Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/1`: output `output:sha256:31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240`; bound validation run `run:sha256:27acd2d8d987d15a6dd68cb964cdfd2905f31a8dc74e7fb00ce24deebce399ed`; source `cfcc9a405a3055c8666cc21892877024c4d0ef58`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Complete GIF timing is 31 centiseconds at 16 fps.",
+    "Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/2`: output `output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99`; bound validation run `run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47`; source `cfcc9a405a3055c8666cc21892877024c4d0ef58`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Complete GIF timing is 31 centiseconds at 16 fps.",
+    "The [LiveEdit and Un-0 video bundle](docs/image_video_conditioned_videos.json) includes an encoding correctness repair: LiveEdit now maps its signed VAE output to bytes correctly. Its earlier black GIFs resulted from using a [0,1] encoder for [-1,1] floats. The corrected [five-frame clip](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif) retains native float frames and restores dark color/texture; its 32x16 smoke scale still does not establish semantic editing or natural motion.",
+    "LiveEdit's frozen source contains moving crops of one retained still frame. Both requests use the same source, text context and initial latent arrays with one denoising timestep. Changing the seed makes no subsequent noise draw in that schedule, so the exact same output is expected. The corrected clips remain coarse and do not establish pixel-level source preservation or the requested fox interaction. No text encoder, mask or edit-strength control was exercised. Un-0 video generates independent class-conditioned images at consecutive seeds, with no temporal model.",
+    "Current sample [Un-0/video-gen/1](docs/media_samples/bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif): output `output:sha256:8998678c48f16a2d4e73a63e764c030acf022775ea8744836cdd6b1ec2cd4024`, bound run `run:sha256:a9dc9487b4428fb7ed5bdf12747473984254a0726d9f1d326054d1b499ae1091`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.",
+    "Current sample [Un-0/video-gen/2](docs/media_samples/4869d07c17d398a6c5081b00c96a5a99402fbd4504980e659d81d68c6ef7c658.gif): output `output:sha256:5ce8cb116444a2bfbafbe9c8700a898c2e98ae1a20b7b6ca6ba7bcde0b954aee`, bound run `run:sha256:f5b8b33864e3746916a6d6e1aef33c94958883d3c281886c77564e37076ed523`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.",
+    "Current sample [LiveEdit/video-gen/1](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif): output `output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21`, bound run `run:sha256:f9f453c777286cd04d7e6b9cdfa2715debb92d1d32a8d9e59b73a210b0cb6ab1`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.",
+    "Current sample [LiveEdit/video-gen/2](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif): output `output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21`, bound run `run:sha256:2e3e28ec5b8d18cadd189f7cf4bb03dc67019c0cfa12158386f1d5a83f222ae0`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.",
+    "The [composition bundle](docs/image_video_composition.json) validates Krea's native text-encoder, transformer and VAE bindings. Its direct native execution and composed recipe produce the exact same PNG for the frozen request. The other six recipes use a single model binding. These recipes contain no learned representation bridge or component replacement; the separate Wan bridge experiment is outside this frozen inventory. The comparison establishes routing equivalence and preserves the image bundle's quality limitations; it does not establish a speedup or arbitrary component compatibility.",
+    "The [lifecycle bundle](docs/image_video_lifecycle.json) verifies cancellation and recovery across the image/video backends and their shared runtime owners. Requests stop at explicit checks between bounded operations; an already submitted synchronous kernel or file read may finish first. Cleanup completes independently of request cancellation. SenseNova ends prefix staging ownership before later generation phases, and LiveEdit now carries request cancellation into denoising and decoding. Successful retries preserve the tested native outputs and reusable memory. A retry regenerates from the request or repeats decode; this does not provide an arbitrary denoising checkpoint. Existing visual limitations remain unchanged. The capacity bundle below records subsequent resource checks; public API/browser coverage remains a separate plan step.",
+    "The [capacity bundle](docs/image_video_capacity.json) combines the accepted shared Wan loader and report/export memo with the current cancellation and cleanup implementation. New native checks preserve SenseNova's original 256x256 PNG, repeat a changed 512x256 request exactly, match a fresh session, retain stable reusable memory after the larger request, and release all owned device bytes on close. Un-0 preserves the existing image/video reference bytes and changed clip outputs with one and all 32 detected Go execution threads. These are resource and output-consistency checks; earlier visual limitations remain unchanged.",
+    "SenseNova request measurements span 11.01-21.62 s and about 33 GB of Go allocations per request. Larger requests retain about 77 MiB of library-owned device memory between uses; this remains stable on repetition. Current complete Wan denoiser loading allocates about 5.64 GB per load with exact retained tensor values. Report/export first and repeat observations take 12.70 s and 11.42 s with identical report and sample bytes. These describe different operations and measurement scopes; current store contents differ from the original matched performance experiment, so the new timings establish no additional speedup.",
+    "Resource checks cover session queues, waiting cancellation, process ownership and recovery. The backends do not expose a general whole-request hard RAM/VRAM budget or capacity-derived media execution planner. GOMAXPROCS limits Go scheduling, not CPU affinity or host-memory consumption. Physical allocation refusal does not establish a successful lower-memory fallback. SenseNova's repeated construction remains a separate optimization opportunity requiring a cache policy and measurements of retained VRAM, changing inputs and multi-model pressure."
+  ],
+  "prior_capacity_checkpoint": "evidence:sha256:a9bce14a5e46989201749ca9f0458da9fb776cc2128742a53dab95be130a09f3",
+  "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
+  "version": 1
+}

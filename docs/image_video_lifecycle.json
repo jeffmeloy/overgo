@@ -1,0 +1,426 @@
+{
+  "checks": [
+    {
+      "command": "go test ./internal/workflowruntime ./internal/oscillatorimage ./internal/diffusionimage ./internal/latentvideo -run '^(TestScalarStageCancellationBoundaries|TestContextPipelineCarriesRequestContext|TestCancellationWhileWaitingForStageLock|TestStagedCancellationKeepsOutputs|TestVideoCancellationKeepsOutputs|TestHostSamplingCancellationRecovery|TestResidentGeneratorCancellationBeforeLoad|TestTextConditioningCancellationBeforeIO)$' -count=1 -json",
+      "evidence": "evidence:sha256:d8b5bf104618dcd35071175666b7f16768548f550f8ed660eec022f70bb8f879",
+      "name": "Request cancellation boundaries",
+      "protocol": "evidence:sha256:a498c10fae925750a1a3ac4b1d88cf4f100e2707ed0ced7908e89a70cc507b1c",
+      "required_tests": [
+        "TestScalarStageCancellationBoundaries",
+        "TestContextPipelineCarriesRequestContext",
+        "TestCancellationWhileWaitingForStageLock",
+        "TestStagedCancellationKeepsOutputs",
+        "TestVideoCancellationKeepsOutputs",
+        "TestHostSamplingCancellationRecovery",
+        "TestResidentGeneratorCancellationBeforeLoad",
+        "TestTextConditioningCancellationBeforeIO"
+      ],
+      "scope": "Canceled work does not start after stage-lock admission, execute later scalar stages, read missing checkpoints, or publish late outputs. Un-0 image/video and host diffusion recover exact fixture results."
+    },
+    {
+      "command": "go test ./internal/oscillatorimage ./internal/diffusionimage -tags=modeltest -run '^(TestDynamicsMatchesTorch|TestGeneratorMatchesTorch|TestTinyModelForwardMatchesTorch|TestArtifactPublishesReferencePNG|TestArtifactPublishesReferenceGIF|TestRealCheckpointPublishesReferencePNG)$' -count=1 -json",
+      "evidence": "evidence:sha256:bf8f0f7dc40f6d704e8b24bd232fea722b6b6fafd53c67a5715fce94ebf13c16",
+      "name": "Native CPU image references",
+      "protocol": "evidence:sha256:574abbe530677def362301775cffdbe33013e2b6dfb689f835df9e99475858b6",
+      "required_tests": [
+        "TestDynamicsMatchesTorch",
+        "TestGeneratorMatchesTorch",
+        "TestTinyModelForwardMatchesTorch",
+        "TestArtifactPublishesReferencePNG",
+        "TestArtifactPublishesReferenceGIF",
+        "TestRealCheckpointPublishesReferencePNG"
+      ],
+      "scope": "Existing external numerical and native PNG/GIF references retain their criteria after request-context propagation."
+    },
+    {
+      "command": "go test ./internal/capabilityruntime ./internal/processcontrol ./internal/processlock ./internal/overgodb -run '^(TestBoundedSessionAdmission|TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle|TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain|TestSessionAuthorityRebindsCompatibleExecution|TestProjectionPublicationIsAtomic|TestExternalBlobCommitAtomicity|TestAppendFaultClosesEveryStoreSurfaceUntilReopen|TestAcquireContextContentionIdentity|TestAcquireIsExclusiveAndReleasedByClose|TestTornTailRecovered|TestAcquireRejectsFalseContention|TestCompleteCorruptFrameRejected|TestResourceAdmissionWaitsForRelease|TestResourceAdmissionCancellationAndFailure|TestAcquireReleasedAfterProcessDeath|TestAcquireCancellationReleaseRace|TestSupervisorProcessTreeContract|TestWindowsContainmentPrecedesExecution)$' -count=1 -json",
+      "evidence": "evidence:sha256:4d035a7a451b51c82eb90ac7dd357e5c7ac9860ae62d4fef1d35f2009eec9bcb",
+      "name": "Shared session, process, lock and publication owners",
+      "protocol": "evidence:sha256:7381e639774dad339dd09cc6c50e9a2027142b03fb0fb2a32d690184e184b315",
+      "required_tests": [
+        "TestBoundedSessionAdmission",
+        "TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle",
+        "TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain",
+        "TestSessionAuthorityRebindsCompatibleExecution",
+        "TestProjectionPublicationIsAtomic",
+        "TestExternalBlobCommitAtomicity",
+        "TestAppendFaultClosesEveryStoreSurfaceUntilReopen",
+        "TestAcquireContextContentionIdentity",
+        "TestAcquireIsExclusiveAndReleasedByClose",
+        "TestTornTailRecovered",
+        "TestAcquireRejectsFalseContention",
+        "TestCompleteCorruptFrameRejected",
+        "TestResourceAdmissionWaitsForRelease",
+        "TestResourceAdmissionCancellationAndFailure",
+        "TestAcquireReleasedAfterProcessDeath",
+        "TestAcquireCancellationReleaseRace",
+        "TestSupervisorProcessTreeContract",
+        "TestWindowsContainmentPrecedesExecution"
+      ],
+      "scope": "Session waiting and replacement, resource cancellation, contained process termination, lock release after process death, interrupted store writes and atomic publication. These are shared owner checks, not public browser workflows."
+    },
+    {
+      "command": "go test ./internal/media ./internal/latentvideo -run '^(TestExternalProcessLifecycle|TestVAEDecodeRejectsInvalidInputs|TestVideoDecodeRejectsInvalidInput|TestResamplePolyRejectsInvalidNumericsAndCancellation)$' -count=1 -json",
+      "evidence": "evidence:sha256:77683ed5a8aebf7fa63bfa2c83477692537d16a84f3aff52021b981910fac9bd",
+      "name": "Media process completion and invalid input",
+      "protocol": "evidence:sha256:a498c10fae925750a1a3ac4b1d88cf4f100e2707ed0ced7908e89a70cc507b1c",
+      "required_tests": [
+        "TestExternalProcessLifecycle",
+        "TestVAEDecodeRejectsInvalidInputs",
+        "TestVideoDecodeRejectsInvalidInput",
+        "TestResamplePolyRejectsInvalidNumericsAndCancellation"
+      ],
+      "scope": "Installed FFmpeg completes encoding and decoding; unfinished encoder closes through the shared supervisor. Invalid input and canceled resampling are rejected. No skipped dependency is credited."
+    },
+    {
+      "command": "go test ./internal/processcontrol -run '^(TestGPUCapacityAdmissionConcurrent|TestGPUCapacityAdmissionProcessExit|TestGPUExclusiveMeasurementAdmission|TestResourceContention)$' -count=1 -json",
+      "evidence": "evidence:sha256:de41ba8eeffe079b0fbc9e948dc083db0974ca4310904b43a40d5a9faad9cdbf",
+      "name": "Resource admission across processes",
+      "protocol": "evidence:sha256:a498c10fae925750a1a3ac4b1d88cf4f100e2707ed0ced7908e89a70cc507b1c",
+      "required_tests": [
+        "TestGPUCapacityAdmissionConcurrent",
+        "TestGPUCapacityAdmissionProcessExit",
+        "TestGPUExclusiveMeasurementAdmission",
+        "TestResourceContention"
+      ],
+      "scope": "Shared and exclusive reservations enforce process ownership, permit valid sharing and release after process exit. Synthetic named resources test admission logic; this does not establish a maximum model size."
+    },
+    {
+      "command": "go test ./internal/latentvideo -tags=integration -run '^TestEncodeTokensStreamedMatchesReferenceHost$' -count=1 -json",
+      "evidence": "evidence:sha256:5b2b80bb6ef351d96faed118661797b12620f449e01e6dd493f8d3a236d0d860",
+      "name": "Native text encoder cancellation and restart",
+      "protocol": "evidence:sha256:b07621a3e4b50f1cc4f7cdd9a1035f6d12a3ca0fc13af8b0301529eea81144d4",
+      "required_tests": [
+        "TestEncodeTokensStreamedMatchesReferenceHost"
+      ],
+      "scope": "Cancel after native embedding acquisition and before encoder layer zero, then rerun all layers and preserve the existing native host reference and byte-count checks."
+    },
+    {
+      "command": "go test ./internal/latentvideo -tags=integration -run '^TestTextConditioningGoldenParity$' -count=1 -json",
+      "evidence": "evidence:sha256:32cc66d96dc52c3e25cd5ed9fef13a7435c9eeaa60aac1665d0d092954fa1d18",
+      "name": "Native text-conditioning references",
+      "protocol": "evidence:sha256:0d9b35a5c7b0f6676cb58e5b5535d838d4ef0a43c6ef7bdbf92e80cfd619b985",
+      "required_tests": [
+        "TestTextConditioningGoldenParity"
+      ],
+      "scope": "Both conditional and negative prompts pass existing G1 cross-engine numerical criteria through the context-aware text encoder and projection."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaCancellationRecovery$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:51a33d6403d468cc9f87879eb6665d2e6c7a35f787c8fd92cadb17b759762790",
+      "name": "SenseNova cancellation and memory recovery",
+      "protocol": "evidence:sha256:a498c10fae925750a1a3ac4b1d88cf4f100e2707ed0ced7908e89a70cc507b1c",
+      "required_tests": [
+        "TestSenseNovaCancellationRecovery"
+      ],
+      "scope": "Prepare and integrate cancel after actual CUDA work. Retries reproduce native PNG 6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0, preserve idle device bytes, and close to zero with a canceled context. Fixes release abandoned prefix outputs and end the 201,326,592-byte prefix weight-staging lifetime. No elapsed-time speedup is claimed."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^(TestLiveEditCancellationRecovery|TestLiveEditDeviceRuntime)$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:8aba2293033c86e4cba12aa2f6826138e390a4f3b527a9fdb79704bc20a790b5",
+      "name": "LiveEdit cancellation and native runtime",
+      "protocol": "evidence:sha256:105ef803e2ca5daccddb018b5f356b8f846cc05bcca4de794e218a5bbddcaac4",
+      "required_tests": [
+        "TestLiveEditCancellationRecovery",
+        "TestLiveEditDeviceRuntime"
+      ],
+      "scope": "Cancel real source encoding, denoising and decoding before frame publication; also stop after one published frame. Retry on the same runtime preserves native latent f73e55a69a2e5662100dfe664cc8234dc050d4b217174ce1a4ff45ac51bd4f17 and five-frame hash 19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1. Encoder, denoiser and decoder retain 221,938,688 / 3,260,313,344 / 303,567,308 bytes respectively and each closes to zero. These separate owner measurements are not an aggregate process peak."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -tags=integration -run '^TestWanLifecycleAcceptance$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:ce8ae5939c9be9f6911d8b168b0ce073a1cb1e43711d613f0cce72cc08d23d44",
+      "name": "Wan lifecycle and native references",
+      "protocol": "evidence:sha256:a498c10fae925750a1a3ac4b1d88cf4f100e2707ed0ced7908e89a70cc507b1c",
+      "required_tests": [
+        "TestWanLifecycleAcceptance"
+      ],
+      "scope": "Existing native G3/G4 tests cover partial initialization, resident production references, changed-negative conditioning, cancellation after one decoded frame, and exact five-frame recovery. This is a bounded lifecycle acquisition, not a new full-resolution clip."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -run '^TestResidentSamplingDeviceAcceptance$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:c6ccc4340fd5c4b2955ee0b1d49a987d51f08b46f491b0403c8ab0acb1a6bc37",
+      "name": "SimpleDiffusion resident sampling recovery",
+      "protocol": "evidence:sha256:da4831e89c7c7e772d6b4cc8b728ebfd517a687fd652345eed5b759aaef0e43b",
+      "required_tests": [
+        "TestResidentSamplingDeviceAcceptance"
+      ],
+      "scope": "Real checkpoint forward and complete sampling retain existing numerical tolerances and one final image download. Mid-sampling cancellation, recovery and closed-resource rejection preserve reusable device ownership."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^TestResidentLifetimeResourceAcceptance$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:8b46b3f323437e42e9e955b1d41fd168eb177c1686c44cfa9ebc42cce8bd680c",
+      "name": "Krea resident decoder recovery",
+      "protocol": "evidence:sha256:da4831e89c7c7e772d6b4cc8b728ebfd517a687fd652345eed5b759aaef0e43b",
+      "required_tests": [
+        "TestResidentLifetimeResourceAcceptance"
+      ],
+      "scope": "Existing real 256x256, eight-step decoder test interrupts three times after a bridge allocation, then recovers exact decoded floats with unchanged retained bytes and allocation count. This is a different bounded lifecycle request from the report's frozen 512x512 image."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestWeightStagingPhaseRelease$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:4c6153ff756fc018f5089be7631c952e4a6891129c1e7f31dbe30c6fa4a53085",
+      "name": "Shared weight-staging ownership",
+      "protocol": "evidence:sha256:da4831e89c7c7e772d6b4cc8b728ebfd517a687fd652345eed5b759aaef0e43b",
+      "required_tests": [
+        "TestWeightStagingPhaseRelease"
+      ],
+      "scope": "A canceled cleanup remains retryable. Uncancelable cleanup drops captured graphs before releasing exactly the staging bytes, preserves a live retained output, and recaptures the same graph with exact output."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/device ./internal/cuda/executor -p=1 -run '^(TestUnavailableDeviceAllowsRecovery|TestDeviceBufferPoolCapacityRefusalReclaimsIdle)$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:eabd98a78b856302ffdb465978fe07dfb5ead4b3330f1f575b234bb06607054c",
+      "name": "Unavailable device and physical allocation refusal",
+      "protocol": "evidence:sha256:53b89adbce3fb4bac61734bc6f053a15adb97f3b6e95c33171953c866ce3fd44",
+      "required_tests": [
+        "TestUnavailableDeviceAllowsRecovery",
+        "TestDeviceBufferPoolCapacityRefusalReclaimsIdle"
+      ],
+      "scope": "An ordinal beyond the actual device count is rejected, followed by valid device acquisition and zero owned bytes after close. A physical allocation larger than installed VRAM fails, reclaims idle storage and leaves an existing allocation writable. This checks error recovery, not the maximum supported model size."
+    },
+    {
+      "command": "go test ./internal/workflowruntime -run '^(TestCancellationCauseReachesTerminalReceipt|TestSingleLifecycleMutator|TestCancellationWhileWaitingForStageLock|TestRuntimePublishesFailedRun|TestRuntimePublishesCancelledRun|TestWorkflowRestartSkipsCompletedStages|TestWorkflowRecoveryRejectsRecipeDrift)$' -count=1 -json",
+      "evidence": "evidence:sha256:14016e032721acbadd9aa81eda46c31f25e87e4e75c937c13742665995034c90",
+      "name": "Failed run persistence and completed-stage recovery",
+      "protocol": "evidence:sha256:7381e639774dad339dd09cc6c50e9a2027142b03fb0fb2a32d690184e184b315",
+      "required_tests": [
+        "TestCancellationCauseReachesTerminalReceipt",
+        "TestSingleLifecycleMutator",
+        "TestCancellationWhileWaitingForStageLock",
+        "TestRuntimePublishesFailedRun",
+        "TestRuntimePublishesCancelledRun",
+        "TestWorkflowRestartSkipsCompletedStages",
+        "TestWorkflowRecoveryRejectsRecipeDrift"
+      ],
+      "scope": "Failed and canceled runs retain terminal receipts; workflow restart skips completed stages and refuses recipe drift. This does not imply a denoising checkpoint or browser reattachment."
+    },
+    {
+      "command": "go test ./internal/workflowruntime ./internal/oscillatorimage ./internal/diffusionimage ./internal/latentvideo -run '^(TestScalarStageCancellationBoundaries|TestContextPipelineCarriesRequestContext|TestCancellationWhileWaitingForStageLock|TestStagedCancellationKeepsOutputs|TestVideoCancellationKeepsOutputs|TestHostSamplingCancellationRecovery|TestResidentGeneratorCancellationBeforeLoad|TestTextConditioningCancellationBeforeIO)$' -count=1 -json",
+      "evidence": "evidence:sha256:5a5693af058e3c50fce83fd226b4ab2d878f50cf64526e952ddbe1a82cb6a9f1",
+      "name": "Cancellation causes in host boundaries",
+      "protocol": "evidence:sha256:533b6fbe13e1dbe2e2a6d729303078f64ff2351bd905bcd1c1f84a58f00b4d8a",
+      "required_tests": [
+        "TestScalarStageCancellationBoundaries",
+        "TestContextPipelineCarriesRequestContext",
+        "TestCancellationWhileWaitingForStageLock",
+        "TestStagedCancellationKeepsOutputs",
+        "TestVideoCancellationKeepsOutputs",
+        "TestHostSamplingCancellationRecovery",
+        "TestResidentGeneratorCancellationBeforeLoad",
+        "TestTextConditioningCancellationBeforeIO"
+      ],
+      "scope": "The same interruption and exact recovery checks pass after the test helpers explicitly preserve context.Canceled as the cancellation cause."
+    },
+    {
+      "command": "go test ./internal/latentvideo -tags=integration -run '^TestEncodeTokensStreamedMatchesReferenceHost$' -count=1 -json",
+      "evidence": "evidence:sha256:e72b1d5f73bb23fed13c8e440a8b525044933e44e86808f0f7ce08332df2e4af",
+      "name": "Native encoder cancellation cause",
+      "protocol": "evidence:sha256:533b6fbe13e1dbe2e2a6d729303078f64ff2351bd905bcd1c1f84a58f00b4d8a",
+      "required_tests": [
+        "TestEncodeTokensStreamedMatchesReferenceHost"
+      ],
+      "scope": "The updated cancellation helper preserves context.Canceled and the complete unchanged native encoder reference."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe ./internal/latentvideo ./internal/cuda/executor -p=1 -run '^(TestSenseNovaCancellationRecovery|TestLiveEditCancellationRecovery|TestWeightStagingPhaseRelease)$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:c0ceefc1c3fa6f0e09ff09e7f51b6b51002d39bb5310bb0be7592a720a329a6f",
+      "name": "Native device cancellation causes and recovery",
+      "protocol": "evidence:sha256:533b6fbe13e1dbe2e2a6d729303078f64ff2351bd905bcd1c1f84a58f00b4d8a",
+      "required_tests": [
+        "TestSenseNovaCancellationRecovery",
+        "TestLiveEditCancellationRecovery",
+        "TestWeightStagingPhaseRelease"
+      ],
+      "scope": "Final shared instrumentation preserves context.Canceled. SenseNova and LiveEdit retain their exact native outputs, phase-specific cancellation and memory recovery, and shared staging release preserves live outputs and exact recapture."
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -run '^TestLiveEditCancellationRecovery$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:5f75b20361b44a54e1fb0a1b95eea10347c91602176bf83b5e671c090e3dbf29",
+      "name": "Documented device cancellation helper",
+      "protocol": "evidence:sha256:446950b72641aa43378bce6aa30765d80e1cff466f1ad62e0a61c80314c4ba5d",
+      "required_tests": [
+        "TestLiveEditCancellationRecovery"
+      ],
+      "scope": "Documentation-only helper edit; native source, denoise, decode and frame-publication cancellation retain exact latent/frame recovery, stable per-owner idle memory and zero owned bytes after close."
+    }
+  ],
+  "failed_attempts": [
+    "evidence:sha256:75f77468f9bc45fab28124aba4e233a9b68a8c3bec6bd0263433d6dc571831bb",
+    "evidence:sha256:6eb79962b026c44b664f1e2b7ea6df968e14254aceb44c09938963b5c9ef9316",
+    "evidence:sha256:ee8f9193a7382b0a5563d37c10d0ccbe52658e0b3d87a9e463dd76c559decc69",
+    "evidence:sha256:4d9fc19cc48fdbe53662e0afab8e6487e771c7bf4878f90adb6a8c6c2096c53b",
+    "evidence:sha256:b549c8898a7667491eebcd3a38812f2009f710c968e22c81ca82e3b47fce1914",
+    "evidence:sha256:bede2b59acc3646428e3d266b33b07ba287a95a82fb107cda9c8e81a7847487a",
+    "evidence:sha256:55a4ace30092910f07406d773da7ffc330d622b891326f7b995e22b1eb16bbe8",
+    "evidence:sha256:0cd037efb7f4dc48feeb1c2627612bcc2a149a594aa7d559c3daf6f85617b21b",
+    "evidence:sha256:4e4a151634bf8d7be988ca0bb2020c855cec3e527404580a649d1c58ab440819",
+    "evidence:sha256:be18da29b56967ed27a03b128c324c64600c7d467443d807c24c968ff8c42322",
+    "evidence:sha256:8749dcca085a34102727ce032b4264b65a63cc16dc1cf2168d4d2b7034f647c9"
+  ],
+  "protocol": "evidence:sha256:7381e639774dad339dd09cc6c50e9a2027142b03fb0fb2a32d690184e184b315",
+  "scope": "The seven frozen media recipes retain their existing numerical and visual claims. This step adds cooperative request cancellation, exact recovery checks, shared cleanup and bounded resource ownership. It fixes work starting after cancellation, late scalar publication, abandoned SenseNova prefix outputs and prefix staging retention, and missing LiveEdit denoise/decode cancellation. Cancellation takes effect at explicit checks between bounded operations; it cannot preempt an already submitted synchronous kernel or file read. Retry regenerates from the request or repeats decode; no arbitrary denoising checkpoint resume is claimed. Public browser/server workflows and capacity optimization remain separate plan steps.",
+  "source_base": "fcf4f3dd9f28fff719ff6a6c02621948750ea6b4",
+  "source_changes": {
+    "cmd/dit-train-probe/main.go": {
+      "after_sha256": "25d972785e23a99d675a5c0d5b7c25194de00097eb0466a9da31ca83fe798e15",
+      "before_sha256": "16c89e72f7d1e55d5700cb8fc16b32559bc650e9732f3c1058a0ffa0d4a2b958",
+      "reason": "Pass the existing command context through the shared text encoder caller; training arithmetic and policy are unchanged."
+    },
+    "internal/cuda/executor/executor.go": {
+      "after_sha256": "26b3df89f37537916c51cc57bf6b1e08b2ec09c7413d2b3fb40ffd8225f98854",
+      "before_sha256": "f9fb23f88c459d544c0ec86639b311e1fde7488a631a23ab43e26f159610841c",
+      "reason": "Share explicit weight-staging release, invalidate captured graph references before freeing storage, and reuse the same release implementation for one-shot execution."
+    },
+    "internal/cuda/testutil/cancellation.go": {
+      "after_sha256": "86fbe38f9f2f9f5d616d5918dd53333257bcdc76955c113b552e5d338e39d88d",
+      "before_sha256": "",
+      "reason": "Share actual-device-work cancellation instrumentation and preserve context.Canceled as the explicit cause; no extra GPU work or timing threshold."
+    },
+    "internal/diffusionimage/forward.go": {
+      "after_sha256": "397d8de87221cd3ed58b0292d48427aab2fe2006b6ba02c5b12487bf2150b19d",
+      "before_sha256": "a230ab2d5d30ae9dfe33b057b362bd3f9741ffcb2757bdfe725ae70520852ada",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/diffusionimage/resident_runtime.go": {
+      "after_sha256": "6d02ec638488ffa5b8b524842ab51d7d058ff0d37733b61fb3f1b0ffb8ea0277",
+      "before_sha256": "0daa22ad7a2e322c665003fde5b4cea3c9c1e4faeaf10dedebada4878e6a3845",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/diffusionimage/runtime.go": {
+      "after_sha256": "0442f552712cb1225c7f87c97f74bad57269a552b68cc34359be4b74c7a74701",
+      "before_sha256": "5db70cb9cd7de95e51fded058fe30f19ceaf60a20f86ab5ab3250603be8b285c",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentimage/runtime_cuda_windows.go": {
+      "after_sha256": "b80c21ca685efdadb496108cb8b2d911f680a0201a78fed94e74b30a21370290",
+      "before_sha256": "7078a571dded17504e2ba96d32e6dea08df969e1ed4481364c7fec0c03c30db3",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/dittrain.go": {
+      "after_sha256": "568cf5fea8fafe0105609acc828b681f379175ef1dfd687acde742a24f0cd8cc",
+      "before_sha256": "92dbede81c096575317b09779835e5486a60c50b72b485f3a1c6b88c2fedd0e7",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/edit_form.go": {
+      "after_sha256": "7c241ff20b762c3ca3ea4332d908da48a2eab4bda6e21c0a72d60f0dd41c1494",
+      "before_sha256": "b70776f3677c11c73af05545acdcb10873eb57ed35d4ae4138fa3da659a51c04",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/encoder.go": {
+      "after_sha256": "10378b0570f14706ff4ec2370c2939dceed690a0475fac7d641bc3aa0b34ff62",
+      "before_sha256": "065a0e1fff9da6ff451c8fd0d2d81e80e967cd5af639cde60a2cee6f3912cd8a",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/production_cuda_windows.go": {
+      "after_sha256": "3ad8f943b451e250cafb9b60eb6cc1d10ff09afd06128dc65ba1e2553188756e",
+      "before_sha256": "7f54df5baae0a928fed10620c194e7eaf8dd7b31625b31ee47fa3ccc656deeae",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/reference_edit_denoiser_session_windows.go": {
+      "after_sha256": "e4bd028b6d60b6319525f9b9d5c357cda49171d96e1224913cab24ed0bc48d00",
+      "before_sha256": "3684473fc68dbcf411176694d3810aae0944f7c647c9ceadd2f0dae2f9698156",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/reference_edit_runtime_cuda_windows.go": {
+      "after_sha256": "e13b7cb2183736df7d96e2150f4a7bc5f37dea382099a6bb8d69ec48f71c1ae7",
+      "before_sha256": "9f131ef48623d6e55488880f8f3a59d3b8335e674edf330120a14f07bb4d5d00",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/textcond.go": {
+      "after_sha256": "b0b6aeb075b94984af35ef2011272b40a4eddcdf6fab5fd2434dad20cea2ccd9",
+      "before_sha256": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/vae_session.go": {
+      "after_sha256": "64fc8981f809c4635b8b1ce56f0b81528c9cb76bf66d67567b4fffbd227787c1",
+      "before_sha256": "f036a4061bd8281c2aa22fd75f8adb634012564e73c838171b11d3728dc832a8",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/latentvideo/wan_form.go": {
+      "after_sha256": "be6b7a0bfdf537d79fd5214e4e8373abd40f4310392b5c02f704b167bdc91486",
+      "before_sha256": "14a14696f398864f3d290da5aaf64198f7b4d4bb1b6dde22136e4dfa69fd2469",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/oscillatorimage/forward.go": {
+      "after_sha256": "41dde46c97a44ca6be2f9c420137bbd2723e6371b3445b3fc2f7684f02a6ed37",
+      "before_sha256": "e5acf3a6ef68619b3f7cc646d28c496eaec6b1cd4e48a781405823431b04c097",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/oscillatorimage/runtime.go": {
+      "after_sha256": "f1f1ffcd1046db210249004477b81809299fba6662e6234ac58bc4653a8c13f5",
+      "before_sha256": "aafbf84a1818d7f582b3769a77f09e37dbebf0244156de3a80363752133a98fe",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/oscillatorimage/video.go": {
+      "after_sha256": "c2b8a322e78f5daffb454be4efb4e9678cc6ffd7ca79e0fbebf71e2dff14da14",
+      "before_sha256": "916be2ec394750c4c30a1d10548519a7928c98b3e702c1cc2c380f7838f5964f",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/routedlm/generationstack_cuda_windows.go": {
+      "after_sha256": "b647b808563fce67fba5874e3a55013c2c4fc1709df497bb7475ed4da58ffa4e",
+      "before_sha256": "6f5377b327267368456244f1c7656ec5f734ada423455ed83631123b273ad5e7",
+      "reason": "Release retained prefix outputs even when the request is canceled and end prefix weight-staging ownership before later generation phases."
+    },
+    "internal/routedlm/prefixstack_cuda_windows.go": {
+      "after_sha256": "fd5e39e63a50c957820a662cddc5b4beea6b75529671878c3cffed61c9bbaeab",
+      "before_sha256": "039348508a974484271f0f193c9d3cc13c1688a3a11aeb84f60d09fb62efd0b1",
+      "reason": "Release retained prefix outputs even when the request is canceled and end prefix weight-staging ownership before later generation phases."
+    },
+    "internal/sensenovarecipe/runtime_cuda_windows.go": {
+      "after_sha256": "ca3e09bf6deec3fdf3aba86ac9da822c98f7073d7d4a5f3c123039083f386ab9",
+      "before_sha256": "30224d7e806ce6c52e475049c1aa25da784442745da8cf36008479d75e48493d",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/workflowruntime/json_stage.go": {
+      "after_sha256": "b101a2d931197b2e76e9f45ae62a5959efc4a5d9945a3d71c4fa43b0a88e795e",
+      "before_sha256": "d16b75ccac98cae2989d604cdbec5d5a75689e858a18cc90df792580e7f9a7e7",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    },
+    "internal/workflowruntime/runtime.go": {
+      "after_sha256": "b62dbe325b7c4f62a856e836694e74eccb993f36990fbe0b671953024b041300",
+      "before_sha256": "01eac97d0018130fa218075eb02bbe86290fc1e2db305c909366d152032975d0",
+      "reason": "Propagate request cancellation through existing media computations and complete cleanup independently of request cancellation."
+    }
+  },
+  "source_patch": "evidence:sha256:e6a29b64d590b935d75c8b6c38fb34c36f0f442fe9d0a4cafff79cb6f5537f6b",
+  "source_size_review": "evidence:sha256:8964e97767081b305894c0db19fd9812596bb81544da5eaac6cc023a4f2a995e",
+  "test_sources": {
+    "09a789c33c1e1e8c10c07cb13d3a77174bd8c324145eefa5bbd8b1c026e26721": "evidence:sha256:09a789c33c1e1e8c10c07cb13d3a77174bd8c324145eefa5bbd8b1c026e26721",
+    "0ea8601e50550fb584ed5825ac00623315074014b0b4e7cf5bb2af1cc045cdaf": "evidence:sha256:0ea8601e50550fb584ed5825ac00623315074014b0b4e7cf5bb2af1cc045cdaf",
+    "23209486526257e17d00c8dfcf4cbee03e38bf086bdea54a5c9155208cc35920": "evidence:sha256:23209486526257e17d00c8dfcf4cbee03e38bf086bdea54a5c9155208cc35920",
+    "26dd51edcac925c3962906fb0166ca98f6bc51294b417316088cfaa64467980f": "evidence:sha256:26dd51edcac925c3962906fb0166ca98f6bc51294b417316088cfaa64467980f",
+    "30b5def3111a0a6136ced6f6fc95cf856495e982711e2c3a5a00fd7a411d0ea7": "evidence:sha256:30b5def3111a0a6136ced6f6fc95cf856495e982711e2c3a5a00fd7a411d0ea7",
+    "33df073e670b6b8f58b07dfd60331d1b722ab7de1447d4f50a1e29558aa29296": "evidence:sha256:33df073e670b6b8f58b07dfd60331d1b722ab7de1447d4f50a1e29558aa29296",
+    "390a94c8f7c6bff5dbc721cda1804ceef3b9e2fc4116d503ca78697cb433e638": "evidence:sha256:390a94c8f7c6bff5dbc721cda1804ceef3b9e2fc4116d503ca78697cb433e638",
+    "39e2fc073f91e730a59a6ef49eff688255977e3066d201e5ad8a879db24cb1fa": "evidence:sha256:39e2fc073f91e730a59a6ef49eff688255977e3066d201e5ad8a879db24cb1fa",
+    "40bdefb793b5c42fd185cfe646b1c407ace17393a5803fd864b235752695cc29": "evidence:sha256:40bdefb793b5c42fd185cfe646b1c407ace17393a5803fd864b235752695cc29",
+    "491c2992f5a78b64908ff314b67712af296480e9bc7f2693bb29a08d3c740d51": "evidence:sha256:491c2992f5a78b64908ff314b67712af296480e9bc7f2693bb29a08d3c740d51",
+    "697fbf18ee1ccc89e5ba5bab92ce94f70fb146797be86484e96e8e19e99cbc23": "evidence:sha256:697fbf18ee1ccc89e5ba5bab92ce94f70fb146797be86484e96e8e19e99cbc23",
+    "72078686fe53e81dccaf1cdfb9299a951297d2b267046f077fb451c7da72e913": "evidence:sha256:72078686fe53e81dccaf1cdfb9299a951297d2b267046f077fb451c7da72e913",
+    "72d641acadf1f12037b408be5d4db442080321b28cd066bf94c4e4a7f22c70be": "evidence:sha256:72d641acadf1f12037b408be5d4db442080321b28cd066bf94c4e4a7f22c70be",
+    "80e184a770ed52d5250c2bffd8fc3ac2e90db76ef4ae18e8e012fb1d96a2f032": "evidence:sha256:80e184a770ed52d5250c2bffd8fc3ac2e90db76ef4ae18e8e012fb1d96a2f032",
+    "82df2f1ce093778bd926ecf406c7851f834d262623b56363ed588c8e55f7980f": "evidence:sha256:82df2f1ce093778bd926ecf406c7851f834d262623b56363ed588c8e55f7980f",
+    "8932ff22834d145225d1a1d0f055ee4e447cea439e77f7e5c5acdae778a0759e": "evidence:sha256:8932ff22834d145225d1a1d0f055ee4e447cea439e77f7e5c5acdae778a0759e",
+    "8a2b267a1c4cf8d45f2330f6f52c4db7661b8e47cdc9bee984868563badc9151": "evidence:sha256:8a2b267a1c4cf8d45f2330f6f52c4db7661b8e47cdc9bee984868563badc9151",
+    "8cd989270ace709b984914dbbdcec68dd4230dd7c215ea24055fd22d398a9e1d": "evidence:sha256:8cd989270ace709b984914dbbdcec68dd4230dd7c215ea24055fd22d398a9e1d",
+    "8f3a88f52847cb299adde0763856c83317f0eae83d79c79dd69a14fb48bd37ca": "evidence:sha256:8f3a88f52847cb299adde0763856c83317f0eae83d79c79dd69a14fb48bd37ca",
+    "92069344ecb7866be8f79666556cb1ccd7a761e8410e70fc3fa7eb8ff133d151": "evidence:sha256:92069344ecb7866be8f79666556cb1ccd7a761e8410e70fc3fa7eb8ff133d151",
+    "9ee58801390fe1915e61c09ef4592cd151371a5ae51bd887cb420aaaeb0db05e": "evidence:sha256:9ee58801390fe1915e61c09ef4592cd151371a5ae51bd887cb420aaaeb0db05e",
+    "a350fac61d45f9d273134df6fcb84a974a00ec0515c1a7ac386ba9a3f1dd440b": "evidence:sha256:a350fac61d45f9d273134df6fcb84a974a00ec0515c1a7ac386ba9a3f1dd440b",
+    "b0044371bf3bf370ca60779620081917ed5fe2367dd01eef7c16aed1941a3b3f": "evidence:sha256:b0044371bf3bf370ca60779620081917ed5fe2367dd01eef7c16aed1941a3b3f",
+    "b102d6bfd2b9ba536c3e4d8e8ecab1b218b5a63aa3f8ca6f3e778aca3cedcc1a": "evidence:sha256:b102d6bfd2b9ba536c3e4d8e8ecab1b218b5a63aa3f8ca6f3e778aca3cedcc1a",
+    "b3627c9fd6325e2d62fc9c62a5084439885b5649b092ab8e5af13a84678b5560": "evidence:sha256:b3627c9fd6325e2d62fc9c62a5084439885b5649b092ab8e5af13a84678b5560",
+    "ba0e6c30ceb2c2bd5d2f29e54bd954ac4a6f6d0e29b9fa0ca310d6578d9c957e": "evidence:sha256:ba0e6c30ceb2c2bd5d2f29e54bd954ac4a6f6d0e29b9fa0ca310d6578d9c957e",
+    "bbd25b22aa467a48a41cf00f7334217b082215b156201f0ec41e2fe2f0c1e243": "evidence:sha256:bbd25b22aa467a48a41cf00f7334217b082215b156201f0ec41e2fe2f0c1e243",
+    "bf126f24918a4440d594f9005c83b2409c8311e3a19429faa9cfd4eb3fd8a018": "evidence:sha256:bf126f24918a4440d594f9005c83b2409c8311e3a19429faa9cfd4eb3fd8a018",
+    "cbc4f65eb48f3771d23bfbea3246691070319352d2b6635b7bf898627e01f7ed": "evidence:sha256:cbc4f65eb48f3771d23bfbea3246691070319352d2b6635b7bf898627e01f7ed",
+    "d2c2b25127a910153d7ac5fe08f02167aca8f26137d09789370e84137d353d5e": "evidence:sha256:d2c2b25127a910153d7ac5fe08f02167aca8f26137d09789370e84137d353d5e",
+    "d2f65ad953fddaec58b665d4187948e21b6bc1081e35afb7f0954ca8b152695f": "evidence:sha256:d2f65ad953fddaec58b665d4187948e21b6bc1081e35afb7f0954ca8b152695f",
+    "e5d61887a6051043f983126687f0d3842fa05f944d0d3deb9d702e5914b39b7d": "evidence:sha256:e5d61887a6051043f983126687f0d3842fa05f944d0d3deb9d702e5914b39b7d",
+    "ed49152e35da61ec7524f82340240a21ba1b4b51b81e7854cd88030bf5cfbf46": "evidence:sha256:ed49152e35da61ec7524f82340240a21ba1b4b51b81e7854cd88030bf5cfbf46",
+    "ee658f686e26d6c2c2a7594a46ec3b5aba79cf4380cf85729cee5ce4ec086708": "evidence:sha256:ee658f686e26d6c2c2a7594a46ec3b5aba79cf4380cf85729cee5ce4ec086708",
+    "f34d2b661f68bb4a10c5ff774896ed9623667a41772dc867122b19a54111c88a": "evidence:sha256:f34d2b661f68bb4a10c5ff774896ed9623667a41772dc867122b19a54111c88a",
+    "f3fa4c7d2a022a981004c0ac646085be73cd76f45d2fb87d0d52b7a7214a6f55": "evidence:sha256:f3fa4c7d2a022a981004c0ac646085be73cd76f45d2fb87d0d52b7a7214a6f55",
+    "f4fee8f17c519648fb0a5e44a43bc19eab9198303d836f53ef3e05a7b62e7a28": "evidence:sha256:f4fee8f17c519648fb0a5e44a43bc19eab9198303d836f53ef3e05a7b62e7a28"
+  },
+  "version": 1
+}

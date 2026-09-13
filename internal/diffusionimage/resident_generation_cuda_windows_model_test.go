@@ -26,7 +26,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	for index := range hostDurations {
 		started := time.Now()
 		var err error
-		hostPixels, err = model.Sample(1, size, size, steps, seed)
+		hostPixels, err = model.Sample(t.Context(), 1, size, size, steps, seed)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -54,7 +54,7 @@ func TestRealResidentGenerationLeadership(t *testing.T) {
 	slices.Sort(warmDurations)
 	hostMedian, warmMedian := hostDurations[1], warmDurations[1]
 	pixelDiff := testutil.MaxAbsDiff(devicePixels, hostPixels)
-	encoded, err := model.decode(sampleFeatures{pixels: devicePixels, height: size, width: size})
+	encoded, err := model.decode(t.Context(), sampleFeatures{pixels: devicePixels, height: size, width: size})
 	if err != nil {
 		t.Fatal(err)
 	}

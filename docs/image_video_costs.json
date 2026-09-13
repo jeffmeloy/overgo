@@ -1,0 +1,581 @@
+{
+  "acquisition_order": [
+    "Shared F32 loading: Wan denoiser and text projection are two production consumers with identical decode semantics. Measure complete loader allocations, peak, wall and exact tensor content before replacement.",
+    "Wan guided-step input reuse: measure denoiser and decoder separately on frozen G3/G4 plus full-clip requests; preserve output quality and profile actual bytes before changing transfers.",
+    "Shared GIF timing: decode all frozen clips and compare pixels, order and cumulative duration without rerunning unchanged model inference.",
+    "Catalog reuse: compare the same selected-task model identities with and without the existing memo; share work between report and exporter.",
+    "Defer typed LiveEdit handoff until preparation observations show that its avoided serialization warrants the wider session-director change."
+  ],
+  "baseline_source": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
+  "boundaries": [
+    {
+      "byte_basis": "tensor.Elements times sizeof(float32); source payload extent comes from tensor.Size",
+      "consumer": "Wan denoiser and text projection loaders",
+      "consumers": [
+        "LoadDenoiserWeights",
+        "loadProjectionWeights"
+      ],
+      "copy_reason": "manual decode currently materializes a complete intermediate byte buffer",
+      "dtype_layout": "F32 denoiser; projection promotes F32/F16/BF16; checkpoint tensor ordering remains unchanged",
+      "lifetime": "raw bytes and decoded values overlap within each tensor; decoded maps survive preparation",
+      "measurement": "complete loader allocation delta, process peak and exact named-value hash",
+      "producer": "safetensors.Source",
+      "storage": "host byte buffer then host float32 slice",
+      "value": "selected checkpoint tensors"
+    },
+    {
+      "byte_basis": "derived_wan_boundaries.step_shared_input_bytes",
+      "consumer": "Wan conditional/unconditional step graphs",
+      "consumers": [
+        "conditional ForwardHead",
+        "unconditional ForwardHead"
+      ],
+      "copy_reason": "both branch calls currently bind the same host feeds independently",
+      "dtype_layout": "F32; graph shapes derive from configuration and latent geometry",
+      "lifetime": "shared within a guided step; patch values change next step; no host-pointer identity reuse",
+      "measurement": "denoiser HtoD byte/call deltas; scope excludes VAE",
+      "producer": "host patchify and timestep conditioning",
+      "storage": "host arrays uploaded to graph device inputs twice per guided step",
+      "value": "patch_tokens, conditioning_block, conditioning_head"
+    },
+    {
+      "byte_basis": "derived_wan_boundaries.predicted_head_readback_bytes",
+      "consumer": "Wan host UniPC",
+      "consumers": [
+        "host unpatchify",
+        "guidance",
+        "UniPC"
+      ],
+      "copy_reason": "current sampler and layout conversion consume host values",
+      "dtype_layout": "F32; config patch output and latent geometry",
+      "lifetime": "head buffer is reusable only after the host copy completes; branch values feed the same guided update",
+      "measurement": "DtoH bytes remain after proposed shared-input reuse; no GPU sampler claim",
+      "producer": "retained CUDA head output",
+      "storage": "device head copied to host before retained output release",
+      "value": "conditional and unconditional denoiser heads"
+    },
+    {
+      "byte_basis": "latent geometry, codec chunk extents and decoded width/height/frame count",
+      "consumer": "Wan VAE and output sink",
+      "consumers": [
+        "VAEDecoderCUDASession.Decode",
+        "VideoFrameSink",
+        "GIFEncoder"
+      ],
+      "copy_reason": "VAE consumes device latent; host encoder requires final pixels",
+      "dtype_layout": "F32 latent and pixels; RGB planar ordering from codec plan; GIF indexed bytes",
+      "lifetime": "decoder causal caches span chunks; sink retains encoded frames; both stage sessions coexist",
+      "measurement": "decoder counters and simultaneous stage live bytes required; legacy denoiser counters omit this phase",
+      "producer": "host UniPC then causal VAE device graph",
+      "storage": "host latent to device; decoded planar float frames to host; quantized palette frames retained for encoding",
+      "value": "final latent and decoded frame chunks"
+    },
+    {
+      "byte_basis": "compiled tensor shapes and retained owner statistics",
+      "consumer": "Krea resident image pipeline",
+      "consumers": [
+        "ResidentImagePipeline.Advance",
+        "ResidentImagePipeline.DecodeHWC"
+      ],
+      "copy_reason": "device-to-device handoff already avoids intermediate host staging; optional Latent diagnostics add readback",
+      "dtype_layout": "each tensor graph declares dtype and shape; preserve model flow schedule and VAE bridge",
+      "lifetime": "conditioning and latent survive dependent stages; Finish drops request state, Close releases session weights",
+      "measurement": "existing resident lifecycle and transfer tests; CPU reference loader changes do not imply this GPU path improves",
+      "producer": "resident encoder/fusion and denoiser graphs",
+      "storage": "device retained output handles",
+      "value": "conditioning and evolving latent"
+    },
+    {
+      "byte_basis": "request geometry and ResidentForward graph shapes",
+      "consumer": "SimpleDiffusion Windows resident generator",
+      "consumers": [
+        "retained sampling update",
+        "EncodePlanarPNG"
+      ],
+      "copy_reason": "one final host read supplies the PNG encoder; CPU reference path is separate",
+      "dtype_layout": "F32 model graph and request-derived image geometry",
+      "lifetime": "latent buffers alternate through steps and final output copies before release",
+      "measurement": "runtime binding establishes device use despite historical host node placement",
+      "producer": "ResidentForward.Sample",
+      "storage": "device ping-pong state, then final host pixels",
+      "value": "evolving image and final pixels"
+    },
+    {
+      "byte_basis": "actual returned slice extents and graph declarations; aggregate bytes not yet observed",
+      "consumer": "SenseNova routed generation",
+      "consumers": [
+        "routed attention branches",
+        "host image integration"
+      ],
+      "copy_reason": "existing public component methods return host arrays",
+      "dtype_layout": "model-bound hidden dimensions and request image patches; preserve branch and layout definitions",
+      "lifetime": "per-step intermediates; prefix/session storage retained during trajectory",
+      "measurement": "measure component counters before choosing a transfer change; review cancellation context propagation",
+      "producer": "VisionEmbedTokens, routed session and FlowHeadVelocity",
+      "storage": "host arrays cross device-backed component interfaces",
+      "value": "vision hidden states and branch velocities"
+    },
+    {
+      "byte_basis": "decoded tensor extents and actual serialized payload size",
+      "consumer": "LiveEdit public clip preparation",
+      "consumers": [
+        "ModelSessionDirector",
+        "ReferenceEditInputContent",
+        "reference denoiser and source codec"
+      ],
+      "copy_reason": "internal generic JSON handoff plus required artifact publication are distinct copies",
+      "dtype_layout": "source frame/channel/height/width declarations and model conditioning tensors",
+      "lifetime": "resolved request and serialized representation may overlap until preparation; durable mapped inputs remain required",
+      "measurement": "separate avoidable handoff allocation from mandatory replay artifacts; typed handoff remains deferred",
+      "producer": "resolveEditForm and source decoder",
+      "storage": "host typed arrays, intermediate JSON/string, parsed host arrays and eventual device inputs",
+      "value": "decoded source frames and conditioning"
+    },
+    {
+      "byte_basis": "model image extent, scale and frame count",
+      "consumer": "Un-0 image and video",
+      "consumers": [
+        "PNG encoder",
+        "scaled GIF frame conversion"
+      ],
+      "copy_reason": "output quantization and scaling serve host encoders; there is no GPU round trip",
+      "dtype_layout": "model output dimensions; video scaling derives from request; independently seeded frames",
+      "lifetime": "video retains generated frame arrays and encoded frames until GIF publication",
+      "measurement": "host allocations, exact pixels, frame order and GIF duration; no temporal-model quality inference",
+      "producer": "oscillator Model",
+      "storage": "host float arrays, then RGBA/palette bytes",
+      "value": "class-conditioned host images"
+    }
+  ],
+  "candidates": [
+    {
+      "change": "Replace manual full-byte-buffer decoding with the existing safetensors.ReadF32 owner while retaining each caller's dtype, shape and tensor-selection checks.",
+      "cohort": "Wan denoiser and text projection are two production consumers. Krea textencoder and VAE loaders serve host/reference paths; the active resident GPU path uses compileResidentWeights and must not inherit a GPU-speed claim from these changes.",
+      "effect": "Eliminate one tensor-sized float32 byte buffer and its decoding loop per selected tensor. Measure total allocated bytes, process peak, loading wall and bitwise tensor equality.",
+      "id": "shared-float32-loading",
+      "limitations": "Source header extents predict avoided copies, not process peak. Map iteration and Go collection affect measured peak. Preserve both F32 exactness and F16/BF16 promotion; do not broaden Wan's declared F32 checkpoint contract.",
+      "owners": [
+        "internal/latentvideo/denoiser.go",
+        "internal/latentvideo/textcond.go",
+        "internal/latentimage/textencoder.go",
+        "internal/latentimage/vae.go"
+      ]
+    },
+    {
+      "change": "Evaluate uploading the shared patch and timestep inputs once per guided timestep, then reuse them for conditional and unconditional graph calls through existing device buffers.",
+      "cohort": "Wan numerical G3/G4 requests plus the frozen full-clip request. Preserve UniPC, branch context identity, output-head ownership, and cancellation/repeated-request behavior.",
+      "effect": "The two branch calls receive the same patch_tokens, conditioning_block and conditioning_head. Avoiding the second upload should remove one complete input set per timestep; derive bytes from actual tensor shapes and dtype.",
+      "id": "wan-step-input-reuse",
+      "limitations": "A lower HtoD count alone does not establish faster end-to-end generation. Head outputs still return to the host for unpatchify, guidance and UniPC. Do not cache by host pointer identity because an input slice may be mutated in place.",
+      "owners": [
+        "internal/latentvideo/denoiser.go",
+        "internal/latentvideo/denoiser_session.go",
+        "internal/latentvideo/runtime.go"
+      ]
+    },
+    {
+      "change": "Evaluate a typed request handoff in the existing session director to remove the resolved clip request's internal JSON encode/string/decode round trip.",
+      "cohort": "The frozen LiveEdit tensor cases and a declared clip-form request. Exercise the shared director with another real typed consumer before claiming shared handoff consolidation.",
+      "effect": "Avoid copying and parsing decoded source pixels and compiled conditioning before model preparation; retain required durable request and mapped-input publication.",
+      "id": "liveedit-typed-preparation",
+      "limitations": "The director still creates a request identity and mapped source/condition artifacts. Oversized request digests preserve identity but are not a substitute for the source and condition artifacts needed for replay.",
+      "owners": [
+        "internal/mediacapability/video_form.go",
+        "internal/capabilityruntime/session_director.go",
+        "internal/mediacapability/video_cuda_windows.go"
+      ]
+    },
+    {
+      "change": "Use cumulative centisecond quantization in the shared GIF timing owner and migrate both encoder consumers.",
+      "cohort": "All seven frozen video cases, including 16 fps Wan/LiveEdit and 8 fps Un-0. Add boundary coverage for unsupported frame rates and arithmetic overflow.",
+      "effect": "Correct accumulated duration error while preserving decoded frame pixels and order. Retain original encoded artifacts and their original byte-oracle outcomes.",
+      "id": "gif-duration",
+      "limitations": "This is a correctness change. It does not establish a throughput, memory, motion-quality or temporal-conditioning improvement.",
+      "owners": [
+        "internal/media/video.go",
+        "internal/latentvideo/production.go",
+        "internal/oscillatorimage/video.go"
+      ]
+    },
+    {
+      "change": "Use selected-task catalog reads and the existing stat-validated digest memo in both report and sample consumers.",
+      "cohort": "Both report and sample-export discovery with the frozen image/video task selection.",
+      "effect": "Avoid hashing unrelated model files or repeating unchanged file hashes. Compare identical catalog results and publication artifacts before measuring elapsed time.",
+      "id": "media-catalog-reuse",
+      "limitations": "The earlier complete census took 4.22 seconds with its existing memo; the earlier un-memoized inspection had a different scope and no retained exact wall time. Those observations are not a matched speedup comparison.",
+      "owners": [
+        "cmd/compatibility/media.go",
+        "cmd/compatibility/samples.go",
+        "internal/discovery/capability.go"
+      ]
+    }
+  ],
+  "derived_wan_boundaries": {
+    "config_dim": 1536,
+    "dtype": "f32",
+    "geometry": {
+      "Channels": 16,
+      "LatentFrames": 21,
+      "LatentHeight": 60,
+      "LatentWidth": 104,
+      "Grid": [
+        21,
+        30,
+        52
+      ],
+      "Seq": 32760
+    },
+    "latent_bytes": 8386560,
+    "predicted_avoided_duplicate_upload_bytes": 421478400,
+    "predicted_head_readback_bytes": 838656000,
+    "profile": "profile:sha256:5dff72b6d581a9d1df3de903ef0d9321fd912d21de91a715c9dd11277722c641",
+    "request": {
+      "frames": 81,
+      "width": 832,
+      "height": 480,
+      "steps": 50,
+      "shift": 5,
+      "guide_scale": 6,
+      "seed": 31
+    },
+    "scope": "Derived from declared profile, checkpoint configuration and graph input shapes; not measured candidate savings. Context projection, weights and decoder transfers remain separate.",
+    "step_conditioning_bytes": 43008,
+    "step_shared_input_bytes": 8429568,
+    "two_branch_input_bytes": 16859136
+  },
+  "historical_wan_observation": {
+    "decode_seconds": 41.9580797,
+    "denoise_seconds": 481.1924743,
+    "device_to_host_bytes": 838656000,
+    "host_to_device_bytes": 3677888160,
+    "latent_elements": 2096640,
+    "limitations": "GenerationResult.Execution is sampled from the denoiser before VAE decode. It excludes the decoder's copies and counters. Include both phase owners in a complete new measurement; do not call these counters full-generation transfers.",
+    "path": "build/latentvideo/current_prod50/run_report.json",
+    "request": {
+      "frames": 81,
+      "height": 480,
+      "steps": 50,
+      "width": 832
+    },
+    "scope": "Historical hypothesis only: source/environment identity is absent and the verifier wall differs.",
+    "sha256": "a2f6c96fe8a476cea5bc1504ccaf61ecdd8cf64d54b99b0070734ea56d6a841d",
+    "weight_bytes": 2789327104
+  },
+  "inventory_census": "evidence:sha256:42ce9a29b26232e6f68937df366a4f26c1f81199cca38198c10bd2c89b9fcb45",
+  "loader_probe_tensor": {
+    "final_float32_bytes": 55050240,
+    "name": "blocks.0.ffn.0.weight",
+    "predicted_avoided_full_byte_buffer": 55050240,
+    "scope": "Metadata-only representative tensor from the denoiser's declared FFN bindings; actual complete-loader allocations and peak remain to be measured.",
+    "shape": [
+      8960,
+      1536
+    ],
+    "source_bytes": 55050240,
+    "source_dtype": "F32"
+  },
+  "pipelines": [
+    {
+      "decode": "CPU integration retains evolving image state; decode quantizes and encodes PNG. Background contexts in prepare/integrate require cancellation checks.",
+      "integration": "VisionEmbedTokens, routed session Run and FlowHeadVelocity exchange host hidden/velocity arrays each timestep; exact transfer totals remain unmeasured.",
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "nodes": [
+        {
+          "id": "decode",
+          "module": "model.routed-image-decode",
+          "placement": "hybrid"
+        },
+        {
+          "id": "integrate",
+          "module": "model.routed-image-integrate",
+          "placement": "hybrid"
+        },
+        {
+          "id": "prepare",
+          "module": "model.routed-image-prepare",
+          "placement": "hybrid",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "LoadGenerator retains model/device state; prepare compiles image geometry and branch prefixes.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/sensenovarecipe/runtime_cuda_windows.go",
+      "task": "image-gen"
+    },
+    {
+      "decode": "Convert planar image values to PNG on host; no CUDA transfer claim applies.",
+      "integration": "Generate the class-conditioned image in host float32 storage.",
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "nodes": [
+        {
+          "id": "decode",
+          "module": "model.oscillator-image-decode",
+          "placement": "host"
+        },
+        {
+          "id": "integrate",
+          "module": "model.oscillator-image-integrate",
+          "placement": "host"
+        },
+        {
+          "id": "prepare",
+          "module": "model.oscillator-image-prepare",
+          "placement": "host",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "Load host oscillator weights and validate declared class and output geometry.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/oscillatorimage/runtime.go",
+      "task": "image-gen"
+    },
+    {
+      "decode": "Scale and quantize each host frame, retain GIF frames and encode the clip. Integer GIF delay accumulates timing error.",
+      "integration": "Generate independent class-conditioned images with seed plus frame; retain all frame arrays for decode.",
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "nodes": [
+        {
+          "id": "decode",
+          "module": "model.oscillator-video-decode",
+          "placement": "host"
+        },
+        {
+          "id": "integrate",
+          "module": "model.oscillator-video-integrate",
+          "placement": "host"
+        },
+        {
+          "id": "prepare",
+          "module": "model.oscillator-video-prepare",
+          "placement": "host",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "Validate frame count and scale and retain the host model.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/oscillatorimage/video.go",
+      "task": "video-gen"
+    },
+    {
+      "decode": "Encode downloaded planar float32 pixels through latentimage.EncodePlanarPNG. CPU reference runtime remains a separate oracle path.",
+      "integration": "ResidentForward.Sample retains evolving images in device buffers; CUDA performs repeated sampling and downloads final pixels once.",
+      "model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "nodes": [
+        {
+          "id": "decode",
+          "module": "model.diffusion-image-decode",
+          "placement": "host"
+        },
+        {
+          "id": "integrate",
+          "module": "model.diffusion-image-integrate",
+          "placement": "host"
+        },
+        {
+          "id": "prepare",
+          "module": "model.diffusion-image-prepare",
+          "placement": "host",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "The Windows capability binds ResidentGenerator even though the stored node placement is host; load weights and compile the geometry-specific graph.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/diffusionimage/resident_runtime.go",
+      "task": "image-gen"
+    },
+    {
+      "decode": "Shared source codec and GIF encoder publish frames. Preserve causal context and source-frame semantics; do not equate this graph with text-only Wan.",
+      "integration": "Retained reference denoiser owns device weights and frame/chunk state; explicit source/noise tensors determine the trajectory.",
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "nodes": [
+        {
+          "id": "decode",
+          "module": "model.reference-video-decode",
+          "placement": "hybrid"
+        },
+        {
+          "id": "integrate",
+          "module": "model.reference-video-integrate",
+          "placement": "hybrid"
+        },
+        {
+          "id": "prepare",
+          "module": "model.reference-video-prepare",
+          "placement": "hybrid",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "Resolve conditioning and source tensors; the public clip form decodes pixels then serializes the resolved request again before session preparation.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/latentvideo/reference_edit_runtime_cuda_windows.go",
+      "task": "video-gen"
+    },
+    {
+      "decode": "Transfer final host latent into VAE device storage, stream decoded frames to the host sink, and quantize/encode GIF. Denoiser Execution excludes VAE counters; combined peak needs simultaneous live ownership.",
+      "integration": "CPU UniPC patchifies the evolving latent; both guided branches upload identical step inputs and download heads. Branch context projections are retained by content digest.",
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "nodes": [
+        {
+          "id": "decode",
+          "module": "model.latent-video-decode",
+          "placement": "hybrid"
+        },
+        {
+          "id": "integrate",
+          "module": "model.latent-video-integrate",
+          "placement": "hybrid"
+        },
+        {
+          "id": "prepare",
+          "module": "model.latent-video-prepare",
+          "placement": "hybrid",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "Materialize F32 denoiser and text-projection weights; compile retained denoiser and causal VAE sessions and upload their weights.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/latentvideo/runtime.go",
+      "task": "video-gen"
+    },
+    {
+      "decode": "DecodeHWC bridges the retained latent into the VAE and downloads output pixels; Finish releases request state while session weights remain. Optional Latent diagnostics perform an additional host read.",
+      "integration": "Begin uploads latent patches; Advance retains latent state and graph outputs across denoising steps. Numerical flow schedule remains model-defined.",
+      "model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+      "nodes": [
+        {
+          "id": "decode",
+          "model_slot": 3,
+          "module": "model.latent-image-decode",
+          "placement": "hybrid"
+        },
+        {
+          "id": "integrate",
+          "model_slot": 2,
+          "module": "model.latent-image-integrate",
+          "placement": "hybrid"
+        },
+        {
+          "id": "prepare",
+          "model_slot": 1,
+          "module": "model.latent-image-prepare",
+          "placement": "hybrid",
+          "session": "capacity"
+        }
+      ],
+      "preparation": "Resident image pipeline retains encoder/fusion/denoiser/VAE weights; conditioning outputs pass through device handles.",
+      "publication": "workflowruntime publishes typed input/output artifacts and run lineage; cmd/compatibility exports content-identified samples. Legacy generation runs lack source/environment/timing; retain this limitation until execution-specific receipts exist.",
+      "recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+      "resource_scope": "Host process peak, live device ownership and cumulative driver counters have different scopes. Resolve actual capacity at admission; unmeasured boundaries remain unknown.",
+      "runtime_owner": "internal/latentimage/resident_pipeline_cuda_windows.go",
+      "task": "image-gen"
+    }
+  ],
+  "quality_protocol_sha256": "9a270a1847acc8b478fb2b7595fb254f9d89d315bf0dfc23e6a0d97a9ceb3eb2",
+  "resource_protocol_sha256": "2e7b7bfb8e8d308a498ea5b54572b0dedf3dccfa9ec12731f31758775cc7cc02",
+  "shared_owners": [
+    {
+      "path": "internal/graphruntime/resident.go",
+      "responsibility": "ResidentSession owns immutable device inputs, shared allocations and compiled programs; reuse it when lifetimes and layouts agree."
+    },
+    {
+      "path": "internal/cuda/executor/device_buffer_pool.go",
+      "responsibility": "Executor pools dynamic device buffers; retained outputs keep storage alive through its final consumer."
+    },
+    {
+      "path": "internal/cuda/driver/driver.go",
+      "responsibility": "MemoryStats accounts one Library's allocations; ExecutionStats counts submitted copies, launches and synchronizations."
+    },
+    {
+      "path": "internal/safetensors/convert.go",
+      "responsibility": "ReadF32 converts into the final float32 allocation. MaterializeF32 selects tensors and retains shapes when requested."
+    },
+    {
+      "path": "internal/media/video.go",
+      "responsibility": "Video geometry, planar frame copying, decode and shared GIF timing."
+    },
+    {
+      "path": "internal/processmeasure/measure.go",
+      "responsibility": "Process wall and working-set peak observations; isolate process lifetimes for peak comparisons."
+    },
+    {
+      "path": "internal/capabilityruntime/measured.go",
+      "responsibility": "Capability output, node timing and optional device peak; currently omits the executed workflow run identity."
+    },
+    {
+      "path": "internal/modelintake/intake.go",
+      "responsibility": "Verification publication; currently does not bind the measured request and generated output/run to verifier evidence."
+    },
+    {
+      "path": "internal/workflowruntime/runtime.go",
+      "responsibility": "Runtime owns recipe-node execution and persisted input/output/run lineage."
+    },
+    {
+      "path": "internal/mediacapability/image_cuda_windows.go",
+      "responsibility": "The Windows capability binds the actual image executor and director; stored placement strings alone do not resolve CPU versus CUDA execution."
+    },
+    {
+      "path": "internal/cuda/device/worker.go",
+      "responsibility": "Worker owns one CUDA context and orders access on its locked OS thread; it carries operation contexts and terminates owned resources."
+    },
+    {
+      "path": "internal/devicemath/attention_cuda_windows.go",
+      "responsibility": "Existing host GEMM uploads and downloads are distinct from device-buffer VJP entrypoints. Do not substitute training helpers for retained generation graphs without a real caller and numerical contract."
+    },
+    {
+      "path": "internal/latentvideo/vae_session.go",
+      "responsibility": "Causal VAE owns weights, per-operation caches and reusable workspace; denoiser accounting does not include this owner."
+    },
+    {
+      "path": "internal/diffusionimage/resident_forward.go",
+      "responsibility": "Retained device sampling alternates evolving image buffers and copies only the final image to host."
+    }
+  ],
+  "source_sha256": {
+    "cmd/compatibility/media.go": "0c09df477cba723142554e7fabf31ea6533d6292c6e9f72cec6e6d9743a68375",
+    "cmd/compatibility/samples.go": "fbb11f695e8c090fd2d86c766910391a9a74d7a4dac98f0b96aba7c2c19e22c6",
+    "internal/capabilityruntime/measured.go": "a6c0366cf7d25f611d62eee7aee5afa9f78a84ac435c7901a4fc446b0c84e36f",
+    "internal/capabilityruntime/session_director.go": "f756796171b8759bb0cf055bff6879c8cc5645788912df661a2ca01d67a1c8f1",
+    "internal/cuda/device/worker.go": "34b27d6bcbc39771973923ff0605acf8630455c09aa67c0264cc0b1623e26dd1",
+    "internal/cuda/driver/driver.go": "19471a8fbdc5d7863a591a5a0046fda1c1f6ae6dcdaffcd7bd208d64d8fb003a",
+    "internal/cuda/executor/device_buffer_pool.go": "bbcc3b23f0712df205d3621b07fbc77bea33d2f461dff99addd5f7ee00f6a128",
+    "internal/devicemath/attention_cuda_windows.go": "25e4a4dbba00142c6f13cd0a557386d1bcd92dc714cb933e2159cad4bf66f86a",
+    "internal/diffusionimage/resident_forward.go": "70a5792de8d714eb64075fe04753fa9106c9e342c5d35f6d62757c45c7cc31b3",
+    "internal/diffusionimage/resident_runtime.go": "0daa22ad7a2e322c665003fde5b4cea3c9c1e4faeaf10dedebada4878e6a3845",
+    "internal/discovery/capability.go": "7295990c756973aed0e81001ca201e3262214ce2241b11572445f347d621d4ec",
+    "internal/graphruntime/resident.go": "a8a745aae9d206320d4ed734712e231602c90e63ad262da421f6da933c4b0558",
+    "internal/latentimage/resident_pipeline_cuda_windows.go": "832b7b8bf4456fac055e421496ec6ea36e9e41139989ddec2974b145fa5d854d",
+    "internal/latentimage/textencoder.go": "a71d68a3e31952848dc9fb3f874c30730d4df4a659ef2746ae50ba4755b9fb90",
+    "internal/latentimage/vae.go": "cc7b7c8b83c83357036d33644b42a88ff44d6c7f295cd34f8476c605d734384d",
+    "internal/latentvideo/denoiser.go": "cf42ee97e9a7d7a2b9977007fa0443b53d973cd2fcef170a1406486731a49d5a",
+    "internal/latentvideo/denoiser_session.go": "40755eb29960a3409be36d92dbedc251ffc3eb140073c8bc5d338b742ddeec05",
+    "internal/latentvideo/production.go": "b1fd68188f73d66b32b56b740d5fbd9ab2820f38941163c79460cf2c42adc946",
+    "internal/latentvideo/reference_edit_runtime_cuda_windows.go": "9f131ef48623d6e55488880f8f3a59d3b8335e674edf330120a14f07bb4d5d00",
+    "internal/latentvideo/runtime.go": "9d6fde180789fed6845073d22ec1c3844bd655cdf701d791db96b935fce4f888",
+    "internal/latentvideo/textcond.go": "4efb5c8d3a3d96fac1ee73ce49e89db540bacdbbd73d3c94b66c9bede8607075",
+    "internal/latentvideo/vae_session.go": "944bc8d1edac0c7e4dfea7028ad83018512ba6e62e9a78e80de511455ffa8b49",
+    "internal/media/video.go": "58e8847a172f216f238ef93ec3b71ba60381c42fb089c816d6337d616ecf9b7b",
+    "internal/mediacapability/image_cuda_windows.go": "c1d915e76ccfb5123a843366d88e6f20f88baac3873b051cf28923ccd8c9f682",
+    "internal/mediacapability/video_cuda_windows.go": "5a022bb4c68c8f8c6fc4ab425f166202b185b6b6d4148654f783096cb347406b",
+    "internal/mediacapability/video_form.go": "0ea43d95b06ee17e905f4b93ca8a370a2c70af679bb76e3406d9100a7a4ec224",
+    "internal/modelintake/intake.go": "98f78f00053330ef7819b18e724b184f29e8407aecda8f761d3f1639fde99f94",
+    "internal/oscillatorimage/runtime.go": "aafbf84a1818d7f582b3769a77f09e37dbebf0244156de3a80363752133a98fe",
+    "internal/oscillatorimage/video.go": "3e6f78a594616e02ffe6d9f8215f521bd1f34b6f5c82ec5f25d6e02f78590057",
+    "internal/processmeasure/measure.go": "6bef81a1e9c70c48cc79b8638c588b2cc93149bb78041c2d96bfb869973fa777",
+    "internal/safetensors/convert.go": "fc31ac36ee0548ad190946ed127986ef86cf0ca59de47ab17f20650ce215e461",
+    "internal/sensenovarecipe/runtime_cuda_windows.go": "30224d7e806ce6c52e475049c1aa25da784442745da8cf36008479d75e48493d",
+    "internal/workflowruntime/runtime.go": "01eac97d0018130fa218075eb02bbe86290fc1e2db305c909366d152032975d0"
+  },
+  "version": 1
+}

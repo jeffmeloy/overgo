@@ -28,8 +28,12 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 		t.Fatalf("scope depends on %v", byName["scope"].Dependencies)
 	}
 	for _, name := range validateWave {
-		if !slices.Equal(byName[name].Dependencies, []string{"scope"}) {
-			t.Fatalf("%s depends on %v, want the admission checks only", name, byName[name].Dependencies)
+		dependencies := []string{"scope"}
+		if name == "modern-go" {
+			dependencies = []string{modernCensusCheckName}
+		}
+		if !slices.Equal(byName[name].Dependencies, dependencies) {
+			t.Fatalf("%s depends on %v, want %v", name, byName[name].Dependencies, dependencies)
 		}
 	}
 	for _, static := range []string{"vet", "build"} {
@@ -71,6 +75,9 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 	if spans["scope"].start.Before(spans["protection"].end) {
 		t.Fatal("scope started before protection ended")
 	}
+	if spans["modern-go"].start.Before(spans[modernCensusCheckName].end) {
+		t.Fatal("modern-Go admission started before census computation ended")
+	}
 	for _, name := range validateWave {
 		if spans[name].start.Before(spans["scope"].end) {
 			t.Fatalf("%s started before scope ended", name)
@@ -80,14 +87,14 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 				t.Fatalf("%s started before %s ended", static, name)
 			}
 		}
-		if name == "modern-go" || name == "docs" || name == "published" {
+		if name == "profile" || name == "modern-go" || name == modernCensusCheckName || name == "docs" || name == "published" {
 			continue
 		}
-		if !overlaps(spans, name, "modern-go") {
-			t.Fatalf("%s did not run in the modern-Go wave", name)
+		if !overlaps(spans, name, "profile") {
+			t.Fatalf("%s did not run in the independent static wave", name)
 		}
 	}
-	for _, reader := range []string{"docs", "published"} {
+	for _, reader := range []string{modernCensusCheckName, "docs", "published"} {
 		if overlaps(spans, "magics", reader) {
 			t.Fatalf("the store writer magics overlapped the store reader %s", reader)
 		}

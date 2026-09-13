@@ -28,6 +28,17 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 	if phaseReusesEvidence(testPlanCheckName) {
 		t.Fatal("preparation was made reusable execution evidence")
 	}
+	for _, missingMethod := range []string{"Fatal", "Skip"} {
+		t.Run(missingMethod, func(t *testing.T) {
+			t.Parallel()
+			assertOwnerReuseRetainsDependentChecks(t, missingMethod)
+		})
+	}
+}
+
+func assertOwnerReuseRetainsDependentChecks(t *testing.T, missingMethod string) {
+	t.Helper()
+	shouldFail := missingMethod == "Fatal"
 	root, _ := packageIdentityFixture(t)
 	resources := t.TempDir()
 	ready := filepath.Join(resources, "fixture-ready")
@@ -36,8 +47,8 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 		".gitignore":          "tmp/\novergodb-store/\n",
 		"NOTES.md":            "required runtime input",
 		"app/app_test.go":     fmt.Sprintf("package app\nimport (\"os\";\"testing\")\nfunc TestOwner(t *testing.T) { f,err:=os.OpenFile(%q,os.O_CREATE|os.O_APPEND|os.O_WRONLY,0600);if err!=nil{t.Fatal(err)};defer f.Close();if _,err:=f.WriteString(\"owner\\n\");err!=nil{t.Fatal(err)} }\n", ownerRuns),
-		"other/other_test.go": fmt.Sprintf("package other\nimport (\"os\";\"testing\")\nfunc TestDependent(t *testing.T) { if _,err:=os.ReadFile(\"../NOTES.md\");err!=nil{t.Fatal(err)};if _,err:=os.Stat(%q);err!=nil{t.Fatal(\"required fixture missing\")} }\n", ready),
-		"third/third_test.go": "package third\nimport (\"os\";\"testing\")\nfunc TestSibling(t *testing.T) { if _,err:=os.ReadFile(\"../NOTES.md\");err!=nil{t.Fatal(err)} }\n",
+		"other/other_test.go": fmt.Sprintf("package other\nimport (\"os\";\"testing\";_ \"example/app\")\nfunc TestDependent(t *testing.T) { if _,err:=os.ReadFile(\"../NOTES.md\");err!=nil{t.Fatal(err)};if _,err:=os.Stat(%q);err!=nil{t.%s(\"required fixture missing\")} }\n", ready, missingMethod),
+		"third/third_test.go": "package third\nimport (\"os\";\"testing\";_ \"example/app\")\nfunc TestSibling(t *testing.T) { if _,err:=os.ReadFile(\"../NOTES.md\");err!=nil{t.Fatal(err)} }\n",
 	}
 	for name, source := range files {
 		testutil.WriteTextFile(t, root, name, source)
@@ -48,7 +59,7 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 	attempt := func() (*gateContext, map[string]automationcheck.DAGResult) {
 		snapshot := mustGateValue(repoanalysis.DiscoverGo(root, "app", "dep", "other", "third"))
 		g := &gateContext{repo: root, storePath: StorePath, environment: environment,
-			paths: []string{"app/app_test.go", "NOTES.md"}, source: &snapshot}
+			paths: []string{"app/app.go"}, source: &snapshot}
 		t.Cleanup(func() { _ = g.closeStore() })
 		// Select the actual pipeline's package checks, preserving their real edges.
 		planned := mustGateValue(automationcheck.Plan(g.pipelineChecks(), automationcheck.Impact{}))
@@ -80,14 +91,20 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 		return g, byName
 	}
 	first, results := attempt()
-	if results[testOwnersCheckName].Err != nil || results[testOwnersCheckName].Evidence.Reused || results[testRestCheckName].Err == nil || !strings.Contains(results[testRestCheckName].Err.Error(), "required fixture missing") {
+	if results[testOwnersCheckName].Err != nil || results[testOwnersCheckName].Evidence.Inapplicable || (results[testRestCheckName].Err != nil) != shouldFail {
 		t.Fatalf("first attempt did not isolate the dependent failure: %+v", results)
+	}
+	if shouldFail && !strings.Contains(results[testRestCheckName].Err.Error(), "required fixture missing") {
+		t.Fatal(results[testRestCheckName].Err)
 	}
 	if first.testPlan == nil {
 		t.Fatal("first attempt lost its package obligations")
 	}
+	if !slices.Contains(first.testPlan.dependent, "example/other") || !slices.Contains(first.testPlan.dependent, "example/third") {
+		t.Fatal("fixture did not exercise complete-profile dependent checks")
+	}
 	restarted, results := attempt()
-	if !results[testOwnersCheckName].Evidence.Reused || results[testRestCheckName].Err == nil || results[testRestCheckName].Evidence.Inapplicable {
+	if (results[testRestCheckName].Err != nil) != shouldFail || results[testRestCheckName].Evidence.Inapplicable {
 		t.Fatalf("owner reuse suppressed the failed dependent after restart: %+v", results)
 	}
 	if restarted.testPlan == nil || restarted.testPlan.reused < 2 {
@@ -108,7 +125,11 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 			t.Fatalf("repeated passed or omitted failed packages: %v", executed)
 		}
 	}
-	assertOnlyDependent(restarted, "fail")
+	action := "pass"
+	if shouldFail {
+		action = "fail"
+	}
+	assertOnlyDependent(restarted, action)
 	// Resolve the external fixture without changing any source or acceptance.
 	testutil.WriteTextFile(t, resources, filepath.Base(ready), "provided")
 	repaired, results := attempt()
@@ -116,9 +137,6 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 		if result.Err != nil {
 			t.Fatalf("repaired %s: %v", name, result.Err)
 		}
-	}
-	if !results[testOwnersCheckName].Evidence.Reused {
-		t.Fatal("fixture repair repeated owner verification")
 	}
 	assertOnlyDependent(repaired, "pass")
 	if data := mustGateValue(os.ReadFile(ownerRuns)); string(data) != "owner\n" {

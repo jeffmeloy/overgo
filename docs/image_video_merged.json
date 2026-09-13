@@ -1,0 +1,39 @@
+{
+  "checks": [
+    {
+      "command": "go test ./internal/clioptions ./internal/modelcli ./internal/testevidence ./cmd/diffusion -run '^(TestCLIInferenceDependencyBoundary|TestActiveTestDeadlineAcceptance|Test.*Model.*|Test.*Diffusion.*|Test.*Parse.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:1425614cb5ad43059121323f9ee69d5f8ba02438a05211b3c6e18243925ce6f0",
+      "name": "merged CLI and active-test deadline checks"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^(TestImageVideoProtocolAcceptance|TestImageVideoSharedComponentsAcceptance|TestImageVideoTransferOptimizationAcceptance|TestImageVideoMemoryOptimizationAcceptance|TestImageVideoReportContract)$' -count=1 -json",
+      "evidence": "evidence:sha256:922695d7fc94a7b92d9d13ed78129c93fb5fba73de39d8d00163ba6d2aac7c4e",
+      "name": "merged retained media checks"
+    }
+  ],
+  "incoming_parent": "a9de6d29e26d50147b2e0c438b487a982a9b2e0f",
+  "inventory_census": "evidence:sha256:42ce9a29b26232e6f68937df366a4f26c1f81199cca38198c10bd2c89b9fcb45",
+  "local_parent": "185787f93e0b570f8b14e869b8e69c2f91098942",
+  "merged_commit": "ee78f361af1eab94fd3553724105b4af799d7a5f",
+  "runtime_paths": [
+    "go.mod",
+    "go.sum",
+    "internal/latentvideo",
+    "internal/latentimage",
+    "internal/diffusionimage",
+    "internal/oscillatorimage",
+    "internal/sensenovarecipe",
+    "internal/routedlm",
+    "internal/cuda",
+    "internal/devicemath",
+    "internal/hostmath",
+    "internal/graphruntime",
+    "internal/media",
+    "internal/safetensors",
+    "internal/tensor",
+    "kernels"
+  ],
+  "runtime_sha256": "7e13ed487ba1b8a4c3ac8f1c0942fcb5a8104beea2b8903c7be9625608ad1c1c",
+  "scope": "Master integration preserves the declared generation implementation scope, including the Go toolchain module declarations, model-family runtimes, shared graph/math/tensor/media code and CUDA kernels. The merged CLI/deadline and retained-evidence checks were acquired on the staged source before the merge commit. The merge gate validates the complete staged candidate separately. Exact Wan/SenseNova generation outputs are reused from their recorded source revisions; no new generation timing or visual-quality claim is made. The live selected catalog must retain all frozen media model/recipe/input bindings. Unrelated master text capability work is outside this media denominator. Full temporal visual review and broader public-workflow cases remain open.",
+  "version": 1
+}

@@ -18,7 +18,7 @@ func TestGenerateWall(t *testing.T) {
 	}
 	loadWall := time.Since(loadStart)
 
-	if _, err := generatePlanar(m, Request{Class: 0, Seed: 1}); err != nil {
+	if _, err := generatePlanar(t, m, Request{Class: 0, Seed: 1}); err != nil {
 		t.Fatal(err)
 	}
 	// The model is tiny; per-generate wall is below Windows timer
@@ -28,7 +28,7 @@ func TestGenerateWall(t *testing.T) {
 	for r := range repeats {
 		start := time.Now()
 		for i := range batch {
-			if _, err := generatePlanar(m, Request{Class: i % m.Cfg.NClasses, Seed: int64(42 + r)}); err != nil {
+			if _, err := generatePlanar(t, m, Request{Class: i % m.Cfg.NClasses, Seed: int64(42 + r)}); err != nil {
 				t.Fatal(err)
 			}
 		}

@@ -119,16 +119,6 @@
           ]
         },
         {
-          "id": "suite-cost-ranking",
-          "title": "Rank individual test cost inside the two costliest packages",
-          "status": "open",
-          "verify": "test -f internal/gate/suite_cost_ranking_test.go \u0026\u0026 go test ./internal/gate -run '^TestSuiteCostRanking$' -count=1",
-          "rationale": "First-frontier read-only derivation from retained records; no dependency on census memoization or checkpoint-policy implementation. Do not infer subprocess-versus-assertion cost from test names or aggregate elapsed time. Use retained child-execution spans when present; otherwise label that split unknown. Rank observed costs without requiring new broad-suite acquisition.\n\nRank the individual tests of internal/gate (811.757 s package lifecycle in the latest gate) and internal/audioparity (549.659 s) by measured elapsed time from the retained go test -json evidence, and separate subprocess fixture cost (git, nested go test, store open) from assertion cost. A package that every gate-policy change legitimately reruns is a suite-cost problem, not a selection problem; record which of the two each package is, because affected gate-policy regressions remain mandatory even when independent checks can be reused or excluded with proof. Acceptance: TestSuiteCostRanking binds the ranking to the retained record identities, requires start, end and outcome for every ranked test, reports summed test time separately from package wall, and rejects an unstarted or interrupted test counted as measured. No test is deleted or shortened here; the ranking names the first suite-cost candidate for the reduction contract.",
-          "depends_on": [
-            "validation-gate-selection/package-execution-cost"
-          ]
-        },
-        {
           "id": "reduction-contract",
           "title": "Freeze the real cost target, the chosen mechanism, the invalidators and the mutation matrix",
           "status": "open",

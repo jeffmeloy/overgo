@@ -4,6 +4,7 @@ package testevidence
 import (
 	"bufio"
 	"cmp"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,8 @@ import (
 const ShortIntegrationSkip = "integration excluded by -short"
 
 type GoTestReport struct {
+	// StreamDigest binds diagnostics to consumed bytes without retaining raw output.
+	StreamDigest      string
 	PassedTests       int
 	PassedPackages    int
 	NoTestPackages    int
@@ -67,6 +70,9 @@ type testResult struct {
 	ineligible  bool
 	excluded    bool
 	elapsed     *float64
+	costStart   string
+	costEnd     string
+	costInvalid bool
 }
 
 // PackageExecution reports a package process, not a test or compiler duration.
@@ -141,10 +147,13 @@ func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, err
 
 type goTestEvent struct {
 	Action, Package, ImportPath, Test, Output string
+	Time                                      string
 	Elapsed                                   *float64
 }
 
 func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
+	digest := sha256.New()
+	reader = io.TeeReader(reader, digest)
 	scanner := bufio.NewScanner(reader)
 	seen := false
 	classified := map[string]bool{}
@@ -154,6 +163,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 	tails := map[string]diagnosticTail{}
 	var malformed diagnosticTail
 	defer func() {
+		report.StreamDigest = fmt.Sprintf("%x", digest.Sum(nil))
 		if err == nil && !allowAuxiliary {
 			report.packages = map[string]packageEvidence{}
 		}
@@ -222,7 +232,12 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		if results[key].Action != "" && event.Action != "output" || event.Action == "fail" {
 			results[key].ineligible = true
 		}
+		if results[key].Action != "" && event.Action != "output" {
+			results[key].costInvalid = true
+		}
 		if event.Action == "run" || event.Action == "start" {
+			results[key].costInvalid = results[key].costInvalid || results[key].started
+			results[key].costStart = event.Time
 			results[key].started = true
 		}
 		if event.Output != "" && diagnosticBytes > 0 {
@@ -262,7 +277,8 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		if event.Action == "pass" || event.Action == "skip" || event.Action == "fail" {
 			results[key].Action = event.Action
-			if event.Test == "" && event.Elapsed != nil && *event.Elapsed >= 0 {
+			results[key].costEnd = event.Time
+			if event.Elapsed != nil && *event.Elapsed >= 0 {
 				results[key].elapsed = event.Elapsed
 			}
 			if event.Action == "pass" || event.Action == "skip" && (!short || event.Test == "" || classified[key]) {

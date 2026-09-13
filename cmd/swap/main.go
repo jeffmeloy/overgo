@@ -35,6 +35,8 @@ func run() error {
 	idle := flag.Duration("idle", 0, "stop an unreferenced child after this idle time; 0 keeps it resident")
 	catalogLimit := flag.Int("catalog-limit", 256, "servable catalog listing bound")
 	defaultModel := flag.String("default", "", "model served for model-less requests before any child runs")
+	training := flag.Bool("training", false, "enable the recipe-bound training workspace in every served child")
+	modelBuilder := flag.Bool("model-builder", false, "enable the corpus-derived model builder workspace in every served child")
 	flag.Parse()
 	// The proxy forwards requests to its children without authenticating
 	// them itself, so it must never listen beyond this host.
@@ -47,7 +49,8 @@ func run() error {
 	}
 	defer repository.Close()
 	resolver := &modelswap.CatalogResolver{Store: repository, Limit: *catalogLimit}
-	supervisor, err := modelswap.New(modelswap.ServerLauncher{Binary: *binary, Store: *store}, *idle)
+	launcher := modelswap.ServerLauncher{Binary: *binary, Store: *store, Workspaces: modelswap.Workspaces{Training: *training, ModelBuilder: *modelBuilder}}
+	supervisor, err := modelswap.New(launcher, *idle)
 	if err != nil {
 		return err
 	}

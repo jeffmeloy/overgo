@@ -26,6 +26,13 @@ func TestMain(m *testing.M) {
 			if mode == "misleading-text" {
 				return errors.New("out of memory; physical resource is already reserved")
 			}
+			if mode == "arguments" {
+				// Records the launch arguments for the forwarding test, then fails like an unloadable model.
+				if err := os.WriteFile(os.Getenv("OVERGO_TEST_ARGUMENT_RECORD"), []byte(strings.Join(os.Args[1:], "\n")), clioptions.PrivateFileMode); err != nil {
+					return err
+				}
+				return errors.New("arguments recorded")
+			}
 			return errors.New("invalid model bytes")
 		})
 		return

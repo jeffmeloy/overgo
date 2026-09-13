@@ -30,6 +30,29 @@ type ServerLauncher struct {
 	// launcher's, which must be the repository root the server reads its
 	// policy documents from.
 	Dir string
+	// Workspaces is the operator's launch declaration; every child enables
+	// the same workspaces, so a swap never loses a tab.
+	Workspaces Workspaces
+}
+
+// Workspaces names the server workspaces a launch enables beyond serving.
+type Workspaces struct {
+	// Training enables the recipe-bound training workspace (-training).
+	Training bool
+	// ModelBuilder enables the corpus-derived model builder (-model-builder).
+	ModelBuilder bool
+}
+
+// arguments renders the declaration as the server flags it enables.
+func (w Workspaces) arguments() []string {
+	var flags []string
+	if w.Training {
+		flags = append(flags, "-training")
+	}
+	if w.ModelBuilder {
+		flags = append(flags, "-model-builder")
+	}
+	return flags
 }
 
 // Launch starts one child server for the servable and returns before
@@ -52,9 +75,10 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	address := "127.0.0.1:" + strconv.Itoa(port)
 	// The child self-reports the servable's name so the GUI's model pill
 	// (and the proxy's self-identity short-circuit) track the swap.
+	arguments := append([]string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name}, l.Workspaces.arguments()...)
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path:   l.Binary,
-		Args:   []string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name, servable.Location},
+		Args:   append(arguments, servable.Location),
 		Dir:    l.Dir,
 		Stdout: os.Stderr,
 		Stderr: os.Stderr,

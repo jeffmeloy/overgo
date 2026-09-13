@@ -164,7 +164,9 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 	case "explorer":
 		supported = true
 	case "evaluation":
-		_, supported = h.generator.(EvaluationWorkspaceAPI)
+		// The launch supplies the evaluation workspace through Config, the
+		// way cmd/server does; the generator never carries it.
+		supported = h.config.Evaluation != nil
 	case "automation":
 		_, supported = h.generator.(AutomationWorkspaceAPI)
 	case "peer":

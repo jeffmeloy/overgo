@@ -60,6 +60,7 @@ func TestPlanBindingRole(t *testing.T) {
 
 func initializePlanBindingRepo(t *testing.T, repository string) {
 	t.Helper()
+	t.Setenv(plan.AutomationWorkerEnvironment, "")
 	runGitFixture(t, repository, "init", "-q")
 	runGitFixture(t, repository, "config", "user.email", "binding@example.invalid")
 	runGitFixture(t, repository, "config", "user.name", "Binding Test")
@@ -77,6 +78,6 @@ func initializePlanBindingRepo(t *testing.T, repository string) {
 // checkPlanBindingForTest resolves one plan binding against the default
 // store path, keeping the refusal semantics the production resolver owns.
 func checkPlanBindingForTest(repo, ref string) error {
-	_, _, err := resolvePlanBinding(repo, gateStorePath, ref)
+	_, _, _, err := resolvePlanBinding(repo, gateStorePath, ref)
 	return err
 }

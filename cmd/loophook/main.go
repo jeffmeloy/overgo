@@ -371,7 +371,7 @@ func gateProcessRunning() bool {
 // which reuses the dispatch cached for this HEAD, plan and store head; a
 // resolver failure is reported in the line and never ends the loop.
 func nextDispatch() plan.Dispatch {
-	dispatch, err := plan.ResolveDispatch(context.Background(), ".", "")
+	dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{})
 	if err != nil {
 		return plan.Dispatch{Line: "plan: " + err.Error()}
 	}

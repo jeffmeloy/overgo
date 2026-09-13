@@ -62,7 +62,7 @@ func main() {
 	historyCommit := flag.String("commit", "", "with -history -phases: exact full recorded commit (no revision or prefix expansion)")
 	historyResult := flag.String("result", "", "with -history -phases: exact gate-result artifact ID, preserving individual retries")
 	history := flag.String("history", "", "print attempt history from the store: aggregates and recent attempts (pass a plan item id, or all)")
-	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
+	prompt := flag.Bool("prompt", false, "claim an eligible step and print its task: -prompt [-json] [item/step]; requires -worker or OVERGO_AUTOMATION_WORKER")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
 	status := flag.Bool("status", false, "one line per item")
 	contextJSON := flag.Bool("context", false, "emit one typed JSON grounding payload for the current automation task")
@@ -87,7 +87,7 @@ func main() {
 	owner := flag.String("owner", "", "with -assign: the owning lane")
 	setLane := flag.String("set-lane", "", "record the lane this plan dispatches for (the unassigned role's role)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
-	jsonFlag := flag.Bool("json", false, "with -next or -history -phases: print typed JSON")
+	jsonFlag := flag.Bool("json", false, "with -next, -prompt or -history -phases: print typed JSON")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
@@ -98,8 +98,11 @@ func main() {
 	before := flag.String("before", "", "with -add: insert before this item id (default: top of the plan)")
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
+	worker := flag.String("worker", "", "stable session identity for dispatch claims (default OVERGO_AUTOMATION_WORKER); inherit the same identity in gate subprocesses")
+	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
+	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	flag.Parse()
-	if err := run(cli{json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -108,6 +111,8 @@ func main() {
 type cli struct {
 	phases                                                                           bool
 	historyCommit, historyResult                                                     string
+	releaseClaim, releaseReason                                                      string
+	worker                                                                           string
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
 	move, retitle                                                                    bool
 	frontier                                                                         bool
@@ -129,6 +134,18 @@ type cli struct {
 }
 
 func run(c cli, args []string) error {
+	if c.releaseClaim != "" || c.releaseReason != "" {
+		allowed := cli{releaseClaim: c.releaseClaim, releaseReason: c.releaseReason, worker: c.worker, role: c.role, retireLegacyLeases: noLegacyLeaseRetirement}
+		if c != allowed || len(args) != 0 {
+			return errors.New("plan: claim release cannot be combined with another operation")
+		}
+		if c.releaseClaim == "" {
+			return errors.New("-release-reason requires -release-claim")
+		}
+		worker := cmp.Or(strings.TrimSpace(c.worker), strings.TrimSpace(os.Getenv(plan.AutomationWorkerEnvironment)))
+		return releaseDispatchClaim(".", c.releaseClaim, worker, c.releaseReason, os.Stdout)
+	}
+
 	if (c.phases || c.historyCommit != "" || c.historyResult != "") && (c.history == "" || !c.phases) {
 		return errors.New("-phases, -commit and -result require -history <item|all> -phases")
 	}
@@ -237,23 +254,43 @@ func run(c cli, args []string) error {
 	case c.context:
 		return printAutomationContext(document, c.role, os.Stdout)
 	case c.prompt:
-		// The dispatch is resolved once per HEAD, plan and store head; the
-		// prompt, the verify and the next line all read the same row.
-		dispatch, err := plan.ResolveDispatch(context.Background(), ".", c.role)
+		// An optional exact row selects independent ready work through the same admission.
+		if len(args) > 1 {
+			return errors.New("usage: plan -prompt [-json] [-worker id] [item/step]")
+		}
+		reference := ""
+		if len(args) == 1 {
+			reference = args[0]
+		}
+		dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker, Acquire: true, Reference: reference})
 		if err != nil {
 			return err
+		}
+		if c.json {
+			return json.NewEncoder(os.Stdout).Encode(dispatch)
+		}
+		if dispatch.Waiting != "" {
+			fmt.Println(dispatch.Line)
+			return nil
 		}
 		it, st, ok := locateStep(document, dispatch)
 		if !ok {
 			fmt.Println("PLAN COMPLETE: every item is done. Stop and tell the user.")
 			return nil
 		}
+		if dispatch.Claim != nil {
+			fmt.Printf("Claim: %s worker=%s worktree=%s\n", dispatch.Claim.ID, dispatch.Claim.Worker, dispatch.Claim.Worktree)
+		}
 		printPromptStep(it, st, os.Stdout)
 		return nil
 	case c.verify:
-		dispatch, err := plan.ResolveDispatch(context.Background(), ".", c.role)
+		dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker, Acquire: true})
 		if err != nil {
 			return err
+		}
+		if dispatch.Waiting != "" {
+			fmt.Println(dispatch.Line)
+			return nil
 		}
 		it, st, ok := locateStep(document, dispatch)
 		if !ok {
@@ -262,7 +299,7 @@ func run(c cli, args []string) error {
 		}
 		return runVerify(it, st)
 	case c.next:
-		dispatch, err := plan.ResolveDispatch(context.Background(), ".", c.role)
+		dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker})
 		if err != nil {
 			return err
 		}
@@ -309,7 +346,7 @@ func bindCampaignCensus(root string, output io.Writer) error {
 		if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
 			return err
 		}
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document); err != nil {
+		if err := savePlanMutation(root, document); err != nil {
 			return err
 		}
 		fmt.Fprintf(output, "bound campaign census %s source=%s files=%d literals=%d assumptions=%d policy_copies=%d\n",
@@ -502,7 +539,7 @@ func addItem(root, id, title, before, verifyCmd, role string) error {
 		if err != nil {
 			return err
 		}
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
 		action, _ := nextAction(updated, role, updatedAuthority)
@@ -525,7 +562,7 @@ func moveItem(root, id, before, role string) error {
 		if err != nil {
 			return err
 		}
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
 		action, _ := nextAction(updated, role, updatedAuthority)
@@ -547,7 +584,7 @@ func retitleItem(root, id, title, role string) error {
 		if err != nil {
 			return err
 		}
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
 		action, _ := nextAction(updated, role, updatedAuthority)
@@ -567,7 +604,7 @@ func mutatePlan(root, role, what string, mutation func(plan.Plan) (plan.Plan, er
 		if err != nil {
 			return err
 		}
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
 		action, _ := nextAction(updated, role, updatedAuthority)
@@ -727,7 +764,7 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 			return err
 		}
 		it, st, current := plan.Current(updated, role, completions)
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), updated); err != nil {
+		if err := savePlanMutation(root, updated); err != nil {
 			return err
 		}
 		fmt.Printf("set verify for %s/%s: %s\n", itemID, stepID, strings.TrimSpace(cmd))

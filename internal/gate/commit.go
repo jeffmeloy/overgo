@@ -127,9 +127,13 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	item, step, open := plan.Current(document, role, completionAuthority)
-	if !open || item.ID+"/"+step.ID != g.planRef {
-		return false, errors.New("commit admission: completion authority no longer selects the gated row")
+
+	_, step, claim, err := plan.RequireDispatch(context.Background(), completionStore, document, completionAuthority, g.repo, role, g.planRef)
+	if err != nil {
+		return false, fmt.Errorf("commit admission: recheck dispatch claim: %w", err)
+	}
+	if (claim == nil) != (g.dispatchClaim == nil) || claim != nil && claim.ID != g.dispatchClaim.ID {
+		return false, errors.New("commit admission: dispatch claim changed after acceptance")
 	}
 	if step.VerificationBatch != nil {
 		for _, checkpoint := range step.VerificationBatch.Checkpoints {

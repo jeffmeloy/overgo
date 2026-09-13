@@ -176,7 +176,7 @@ func prepareMergeWithProjection(
 				}
 			}
 		}
-		if err := plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), merged); err != nil {
+		if err := savePlanMutation(root, merged); err != nil {
 			return err
 		}
 		if err := regenerateMergeOwnedDocuments(root, localRevision); err != nil {

@@ -1550,12 +1550,38 @@ func completionAcceptanceContractForPlan(
 	if roleErr != nil {
 		return acceptanceContract{}, roleErr
 	}
-	item, step, open := plan.Current(document, role, completions)
-	if !open {
-		return acceptanceContract{}, errors.New("acceptance: plan has no current open step")
+
+	// Admission and commit recheck ownership. Acceptance binds the exact
+	// admitted ready row, which may follow another worker's claimed row.
+	frontier, err := plan.ReadyFrontier(document, completions)
+	if err != nil {
+		return acceptanceContract{}, err
 	}
-	if current := item.ID + "/" + step.ID; current != reference {
-		return acceptanceContract{}, fmt.Errorf("acceptance: current plan step %s differs from gate authority %s", current, reference)
+	var step plan.Step
+	found := false
+	for _, ref := range frontier {
+		if ref.String() != reference {
+			continue
+		}
+		for _, item := range document.Items {
+			if item.ID != ref.Item {
+				continue
+			}
+			for _, candidate := range item.Steps {
+				if candidate.ID == ref.Step {
+					step = candidate
+					found = true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		item, current, open := plan.Current(document, role, completions)
+		if !open || current.ID != "." || item.ID+"/"+current.ID != reference {
+			return acceptanceContract{}, errors.New("acceptance: admitted reference is not an eligible open plan step")
+		}
+		step = current
 	}
 	evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
 		testevidence.CurrentVerifyPolicy, reference, step.Verify,

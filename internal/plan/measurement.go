@@ -64,12 +64,8 @@ func ReadLeaseOutcome(ctx context.Context, reader artifact.Reader, id artifact.I
 }
 
 func canonicalizeLeaseOutcome(value *LeaseOutcome) error {
-	validResources := func(resources Resources) bool {
-		return resources.CPUThreads > 0 && resources.HostRAMGiB > 0 && resources.VRAMGiB >= 0 &&
-			(!resources.GPUExclusive || resources.VRAMGiB > 0)
-	}
 	if value == nil || value.Version != leaseOutcomeVersion || value.Lease.Kind() != artifact.KindEvidence ||
-		!validResources(value.Predicted) || !validResources(value.Actual) ||
+		!validLeaseResources(value.Predicted) || !validLeaseResources(value.Actual) ||
 		value.PredictedWallNS == 0 || value.ActualWallNS == 0 ||
 		value.PredictedInterferenceNS > value.PredictedWallNS || value.ActualInterferenceNS > value.ActualWallNS ||
 		(value.Collision || value.Abandoned) && value.RecoveryNS == 0 {

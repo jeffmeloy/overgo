@@ -183,7 +183,7 @@ type execWorld struct {
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
 	// The dispatch arrives as data; the prose line is never parsed back.
-	out, err := planCommand("-next", "-json")
+	out, err := planCommand("-prompt", "-json")
 	if err != nil {
 		return loop.Step{}, false, err
 	}
@@ -193,6 +193,9 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	}
 	if dispatch.Complete {
 		return loop.Step{}, false, nil
+	}
+	if dispatch.Waiting != "" {
+		return loop.Step{}, false, fmt.Errorf("%w: %s", loop.ErrWorkWaiting, dispatch.Waiting)
 	}
 	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
 }

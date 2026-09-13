@@ -622,6 +622,8 @@ func compactAudit(lines []string) []string {
 		}
 		label := ""
 		switch {
+		case strings.HasPrefix(line, "suite cost ranking:"):
+			label = "advisory: suite-cost: "
 		case strings.Contains(line, "code profile delta vs HEAD"):
 			label = "advisory: delta: "
 		case strings.HasPrefix(line, "automation ROI"):

@@ -153,7 +153,7 @@
     }
     function constraints() {
       if (device.value.startsWith('device:')) return { deviceId: { exact: device.value.slice('device:'.length) } };
-      return kind === 'image' ? { facingMode: { ideal: device.value || 'user' } } : true;
+      return kind !== 'audio' ? { facingMode: { ideal: device.value || 'user' } } : true;
     }
     function ready(blob, name, s) {
       if (!current(s)) return;

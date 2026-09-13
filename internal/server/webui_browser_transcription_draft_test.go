@@ -136,5 +136,13 @@ func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
 	settle(`document.querySelector('.attachment-row')?.dataset.state==='ready' && !!transcribeButton()`)
 	check(`(() => {window.transcriptMode='fail';transcribeButton().click();return true;})()`)
 	settle(`rowStatus().includes('declined the audio') && !!transcribeButton() && document.querySelector('.composer textarea').value==='Draft after removal' && document.querySelector('.attachment-row').dataset.state==='ready'`)
-	t.Log("transcription draft leg: explicit transcribe with progress and cancel, verified recording bytes, insert or replace by choice, late answer and failure leave the draft")
+	// Remount disposes the old composer: its transcription must stop, and a late answer stays detached.
+	check(`(() => {window.transcriptMode='hold';window.priorTranscriptCount=transcriptCalls.length;transcribeButton().click();return true;})()`)
+	settle(`transcriptCalls.length>priorTranscriptCount`)
+	check(`(() => {window.disposedTranscription=transcriptCalls.at(-1).signal;window.disposedReply=releaseTranscript;window.oldTranscriptionComposer=document.querySelector('.composer');overgo.openConversation(null);return true;})()`)
+	settle(`document.querySelector('.composer')!==oldTranscriptionComposer && !!document.querySelector('.composer textarea')`)
+	check(`disposedTranscription.aborted`)
+	check(`(() => {const input=document.querySelector('.composer textarea');input.value='Replacement draft';input.dispatchEvent(new Event('input'));disposedReply('Discard this late answer');return true;})()`)
+	check(`document.querySelector('.composer textarea').value==='Replacement draft' && !document.querySelector('.transcript-offer:not([hidden])')`)
+	t.Log("transcription draft leg: explicit transcribe with progress and cancel, verified recording bytes, insert or replace by choice, disposal and late answer preserve the draft")
 }

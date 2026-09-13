@@ -757,33 +757,13 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 }
 
 func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error) {
-	temperature := h.config.DefaultTemperature
-	if body.Temperature != nil {
-		temperature = *body.Temperature
-	}
-	topP := h.config.DefaultTopP
-	if body.TopP != nil {
-		topP = *body.TopP
-	}
-	topK := h.defaultSampling.TopK
-	if body.TopK != nil {
-		topK = *body.TopK
-	}
-	// A scalar the request leaves at zero takes the declared value where
-	// zero is a degenerate setting the chain would otherwise run with.
+	// Pointer presence preserves explicit zero; the sampler validates its meaning.
 	declared := h.defaultSampling
-	adaptiveTarget := h.defaultSampling.AdaptiveTarget
-	if body.AdaptiveTarget != nil {
-		adaptiveTarget = *body.AdaptiveTarget
-	}
-	adaptiveDecay := h.defaultSampling.AdaptiveDecay
-	if body.AdaptiveDecay != nil {
-		adaptiveDecay = *body.AdaptiveDecay
-	}
+	dryMultiplier := *cmp.Or(body.DryMultiplier, &declared.DryMultiplier)
 	var dryBreakers [][]int
 	breakerStrings := body.DryBreakers
-	if body.DryMultiplier != 0 && breakerStrings == nil {
-		breakerStrings = []string{"\n", ":", "\"", "*"}
+	if dryMultiplier != 0 && breakerStrings == nil {
+		breakerStrings = h.config.RuntimePolicy.Serving.Sampling.DryBreakers
 	}
 	if len(breakerStrings) > 0 {
 		breakerTokenizer, ok := h.generator.(DryBreakerTokenizer)
@@ -887,37 +867,39 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 		}
 	}
 	return sampling.New(sampling.Config{
-		Temperature:      temperature,
-		DynatempRange:    body.DynatempRange,
-		DynatempExponent: body.DynatempExponent,
-		TopK:             topK,
-		TopP:             topP,
-		MinP:             body.MinP,
-		TypicalP:         cmp.Or(body.TypicalP, declared.TypicalP),
-		TopNSigma:        cmp.Or(body.TopNSigma, declared.TopNSigma),
-		XTCProbability:   body.XTCProbability,
-		XTCThreshold:     cmp.Or(body.XTCThreshold, declared.XTCThreshold),
-		MinKeep:          body.MinKeep,
-		AdaptiveTarget:   adaptiveTarget,
-		AdaptiveDecay:    adaptiveDecay,
-		RepeatLastN:      body.RepeatLastN,
-		RepeatPenalty:    cmp.Or(body.RepeatPenalty, declared.RepeatPenalty),
-		PresencePenalty:  body.PresencePenalty,
-		FrequencyPenalty: body.FrequencyPenalty,
-		DryMultiplier:    body.DryMultiplier,
-		DryBase:          cmp.Or(body.DryBase, declared.DryBase),
-		DryAllowedLength: cmp.Or(body.DryAllowedLength, declared.DryAllowedLength),
-		DryPenaltyLastN:  cmp.Or(body.DryPenaltyLastN, declared.DryPenaltyLastN),
-		DryBreakers:      dryBreakers,
-		Mirostat:         body.Mirostat,
-		MirostatTau:      cmp.Or(body.MirostatTau, declared.MirostatTau),
-		MirostatEta:      cmp.Or(body.MirostatEta, declared.MirostatEta),
-		Seed:             body.Seed,
-		Grammar:          grammar,
-		GBNF:             gbnf,
-		Samplers:         samplerOrder,
-		LogitBiases:      logitBiases,
-		Infill:           infillVocabulary,
+		Temperature:       *cmp.Or(body.Temperature, &declared.Temperature),
+		DynatempRange:     *cmp.Or(body.DynatempRange, &declared.DynatempRange),
+		DynatempExponent:  *cmp.Or(body.DynatempExponent, &declared.DynatempExponent),
+		TopK:              *cmp.Or(body.TopK, &declared.TopK),
+		TopP:              *cmp.Or(body.TopP, &declared.TopP),
+		MinP:              *cmp.Or(body.MinP, &declared.MinP),
+		TypicalP:          *cmp.Or(body.TypicalP, &declared.TypicalP),
+		TopNSigma:         *cmp.Or(body.TopNSigma, &declared.TopNSigma),
+		XTCProbability:    *cmp.Or(body.XTCProbability, &declared.XTCProbability),
+		XTCThreshold:      *cmp.Or(body.XTCThreshold, &declared.XTCThreshold),
+		MinKeep:           *cmp.Or(body.MinKeep, &declared.MinKeep),
+		AdaptiveTarget:    *cmp.Or(body.AdaptiveTarget, &declared.AdaptiveTarget),
+		AdaptiveDecay:     *cmp.Or(body.AdaptiveDecay, &declared.AdaptiveDecay),
+		RepeatLastN:       *cmp.Or(body.RepeatLastN, &declared.RepeatLastN),
+		RepeatPenalty:     *cmp.Or(body.RepeatPenalty, &declared.RepeatPenalty),
+		PresencePenalty:   *cmp.Or(body.PresencePenalty, &declared.PresencePenalty),
+		FrequencyPenalty:  *cmp.Or(body.FrequencyPenalty, &declared.FrequencyPenalty),
+		DryMultiplier:     dryMultiplier,
+		DryBase:           *cmp.Or(body.DryBase, &declared.DryBase),
+		DryAllowedLength:  *cmp.Or(body.DryAllowedLength, &declared.DryAllowedLength),
+		DryPenaltyLastN:   *cmp.Or(body.DryPenaltyLastN, &declared.DryPenaltyLastN),
+		DryBreakers:       dryBreakers,
+		NoRepeatNgramSize: declared.NoRepeatNgramSize,
+		NgramWindow:       declared.NgramWindow,
+		Mirostat:          *cmp.Or(body.Mirostat, &declared.Mirostat),
+		MirostatTau:       *cmp.Or(body.MirostatTau, &declared.MirostatTau),
+		MirostatEta:       *cmp.Or(body.MirostatEta, &declared.MirostatEta),
+		Seed:              *cmp.Or(body.Seed, &declared.Seed),
+		Grammar:           grammar,
+		GBNF:              gbnf,
+		Samplers:          samplerOrder,
+		LogitBiases:       logitBiases,
+		Infill:            infillVocabulary,
 	})
 }
 

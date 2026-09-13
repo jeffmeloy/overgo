@@ -64,8 +64,9 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	settle(`!!document.querySelector('.composer .attach-button') && document.querySelector('.composer')!==captureOld`)
 	// A synthetic camera (a painted canvas) and microphone (an oscillator) drive the real recorder.
 	check(`(() => {
-  window.captureTracks=[];
+  window.captureTracks=[];window.captureRequests=[];
   navigator.mediaDevices.getUserMedia=async constraints=>{
+    captureRequests.push(structuredClone(constraints));
     const canvas=document.createElement('canvas');canvas.width=160;canvas.height=120;const stream=canvas.captureStream(10);
     const context=canvas.getContext('2d');let tick=0;window.capturePaint=setInterval(()=>{context.fillStyle=tick++%2?'rgb(60,110,220)':'rgb(220,110,60)';context.fillRect(0,0,canvas.width,canvas.height);},50);
     if(constraints.audio){const audio=new AudioContext();await audio.resume();const oscillator=audio.createOscillator(),destination=audio.createMediaStreamDestination();oscillator.connect(destination);oscillator.start();for(const track of destination.stream.getAudioTracks())stream.addTrack(track);}
@@ -99,6 +100,9 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	settle(`!!clipButton() && !clipButton().disabled`)
 	activate("Record a clip")
 	settle(`captureDialog().dataset.state==='preview' && !!captureDialog().querySelector('video')`)
+	check(`(() => {window.priorCameraRequests=captureRequests.length;const device=captureDialog().querySelector('select');device.value='environment';device.dispatchEvent(new Event('change'));return true;})()`)
+	settle(`captureRequests.length>priorCameraRequests && captureDialog().dataset.state==='preview'`)
+	check(`captureRequests.at(-1).video.facingMode.ideal==='environment'`)
 	activate("Record clip")
 	settle(`captureDialog().dataset.state==='recording' && captureDialog().querySelector('p').textContent.includes(' · ')`)
 	activate("Stop recording")

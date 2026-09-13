@@ -361,7 +361,11 @@
     function stage(item, phase, reason = '') {
       item.phase = phase; item.pending = ['reading', 'validating', 'fetching'].includes(phase); item.storing = phase === 'uploading'; item.refusal = reason;
     }
-    function invalidate(item) { item.attempt = null; if (item.cancel) item.cancel(); }
+    function invalidate(item) {
+      item.attempt = null; if (item.cancel) item.cancel();
+      if (item.transcription) item.transcription.abort();
+      item.transcription = null; item.transcribing = false;
+    }
     function releaseFile(item) {
       if (item.release && !attachments.some(other => other !== item && other.target === item.target && other.artifact === item.artifact)) item.release();
       item.artifact = ''; item.target = item.release = null;
@@ -372,7 +376,6 @@
       if (index < 0) return;
       const focused = item.row && item.row.contains(document.activeElement);
       attachments.splice(index, 1); invalidate(item);
-      if (item.transcription) item.transcription.abort();
       releaseFile(item);
       if (item.row) item.row.remove(); renderAttachments();
       if (focused) (attachments[index]?.remove || attachments[index - 1]?.remove || attach || input).focus();

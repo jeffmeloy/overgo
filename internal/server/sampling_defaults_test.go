@@ -2,7 +2,9 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 	"slices"
 	"testing"
@@ -101,4 +103,68 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 	if record.Sampling == nil || !slices.Equal(record.Sampling.Samplers, declared) || record.Sampling.Temperature != 0.25 {
 		t.Fatalf("inspected turn sampling = %+v", record.Sampling)
 	}
+}
+
+// Omission selects a declaration; explicit zero and nonzero remain request values.
+func TestRequestSamplingPresence(t *testing.T) {
+	fields := []struct {
+		field, wire        string
+		declared, explicit float64
+	}{
+		{"Temperature", "temperature", .5, .25}, {"DynatempRange", "dynatemp_range", .5, .25},
+		{"DynatempExponent", "dynatemp_exponent", .5, .25}, {"TopP", "top_p", .5, .25},
+		{"TopK", "top_k", 2, 1}, {"MinP", "min_p", .5, .25}, {"TypicalP", "typical_p", .5, .25},
+		{"TopNSigma", "top_n_sigma", .5, .25}, {"XTCProbability", "xtc_probability", .5, .25},
+		{"XTCThreshold", "xtc_threshold", .5, .25}, {"MinKeep", "min_keep", 2, 1},
+		{"AdaptiveTarget", "adaptive_target", .5, .25}, {"AdaptiveDecay", "adaptive_decay", .5, .25},
+		{"RepeatLastN", "repeat_last_n", 2, 1}, {"RepeatPenalty", "repeat_penalty", .5, .25},
+		{"PresencePenalty", "presence_penalty", .5, .25}, {"FrequencyPenalty", "frequency_penalty", .5, .25},
+		{"DryMultiplier", "dry_multiplier", .5, .25}, {"DryBase", "dry_base", 2, 1},
+		{"DryAllowedLength", "dry_allowed_length", 2, 1}, {"DryPenaltyLastN", "dry_penalty_last_n", 2, 1},
+		{"Mirostat", "mirostat", 2, 1}, {"MirostatTau", "mirostat_tau", .5, .25},
+		{"MirostatEta", "mirostat_eta", .5, .25}, {"Seed", "seed", 2, 1},
+	}
+	for _, field := range fields {
+		t.Run(field.field, func(t *testing.T) {
+			handler := &Handler{servingWorkspace: servingWorkspace{defaultSampling: sampling.Config{TypicalP: 1, RepeatPenalty: 1, DryBase: 2, MirostatTau: 1, MirostatEta: .1}}}
+			target := reflect.ValueOf(&handler.defaultSampling).Elem().FieldByName(field.field)
+			target.Set(reflect.ValueOf(field.declared).Convert(target.Type()))
+			handler.config.DefaultTemperature = handler.defaultSampling.Temperature
+			handler.config.DefaultTopP = handler.defaultSampling.TopP
+			for _, variant := range []struct {
+				name string
+				body string
+				want float64
+			}{
+				{"omitted", "{}", field.declared}, {"zero", fmt.Sprintf(`{"%s":0}`, field.wire), 0},
+				{"explicit", fmt.Sprintf(`{"%s":%g}`, field.wire, field.explicit), field.explicit},
+			} {
+				t.Run(variant.name, func(t *testing.T) {
+					var request samplingParameters
+					if err := json.Unmarshal([]byte(variant.body), &request); err != nil {
+						t.Fatal(err)
+					}
+					sampler, err := handler.newSampler(request)
+					if err != nil {
+						t.Fatal(err)
+					}
+					value := reflect.ValueOf(sampler.Config()).FieldByName(field.field)
+					got := value.Convert(reflect.TypeFor[float64]()).Float()
+					if got != variant.want {
+						t.Fatalf("%s: got %g want %g", variant.body, got, variant.want)
+					}
+				})
+			}
+		})
+	}
+	t.Run("invalid explicit zero is refused", func(t *testing.T) {
+		handler := &Handler{servingWorkspace: servingWorkspace{defaultSampling: sampling.Config{RepeatPenalty: 1, RepeatLastN: 1}}}
+		var request samplingParameters
+		if err := json.Unmarshal([]byte(`{"repeat_penalty":0}`), &request); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := handler.newSampler(request); err == nil {
+			t.Fatal("explicit invalid zero was replaced by a valid default")
+		}
+	})
 }

@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "acquisition": "evidence:sha256:948fed0bdd888bb01ebc92570ed3288dbe62c34132343ec8bd50fc5ad5cc1217",
+      "case": "Wan2.1-T2V-1.3B/video-gen/1",
+      "mode": "acquired-cuda",
+      "output": "output:sha256:31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240",
+      "review": "evidence:sha256:a77aff424c589b2e0563f3b83db13f0a58b864af9ec96582b1210528ba2b5e67",
+      "run": "run:sha256:27acd2d8d987d15a6dd68cb964cdfd2905f31a8dc74e7fb00ce24deebce399ed",
+      "test_evidence": "evidence:sha256:bef98ebec4b32b7c5ddd9c3b5ad7d39bb8b5808e5d75f287f179c2125e1c8487"
+    },
+    {
+      "acquisition": "evidence:sha256:948fed0bdd888bb01ebc92570ed3288dbe62c34132343ec8bd50fc5ad5cc1217",
+      "case": "Wan2.1-T2V-1.3B/video-gen/2",
+      "mode": "acquired-cuda",
+      "output": "output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99",
+      "review": "evidence:sha256:b0122203051c69739a3721ce1488913da5e346651d51f3098a9330004b3791f5",
+      "run": "run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47",
+      "test_evidence": "evidence:sha256:bef98ebec4b32b7c5ddd9c3b5ad7d39bb8b5808e5d75f287f179c2125e1c8487"
+    },
+    {
+      "acquisition": "evidence:sha256:af2b0539d696be6459887ef0060d1b81a28c6a3ab8a37964216e245263a2642a",
+      "case": "Wan2.1-T2V-1.3B/video-gen/3",
+      "mode": "reused-production-acquisition",
+      "output": "output:sha256:d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9",
+      "review": "evidence:sha256:2c19968723bfa234fac0fd3374fd9f55d2a868fe91fd12ffcccb437728a9e8c8",
+      "run": "run:sha256:ab252bb624d3ca3535fba2e862febd01a5df44823d6fca2012c43181a8a30066",
+      "test_evidence": "evidence:sha256:228280de772c84e74a9a851a871df6f48f54c888e7a4125ada2d0bf32843d07f"
+    }
+  ],
+  "conditioning": "evidence:sha256:3467ff48fd85c493a166bbd982dbfc99de96ce37a528fd69f76736a1917f23c0",
+  "full_clip_inspection": "evidence:sha256:a89f6edfd5e55e5f1eedb08652ad339fd5a7f3032b47ea3696ad7c5fcf2e8082",
+  "instrumentation": {
+    "check_wan_conditioning_identity.go": "evidence:sha256:c63c089c8363889b0d32a9bb998158ce73f0568a8b4c025c52dcf725d42b0ad1",
+    "inspect_wan_retained_clip.go": "evidence:sha256:81da71454abe8a672358a1a15f21fc4c80b5c667d6c17cf69f3e38ea500944af",
+    "inspect_wan_small_clips.go": "evidence:sha256:1115d6d9e0c644a406764a065102e2c39332043ce617ed6a43979fba6c612810",
+    "media-wan-small-acquisition-failed-1.jsonl": "evidence:sha256:bcc2d21b5163cc6198fa9f486c867a702b37725337d3bc1bffc791a1cb777ee8",
+    "media-wan-small-acquisition-instrumentation-initial.json": "evidence:sha256:d1c0a791648055e7368abaf0f2987deeedf7827bd12378f222573d0f6613c484",
+    "media-wan-small-acquisition-instrumentation.json": "evidence:sha256:852eb960763fbc9780883ee0f37f6d1373e50719fc9e235e498c6a64bdd8fd3e",
+    "media-wan-small-seed131-frames.png": "evidence:sha256:897dbed3d5c5401b955ef1ea1a6f190eda9c56e1e74de4b74ad1fdae58aa721c",
+    "media-wan-small-seed31-frames.png": "evidence:sha256:237cd48af5ac5fa969ffcc3559c6ed79eaabdcf5ae468e798e0de147bc46313b",
+    "media_wan_frozen_acquisition_initial_test.go": "evidence:sha256:4833c488861917e61ab3c444a34026858e1d87d7771361fe8da567e681d2d050",
+    "media_wan_frozen_acquisition_test.go": "evidence:sha256:1e0795ce98635a74d6c85dc2f76bfd9f8bc07292fc605295048e062d539f13a2"
+  },
+  "numerical": [
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestTextConditioningGoldenParity|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestVAEDecodeCUDAGoldenG[34]|TestWanLifecycleAcceptance)$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:8a4f58b470631e9d2629644d2bb3accd7cca6aa019ffa6e940c8567a3753623a",
+      "name": "Wan references after shared decoding"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestWanContextHandleOwnership|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestWanLifecycleAcceptance)$' -count=1 -timeout=15m -json",
+      "evidence": "evidence:sha256:52d4e8887e849425ce49cb81d332ed83807d0025b598c4fa366833ca550e5515",
+      "name": "Wan current conditioning-handle validation"
+    },
+    {
+      "command": "go test ./internal/latentvideo -run '^TestWanLayoutBufferOwnership$' -count=1 -json",
+      "evidence": "evidence:sha256:91aac5abd1c169d750230091bc45adca6f823076795ee6660a441fc5748b6d70",
+      "name": "Wan current host layout ownership"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_CUDA_TEST=1 OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-baseline go test -overlay=tmp/media-memory-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanMemoryAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:228280de772c84e74a9a851a871df6f48f54c888e7a4125ada2d0bf32843d07f",
+      "name": "Wan current implementation: full video and memory baseline"
+    },
+    {
+      "command": "go test ./internal/latentvideo ./internal/media -run '^(TestProfileControlBoundsFollowTheStrides|TestWanRequestFormAdmitsPromptOrTensors|TestWanTextConditioningSpecLocatesThePipeline|TestUniPCScheduleGoldenG3|TestTimestepConditioningGoldenG2|TestWanLayoutBufferOwnership|Test.*GIF.*)$' -count=1 -json",
+      "evidence": "evidence:sha256:3b37a839f8e06a8d7b2a4937bd61ac1e2481bc3bdcac0f89ae4bb890e72611a5",
+      "name": "Current Wan schedule, request, bounds, layout and GIF owners"
+    }
+  ],
+  "previous_source": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237",
+  "protocol": "evidence:sha256:0927ee62c310ea63929a55fd178ee4a629c58ec1c6402d2a47aad6472177e412",
+  "representative_frames": [
+    "evidence:sha256:9e539c0154e11ee2b4b5267799ace89b41ae692d568cf89350256128f889faf9",
+    "evidence:sha256:12625a6b56628e4a11cfb807f118424496d3965bb3c7b06b191d2ca52772f54f",
+    "evidence:sha256:03c3590d74955c3c65f0c786160fd3ae000c5ff5edfa044e39fecd0d65eb370d",
+    "evidence:sha256:d7dfa46c34e8f00d5ffe67e2465b18294f866b50909c85451de18f638f5bc44f"
+  ],
+  "reuse_binding": "evidence:sha256:23d0b7123d24102f860baececabab4f9f61fe8c6c10c0f1c9c6564a185f898d2",
+  "scope": "Three frozen Wan cases: two newly executed compiled-recipe small clips and one reused complete production acquisition with original measurements. All exports preserve every historical decoded pixel and all GIF metadata except corrected cumulative frame delays. Native G1 conditioning, G3/G4 denoiser/VAE, schedule, request bounds, lifecycle and buffer ownership evidence retain their original scope; no full-video native oracle is invented. The small two-step clips contain colored patterns rather than recognizable subjects. The 81-frame clip has a fox in snow with limited head/mouth motion, visible GIF dithering and no requested ice-cream cone. Prompt encoder execution is covered by separate retained native evidence, not by the tensor-form clips. The failed first measurement omitted graph launches; production is unchanged and the corrected measurement counts both direct and captured work. Resource scopes and failures remain explicit. Public transport, capacity, composition and final gallery provenance remain separate.",
+  "source_base": "cfcc9a405a3055c8666cc21892877024c4d0ef58",
+  "version": 1
+}

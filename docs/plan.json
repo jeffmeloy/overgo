@@ -36,17 +36,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "wan",
-          "title": "Validate Wan denoising, causal decode, and exported clips",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_wan_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoWanAcceptance$' -count=1",
-          "rationale": "Use cmd/latentvideo-run, cmd/recipe and internal/latentvideo for the inventory's Wan2.1-T2V-1.3B cells. Bind the reference encoder, denoiser, schedule, VAE/causal decoder and conditioned/unconditioned inputs. Cover supported frame/spatial boundaries and short versus longer admitted clips without assuming unrestricted lengths. Check fixed-seed numerical references, frame order/count, frame rate and duration, temporal artifacts and prompt adherence under the frozen rubric. Report first usable output latency where supported, total clip wall, phase times, transfers and both measured memory scopes. Reuse prior denoiser/session and media codec tests rather than replacing them. Export a playable clip and representative frames with hashes and frame-selection rules. The bundle acceptance is read-only and rejects truncation, reordered frames, missing reference/quality evidence and mismatched timing metadata. Reuse any matching representative-cohort baseline or accepted candidate from media-optimization/baseline instead of loading this model again. Collect quality, phase timing, transfer counters, memory observations and exportable outputs in one admitted session where measurement isolation permits. Export each retained sample when available; the later publication rows verify completeness rather than trigger generation. If a shared component changes after this bundle, recheck only its affected assertions and preserve unaffected results; final capacity/consumer acceptance reconciles the complete current-source coverage.\n\nThe transfer and memory comparisons already contain complete 81-frame, 832x480, 50-step first/repeat Wan trajectories: latent 508c260ec9636666b3affcf9d3896551f7d8138819981693030a534b22458a84 and GIF d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9. Both record every float-frame hash and 506 centiseconds of GIF duration. Reuse matching outputs; complete temporal visual review, native-to-public request lineage, source-bound run publication and existing sample export. Do not regenerate the full clip solely to display or publish it. Preserve the earlier conditioning-handle and cancellation repairs.",
-          "depends_on": [
-            "media-protocol/quality",
-            "media-protocol/resources"
-          ]
-        },
-        {
           "id": "reference-oscillator",
           "title": "Validate LiveEdit and Un-0 video requests and source preservation",
           "status": "open",

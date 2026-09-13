@@ -62,6 +62,16 @@ Current sample [Un-0/image-gen/1](docs/media_samples/cf5dcb195503d8c9ce318a0fc89
 
 Current sample [Un-0/image-gen/2](docs/media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png): validation run `run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.
 
+The [Wan validation bundle](docs/image_video_wan.json) accounts for the three frozen Wan requests. Two new small compiled-recipe clips validate execution and timing; the existing full production acquisition provides the complete 81-frame sample. Both are tensor-conditioned paths. The full clip depicts a fox in snow but omits the requested ice-cream cone; this remains a prompt-adherence limitation. Small two-step clips contain colored patterns rather than recognizable subjects.
+
+Full Wan sample [81 frames at 832x480](docs/media_samples/d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif): run `run:sha256:ab252bb624d3ca3535fba2e862febd01a5df44823d6fca2012c43181a8a30066`, original source `fcda318afa6edecd9cdeed8b2d4a65f9be66c237`, reuse binding `evidence:sha256:23d0b7123d24102f860baececabab4f9f61fe8c6c10c0f1c9c6564a185f898d2`. Publication retains the original measurements and instrumentation. Host name was not recorded; GPU UUID, driver and Go runtime are retained. A metadata-only publication failure used unsupported phase names; it was corrected to the existing generate/postprocess phases without rerunning generation. Failure receipt `evidence:sha256:6855bfcc8bd73e0baaea0baf3ee13aee2ffe98c1bc918d1d83739ab58a440f12`.
+
+Wan memory scopes remain separate: the full acquisition's denoiser and decoder Library peaks are 7,725,035,776 and 10,329,897,932 bytes, not an observed simultaneous total. Its process lifetime host peak was 10,263,068,672 bytes and includes the earlier G4 case in the acquisition group. Full first/repeat Go allocations were 2,494,283,640 and 2,467,036,840 bytes. The earlier transfer and host-layout candidates remain rejected under their original latency criteria.
+
+Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/1`: output `output:sha256:31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240`; bound validation run `run:sha256:27acd2d8d987d15a6dd68cb964cdfd2905f31a8dc74e7fb00ce24deebce399ed`; source `cfcc9a405a3055c8666cc21892877024c4d0ef58`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Complete GIF timing is 31 centiseconds at 16 fps.
+
+Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/2`: output `output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99`; bound validation run `run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47`; source `cfcc9a405a3055c8666cc21892877024c4d0ef58`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Complete GIF timing is 31 centiseconds at 16 fps.
+
 | Check | Recorded result | Scope and observations | Evidence |
 | --- | --- | --- | --- |
 | Wan cancellation, cleanup and reuse | Passed selected tests | Current source passes partial initialization without a panic, the unchanged G3 production reference, changed-negative conditioning against a fresh session, and cleanup after request cancellation. G4 decode stops after the first frame; the next request reproduces all five decoded frames exactly. G3 uses one 32x16 frame and four steps; G4 uses five 32x16 frames and two steps. This is lifecycle and reference coverage, not a new full-resolution clip or a performance comparison. | `evidence:sha256:ed239680eb5ad0b1d4be3179b10b5123075d40ffae34885ea73c06340b55c938` |
@@ -105,6 +115,9 @@ Current sample [Un-0/image-gen/2](docs/media_samples/a8bc7f12cb9a537b40bf150493a
 | Un-0 frozen CPU image requests | Passed selected tests | Class 1, seeds 111/11, artifact-derived 8x8 output. Both PNGs match their retained bytes exactly. Initial load 0.010221 seconds; requests 0.035606/0.036167 seconds. Process peak 479653888 bytes; per-request Go allocations 1394144/1354160 bytes. CPU execution uses no GPU reservation or fabricated GPU metrics. The output is a low-contrast color tile without recognizable semantic detail. The 3.228-second successful process follows a 3.367-second environment-metadata failure that loaded no model. New bound runs retain original recipe/input/output identities. | `evidence:sha256:d749dd9ac22308ba2d71e1a089ac77ebbf172783ffc5f613a54f9d9e2a14218b` |
 | Current Un-0 native image and converter checks | Passed selected tests | Artifact-derived dimensions, exact native seed42 PNG pixels, deterministic generation, class sensitivity, Torch dynamics and generator comparisons pass. Shared F32 promotion and malformed-input checks pass after the existing early dtype guard change. These current CPU checks preserve the original numerical criteria and do not establish meaningful semantic image quality at 8x8. | `evidence:sha256:5c3b99531b837e4f06f907cc28384a3197ef8bdd19d806f48b89fa0f66633db8` |
 | Frozen SenseNova and Un-0 image bundle acceptance | Passed selected tests | Accounts for all five frozen cases: four new source/environment-bound runs and one explicitly reused full-size SenseNova result. Checks raw execution, exact request/output lineage, dimensions, finiteness, CPU/GPU resource scopes, cleanup and visual reviews. Reused full-size input parameters and prompt hash match the unchanged native fixture; the exact reviewed PNG and original test receipt remain bound to their original acquisition. Dependency identities are unchanged except the explicitly checked supported-dtype-preserving converter guard. Missing cases, changed inputs, nonfinite outputs and mislabeled historical runs are rejected. | `evidence:sha256:c7ab78023e273eed3b0c8a5adb95c462f4f0f48ebd2a4f25ed863cd822a0bb20` |
+| Wan frozen small compiled-recipe clips | Passed selected tests | Two frozen five-frame 64x64, two-step clips, noise seeds 131 and 31. One loaded WanRuntime executes both active compiled-recipe requests. Load 3.409330 seconds, request walls 0.879840 and 0.323130 seconds, close 0.111697 seconds; successful acquisition process 8.493 seconds. Request Go allocation 414,367,248 and 292,663,856 bytes; process lifetime peak 8,893,042,688 bytes. Separate denoiser/decoder Library peaks are 3,527,123,200 and 376,261,580 bytes; both close with zero owned bytes. Raw transfer counters and direct/captured graph launches establish actual GPU work. Outputs preserve every historical decoded pixel and all metadata except total GIF duration corrected from 30 to 31 centiseconds. The two-step clips show colored patterns with no recognizable prompt subject. A preceding 112.262-second attempt generated the clips but failed a measurement assertion that omitted captured graph launches; its incomplete telemetry required reacquisition. Production code and frozen inputs did not change. | `evidence:sha256:bef98ebec4b32b7c5ddd9c3b5ad7d39bb8b5808e5d75f287f179c2125e1c8487` |
+| Current Wan schedule, request, bounds, layout and GIF owners | Passed selected tests | Current CPU checks cover stride-derived supported controls, prompt-or-tensor request form, declared text pipeline, native UniPC and timestep conditioning references, layout ownership and cumulative GIF cadence. Existing source-compatible CUDA G1/G3/G4, VAE, cancellation and context-lifetime evidence is reused rather than loading the model again. | `evidence:sha256:3b37a839f8e06a8d7b2a4937bd61ac1e2481bc3bdcac0f89ae4bb890e72611a5` |
+| Wan frozen full clip publication and bundle acceptance | Passed selected tests | Read-only acceptance accounts for all three frozen cases, complete stored lineage, actual acquired GPU work, corrected timing, visual review, retained native checks and original full-acquisition source/environment. Mutation cases reject truncation, reordered frames, changed pixels and wrong duration. The reused 81-frame 832x480, 50-step production requests took 373.920021 and 376.232408 seconds including frame audit/encoding; no new full generation ran. The retained full GIF has 506 centiseconds of duration and exactly preserves the historical 486-centisecond clip's pixels and other metadata. All 81 frames were inspected as a storyboard, with original-resolution frames 0, 40 and 80 retained; review is not native-rate playback. The fox and snowy forest are visible, with limited head/mouth movement and palette dithering, but the requested ice-cream cone is absent. Supplied conditioning arrays exactly match the native G1 fixture; these tensor-form requests did not run a text encoder. First streamed-frame latency was not measured. | `evidence:sha256:e4de9fff127fd3ff73035e8d17ae78434f0850ed608e039e92f7239044358afd` |
 
 Results describe the selected tests, including failures, rather than all supported requests. Commands and retained overlay sources in the index identify each acquisition. Test output is stored by content identity in OvergoDB.
 
@@ -248,7 +261,7 @@ Succeeded: 164; failed: 0; cancelled: 0.
 
 ### Wan2.1-T2V-1.3B (video-gen)
 
-Succeeded: 6; failed: 0; cancelled: 0.
+Succeeded: 11; failed: 0; cancelled: 0.
 
 
 ## Samples
@@ -382,6 +395,24 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
 
 ### Wan2.1-T2V-1.3B (`video-gen`)
 
+- Video clip: [c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99.gif](docs/media_samples/c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99.gif)
+
+  ![Wan2.1-T2V-1.3B clip](docs/media_samples/c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99.gif)
+
+  Request: `{"cond_context":"[786432 values]","frames":5,"guide_scale":6,"height":64,"noise":{"Block":256,"Grid":4096,"Offset":0,"Seed":31,"Unroll":4},"shift":5,"steps":2,"uncond_context":"[786432 values]","width":64}`
+
+  Run: `run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47`; output: `output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99`. Source: `cfcc9a405a3055c8666cc21892877024c4d0ef58`. Environment: `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`.
+
+  Input artifacts: `file:sha256:ddb180564d8a0a1fdacff9ce2f3276a3282a00b96af71957eda687646d7b8680`.
+- Video clip: [31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240.gif](docs/media_samples/31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240.gif)
+
+  ![Wan2.1-T2V-1.3B clip](docs/media_samples/31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240.gif)
+
+  Request: `{"cond_context":"[786432 values]","frames":5,"guide_scale":6,"height":64,"noise":{"Block":256,"Grid":4096,"Offset":0,"Seed":131,"Unroll":4},"shift":5,"steps":2,"uncond_context":"[786432 values]","width":64}`
+
+  Run: `run:sha256:2556c79e32f120abe2a7e89f63d3c6c9c4d0b98b44906e4cb214c1b08fa6ab0f`; output: `output:sha256:31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240`. Source: unavailable. Environment: unavailable.
+
+  Input artifacts: `file:sha256:548efce9b4a867734a22f75d4fdb1c00faa9582945fd355f853fdeb71de5ecc9`.
 - Video clip: [e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e.gif](docs/media_samples/e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e.gif)
 
   ![Wan2.1-T2V-1.3B clip](docs/media_samples/e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e.gif)
@@ -400,6 +431,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
   Run: `run:sha256:8768bd7df757067c19aaac03c266f28ce397d911a79a58ad831582c7db6ea9ab`; output: `output:sha256:4cc19c2db162f6f0678d4ab026f12229abebbbc39a07a3f6154bfc07f74faaa1`. Source: unavailable. Environment: unavailable.
 
   Input artifacts: `file:sha256:ddb180564d8a0a1fdacff9ce2f3276a3282a00b96af71957eda687646d7b8680`.
+- Video clip: [d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif](docs/media_samples/d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif)
+
+  ![Wan2.1-T2V-1.3B clip](docs/media_samples/d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9.gif)
+
+  Request: `{"cond_context":"[786432 values]","frames":81,"guide_scale":6,"height":480,"noise":{"Block":256,"Grid":684,"Offset":0,"Seed":31,"Unroll":4},"shift":5,"steps":50,"uncond_context":"[786432 values]","width":832}`
+
+  Run: `run:sha256:ab252bb624d3ca3535fba2e862febd01a5df44823d6fca2012c43181a8a30066`; output: `output:sha256:d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9`. Source: `fcda318afa6edecd9cdeed8b2d4a65f9be66c237`. Environment: `evidence:sha256:e2e64660faa7bd3518cf69cac1091b5fbed7a0d21af2efea913f7f88c6a2240d`.
+
+  Input artifacts: `file:sha256:364be3ce53202ce6b5be13d1265ff1e909f6c232b1796f06c73d451fad326a72`.
 - Video clip: [88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f.gif](docs/media_samples/88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f.gif)
 
   ![Wan2.1-T2V-1.3B clip](docs/media_samples/88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f.gif)

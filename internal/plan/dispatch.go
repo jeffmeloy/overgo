@@ -23,6 +23,7 @@ import (
 // Dispatch is the current row as data: the harness reads its fields and
 // Line is the one-line prose rendered from the same fields.
 type Dispatch struct {
+	Stop      *StopStatus `json:"stop,omitempty"`
 	Complete  bool        `json:"complete"`
 	Item      string      `json:"item,omitzero"`
 	Step      string      `json:"step,omitzero"`
@@ -43,13 +44,18 @@ const DispatchCachePath = "docs/.dispatch"
 // Shared Git revision query used by dispatch and completion authority.
 const gitRevisionCommand = "rev-parse"
 
+// Git names the current worktree revision through HEAD.
+const gitHeadRevision = "HEAD"
+
 // DispatchRequest separates read-only inspection from executable acquisition.
 // Worker is a stable session identity, never the shared role or command PID.
 type DispatchRequest struct {
-	Role      string
-	Worker    string
-	Acquire   bool
-	Reference string
+	Mode        string
+	Maintenance string
+	Role        string
+	Worker      string
+	Acquire     bool
+	Reference   string
 }
 
 // AutomationWorkerEnvironment is inherited by a driver and its gate subprocesses.
@@ -115,7 +121,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if request.Acquire && worker == "" {
 		return Dispatch{}, fmt.Errorf("plan: executable dispatch requires -worker <stable-session-id> or %s", AutomationWorkerEnvironment)
 	}
-	repository, head, err := resolveCompletionRevision(ctx, root, "HEAD")
+	repository, head, err := resolveCompletionRevision(ctx, root, gitHeadRevision)
 	if err != nil {
 		return Dispatch{}, err
 	}
@@ -131,22 +137,11 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		}
 		defer func() { err = errors.Join(err, lock.Close()) }()
 		// HEAD and document are read under the mutation owner.
-		_, head, err = resolveCompletionRevision(ctx, repository, "HEAD")
+		_, head, err = resolveCompletionRevision(ctx, repository, gitHeadRevision)
 		if err != nil {
 			return Dispatch{}, err
 		}
 	}
-	planPath := filepath.Join(repository, filepath.FromSlash(Path))
-	raw, err := os.ReadFile(planPath)
-	if err != nil {
-		return Dispatch{}, err
-	}
-	// The cache takes the plan file's own permissions.
-	planInfo, err := os.Stat(planPath)
-	if err != nil {
-		return Dispatch{}, err
-	}
-	digest := sha256.Sum256(raw)
 	openStore := overgodb.OpenReadOnly
 	if request.Acquire {
 		openStore = overgodb.Open
@@ -161,23 +156,61 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 			return Dispatch{}, err
 		}
 	}
+	mode, err := ExecutionMode(request.Mode)
+	if err != nil {
+		return Dispatch{}, err
+	}
+	stop, err := ReadStop(ctx, store, repository, head, mode)
+	if err != nil {
+		return Dispatch{}, err
+	}
+	if stop.Blocked && request.Maintenance == "" && strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)) == "" {
+		stopped := Dispatch{Stop: &stop, Waiting: stop.String()}
+		stopped.Line = dispatchLine(stopped)
+		return stopped, nil
+	}
+	planPath := filepath.Join(repository, filepath.FromSlash(Path))
+	raw, err := os.ReadFile(planPath)
+	if err != nil {
+		return Dispatch{}, err
+	}
+	// The cache takes the plan file's own permissions.
+	planInfo, err := os.Stat(planPath)
+	if err != nil {
+		return Dispatch{}, err
+	}
+	digest := sha256.Sum256(raw)
+	projectStop := func(value Dispatch) Dispatch {
+		if stop.State != stopAbsent {
+			value.Stop = &stop
+		}
+		grant := cmp.Or(request.Maintenance, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)))
+		if stopErr := stop.RequireExecution(ctx, store, role, worker, mode, value.Item+"/"+value.Step, grant); stopErr != nil {
+			value.Waiting = stopErr.Error()
+			value.Line = dispatchLine(value)
+		}
+		return value
+	}
 	storeHead, sequence := store.Head()
 	key := dispatchCache{Head: head, PlanDigest: hex.EncodeToString(digest[:]), StoreHead: storeHead, StoreSequence: sequence, Role: role, Worker: worker, Reference: request.Reference, Policy: "claimed-prerequisite-frontier/v1"}
 	cachePath := filepath.Join(repository, filepath.FromSlash(DispatchCachePath))
 	if cached, ok := cachedDispatch(cachePath, key); ok && !request.Acquire {
-		return cached, nil
+		return projectStop(cached), nil
 	}
 	document, err := Load(planPath)
 	if err != nil {
 		return Dispatch{}, err
 	}
-	authority, err := ResolveCompletionAuthority(ctx, repository, "HEAD", document, store)
+	authority, err := ResolveCompletionAuthority(ctx, repository, gitHeadRevision, document, store)
 	if err != nil {
 		return Dispatch{}, err
 	}
 	key.Dispatch, err = selectDispatch(ctx, store, document, role, filepath.ToSlash(repository), worker, request.Reference, authority)
 	if err != nil {
 		return Dispatch{}, err
+	}
+	if stopped := projectStop(key.Dispatch); stopped.Waiting != "" && stopped.Stop != nil {
+		return stopped, nil
 	}
 	attempted := map[string]bool{}
 	for request.Acquire && key.Dispatch.Waiting == "" && !key.Dispatch.Complete && key.Dispatch.Claim == nil {
@@ -196,7 +229,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		if contractErr != nil {
 			return Dispatch{}, contractErr
 		}
-		branch, branchErr := gitCompletionCommand(ctx, repository, gitRevisionCommand, "--abbrev-ref", "HEAD")
+		branch, branchErr := gitCompletionCommand(ctx, repository, gitRevisionCommand, "--abbrev-ref", gitHeadRevision)
 		if branchErr != nil {
 			return Dispatch{}, branchErr
 		}
@@ -227,7 +260,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	}
 	// The cache is a convenience: a write that fails leaves the next reader resolving again.
 	_ = jsonfile.Write(cachePath, key, planInfo.Mode().Perm())
-	return key.Dispatch, nil
+	return projectStop(key.Dispatch), nil
 }
 
 // cachedDispatch returns the cached dispatch when every input matches key.
@@ -415,8 +448,20 @@ func validateDispatchContract(document Plan, lease WorkLease, role string, autho
 // Legacy callers retain current-row admission only while no dispatch claim owns
 // that worktree or row; they cannot overwrite an active worker's authority.
 func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan, authority CompletionAuthority, root, role, reference string) (Item, Step, *WorkLease, error) {
+	mode, modeErr := ExecutionMode("")
+	if modeErr != nil {
+		return Item{}, Step{}, nil, modeErr
+	}
+	stop, stopErr := ReadStop(ctx, reader, root, "", mode)
+	if stopErr != nil {
+		return Item{}, Step{}, nil, stopErr
+	}
+
 	worker, err := dispatchWorker("")
 	if err != nil {
+		return Item{}, Step{}, nil, err
+	}
+	if err := stop.RequireExecution(ctx, reader, role, worker, mode, reference, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment))); err != nil {
 		return Item{}, Step{}, nil, err
 	}
 	worktree, err := filepath.Abs(root)

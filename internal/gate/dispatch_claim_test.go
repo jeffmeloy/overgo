@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -105,5 +106,75 @@ func TestClaimedGateAdmission(t *testing.T) {
 	actual, err := os.ReadFile(filepath.Join(root, "pending.go"))
 	if err != nil || !bytes.Equal(actual, dirty) {
 		t.Fatal("claim lifecycle overwrote dirty source")
+	}
+}
+
+func TestPersistentGateStop(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "docs"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	document := plan.Plan{Items: []plan.Item{{ID: "row", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./internal/gate"}}}}}
+	if err := plan.Save(filepath.Join(root, plan.Path), document); err != nil {
+		t.Fatal(err)
+	}
+	initializePlanBindingRepo(t, root)
+	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationWorkerEnvironment, "stop-gate-worker")
+	t.Setenv(plan.AutomationModeEnvironment, plan.ExecutionInteractive)
+	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
+	head, err := command(root, "git", "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	head = strings.TrimSpace(head)
+	store, err := overgodb.Open(filepath.Join(root, gateStorePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	event := plan.ControlEvent{Kind: "stop", Lane: plan.UnassignedRole, Worker: "stop-gate-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped autonomous work", CodeCommit: head}
+	stopped, err := plan.RecordControlEvent(t.Context(), store, event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkPlanBindingForTest(root, "row/do"); err == nil {
+		t.Fatal("gate ignored active stop")
+	}
+	grant := event
+	grant.Kind = "maintenance"
+	grant.ReasonCode = "operator-maintenance"
+	grant.Detail = "operator authorized this repair"
+	grant.Task = "row/do"
+	grant.Previous = stopped.ID
+	granted, err := plan.RecordControlEvent(t.Context(), store, grant)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(plan.AutomationMaintenanceEnvironment, granted.ID.String())
+	claimed, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{Acquire: true, Reference: "row/do"})
+	if err != nil || claimed.Claim == nil || claimed.Waiting != "" {
+		t.Fatalf("maintenance dispatch=%+v %v", claimed, err)
+	}
+	if err := checkPlanBindingForTest(root, "row/do"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(plan.AutomationModeEnvironment, plan.ExecutionUnattended)
+	if err := checkPlanBindingForTest(root, "row/do"); err == nil {
+		t.Fatal("unattended gate consumed maintenance grant")
+	}
+	t.Setenv(plan.AutomationModeEnvironment, plan.ExecutionInteractive)
+	event.Previous = stopped.ID
+	event.Detail = "operator replaced the stop after admission"
+	latest, err := plan.RecordControlEvent(t.Context(), store, event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkPlanBindingForTest(root, "row/do"); err == nil {
+		t.Fatal("final admission reused superseded stop authority")
+	}
+	active, err := plan.ReadStop(t.Context(), store, root, head, plan.ExecutionUnattended)
+	if err != nil || !active.Blocked || active.ID != latest.ID {
+		t.Fatalf("maintenance resumed loop: %+v %v", active, err)
 	}
 }

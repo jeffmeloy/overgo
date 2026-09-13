@@ -13,8 +13,8 @@
 // plan holds ANY open row -- committed progress changes the message, never
 // the verdict, so the loop runs until the plan is empty. The one sanctioned
 // pause is a recorded user stop. Valves keep it from ever wedging: a
-// stop_hook_active retry passes, a live background gate steps aside, a fresh
-// recorded stop at HEAD passes, plan-complete passes.
+// stop_hook_active retry passes, a live background gate steps aside, an active
+// scoped operator stop passes, plan-complete passes.
 package main
 
 import (
@@ -71,7 +71,7 @@ func readStdin() string {
 // stop"). Committed progress is necessary, never sufficient: a turn under an
 // open plan row continues until the plan is EMPTY, and the only sanctioned
 // pause is a recorded user stop (go run ./cmd/plan -stop), which arms the
-// freshStop valve.
+// operator-stop decision.
 const (
 	stopAllow    = ""
 	stopOrphan   = "orphan"
@@ -81,8 +81,8 @@ const (
 // stopDecision is the pure verdict the Stop hook renders. planComplete is the
 // only plan-derived allow; a landed commit changes the message, never the
 // verdict.
-func stopDecision(stopHookActive, freshStop, gateRunning, planComplete, dirtyWork bool) string {
-	if stopHookActive || freshStop || gateRunning || planComplete {
+func stopDecision(stopHookActive, operatorStopped, gateRunning, planComplete, dirtyWork bool) string {
+	if stopHookActive || operatorStopped || gateRunning || planComplete {
 		return stopAllow
 	}
 	if dirtyWork {
@@ -96,13 +96,17 @@ func runStop(hookJSON string) int {
 	if strings.Contains(hookJSON, `"stop_hook_active":true`) || strings.Contains(hookJSON, `"stop_hook_active": true`) {
 		return 0
 	}
-	freshStop := freshStopAtHead(gitHead())
-	gateRunning := gateProcessRunning()
 	dispatch := nextDispatch()
+	if dispatch.Waiting != "" {
+		fmt.Fprintln(os.Stderr, dispatch.Line)
+		return 0
+	}
+	operatorStopped := dispatch.Stop != nil && dispatch.Stop.Blocked
+	gateRunning := gateProcessRunning()
 	dirtyWork := hasTurnCreatedDirt()
 	progressed := headAdvancedSinceTurnStart()
 
-	verdict := stopDecision(false, freshStop, gateRunning, dispatch.Complete, dirtyWork)
+	verdict := stopDecision(false, operatorStopped, gateRunning, dispatch.Complete, dirtyWork)
 	if verdict == stopAllow {
 		return 0
 	}
@@ -330,14 +334,6 @@ func workIdentity(path string) string {
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 
-func freshStopAtHead(head string) bool {
-	b, err := os.ReadFile("docs/plan_stop.json")
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(b), `"head":"`+head+`"`)
-}
-
 // gateProcessRunning reports whether a plan-bound gate is committing right now,
 // so the Stop gate steps aside instead of false-blocking a turn-end that is
 // merely waiting on a background gate.
@@ -371,7 +367,7 @@ func gateProcessRunning() bool {
 // which reuses the dispatch cached for this HEAD, plan and store head; a
 // resolver failure is reported in the line and never ends the loop.
 func nextDispatch() plan.Dispatch {
-	dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{})
+	dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Mode: plan.ExecutionInteractive})
 	if err != nil {
 		return plan.Dispatch{Line: "plan: " + err.Error()}
 	}

@@ -40,7 +40,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
-	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -90,7 +89,11 @@ func main() {
 	jsonFlag := flag.Bool("json", false, "with -next, -prompt or -history -phases: print typed JSON")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
-	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
+	stop := flag.Bool("stop", false, "record a scoped stop until explicit resume: -stop <user-stop|irreversible|external-prereq>: <detail>")
+	resumeStop := flag.String("resume-stop", "", "explicitly resume the exact stop ID, preserving its owner and scope")
+	maintenanceStop := flag.String("maintenance-stop", "", "authorize one supervised task while the exact stop remains active: <item/step> <reason>")
+	stopMode := flag.String("stop-mode", "", "stop scope: all (default), interactive or unattended; resume preserves the recorded scope")
+	executionMode := flag.String("mode", "", "execution mode: interactive or unattended; default inherited from the driver")
 	contain := flag.String("contain", "", "record typed lane containment: -contain <reason-code> -lane <lane> <detail>")
 	lane := flag.String("lane", "", "lane affected by -contain")
 	_ = flag.String("force", "", "retired with -advance")
@@ -102,13 +105,14 @@ func main() {
 	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	flag.Parse()
-	if err := run(cli{json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
+	resumeStop, maintenanceStop, stopMode, mode                                      string
 	phases                                                                           bool
 	historyCommit, historyResult                                                     string
 	releaseClaim, releaseReason                                                      string
@@ -134,6 +138,17 @@ type cli struct {
 }
 
 func run(c cli, args []string) error {
+	if c.stop || c.resumeStop != "" || c.maintenanceStop != "" {
+		allowed := cli{stop: c.stop, resumeStop: c.resumeStop, maintenanceStop: c.maintenanceStop, stopMode: c.stopMode, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
+		if c != allowed || c.stop && (c.resumeStop != "" || c.maintenanceStop != "") || c.resumeStop != "" && c.maintenanceStop != "" {
+			return errors.New("plan: stop control cannot be combined with another operation")
+		}
+		return recordStopControlCommand(".", c, args, os.Stdout)
+	}
+	if c.stopMode != "" {
+		return errors.New("-stop-mode requires a stop control operation")
+	}
+
 	if c.releaseClaim != "" || c.releaseReason != "" {
 		allowed := cli{releaseClaim: c.releaseClaim, releaseReason: c.releaseReason, worker: c.worker, role: c.role, retireLegacyLeases: noLegacyLeaseRetirement}
 		if c != allowed || len(args) != 0 {
@@ -156,21 +171,19 @@ func run(c cli, args []string) error {
 		}
 		return printGatePhaseHistory(c, os.Stdout)
 	}
-	document, err := plan.Load("")
-	if err != nil {
-		return err
+	if c.next || c.prompt || c.verify {
+		return printDispatch(c, args, os.Stdout)
 	}
-	if err := plan.Validate(document); err != nil {
+	if c.mode != "" {
+		return errors.New("-mode requires -next, -prompt or -verify")
+	}
+	document, err := loadCommandPlan(c.bindCensus)
+	if err != nil {
 		return err
 	}
 	role, err := plan.AutomationRole(c.role)
 	if err != nil {
 		return err
-	}
-	if !c.bindCensus {
-		if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
-			return err
-		}
 	}
 	switch {
 	case c.prepareMerge != "":
@@ -239,10 +252,8 @@ func run(c cli, args []string) error {
 			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -require in the verify")
 		}
 		return setStepVerify(".", args[0], args[1], c.verifyCmd, role)
-	case c.stop:
-		return recordStop(strings.Join(args, " "))
 	case c.contain != "":
-		return recordControl(c.lane, "containment", c.contain, strings.Join(args, " "))
+		return recordControl(c.lane, "containment", c.contain, strings.Join(args, commandWordSeparator))
 	case c.advance:
 		if len(args) != 2 {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
@@ -253,66 +264,6 @@ func run(c cli, args []string) error {
 		return nil
 	case c.context:
 		return printAutomationContext(document, c.role, os.Stdout)
-	case c.prompt:
-		// An optional exact row selects independent ready work through the same admission.
-		if len(args) > 1 {
-			return errors.New("usage: plan -prompt [-json] [-worker id] [item/step]")
-		}
-		reference := ""
-		if len(args) == 1 {
-			reference = args[0]
-		}
-		dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker, Acquire: true, Reference: reference})
-		if err != nil {
-			return err
-		}
-		if c.json {
-			return json.NewEncoder(os.Stdout).Encode(dispatch)
-		}
-		if dispatch.Waiting != "" {
-			fmt.Println(dispatch.Line)
-			return nil
-		}
-		it, st, ok := locateStep(document, dispatch)
-		if !ok {
-			fmt.Println("PLAN COMPLETE: every item is done. Stop and tell the user.")
-			return nil
-		}
-		if dispatch.Claim != nil {
-			fmt.Printf("Claim: %s worker=%s worktree=%s\n", dispatch.Claim.ID, dispatch.Claim.Worker, dispatch.Claim.Worktree)
-		}
-		printPromptStep(it, st, os.Stdout)
-		return nil
-	case c.verify:
-		dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker, Acquire: true})
-		if err != nil {
-			return err
-		}
-		if dispatch.Waiting != "" {
-			fmt.Println(dispatch.Line)
-			return nil
-		}
-		it, st, ok := locateStep(document, dispatch)
-		if !ok {
-			fmt.Println("plan complete: nothing to verify")
-			return nil
-		}
-		return runVerify(it, st)
-	case c.next:
-		dispatch, err := plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker})
-		if err != nil {
-			return err
-		}
-		if c.json {
-			encoded, err := json.Marshal(dispatch)
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(encoded))
-			return nil
-		}
-		fmt.Println(dispatch.Line)
-		return nil
 	default:
 		return errors.New("one of -next, -prompt, -verify, -status, -context, -record-lease, -lease-report, -schedule-locality, -advance is required")
 	}
@@ -394,9 +345,19 @@ func printAutomationContext(document plan.Plan, role string, output io.Writer) e
 		return err
 	}
 	facts.EvidenceDebt, facts.Workflow = authoritativeContextEvidence(store, facts.Head)
+	stop, err := plan.ReadStop(context.Background(), store, facts.Worktree, facts.Head, "")
+	if err != nil {
+		return err
+	}
 	context, err := plan.BuildAutomationContext(document, facts, completions)
 	if err != nil {
 		return err
+	}
+	if stop.State != "absent" {
+		context.Stop = &stop
+		if stop.Blocked {
+			context.PlanState = "stopped"
+		}
 	}
 	encoder := json.NewEncoder(output)
 	encoder.SetEscapeHTML(false)
@@ -407,7 +368,7 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	text := func(args ...string) (string, error) {
 		out, err := gitOutput(".", args...)
 		if err != nil {
-			return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
+			return "", fmt.Errorf("git %s: %w", strings.Join(args, commandWordSeparator), err)
 		}
 		return strings.TrimSpace(string(out)), nil
 	}
@@ -775,68 +736,6 @@ func setStepVerify(root, itemID, stepID, cmd, role string) error {
 	})
 }
 
-var validStopReasons = []string{"user-stop", "irreversible", "external-prereq"}
-
-// validateStop returns nil iff reason begins with a legitimate stop tag -- the
-// only three reasons that justify ending a turn without plan progress. A
-// self-invented "checkpoint" or "should I continue?" is not among them.
-func validateStop(reason string) error {
-	reason = strings.TrimSpace(reason)
-	matched := ""
-	for _, v := range validStopReasons {
-		if reason == v || strings.HasPrefix(reason, v+":") {
-			matched = v
-			break
-		}
-	}
-	if matched == "" {
-		return fmt.Errorf("invalid stop reason %q -- must begin with one of: user-stop: / irreversible: / external-prereq: <detail>", reason)
-	}
-	if matched == "external-prereq" {
-		// An external prerequisite is something OUTSIDE this process that the
-		// work verifiably waits on: a background task, the owner, another
-		// lane, or a long-running run. Self-pacing ("fresh context", "next
-		// session", "later") is not external and the loop refuses it -- the
-		// owner's contract is iterative develop/verify/commit/plan, never a
-		// deferral the agent grants itself.
-		detail := strings.ToLower(reason)
-		for _, selfPacing := range []string{"fresh context", "next session", "context window", "long session", "best started", "another sitting"} {
-			if strings.Contains(detail, selfPacing) {
-				return fmt.Errorf("stop refused: %q is self-pacing, not an external prerequisite -- continue the plan", selfPacing)
-			}
-		}
-		external := false
-		for _, marker := range []string{"background", "running", "owner", "merge", "download", "provision", "lane", "device", "hashing", "gate ", "missing", "absent", "unavailable"} {
-			if strings.Contains(detail, marker) {
-				external = true
-				break
-			}
-		}
-		if !external {
-			return errors.New("stop refused: external-prereq detail names nothing external (no background task, owner action, merge, or running work) -- continue the plan")
-		}
-	}
-	return nil
-}
-
-// recordStop writes a valid stop marker at the current HEAD; the stop-gate reads
-// it to allow a legitimate turn end. Progress on any later turn supersedes it.
-func recordStop(reason string) error {
-	if err := validateStop(reason); err != nil {
-		return err
-	}
-	head := "unknown"
-	if out, err := gitOutput(".", "rev-parse", "HEAD"); err == nil {
-		head = strings.TrimSpace(string(out))
-	}
-	payload := fmt.Sprintf("{\"reason\":%q,\"head\":%q}\n", strings.TrimSpace(reason), head)
-	if err := clioptions.WriteOutputFile("docs/plan_stop.json", []byte(payload)); err != nil {
-		return err
-	}
-	fmt.Printf("recorded stop: %s\n", strings.TrimSpace(reason))
-	return nil
-}
-
 func printStatus(document plan.Plan) {
 	for _, entry := range document.Items {
 		open := 0
@@ -968,4 +867,21 @@ func recordControl(lane, kind, reason, detail string) error {
 	}
 	fmt.Printf("recorded %s event %s for %s\n", kind, event.ID, event.Lane)
 	return nil
+}
+
+// All command paths use the same document and campaign validation sequence.
+func loadCommandPlan(bindingCensus bool) (plan.Plan, error) {
+	document, err := plan.Load("")
+	if err != nil {
+		return document, err
+	}
+	if err := plan.Validate(document); err != nil {
+		return document, err
+	}
+	if !bindingCensus {
+		if err := plan.ValidateCampaignCensusAuthority(document); err != nil {
+			return document, err
+		}
+	}
+	return document, nil
 }

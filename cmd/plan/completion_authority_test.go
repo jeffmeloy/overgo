@@ -96,23 +96,14 @@ func TestNonDispatchCommandsDoNotRequireCompletionAuthority(t *testing.T) {
 		}},
 	}}}
 	root := initializePlanTestRepository(t, document)
-	previous, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(root); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chdir(previous); err != nil {
-			t.Errorf("restore working directory: %v", err)
-		}
-	})
+	t.Chdir(root)
 
 	for name, invocation := range map[string]func() error{
 		"status":  func() error { return run(cli{status: true}, nil) },
 		"history": func() error { return run(cli{history: "all"}, nil) },
-		"stop":    func() error { return run(cli{stop: true}, []string{"user-stop: fixture"}) },
+		"stop": func() error {
+			return run(cli{stop: true, worker: "stop-fixture", retireLegacyLeases: noLegacyLeaseRetirement}, []string{"user-stop: fixture"})
+		},
 		"control": func() error {
 			return run(cli{contain: "device-instability", lane: "fixture"}, []string{"fixture"})
 		},

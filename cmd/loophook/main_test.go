@@ -1,6 +1,11 @@
 package main
 
 import (
+	"os"
+	"os/exec"
+	"overgo/internal/overgodb"
+	"overgo/internal/plan"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -105,5 +110,64 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 	changed[0].WorkIdentity = "changed-this-turn"
 	if created := turnCreatedDirt(parked, changed); len(created) != 1 || created[0].Path != parked[0].Path {
 		t.Fatalf("modified parked path was not turn-created dirt: %v", created)
+	}
+}
+
+func TestPersistentStopHook(t *testing.T) {
+	root := t.TempDir()
+	t.Chdir(root)
+	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationWorkerEnvironment, "")
+	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.CommandContext(t.Context(), "git", append([]string{"-c", "core.hooksPath="}, args...)...)
+		cmd.Dir = root
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("fixture git: %v %s", err, output)
+		}
+	}
+	git("init", "-q")
+	git("config", "user.email", "stop@example.invalid")
+	git("config", "user.name", "Stop Fixture")
+	git("commit", "--allow-empty", "-qm", "baseline")
+	store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	event := plan.ControlEvent{Kind: "stop", Lane: plan.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped", CodeCommit: gitHead()}
+	stopped, err := plan.RecordControlEvent(t.Context(), store, event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	git("commit", "--allow-empty", "-qm", "another worker committed")
+	if err := os.MkdirAll("docs", 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plan.Path, []byte("{broken plan"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dispatch := nextDispatch()
+	if dispatch.Stop == nil || !dispatch.Stop.Blocked || dispatch.Stop.Event.CodeCommit == dispatch.Stop.CurrentHead {
+		t.Fatalf("hook lost stop across HEAD: %+v", dispatch)
+	}
+	if got := runStop("{}"); got != 0 {
+		t.Fatalf("hook nagged after operator stop: %d", got)
+	}
+	event.Kind = "resume"
+	event.ReasonCode = "operator-resume"
+	event.Detail = "operator continued"
+	event.Previous = stopped.ID
+	event.CodeCommit = gitHead()
+	if _, err := plan.RecordControlEvent(t.Context(), store, event); err != nil {
+		t.Fatal(err)
+	}
+	status, err := plan.ReadStop(t.Context(), store, root, gitHead(), plan.ExecutionInteractive)
+	if err != nil || status.Blocked || status.State != "resumed" {
+		t.Fatalf("hook scope did not resume: %+v %v", status, err)
+	}
+	if stopDecision(false, status.Blocked, false, false, false) != stopContinue {
+		t.Fatal("resumed hook retained a stale stop")
 	}
 }

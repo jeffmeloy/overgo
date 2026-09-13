@@ -14,6 +14,7 @@ const AutomationContextVersion = 2
 // It intentionally exposes one current task; campaign strategy remains in the
 // plan and does not compete with dispatch under another "rank-1" name.
 type AutomationContext struct {
+	Stop          *StopStatus     `json:"stop,omitempty"`
 	SchemaVersion int             `json:"schema_version"`
 	Head          string          `json:"head"`
 	Branch        string          `json:"branch"`

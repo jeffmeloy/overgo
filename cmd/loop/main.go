@@ -35,6 +35,7 @@ import (
 	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
+	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
@@ -147,7 +148,12 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	world := &execWorld{config: loaded, strategy: strategy}
+	stopStore, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
+	if err != nil {
+		return err
+	}
+	defer stopStore.Close()
+	world := &execWorld{config: loaded, strategy: strategy, stopStore: stopStore}
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
@@ -159,7 +165,7 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 		return loop.Strategy{}, errors.New("config requires an exact strategy_id profile")
 	}
 	repository := loaded.Repository
-	repository = cmp.Or(repository, "overgodb-store")
+	repository = cmp.Or(repository, gitauthority.CanonicalOvergoDBDirectory)
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return loop.Strategy{}, fmt.Errorf("open strategy repository: %w", err)
@@ -177,8 +183,9 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
-	config   config
-	strategy loop.Strategy
+	stopStore *overgodb.Store
+	config    config
+	strategy  loop.Strategy
 }
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
@@ -221,7 +228,7 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path: w.config.Worker[0],
 		Args: arguments,
-		Env: append(os.Environ(),
+		Env: append(loopEnvironment(),
 			loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy),
 			loop.StrategyIDEnvironment+"="+w.strategy.ID.String()),
 		Stdin:  strings.NewReader(text),
@@ -262,15 +269,25 @@ func (w *execWorld) Park(step loop.Step, reason string) error {
 	return nil
 }
 
-// Paused honors both operator stops: the kill-switch marker and the
-// recorded plan stop -- the explicit user stop is a driver stop
-// condition, not just an interactive-session one.
+// Paused retains the local kill switch and reads scoped stop authority through
+// the already-open store. It does not re-resolve the plan or reopen its journal.
 func (w *execWorld) Paused() bool {
 	if _, err := os.Stat(pauseMarker); err == nil {
 		return true
 	}
-	_, err := os.Stat("docs/plan_stop.json")
-	return err == nil
+	var reader artifact.Reader
+	if w.stopStore != nil {
+		reader = w.stopStore
+	}
+	stop, err := plan.ReadStop(context.Background(), reader, loopWorktree, "", plan.ExecutionUnattended)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "loop stop authority:", err)
+		return true
+	}
+	if stop.Blocked {
+		fmt.Fprintln(os.Stderr, stop.String())
+	}
+	return stop.Blocked
 }
 
 // AdmitNext admits the lexically first pending proposal through
@@ -316,7 +333,7 @@ func (w *execWorld) AdmitNext() (string, bool, error) {
 // Block marks a parked proposal row blocked so dispatch moves past it
 // to the next proposal; the row and its finding stay for the operator.
 func (w *execWorld) Block(step loop.Step, reason string) (err error) {
-	lock, err := authoritylock.Acquire(".")
+	lock, err := authoritylock.Acquire(loopWorktree)
 	if err != nil {
 		return err
 	}
@@ -359,6 +376,7 @@ func runTool(arguments ...string) (string, error) {
 	var combined bytes.Buffer
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   arguments[0],
+		Env:    loopEnvironment(),
 		Args:   arguments[1:],
 		Stdout: &combined,
 		Stderr: &combined,
@@ -376,3 +394,11 @@ func tailOf(value string, limit int) string {
 	}
 	return value[len(value)-limit:]
 }
+
+// Every tool and worker subprocess inherits unattended scope, including gates.
+func loopEnvironment() []string {
+	return append(os.Environ(), plan.AutomationModeEnvironment+"="+plan.ExecutionUnattended)
+}
+
+// The loop executes against its current registered checkout.
+const loopWorktree = "."

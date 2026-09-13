@@ -3,6 +3,8 @@
 (() => {
   'use strict';
   const el = overgo.el;
+  // clipSliceMS: the recorder hands over a chunk this often, so the byte bound is checked while recording.
+  const clipSliceMS = 1000;
   overgo.mediaCapture = function (options) {
     let dialog, session, file, objectURL, kind, state, previousFocus;
     let heading, status, preview, choices, actions, device, record, stop, photo, retake, attach;
@@ -23,6 +25,7 @@
           if (error.name !== 'InvalidStateError') throw error;
         });
       }
+      if (s.recorder) { s.recorder.ondataavailable = s.recorder.onstop = s.recorder.onerror = null; if (s.recorder.state !== 'inactive') s.recorder.stop(); s.recorder = null; }
       if (s.stream) for (const track of s.stream.getTracks()) { track.onended = null; track.stop(); }
       if (s.video) { s.video.srcObject = null; s.video.removeAttribute('src'); }
     }
@@ -49,13 +52,66 @@
       actions.hidden = !kind;
       device.parentElement.hidden = !kind || state === 'ready';
       device.disabled = ['requesting', 'recording', 'finishing'].includes(state);
-      record.hidden = kind !== 'audio' || !['idle', 'error'].includes(state);
-      record.disabled = !['idle', 'error'].includes(state);
-      stop.hidden = kind !== 'audio' || state !== 'recording';
+      // The record control serves audio (from idle) and clips (from the camera preview); a photo has its own control.
+      const recordStates = kind === 'video' ? ['preview', 'error'] : ['idle', 'error'];
+      record.hidden = (kind !== 'audio' && kind !== 'video') || !recordStates.includes(state);
+      record.disabled = !recordStates.includes(state);
+      record.textContent = recordLabel[kind === 'video' && state === 'error' ? 'retry' : kind];
+      stop.hidden = (kind !== 'audio' && kind !== 'video') || state !== 'recording';
       photo.hidden = kind !== 'image' || state === 'ready';
       photo.disabled = state !== 'preview';
       retake.hidden = attach.hidden = state !== 'ready';
-      attach.textContent = kind === 'image' ? 'Attach photo' : 'Attach recording';
+      attach.textContent = attachLabel[kind] || 'Attach';
+    }
+    const recordLabel = { audio: 'Record', video: 'Record clip', retry: 'Retry camera' };
+    const attachLabel = { image: 'Attach photo', video: 'Attach clip', audio: 'Attach recording' };
+    // ---- clips: the browser's recorder produces its own containers; a clip records only in one the
+    // served input accepts, and a container is never renamed to another. ----
+    const recorderTypes = () => ['video/mp4', 'video/webm'].filter(type => window.MediaRecorder && MediaRecorder.isTypeSupported(type));
+    const clipType = () => accepted().find(type => type.startsWith('video/') && recorderTypes().includes(type)) || '';
+    async function startClip() {
+      const s = begin();
+      try {
+        s.stream = await navigator.mediaDevices.getUserMedia({ video: constraints(), audio: true });
+        if (!current(s)) { release(s); return; }
+        watchTracks(s); listDevices(s);
+        s.video = el('video', { playsinline: '', autoplay: '', 'aria-label': 'Camera preview' });
+        s.video.muted = true; s.video.srcObject = s.stream;
+        preview.replaceChildren(s.video);
+        const shown = () => { if (current(s) && state !== 'recording') { state = 'preview'; render('Camera preview. Record a clip when ready.'); } };
+        s.video.addEventListener('loadeddata', shown);
+        await s.video.play();
+        if (current(s) && s.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) shown();
+      } catch (error) { failure(error, s); }
+    }
+    function recordClip() {
+      if (state === 'error') { startClip(); return; }
+      const s = session, type = clipType(), limit = options.media.max_media_bytes;
+      if (!s || state !== 'preview' || !type) return;
+      if (!(limit > 0)) { failure(new Error('No usable clip byte limit is declared by the server.'), s); return; }
+      try {
+        s.recorder = new MediaRecorder(s.stream, { mimeType: type });
+      } catch (error) { failure(error, s); return; }
+      s.bytes = 0; s.chunks = []; s.started = Date.now();
+      s.recorder.ondataavailable = event => {
+        if (!current(s) || !event.data.size) return;
+        s.bytes += event.data.size; s.chunks.push(event.data);
+        if (s.bytes > limit) { s.recorder.onstop = null; s.recorder.stop(); failure(new Error('Clip exceeded the recording limit. Retake a shorter clip.'), s); return; }
+        render('Recording · ' + Math.floor((Date.now() - s.started) / 1000) + 's · ' + overgo.fmt.bytes(s.bytes));
+      };
+      s.recorder.onerror = () => failure(new Error('Clip recording failed. Retry or attach a video file.'), s);
+      s.recorder.onstop = () => {
+        if (!current(s)) return;
+        if (!s.bytes) { failure(new Error('No video was recorded. Try again.'), s); return; }
+        ready(new Blob(s.chunks, { type }), 'clip.' + (type === 'video/mp4' ? 'mp4' : 'webm'), s);
+      };
+      s.recorder.start(clipSliceMS);
+      state = 'recording'; render('Recording…'); stop.focus();
+    }
+    function stopClip() {
+      if (!session || !session.recorder || state !== 'recording') return;
+      state = 'finishing'; render('Finishing clip…');
+      session.recorder.stop();
     }
     function failure(error, s) {
       if (s && !current(s)) { release(s); return; }
@@ -108,7 +164,7 @@
       release(s); clearFile();
       file = new File([blob], name, { type: blob.type });
       objectURL = URL.createObjectURL(file);
-      preview.replaceChildren(kind === 'image' ? el('img', { src: objectURL, alt: 'Captured photo' }) : el('audio', { src: objectURL, controls: '' }));
+      preview.replaceChildren(kind === 'image' ? el('img', { src: objectURL, alt: 'Captured photo' }) : kind === 'video' ? el('video', { src: objectURL, controls: '', playsinline: '' }) : el('audio', { src: objectURL, controls: '' }));
       state = 'ready'; render(overgo.fmt.bytes(file.size) + ' · Preview before attaching.');
       attach.focus();
     }
@@ -219,10 +275,11 @@
     function choose(next) {
       serial++; release(); clearFile(); preview.replaceChildren();
       kind = next; state = 'idle';
-      heading.textContent = kind === 'audio' ? 'Record audio' : kind === 'image' ? 'Take a photo' : 'Attach';
-      device.replaceChildren(...(kind === 'image' ? [el('option', { value: 'user', text: 'Front camera' }), el('option', { value: 'environment', text: 'Rear camera' })] : [el('option', { value: '', text: 'Default microphone' })]));
+      heading.textContent = kind === 'audio' ? 'Record audio' : kind === 'image' ? 'Take a photo' : kind === 'video' ? 'Record a clip' : 'Attach';
+      device.replaceChildren(...(kind === 'image' || kind === 'video' ? [el('option', { value: 'user', text: 'Front camera' }), el('option', { value: 'environment', text: 'Rear camera' })] : [el('option', { value: '', text: 'Default microphone' })]));
       render(kind === 'audio' ? 'Record, preview, then attach. Recording stays on this device until you attach it.' : '');
       if (kind === 'image') startCamera();
+      else if (kind === 'video') startClip();
       else if (kind === 'audio') record.focus();
     }
     function open() {
@@ -234,19 +291,24 @@
       const files = button('Choose files', () => { close(); options.files(); });
       const audio = button('Record audio', () => choose('audio'));
       const camera = button('Take a photo', () => choose('image'));
+      const clip = button('Record a clip', () => choose('video'));
       const secure = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
       const unavailable = !window.isSecureContext ? 'Microphone and camera access require HTTPS or localhost. File attachments are still available.' :
         'This browser does not provide microphone or camera access. You can still choose files.';
       audio.disabled = !secure || !accepted().includes('audio/wav');
       camera.disabled = !secure || !accepted().includes('image/png');
+      clip.disabled = !secure || !clipType();
       const audioRefusal = secure ? 'This input does not accept WAV audio.' : unavailable;
       const cameraRefusal = secure ? 'This input does not accept photos.' : unavailable;
+      const acceptedVideo = accepted().filter(type => type.startsWith('video/'));
+      const clipRefusal = secure ? 'This browser records ' + (recorderTypes().join(', ') || 'no clip format') + '; this input accepts ' + (acceptedVideo.join(', ') || 'no video') + '. Choose a video file instead.' : unavailable;
       audio.title = audio.disabled ? audioRefusal : '';
       camera.title = camera.disabled ? cameraRefusal : '';
-      choices = el('div', { class: 'capture-choices' }, files, audio, camera);
-      device = el('select', { class: 'text', 'aria-label': 'Capture device', onchange: () => { if (kind === 'image') startCamera(); } });
-      record = button('Record', startAudio); stop = button('Stop recording', stopAudio); photo = button('Take photo', takePhoto);
-      retake = button('Retake', () => { if (kind === 'image') startCamera(); else { clearFile(); preview.replaceChildren(); state = 'idle'; render('Ready to record again.'); record.focus(); } });
+      clip.title = clip.disabled ? clipRefusal : '';
+      choices = el('div', { class: 'capture-choices' }, files, audio, camera, clip);
+      device = el('select', { class: 'text', 'aria-label': 'Capture device', onchange: () => { if (kind === 'image') startCamera(); else if (kind === 'video') startClip(); } });
+      record = button('Record', () => { if (kind === 'video') recordClip(); else startAudio(); }); stop = button('Stop recording', () => { if (kind === 'video') stopClip(); else stopAudio(); }); photo = button('Take photo', takePhoto);
+      retake = button('Retake', () => { if (kind === 'image') startCamera(); else if (kind === 'video') startClip(); else { clearFile(); preview.replaceChildren(); state = 'idle'; render('Ready to record again.'); record.focus(); } });
       attach = button('Attach', () => { if (file && accepted().includes(file.type)) { const result = file; close(); options.addFile(result); } });
       for (const primary of [record, stop, photo, attach]) primary.classList.remove('alt');
       actions = el('div', { class: 'row capture-actions' }, button('Back', () => choose('')), record, stop, photo, retake, attach);

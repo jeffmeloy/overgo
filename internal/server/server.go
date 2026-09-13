@@ -1,6 +1,7 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -752,10 +753,13 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 	if body.TopP != nil {
 		topP = *body.TopP
 	}
-	topK := h.config.DefaultTopK
+	topK := h.defaultSampling.TopK
 	if body.TopK != nil {
 		topK = *body.TopK
 	}
+	// A scalar the request leaves at zero takes the declared value where
+	// zero is a degenerate setting the chain would otherwise run with.
+	declared := h.defaultSampling
 	adaptiveTarget := h.defaultSampling.AdaptiveTarget
 	if body.AdaptiveTarget != nil {
 		adaptiveTarget = *body.AdaptiveTarget
@@ -832,7 +836,9 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 		len(body.GrammarTriggerTokens) > 0 {
 		return nil, errors.New("server: lazy grammar options require grammar")
 	}
-	var samplerOrder []sampling.SamplerStage
+	// A request that names no chain runs the recipe's declared chain; a
+	// named chain, even an empty one, is authoritative.
+	samplerOrder := h.defaultSampling.Samplers
 	if body.Samplers != nil {
 		var err error
 		samplerOrder, err = sampling.ParseSamplerNames(body.Samplers)
@@ -875,25 +881,25 @@ func (h *Handler) newSampler(body samplingParameters) (*sampling.Sampler, error)
 		TopK:             topK,
 		TopP:             topP,
 		MinP:             body.MinP,
-		TypicalP:         body.TypicalP,
-		TopNSigma:        body.TopNSigma,
+		TypicalP:         cmp.Or(body.TypicalP, declared.TypicalP),
+		TopNSigma:        cmp.Or(body.TopNSigma, declared.TopNSigma),
 		XTCProbability:   body.XTCProbability,
-		XTCThreshold:     body.XTCThreshold,
+		XTCThreshold:     cmp.Or(body.XTCThreshold, declared.XTCThreshold),
 		MinKeep:          body.MinKeep,
 		AdaptiveTarget:   adaptiveTarget,
 		AdaptiveDecay:    adaptiveDecay,
 		RepeatLastN:      body.RepeatLastN,
-		RepeatPenalty:    body.RepeatPenalty,
+		RepeatPenalty:    cmp.Or(body.RepeatPenalty, declared.RepeatPenalty),
 		PresencePenalty:  body.PresencePenalty,
 		FrequencyPenalty: body.FrequencyPenalty,
 		DryMultiplier:    body.DryMultiplier,
-		DryBase:          body.DryBase,
-		DryAllowedLength: body.DryAllowedLength,
-		DryPenaltyLastN:  body.DryPenaltyLastN,
+		DryBase:          cmp.Or(body.DryBase, declared.DryBase),
+		DryAllowedLength: cmp.Or(body.DryAllowedLength, declared.DryAllowedLength),
+		DryPenaltyLastN:  cmp.Or(body.DryPenaltyLastN, declared.DryPenaltyLastN),
 		DryBreakers:      dryBreakers,
 		Mirostat:         body.Mirostat,
-		MirostatTau:      body.MirostatTau,
-		MirostatEta:      body.MirostatEta,
+		MirostatTau:      cmp.Or(body.MirostatTau, declared.MirostatTau),
+		MirostatEta:      cmp.Or(body.MirostatEta, declared.MirostatEta),
 		Seed:             body.Seed,
 		Grammar:          grammar,
 		GBNF:             gbnf,

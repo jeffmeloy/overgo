@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
+	"overgo/internal/modelcli"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 }
 
 func run() error {
-	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
+	modelFlags := modelcli.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
 	textFile := flag.String("file", "", "read evaluation text from this UTF-8 file")
 	includeScores := flag.Bool("token-scores", false, "include per-token negative log-likelihoods")
 	contextSize := flag.Int(

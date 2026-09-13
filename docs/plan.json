@@ -21,16 +21,6 @@
           ]
         },
         {
-          "id": "cli-dependency-boundary",
-          "title": "Remove inference dependencies from generic CLI helpers",
-          "status": "open",
-          "verify": "test -f internal/clioptions/dependency_contract_test.go \u0026\u0026 go test ./internal/clioptions -run '^TestCLIInferenceDependencyBoundary$' -count=1",
-          "rationale": "Contract: first bounded dependency repair before the tooling queue, independent of selector adoption and the modality campaign. The current host build lists 102 commands, 89 with inference in their transitive dependencies; clioptions/model.go directly imports inference. These are dependency observations, not linked-byte, CUDA-load or gate-wall attribution. Freeze the actual generic-helper and model-opening callers, build profiles and existing behavior before editing. Keep ordinary flag/output/process helpers lightweight. Move model opening and its inference-bound options into the existing suitable model-assembly owner, using a narrow owner only if none fits. Migrate callers atomically and remove displaced exports; do not leave an inference-importing forwarding facade in clioptions. Check remaining transitive paths through store, tensor and recipe helpers instead of stopping at the direct import. Preserve runner construction, recipe authority, LoRA/device options, errors, cancellation and read-only store lifetime. No numerical or model capability change.\n\nAcceptance: TestCLIInferenceDependencyBoundary binds the real build-selected graph and caller migration. Generic helper consumers must lose the inference edge; model consumers retain their required execution dependencies and contracts. A seeded reintroduced import must fail the boundary assertion. Enumerate residual paths for plan, gate and cuda-info; legitimate direct driver or independently required inference dependencies remain explicit. Record dependency closure, compile/link cost and artifact bytes separately with source/toolchain/build-profile identities and warm/cold cache conditions. Reuse existing model-opening behavior checks, binding their exact owner selectors before migration. Do not acquire model quality evidence for mechanically independent helper changes.\n\nCompare gate selection and receipt invalidation on identical frozen changes before and after. Preserve every independently sufficient reason and count actual executed/reused/failed/unstarted checks; a smaller import graph alone is not saved test execution. Use existing census and cost owners, not a new analysis framework. This step adopts no new selector exemption. If another invalidator prevents execution savings, report the residual cause and measured build benefit without rerunning until a favorable result appears. Feed exact migration and cost records into reduction-contract and common-owner-pilot; do not repeat this repair under another step.",
-          "depends_on": [
-            "plan-publication-cost/measure"
-          ]
-        },
-        {
           "id": "internal-consumer-contract",
           "title": "Recognize real internal operations without requiring token executables",
           "status": "open",

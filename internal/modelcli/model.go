@@ -1,4 +1,5 @@
-package clioptions
+// Package modelcli binds command flags and recipe storage to model opening.
+package modelcli
 
 import (
 	"context"
@@ -16,7 +17,7 @@ import (
 	"overgo/internal/tensor"
 )
 
-// ModelFlags: common model-loading flags.
+// ModelFlags holds common model-loading flags.
 type ModelFlags struct {
 	DeviceOrdinal *int
 	Repository    *string
@@ -25,10 +26,12 @@ type ModelFlags struct {
 
 type stringList []string
 
+// String joins adapter paths for flag help.
 func (values *stringList) String() string {
 	return strings.Join(*values, ",")
 }
 
+// Set appends a nonempty adapter path.
 func (values *stringList) Set(value string) error {
 	if strings.TrimSpace(value) == "" {
 		return errors.New("LoRA path is empty")
@@ -37,7 +40,7 @@ func (values *stringList) Set(value string) error {
 	return nil
 }
 
-// AddModelFlags: common model-loading flag registration.
+// AddModelFlags registers common model-loading flags.
 func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 	result := &ModelFlags{}
 	result.DeviceOrdinal = flags.Int("device", 0, "CUDA device ordinal")
@@ -46,7 +49,7 @@ func AddModelFlags(flags *flag.FlagSet, loraHelp string) *ModelFlags {
 	return result
 }
 
-// OpenRunner: resolves the active identity-bound recipe before inference.
+// OpenRunner resolves the active identity-bound recipe before inference.
 func (flags *ModelFlags) OpenRunner(
 	ctx context.Context,
 	path string,
@@ -54,7 +57,7 @@ func (flags *ModelFlags) OpenRunner(
 	return flags.OpenRunnerWithOptions(ctx, path, flags.OpenOptions(tensor.UnitScale))
 }
 
-// OpenRunnerWithOptions: flag-bound repository and model resolution.
+// OpenRunnerWithOptions resolves the repository and model from flags.
 func (flags *ModelFlags) OpenRunnerWithOptions(
 	ctx context.Context,
 	path string,
@@ -74,7 +77,7 @@ func (flags *ModelFlags) OpenRunnerWithOptions(
 	return OpenRunner(ctx, repository, roots.ResolveModelPath(path), options)
 }
 
-// RepositoryPath: exact OvergoDB selected by model-loading flags.
+// RepositoryPath returns the exact store selected by model-loading flags.
 func (flags *ModelFlags) RepositoryPath() (string, error) {
 	if flags == nil || flags.Repository == nil {
 		return "", errors.New("model recipe repository is required")
@@ -97,7 +100,7 @@ func (flags *ModelFlags) repositoryPath(roots dataroot.Roots) (string, error) {
 	return roots.Store, nil
 }
 
-// OpenRunner: storage-bound assembly; inference receives only a compiled program.
+// OpenRunner resolves storage inputs and opens the compiled inference program.
 func OpenRunner(
 	ctx context.Context,
 	repository, path string,
@@ -122,17 +125,17 @@ func OpenRunner(
 	return inference.OpenWithProgram(ctx, &loaded, options)
 }
 
-// OpenOptions: inference model-loading options.
+// OpenOptions returns inference model-loading options.
 func (flags *ModelFlags) OpenOptions(loraScale float32) inference.OpenOptions {
 	return BuildOpenOptions(*flags.DeviceOrdinal, flags.loraPaths, loraScale)
 }
 
-// LoRAPaths: copied adapter paths
+// LoRAPaths returns a copy of the adapter paths.
 func (flags *ModelFlags) LoRAPaths() []string {
 	return slices.Clone(flags.loraPaths)
 }
 
-// BuildOpenOptions: common inference open options
+// BuildOpenOptions builds common inference open options.
 func BuildOpenOptions(device int, loraPaths []string, loraScale float32) inference.OpenOptions {
 	adapters := make([]inference.LoRAConfig, len(loraPaths))
 	for index, path := range loraPaths {

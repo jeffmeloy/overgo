@@ -11,6 +11,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
 	"overgo/internal/model"
+	"overgo/internal/modelcli"
 	"overgo/internal/tokenizer"
 )
 
@@ -27,7 +28,7 @@ func run() error {
 	flags := flag.NewFlagSet("embedding", flag.ContinueOnError)
 	modelPath := flags.String("model", "", "GGUF encoder model path")
 	prompt := flags.String("prompt", "", "text to encode")
-	modelFlags := clioptions.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
+	modelFlags := modelcli.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
 	pooling := flags.String("pooling", "mean", "pooling: mean, last, or none")
 	normalize := flags.Int("normalize", -1, "embedding normalization: -1 none, 0 max-absolute, or p-norm")
 	dimensions := flags.Int("dimensions", 0, "limit emitted embedding dimensions (0 = all)")

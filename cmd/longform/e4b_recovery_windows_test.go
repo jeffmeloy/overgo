@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
 	"overgo/internal/longform"
+	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
@@ -80,7 +80,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 	expected := make(map[int][]tokenizer.TokenID)
 	var ceiling driver.MemoryStats
 	for reload := range 3 {
-		runner, err := clioptions.OpenRunner(ctx, roots.Store, path, inference.OpenOptions{})
+		runner, err := modelcli.OpenRunner(ctx, roots.Store, path, inference.OpenOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

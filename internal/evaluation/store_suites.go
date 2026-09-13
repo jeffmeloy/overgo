@@ -499,6 +499,7 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 			}
 		}
 		rules := make([]InstructionRule, 0, len(ids))
+		occurrences := make(map[string]int, len(ids))
 		mapped := true
 		for index, id := range ids {
 			kwargs := map[string]json.RawMessage{}
@@ -513,6 +514,17 @@ func assembleIFEvalSuite(cases []storeCase) (any, int, error) {
 			if !ok {
 				mapped = false
 				break
+			}
+			occurrences[id]++
+			if occurrences[id] > 1 {
+				// Repeated families retain separate operands and verdicts.
+				for ruleIndex := range ruleSet {
+					rule := &ruleSet[ruleIndex]
+					rule.Name = fmt.Sprintf("%s/%d", rule.Name, occurrences[id])
+					if rule.Loose != nil {
+						rule.Loose.Name = rule.Name
+					}
+				}
 			}
 			rules = append(rules, ruleSet...)
 		}

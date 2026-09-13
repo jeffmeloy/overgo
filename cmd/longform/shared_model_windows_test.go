@@ -9,6 +9,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/modelcli"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
@@ -22,7 +23,7 @@ func TestSharedModelValidationAdmission(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(roots.Checkpoints, "overgo-hfconvert", "Qwen2.5-0.5B-f16.gguf")
-	runner, err := clioptions.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{})
+	runner, err := modelcli.OpenRunner(t.Context(), roots.Store, path, inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

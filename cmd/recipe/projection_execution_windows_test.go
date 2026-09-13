@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/modelcli"
 	"overgo/internal/modelintake"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -54,7 +54,7 @@ func TestProjectionExecutionE4B(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := clioptions.OpenRunner(t.Context(), roots.Store, paths[0], inference.OpenOptions{})
+	runner, err := modelcli.OpenRunner(t.Context(), roots.Store, paths[0], inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

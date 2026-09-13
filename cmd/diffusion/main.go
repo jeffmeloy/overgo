@@ -12,6 +12,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
+	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 )
@@ -35,9 +36,9 @@ func run(arguments []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	runner, err := clioptions.OpenRunner(
+	runner, err := modelcli.OpenRunner(
 		context.Background(), config.repository, config.model,
-		clioptions.BuildOpenOptions(config.device, config.lora, 1),
+		modelcli.BuildOpenOptions(config.device, config.lora, 1),
 	)
 	if err != nil {
 		return err
@@ -71,7 +72,7 @@ func parseCLI(arguments []string) (cliConfig, error) {
 	defaults := policy.Interactive.Diffusion
 	flags := flag.NewFlagSet("diffusion", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	modelFlags := clioptions.AddModelFlags(flags, "GGUF LoRA adapter at scale 1; repeatable")
+	modelFlags := modelcli.AddModelFlags(flags, "GGUF LoRA adapter at scale 1; repeatable")
 	length := flags.Int("length", defaults.Length, "total prompt-plus-output sequence length")
 	steps := flags.Int("steps", defaults.Steps, "diffusion step count")
 	algorithm := flags.Int("algorithm", defaults.Algorithm, "ranking: 0 origin, 1 entropy, 2 margin, 3 random, 4 confidence")

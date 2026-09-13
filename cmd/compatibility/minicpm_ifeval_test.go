@@ -20,14 +20,14 @@ const miniIFEvalPrior = "evidence:sha256:59f9c13f5b2a01b391d0bc68090067e714b32f1
 const miniIFEvalDataset = "dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f8486dfa492c4f301cf9155ca8e4d7cd4"
 const miniIFEvalPublisher = "evidence:sha256:cac0cc28fd3404c8f99a98165c2e422eef7aaf47fb6564639827eacec00d95b4"
 
-type miniIFEvalCell struct {
+type ifevalCell struct {
 	Name        string      `json:"name"`
 	Output      artifact.ID `json:"output"`
 	ReusedPrior bool        `json:"reused_prior"`
 }
 
-func checkMiniIFEvalSelection(cells []miniIFEvalCell, retained map[string]bool) error {
-	if len(cells) != 541 || len(retained) != 97 {
+func checkIFEvalSelection(cells []ifevalCell, retained map[string]bool) error {
+	if len(cells) != 541 {
 		return fmt.Errorf("IFEval: incomplete native denominator")
 	}
 	seen := make(map[string]bool, len(cells))
@@ -79,9 +79,9 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 		t.Fatalf("complete IFEval raw acquisition absent: found=%t err=%v", found, err)
 	}
 	var selection struct {
-		Profile artifact.ID      `json:"profile"`
-		Prior   artifact.ID      `json:"prior"`
-		Cells   []miniIFEvalCell `json:"cells"`
+		Profile artifact.ID  `json:"profile"`
+		Prior   artifact.ID  `json:"prior"`
+		Cells   []ifevalCell `json:"cells"`
 	}
 	read(selectionID, &selection)
 	if selection.Profile != profileID || selection.Prior.String() != miniIFEvalPrior {
@@ -111,14 +111,17 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 			retained[observation.Name] = true
 		}
 	}
-	if err := checkMiniIFEvalSelection(selection.Cells, retained); err != nil {
+	if len(retained) != 97 {
+		t.Fatal("retained MiniCPM denominator changed")
+	}
+	if err := checkIFEvalSelection(selection.Cells, retained); err != nil {
 		t.Fatal(err)
 	}
 	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, parse(miniIFEvalDataset))
 	if err != nil || !found || len(imported.Records) != 541 {
 		t.Fatalf("native corpus: found=%t records=%d err=%v", found, len(imported.Records), err)
 	}
-	cells := make(map[string]miniIFEvalCell, len(selection.Cells))
+	cells := make(map[string]ifevalCell, len(selection.Cells))
 	for _, cell := range selection.Cells {
 		cells[cell.Name] = cell
 	}
@@ -169,16 +172,16 @@ func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
 	if instructions != 834 || acquired != 444 {
 		t.Fatalf("IFEval instructions=%d acquired=%d, want 834/444", instructions, acquired)
 	}
-	for _, mutate := range []func([]miniIFEvalCell) []miniIFEvalCell{
-		func(cells []miniIFEvalCell) []miniIFEvalCell { return cells[1:] },
-		func(cells []miniIFEvalCell) []miniIFEvalCell { cells[1] = cells[0]; return cells },
-		func(cells []miniIFEvalCell) []miniIFEvalCell {
+	for _, mutate := range []func([]ifevalCell) []ifevalCell{
+		func(cells []ifevalCell) []ifevalCell { return cells[1:] },
+		func(cells []ifevalCell) []ifevalCell { cells[1] = cells[0]; return cells },
+		func(cells []ifevalCell) []ifevalCell {
 			cells[0].ReusedPrior = !cells[0].ReusedPrior
 			return cells
 		},
-		func(cells []miniIFEvalCell) []miniIFEvalCell { cells[0].Name = "not-a-native-case"; return cells },
+		func(cells []ifevalCell) []ifevalCell { cells[0].Name = "not-a-native-case"; return cells },
 	} {
-		if err := checkMiniIFEvalSelection(mutate(slices.Clone(selection.Cells)), retained); err == nil {
+		if err := checkIFEvalSelection(mutate(slices.Clone(selection.Cells)), retained); err == nil {
 			t.Fatal("IFEval selection accepted a missing, duplicate, misclassified or foreign case")
 		}
 	}

@@ -17,6 +17,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -135,7 +136,7 @@ func run(args []string) error {
 }
 
 func serve(ctx context.Context, store string, entry discovery.Entry, oracle smokeOracle, reference []smokeReferenceCase) (smokeObservation, error) {
-	runner, err := clioptions.OpenRunner(ctx, store, entry.Location, inference.OpenOptions{})
+	runner, err := modelcli.OpenRunner(ctx, store, entry.Location, inference.OpenOptions{})
 	if err != nil {
 		return smokeObservation{}, err
 	}

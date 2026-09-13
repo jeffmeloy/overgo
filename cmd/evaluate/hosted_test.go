@@ -119,7 +119,7 @@ func TestHostedSessionScoresThroughRelay(t *testing.T) {
 func TestServableModelsListHostedModels(t *testing.T) {
 	repository, declaration := declareHostedFixture(t, "OVERGO_EVALUATE_HOSTED_LIST_KEY", []string{"A"})
 	targets, err := servableModels(t.Context(), repository, 16)
-	if err != nil || len(targets) != 1 || targets[0].path != declaration.Location || !targets[0].remote || targets[0].text {
+	if err != nil || len(targets) != 1 || targets[0] != declaration.Location {
 		t.Fatalf("targets = %+v, %v", targets, err)
 	}
 }

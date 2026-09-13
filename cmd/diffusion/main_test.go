@@ -1,6 +1,10 @@
 package main
 
 import (
+	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"overgo/internal/inference"
@@ -8,25 +12,37 @@ import (
 	"overgo/internal/recipe"
 )
 
+// Interior schedule input for parser fixtures, not a runtime default.
+const fixtureEpsilon = 0.001
+
 func TestParseCLI(t *testing.T) {
+	// Eight blocks, refined twice. Other values exercise explicit overrides.
+	want := cliConfig{
+		model: "model.gguf", prompt: "prompt", lora: []string{"adapter.gguf"},
+		diffusion: inference.DiffusionOptions{
+			MaxLength: 64, Steps: 16, BlockLength: 8,
+			Algorithm: inference.DiffusionMargin, Schedule: inference.DiffusionBlock,
+			CFGScale: 1.5, AlgorithmTemperature: 0.2,
+			Temperature: 0.4, TopK: 12, TopP: 0.8, Seed: 7,
+			AddGumbelNoise: true, ShiftLogits: new(false),
+		},
+	}
+	options := want.diffusion
 	config, err := parseCLI([]string{
-		"-length", "64", "-steps", "16", "-algorithm", "2",
-		"-block-length", "8", "-cfg-scale", "1.5", "-alg-temp", "0.2",
-		"-temp", "0.4", "-top-k", "12", "-top-p", "0.8", "-seed", "7",
+		"-length", strconv.Itoa(options.MaxLength), "-steps", strconv.Itoa(options.Steps),
+		"-algorithm", "2", // The public numeric spelling of DiffusionMargin.
+		"-block-length", strconv.Itoa(options.BlockLength),
+		"-cfg-scale", fmt.Sprint(options.CFGScale), "-alg-temp", fmt.Sprint(options.AlgorithmTemperature),
+		"-temp", fmt.Sprint(options.Temperature), "-top-k", strconv.Itoa(options.TopK),
+		"-top-p", fmt.Sprint(options.TopP), "-seed", fmt.Sprint(options.Seed),
 		"-gumbel", "-shift-logits", "false",
-		"-lora", "a.gguf", "model.gguf", "prompt",
+		"-lora", want.lora[0], want.model, want.prompt,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	options := config.diffusion
-	if config.model != "model.gguf" || config.prompt != "prompt" ||
-		len(config.lora) != 1 || options.MaxLength != 64 || options.Steps != 16 ||
-		options.Algorithm != inference.DiffusionMargin || options.Schedule != inference.DiffusionBlock ||
-		options.BlockLength != 8 || options.CFGScale != 1.5 || options.AlgorithmTemperature != 0.2 ||
-		options.Temperature != 0.4 || options.TopK != 12 || options.TopP != 0.8 || options.Seed != 7 ||
-		!options.AddGumbelNoise || options.ShiftLogits == nil || *options.ShiftLogits {
-		t.Fatalf("config = %+v", config)
+	if !reflect.DeepEqual(config, want) {
+		t.Fatalf("config = %+v, want %+v", config, want)
 	}
 }
 
@@ -35,31 +51,41 @@ func TestParseCLIUsesRecipeDefaults(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("runtime policy: found=%t err=%v", found, err)
 	}
-	config, err := parseCLI([]string{"-eps", "0.001", "model.gguf", "prompt"})
+	config, err := parseCLI([]string{"-eps", fmt.Sprint(fixtureEpsilon), "model.gguf", "prompt"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := policy.Interactive.Diffusion
 	got := config.diffusion
 	if got.MaxLength != want.Length || got.Steps != want.Steps || int(got.Algorithm) != want.Algorithm ||
-		got.Temperature != want.Temperature || got.TopK != want.TopK || got.TopP != want.TopP {
+		got.Temperature != want.Temperature || got.TopK != want.TopK || got.TopP != want.TopP ||
+		got.Epsilon != float32(fixtureEpsilon) || got.Schedule != inference.DiffusionTimestep {
 		t.Fatalf("diffusion defaults = %+v, want %+v", got, want)
 	}
 }
 
 func TestParseCLIRejectsInvalidFlags(t *testing.T) {
-	for _, arguments := range [][]string{
-		{"model.gguf"},
-		{"model.gguf", "prompt"},
-		{"-eps", "0.001", "-shift-logits", "sometimes", "model.gguf", "prompt"},
-		{"-eps", "0.001", "-preload", "-native-quant", "model.gguf", "prompt"},
-		{"-eps", "0.001", "-lora", "", "model.gguf", "prompt"},
-		{"-eps", "0.001", "-block-length", "8", "model.gguf", "prompt"},
-		{"-block-length", "7", "model.gguf", "prompt"},
-		{"-eps", "0.001", "-algorithm", "5", "model.gguf", "prompt"},
+	epsilon := fmt.Sprint(fixtureEpsilon)
+	const modelPath, prompt = "model.gguf", "prompt"
+	for _, test := range []struct {
+		name      string
+		arguments []string
+		problem   string
+	}{
+		{"missing prompt", []string{modelPath}, "usage:"},
+		{"missing schedule", []string{modelPath, prompt}, "set exactly one"},
+		{"invalid shift", []string{"-eps", epsilon, "-shift-logits", "sometimes", modelPath, prompt}, "invalid -shift-logits"},
+		{"unsupported preload", []string{"-eps", epsilon, "-preload", "-native-quant", modelPath, prompt}, "flag provided but not defined: -preload"},
+		{"empty adapter", []string{"-eps", epsilon, "-lora", "", modelPath, prompt}, "LoRA path is empty"},
+		{"conflicting schedules", []string{"-eps", epsilon, "-block-length", "1", modelPath, prompt}, "set exactly one"},
+		// Three positions cannot form complete blocks of two.
+		{"partial block", []string{"-length", "3", "-steps", "1", "-block-length", "2", modelPath, prompt}, "block length must divide length"},
+		{"unknown algorithm", []string{"-eps", epsilon, "-algorithm", strconv.Itoa(int(inference.DiffusionConfidence) + 1), modelPath, prompt}, "numeric option is out of range"},
 	} {
-		if _, err := parseCLI(arguments); err == nil {
-			t.Fatalf("arguments accepted: %v", arguments)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := parseCLI(test.arguments); err == nil || !strings.Contains(err.Error(), test.problem) {
+				t.Fatalf("arguments %v: err=%v, want %q", test.arguments, err, test.problem)
+			}
+		})
 	}
 }

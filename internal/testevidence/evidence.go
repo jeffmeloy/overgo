@@ -32,8 +32,10 @@ type GoTestReport struct {
 	// device exclusively and cannot under a holder's lease.
 	Contended   []string
 	Diagnostics []string
-	tests       []testResult
-	packages    map[string]packageEvidence
+	// Executions retain package lifecycle costs independently of evidence credit.
+	Executions []PackageExecution
+	tests      []testResult
+	packages   map[string]packageEvidence
 }
 
 // ContentionOnly reports a failed run whose every failure was a refused
@@ -64,6 +66,16 @@ type testResult struct {
 	started     bool
 	ineligible  bool
 	excluded    bool
+	elapsed     *float64
+}
+
+// PackageExecution reports a package process, not a test or compiler duration.
+// Empty Action means interrupted; absent Elapsed means no terminal measurement.
+type PackageExecution struct {
+	Package string   `json:"package"`
+	Action  string   `json:"action"`
+	Started bool     `json:"started"`
+	Elapsed *float64 `json:"elapsed_seconds,omitempty"`
 }
 
 // PackagePassed reports complete, non-vacuous package evidence independently
@@ -129,6 +141,7 @@ func goTestJSONReport(out string, short, allowAuxiliary bool) (GoTestReport, err
 
 type goTestEvent struct {
 	Action, Package, ImportPath, Test, Output string
+	Elapsed                                   *float64
 }
 
 func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
@@ -149,6 +162,11 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		for _, key := range slices.Sorted(maps.Keys(results)) {
 			result := results[key]
+			if result.Name == "" && result.Package != "" && (result.started || result.Action != "") {
+				report.Executions = append(report.Executions, PackageExecution{
+					Package: result.Package, Action: result.Action, Started: result.started, Elapsed: result.elapsed,
+				})
+			}
 			if result.Name != "" {
 				report.tests = append(report.tests, *result)
 			}
@@ -244,6 +262,9 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 		}
 		if event.Action == "pass" || event.Action == "skip" || event.Action == "fail" {
 			results[key].Action = event.Action
+			if event.Test == "" && event.Elapsed != nil && *event.Elapsed >= 0 {
+				results[key].elapsed = event.Elapsed
+			}
 			if event.Action == "pass" || event.Action == "skip" && (!short || event.Test == "" || classified[key]) {
 				delete(tails, key)
 			}

@@ -21,12 +21,12 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
 	"overgo/internal/inference"
 	"overgo/internal/media"
+	"overgo/internal/modelcli"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -136,7 +136,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := clioptions.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
+	runner, err := modelcli.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

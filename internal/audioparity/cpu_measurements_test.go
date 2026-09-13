@@ -17,7 +17,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipecontract"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/testevidence"
@@ -55,11 +54,8 @@ func newAudioMeasurementFixture(t *testing.T) *audioMeasurementFixture {
 		t.Fatal(err)
 	}
 	f := &audioMeasurementFixture{l: l, corpus: lifecycleHeldout(t, l, "testdata/resource_heldout.json"), directory: t.TempDir()}
-	snapshot, err := repoanalysis.DiscoverGo(l.fixture.root, "cmd", "internal")
-	if err != nil {
-		t.Fatal(err)
-	}
-	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", snapshot.Identity(), runtime.GOMAXPROCS(0)))
+	sourceIdentity := audioSources(t, l.fixture.root).Identity()
+	environment, err := runrecord.CurrentEnvironment("cpu", fmt.Sprintf("go-host-reference/source=%s/gomaxprocs=%d", sourceIdentity, runtime.GOMAXPROCS(0)))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -102,13 +102,13 @@ type Symbol struct {
 type ReferenceKind string
 
 const (
-	// ReferenceCall identifies a resolved function or method invocation.
+	// ReferenceCall identifies direct invocation syntax, not observed execution.
 	ReferenceCall ReferenceKind = "call"
 	// ReferenceType identifies use of a named type.
 	ReferenceType ReferenceKind = "type"
 	// ReferenceField identifies use of a named field.
 	ReferenceField ReferenceKind = "field"
-	// ReferenceInterface identifies conservative interface method reach.
+	// ReferenceInterface identifies conservative unresolved receiver reach.
 	ReferenceInterface ReferenceKind = "interface"
 	// ReferenceUse identifies a resolved declaration use whose syntax does not
 	// prove a narrower relationship.
@@ -120,6 +120,9 @@ type Reference struct {
 	From SymbolID      `json:"from"`
 	To   SymbolID      `json:"to"`
 	Kind ReferenceKind `json:"kind"`
+	// A zero line denotes a historical edge without source-site provenance.
+	Line   int `json:"line,omitzero"`
+	Offset int `json:"offset,omitzero"`
 }
 
 // ExternalInput binds non-Go authority bytes to their structural owner.
@@ -277,7 +280,7 @@ func canonicalize(value *Manifest) error {
 	slices.SortFunc(value.Files, func(left, right File) int { return cmp.Compare(left.Path, right.Path) })
 	slices.SortFunc(value.Symbols, func(left, right Symbol) int { return cmp.Compare(symbolKey(left.ID), symbolKey(right.ID)) })
 	slices.SortFunc(value.References, func(left, right Reference) int {
-		return cmp.Or(cmp.Compare(symbolKey(left.From), symbolKey(right.From)), cmp.Compare(symbolKey(left.To), symbolKey(right.To)), cmp.Compare(left.Kind, right.Kind))
+		return cmp.Or(cmp.Compare(symbolKey(left.From), symbolKey(right.From)), cmp.Compare(symbolKey(left.To), symbolKey(right.To)), cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Line, right.Line), cmp.Compare(left.Offset, right.Offset))
 	})
 	slices.SortFunc(value.ExternalInputs, func(left, right ExternalInput) int {
 		return cmp.Or(cmp.Compare(left.Path, right.Path), cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Owner, right.Owner))
@@ -330,13 +333,12 @@ func validate(value Manifest) error {
 		}
 		symbols[key] = true
 	}
-	references := map[string]bool{}
+	references := map[Reference]bool{}
 	for _, reference := range value.References {
-		key := symbolKey(reference.From) + "\x00" + symbolKey(reference.To) + "\x00" + string(reference.Kind)
-		if !symbols[symbolKey(reference.From)] || !symbols[symbolKey(reference.To)] || !validReferenceKind(reference.Kind) || references[key] {
+		if !symbols[symbolKey(reference.From)] || !symbols[symbolKey(reference.To)] || !validReferenceKind(reference.Kind) || references[reference] || reference.Line < 0 || reference.Offset < 0 || reference.Line == 0 && reference.Offset != 0 {
 			return errors.New("code manifest: invalid or duplicate reference")
 		}
-		references[key] = true
+		references[reference] = true
 	}
 	inputs := map[string]bool{}
 	for _, input := range value.ExternalInputs {

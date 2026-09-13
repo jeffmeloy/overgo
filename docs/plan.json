@@ -4,6 +4,23 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "qwen9-ifeval-bundle",
+      "title": "Complete the Qwen9 native IFEval quality bundle in one integration batch",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Acquire missing full-suite responses once and compare all native verdicts",
+          "status": "open",
+          "verify": "test -f internal/evaluation/qwen9_ifeval_scores_test.go \u0026\u0026 go test ./internal/evaluation -run '^TestQwenNineIFEvalScoresAcceptance$' -count=1",
+          "rationale": "First bounded dispatch from text-and-vision. Registered Qwen3.5-9B-Q8_0 model 896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4 retains its complete MMLU-Pro chat/raw results and eight-case native short-generation diagnosis; do not repeat them. Its existing IFEval record 3aa1a634247255b84f1773da4b6bb175334ada1cf241d3318602691c2a85529a covers the older 131-case selection. Acquire the missing complete native selection through cmd/evaluate and the standard instruction ledger under one frozen source and recipe, chat-template protocol, existing declared evaluation-budget ceiling and shared GPU admission. Record the start, exact ceiling, source, environment, model and case identities; continuation uses the remaining original budget and retained complete responses. Check existing exact records before loading and keep all quality failures and capped outputs. No new model-specific generation collector. Acceptance binds all 541 prompts, 834 instructions, 25 families, native token limit and all 1668 strict/loose verdicts to the independently retained native judge and operand dependencies. CPU scoring consumes retained raw responses and requires no further model load. Add the owning-package acceptance before closure; its source file guard intentionally refuses until bound. Join raw acquisition, native scoring and acceptance in one model integration commit. Preserve historical narrow records and the separate long-form/performance obligation; neither measurement of quality nor checker parity promotes the whole model.",
+          "depends_on": [
+            "quality-evaluation-admission/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",
@@ -33,7 +50,9 @@
             "modality-verification/retained-model-bundles",
             "modality-verification/resident-publication",
             "qwen4-ifeval-acquisition/do",
-            "modality-verification/qwen4-native-reference"
+            "modality-verification/qwen4-native-reference",
+            "quality-evaluation-admission/do",
+            "qwen9-ifeval-bundle/do"
           ],
           "outcome": {
             "gemma12_fp8_mmlu_pro": {
@@ -163,7 +182,7 @@
           "title": "Reuse unchanged verification nodes across composed recipes",
           "status": "open",
           "verify": "go test ./internal/automationcheck -run '^(TestManifestExecutionBinding|TestPlanEvidenceLineage|TestGateReusesUnchangedCheckEvidence)$' -count=1 \u0026\u0026 test -f internal/gate/verification_recipe_reuse_test.go \u0026\u0026 go test ./internal/gate -run '^TestVerificationRecipeReuseAcceptance$' -count=1",
-          "rationale": "Bound the first dynamic verification-recipe improvement to reuse and provenance, independently of finer call-reach exclusions. Existing automationcheck.Plan, ManifestPlan and BindManifestExecution already compose and bind the DAG. At producer 3abc5e1c an in-memory probe ran the same definition and resolved inputs twice under two different plan identities: executions=2, reuse=0. Ordinary gate phases use that bound invocation as their cache slot; checkpoint/package memo paths need explicit review before claiming the same defect there. Inspect existing owners and any committed lane repair first. Extend their admission/cache/evidence path, migrate callers and remove displaced identity policy; no new scheduler or recipe registry. Preserve distinct execution authorization for each recipe and immutable original result provenance. Prove a successful matching node can be referenced by a successor recipe without fabricating current-plan evidence for the original evidence ID. Changed check definition, actual inputs, environment or acceptance must rerun; failures, unclassified skips and missing bindings grant no credit. Keep current required check selection and phase eligibility unchanged, including full gate-policy acceptance. Exercise actual gate handoff and final commit admission, tampered reuse lineage, relevant and unrelated changes, restart, sibling failure and cancellation. Demonstrate saved executions and total cost on a real eligible check before adoption; the synthetic probe alone is not a payback claim. Include mechanical preparation nodes where their exact source/tool/derived-output binding permits reuse rather than unconditional regeneration. Record whole-attempt cost and avoid repeated model acquisition. Preserve the probe source/result in the existing finding/evidence owner; scripts in tmp are diagnostic, not completion authority.\n\nRetained counterexample: evidence:sha256:9c1a1d497af0a0c9f94e7e7f76e91ee5ee8cdda77f5e35afeb5308e96881ebcf records two executions and zero reuse for unchanged check definitions and inputs across distinct manifest identities. Preserve the original result authority when binding successor authorization; relabeling an old result is not valid reuse. The synthetic counterexample does not prove current phase fingerprints complete: style reads a comparison baseline, formatting selects planned paths, and architecture reads staged-surface and structure policy. Bind each real check's actual baseline, selection, policy and execution inputs before removing manifest-wide invalidation. Unresolved checks retain their existing binding. Demonstrate one eligible real check with baseline/path/policy mutation counterexamples; do not enable every nominally cacheable phase merely by changing its key.",
+          "rationale": "Bound the first dynamic verification-recipe improvement to reuse and provenance, independently of finer call-reach exclusions. Existing automationcheck.Plan, ManifestPlan and BindManifestExecution already compose and bind the DAG. At producer 3abc5e1c an in-memory probe ran the same definition and resolved inputs twice under two different plan identities: executions=2, reuse=0. Ordinary gate phases use that bound invocation as their cache slot; checkpoint/package memo paths need explicit review before claiming the same defect there. Inspect existing owners and any committed lane repair first. Extend their admission/cache/evidence path, migrate callers and remove displaced identity policy; no new scheduler or recipe registry. Preserve distinct execution authorization for each recipe and immutable original result provenance. Prove a successful matching node can be referenced by a successor recipe without fabricating current-plan evidence for the original evidence ID. Changed check definition, actual inputs, environment or acceptance must rerun; failures, unclassified skips and missing bindings grant no credit. Keep current required check selection and phase eligibility unchanged, including full gate-policy acceptance. Exercise actual gate handoff and final commit admission, tampered reuse lineage, relevant and unrelated changes, restart, sibling failure and cancellation. Demonstrate saved executions and total cost on a real eligible check before adoption; the synthetic probe alone is not a payback claim. Include mechanical preparation nodes where their exact source/tool/derived-output binding permits reuse rather than unconditional regeneration. Record whole-attempt cost and avoid repeated model acquisition. Preserve the probe source/result in the existing finding/evidence owner; scripts in tmp are diagnostic, not completion authority.\n\nRetained counterexample: evidence:sha256:9c1a1d497af0a0c9f94e7e7f76e91ee5ee8cdda77f5e35afeb5308e96881ebcf records two executions and zero reuse for unchanged check definitions and inputs across distinct manifest identities. Preserve the original result authority when binding successor authorization; relabeling an old result is not valid reuse. The synthetic counterexample does not prove current phase fingerprints complete: style reads a comparison baseline, formatting selects planned paths, and architecture reads staged-surface and structure policy. Bind each real check's actual baseline, selection, policy and execution inputs before removing manifest-wide invalidation. Unresolved checks retain their existing binding. Demonstrate one eligible real check with baseline/path/policy mutation counterexamples; do not enable every nominally cacheable phase merely by changing its key.\n\nInput-binding counterexamples: evidence:sha256:c34204d9cf56780535cee88b7f0d07ff4f45d325387c35ae341ebf1c1b824bcd. A format selection change turns a real pass into failure without changing the current phase fingerprint; profile inputs omit docs/clone_baseline.json. Current whole-plan binding prevents unsafe reuse. Retain both executable witnesses before adoption. Bind selected paths, consumed policy files and relevant HEAD source baseline; distinguish original result identity from authorization to reuse it under a successor plan. Do not remove the plan key for unaudited checks.",
           "depends_on": [
             "validation-gate-selection/declarative-plan",
             "validation-gate-selection/scope-and-reuse"
@@ -701,7 +720,9 @@
             "validation-gate-selection/recipe-node-reuse",
             "validation-doctrine-tightening/do",
             "diffusion-cli-fixtures/do",
-            "instruction-evaluation-resume/do"
+            "instruction-evaluation-resume/do",
+            "quality-evaluation-admission/do",
+            "qwen9-ifeval-bundle/do"
           ]
         }
       ]

@@ -14,31 +14,14 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
-	"overgo/internal/longform"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/runrecord"
 )
 
-// servableModel is one evaluation target: its weights location and
-// whether its declared domains admit text suites (undeclared models
-// keep full coverage and count as text), which decides whether the
-// long-form verification admits it.
-type servableModel struct {
-	path string
-	text bool
-	// remote: a hosted model scored through the relay; no bytes on disk,
-	// no long-form admission over a local inference surface.
-	remote bool
-}
-
-// servableModels derives the evaluation targets from the store: every
-// model whose active inference recipe is trusted and whose recorded
-// bytes are present on disk. The listing is deterministic, so the
-// parent and its workers agree on model indices without a shared
-// manifest file.
-func servableModels(ctx context.Context, repository string, limit int) ([]servableModel, error) {
+// servableModels lists trusted, present targets in deterministic size order.
+func servableModels(ctx context.Context, repository string, limit int) ([]string, error) {
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return nil, err
@@ -50,18 +33,15 @@ func servableModels(ctx context.Context, repository string, limit int) ([]servab
 		return nil, err
 	}
 	type sized struct {
-		path   string
-		bytes  int64
-		text   bool
-		remote bool
+		path  string
+		bytes int64
 	}
 	models := make([]sized, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.Present || entry.Stale != "" || entry.Location == "" {
 			continue
 		}
-		// A hosted model (listed present once its key is set) has no bytes
-		// on disk: it sorts first and its long-form admission is not taken.
+		// Hosted endpoints have no local weights and sort first.
 		remote := remoteprovider.IsRemoteLocation(entry.Location)
 		var bytes int64
 		if !remote {
@@ -71,29 +51,18 @@ func servableModels(ctx context.Context, repository string, limit int) ([]servab
 			}
 			bytes = info.Size()
 		}
-		domains, declared, err := evaluation.EvalDomains(ctx, store, entry.Model)
-		if err != nil {
-			return nil, err
-		}
-		models = append(models, sized{
-			path: entry.Location, bytes: bytes, remote: remote,
-			text: !remote && (!declared || slices.Contains(domains, evaluation.DomainText)),
-		})
+		models = append(models, sized{path: entry.Location, bytes: bytes})
 	}
 	if len(models) == 0 {
 		return nil, errors.New("evaluate: the store holds no servable model")
 	}
-	// Smallest model first (owner rule 2026-09-01): the cheapest models
-	// calibrate the pass and surface a broken suite in seconds, and the
-	// largest model -- the one whose failure costs hours -- runs only
-	// after every smaller model has scored. Recorded bytes on disk are
-	// the size; ties fall back to the location so workers agree.
+	// Validate smaller local models first; break size ties by location.
 	slices.SortFunc(models, func(a, b sized) int {
 		return cmp.Or(cmp.Compare(a.bytes, b.bytes), strings.Compare(a.path, b.path))
 	})
-	targets := make([]servableModel, len(models))
+	targets := make([]string, len(models))
 	for index, model := range models {
-		targets[index] = servableModel{path: model.path, text: model.text, remote: model.remote}
+		targets[index] = model.path
 	}
 	return targets, nil
 }
@@ -116,10 +85,6 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	if _, err := runrecord.VerifyingCommit("."); err != nil {
 		return err
 	}
-	surface, err := longform.Surface(ctx, ".")
-	if err != nil {
-		return err
-	}
 	targets, err := servableModels(ctx, repository, limit)
 	if err != nil {
 		return err
@@ -130,26 +95,12 @@ func runAllParent(ctx context.Context, repository string, device int, family str
 	}
 	deadline := time.Now().Add(budget)
 	var failures []error
-	for index, target := range targets {
-		model := target.path
+	for index, model := range targets {
 		remaining := time.Until(deadline)
 		if remaining <= 0 {
 			failures = append(failures, fmt.Errorf(
 				"model %q: unevaluated; the %s evaluation budget elapsed", model, budget))
 			continue
-		}
-		// The long-form record admits a text model before a worker loads
-		// it (owner rule 2026-09-04): a refused model is reported and the
-		// pass moves on, so a slow runtime or one misreading a long
-		// context is found in the minute its long-form run takes, not
-		// after hours of scoring. The worker repeats the check as the
-		// authority for a hand-launched pass.
-		if target.text {
-			if err := admitLongForm(ctx, repository, model, surface); err != nil {
-				fmt.Printf("model %q: REFUSED: %v\n", model, err)
-				failures = append(failures, fmt.Errorf("model %q: %w", model, err))
-				continue
-			}
 		}
 		// Each model gets an equal share of the budget still unspent, so a
 		// single heavy model (the 27B over the 5761-case BBH suite) is
@@ -262,17 +213,6 @@ type derivedEvaluator interface {
 	EvaluateDerived(context.Context, string) error
 }
 
-// admitLongForm reads the model's latest long-form record through a
-// reader of its own: the check precedes the session, so no writer is
-// open while it runs.
-func admitLongForm(ctx context.Context, repository, modelPath, surface string) error {
-	store, err := overgodb.OpenReadOnly(repository)
-	if err != nil {
-		return err
-	}
-	return errors.Join(longform.Admit(ctx, store, modelPath, surface), store.Close())
-}
-
 // declareEvalDomain binds a model's evaluation domains in the store,
 // resolving the model identity through the servable listing so the
 // declaration keys the same manifest every eval consumer reads.
@@ -341,19 +281,8 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 		fmt.Printf("model domains %v admit no derived suite; nothing to evaluate\n", domains)
 		return nil
 	}
-	// A text model meets the long-form admission here as well as in the
-	// parent (owner rule 2026-09-04): a worker launched by hand is the
-	// same bounded, admitted pass, and the record must pass on this
-	// tree's inference surface.
-	if !declared || slices.Contains(domains, evaluation.DomainText) {
-		surface, err := longform.Surface(ctx, ".")
-		if err != nil {
-			return err
-		}
-		if err := longform.Admit(ctx, s.store, s.runner.ModelProperties().Path, surface); err != nil {
-			return err
-		}
-	}
+	// Quality runs retain their own budget and acceptance. Performance
+	// qualification remains the long-form owner's separate obligation.
 	selected, err := campaignDerivedSuites(ctx, s.campaign, suites, skipped, family, nil)
 	if err != nil {
 		return err

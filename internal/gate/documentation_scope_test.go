@@ -38,7 +38,10 @@ func TestDocumentationBoundaryAcceptance(t *testing.T) {
 			if err != nil || len(scope.direct)+len(scope.dependent) != 0 || scope.excluded == 0 {
 				t.Fatalf("README scope=%+v error=%v", scope, err)
 			}
-			if skipped, err := g.stepTestOwners(t.Context()); err != nil || !skipped || g.testPlan != nil {
+			if skipped, err := g.stepTestPlan(t.Context()); err != nil || !skipped || g.testPlan == nil || g.testPlan.pending != 0 {
+				t.Fatalf("README did not establish empty package scope: skipped=%v error=%v", skipped, err)
+			}
+			if skipped, err := g.stepTestOwners(t.Context()); err != nil || !skipped || len(g.testExecutions) != 0 {
 				t.Fatalf("README started package acquisition: skipped=%v error=%v", skipped, err)
 			}
 			for _, name := range []string{"docs", "acceptance", "architecture", "protection", "commit"} {

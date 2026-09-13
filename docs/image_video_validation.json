@@ -183,9 +183,74 @@
       "name": "Wan references after shared decoding",
       "scope": "Full text conditioning, G3 F32/BF16 and G4 F32 denoising, every G3/G4 decoded frame, partial initialization, changed-negative reuse, cancellation and exact five-frame recovery pass unchanged references. The G3/G4 clips use small fixture geometry; this is not a new full-resolution video result.",
       "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+        "internal/latentvideo/denoiser_session.go": "4305446c175294e5686d8928021eca422fc97aae13dd202ec125bc3a9b007c7a",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./internal/latentvideo -tags=integration -run '^TestWanLifecycleAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:4ee2f3f2f05360c4ac5e1fa11231b7e88a3858f33af2c928e0391f3ee4b1cee6",
+      "name": "Wan guidance-pair ownership",
+      "scope": "Preparing a changed negative context previously released the cached positive handle after returning it to the request. The generator now replaces the pair before returning either handle and publishes the cache only after both projections succeed. Changed conditioning retains two live projections; identical conditioning retains one; malformed conditioning releases partial work; cancellation and exact five-frame recovery pass. The initial numerical comparison did not detect the lifetime defect; a retained-handle assertion did.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+        "internal/latentvideo/denoiser_session.go": "4305446c175294e5686d8928021eca422fc97aae13dd202ec125bc3a9b007c7a",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-transfer-baseline go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanTransferAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:5f7c24d262db587f70598b52484980a918cf6113f91e7d516d5c0535e4264653",
+      "name": "Wan full-video transfer baseline",
+      "overlay_sources": {
+        "internal/cuda/driver/driver_windows.go": "evidence:sha256:839c0f468fcac27797b988f3bfcd13d6b3dc801410de0426e1daf674229f80a1",
+        "internal/cuda/driver/media_transfer_probe_windows.go": "evidence:sha256:c0387e71b13a76441b915c2b50552567886691756aed9c5ed48a40f8cb53ef03",
+        "internal/latentvideo/media_transfer_acquisition_test.go": "evidence:sha256:ecefcbfff10ad694dbb42cf9c93282836b51d24959647169c88e526b9570dab0"
+      },
+      "scope": "Fresh 81-frame, 832x480, 50-step BF16 video generation using the frozen conditioning tensors and explicit noise plan passed first/repeat exact latent, all pre-quantization frame and GIF hashes. Both GIFs contain 506 centiseconds at 16 fps. Complete Generate plus GIF finalization took 377.028205/379.221847 seconds, including frame auditing, encoding and progress writes. Both component driver owners released all allocations on close. The grouped exclusive measurement took 926.989 seconds including admission, the small G4 prerequisite, initialization, output verification and cleanup. This baseline precedes step-input upload changes; it is not an optimization result or a fresh text-encoder run.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/context_ownership_cuda_windows_test.go": "1a2c5cff13b6bb2425102ebee2bdcd3034c800d19a430ab12612eafd6c7fc148",
+        "internal/latentvideo/denoiser.go": "414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+        "internal/latentvideo/denoiser_session.go": "1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+        "internal/latentvideo/runtime.go": "7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestWanContextHandleOwnership|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestWanLifecycleAcceptance)$' -count=1 -timeout=15m -json",
+      "evidence": "evidence:sha256:52d4e8887e849425ce49cb81d332ed83807d0025b598c4fa366833ca550e5515",
+      "name": "Wan current conditioning-handle validation",
+      "scope": "Current code retains pair-level conditioning ownership and the original per-branch step uploads. A new session/retained-handle check rejects foreign, released and closed-session handles before device work. The released-handle regression failed on the earlier single-branch implementation and now passes; cancellation and exact recovery, G3 F32/BF16, G4 F32, production reuse and partial initialization also pass. Final native acquisition: 27.369 seconds. Complete-video timings below belong to their earlier, explicitly recorded source snapshots; these handle checks were validated separately.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "553f038474ea7d9ac355831c4aab937e0c65f7da960d77250884d68fe03a7e2e",
+        "internal/latentvideo/denoiser_session.go": "9d9429d992c295382ea1df37ef0abb61d0ebf109e8587e05debf692b309223be",
+        "internal/latentvideo/runtime.go": "4f0681cfe9e7bb6134d49f7d74998850bf3936add9c9979a197a5bf176510f50",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-transfer-candidate go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanTransferAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:411905808902a03e365f36cd7e5fc63c07e0da520d24642ddf123e6684039973",
+      "name": "Wan transfer candidate: complete output parity",
+      "scope": "The candidate uploaded patch tokens, block conditioning and head conditioning once per step through existing pooled device buffers, then executed both guidance branches in order. Both complete 81-frame requests exactly match the baseline latent, all pre-quantization frames and GIF. It removed 421,478,400 HtoD bytes and 150 copies per request, but complete-request time increased from 377.028205/379.221847 to 377.891453/379.700269 seconds. The frozen no-regression criterion rejected adoption; the transfer change has been removed. The group took 1316.085 seconds including admission, its G4 prerequisite, initialization, checking and cleanup.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
+    },
+    {
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen go test ./cmd/compatibility -run '^TestImageVideoTransferOptimizationAcceptance$' -count=1 -json",
+      "evidence": "evidence:sha256:52b91f3bc0b99c38036e680b4ba6f1ee1709a6f7e6acc5ebaf68f2b841ebe16d",
+      "name": "Wan transfer decision and causal ablation",
+      "scope": "The retained comparison verifies both lifetime states, source snapshots, exact output, measured transfer counts, required DtoH/DtoD copies, resource peaks, copy API timers, cleanup and the rejection decision. The small G4 ablation preserves output and restores exactly 88,064 HtoD bytes and six copies in each request. This passes the experiment's evidence and decision checks; it does not adopt the optimization or establish a generation speedup.",
+      "source_base": "bd38c1f52a9a519bea9fa2cb6f0bbb74620d5f08"
     }
   ],
-  "environment": "Acquired September 12, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. GPU acquisitions used the existing exclusive measurement-process owner. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
+  "environment": "Acquired September 12, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. Correctness checks use existing shared resource admission. Explicitly profiled GPU measurements use the exclusive measurement-process owner; each acquisition retains its scope. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
   "notes": [
     "Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. Selected test results and their actual workload sizes appear below; complete frozen-case and public-workflow coverage remains open.",
     "The SenseNova exact-output regression is corrected. A later shared attention optimization admitted strict-causal prefixes to batched SGEMM, changing accumulation order and BF16-rounded prefix states. Selecting the existing per-query attention option for those reference-bound prefixes restores both small-image hashes and the full-resolution reviewed PNG. No model weights, prompts, seeds, reference hashes or quality limits changed.",
@@ -195,9 +260,10 @@
     "The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes.",
     "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. That checkpoint records the unchanged loaders before the following comparison.",
     "Wan now returns initialization errors without a cleanup panic, releases session resources after request cancellation, and stops decoding when the request is canceled. The G4 recovery check stops after one frame and then reproduces all five frames exactly on the same generator. The unchanged G3 reference and changed-negative fresh-session comparison also pass. Original failures, the skipped setup attempt, isolation probes and both corrected cohorts remain in OvergoDB as evidence:sha256:4ead158b1a90b0c5b13e17cf09049508f80fdf0d80592c9996f49c29b6ec15b2. These small lifecycle cases do not replace the remaining full-resolution video validation.",
-    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:d389b255d50abf529557b3ad8a2df7f78ef16e5c3bfad5f0e7babc5aaa76631d.",
-    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6.",
-    "The [shared decoder comparison](docs/image_video_shared_components.json) retains both actual loader acquisitions, exact output hashes, source snapshots, malformed-input regression and unchanged Wan reference results. Both consumers meet the frozen host-allocation, process-peak and complete-loader wall requirements in both load states; the shared implementation removes the two independent decoding loops. Observed CPU load was 39%/40% before/after this cohort, versus 6%/1% for the baseline; the timing observations are not an isolated causal or population estimate. GPU transfer and full-generation claims remain open."
+    "The [shared decoder comparison](docs/image_video_shared_components.json) retains both actual loader acquisitions, exact output hashes, source snapshots, malformed-input regression and unchanged Wan reference results. Both consumers meet the frozen host-allocation, process-peak and complete-loader wall requirements in both load states; the shared implementation removes the two independent decoding loops. Observed CPU load was 39%/40% before/after this cohort, versus 6%/1% for the baseline; the timing observations are not an isolated causal or population estimate. GPU transfer and full-generation claims remain open.",
+    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:d389b255d50abf529557b3ad8a2df7f78ef16e5c3bfad5f0e7babc5aaa76631d. The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6.",
+    "Guidance-pair ownership and fresh full-video baseline: history evidence:sha256:68184f017f8d75e51292a3209770210c5413315393eda51dfbf98ae5cf78ed56 retains the failing handle assertion, the first repair's excess retained projection, the final source snapshots, the disabled-timing control and a 20-minute exclusive-admission timeout. The grouped acquisition subsequently completed. Visual inspection of the first, middle and last full-resolution frames shows a consistent fox, snowy forest and facial motion; it does not establish smoothness across every transition. The following comparison rejects the transfer candidate and retains the conditioning repairs.",
+    "The [Wan transfer comparison](docs/image_video_transfers.json) retains the frozen acceptance, baseline/candidate/ablation source snapshots, raw request measurements and quality checks. Both candidate requests preserve exact output and reduce uploads, but their observed complete-request times exceed the baseline. Current code restores the original step uploads and keeps the independently tested conditioning ownership repairs. Ordinary host activity and file cache remain uncontrolled; driver copy timers measure host API duration, and component memory peaks are separate, not a combined GPU peak. This closes the declared transfer experiment with rejection; the remaining image/video campaign work stays open."
   ],
   "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
   "version": 1

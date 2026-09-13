@@ -11,16 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "transfers",
-          "title": "Remove avoidable CPU/GPU round trips and consolidate necessary transfers",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_transfer_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoTransferOptimizationAcceptance$' -count=1",
-          "rationale": "Follow the selected prepare-to-denoise-to-decode tensor boundaries. Reuse immutable weights and conditioning with exact content/dtype/layout/device identity; keep evolving latents and intermediate outputs in existing retained GPU storage when consumers can use them directly. Pass validated device views or existing retained-output handles across compatible stages; do not copy to host just to upload again. Avoid repeated scalar/timestep uploads and CPU layout/precision conversion when existing graph operations preserve the numerical contract. Download final pixels/frames only for an actual host consumer; preserve required diagnostics without adding forced synchronization to every step. Coalesce necessary small transfers and reuse bounded staging buffers where measured. Consider pinned memory and asynchronous copy/compute overlap only if remaining transfer cost warrants them and existing driver/context mechanisms can express it: retain host buffers until completion, order streams with explicit dependencies, propagate errors, and bound pinned RAM by usable capacity. Verify aliasing, device/context mismatch, in-flight cancellation, release-after-use and cross-request isolation. Measure HtoD/DtoH/DtoD bytes and calls, synchronization, exposed transfer time and complete generation latency. Require a causal ablation and matched image/video output checks; fewer transfer calls alone do not establish a speedup. Add no separate transfer scheduler or unbounded residency cache.",
-          "depends_on": [
-            "media-optimization/common-components"
-          ]
-        },
-        {
           "id": "memory",
           "title": "Reduce live and retained CPU/GPU memory through lifetime and buffer reuse",
           "status": "open",

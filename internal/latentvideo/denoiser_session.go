@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 
+	"overgo/internal/checked"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
@@ -40,6 +41,7 @@ type DenoiserCUDASession struct {
 
 // sessionBranchContext: retained branch K/V and step feeds.
 type sessionBranchContext struct {
+	owner    *DenoiserCUDASession
 	retained *executor.RetainedOutputs
 	inputs   *executor.DeviceInputs
 }
@@ -196,8 +198,25 @@ func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
 	}
 }
 
-// ProjectBranchContext: run once; retain per-block K/V.
-func (s *DenoiserCUDASession) ProjectBranchContext(values []float32) (any, error) {
+// ProjectBranchContexts prepares one guidance pair. Its retained values remain
+// live until the next pair is prepared or request resources are released.
+func (s *DenoiserCUDASession) ProjectBranchContexts(conditional, unconditional []float32) (any, any, error) {
+	if err := s.ReleaseRequestResources(); err != nil {
+		return nil, nil, err
+	}
+	cond, err := s.projectBranchContext(conditional)
+	if err != nil {
+		return nil, nil, err
+	}
+	uncond, err := s.projectBranchContext(unconditional)
+	if err != nil {
+		return nil, nil, errors.Join(err, s.ReleaseRequestResources())
+	}
+	return cond, uncond, err
+}
+
+// projectBranchContext runs one projection and retains its per-block K/V.
+func (s *DenoiserCUDASession) projectBranchContext(values []float32) (any, error) {
 	value, err := feedValue(s.Program.contextInput, values, "context")
 	if err != nil {
 		return nil, err
@@ -208,6 +227,7 @@ func (s *DenoiserCUDASession) ProjectBranchContext(values []float32) (any, error
 		return nil, fmt.Errorf("denoiser session context projection: %w", err)
 	}
 	branch := &sessionBranchContext{
+		owner:    s,
 		retained: retained,
 		inputs:   s.stepCompiled.Graph.NewDeviceInputs(),
 	}
@@ -226,12 +246,33 @@ func (s *DenoiserCUDASession) ProjectBranchContext(values []float32) (any, error
 	return branch, nil
 }
 
-// ForwardHead: one step-graph execution into the stable retained head
-// target; returns the host head patches.
-func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error) {
+func (s *DenoiserCUDASession) branchContext(branchContext any) (*sessionBranchContext, error) {
 	branch, ok := branchContext.(*sessionBranchContext)
 	if !ok || branch == nil {
 		return nil, fmt.Errorf("denoiser session forward: branch context is %T", branchContext)
+	}
+	if branch.owner != s {
+		return nil, errors.New("denoiser session forward: branch context belongs to another session")
+	}
+	key, ok := checked.First(s.Program.contextKeys)
+	if !ok {
+		return nil, errors.New("denoiser session forward: context graph is unavailable")
+	}
+	if _, live := branch.retained.Value(key); !live {
+		return nil, errors.New("denoiser session forward: branch context was released")
+	}
+	return branch, nil
+}
+
+// ForwardHead: one step-graph execution into the stable retained head
+// target; returns the host head patches.
+func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, handle any) ([]float32, error) {
+	if s == nil || s.Program == nil || s.cuda == nil || s.stepCompiled == nil || s.headBuffer == nil {
+		return nil, errors.New("denoiser session forward: closed")
+	}
+	branch, err := s.branchContext(handle)
+	if err != nil {
+		return nil, err
 	}
 	hostFeeds := make(map[*tensor.Tensor]reference.Value, tensor.TripleExtent)
 	for _, feed := range []struct {

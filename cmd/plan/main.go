@@ -1,28 +1,6 @@
-// plan: campaign dispatch bookkeeping (owner directive 2026-08-09: the turn
-// is the plan). Reads docs/plan.json via internal/plan -- the machine-readable
-// open-work surface -- and both dispatches and ENFORCES the loop protocol:
-//
-//	plan -next                     print the top open action (one line)
-//	plan -prompt                   print the generated, self-contained task for
-//	                               the top open step (this is what the loop
-//	                               feeds the agent -- NOT free text it rewrites)
-//	plan -verify                   run the top open step's acceptance command
-//	                               (step.verify); exit code is pass/fail
-//	plan -context                  emit one typed JSON grounding payload for
-//	                               the current task and worktree
-//	plan -record-lease <file>      record an owner-approved advisory worktree lease
-//	plan -lease-report             report active lease conflicts and reservations
-//	plan -advance <item> <step>    refused compatibility flag: only cmd/gate may
-//	                               atomically verify, commit, and prune a row
-//	plan -status                   one line per item
-//	plan -prepare-merge <ref>      snapshot and prepare a gated semantic merge
-//
-// Enforcement rationale (owner 2026-08-11, after a session drifted off-plan for
-// ~13 commits with zero -advance): "done" must be machine-checked, not
-// self-declared prose, and the loop task must be GENERATED from the plan so the
-// agent cannot substitute its own agenda. Every step carries a runnable
-// `verify` command; commit-gate binds each commit to the active step and prunes
-// it in that commit (internal/plan.Current is the shared source of truth).
+// plan edits and dispatches the validated campaign in docs/plan.json.
+// Dispatch claims work; the gate verifies, publishes and advances it.
+// Status and context inspect state without acquiring work.
 package main
 
 import (
@@ -52,7 +30,11 @@ import (
 // Zero is a reviewed lease count; only this sentinel leaves retirement unrequested.
 const noLegacyLeaseRetirement = -1
 
+// CLI repository operations resolve from the current worktree directory.
+const commandWorktree = "."
+
 func main() {
+	edit := flag.String("edit", "", "apply a strict JSON StepEdit file; expected_plan is plan_digest from -context; create/replace never executes verification")
 	next := flag.Bool("next", false, "print the top open action")
 	frontier := flag.Bool("frontier", false, "print every dispatchable row (the ready frontier) and validate live worktree leases against it")
 	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
@@ -79,7 +61,7 @@ func main() {
 	advance := flag.Bool("advance", false, "retired: cmd/gate atomically commits and prunes the current row")
 	bindCensus := flag.Bool("bind-census", false, "bind the campaign baseline to closure/census/latest in OvergoDB")
 	pruneDone := flag.Bool("prune-done", false, "retired: direct plan pruning is refused")
-	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-verify <cmd>]")
+	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	assign := flag.Bool("assign", false, "record an open item's owning lane: -assign <item-id> -owner <lane>; another lane never dispatches it")
@@ -105,13 +87,14 @@ func main() {
 	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	flag.Parse()
-	if err := run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{edit: *edit, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
+	edit                                                                             string
 	resumeStop, maintenanceStop, stopMode, mode                                      string
 	phases                                                                           bool
 	historyCommit, historyResult                                                     string
@@ -138,12 +121,20 @@ type cli struct {
 }
 
 func run(c cli, args []string) error {
+	if c.edit != "" {
+		allowed := cli{edit: c.edit, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
+		if c != allowed || len(args) != 0 {
+			return errors.New("plan: -edit accepts only its file, -role, -worker and -json")
+		}
+		return editPlanStep(commandWorktree, c.edit, os.Stdout)
+	}
+
 	if c.stop || c.resumeStop != "" || c.maintenanceStop != "" {
 		allowed := cli{stop: c.stop, resumeStop: c.resumeStop, maintenanceStop: c.maintenanceStop, stopMode: c.stopMode, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
 		if c != allowed || c.stop && (c.resumeStop != "" || c.maintenanceStop != "") || c.resumeStop != "" && c.maintenanceStop != "" {
 			return errors.New("plan: stop control cannot be combined with another operation")
 		}
-		return recordStopControlCommand(".", c, args, os.Stdout)
+		return recordStopControlCommand(commandWorktree, c, args, os.Stdout)
 	}
 	if c.stopMode != "" {
 		return errors.New("-stop-mode requires a stop control operation")
@@ -158,7 +149,7 @@ func run(c cli, args []string) error {
 			return errors.New("-release-reason requires -release-claim")
 		}
 		worker := cmp.Or(strings.TrimSpace(c.worker), strings.TrimSpace(os.Getenv(plan.AutomationWorkerEnvironment)))
-		return releaseDispatchClaim(".", c.releaseClaim, worker, c.releaseReason, os.Stdout)
+		return releaseDispatchClaim(commandWorktree, c.releaseClaim, worker, c.releaseReason, os.Stdout)
 	}
 
 	if (c.phases || c.historyCommit != "" || c.historyResult != "") && (c.history == "" || !c.phases) {
@@ -191,59 +182,59 @@ func run(c cli, args []string) error {
 		if err != nil {
 			return fmt.Errorf("-plan-projection: %w", err)
 		}
-		return prepareMergeWithProjection(".", c.prepareMerge, projection, os.Stdout)
+		return prepareMergeWithProjection(commandWorktree, c.prepareMerge, projection, os.Stdout)
 	case c.planProjection != "":
 		return errors.New("-plan-projection requires -prepare-merge")
 	case c.recordLease != "":
-		return recordWorkLease(".", c.recordLease, os.Stdout)
+		return recordWorkLease(commandWorktree, c.recordLease, os.Stdout)
 	case c.recordLeaseOutcome != "":
-		return recordWorkLeaseOutcome(".", c.recordLeaseOutcome, os.Stdout)
+		return recordWorkLeaseOutcome(commandWorktree, c.recordLeaseOutcome, os.Stdout)
 	case c.grantExploration != "":
-		return recordExplorationGrant(".", c.grantExploration, os.Stdout)
+		return recordExplorationGrant(commandWorktree, c.grantExploration, os.Stdout)
 	case c.chargeExploration != "":
-		return recordExplorationCharge(".", c.chargeExploration, os.Stdout)
+		return recordExplorationCharge(commandWorktree, c.chargeExploration, os.Stdout)
 	case c.recordExperiment != "":
-		return recordExperimentTransition(".", c.recordExperiment, os.Stdout)
+		return recordExperimentTransition(commandWorktree, c.recordExperiment, os.Stdout)
 	case c.admitProposal != "":
-		return admitProposal(".", c.admitProposal, os.Stdout)
+		return admitProposal(commandWorktree, c.admitProposal, os.Stdout)
 	case c.history != "":
 		return printAttemptHistory(c.history, os.Stdout)
 	case c.leaseReport:
-		return printLeaseReport(".", c.capacity, os.Stdout)
+		return printLeaseReport(commandWorktree, c.capacity, os.Stdout)
 	case c.retireLegacyLeases >= 0:
-		return retireLegacyWorkLeases(".", c.retireLegacyLeases, os.Stdout)
+		return retireLegacyWorkLeases(commandWorktree, c.retireLegacyLeases, os.Stdout)
 	case c.frontier:
-		return printReadyFrontier(".", document, os.Stdout)
+		return printReadyFrontier(commandWorktree, document, os.Stdout)
 	case c.judgeEfficiency != "":
 		return judgeInteractionEfficiency(c.judgeEfficiency, os.Stdout)
 	case c.localitySchedule != "":
-		return printLocalitySchedule(".", c.localitySchedule, os.Stdout)
+		return printLocalitySchedule(commandWorktree, c.localitySchedule, os.Stdout)
 	case c.bindCensus:
-		return bindCampaignCensus(".", os.Stdout)
+		return bindCampaignCensus(commandWorktree, os.Stdout)
 	case c.pruneDone:
 		return errors.New("plan: direct pruning is retired; cmd/gate atomically commits and prunes the current row")
 	case c.add:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -add <item-id> -title <title> [-before <id>] [-vcmd <verify>]")
 		}
-		return addItem(".", args[0], c.title, c.before, c.verifyCmd, role)
+		return addItem(commandWorktree, args[0], c.title, c.before, c.verifyCmd, role)
 	case c.move:
 		if len(args) != 1 {
 			return errors.New("usage: plan -move <item-id> [-before <id>]")
 		}
-		return moveItem(".", args[0], c.before, role)
+		return moveItem(commandWorktree, args[0], c.before, role)
 	case c.retitle:
 		if len(args) != 1 || strings.TrimSpace(c.title) == "" {
 			return errors.New("usage: plan -retitle <item-id> -title <title>")
 		}
-		return retitleItem(".", args[0], c.title, role)
+		return retitleItem(commandWorktree, args[0], c.title, role)
 	case c.assign:
 		if len(args) != 1 || strings.TrimSpace(c.owner) == "" {
 			return errors.New("usage: plan -assign <item-id> -owner <lane>")
 		}
-		return mutatePlan(".", role, "assigned item "+args[0]+" to "+strings.TrimSpace(c.owner), func(document plan.Plan) (plan.Plan, error) { return assignOwner(document, args[0], c.owner) })
+		return mutatePlan(commandWorktree, role, "assigned item "+args[0]+" to "+strings.TrimSpace(c.owner), func(document plan.Plan) (plan.Plan, error) { return assignOwner(document, args[0], c.owner) })
 	case c.setLane != "":
-		return mutatePlan(".", role, "set lane "+strings.TrimSpace(c.setLane), func(document plan.Plan) (plan.Plan, error) { return setPlanLane(document, c.setLane) })
+		return mutatePlan(commandWorktree, role, "set lane "+strings.TrimSpace(c.setLane), func(document plan.Plan) (plan.Plan, error) { return setPlanLane(document, c.setLane) })
 	case c.setverify:
 		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
@@ -251,7 +242,7 @@ func run(c cli, args []string) error {
 		if browserVerifyOutsideLane(c.verifyCmd) {
 			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -require in the verify")
 		}
-		return setStepVerify(".", args[0], args[1], c.verifyCmd, role)
+		return setStepVerify(commandWorktree, args[0], args[1], c.verifyCmd, role)
 	case c.contain != "":
 		return recordControl(c.lane, "containment", c.contain, strings.Join(args, commandWordSeparator))
 	case c.advance:
@@ -366,7 +357,7 @@ func printAutomationContext(document plan.Plan, role string, output io.Writer) e
 
 func collectContextFacts(role string) (plan.ContextFacts, error) {
 	text := func(args ...string) (string, error) {
-		out, err := gitOutput(".", args...)
+		out, err := gitOutput(commandWorktree, args...)
 		if err != nil {
 			return "", fmt.Errorf("git %s: %w", strings.Join(args, commandWordSeparator), err)
 		}
@@ -385,7 +376,7 @@ func collectContextFacts(role string) (plan.ContextFacts, error) {
 	if err != nil {
 		return plan.ContextFacts{}, err
 	}
-	status, err := gitOutput(".", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	status, err := gitOutput(commandWorktree, "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	if err != nil {
 		return plan.ContextFacts{}, fmt.Errorf("git status: %w", err)
 	}
@@ -509,48 +500,17 @@ func addItem(root, id, title, before, verifyCmd, role string) error {
 	})
 }
 
-// moveItem re-ranks an existing item before `before` (or to the top of the
-// plan when empty): the plan is refactored from results and owner input after
-// every landed row (owner directive 2026-09-04), and a re-rank is a plan
-// mutation with the same validation as an injection, not a hand edit.
+// moveItem changes item order through the shared mutation owner.
 func moveItem(root, id, before, role string) error {
-	return withPlanMutation(root, false, func(document plan.Plan) error {
-		updated, err := relocateItem(document, id, before)
-		if err != nil {
-			return err
-		}
-		updatedAuthority, err := resolveCompletionAuthority(root, updated)
-		if err != nil {
-			return err
-		}
-		if err := savePlanMutation(root, updated); err != nil {
-			return err
-		}
-		action, _ := nextAction(updated, role, updatedAuthority)
-		fmt.Printf("moved item %s; next: %s\n", id, action)
-		return nil
+	return mutatePlan(root, role, "moved item "+id, func(document plan.Plan) (plan.Plan, error) {
+		return relocateItem(document, id, before)
 	})
 }
 
-// retitleItem re-scopes an open item: its title and, when it carries the
-// single "do" step an injection made, that step's title follow the new
-// scope, so a row refactored from results keeps one text in both places.
+// retitleItem updates the item and its injected single-step title together.
 func retitleItem(root, id, title, role string) error {
-	return withPlanMutation(root, false, func(document plan.Plan) error {
-		updated, err := rescopeItem(document, id, title)
-		if err != nil {
-			return err
-		}
-		updatedAuthority, err := resolveCompletionAuthority(root, updated)
-		if err != nil {
-			return err
-		}
-		if err := savePlanMutation(root, updated); err != nil {
-			return err
-		}
-		action, _ := nextAction(updated, role, updatedAuthority)
-		fmt.Printf("retitled item %s; next: %s\n", id, action)
-		return nil
+	return mutatePlan(root, role, "retitled item "+id, func(document plan.Plan) (plan.Plan, error) {
+		return rescopeItem(document, id, title)
 	})
 }
 
@@ -824,13 +784,13 @@ func runVerify(it plan.Item, st plan.Step) error {
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {
 			fmt.Fprintf(os.Stderr, "plan verify %s/%s checkpoint %s: %s\n", it.ID, st.ID, checkpoint.ID, checkpoint.Verify)
-			if _, err := planverify.Execute(context.Background(), ".", checkpoint.Verify, nil); err != nil {
+			if _, err := planverify.Execute(context.Background(), commandWorktree, checkpoint.Verify, nil); err != nil {
 				return fmt.Errorf("verify %s/%s checkpoint %s: %w", it.ID, st.ID, checkpoint.ID, err)
 			}
 		}
 	}
 	fmt.Fprintf(os.Stderr, "plan verify %s/%s: %s\n", it.ID, st.ID, st.Verify)
-	class, err := planverify.Execute(context.Background(), ".", st.Verify, nil)
+	class, err := planverify.Execute(context.Background(), commandWorktree, st.Verify, nil)
 	if err != nil {
 		return fmt.Errorf("verify %s/%s: %w -- run the named oracle against its real prerequisite or record a recorded stop", it.ID, st.ID, err)
 	}
@@ -849,7 +809,7 @@ func runVerify(it plan.Item, st plan.Step) error {
 // package "ok" without these markers and are unaffected.
 
 func recordControl(lane, kind, reason, detail string) error {
-	head, err := gitOutput(".", "rev-parse", "HEAD")
+	head, err := gitOutput(commandWorktree, "rev-parse", "HEAD")
 	if err != nil {
 		return fmt.Errorf("resolve control-event commit: %w", err)
 	}

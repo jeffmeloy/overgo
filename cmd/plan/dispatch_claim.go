@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
 	"overgo/internal/gitauthority"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 )
@@ -173,14 +174,14 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 	document, err := loadCommandPlan(false)
 	var dispatch plan.Dispatch
 	if err != nil {
-		stop, stopErr := plan.ReadStop(context.Background(), nil, ".", "", c.mode)
+		stop, stopErr := plan.ReadStop(context.Background(), nil, commandWorktree, "", c.mode)
 		if stopErr != nil || !stop.Blocked {
 			return err
 		}
 		dispatch = plan.Dispatch{Stop: &stop, Waiting: stop.String(), Line: "plan waiting: " + stop.String()}
 		err = nil
 	} else {
-		dispatch, err = plan.ResolveDispatch(context.Background(), ".", plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Acquire: c.prompt || c.verify, Reference: reference})
+		dispatch, err = plan.ResolveDispatch(context.Background(), commandWorktree, plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Acquire: c.prompt || c.verify, Reference: reference})
 	}
 	if err != nil {
 		return err
@@ -218,3 +219,58 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 
 // CLI argument prose separates already-parsed words with one space.
 const commandWordSeparator = " "
+
+// editPlanStep shares mutation ownership, dependency authority and atomic Save.
+func editPlanStep(root, path string, output io.Writer) error {
+	var edit plan.StepEdit
+	if err := jsonfile.DecodeStrict(path, &edit); err != nil {
+		return err
+	}
+	return withPlanMutation(root, false, func(document plan.Plan) error {
+		updated, err := document.EditStep(edit)
+		if err != nil {
+			return err
+		}
+		if _, err := resolveCompletionAuthority(root, updated); err != nil {
+			return err
+		}
+		var prior plan.Step
+		for _, item := range document.Items {
+			if item.ID == edit.Item {
+				for _, step := range item.Steps {
+					if step.ID == edit.Step.ID {
+						prior = step
+					}
+				}
+			}
+		}
+		if browserVerifyOutsideLane(edit.Step.Verify) {
+			return errors.New("plan: browser acceptance requires the existing webui lane")
+		}
+		previousAcceptance, err := json.Marshal(struct {
+			Verify string
+			Batch  *plan.VerificationBatch
+		}{prior.Verify, prior.VerificationBatch})
+		if err != nil {
+			return err
+		}
+		nextAcceptance, err := json.Marshal(struct {
+			Verify string
+			Batch  *plan.VerificationBatch
+		}{edit.Step.Verify, edit.Step.VerificationBatch})
+		if err != nil {
+			return err
+		}
+		if err := savePlanMutation(root, updated); err != nil {
+			return err
+		}
+		return json.NewEncoder(output).Encode(struct {
+			Ref                 plan.Ref `json:"ref"`
+			Before              string   `json:"before"`
+			After               string   `json:"after"`
+			Created             bool     `json:"created"`
+			AcceptanceChanged   bool     `json:"acceptance_changed"`
+			PublicationRequired bool     `json:"publication_required"`
+		}{plan.Ref{Item: edit.Item, Step: edit.Step.ID}, document.Digest(), updated.Digest(), edit.Create, string(previousAcceptance) != string(nextAcceptance), true})
+	})
+}

@@ -3,6 +3,7 @@ package plan
 import (
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"overgo/internal/authoritylock"
@@ -500,4 +501,86 @@ func TestStopStateContract(t *testing.T) {
 			t.Fatalf("stop winners=%d", wins)
 		}
 	})
+}
+
+func TestAtomicStepEdit(t *testing.T) {
+	original := Plan{Items: []Item{{ID: "row", Status: StatusOpen, Steps: []Step{
+		{ID: "first", Title: "First", Status: StatusOpen, Verify: "go test ./internal/plan -run '^TestAtomicStepEdit$'"},
+		{ID: "last", Title: "Last", Status: StatusOpen, Verify: "go test ./internal/plan -run '^TestAtomicDispatchClaim$'"},
+	}}}}
+	originalBytes, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit := StepEdit{ExpectedPlan: original.Digest(), Item: "row", Create: true, Before: "last", Step: Step{
+		ID: "second", Title: "Second", Status: StatusOpen, Verify: "go test ./internal/plan -run '^TestStopStateContract$'", DependsOn: []string{"row/first"}, Rationale: "Preserve the existing control owner.",
+	}}
+	added, err := original.EditStep(edit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := added.Items[0].Steps; len(got) != 3 || got[0].ID != "first" || got[1].ID != "second" || got[2].ID != "last" {
+		t.Fatalf("insertion order: %+v", got)
+	}
+	if added.Digest() == original.Digest() {
+		t.Fatal("changed plan retained old identity")
+	}
+	replace := StepEdit{ExpectedPlan: added.Digest(), Item: "row", Before: "first", Step: added.Items[0].Steps[1]}
+	replace.Step.Title = "Updated second"
+	replace.Step.DependsOn = nil
+	replace.Step.Rationale = "A reviewed replacement contract."
+	updated, err := added.EditStep(replace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Items[0].Steps[0].Title != replace.Step.Title || updated.Items[0].Steps[1].ID != "first" || added.Items[0].Steps[1].Title != "Second" {
+		t.Fatal("replacement changed unrelated order or original input")
+	}
+	if _, err := added.EditStep(edit); err == nil {
+		t.Fatal("stale edit overwrote intervening work")
+	}
+	for name, change := range map[string]func(*StepEdit){
+		"missing identity": func(e *StepEdit) { e.ExpectedPlan = "" },
+		"unknown item":     func(e *StepEdit) { e.Item = "absent" },
+		"duplicate create": func(e *StepEdit) { e.Step.ID = "first" },
+		"replace absent":   func(e *StepEdit) { e.Create = false },
+		"missing sibling":  func(e *StepEdit) { e.Before = "absent" },
+		"self positioning": func(e *StepEdit) { e.Before = e.Step.ID },
+		"completion":       func(e *StepEdit) { e.Step.Status = StatusDone },
+		"forged outcome":   func(e *StepEdit) { e.Step.Outcome = json.RawMessage(`{"passed":true}`) },
+		"empty title":      func(e *StepEdit) { e.Step.Title = "" },
+		"invalid verifier": func(e *StepEdit) { e.Step.Verify = "" },
+		"self dependency":  func(e *StepEdit) { e.Step.DependsOn = []string{"row/second"} },
+		"invalid batch":    func(e *StepEdit) { e.Step.VerificationBatch = &VerificationBatch{} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := edit
+			change(&bad)
+			if _, err := original.EditStep(bad); err == nil {
+				t.Fatal("invalid edit accepted")
+			}
+			after, _ := json.Marshal(original)
+			if !bytes.Equal(after, originalBytes) {
+				t.Fatal("failed edit mutated original")
+			}
+		})
+	}
+	cycle := StepEdit{ExpectedPlan: added.Digest(), Item: "row", Step: added.Items[0].Steps[0]}
+	cycle.Step.DependsOn = []string{"row/second"}
+	if _, err := added.EditStep(cycle); err == nil {
+		t.Fatal("dependency cycle accepted")
+	}
+	preserved := original
+	preserved.Items = slices.Clone(original.Items)
+	preserved.Items[0].Steps = slices.Clone(original.Items[0].Steps)
+	preserved.Items[0].Steps[0].Outcome = json.RawMessage(`{"measured":"retained"}`)
+	tamper := StepEdit{ExpectedPlan: preserved.Digest(), Item: "row", Step: preserved.Items[0].Steps[0]}
+	tamper.Step.Outcome = nil
+	if _, err := preserved.EditStep(tamper); err == nil {
+		t.Fatal("retained outcome erased")
+	}
+	finalBytes, _ := json.Marshal(original)
+	if !bytes.Equal(originalBytes, finalBytes) {
+		t.Fatal("successful edit mutated original")
+	}
 }

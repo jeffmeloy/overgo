@@ -152,11 +152,11 @@ func NewFirstParentTargetMergeAuthority(
 		LocalParent:                strings.TrimSpace(localRevision),
 		IncomingParent:             strings.TrimSpace(incomingRevision),
 		MergeBase:                  strings.TrimSpace(mergeBaseRevision),
-		LocalPlanDigest:            planDigestText(local),
-		IncomingPlanDigest:         planDigestText(incoming),
-		MergeBasePlanDigest:        planDigestText(mergeBase),
-		PreAdvancePlanDigest:       planDigestText(preAdvance),
-		ChildPlanDigest:            planDigestText(child),
+		LocalPlanDigest:            local.Digest(),
+		IncomingPlanDigest:         incoming.Digest(),
+		MergeBasePlanDigest:        mergeBase.Digest(),
+		PreAdvancePlanDigest:       preAdvance.Digest(),
+		ChildPlanDigest:            child.Digest(),
 		PlanItem:                   item,
 		PlanStep:                   step,
 		Preparation:                preparation,
@@ -392,11 +392,11 @@ func VerifyFirstParentTargetMergeAuthorityTransition(
 	if err := verifyFirstParentTargetPlanOwnership(local, preAdvance, child); err != nil {
 		return err
 	}
-	if receipt.LocalPlanDigest != planDigestText(local) ||
-		receipt.IncomingPlanDigest != planDigestText(incoming) ||
-		receipt.MergeBasePlanDigest != planDigestText(mergeBase) ||
-		receipt.PreAdvancePlanDigest != planDigestText(preAdvance) ||
-		receipt.ChildPlanDigest != planDigestText(child) {
+	if receipt.LocalPlanDigest != local.Digest() ||
+		receipt.IncomingPlanDigest != incoming.Digest() ||
+		receipt.MergeBasePlanDigest != mergeBase.Digest() ||
+		receipt.PreAdvancePlanDigest != preAdvance.Digest() ||
+		receipt.ChildPlanDigest != child.Digest() {
 		return errors.New("plan: projected merge receipt plan digest differs")
 	}
 	return nil
@@ -609,14 +609,6 @@ func validDigestText(value string) bool {
 	}
 	decoded, err := hex.DecodeString(value)
 	return err == nil && len(decoded) == sha256.Size
-}
-
-func planDigestText(document Plan) string {
-	digest, err := completionPlanDigest(document)
-	if err != nil {
-		return ""
-	}
-	return hex.EncodeToString(digest[:])
 }
 
 func sortedProtectionSeeds(authority CompletionAuthority) []string {

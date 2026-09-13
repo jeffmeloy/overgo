@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:2aad6a06aeec6ee93c40b1e88bef93ebfbfe80743cdbff2f4b5f3041a3aca9b5"
+     "identity": "file:sha256:c1a3fc44e56a6254d993065e72e21d33e3aff358bbc8f06397d0369388dbfd1c"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1256,7 +1256,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:2aad6a06aeec6ee93c40b1e88bef93ebfbfe80743cdbff2f4b5f3041a3aca9b5"
+     "identity": "file:sha256:c1a3fc44e56a6254d993065e72e21d33e3aff358bbc8f06397d0369388dbfd1c"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
@@ -1600,7 +1600,7 @@
      "path": "cmd/server/transcription.go",
      "contains": "func serveTranscription(",
      "role": "source",
-     "identity": "file:sha256:e4f411b5e0686f4bbc6f26231e6cfc541e0bf94c02f1f1523d74fd603f1d3cd2"
+     "identity": "file:sha256:41d69c4b448b49fbf34ed76dfd977649aa679a629d3190c97fff4689862df718"
     },
     {
      "path": "internal/audioparity/live_service_test.go",
@@ -1622,7 +1622,7 @@
      "path": "internal/modelswap/proxy.go",
      "contains": "func routingEnvelope(",
      "role": "source",
-     "identity": "file:sha256:9c8a0e5a14bcd50d0f0c00f1a41e6bd921b4ed7e13760d97a3d4d41a17a7510f"
+     "identity": "file:sha256:f22b83bb7f07ba793532e04c7ed71d338de2ae3e99b62aad0ab53a4f03f8a9f5"
     },
     {
      "path": "internal/audioparity/live_service_test.go",

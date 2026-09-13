@@ -20,7 +20,7 @@ Every media capability is exercised through the same task-generic recipe lifecyc
 | Report (this document) | `go run ./cmd/compatibility -update-media` |
 | Sample export (decoded verifier outputs) | `go run ./cmd/compatibility -export-samples` |
 
-Media tasks: `speech`, `image-gen`, `video-gen`, `video-edit`, `vqa`. The VQA lane verifies and activates through `go run ./cmd/vqaparity -recipe-verify-activate`.
+Media tasks: `speech`, `image-gen`, `video-gen`, `vqa`. Reference-guided video editing is a `video-gen` recipe with a source input. The VQA lane verifies and activates through `go run ./cmd/vqaparity -recipe-verify-activate`.
 
 ## Media activations
 
@@ -44,7 +44,7 @@ The executable surface behind each healthy activation: every recipe node with it
 
 | Model | Task | Node | Module | Placement | Session | Component model |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | `generate` | `model.vqa-generate` | device | - | composite |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | `generate` | `model.vqa-generate` | device | request | composite |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | `prepare` | `model.vqa-prepare` | host | - | composite |
 | `Krea-2-Turbo` | `image-gen` | `decode` | `model.latent-image-decode` | hybrid | - | `model:sha256:1b7acc66c8e9c396e08` |
 | `Krea-2-Turbo` | `image-gen` | `integrate` | `model.latent-image-integrate` | hybrid | - | `model:sha256:8f2e2c875364a9c71ba` |
@@ -77,7 +77,7 @@ One row per healthy activation: the recipe artifact the active alias resolves, i
 
 | Model | Task | Recipe | Evidence tier | Dependencies |
 | --- | --- | --- | --- | --- |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | `recipe:sha256:97d121be90fba86b42` | parity | - |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | `recipe:sha256:24f6d5c81c752c600b` | parity | - |
 | `Krea-2-Turbo` | `image-gen` | `recipe:sha256:0b1bcc2fb9cf5f42cd` | verified | profile `profile:sha256:4dedf632a6744df0c` |
 | `LiveEdit` | `video-gen` | `recipe:sha256:7cd66ed08ebee5e566` | verified | profile `profile:sha256:5dff72b6d581a9d1d` |
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | `recipe:sha256:5a729e98ef825033d4` | verified | flow-profile `profile:sha256:307706b480209dc49` |
@@ -93,7 +93,7 @@ One row per healthy activation: the verifier run the activation cites, exactly a
 
 | Model | Task | Verifier wall | Phases | Peak device | Commit | Run outputs |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Hy-Embodied-RxBrain-1.0` | `vqa` | 10.113s | generate 10.668s, prepare 135ms | - | `6da9e6329fe7` | `evidence:sha256:da6e3efbd0aedc45` |
+| `Hy-Embodied-RxBrain-1.0` | `vqa` | 10.364s | generate 10.945s, prepare 126ms | - | `2a57baff21a7` | `evidence:sha256:2f4f87eb7fea54bf` |
 | `Krea-2-Turbo` | `image-gen` | 14.581s | decode 162ms, integrate 1.417s, prepare 9.729s | - | `05faa01ef333` | `evidence:sha256:5b3a1c4bb7981dba` |
 | `LiveEdit` | `video-gen` | 5.409s | integrate 671ms | 3260313344 B | `f313f43d6c57` | `evidence:sha256:9962cef18a9b42ed` |
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 2m17.156s | decode 939ms, integrate 2m2.434s, prepare 13.187s | - | `73414af5ea9b` | `evidence:sha256:3d0bc88bed1aadcc` |

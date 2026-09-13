@@ -112,7 +112,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scope.Path != imageVideoReportPath || len(scope.Tasks) != 3 {
+	if scope.Path != imageVideoReportPath || len(scope.Tasks) != 2 {
 		t.Fatal("focused scope differs")
 	}
 	if _, err := resolveMediaReportScope("image"); err == nil {

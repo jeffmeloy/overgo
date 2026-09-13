@@ -40,7 +40,7 @@ func resolveMediaReportScope(name string) (mediaReportScope, error) {
 	case "all":
 		return mediaReportScope{Path: mediaReportPath, Title: "Media capability report", Tasks: mediaTasks}, nil
 	case "image-video":
-		return mediaReportScope{Path: imageVideoReportPath, Title: "Image and video generation report", Argument: " -media-scope image-video", Tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit}}, nil
+		return mediaReportScope{Path: imageVideoReportPath, Title: "Image and video generation report", Argument: " -media-scope image-video", Tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen}}, nil
 	default:
 		return mediaReportScope{}, errors.New("media scope must be all or image-video")
 	}
@@ -53,7 +53,7 @@ func resolveMediaReportScope(name string) (mediaReportScope, error) {
 const mediaCatalogLimit = 4096
 
 var mediaTasks = []recipe.Task{
-	recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit, recipe.TaskVQA,
+	recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA,
 }
 
 // reportRow is one media activation row joined with its claim.
@@ -266,7 +266,7 @@ func writeMediaSurface(output *bytes.Buffer, scope mediaReportScope) {
 	} {
 		fmt.Fprintf(output, "| %s | %s |\n", row[0], row[1])
 	}
-	output.WriteString("\nThe report includes only the selected tasks and the recipes actually declared by their active records.\n\n")
+	output.WriteString("\nThe report includes only the selected tasks and the recipes actually declared by their active records. Reference-guided video editing is a `video-gen` recipe with a source input.\n\n")
 }
 
 // writeMediaInventories renders the compiled recipe graphs behind the

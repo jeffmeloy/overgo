@@ -41,7 +41,7 @@ func TestWorkspaceCapabilityDocument(t *testing.T) {
 	for _, mode := range document.Modes {
 		modes[mode.ID] = mode
 	}
-	for _, id := range []string{"chat", "image-gen", "video-gen", "video-edit", "speech", "embeddings", "rerank"} {
+	for _, id := range []string{"chat", "image-gen", "video-gen", "speech", "embeddings", "rerank"} {
 		mode, found := modes[id]
 		if !found {
 			t.Errorf("capability document lacks mode %s", id)

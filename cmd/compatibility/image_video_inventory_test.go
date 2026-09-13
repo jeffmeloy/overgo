@@ -55,7 +55,7 @@ func checkImageVideoCoverage(value imageVideoInventory, census capabilityCensus)
 	if value.Version != artifact.InitialDocumentVersion || value.Census != census.ID {
 		return errors.New("media inventory: census binding differs")
 	}
-	wantTasks := []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit}
+	wantTasks := []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen}
 	tasks := slices.Clone(value.Tasks)
 	slices.Sort(tasks)
 	slices.Sort(wantTasks)

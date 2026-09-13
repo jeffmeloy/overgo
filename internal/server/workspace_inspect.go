@@ -37,6 +37,7 @@ type turnInspection struct {
 	Statuses   []string           `json:"statuses"`
 	Failure    string             `json:"failure,omitzero"`
 	Timings    *slotStatusTimings `json:"timings,omitempty"`
+	Sampling   *responseSampling  `json:"sampling,omitempty"`
 	Model      artifact.ID        `json:"model,omitzero"`
 	Recipe     artifact.ID        `json:"recipe,omitzero"`
 	Trace      artifact.ID        `json:"trace,omitzero"`
@@ -81,7 +82,7 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 		} else if done {
 			result.Status = turnStatusDone
 		}
-		result.Timings = final.Timings
+		result.Timings, result.Sampling = final.Timings, final.Sampling
 	}
 	if messages, _, found := h.loadResponseInteraction(request.Context(), responseID); found {
 		interaction, _, _ := runrecord.ResolveInteraction(request.Context(), h.repository, responseID)

@@ -100,13 +100,16 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 		for _, location := range locations {
 			batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
 		}
-		aliases, err := store.Query(ctx, overgodb.Query{Artifact: &id, Projection: overgodb.ProjectAliases, MaxResults: laneCatalogLimit})
-		if err != nil || aliases.Truncated {
-			return errors.Join(fmt.Errorf("browser fixture: incomplete aliases for %s", id), err)
-		}
-		for _, alias := range aliases.Aliases {
+	}
+	// Alias counts are independent of the model catalog size. Walk them once
+	// after selecting the closure instead of truncating each artifact's aliases.
+	if err := store.VisitAliases(ctx, "", func(alias overgodb.AliasView) error {
+		if seen[alias.Target] {
 			batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: alias.Name, Target: alias.Target})
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	private, err := overgodb.OpenContext(ctx, destination)
 	if err != nil {
@@ -154,6 +157,13 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 	}
 	unrelated := testutil.ArtifactID(t, artifact.KindEvidence, "unrelated historical result")
 	testutil.PublishArtifact(t, store, unrelated)
+	aliasBatch := artifact.Batch{Key: "browser-fixture/many-aliases"}
+	for index := range laneCatalogLimit + 1 {
+		aliasBatch.Aliases = append(aliasBatch.Aliases, artifact.AliasBinding{Name: fmt.Sprintf("browser-fixture/alias/%d", index), Target: manifest.ID})
+	}
+	if _, err := artifact.CommitBatch(ctx, store, aliasBatch); err != nil {
+		t.Fatal(err)
+	}
 	memo := discovery.NewMemo()
 	if entries, truncated, err := discovery.CapabilityCatalog(ctx, store, laneCatalogLimit, memo); err != nil || truncated || len(entries) != 1 || !entries[0].Present {
 		t.Fatalf("source fixture: %v %v", entries, err)
@@ -175,6 +185,16 @@ func TestBrowserJourneyStoreIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer private.Close()
+	aliases := 0
+	if err := private.VisitAliases(ctx, "browser-fixture/alias/", func(alias overgodb.AliasView) error {
+		if alias.Target != manifest.ID {
+			return errors.New("copied alias changed target")
+		}
+		aliases++
+		return nil
+	}); err != nil || aliases != laneCatalogLimit+1 {
+		t.Fatalf("aliases truncated or changed: %d %v", aliases, err)
+	}
 	active, found, err := modelrecipe.ActiveRecord(ctx, private, manifest.ID, recipe.TaskForecast)
 	if err != nil || !found || active.Definition.ID != definition.ID {
 		t.Fatalf("exact activation did not survive: %+v %v", active, err)

@@ -118,10 +118,16 @@ func Register(ctx context.Context, repository *overgodb.Store, path, projectorPa
 // Validate prepares text validation of a model under
 // the clean source revision and returns the candidate recipe it runs under
 // with the operation body that registers, records, replays, publishes and
-// activates; the prompts and the token bound are the caller's policy.
+// activates; the prompts and the token bound are the caller's policy. A
+// projector beside the model registers as its projection candidate; the
+// text validation runs on the model alone, and the projection activates
+// once a media suite executes.
 func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPath string, prompts []string, maxTokens int) (artifact.ID, operation.Executor, error) {
-	if strings.TrimSpace(projectorPath) != "" {
-		return artifact.ID{}, nil, refusal{errors.New("library: projector validation requires an executed media suite; register the pair, then use recipe -verify -task projection with an exact suite covering every declared media mode")}
+	projectorPath = strings.TrimSpace(projectorPath)
+	if projectorPath != "" {
+		if describes, err := projector.DescribesProjection(projectorPath); err != nil || !describes {
+			return artifact.ID{}, nil, refusal{fmt.Errorf("library: %s does not declare a projector", projectorPath)}
+		}
 	}
 	revision, err := modelintake.CleanRevision(ctx)
 	if err != nil {
@@ -132,20 +138,29 @@ func Validate(ctx context.Context, repository *overgodb.Store, path, projectorPa
 		return artifact.ID{}, nil, refusal{err}
 	}
 	execute := func(ctx context.Context, reporter operation.Reporter) (operation.Completion, error) {
-		return validate(ctx, repository, reporter, path, candidate, revision, prompts, maxTokens)
+		return validate(ctx, repository, reporter, path, projectorPath, candidate, revision, prompts, maxTokens)
 	}
 	return candidate.Definition.ID, execute, nil
 }
 
 // validate is the validation operation: register, record, replay, publish,
 // activate, each a progress step the strip shows.
-func validate(ctx context.Context, repository *overgodb.Store, reporter operation.Reporter, path string, candidate modelintake.Candidate, revision string, prompts []string, maxTokens int) (operation.Completion, error) {
+func validate(ctx context.Context, repository *overgodb.Store, reporter operation.Reporter, path, projectorPath string, candidate modelintake.Candidate, revision string, prompts []string, maxTokens int) (operation.Completion, error) {
 	stages := []string{"register", "record", "replay", "publish", "activate"}
 	total := uint64(len(stages))
 	progress := func(stage string) { reporter.Progress(uint64(slices.Index(stages, stage)), &total) }
 	progress("register")
 	if err := modelintake.RegisterCandidate(ctx, repository, candidate); err != nil {
 		return operation.Completion{}, err
+	}
+	if projectorPath != "" {
+		projection, err := modelintake.PrepareProjectionCandidate(ctx, repository, path, projectorPath)
+		if err != nil {
+			return operation.Completion{}, err
+		}
+		if err := modelintake.RegisterProjectionCandidate(ctx, repository, projection); err != nil {
+			return operation.Completion{}, err
+		}
 	}
 	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
 	if err != nil {

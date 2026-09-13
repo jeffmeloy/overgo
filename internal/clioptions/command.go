@@ -36,6 +36,9 @@ func Main(run func() error) {
 		if errors.Is(err, processcontrol.ErrResourceBusy) {
 			os.Exit(processcontrol.ResourceBusyExitCode)
 		}
+		if errors.Is(err, processcontrol.ErrDeviceMemory) {
+			os.Exit(processcontrol.DeviceMemoryExitCode)
+		}
 		os.Exit(1)
 	}
 }

@@ -7,10 +7,20 @@ rem Pass a GGUF path (or a servable model name) to start on that model:
 rem   overgo_gui.bat D:\models\my-model.gguf
 rem With no argument the proxy starts without a default model; pick one from
 rem the GUI's model pill, which lists every servable model in the store.
+rem Arguments after the model reach every served child, so the workspaces
+rem the launch enables survive a model swap:
+rem   overgo_gui.bat "" -training -model-builder
 setlocal
 cd /d "%~dp0"
 
 set "MODEL=%~1"
+set "WORKSPACES="
+:workspaces
+shift
+if "%~1"=="" goto :launch
+set "WORKSPACES=%WORKSPACES% %~1"
+goto :workspaces
+:launch
 
 echo Building the overgo server and swap proxy...
 go build -o bin\overgo-server.exe .\cmd\server || goto :error
@@ -24,9 +34,9 @@ if "%MODEL%"=="" (
 )
 echo Close this window to stop the server.
 if "%MODEL%"=="" (
-  bin\overgo-swap.exe -listen 127.0.0.1:8080 -repo overgodb-store -server bin\overgo-server.exe
+  bin\overgo-swap.exe -listen 127.0.0.1:8080 -repo overgodb-store -server bin\overgo-server.exe%WORKSPACES%
 ) else (
-  bin\overgo-swap.exe -listen 127.0.0.1:8080 -repo overgodb-store -server bin\overgo-server.exe -default "%MODEL%"
+  bin\overgo-swap.exe -listen 127.0.0.1:8080 -repo overgodb-store -server bin\overgo-server.exe -default "%MODEL%"%WORKSPACES%
 )
 goto :eof
 

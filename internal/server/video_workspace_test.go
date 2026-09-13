@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -23,14 +22,10 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 	video := []byte("mp4-output-bytes")
 	videoID := testutil.ArtifactBytesID(t, artifact.KindOutput, video)
 	generateRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "video-generate-recipe")
-	editRecipe := testutil.ArtifactID(t, artifact.KindRecipe, "video-edit-recipe")
 	generateRun := testutil.ArtifactID(t, artifact.KindRun, "video-generate-run")
-	editRun := testutil.ArtifactID(t, artifact.KindRun, "video-edit-run")
 	if _, err := store.Commit(t.Context(), artifact.Batch{
-		Key: "native/video/outputs",
-		Artifacts: []artifact.Descriptor{
-			{ID: generateRecipe}, {ID: editRecipe}, {ID: generateRun}, {ID: editRun},
-		},
+		Key:       "native/video/outputs",
+		Artifacts: []artifact.Descriptor{{ID: generateRecipe}, {ID: generateRun}},
 		Contents: []artifact.Content{
 			{Descriptor: artifact.Descriptor{ID: videoID, Size: uint64(len(video)), MediaType: "video/mp4"}, Data: video},
 		},
@@ -45,18 +40,9 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 				Stages:   []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.video"}}},
 				Controls: []WorkflowControl{{Name: "prompt", Type: WorkflowControlText, Required: true}},
 			},
-			{
-				Task: recipe.TaskVideoEdit, Recipe: editRecipe,
-				Stages: []recipe.Stage{{Node: recipe.Node{ID: "edit", Module: "test.video-edit"}}},
-				Controls: []WorkflowControl{
-					{Name: "prompt", Type: WorkflowControlText, Required: true},
-					{Name: "source", Type: WorkflowControlText, Required: true},
-				},
-			},
 		},
 		completion: map[recipe.Task]operation.Completion{
-			recipe.TaskVideoGen:  {Run: generateRun, Outputs: []artifact.ID{videoID}},
-			recipe.TaskVideoEdit: {Run: editRun, Outputs: []artifact.ID{videoID}},
+			recipe.TaskVideoGen: {Run: generateRun, Outputs: []artifact.ID{videoID}},
 		},
 	}
 	handler, err := New(Config{Repository: store}, workspace)
@@ -95,39 +81,6 @@ func TestVideoGenerationWorkspace(t *testing.T) {
 		t.Fatalf("content status=%d type=%q", content.Code, content.Header().Get("Content-Type"))
 	}
 	if len(workspace.executed) != 1 || workspace.executed[0] != recipe.TaskVideoGen {
-		t.Fatalf("executed=%v", workspace.executed)
-	}
-}
-
-// TestVideoEditingWorkspace pins the reference-guided edit protocol:
-// a source video and a prompt run the registered video-edit capability
-// and the edited output serves from the store; a missing source is a
-// typed refusal because the capability declares it required.
-func TestVideoEditingWorkspace(t *testing.T) {
-	handler, workspace, video := videoWorkspaceFixture(t)
-	recipeID := workspace.capabilities[1].Recipe
-	response := serveTestRequest(handler, http.MethodPost, "/v1/videos/edits",
-		`{"model":"`+recipeID.String()+`","prompt":"make it snow","source":"data:video/mp4;base64,aGk="}`)
-	if response.Code != http.StatusOK {
-		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
-	}
-	var result nativeImageResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Data) != 1 {
-		t.Fatalf("edited videos=%+v", result.Data)
-	}
-	content := serveTestRequest(handler, http.MethodGet, result.Data[0].URL, "")
-	if content.Code != http.StatusOK || !bytes.Equal(content.Body.Bytes(), video) {
-		t.Fatalf("content status=%d", content.Code)
-	}
-	missing := serveTestRequest(handler, http.MethodPost, "/v1/videos/edits",
-		`{"model":"`+recipeID.String()+`","prompt":"make it snow"}`)
-	if missing.Code == http.StatusOK || !strings.Contains(missing.Body.String(), "source") {
-		t.Fatalf("missing source status=%d body=%s", missing.Code, missing.Body.String())
-	}
-	if len(workspace.executed) != 1 || workspace.executed[0] != recipe.TaskVideoEdit {
 		t.Fatalf("executed=%v", workspace.executed)
 	}
 }

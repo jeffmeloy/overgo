@@ -19,6 +19,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/sampling"
 )
 
 type responsesRequest struct {
@@ -88,6 +89,22 @@ type responsesResponse struct {
 	Status      string               `json:"status"`
 	Usage       responseUsage        `json:"usage"`
 	Timings     *slotStatusTimings   `json:"timings,omitempty"`
+	Sampling    *responseSampling    `json:"sampling,omitempty"`
+}
+
+// responseSampling is the chain and scalars the turn actually sampled with,
+// after the recipe's declared defaults filled what the request omitted.
+type responseSampling struct {
+	Samplers    []sampling.SamplerStage `json:"samplers"`
+	Temperature float32                 `json:"temperature"`
+	TopK        int                     `json:"top_k"`
+	TopP        float32                 `json:"top_p"`
+}
+
+// resolvedSampling reads the sampler the turn ran with.
+func resolvedSampling(sampler *sampling.Sampler) *responseSampling {
+	config := sampler.Config()
+	return &responseSampling{Samplers: config.Samplers, Temperature: config.Temperature, TopK: config.TopK, TopP: config.TopP}
 }
 
 func (h *Handler) responses(response http.ResponseWriter, request *http.Request) {
@@ -255,6 +272,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			TotalTokens:       promptTokens + result.outputTokens(),
 			InputTokenDetails: responseInputTokenDetails{},
 		},
+		Sampling: resolvedSampling(plan.sampler),
 	})
 }
 
@@ -662,6 +680,7 @@ func (h *Handler) streamResponses(
 	}
 	timings := h.slotStats[plan.session.ID].metrics(true).Timings
 	final.Timings = &timings
+	final.Sampling = resolvedSampling(plan.sampler)
 	if err := plan.context().Err(); err != nil {
 		fail(err)
 		return

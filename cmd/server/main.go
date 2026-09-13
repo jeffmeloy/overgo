@@ -17,11 +17,13 @@ import (
 
 	"overgo/internal/checked"
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/mediacapability"
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -50,7 +52,16 @@ const (
 )
 
 func main() {
-	clioptions.Main(run)
+	clioptions.Main(func() error { return deviceStartupError(run()) })
+}
+
+// deviceStartupError types a device allocation failure so the supervising
+// launcher classifies the exit without reading error text.
+func deviceStartupError(err error) error {
+	if driver.IsOutOfMemory(err) {
+		return fmt.Errorf("%w: %v", processcontrol.ErrDeviceMemory, err)
+	}
+	return err
 }
 
 func run() error {

@@ -34,6 +34,7 @@
     const cards = [overgo.stat("Status", record.status, record.statuses.join(" · "))];
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
     if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
+    if (record.sampling) cards.push(overgo.stat("Sampling", "T " + record.sampling.temperature, record.sampling.samplers.join(" › ") || "no stage"));
     const links = ["model", "recipe", "trace", "receipt", "operation", "run"].filter((name) => record[name]).map((name) => el("span", {}, name + " ", overgo.artifactLink(record[name])));
     const host = el("div");
     const seed = { prompt: (record.prompt || "") + (record.completion ? "\n" + record.completion : "") };
@@ -374,6 +375,10 @@
         onStop: overgo.stopTurn,
         onChange: () => { composer.input.setCustomValidity(''); saveDraft(); },
         takesAny: () => !!artifactField(),
+        captureAccept: () => {
+          const slots = [...generation.fields.values()].filter(field => field.control.type === "artifact");
+          return slots.length ? (capabilities.media.intake_accept || []).filter(mime => slots.some(field => !field.control.media || mime.startsWith(field.control.media + "/"))) : capabilities.media.accept || [];
+        },
         intake: (file, { signal }) => {
           const field = artifactField(file);
           if (!field) return null;

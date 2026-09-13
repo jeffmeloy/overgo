@@ -76,7 +76,12 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	}
 	// The proxy carries no credential and mutates its own process (a key, a launch) before the child
 	// sees the request, so it admits exactly as the credential-less server does, first.
-	if refusal := apimanifest.AdmitCredentialless(request); refusal != nil {
+	admit := apimanifest.AdmitCredentialless
+	if request.URL.Query().Get("swap") != "" {
+		// The swap query launches or replaces a child on a GET, so it is admitted as a mutation.
+		admit = apimanifest.AdmitCredentiallessEffect
+	}
+	if refusal := admit(request); refusal != nil {
 		response.Header().Set("Content-Type", "application/json")
 		response.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"message": refusal.Message, "type": refusal.Type}})
@@ -126,13 +131,15 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	}
 	target, release, err := p.Supervisor.Acquire(request.Context(), servable)
 	if err != nil {
+		code := "model_load_failed"
 		if errors.Is(err, processcontrol.ErrResourceBusy) {
-			response.Header().Set("Content-Type", "application/json")
-			response.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"code": "resource_busy", "message": err.Error()}})
-			return
+			code = "resource_busy"
+		} else if errors.Is(err, processcontrol.ErrDeviceMemory) {
+			code = "insufficient_memory"
 		}
-		http.Error(response, err.Error(), http.StatusServiceUnavailable)
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(response).Encode(map[string]any{"error": map[string]string{"code": code, "message": err.Error()}})
 		return
 	}
 	defer release()

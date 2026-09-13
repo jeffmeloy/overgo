@@ -42,7 +42,7 @@ func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	canonical, err := overgodb.OpenReadOnly(roots.Store)
+	canonical, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

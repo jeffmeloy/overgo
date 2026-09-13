@@ -145,9 +145,12 @@ links outputs to their runs. The model picker switches local models through the
 swap proxy; remote providers use a hosted chat relay. The workbench refreshes
 controls for the selected model and explains unavailable functions.
 
-Enable training and model construction on the direct server with `-training`
-and `-model-builder`. Both require registered inputs and recipes. Evaluation
-uses the benchmark catalog or explicit suite files and records the source commit.
+Enable training and model construction with `-training` and `-model-builder`,
+on the direct server or on the swap proxy, which forwards the declaration to
+every served child so a model swap keeps the tabs. Both require registered
+inputs and recipes. Evaluation uses the benchmark catalog or explicit suite
+files and records the source commit; the Evaluations tab appears whenever the
+launch opened that workspace.
 
 The server provides native, OpenAI-compatible, and Anthropic-compatible APIs.
 The [API manifest](docs/api_manifest.json) lists commands, routes, authentication
@@ -174,6 +177,10 @@ To launch with a supported GGUF model:
 ```powershell
 .\overgo_gui.bat "D:\models\model.gguf"
 ```
+
+Arguments after the model reach every served child; `.\overgo_gui.bat ""
+-training -model-builder` opens the Train and Model Builder tabs without a
+default model.
 
 Or run the server directly:
 

@@ -68,6 +68,33 @@ type workspaceTab struct {
 	Module  string `json:"module"`
 	Enabled bool   `json:"enabled"`
 	Refusal string `json:"refusal,omitzero"`
+	// Action names what would enable a refused workspace.
+	Action string `json:"action,omitzero"`
+}
+
+// workspaceEnablingAction says what enables the capability a refused tab needs.
+func workspaceEnablingAction(capability string) string {
+	switch capability {
+	case "analysis.logits", "analysis.vocabulary", "analysis.hidden-states", "analysis.attention", "analysis.tensors", "model.properties":
+		return "Serve a local model; analysis reads its logits, states and tensors."
+	case "agent":
+		return "Define an agent in the store; the coordinator opens with it."
+	case "repository", "operations", "explorer":
+		return "Run the server over a store (-repo)."
+	case "embeddings":
+		return "Serve a model activated for embedding."
+	case "rerank":
+		return "Serve a model activated for rerank."
+	case "evaluation":
+		return "Launch from a clean checkout or pass -evaluation-commit."
+	case "workflow.training":
+		return "Launch with -training."
+	case "workflow.model-builder":
+		return "Launch with -model-builder."
+	case "workflow.export", "workflow.generation", "workflow.image", "workflow.video", "workflow.speech", "workflow.vqa", "workflow.transcription":
+		return "Register a media model activated for the task; the workspace opens over the store."
+	}
+	return "The documented launch does not open this workspace."
 }
 
 type workspaceManifestResponse struct {
@@ -94,6 +121,9 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 		enabled, refusal := h.workspaceCapability(request.Context(), tab.Capability)
 		result.Tabs[index] = workspaceTab{
 			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), Enabled: enabled, Refusal: refusal,
+		}
+		if !enabled {
+			result.Tabs[index].Action = workspaceEnablingAction(tab.Capability)
 		}
 	}
 	if document, ok := h.workspaceModelCapabilities(request.Context()); ok {
@@ -164,7 +194,9 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 	case "explorer":
 		supported = true
 	case "evaluation":
-		_, supported = h.generator.(EvaluationWorkspaceAPI)
+		// The launch supplies the evaluation workspace through Config, the
+		// way cmd/server does; the generator never carries it.
+		supported = h.config.Evaluation != nil
 	case "automation":
 		_, supported = h.generator.(AutomationWorkspaceAPI)
 	case "peer":
@@ -181,8 +213,6 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskImageGen)
 	case "workflow.video":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoGen)
-	case "workflow.video-edit":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoEdit)
 	case "workflow.speech":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskSpeech)
 	case "workflow.vqa":

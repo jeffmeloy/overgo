@@ -23,6 +23,13 @@ var ErrResourceBusy = errors.New("physical resource is already reserved")
 // Overgo commands emit this status only for ErrResourceBusy.
 const ResourceBusyExitCode = 75
 
+// ErrDeviceMemory means the device could not allocate the requested memory.
+var ErrDeviceMemory = errors.New("insufficient GPU memory")
+
+// DeviceMemoryExitCode carries device allocation failure across supervised
+// commands using BSD EX_OSERR. Overgo emits it only for device out-of-memory.
+const DeviceMemoryExitCode = 71
+
 // ClaimResource reserves a physical resource for this process and its supervised
 // children until they exit. Names must identify hardware, independent of stores
 // and worktrees. A child may reenter its inherited reservation. Contention fails

@@ -110,31 +110,31 @@ func (filter *stopFilter) StoppingWord() string {
 
 type samplingParameters struct {
 	Temperature            *float32        `json:"temperature"`
-	DynatempRange          float32         `json:"dynatemp_range"`
-	DynatempExponent       float32         `json:"dynatemp_exponent"`
+	DynatempRange          *float32        `json:"dynatemp_range"`
+	DynatempExponent       *float32        `json:"dynatemp_exponent"`
 	TopP                   *float32        `json:"top_p"`
 	TopK                   *int            `json:"top_k"`
-	MinP                   float32         `json:"min_p"`
-	TypicalP               float32         `json:"typical_p"`
-	TopNSigma              float32         `json:"top_n_sigma"`
-	XTCProbability         float32         `json:"xtc_probability"`
-	XTCThreshold           float32         `json:"xtc_threshold"`
-	MinKeep                int             `json:"min_keep"`
+	MinP                   *float32        `json:"min_p"`
+	TypicalP               *float32        `json:"typical_p"`
+	TopNSigma              *float32        `json:"top_n_sigma"`
+	XTCProbability         *float32        `json:"xtc_probability"`
+	XTCThreshold           *float32        `json:"xtc_threshold"`
+	MinKeep                *int            `json:"min_keep"`
 	AdaptiveTarget         *float32        `json:"adaptive_target"`
 	AdaptiveDecay          *float32        `json:"adaptive_decay"`
-	RepeatLastN            int             `json:"repeat_last_n"`
-	RepeatPenalty          float32         `json:"repeat_penalty"`
-	PresencePenalty        float32         `json:"presence_penalty"`
-	FrequencyPenalty       float32         `json:"frequency_penalty"`
-	DryMultiplier          float32         `json:"dry_multiplier"`
-	DryBase                float32         `json:"dry_base"`
-	DryAllowedLength       int             `json:"dry_allowed_length"`
-	DryPenaltyLastN        int             `json:"dry_penalty_last_n"`
+	RepeatLastN            *int            `json:"repeat_last_n"`
+	RepeatPenalty          *float32        `json:"repeat_penalty"`
+	PresencePenalty        *float32        `json:"presence_penalty"`
+	FrequencyPenalty       *float32        `json:"frequency_penalty"`
+	DryMultiplier          *float32        `json:"dry_multiplier"`
+	DryBase                *float32        `json:"dry_base"`
+	DryAllowedLength       *int            `json:"dry_allowed_length"`
+	DryPenaltyLastN        *int            `json:"dry_penalty_last_n"`
 	DryBreakers            []string        `json:"dry_sequence_breakers"`
-	Mirostat               int             `json:"mirostat"`
-	MirostatTau            float32         `json:"mirostat_tau"`
-	MirostatEta            float32         `json:"mirostat_eta"`
-	Seed                   int64           `json:"seed"`
+	Mirostat               *int            `json:"mirostat"`
+	MirostatTau            *float32        `json:"mirostat_tau"`
+	MirostatEta            *float32        `json:"mirostat_eta"`
+	Seed                   *int64          `json:"seed"`
 	GrammarChoices         []string        `json:"grammar_choices"`
 	Grammar                string          `json:"grammar"`
 	GrammarRoot            string          `json:"grammar_root"`

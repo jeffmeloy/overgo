@@ -62,9 +62,13 @@
     },
     // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
     async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type || 'application/octet-stream' }, opts))); },
+    // form: a multipart form (files with their fields); the server answers JSON.
+    async form(path, form, opts) { return readJSON(await this.stream(path, form, opts)); },
+    // stream: a POST of JSON, raw bytes (opts.mediaType) or a multipart form (a FormData body names its own boundary).
     async stream(path, body, opts) {
-      const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType;
-      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? { "Content-Type": raw || "application/json" } : {}), body: method !== "POST" ? undefined : raw ? body : JSON.stringify(body), signal: opts && opts.signal });
+      const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType, form = body instanceof FormData;
+      const contentType = raw ? { "Content-Type": raw } : form ? {} : { "Content-Type": "application/json" };
+      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? contentType : {}), body: method !== "POST" ? undefined : raw || form ? body : JSON.stringify(body), signal: opts && opts.signal });
       if (!response.ok) await readJSON(response);
       return response;
     },
@@ -503,11 +507,11 @@
       for (const tab of tabs) {
         if (!target || tab.id === target) {
           if (!target && tab.onDeactivate) tab.onDeactivate();
-          tab.mounted = false;
+          releaseTab(tab);
         }
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
         const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
-        if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; }
+        if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; tab.action = declared.action; }
       }
       applyCapabilities();
       const current = target || location.hash.slice(1) || (tabs[0] && tabs[0].id);
@@ -540,6 +544,7 @@
   function activate(id) {
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
+    window.dispatchEvent(new Event("overgo-panel-change"));
     closeNavigation();
     document.querySelector(".shell").classList.toggle("conversation-view", id === "chat");
     activeSection = tabSection(tab);
@@ -551,6 +556,7 @@
       if (!on && wasActive && t.onDeactivate) t.onDeactivate();
       t.button.classList.toggle("active", on);
       t.panel.classList.toggle("active", on);
+      if (on && !tabSupported(t)) { renderRefusal(t); continue; }
       if (on && !t.mounted) { t.mounted = true; safeMount(t); }
       if (on && t.onActivate) t.onActivate();
     }
@@ -594,10 +600,20 @@
     const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
       const result = tab.mount(tab.panel, window.overgo);
-      tab.ready = Promise.resolve(result).then(() => tab.mountAttempt === attempt, failed);
+      // A module that returns a function hands back its cleanup (streams, forms); a remount runs it first.
+      tab.ready = Promise.resolve(result).then((value) => { if (typeof value === "function" && tab.mountAttempt === attempt) tab.cleanup = value; return tab.mountAttempt === attempt; }, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
+  function releaseTab(tab) {
+    const cleanup = tab.cleanup;
+    tab.cleanup = null;
+    tab.mounted = false;
+    if (cleanup) { try { cleanup(); } catch (err) { errors.push(String(err && err.message || err)); } }
+  }
   function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
+  function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
+  // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
+  function renderRefusal(tab) { tab.panel.replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
@@ -667,10 +683,12 @@
       for (const choice of currentPanel.querySelectorAll('[data-serve]')) choice.disabled = true;
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
-        await api.get("/health?swap=" + encodeURIComponent(name));
+        // The proxy names its serving child in the header; a server answering directly sends none and cannot swap.
+        let via = null;
+        await api.get("/health?swap=" + encodeURIComponent(item.model), { onHeaders: (headers) => { via = headers.get("X-Overgo-Swap-Proxy"); } });
         invalidateModel();
         const manifest = await api.get("/workspace/manifest");
-        if (manifest.model && manifest.model.recipe === item.recipe) {
+        if (manifest.model && manifest.model.model === item.model && manifest.model.recipe === item.recipe) {
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
           // Reopening history can request its original model; other switches start a fresh chain.
           if (!selectedConversation || selectedConversation.model !== manifest.model.model) rememberConversation(null);
@@ -683,30 +701,38 @@
           if (panel === currentPanel) close();
           return;
         }
-        if (before && manifest.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
-        const command = 'overgo_gui.bat "' + (item.location || name) + '"';
-        const copy = el("button", { class: "btn alt", text: "copy launch" });
-        copy.addEventListener("click", () => navigator.clipboard.writeText(command));
-        if (panel !== currentPanel) return;
-        panel.replaceChildren(
-          el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
-          el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
+        if (via == null) {
+          // Served directly: nothing swaps children, so the original model stays usable and a relaunch is the way.
+          if (before && manifest.model && before.model === manifest.model.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
+          window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
+          const command = 'overgo_gui.bat "' + (item.location || name) + '"';
+          const copy = el("button", { class: "btn alt", text: "copy launch" });
+          copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+          if (panel !== currentPanel) return;
+          panel.replaceChildren(
+            el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
+            el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
+          return;
+        }
+        throw new Error('The server did not confirm the requested model. Choose a model again or retry loading.');
       } catch (err) {
         // A refused swap may leave the original model usable. Confirm its
-        // recipe before releasing Send; an unknown model stays blocked.
+        // artifact and recipe before releasing Send; an unknown model stays blocked.
         try {
           const current = await api.get("/workspace/manifest");
-          if (before && current.model && before.recipe === current.model.recipe) {
+          if (before && current.model && before.model === current.model.model && before.recipe === current.model.recipe) {
             await remountActive(current);
             setModelSwitchBlocked(false);
           }
         } catch (_) { /* choose a model again to resolve its unknown state */ }
-        const busy = err.code === 'resource_busy';
-        const message = busy ? 'The GPU is busy with another process. Wait for that work to finish, then retry loading this model.' : friendlyError(err);
+        let message = friendlyError(err);
+        if (err.code === 'resource_busy') message = 'The GPU is reserved for exclusive work. Retry after that reservation ends. Other work can share the GPU when memory fits.';
+        else if (err.code === 'insufficient_memory') message = 'There is not enough free GPU memory to load this model. Choose a smaller model or free memory, then retry.';
+        else if (err.code === 'model_load_failed') message = 'The model could not start. Check the server log for the load failure, then retry or choose another model.';
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: message }));
         if (panel === currentPanel) panel.replaceChildren(errorBanner(message),
-          ...(busy ? [el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })), el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) })] : []),
+          el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })),
+          el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) }),
           el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
       } finally {
         modelSwitchPending = false;
@@ -747,6 +773,8 @@
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }));
             const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
+            facts.appendChild(el("span", { class: "mono", text: item.model }));
+            if (item.location) facts.appendChild(el("span", { class: "mono", text: item.location }));
             if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
             const evidence = evidenceLine(item);
             if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
@@ -782,11 +810,10 @@
   function applyCapabilities() {
     for (const tab of tabs) {
       const ok = tabSupported(tab);
-      // A capability this model does not serve HIDES its tab: the nav shows what works here, and the
-      // manifest still carries every refusal for API clients that ask.
-      tab.button.hidden = !ok;
-      tab.button.disabled = !ok;
-      tab.button.title = ok ? "" : tab.refusal;
+      // A refused workspace stays listed and marked; opening it shows the reason and the enabling action.
+      tab.button.classList.toggle("refused", !ok);
+      tab.button.setAttribute("aria-disabled", String(!ok));
+      tab.button.title = ok ? "" : refusalLine(tab);
     }
     const active = tabs.find((t) => t.button.classList.contains("active"));
     if (active && !tabSupported(active)) { const firstOk = tabs.find(tabSupported); if (firstOk) activate(firstOk.id); }
@@ -807,7 +834,7 @@
 
   // ---- one loader: the manifest names each tab's module (default: the tab id); the libraries load in
   // order, then every distinct module, then the shell wires. Same-origin scripts, so the strict CSP holds. ----
-  const libraries = ["/viz.js", "/md.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
+  const libraries = ["/viz.js", "/md.js", "/media_capture.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
   function loadScript(src) {
     if (loadedScripts.has(src)) return Promise.resolve(src);

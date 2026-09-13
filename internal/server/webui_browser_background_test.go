@@ -121,7 +121,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	settle := func(expression string) {
 		t.Helper()
 		if err := browser.Eventually(ctx, expression); err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", expression, err)
 		}
 	}
 	settle(`!!document.querySelector('.composer textarea')`)
@@ -358,22 +358,40 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 })()`)
 	// Exercise a real structured busy response through the browser API boundary.
 	check(`(async () => {
-  const before=await backgroundGet('/workspace/manifest');window.backgroundModelBefore=before;window.backgroundModelCurrent=before;window.backgroundBusyAttempts=0;
+  const before=await backgroundGet('/workspace/manifest');window.backgroundModelBefore=before;window.backgroundModelCurrent=before;window.backgroundBusyAttempts=0;window.backgroundStartupFailures=['resource_busy','insufficient_memory','model_load_failed','unknown_failure'];window.backgroundConversationBefore=JSON.stringify(overgo.conversation());
   const candidate=JSON.parse(JSON.stringify(before));candidate.model.recipe='background-busy-recipe';candidate.model.model='background-busy-model';candidate.model.id='background-busy';window.backgroundModelCandidate=candidate;
-  overgo.api.get=async function(path,options){if(path==='/catalog/models')return {models:[{model:candidate.model.model,recipe:candidate.model.recipe,location:'busy.gguf',present:true}]};if(path==='/workspace/manifest')return backgroundModelCurrent;return backgroundGet.call(this,path,options);};
-  window.fetch=async function(path,options){if(typeof path==='string' && path.startsWith('/health?swap=')){backgroundBusyAttempts++;if(backgroundBusyAttempts===1)return new Response(JSON.stringify({error:{code:'resource_busy',message:'Controlled resource reservation diagnostic'}}),{status:503});backgroundModelCurrent=candidate;return new Response('{}');}return backgroundFetch.apply(this,arguments);};
+  overgo.api.get=async function(path,options){if(path==='/catalog/models')return {models:[{model:'other-model',recipe:'other-recipe',location:'/shared/busy.gguf',present:true},{model:candidate.model.model,recipe:candidate.model.recipe,location:'/shared/busy.gguf',present:true}]};if(path==='/workspace/manifest')return backgroundModelCurrent;return backgroundGet.call(this,path,options);};
+  window.fetch=async function(path,options){if(typeof path==='string' && path.startsWith('/health?swap=')){backgroundBusyAttempts++;if(new URL(path,location.origin).searchParams.get('swap')!==candidate.model.model)return new Response(JSON.stringify({error:{message:'Ambiguous or wrong model reference'}}),{status:400});if(backgroundBusyAttempts===4){backgroundModelCurrent=JSON.parse(JSON.stringify(before));backgroundModelCurrent.model.model='wrong-original-artifact-same-recipe';}if(backgroundBusyAttempts<=backgroundStartupFailures.length)return new Response(JSON.stringify({error:{code:backgroundStartupFailures[backgroundBusyAttempts-1],message:'Controlled startup diagnostic'}}),{status:503});backgroundModelCurrent=JSON.parse(JSON.stringify(candidate));if(backgroundBusyAttempts===5)backgroundModelCurrent.model.model='wrong-artifact-same-recipe';return new Response('{}',{headers:{'X-Overgo-Swap-Proxy':candidate.model.model}});}return backgroundFetch.apply(this,arguments);};
   document.querySelector('#model-pill').click();return true;
 })()`)
 	settle(`!!document.querySelector('[data-serve]')`)
-	check(`(() => {document.querySelector('[data-serve]').click();return true;})()`)
-	settle(`document.querySelector('dialog[aria-label="Choose a model"]').textContent.includes('The GPU is busy') && !overgo.modelSwitching()`)
-	check(`(() => {
-  const picker=document.querySelector('dialog[aria-label="Choose a model"]');backgroundProbe.busy_preserves_draft_and_selection=document.querySelector('.composer textarea').value==='Draft written during work' && overgo.capabilities().recipe===backgroundModelBefore.model.recipe;
-  backgroundProbe.busy_diagnostics_are_on_demand=!!picker.querySelector('details:not([open])') && backgroundBusyAttempts===1;
-  [...picker.querySelectorAll('button')].find(button=>button.textContent==='Retry loading model').click();return true;
+	check(`(() => {const row=[...document.querySelectorAll('dialog[aria-label="Choose a model"] .row')].find(row=>row.querySelector('.picker-facts')?.textContent.includes(backgroundModelCandidate.model.model));if(!row)return false;row.querySelector('[data-serve]').click();return true;})()`)
+	for index, message := range []string{"reserved for exclusive work", "not enough free GPU memory", "model could not start", "Controlled startup diagnostic", "server did not confirm the requested model"} {
+		t.Logf("model admission response %d: %s", index+1, message)
+		settle(`document.querySelector('dialog[aria-label="Choose a model"]').textContent.includes(` + strconv.Quote(message) + `) && [...document.querySelectorAll('dialog[aria-label="Choose a model"] button')].some(button=>button.textContent==='Retry loading model' && !button.disabled)`)
+		check(`(() => {
+  const picker=document.querySelector('dialog[aria-label="Choose a model"]');
+  return document.querySelector('.composer textarea').value==='Draft written during work' && JSON.stringify(overgo.conversation())===backgroundConversationBefore && overgo.capabilities().model===backgroundModelBefore.model.model && !!picker.querySelector('details:not([open])') && backgroundBusyAttempts===` + strconv.Itoa(index+1) + `;
 })()`)
-	settle(`!overgo.modelSwitching() && overgo.capabilities().recipe===backgroundModelCandidate.model.recipe`)
-	check(`(() => {backgroundProbe.busy_explicit_retry_succeeds=backgroundBusyAttempts===2;window.fetch=backgroundFetch;overgo.api.get=backgroundGet;return overgo.errors.length===0;})()`)
+		if index >= 3 {
+			check(`document.querySelector('.send-button').disabled`)
+		} else {
+			check(`!document.querySelector('.send-button').disabled`)
+		}
+		for _, viewport := range []webuilane.Viewport{{Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 320, Height: 320}} {
+			for _, scheme := range webuilane.ColourSchemes {
+				if err := browser.SetColorScheme(ctx, scheme); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "model-admission-"+strconv.Itoa(index)+"-"+scheme); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		check(`(() => {if(backgroundBusyAttempts!==` + strconv.Itoa(index+1) + `)return false;[...document.querySelectorAll('dialog[aria-label="Choose a model"] button')].find(button=>button.textContent==='Retry loading model').click();return true;})()`)
+	}
+	settle(`!overgo.modelSwitching() && overgo.capabilities().model===backgroundModelCandidate.model.model`)
+	check(`(() => {backgroundProbe.startup_explicit_retry_succeeds=backgroundBusyAttempts===6;window.fetch=backgroundFetch;overgo.api.get=backgroundGet;return overgo.errors.length===0;})()`)
 	var probes map[string]bool
 	if err := browser.Evaluate(ctx, `backgroundProbe`, &probes); err != nil {
 		t.Fatal(err)
@@ -384,6 +402,6 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 		}
 	}
 	if !t.Failed() {
-		t.Log("background work leg: real stored replies and operations; early Stop and cancel retry; Library failure/retry with retained draft; concurrent store publication; durable outputs and decisions; stale receipt and runtime recovery; controlled busy startup and explicit retry; Chromium desktop and phone layouts. No native image inference or physical-device claim.")
+		t.Log("background work leg: real stored replies and operations; early Stop and cancel retry; Library failure/retry with retained draft; concurrent store publication; durable outputs and decisions; stale receipt and runtime recovery; typed reservation/memory/load refusal and unknown errors; exact artifact confirmation and explicit retry; Chromium desktop and phone layouts. No native image inference or physical-device claim.")
 	}
 }

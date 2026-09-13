@@ -1,0 +1,82 @@
+{
+  "acceptance": "evidence:sha256:d270251737ebc868f34f4c64e467891fb97be0c654cdfc67a35d3de7940b5093",
+  "cases": [
+    {
+      "baseline": "evidence:sha256:d649f8222078ebea9ea4d3a174b489d79a7dfb7dcbcfb13212606bf6e622422b",
+      "candidate": "evidence:sha256:561dfc1222c341bb8be21ad72747c06057e05b3d018955c18dbb4a27113479f8",
+      "name": "g4",
+      "steps": 2
+    },
+    {
+      "baseline": "evidence:sha256:af2b0539d696be6459887ef0060d1b81a28c6a3ab8a37964216e245263a2642a",
+      "candidate": "evidence:sha256:f147d0998057b11a5d554e39ea66601b706f4cee1a31d408c4367e8a0192c76f",
+      "name": "full",
+      "steps": 50
+    }
+  ],
+  "decision": "reject",
+  "evidence": [
+    "evidence:sha256:2a98a47c828e51d73c554273510233fe2ffb0eb417a3332e79ef22556e3f511c",
+    "evidence:sha256:5b57f2615bfa62569b85ce44d5cb57039d1fe3440f89cf6f27b1d9ccf84ef2d1",
+    "evidence:sha256:cbfe0b707e17137bd7e6ad20ea6c6ee54cb3dd4988d5d3e409614f293a22c1b9"
+  ],
+  "layout_ablation": "evidence:sha256:137765f4e6f4aa10a789881f9e9204c12321467294f49b18498caaae4273ae3e",
+  "layout_baseline": "evidence:sha256:137765f4e6f4aa10a789881f9e9204c12321467294f49b18498caaae4273ae3e",
+  "layout_candidate": "evidence:sha256:54efb89dec8e197d2348342e56785a6024c35b5d4635caef45fe656f6eba65e3",
+  "quality": [
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-baseline go test -overlay=tmp/media-memory-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanMemoryAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:228280de772c84e74a9a851a871df6f48f54c888e7a4125ada2d0bf32843d07f",
+      "name": "baseline-full-and-g4"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_MEDIA_COPY_TIMING=profiled OVERGO_MEDIA_TRANSFER_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-candidate go test -overlay=tmp/media-memory-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanMemoryAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:2cd3722898858e2881306751204d44df7c69ede7e880cf59344c1181e433aa33",
+      "name": "candidate-full-and-g4"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestWanLayoutBufferOwnership|TestWanContextHandleOwnership|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestWanLifecycleAcceptance)$' -count=1 -timeout=15m -json",
+      "evidence": "evidence:sha256:31a09394213c8de4ab21497fc7f56239dec642cab4bd337e5058ff39b95c12fb",
+      "name": "candidate-native-and-lifetime"
+    },
+    {
+      "command": "OVERGO_MEDIA_LAYOUT_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-layout-baseline go test -overlay=tmp/media-memory-layout-baseline-overlay.json ./internal/latentvideo -run '^(TestWanLayoutBufferOwnership|TestMediaWanLayoutLifetimeAcquisition)$' -count=1 -json",
+      "evidence": "evidence:sha256:d35c071e65933adfed74ff05da2839c651a98a970b6f337559f08dd62528b9e4",
+      "name": "layout-baseline"
+    },
+    {
+      "command": "OVERGO_MEDIA_LAYOUT_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-layout-candidate go test -overlay=tmp/media-memory-layout-candidate-overlay.json ./internal/latentvideo -run '^(TestWanLayoutBufferOwnership|TestMediaWanLayoutLifetimeAcquisition)$' -count=1 -json",
+      "evidence": "evidence:sha256:6f3165da6c247c2dbc54fd463aaa74b06e84784a92fefff5b3d0383100e81f75",
+      "name": "layout-candidate"
+    },
+    {
+      "command": "OVERGO_MEDIA_LAYOUT_OUTPUT=C:/Users/jeffm/image_video_gen/tmp/media-memory-layout-ablation go test -overlay=tmp/media-memory-layout-ablation-overlay.json ./internal/latentvideo -run '^(TestWanLayoutBufferOwnership|TestMediaWanLayoutLifetimeAcquisition)$' -count=1 -json",
+      "evidence": "evidence:sha256:7d7db375c1c75e931ad4b3ec9506ca97cbced0b239ff42f7b158e40c5bbf5424",
+      "name": "layout-ablation"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestDeviceBufferPoolCapacityRefusalReclaimsIdle$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:53a0349d2b8212b6761f664c5ecf57a858bda2944f848ad7f8fae34edebd6cdf",
+      "name": "existing-device-pool-capacity"
+    }
+  ],
+  "rationale": "first-request: allocated bytes 2494283640 to 1261102280 (observed reduction 1233181360, logical layout prediction 1232824320, residual 357040); complete-request wall 373.920021 to 376.367281 seconds; process peak 10263068672 to 9020514304. repeat-request: allocated bytes 2467036840 to 1233807424 (observed reduction 1233229416, logical layout prediction 1232824320, residual 405096); complete-request wall 376.232408 to 375.827959 seconds; process peak 10263068672 to 9020514304. first-request wall_ns increased from 373920020600 to 376367281100 The candidate reuses request-local patch and branch layout capacity through the existing hostmath functions. Public outputs and traced branch outputs keep independent ownership. The CPU-only synthetic allocation ablation restores exactly nine allocations/1728 bytes without tracing and three allocations/576 bytes with tracing; outputs remain identical. Its durations fell below the clock resolution and do not establish speed. Full native/model quality comes from the separately retained real acquisitions. Pool live/free/total storage, arena and decoder workspace snapshots are distinct from driver-instance peaks and process host peak. No pinned host allocator or cross-request scratch cache was introduced. Host activity and file cache remain uncontrolled; observed timings do not establish population speedup. The earlier rejected device-transfer candidate remains absent.",
+  "sources": {
+    "ablation/internal/latentvideo/denoiser.go": "evidence:sha256:3974d9059ee525294ccc189ff5e66ae628ced86b7248af305e148f82e9390145",
+    "acquisition/internal/cuda/driver/driver_windows.go": "evidence:sha256:839c0f468fcac27797b988f3bfcd13d6b3dc801410de0426e1daf674229f80a1",
+    "acquisition/internal/cuda/driver/media_transfer_probe_windows.go": "evidence:sha256:c0387e71b13a76441b915c2b50552567886691756aed9c5ed48a40f8cb53ef03",
+    "acquisition/internal/cuda/executor/media_memory_pool_probe.go": "evidence:sha256:7f1018504993ac783adbe284e3f7dfb0d33df395b7186cc1db7c899eed6709b4",
+    "acquisition/internal/latentvideo/media_transfer_acquisition_test.go": "evidence:sha256:c749a300b48f7b570d711d4134f8740d383a79594954f5d9109a805d5369157a",
+    "baseline/internal/latentvideo/denoiser.go": "evidence:sha256:d06d45e78ac235f018d950a0b5cc7c36206a9ce18e94bb9a426f2e1ede1d434b",
+    "baseline/internal/latentvideo/denoiser_session.go": "evidence:sha256:1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+    "baseline/internal/latentvideo/runtime.go": "evidence:sha256:7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+    "baseline/internal/latentvideo/runtime_cuda_windows_test.go": "evidence:sha256:3d5a1941c00dbebb54784cdd56717352f589060aa9b5af934de51c0fdfed47b2",
+    "candidate/internal/latentvideo/denoiser.go": "evidence:sha256:2cf30d5d72eaef0d046b18b7a6e0ccb000d41562a4f662577c86f08e72292740",
+    "candidate/internal/latentvideo/denoiser_session.go": "evidence:sha256:1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+    "candidate/internal/latentvideo/denoiser_test.go": "evidence:sha256:5b86d20f8cbe925313f58fe7337c83a917cd306890455234404741158fa041c8",
+    "candidate/internal/latentvideo/runtime.go": "evidence:sha256:7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+    "candidate/internal/latentvideo/runtime_cuda_windows_test.go": "evidence:sha256:3d5a1941c00dbebb54784cdd56717352f589060aa9b5af934de51c0fdfed47b2",
+    "layout/internal/latentvideo/media_layout_ownership_test.go": "evidence:sha256:e217e268f2cb3f716692763f960d0bf67c2c2fa6cb1fde2d408d0383c372fcdc"
+  },
+  "version": 1
+}

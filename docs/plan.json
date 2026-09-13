@@ -11,16 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "memory",
-          "title": "Reduce live and retained CPU/GPU memory through lifetime and buffer reuse",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_memory_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoMemoryOptimizationAcceptance$' -count=1",
-          "rationale": "Use the same lifetime map to remove simultaneous host/device copies, release intermediates after their last consumer, reuse compatible scratch through the existing executor pool, and avoid repeatedly materializing complete latent/frame sequences when supported incremental decoding suffices. Preserve borrowed versus owned buffer semantics; reuse or alias only after dependency completion. Derive cache residency, scratch extents and eviction from actual shape/dtype, active requests and available RAM/VRAM; do not add fixed machine-specific limits or another allocator. Compare retained conditioning with recomputation and supported temporal/spatial tiling only when the model's causal context, halos and precision allow it. Avoid spilling or aggressive frees that increase transfers or reloads without meeting the declared tradeoff. Exercise repeated same-shape requests, changing shapes, constrained capacity, cancellation and error cleanup. Measure peak active storage, retained/free pool storage, host and pinned RAM, process/device peaks, fragmentation where observable, and allocation counts. Preserve latency/quality requirements and reject a claimed memory reduction that merely moves allocation to another unmeasured owner. Record affected image/video consumer checks and an allocation-lifetime ablation.",
-          "depends_on": [
-            "media-optimization/common-components"
-          ]
-        },
-        {
           "id": "processing",
           "title": "Reduce repeated preparation, conversions, and synchronization on the measured critical path",
           "status": "open",

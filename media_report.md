@@ -40,6 +40,16 @@ The [master integration record](docs/image_video_merged.json) binds retained med
 
 The [processing comparison](docs/image_video_processing.json) records an accepted candidate that reuses the existing file-identity memo in report generation and sample export. First/repeat preparation fell from 194.586/366.660 seconds to 14.948/8.880 seconds in this acquisition. Candidate Go allocation fell by about 47.7/111.6 MB, while process lifetime peak increased from 651.1 to 715.8 MB. The frozen rule allowed only the measured memo allocation overhead and required available host capacity; this is a latency improvement with a higher observed process peak. Memo validity assumes immutable model artifacts and matching file size/modification time; missing or unreadable memo evidence falls back to hashing. The ablation restores hashing without changing outputs. Filesystem cache state and background load varied, so these observations do not establish a population speedup or a generation-kernel improvement.
 
+The [Krea and SimpleDiffusion image bundle](docs/image_video_latent_images.json) completes acquisition and review of the three frozen cases on source 4b9e8697. Krea produces a coherent prompt-matching image. SimpleDiffusion's two unconditioned 256x256 samples remain visibly noisy; numerical correctness within the existing smaller native checks does not establish useful image quality. Each new image has a source/environment-bound run and measured model lifetime, with original requests and policy defaults preserved. Public transport, broader lifecycle, remaining models and video coverage are still open.
+
+Current sample [Krea-2-Turbo/image-gen/1](docs/media_samples/4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44.png): validation run `run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22`; source `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. The gallery may show the original workflow record for the same bytes; use this bound validation record and the image bundle for current execution provenance.
+
+Current sample [SimpleDiffusion-TensorProductAttentionRope/image-gen/1](docs/media_samples/939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78.png): validation run `run:sha256:09150155593f97f3f61bcba2e902bd260f33450f8b873c88616b2112c6b06711`; source `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. The gallery may show the original workflow record for the same bytes; use this bound validation record and the image bundle for current execution provenance.
+
+Current sample [SimpleDiffusion-TensorProductAttentionRope/image-gen/2](docs/media_samples/e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef.png): validation run `run:sha256:a2a817b8a1084e91add8ebfef51d1fea96318b1d0a7e23e1704b39f1c74f1249`; source `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. The gallery may show the original workflow record for the same bytes; use this bound validation record and the image bundle for current execution provenance.
+
+Decoded historical/current PNG comparison: SimpleDiffusion seeds 5/105 differ in two/one RGBA channels, each by one 8-bit level. Krea differs in 474,150 channels, with maximum difference 165 levels, while retaining the requested scene. These comparisons describe output changes, not native numerical acceptance. Raw comparison `evidence:sha256:1f31ebccece67f4c0c9dfe69431d683ef1b2b531c272430d7344e330afbfedb8`; comparison source `evidence:sha256:8eda686e940375d5bd508c14396228d3d02a93e24c95e3f6fa45c46751bd3bda`.
+
 | Check | Recorded result | Scope and observations | Evidence |
 | --- | --- | --- | --- |
 | Wan cancellation, cleanup and reuse | Passed selected tests | Current source passes partial initialization without a panic, the unchanged G3 production reference, changed-negative conditioning against a fresh session, and cleanup after request cancellation. G4 decode stops after the first frame; the next request reproduces all five decoded frames exactly. G3 uses one 32x16 frame and four steps; G4 uses five 32x16 frames and two steps. This is lifecycle and reference coverage, not a new full-resolution clip or a performance comparison. | `evidence:sha256:ed239680eb5ad0b1d4be3179b10b5123075d40ffae34885ea73c06340b55c938` |
@@ -73,6 +83,12 @@ The [processing comparison](docs/image_video_processing.json) records an accepte
 | Report and sample preparation: candidate | Passed selected tests | Complete report generation plus sample export took 14.948463/8.880287 seconds for first/repeated use. Go allocated 7893347928/7944231584 bytes in 73298434/73339827 calls; process lifetime peak was 715808768 bytes. The complete acquisition process took 38.306 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison. | `evidence:sha256:625b65b1ce46796c6243ff81018e12ea23f0429a49700b9fb351a7814993a0f4` |
 | Report and sample preparation: ablation | Passed selected tests | Complete report generation plus sample export took 200.286504/180.711376 seconds for first/repeated use. Go allocated 7962946776/8039484688 bytes in 73298983/73340480 calls; process lifetime peak was 638566400 bytes. The complete acquisition process took 390.774 seconds including input setup, store-head checks, output hashing and teardown; compilation is outside that process. Both states preserved the complete report and all 14 exported samples byte for byte, with unchanged store head. Each variant used a separate process; OS caches were not reset. No model generation or GPU work occurred. Exact variant source snapshots and the unchanged harness are retained in the processing comparison. | `evidence:sha256:a64ff4b2689bfd7df94ed07dcac0dd79e3874f69ae1c175ff6263e85e5c06936` |
 | Frozen processing optimization decision | Passed selected tests | The acceptance reads retained acquisition logs, checks exact report/sample/store identities, both request lifetimes, the frozen allocation allowance and source snapshots, then derives the recorded decision. It rejects changed output bytes and loss of latency benefit. The candidate decision is accepted; neither publication latency nor sample decoding establishes generation quality. | `evidence:sha256:cc1b79ded6cc27398f3e3fa7e41cc3677fd335c122b8f70425ff7af3d84a4df6` |
+| Krea frozen 512x512 image acquisition | Passed selected tests | Original prompt, 4 steps and seed 143 through the active compiled recipe. Load 4.697724 s, request 22.815049 s, close 0.269029 s. Process peak 3445284864 bytes; tracked device peak 26925272444 bytes; owned device bytes after close zero. Go allocated 34982717616 bytes over load through close, distinct from peak live memory. The 997.253-second test process includes exclusive GPU admission waiting; that delay is outside generation timing. Output output:sha256:4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44 is finite before PNG quantization, matches requested geometry, and was visually reviewed as a fox licking vanilla ice cream in snow. Encoded bytes differ from the historical sample. Full native pixel equivalence and a matched speed comparison are not established. | `evidence:sha256:d2c37e873d84215a9b41d4c927e892454ad103494185da25b4227eda26693f54` |
+| SimpleDiffusion frozen 256x256 image acquisitions | Passed selected tests | Seeds 5 and 105, 8 steps each, share one loaded resident generator and use original compiled recipe inputs. Load 0.397596 s; requests 1.817956/1.428821 s; close 0.066332 s. Process peak 1650343936 bytes and tracked device peak 559451660 bytes; owned device bytes after close zero. Request Go allocations 10171592/8026712 bytes. Both outputs are finite, decode at 256x256 and retain new source-bound runs. Both differ from historical encoded bytes and were reviewed anew: dense colored noise and coarse blocks remain, with no clear semantic subject. The unconditioned smoke requests do not establish useful image quality. The native 64x64 comparison is separate. Two failed instrumentation attempts cost 5.363 and 5.264 seconds; the successful process took 7.141 seconds. Zero-duration preparation remains in raw timing evidence and is omitted only from the positive-duration run phase list. These are individual observations, not matched speed comparisons. | `evidence:sha256:82485b14717574d34e84212866e27544220c119151a624ac0bc8b9ae76c9c536` |
+| Krea schedule and artifact geometry | Passed selected tests | Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases. | `evidence:sha256:c44d45f058e9384ed029cb7c7e6ad9eed5452bd87f56222118fb9d6bdf2774cd` |
+| Krea G2 intermediate distribution and determinism | Passed selected tests | Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases. | `evidence:sha256:0f0a1902a4abce80893acba71c43047ccae63271ba3278d630b4f8940e9902cf` |
+| SimpleDiffusion native owners | Passed selected tests | Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases. | `evidence:sha256:c6c44930847a4e9cbe2954d5fc2e6fbacb8bf04c83eb6e626f8ef20f7c82ea41` |
+| Frozen Krea and SimpleDiffusion bundle acceptance | Passed selected tests | Read-only acceptance verifies frozen three-case coverage, source-compatible numerical receipts, actual recipe/input/output lineage, environment, finite output, decoding, raw GPU work and transfer counters, memory cleanup, instrumentation identity and image-specific reviews. It rejects omitted cases, changed output/recipe and failed finiteness. Failed instrumentation attempts remain retained. No model acquisition occurs in this check. | `evidence:sha256:f15b491eca289679bdfb1993dfd88154a4327597dca52976fcde851f34ae0554` |
 
 Results describe the selected tests, including failures, rather than all supported requests. Commands and retained overlay sources in the index identify each acquisition. Test output is stored by content identity in OvergoDB.
 
@@ -189,7 +205,7 @@ These counts include generation and verification records for the selected recipe
 
 ### Krea-2-Turbo (image-gen)
 
-Succeeded: 2; failed: 0; cancelled: 0.
+Succeeded: 4; failed: 0; cancelled: 0.
 
 ### LiveEdit (video-gen)
 
@@ -201,7 +217,7 @@ Succeeded: 6; failed: 0; cancelled: 0.
 
 ### SimpleDiffusion-TensorProductAttentionRope (image-gen)
 
-Succeeded: 4; failed: 0; cancelled: 0.
+Succeeded: 8; failed: 0; cancelled: 0.
 
 ### Un-0 (image-gen)
 
@@ -299,6 +315,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
 
 ### SimpleDiffusion-TensorProductAttentionRope (`image-gen`)
 
+- Image: [939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78.png](docs/media_samples/939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78.png)
+
+  ![SimpleDiffusion-TensorProductAttentionRope image](docs/media_samples/939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78.png)
+
+  Request: `{"height":256,"seed":5,"steps":8,"width":256}`
+
+  Run: `run:sha256:09150155593f97f3f61bcba2e902bd260f33450f8b873c88616b2112c6b06711`; output: `output:sha256:939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78`. Source: `4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19`. Environment: `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`.
+
+  Input artifacts: `file:sha256:ab444aa99af1a85d3b6a2b64fb7459892048e244112cc4e3f88101d797c377ea`.
 - Image: [43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319.png](docs/media_samples/43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319.png)
 
   ![SimpleDiffusion-TensorProductAttentionRope image](docs/media_samples/43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319.png)
@@ -308,6 +333,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
   Run: `run:sha256:788066c95ff799e0e2989ddf90e6baf8850b5d4cf724c1113d31f96250355f6c`; output: `output:sha256:43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319`. Source: unavailable. Environment: unavailable.
 
   Input artifacts: `file:sha256:ab444aa99af1a85d3b6a2b64fb7459892048e244112cc4e3f88101d797c377ea`.
+- Image: [e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef.png](docs/media_samples/e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef.png)
+
+  ![SimpleDiffusion-TensorProductAttentionRope image](docs/media_samples/e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef.png)
+
+  Request: `{"height":256,"seed":105,"steps":8,"width":256}`
+
+  Run: `run:sha256:87b6318a5e252a7de1cf71300439448ec9378f2e25edd797aabaf67b8626d77c`; output: `output:sha256:e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef`. Source: unavailable. Environment: unavailable.
+
+  Input artifacts: `file:sha256:2b9ae1a1da5bce737b548e20c27223dab9a351ba6e45dcd81c813fc63fc119dd`.
 - Image: [0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e.png](docs/media_samples/0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e.png)
 
   ![SimpleDiffusion-TensorProductAttentionRope image](docs/media_samples/0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e.png)
@@ -362,6 +396,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
 
 ### Krea-2-Turbo (`image-gen`)
 
+- Image: [4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44.png](docs/media_samples/4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44.png)
+
+  ![Krea-2-Turbo image](docs/media_samples/4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44.png)
+
+  Request: `{"height":512,"prompt":"a red fox licking a vanilla ice cream cone in snow","seed":143,"steps":4,"width":512}`
+
+  Run: `run:sha256:105d539cb418989c207375e7fc654ac5e9dd0d476c9af40b7ac011bf917c82f3`; output: `output:sha256:4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44`. Source: unavailable. Environment: unavailable.
+
+  Input artifacts: `file:sha256:1d840594046f2981e9fb7c335808a4f3399101072ab0a8ab2768492642f9b6e2`.
 - Image: [4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png](docs/media_samples/4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png)
 
   ![Krea-2-Turbo image](docs/media_samples/4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee.png)

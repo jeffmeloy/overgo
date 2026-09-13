@@ -36,17 +36,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "latent-diffusion",
-          "title": "Validate Krea and SimpleDiffusion generation, decode, and resource use",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_latent_image_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoLatentImageAcceptance$' -count=1",
-          "rationale": "Bind and execute only the missing Krea and SimpleDiffusion cases from the inventory. Use cmd/recipe verify/run and internal/latentimage, internal/diffusionimage and graphruntime; collect all required cases for each loaded model before unloading. Validate request-to-pixel lineage, fixed-seed reference comparisons, output decode, declared shape limits and full phase/resource measurements. Reuse the landed resident sampling and cancellation evidence when its dependencies match: TestResidentSamplingContractAcceptance, TestResidentSamplingDeviceAcceptance, TestResidentSamplingSequenceAcceptance, TestResidentFixtureCleanupUsesLiveContext and TestResidentDecodeCancellationReusesStorage. Preserve the exact F32 sampling order and reference identities. Export representative real outputs through the existing exporter and apply the frozen quality rubric. Add a read-only compatibility assertion over the complete stored bundle, with omitted case, bad output hash, mismatched recipe, missing quality result and failed resource counterexamples; this assertion must not reload a model. Reuse any matching representative-cohort baseline or accepted candidate from media-optimization/baseline instead of loading this model again. Collect quality, phase timing, transfer counters, memory observations and exportable outputs in one admitted session where measurement isolation permits. Export each retained sample when available; the later publication rows verify completeness rather than trigger generation. If a shared component changes after this bundle, recheck only its affected assertions and preserve unaffected results; final capacity/consumer acceptance reconciles the complete current-source coverage.\n\nCurrent evidence already covers Krea 256x256 lifecycle/recovery and SimpleDiffusion 64x64 host/CUDA comparison. Join those receipts when source dependencies match; acquire the frozen Krea full-quality case and other missing cases, rather than repeating the existing smokes. Bind command changes from master's modelcli split to request parsing and model resolution checks.",
-          "depends_on": [
-            "media-protocol/quality",
-            "media-protocol/resources"
-          ]
-        },
-        {
           "id": "routed-oscillator",
           "title": "Validate SenseNova and Un-0 image generation through declared recipes",
           "status": "open",

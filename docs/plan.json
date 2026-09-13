@@ -699,7 +699,8 @@
             "validation-preflight-recovery/closure-rebind",
             "validation-compounding-replan/do",
             "validation-gate-selection/recipe-node-reuse",
-            "validation-doctrine-tightening/do"
+            "validation-doctrine-tightening/do",
+            "diffusion-cli-fixtures/do"
           ]
         }
       ]

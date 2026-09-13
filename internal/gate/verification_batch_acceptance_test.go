@@ -54,7 +54,7 @@ func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
 			g.manifestPlan = &manifest
 			acceptances := invocations[:len(invocations)-1]
 			for index, invocation := range acceptances {
-				acceptances[index], err = automationcheck.BindManifestExecution(manifest, invocation, []artifact.ID{manifest.CandidateManifest})
+				acceptances[index], err = g.bindCheckExecution(manifest, invocation, manifest.CandidateManifest)
 				if err != nil {
 					t.Fatal(err)
 				}

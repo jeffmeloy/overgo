@@ -163,7 +163,7 @@ func (g *gateContext) pipeline() error {
 				return inputErr
 			}
 			if planned.manifest != nil {
-				bound, bindErr := automationcheck.BindManifestExecution(*planned.manifest, check, []artifact.ID{input})
+				bound, bindErr := g.bindCheckExecution(*planned.manifest, check, input)
 				if bindErr != nil {
 					return bindErr
 				}
@@ -197,7 +197,7 @@ func (g *gateContext) pipeline() error {
 		cacheHits := 0
 		cacheEligible := 0
 		for _, result := range results {
-			if _, _, eligible := g.checkCacheKey(result.Invocation, inputs); eligible {
+			if _, _, eligible := g.checkCacheKey(result.Invocation, inputs[result.Invocation.ID]); eligible {
 				cacheEligible++
 			}
 			if result.Evidence.Reused {
@@ -813,9 +813,10 @@ func phaseOwnsPath(phase, path string) bool {
 func phaseReusesEvidence(phase string) bool {
 	switch phase {
 	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection",
-		"manifest", "sbom", "claims", "docs", testRestCheckName, testOwnersCheckName, testDeviceCheckName:
+		"manifest", "sbom", "claims", "docs":
 		return true
 	default:
+		// Package receipts own test reuse; a passed phase may contain uncredited skips.
 		return false
 	}
 }

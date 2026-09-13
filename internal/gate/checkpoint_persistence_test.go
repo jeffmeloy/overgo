@@ -45,7 +45,7 @@ func persistenceInvocations(t *testing.T, g *gateContext, batch *plan.Verificati
 	}
 	g.manifestPlan = &manifest
 	for index, invocation := range invocations {
-		invocations[index], err = automationcheck.BindManifestExecution(manifest, invocation, []artifact.ID{manifest.CandidateManifest})
+		invocations[index], err = g.bindCheckExecution(manifest, invocation, manifest.CandidateManifest)
 		if err != nil {
 			t.Fatal(err)
 		}

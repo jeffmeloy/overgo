@@ -26,7 +26,8 @@ func TestReusedOutcomeIsDistinctFromSkipped(t *testing.T) {
 		t.Fatalf("first = (%+v, %t, %v), runs=%d", first, reused, err, runs)
 	}
 	second, reused, err := cache.RunCached(t.Context(), planned[0], input)
-	if err != nil || !reused || runs != 1 || second.ID != first.ID || !second.Reused || second.Inapplicable {
+	if err != nil || !reused || runs != 1 || !second.Reused || second.Inapplicable ||
+		second.ID == first.ID || second.Source == nil || second.Source.Evidence != first.ID {
 		t.Fatalf("second = (%+v, %t, %v), runs=%d", second, reused, err, runs)
 	}
 	otherEnvironment, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("other"))

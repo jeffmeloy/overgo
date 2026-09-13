@@ -3,6 +3,7 @@ package gate
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,11 +17,65 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/jsonfile"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
+
+func TestModernCensusExistingContent(t *testing.T) {
+	root := modernMemoFixture(t)
+	path := filepath.Join(root, "internal/example/value.go")
+	if err := os.WriteFile(path, []byte("package example\nfunc Value() int { return 2 }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first := modernMemoContext(t, root)
+	_, detail, err := first.computeModernGo(t.Context(), automationcheck.Invocation{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var before modernGoReferences
+	if err := json.Unmarshal([]byte(detail), &before); err != nil || before.Candidate == before.Base {
+		t.Fatalf("fixture must publish distinct source and base: %+v, %v", before, err)
+	}
+	input := first.modernInput.ID
+	store, err := first.openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := store.Head()
+	if err := first.closeStore(); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, root, "add", "internal/example/value.go")
+	runGitFixture(t, root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "advance source baseline")
+	next := modernMemoContext(t, root)
+	_, detail, err = next.computeModernGo(t.Context(), automationcheck.Invocation{})
+	if err != nil {
+		t.Fatal("already-published census must remain usable after HEAD advances:", err)
+	}
+	var after modernGoReferences
+	if err := json.Unmarshal([]byte(detail), &after); err != nil || after.Candidate != before.Candidate || after.Base != after.Candidate || next.modernInput.ID == input {
+		t.Fatalf("changed computation input lost exact payload identity: %+v, %v", after, err)
+	}
+	store, err = next.openStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotHead, gotSequence := store.Head(); gotHead != head || gotSequence != sequence {
+		t.Fatal("existing census content produced a redundant store commit")
+	}
+	if _, _, found, err := next.readModernGoOutput(automationcheck.Evidence{Detail: detail}); err != nil || !found {
+		t.Fatalf("idempotent publication lost readable output: found=%t err=%v", found, err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := next.computeModernGo(t.Context(), automationcheck.Invocation{}); !errors.Is(err, overgodb.ErrClosed) {
+		t.Fatalf("closed-store error was hidden: %v", err)
+	}
+}
 
 func modernMemoFixture(t *testing.T) string {
 	t.Helper()

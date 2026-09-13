@@ -16,6 +16,7 @@ import (
 // Invocation wall includes build, execution, drain and receipt publication.
 // Package elapsed values come from go test and can overlap; they are not wall.
 type packageExecutionBatch struct {
+	Step         string                          `json:"step,omitzero"`
 	Short        bool                            `json:"short"`
 	WallNS       uint64                          `json:"wall_ns"`
 	Failed       bool                            `json:"failed"`
@@ -120,6 +121,7 @@ func (g *gateContext) recordPackageExecution(packages []string, short bool, wall
 	}
 	g.auditMutex.Lock()
 	defer g.auditMutex.Unlock()
+	batch.Step = g.testStep
 	g.testExecutions = append(g.testExecutions, batch)
 }
 

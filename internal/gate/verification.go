@@ -1045,6 +1045,7 @@ func (g *gateContext) stepTestOwners(ctx context.Context) (bool, error) {
 	if len(g.testPlan.edited) == 0 {
 		return true, nil
 	}
+	g.setTestStep(testOwnersCheckName)
 	return false, g.runTestGroup(ctx, g.testPlan.edited, true)
 }
 
@@ -1156,6 +1157,7 @@ func (g *gateContext) stepTestDevice(ctx context.Context) (bool, error) {
 	if g.testPlan.pending == 0 {
 		return true, nil
 	}
+	g.setTestStep(testDeviceCheckName)
 	return false, g.runRestParts(ctx, true)
 }
 
@@ -1168,6 +1170,7 @@ func (g *gateContext) stepTestRest(ctx context.Context) (bool, error) {
 	if g.testPlan.pending == 0 {
 		return true, nil
 	}
+	g.setTestStep(testRestCheckName)
 	return false, g.runRestParts(ctx, false)
 }
 

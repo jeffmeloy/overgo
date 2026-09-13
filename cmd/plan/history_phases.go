@@ -36,6 +36,9 @@ type retainedGate struct {
 	Outcomes       map[runrecord.StepOutcome]int `json:"named_check_outcomes"`
 	WaitingNS      *uint64                       `json:"waiting_ns"`
 	UnattributedNS *uint64                       `json:"unattributed_wall_ns"`
+	// SelectionCauses explains the executed package cost when the gate
+	// retained its selection-cause record; earlier gates retained none.
+	SelectionCauses *runrecord.SelectionHistogram `json:"selection_causes,omitempty"`
 }
 
 type retainedAttempt struct {
@@ -77,12 +80,14 @@ func loadGatePhaseHistory(ctx context.Context, store *overgodb.Store, c cli) (ga
 		}
 	}
 	attempts := map[artifact.ID][]retainedAttempt{}
+	causes := map[artifact.ID]runrecord.SelectionCauseRecord{}
 	var results []runrecord.GateResult
 	var lifecycles []runrecord.GateLifecycle
 	contracts := []artifact.DocumentContract{
 		{Kind: artifact.KindEvidence, MediaType: runrecord.AttemptMediaType, Schema: runrecord.AttemptSchema},
 		{Kind: artifact.KindEvidence, MediaType: runrecord.GateMediaType, Schema: runrecord.GateSchema},
 		{Kind: artifact.KindEvidence, MediaType: runrecord.GateLifecycleMediaType, Schema: runrecord.GateLifecycleSchema},
+		runrecord.SelectionCauseContract,
 	}
 	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{Contracts: contracts, Order: overgodb.DocumentOldestFirst}, func(view overgodb.DocumentView) error {
 		switch view.Content.Descriptor.MediaType {
@@ -108,6 +113,12 @@ func loadGatePhaseHistory(ctx context.Context, store *overgodb.Store, c cli) (ga
 				return err
 			}
 			lifecycles = append(lifecycles, lifecycle)
+		case runrecord.SelectionCauseMediaType:
+			record, err := runrecord.ParseSelectionCauseRecord(view.Content.Data)
+			if err != nil {
+				return err
+			}
+			causes[record.Result] = record
 		}
 		return nil
 	})
@@ -142,6 +153,13 @@ func loadGatePhaseHistory(ctx context.Context, store *overgodb.Store, c cli) (ga
 		for _, step := range result.Steps {
 			gate.SummedStepNS += step.DurationNS
 			gate.Outcomes[step.Outcome]++
+		}
+		if record, retained := causes[result.ID]; retained {
+			histogram, err := runrecord.SelectionCauseHistogram(result, record)
+			if err != nil {
+				return report, fmt.Errorf("selection causes %s: %w", record.ID, err)
+			}
+			gate.SelectionCauses = &histogram
 		}
 		report.Gates = append(report.Gates, gate)
 	}
@@ -188,6 +206,7 @@ func writeGatePhaseHistory(target io.Writer, report gatePhaseReport) error {
 			}
 			fmt.Fprintf(output, "  %-24s %-12s %s\n", step.Name, step.Outcome, duration)
 		}
+		writeSelectionCauses(output, gate.SelectionCauses)
 	}
 	for _, preparation := range report.Unfinalized {
 		fmt.Fprintf(output, "unfinalized=%s tree=%s started=%s commit=unbound\n", preparation.ID, preparation.TreeKey, preparation.Started)
@@ -196,3 +215,32 @@ func writeGatePhaseHistory(target io.Writer, report gatePhaseReport) error {
 	_, err := io.Copy(target, output)
 	return err
 }
+
+// writeSelectionCauses prints the retained histogram: packages by primary
+// cause, every sufficient cause, and the changed inputs that selected most.
+func writeSelectionCauses(output io.Writer, histogram *runrecord.SelectionHistogram) {
+	if histogram == nil {
+		fmt.Fprintln(output, "  selection causes not retained for this gate")
+		return
+	}
+	for _, step := range histogram.Steps {
+		fmt.Fprintf(output, "  causes %-16s packages=%d executed=%d failed=%d unstarted=%d\n", step.Name, step.Packages, step.Executed, step.Failed, step.Unstarted)
+	}
+	for _, bar := range histogram.Primary {
+		fmt.Fprintf(output, "  primary %-14s packages=%d executed=%d unstarted=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.Unstarted, bar.ElapsedSeconds)
+	}
+	for _, bar := range histogram.Sufficient {
+		fmt.Fprintf(output, "  sufficient %-11s packages=%d\n", bar.Cause, bar.Packages)
+	}
+	for index, bar := range histogram.Inputs {
+		if index == selectionInputLimit {
+			fmt.Fprintf(output, "  inputs: %d more\n", len(histogram.Inputs)-selectionInputLimit)
+			break
+		}
+		fmt.Fprintf(output, "  input %s packages=%d executed=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.ElapsedSeconds)
+	}
+	fmt.Fprintln(output, "  "+histogram.Limitations)
+}
+
+// The text view lists the changed inputs that selected the most packages.
+const selectionInputLimit = 8

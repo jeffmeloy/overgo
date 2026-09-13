@@ -92,6 +92,9 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err := g.appendSuiteCost(&batch, record.Result.ID); err != nil {
 		return err
 	}
+	if err := g.appendSelectionCauses(&batch, record.Result.ID); err != nil {
+		return err
+	}
 	environmentContent, err := g.environment.Content()
 	if err != nil {
 		return err

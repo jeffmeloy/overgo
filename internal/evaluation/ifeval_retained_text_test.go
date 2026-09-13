@@ -245,3 +245,34 @@ func retainedIFEvalResponses(t *testing.T, store *overgodb.Store, selection, pro
 
 	return responses
 }
+
+func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID artifact.ID) {
+	t.Helper()
+	// Keep the native implementation and its operand dependencies independent
+	// of this model's responses and the Go checker under evaluation.
+	type nativeReference struct {
+		Version      string            `json:"reference_version"`
+		Sources      map[string]string `json:"sources"`
+		Packages     map[string]string `json:"runtime_packages"`
+		Dependencies map[string]string `json:"runtime_dependencies"`
+		InputSHA256  string            `json:"native_input_sha256"`
+		LanguageSeed int               `json:"langdetect_seed"`
+		RandomSeed   int               `json:"random_seed"`
+	}
+	var previous struct{ Scores artifact.ID }
+	referenceID, err := artifact.ParseID("evidence:sha256:78a1241f82ce179d229248564ccffb66f291d922eba864d1a261fc94d386c839")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readRetainedEvidence(t, store, referenceID, &previous)
+	var reference, actual nativeReference
+	readRetainedEvidence(t, store, previous.Scores, &reference)
+	readRetainedEvidence(t, store, nativeID, &actual)
+	if actual.Version != "0.4.9.1" || actual.Version != reference.Version ||
+		actual.InputSHA256 != reference.InputSHA256 || actual.LanguageSeed != 0 || actual.RandomSeed != 0 ||
+		len(actual.Sources) == 0 || len(actual.Dependencies) == 0 ||
+		!maps.Equal(actual.Sources, reference.Sources) || !maps.Equal(actual.Packages, reference.Packages) ||
+		!maps.Equal(actual.Dependencies, reference.Dependencies) {
+		t.Fatal("pinned native judge or task inputs changed")
+	}
+}

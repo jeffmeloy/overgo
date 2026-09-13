@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
 )
 
@@ -37,7 +36,7 @@ func Main(run func() error) {
 		if errors.Is(err, processcontrol.ErrResourceBusy) {
 			os.Exit(processcontrol.ResourceBusyExitCode)
 		}
-		if driver.IsOutOfMemory(err) {
+		if errors.Is(err, processcontrol.ErrDeviceMemory) {
 			os.Exit(processcontrol.DeviceMemoryExitCode)
 		}
 		os.Exit(1)

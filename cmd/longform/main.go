@@ -30,6 +30,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/longform"
+	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
@@ -488,7 +489,7 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 // measure owns one model residency through the short shape and full ladder.
 // The runner closes before its result is published.
 func measure(ctx context.Context, output io.Writer, options options, target target, commit, surface string, floors longform.Floors, ceiling int) (longform.Result, error) {
-	runner, err := clioptions.OpenRunner(ctx, options.Repository, target.entry.Location, clioptions.BuildOpenOptions(options.Device, nil, 1))
+	runner, err := modelcli.OpenRunner(ctx, options.Repository, target.entry.Location, modelcli.BuildOpenOptions(options.Device, nil, 1))
 	if err != nil {
 		return longform.Result{}, err
 	}

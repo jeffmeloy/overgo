@@ -17,6 +17,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
 	"overgo/internal/model"
+	"overgo/internal/modelcli"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/sampling"
@@ -140,7 +141,7 @@ func main() {
 func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("benchmark", flag.ContinueOnError)
 	var result options
-	modelFlags := clioptions.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
+	modelFlags := modelcli.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
 	flags.IntVar(&result.Tokens, "tokens", defaultBenchmarkTokens, "maximum generated tokens per run")
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
@@ -233,8 +234,8 @@ func run(args []string) error {
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
 	loadStarted := time.Now()
-	openOptions := clioptions.BuildOpenOptions(options.Device, options.LoRA, 1)
-	runner, err := clioptions.OpenRunner(
+	openOptions := modelcli.BuildOpenOptions(options.Device, options.LoRA, 1)
+	runner, err := modelcli.OpenRunner(
 		context.Background(), options.Repository, options.Model, openOptions,
 	)
 	if err != nil {

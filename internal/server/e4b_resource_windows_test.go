@@ -15,12 +15,12 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/clioptions"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
+	"overgo/internal/modelcli"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -123,7 +123,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	var ceiling driver.MemoryStats
 	for reload := range 3 {
 		t.Run(fmt.Sprintf("reload-%d", reload), func(t *testing.T) {
-			runner, err := clioptions.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
+			runner, err := modelcli.OpenRunner(ctx, roots.Store, paths[0], inference.OpenOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}

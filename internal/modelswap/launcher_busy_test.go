@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
 )
 
@@ -21,8 +20,8 @@ func TestMain(m *testing.M) {
 				return fmt.Errorf("load device: %w", processcontrol.ErrResourceBusy)
 			}
 			if mode == "memory" {
-				// CUDA_ERROR_OUT_OF_MEMORY is result 2; text is deliberately unrelated.
-				return fmt.Errorf("load model: %w", &driver.ResultError{Code: 2, Message: "controlled allocation diagnostic"})
+				// The served child types its allocation failure (cmd/server deviceStartupError); text is deliberately unrelated.
+				return fmt.Errorf("controlled allocation diagnostic: %w", processcontrol.ErrDeviceMemory)
 			}
 			if mode == "misleading-text" {
 				return errors.New("out of memory; physical resource is already reserved")

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"overgo/internal/closurescan"
@@ -56,10 +57,13 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	write(harnessSurfaceBaselineFile, string(encoded)+"\n")
 
 	var recorded []string
+	var recordedMutex sync.Mutex
 	censusRefusal := false
 	fake := func(root, name string, args ...string) (string, error) {
 		invocation := name + " " + strings.Join(args, " ")
+		recordedMutex.Lock()
 		recorded = append(recorded, invocation)
+		recordedMutex.Unlock()
 		switch {
 		case strings.Contains(invocation, "closure-scan"):
 			return "imported 0 closure document(s), unmatched=0", nil
@@ -67,9 +71,10 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 			if censusRefusal {
 				return "modern-census: modern-Go debt increased for range_over_int: 1 exceeds ceiling 0", os.ErrInvalid
 			}
+			if !strings.Contains(invocation, "-lower-baseline") {
+				t.Fatal("census publication did not share analysis with baseline lowering")
+			}
 			write("docs/modern_go_census.json", "new census\n")
-			return "published", nil
-		case strings.Contains(invocation, "-lower-baseline"):
 			write("docs/modern_go_baseline.json", "new baseline\n")
 			return "lowered", nil
 		}
@@ -108,8 +113,8 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if staged != 4 {
 		t.Fatalf("staged repairs audited = %d, want 4: %q", staged, g.audit)
 	}
-	if len(recorded) != 3 {
-		t.Fatalf("commands = %v, want the rebind and the two census modes", recorded)
+	if len(recorded) != 2 {
+		t.Fatalf("commands = %v, want the rebind and one combined census invocation", recorded)
 	}
 	// A retry starts with the caller's original paths and already repaired files.
 	g.paths = g.paths[:1]

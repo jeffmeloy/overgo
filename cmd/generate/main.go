@@ -18,6 +18,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/inference"
 	"overgo/internal/model"
+	"overgo/internal/modelcli"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
@@ -85,7 +86,7 @@ func run() error {
 		"discard",
 		"tokens removed per context shift; zero removes half of the discardable cache",
 	)
-	modelFlags := clioptions.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
+	modelFlags := modelcli.AddModelFlags(flag.CommandLine, "load GGUF LoRA adapter at scale 1; repeatable")
 	temperature := clioptions.Float64Override(flag.CommandLine, "temp", "sampling temperature; zero is greedy")
 	dynatempRange := clioptions.Float64Override(flag.CommandLine, "dynatemp-range", "dynamic temperature range; zero disables")
 	dynatempExponent := clioptions.Float64Override(flag.CommandLine, "dynatemp-exp", "entropy-to-temperature exponent")

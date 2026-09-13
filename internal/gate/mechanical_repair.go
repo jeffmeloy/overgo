@@ -174,10 +174,8 @@ func (g *gateContext) repairFormatting() error {
 // baseline through their own command; the command refuses a debt increase,
 // so no ceiling moves upward here.
 func (g *gateContext) repairModernGoCensus() error {
-	for _, mode := range []string{"-publish-census", "-lower-baseline"} {
-		if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/modern-census", mode); err != nil {
-			return fmt.Errorf("modern-census %s: %w: %s", mode, err, strings.TrimSpace(out))
-		}
+	if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/modern-census", "-publish-census", "-lower-baseline"); err != nil {
+		return fmt.Errorf("modern-census publication: %w: %s", err, strings.TrimSpace(out))
 	}
 	return nil
 }

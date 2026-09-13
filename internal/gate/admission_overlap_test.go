@@ -94,15 +94,12 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 		t.Fatal(err)
 	}
 	total := time.Since(began)
-	rebind, publish, lower := spans[filepath.Join(repo, gateStorePath)], spans["-publish-census"], spans["-lower-baseline"]
-	if rebind[0].IsZero() || publish[0].IsZero() || lower[0].IsZero() {
+	rebind, publish := spans[filepath.Join(repo, gateStorePath)], spans["-lower-baseline"]
+	if rebind[0].IsZero() || publish[0].IsZero() || len(spans) != 2 {
 		t.Fatalf("repairs ran %v", spans)
 	}
 	if !rebind[0].Before(publish[1]) || !publish[0].Before(rebind[1]) {
 		t.Fatalf("the closure rebind and the census did not overlap: rebind=%v publish=%v", rebind, publish)
-	}
-	if lower[0].Before(publish[1]) {
-		t.Fatal("the baseline lowered before the census was published")
 	}
 	if total > 3*120*time.Millisecond+2*time.Second {
 		t.Fatalf("staged repairs took %s, longer than their wave allows", total)

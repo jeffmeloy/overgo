@@ -91,7 +91,7 @@ func workspaceEnablingAction(capability string) string {
 		return "Launch with -training."
 	case "workflow.model-builder":
 		return "Launch with -model-builder."
-	case "workflow.export", "workflow.generation", "workflow.image", "workflow.video", "workflow.video-edit", "workflow.speech", "workflow.vqa", "workflow.transcription":
+	case "workflow.export", "workflow.generation", "workflow.image", "workflow.video", "workflow.speech", "workflow.vqa", "workflow.transcription":
 		return "Register a media model activated for the task; the workspace opens over the store."
 	}
 	return "The documented launch does not open this workspace."
@@ -213,8 +213,6 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskImageGen)
 	case "workflow.video":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoGen)
-	case "workflow.video-edit":
-		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskVideoEdit)
 	case "workflow.speech":
 		supported = h.hasWorkspaceCapability(ctx, WorkflowGeneration, recipe.TaskSpeech)
 	case "workflow.vqa":

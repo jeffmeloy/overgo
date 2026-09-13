@@ -35,7 +35,7 @@ const mediaReportPath = "docs/MEDIA_REPORT.md"
 const mediaCatalogLimit = 4096
 
 var mediaTasks = []recipe.Task{
-	recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit, recipe.TaskVQA,
+	recipe.TaskSpeech, recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVQA,
 }
 
 // reportRow is one media activation row joined with its claim.
@@ -181,7 +181,7 @@ func writeMediaSurface(output *bytes.Buffer) {
 	} {
 		fmt.Fprintf(output, "| %s | %s |\n", row[0], row[1])
 	}
-	output.WriteString("\nMedia tasks: `speech`, `image-gen`, `video-gen`, `video-edit`, `vqa`. The VQA lane verifies and activates through `go run ./cmd/vqaparity -recipe-verify-activate`.\n\n")
+	output.WriteString("\nMedia tasks: `speech`, `image-gen`, `video-gen`, `vqa`. Reference-guided video editing is a `video-gen` recipe with a source input. The VQA lane verifies and activates through `go run ./cmd/vqaparity -recipe-verify-activate`.\n\n")
 }
 
 // writeMediaInventories renders the compiled recipe graphs behind the

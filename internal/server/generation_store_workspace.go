@@ -98,7 +98,7 @@ func NewStoreGenerationWorkspace(store *overgodb.Store, catalog GenerationCatalo
 
 // generationTasks are the tasks a generation capability serves: the media
 // outputs and the text answer to a question about an image.
-var generationTasks = []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskVideoEdit, recipe.TaskSpeech, recipe.TaskVQA}
+var generationTasks = []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen, recipe.TaskSpeech, recipe.TaskVQA}
 
 // generationRunKeyPrefix roots every generation run record's batch key.
 const generationRunKeyPrefix = "generation/run/"

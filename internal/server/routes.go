@@ -58,7 +58,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/v1/embeddings", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).embeddings},
 	{Path: "/v1/images/generations", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).nativeImageGeneration},
 	{Path: "/v1/videos/generations", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).nativeVideoGeneration},
-	{Path: "/v1/videos/edits", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).nativeVideoEdit},
 	{Path: "/v1/audio/speech", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).nativeAudioSpeech},
 	{Path: "/v1/audio/transcriptions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).nativeAudioTranscriptions},
 	{Path: "/embedding", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).nativeEmbeddings},

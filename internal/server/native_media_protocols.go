@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/media"
 	"overgo/internal/operation"
 	"overgo/internal/recipe"
 	"overgo/internal/strictjson"
@@ -87,7 +88,7 @@ func (h *Handler) nativeVideoGeneration(response http.ResponseWriter, request *h
 	data := make([]nativeImageData, len(status.Outputs))
 	for index, id := range status.Outputs {
 		descriptor, found, err := store.Artifact(request.Context(), id)
-		if err != nil || !found || !strings.HasPrefix(descriptor.MediaType, "video/") {
+		if err != nil || !found || !videoOutput(descriptor.MediaType) {
 			writeError(response, http.StatusInternalServerError, "invalid_output", "generation output is not a video artifact")
 			return
 		}
@@ -96,39 +97,10 @@ func (h *Handler) nativeVideoGeneration(response http.ResponseWriter, request *h
 	writeJSON(response, http.StatusOK, nativeImageResponse{Created: started.Unix(), Data: data})
 }
 
-// nativeVideoEdit runs the registered reference-guided video-editing
-// capability: a source video and a prompt become one workflow
-// operation over the reference-edit runtime, and the edited output
-// must be a committed video artifact served by its content URL.
-func (h *Handler) nativeVideoEdit(response http.ResponseWriter, request *http.Request) {
-	started := time.Now()
-	workspace, capability, fields, ok := h.nativeWorkflowRequest(response, request, recipe.TaskVideoEdit)
-	if !ok {
-		return
-	}
-	input, err := marshalWorkflowInput(capability.Controls, fields)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	status, ok := h.runNativeWorkflow(response, request, workspace, capability, input)
-	if !ok {
-		return
-	}
-	store, ok := h.requireBrowseStore(response, request)
-	if !ok {
-		return
-	}
-	data := make([]nativeImageData, len(status.Outputs))
-	for index, id := range status.Outputs {
-		descriptor, found, err := store.Artifact(request.Context(), id)
-		if err != nil || !found || !strings.HasPrefix(descriptor.MediaType, "video/") {
-			writeError(response, http.StatusInternalServerError, "invalid_output", "edit output is not a video artifact")
-			return
-		}
-		data[index].URL = "/artifacts/content?id=" + url.QueryEscape(id.String())
-	}
-	writeJSON(response, http.StatusOK, nativeImageResponse{Created: started.Unix(), Data: data})
+// videoOutput accepts what the video executors publish: GIF-encoded video
+// (mediacapability.OutputContent) beside any container video type.
+func videoOutput(mediaType string) bool {
+	return mediaType == media.GIFMediaType || strings.HasPrefix(mediaType, "video/")
 }
 
 func (h *Handler) nativeAudioSpeech(response http.ResponseWriter, request *http.Request) {

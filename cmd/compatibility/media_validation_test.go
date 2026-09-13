@@ -10,7 +10,34 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/testevidence"
 )
+
+func requireMediaTestReceipt(t testing.TB, name string, raw []byte, required []string) {
+	t.Helper()
+	if len(required) == 0 {
+		t.Fatal(name, "has no required executions")
+	}
+	report, err := testevidence.GoTestJSONReport(string(raw))
+	if err != nil {
+		t.Fatal(name, err)
+	}
+	if err := testevidence.RequireComplete(report); err != nil {
+		t.Fatal(name, err)
+	}
+	passed := map[string]bool{}
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		var event struct{ Action, Test string }
+		if json.Unmarshal([]byte(line), &event) == nil && event.Action == "pass" && event.Test != "" {
+			passed[event.Test] = true
+		}
+	}
+	for _, test := range required {
+		if !passed[test] {
+			t.Fatalf("%s lacks executed test %s", name, test)
+		}
+	}
+}
 
 func TestMediaValidationRetainsFailures(t *testing.T) {
 	prefix := `{"Action":"start","Package":"fixture"}` + "\n" + `{"Action":"run","Package":"fixture","Test":"TestGeneration"}` + "\n"

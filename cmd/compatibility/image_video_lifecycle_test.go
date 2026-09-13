@@ -212,25 +212,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 			t.Fatal("incomplete lifecycle check", check.Name)
 		}
 		raw := read(check.Evidence)
-		report, err := testevidence.GoTestJSONReport(string(raw))
-		if err != nil {
-			t.Fatal(check.Name, err)
-		}
-		if err := testevidence.RequireComplete(report); err != nil {
-			t.Fatal(check.Name, err)
-		}
-		passed := []string{}
-		for line := range strings.SplitSeq(string(raw), "\n") {
-			var event struct{ Action, Test string }
-			if json.Unmarshal([]byte(line), &event) == nil && event.Action == "pass" && event.Test != "" {
-				passed = append(passed, event.Test)
-			}
-		}
-		for _, name := range check.Required {
-			if !slices.Contains(passed, name) {
-				t.Fatalf("%s lacks executed test %s", check.Name, name)
-			}
-		}
+		requireMediaTestReceipt(t, check.Name, raw, check.Required)
 		var acquisition struct {
 			Source string            `json:"source_base"`
 			Files  map[string]string `json:"production_source_sha256"`

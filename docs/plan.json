@@ -5,31 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "media-optimization",
-      "title": "Refactor shared generation components and reduce compute, memory, and transfer cost",
-      "owner": "image_video_gen",
-      "status": "open",
-      "steps": [
-        {
-          "id": "capacity",
-          "title": "Validate combined changes, all affected consumers, and constrained compute behavior",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_capacity_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoCapacityAcceptance$' -count=1",
-          "rationale": "Join accepted refactoring, transfer, memory and processing changes into the current source and test their interaction on the frozen affected consumers. Reuse unaffected full model bundles; recheck only the quality/lifecycle assertions invalidated by shared-owner changes. A combined improvement must preserve all required correctness, visual/temporal quality, API behavior and resource constraints, even when each isolated ablation passed. Record baseline-to-combined latency, throughput, peak/retained host/device memory, transfer bytes/calls, synchronization and total experiment cost, with observed variability. Exercise current available and supported constrained RAM/VRAM/CPU/GPU profiles, repeated variable-shape generation, contention, waiting cancellation and resource release. Derive supported execution plans from actual capacity; do not silently reduce resolution, frames, sampling steps or precision to obtain a pass. Keep unsuitable candidates rejected with their evidence. An absent fitting execution plan remains an explicit prerequisite, not a successful fallback. Do not require unrelated model reacquisition or attribute concurrent work to an optimization.\n\nOnly the shared loader refactor is an adopted measured optimization from the completed slices. The rejected transfer and layout candidates must remain absent. Combine that retained implementation with any newly accepted processing change; keep GPU component peaks, pool live/free storage, arena/workspace capacity and process host peak as distinct ownership scopes.",
-          "depends_on": [
-            "media-optimization/transfers",
-            "media-optimization/memory",
-            "media-optimization/processing",
-            "image-validation/latent-diffusion",
-            "image-validation/routed-oscillator",
-            "video-validation/wan",
-            "video-validation/reference-oscillator",
-            "media-reliability/lifecycle"
-          ]
-        }
-      ]
-    },
-    {
       "id": "media-reliability",
       "title": "Verify interruption recovery and public generation workflows",
       "owner": "image_video_gen",

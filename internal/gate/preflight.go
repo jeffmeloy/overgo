@@ -11,11 +11,15 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// preflightChecks selects validation checks in pipeline order.
+// preflightChecks selects diagnostics in pipeline order. Standalone modern-Go
+// admission computes once without publishing a reusable pipeline result.
 func (g *gateContext) preflightChecks() []automationcheck.Check {
 	var checks []automationcheck.Check
 	for _, check := range g.pipelineChecks() {
-		if check.Descriptor.Phase == runrecord.PhaseValidate {
+		if check.Descriptor.Phase == runrecord.PhaseValidate && check.Descriptor.Name != modernCensusCheckName {
+			if check.Descriptor.Name == "modern-go" {
+				check.Descriptor.Dependencies = []string{"scope"}
+			}
 			checks = append(checks, check)
 		}
 	}

@@ -81,10 +81,11 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 		names = append(names, check.Descriptor.Name)
 	}
 	want := append([]string{"protection", "scope"}, validateWave...)
+	want = slices.DeleteFunc(want, func(name string) bool { return name == modernCensusCheckName })
 	if !slices.Equal(names, want) {
 		t.Fatalf("preflight checks = %v, want %v", names, want)
 	}
-	for _, excluded := range []string{"acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName, "commit"} {
+	for _, excluded := range []string{modernCensusCheckName, "acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName, "commit"} {
 		if slices.Contains(names, excluded) {
 			t.Fatalf("preflight selected the %s phase", excluded)
 		}

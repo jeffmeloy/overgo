@@ -31,7 +31,7 @@ func (g *gateContext) executeChecks(
 	if g.terminal == nil {
 		g.terminal = map[string]automationcheck.Evidence{}
 	}
-	var cacheMutex, terminalMutex sync.Mutex
+	var cacheMutex sync.Mutex
 	return automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {
 		fmt.Fprintf(os.Stderr, gateProgressLine, check.Check.Name, runrecord.HeartbeatRunning)
 		if drift != nil {
@@ -45,9 +45,16 @@ func (g *gateContext) executeChecks(
 			evidence, reused := cache.Lookup(slot, input)
 			cacheMutex.Unlock()
 			if reused {
-				terminalMutex.Lock()
+				var err error
+				reused, err = g.reusableOutput(check, evidence)
+				if err != nil {
+					return automationcheck.Evidence{}, err
+				}
+			}
+			if reused {
+				g.terminalMutex.Lock()
 				g.terminal[check.Check.Name] = evidence
-				terminalMutex.Unlock()
+				g.terminalMutex.Unlock()
 				return evidence, nil
 			}
 		}
@@ -72,9 +79,9 @@ func (g *gateContext) executeChecks(
 			}
 		}
 		if evidence.ID.Valid() {
-			terminalMutex.Lock()
+			g.terminalMutex.Lock()
 			g.terminal[check.Check.Name] = evidence
-			terminalMutex.Unlock()
+			g.terminalMutex.Unlock()
 		}
 		return evidence, runErr
 	})
@@ -84,6 +91,9 @@ func (g *gateContext) executeChecks(
 // checkpoint uses its package-scoped memo; ordinary phases require an input
 // fingerprint and permission to reuse evidence.
 func (g *gateContext) checkCacheKey(check automationcheck.Invocation, input artifact.ID) (automationcheck.Invocation, artifact.ID, bool) {
+	if check.Check.Name == modernCensusCheckName && check.Authority != nil {
+		check.ID = check.Authority.Definition
+	}
 	if slot, input, memoised := g.memoSlot(check); memoised {
 		return slot, input, true
 	}

@@ -53,7 +53,7 @@ func TestStrictDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 	unknown := bytes.Replace(content.Data, []byte(`"version":1`), []byte(`"version":1,"surprise":true`), 1)
-	if _, err := codec.Parse(unknown); err == nil {
+	if _, err := Parse(unknown); err == nil {
 		t.Fatal("unknown field was accepted")
 	}
 	var raw map[string]any
@@ -64,7 +64,7 @@ func TestStrictDecode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := codec.Parse(pretty); err == nil {
+	if _, err := Parse(pretty); err == nil {
 		t.Fatal("non-canonical encoding was accepted")
 	}
 }

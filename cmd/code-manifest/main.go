@@ -2,13 +2,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"os"
 	"path/filepath"
 
-	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
@@ -46,7 +46,7 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		base, err := codemanifest.Parse(data)
+		base, err := codemanifest.Parse(bytes.TrimSuffix(data, []byte{'\n'}))
 		if err != nil {
 			return err
 		}
@@ -66,15 +66,7 @@ func run() error {
 		}
 		return json.NewEncoder(os.Stdout).Encode(impact)
 	}
-	content, err := manifest.Content()
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stdout.Write(content.Data); err != nil {
-		return err
-	}
-	_, err = os.Stdout.Write([]byte{'\n'})
-	return err
+	return json.NewEncoder(os.Stdout).Encode(manifest)
 }
 
 func readManifestFile(path string) ([]byte, error) {
@@ -82,8 +74,8 @@ func readManifestFile(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if info.Size() <= 0 || uint64(info.Size()) > artifact.MaxContentBytes {
-		return nil, errors.New("code-manifest: base document exceeds the content bound")
+	if !info.Mode().IsRegular() || info.Size() <= 0 {
+		return nil, errors.New("code-manifest: base must be a nonempty regular analysis file")
 	}
 	return os.ReadFile(path)
 }

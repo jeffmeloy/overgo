@@ -372,13 +372,58 @@
       if (index < 0) return;
       const focused = item.row && item.row.contains(document.activeElement);
       attachments.splice(index, 1); invalidate(item);
+      if (item.transcription) item.transcription.abort();
       releaseFile(item);
       if (item.row) item.row.remove(); renderAttachments();
       if (focused) (attachments[index]?.remove || attachments[index - 1]?.remove || attach || input).focus();
     }
     function stopFile(item) {
+      if (item.transcribing) { stopTranscription(item, 'Transcription stopped. Transcribe again or send the recording.'); return; }
       if (!item.file && item.sourceArtifact) item.needsReattach = true;
       invalidate(item); stage(item, 'cancelled', 'File preparation stopped. Retry or remove it.'); renderAttachments(); item.retry.focus();
+    }
+    // ---- transcription: a recorded or attached audio file transcribes through the served model's own
+    // route on explicit action; the transcript is an offer to insert or replace, never a send. ----
+    const transcribable = () => ((overgo.capabilities() || {}).modes || []).some((mode) => mode.id === 'transcription' && mode.enabled);
+    function stopTranscription(item, note) {
+      if (item.transcription) item.transcription.abort();
+      item.transcription = null; item.transcribing = false; item.transcriptNote = note; item.transcriptAlert = false;
+      renderAttachments();
+    }
+    function transcribeFile(item) {
+      if (disposed || readOnly || !attachments.includes(item) || !item.file || item.transcribing) return;
+      const controller = new AbortController();
+      item.transcription = controller; item.transcribing = true; item.transcriptNote = ''; item.transcriptAlert = false;
+      item.offer.replaceChildren(); item.offer.hidden = true;
+      renderAttachments();
+      const current = () => !disposed && attachments.includes(item) && item.transcription === controller;
+      const form = new FormData();
+      form.append('file', item.file, item.name);
+      overgo.api.form('/v1/audio/transcriptions', form, { signal: controller.signal }).then((result) => {
+        if (!current()) return;
+        item.transcription = null; item.transcribing = false;
+        offerTranscript(item, String(result.text || ''));
+      }, (err) => {
+        if (!current()) return;
+        item.transcription = null; item.transcribing = false;
+        item.transcriptNote = err.name === 'AbortError' ? 'Transcription stopped. Transcribe again or send the recording.' : overgo.friendlyError(err) + ' Transcribe again or send the recording.';
+        item.transcriptAlert = err.name !== 'AbortError';
+        renderAttachments();
+      });
+    }
+    function offerTranscript(item, text) {
+      const apply = (replace) => {
+        input.value = replace || !input.value ? text : input.value + '\n' + text;
+        input.dispatchEvent(new Event('input')); item.offer.replaceChildren(); item.offer.hidden = true; item.transcriptNote = replace ? 'Draft replaced by the transcript.' : 'Transcript inserted into the draft.';
+        renderAttachments(); input.focus();
+      };
+      item.transcriptNote = 'Transcript ready. Insert it after the draft, replace the draft, or discard it.';
+      item.offer.replaceChildren(el('span', { class: 'note transcript-text', text: text }),
+        el('button', { class: 'link-button', text: 'Insert', 'aria-label': 'Insert the transcript after the draft', onclick: () => apply(false) }),
+        el('button', { class: 'link-button', text: 'Replace', 'aria-label': 'Replace the draft with the transcript', onclick: () => apply(true) }),
+        el('button', { class: 'link-button', text: 'Discard', 'aria-label': 'Discard the transcript', onclick: () => { item.offer.replaceChildren(); item.offer.hidden = true; item.transcriptNote = ''; renderAttachments(); } }));
+      item.offer.hidden = false;
+      renderAttachments();
     }
     function renderAttachments() {
       if (disposed) return;
@@ -388,12 +433,15 @@
           item.remove = el('button', { class: 'link-button', text: 'Remove', 'aria-label': 'Remove ' + item.name, onclick: () => removeFile(item) });
           item.retry = el('button', { class: 'link-button', text: 'Retry', 'aria-label': 'Retry ' + item.name, onclick: () => { if (!item.file && item.sourceArtifact) reloadStored(item); else prepareFile(item); } });
           item.stop = el('button', { class: 'link-button', text: 'Cancel', 'aria-label': 'Cancel ' + item.name, onclick: () => stopFile(item) });
+          item.transcribe = el('button', { class: 'link-button', text: 'Transcribe', 'aria-label': 'Transcribe ' + item.name, onclick: () => transcribeFile(item) });
+          item.offer = el('span', { class: 'transcript-offer', hidden: true });
           item.row = el('span', { class: 'attachment-row' }, item.preview, el('span', { class: 'attachment-info' },
-            el('span', { class: 'attachment-name', text: item.name }), el('span', { class: 'note', text: overgo.fmt.bytes(item.size) }), item.status),
-            el('span', { class: 'attachment-actions' }, item.retry, item.stop, item.remove));
+            el('span', { class: 'attachment-name', text: item.name }), el('span', { class: 'note', text: overgo.fmt.bytes(item.size) }), item.status, item.offer),
+            el('span', { class: 'attachment-actions' }, item.transcribe, item.retry, item.stop, item.remove));
         }
         if (item.row.parentNode !== attachmentHost) attachmentHost.appendChild(item.row);
         item.row.dataset.state = item.phase || 'reattach';
+        item.row.dataset.size = item.size;
         let status = 'Ready';
         if (item.refusal) status = item.refusal;
         else if (item.needsReattach) status = 'Reattach this file, or remove it to continue.';
@@ -401,13 +449,16 @@
         else if (item.phase === 'fetching') status = 'Loading stored file…';
         else if (item.phase === 'validating') status = 'Checking image…';
         else if (item.pending) { status = 'Reading…'; if (item.loaded != null) status += ' ' + overgo.fmt.bytes(item.loaded) + ' of ' + overgo.fmt.bytes(item.size); }
+        else if (item.transcribing) status = 'Transcribing…';
+        else if (item.transcriptNote) status = item.transcriptNote;
         else if (item.artifact) status = 'Stored';
         if (item.status.textContent !== status) item.status.textContent = status;
-        item.status.setAttribute('role', item.refusal ? 'alert' : 'status');
+        item.status.setAttribute('role', item.refusal || item.transcriptAlert ? 'alert' : 'status');
         const focused = document.activeElement;
         item.retry.hidden = (!item.file || !['error', 'cancelled'].includes(item.phase)) && !(item.sourceArtifact && item.needsReattach);
         item.retry.textContent = item.file ? 'Retry' : 'Reload stored file';
-        item.stop.hidden = !item.pending && !item.storing;
+        item.stop.hidden = !item.pending && !item.storing && !item.transcribing;
+        item.transcribe.hidden = item.kind !== 'audio' || !item.file || item.phase !== 'ready' || item.transcribing || !transcribable();
         if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
         else if (focused === item.stop && item.stop.hidden) (item.retry.hidden ? item.remove : item.retry).focus();
         const previewKey = !item.pending && !item.refusal && item.dataURL;

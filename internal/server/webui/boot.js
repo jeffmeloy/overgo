@@ -62,9 +62,13 @@
     },
     // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
     async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type || 'application/octet-stream' }, opts))); },
+    // form: a multipart form (files with their fields); the server answers JSON.
+    async form(path, form, opts) { return readJSON(await this.stream(path, form, opts)); },
+    // stream: a POST of JSON, raw bytes (opts.mediaType) or a multipart form (a FormData body names its own boundary).
     async stream(path, body, opts) {
-      const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType;
-      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? { "Content-Type": raw || "application/json" } : {}), body: method !== "POST" ? undefined : raw ? body : JSON.stringify(body), signal: opts && opts.signal });
+      const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType, form = body instanceof FormData;
+      const contentType = raw ? { "Content-Type": raw } : form ? {} : { "Content-Type": "application/json" };
+      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? contentType : {}), body: method !== "POST" ? undefined : raw || form ? body : JSON.stringify(body), signal: opts && opts.signal });
       if (!response.ok) await readJSON(response);
       return response;
     },

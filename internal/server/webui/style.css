@@ -354,6 +354,8 @@ textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .attachment-strip { flex-direction:column; align-items:stretch; gap:0; }
 .attachment-row { display:flex; align-items:center; gap:var(--s2); padding:var(--s2) 0; border-bottom:1px solid var(--line-soft); min-width:0; }
 .attachment-info { display:flex; flex:1; min-width:0; flex-direction:column; }
+.transcript-offer { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s1); }
+.transcript-text { flex-basis:100%; white-space:pre-wrap; }
 .attachment-name { overflow-wrap:anywhere; }
 .attachment-actions { display:flex; align-items:center; flex-wrap:wrap; justify-content:flex-end; gap:var(--s1); max-width:40%; }
 .attachment-preview:empty { display:none; }

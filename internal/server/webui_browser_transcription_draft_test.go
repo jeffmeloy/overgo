@@ -70,7 +70,7 @@ func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
   const caps=structuredClone(overgo.capabilities());caps.modes.push({id:'transcription',label:'Transcribe',enabled:true});
   caps.media.accept=[...new Set([...(caps.media.accept||[]),'audio/wav'])];
   const get=overgo.api.get;
-  overgo.api.get=async function(path,options){const result=await get.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(caps);return result;};
+  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'transcription',recipe:'fixture-asr',name:'Fixture transcription'}];const result=await get.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(caps);return result;};
   window.transcriptCalls=[];window.transcriptMode='hold';window.transcriptSizes=[];
   const stream=overgo.api.stream;
   overgo.api.stream=async function(path,body,options){
@@ -85,7 +85,7 @@ func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
   };
   window.captureOld=document.querySelector('.composer');overgo.openConversation(null);
   window.captureDialog=()=>document.querySelector('.capture-dialog');
-  window.transcribeButton=()=>[...document.querySelectorAll('.attachment-row button')].find(button=>button.textContent==='Transcribe'&&!button.hidden);
+  window.transcribeButton=()=>[...document.querySelectorAll('.attachment-row button')].find(button=>button.textContent==='Transcribe'&&!button.hidden&&!button.disabled);
   window.offerButton=(label)=>[...document.querySelectorAll('.attachment-row .transcript-offer button')].find(button=>button.textContent===label&&!button.hidden);
   window.rowStatus=()=>document.querySelector('.attachment-row [role=status], .attachment-row [role=alert]').textContent;
   return true;

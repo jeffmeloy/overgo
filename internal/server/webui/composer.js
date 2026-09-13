@@ -341,7 +341,11 @@
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...((options.controls) || []), el("span", { class: "grow" }));
-    const extras = el("div", { class: "composer-extras" }, modeHost, attachmentHost);
+    const transcriptionPicker = el('select', { class: 'text', 'aria-label': 'Transcription model' });
+    const transcriptionNote = el('span', { class: 'note', role: 'status' });
+    const transcriptionRetry = el('button', { class: 'link-button', text: 'Retry model list', hidden: true, onclick: () => { transcriptionLoaded = false; renderAttachments(); } });
+    const transcriptionHost = el('div', { class: 'transcription-controls', hidden: true }, el('label', {}, 'Transcription model', transcriptionPicker), transcriptionNote, transcriptionRetry);
+    const extras = el("div", { class: "composer-extras" }, modeHost, transcriptionHost, attachmentHost);
     const guidanceText = el('div', { class: 'note' });
     const guidance = el('details', { class: 'attachment-guidance', hidden: true }, el('summary', { text: 'Accepted files' }), guidanceText);
     extras.appendChild(guidance);
@@ -388,13 +392,45 @@
     // ---- transcription: a recorded or attached audio file transcribes through the served model's own
     // route on explicit action; the transcript is an offer to insert or replace, never a send. ----
     const transcribable = () => ((overgo.capabilities() || {}).modes || []).some((mode) => mode.id === 'transcription' && mode.enabled);
+    let transcriptionLoaded = false, transcriptionLoading = null, transcriptionChoices = [];
+    const transcriptionRecipe = () => transcriptionChoices.find(choice => choice.recipe === transcriptionPicker.value && !choice.refusal)?.recipe;
+    function loadTranscriptionChoices() {
+      if (transcriptionLoaded || transcriptionLoading || disposed) return;
+      const controller = new AbortController(); transcriptionLoading = controller;
+      transcriptionNote.textContent = 'Loading transcription models…'; transcriptionRetry.hidden = true;
+      overgo.api.get('/generation/capabilities', { signal: controller.signal }).then(choices => {
+        if (disposed || transcriptionLoading !== controller) return;
+        if (!Array.isArray(choices)) throw new Error('The server returned an invalid transcription model list.');
+        transcriptionChoices = choices.filter(choice => choice.task === 'transcription');
+        transcriptionPicker.replaceChildren(...transcriptionChoices.map(choice => el('option', {
+          value: choice.recipe, text: choice.name || fmt.shortID(choice.recipe), disabled: !!choice.refusal, title: choice.refusal || ''
+        })));
+        transcriptionPicker.value = transcriptionChoices.find(choice => !choice.refusal)?.recipe || '';
+        transcriptionNote.textContent = transcriptionRecipe() ? '' : 'No transcription model is available. Check models, then retry.';
+        transcriptionRetry.hidden = !!transcriptionRecipe();
+      }).catch(err => {
+        if (disposed || transcriptionLoading !== controller) return;
+        transcriptionChoices = []; transcriptionPicker.replaceChildren();
+        transcriptionNote.textContent = overgo.friendlyError(err); transcriptionRetry.hidden = false;
+      }).finally(() => {
+        if (disposed || transcriptionLoading !== controller) return;
+        transcriptionLoading = null; transcriptionLoaded = true; renderAttachments();
+      });
+    }
+    transcriptionPicker.addEventListener('change', () => {
+      for (const item of attachments) if (item.kind === 'audio') {
+        stopTranscription(item, 'Transcription model changed. Transcribe when ready.');
+        item.offer.replaceChildren(); item.offer.hidden = true;
+      }
+      renderAttachments();
+    });
     function stopTranscription(item, note) {
       if (item.transcription) item.transcription.abort();
       item.transcription = null; item.transcribing = false; item.transcriptNote = note; item.transcriptAlert = false;
       renderAttachments();
     }
     function transcribeFile(item) {
-      if (disposed || readOnly || !attachments.includes(item) || !item.file || item.transcribing) return;
+      if (disposed || readOnly || !attachments.includes(item) || !item.file || item.transcribing || !transcriptionRecipe()) return;
       const controller = new AbortController();
       item.transcription = controller; item.transcribing = true; item.transcriptNote = ''; item.transcriptAlert = false;
       item.offer.replaceChildren(); item.offer.hidden = true;
@@ -402,6 +438,7 @@
       const current = () => !disposed && attachments.includes(item) && item.transcription === controller;
       const form = new FormData();
       form.append('file', item.file, item.name);
+      form.append('model', transcriptionRecipe());
       overgo.api.form('/v1/audio/transcriptions', form, { signal: controller.signal }).then((result) => {
         if (!current()) return;
         item.transcription = null; item.transcribing = false;
@@ -427,9 +464,14 @@
         el('button', { class: 'link-button', text: 'Discard', 'aria-label': 'Discard the transcript', onclick: () => { item.offer.replaceChildren(); item.offer.hidden = true; item.transcriptNote = ''; renderAttachments(); } }));
       item.offer.hidden = false;
       renderAttachments();
+      item.offer.scrollIntoView({ block: 'nearest' });
     }
     function renderAttachments() {
       if (disposed) return;
+      transcriptionHost.hidden = !transcribable() || !attachments.some(item => item.kind === 'audio' && item.file);
+      if (!transcriptionHost.hidden) loadTranscriptionChoices();
+      transcriptionPicker.disabled = readOnly || !!transcriptionLoading || !transcriptionRecipe();
+      transcriptionPicker.parentElement.hidden = !transcriptionChoices.length;
       for (const item of attachments) {
         if (!item.row) {
           item.preview = el('span', { class: 'attachment-preview' }); item.status = el('span', { class: 'note', role: 'status' });
@@ -462,6 +504,7 @@
         item.retry.textContent = item.file ? 'Retry' : 'Reload stored file';
         item.stop.hidden = !item.pending && !item.storing && !item.transcribing;
         item.transcribe.hidden = item.kind !== 'audio' || !item.file || item.phase !== 'ready' || item.transcribing || !transcribable();
+        item.transcribe.disabled = readOnly || !!transcriptionLoading || !transcriptionRecipe();
         if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
         else if (focused === item.stop && item.stop.hidden) (item.retry.hidden ? item.remove : item.retry).focus();
         const previewKey = !item.pending && !item.refusal && item.dataURL;
@@ -595,7 +638,7 @@
       setReadOnly(value) { readOnly = value; if (value) capture.close(); input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
       clearAttachments() { for (const item of attachments) invalidate(item); attachments.length = 0; attachmentHost.replaceChildren(); renderAttachments(); },
       restoreAttachments(items) { attachments.push(...items); renderAttachments(); },
-      dispose() { disposed = true; capture.dispose(); for (const item of attachments) invalidate(item); },
+      dispose() { disposed = true; if (transcriptionLoading) transcriptionLoading.abort(); capture.dispose(); for (const item of attachments) invalidate(item); },
       closeCapture: capture.close,
       invalidateIntake() { capture.close(); for (const item of attachments) if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); } renderAttachments(); },
       openPicker,

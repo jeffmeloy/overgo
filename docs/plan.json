@@ -1,9 +1,219 @@
 {
-  "campaign": "GUI capability roadmap: flat conversation workflow, reachable workspaces, correct serving contracts and the training loop in the workbench",
-  "doctrine": "Owner direction, 2026-09-13: the roadmap now also covers reachability of Train, Model Builder and Evaluations in the documented launch; correctness of the serving contracts the workbench depends on (declared sampler chain, credential-less GET admission, native video routes, Library validation with a projector); workbench consumers for capabilities that have none (inference sessions, agent recovery and streaming tools, model merge, declared speculative decoding); the workbench side of the training loop (conversation dataset preview, adapter training served from the picker, run export, preference training); and the style floor Impeccable's craft floor, audit, typeset, harden and clarify references describe (C:/Users/jeffm/impeccable, read-only concept source), applied after functionality is verified and only as measurements the browser lane computes and ratchets, never as review prose. Training internals, converters, objectives and their evidence stay master-owned under the train-serve-loop reference row; a lane row that consumes them waits for the master step it names. Each new row binds its own browser journey marker and, where it changes a server contract, a file-guarded owning-package test; local signoff requires every marker. No new model family, optimizer or orchestration framework; derive adapter rank, draft depth and chain defaults from declarations rather than entering them.\n\nCurrent owner direction: merge master into professional_overgo_gui while retaining this plan, then continue with the next GUI capability. Work exclusively in this worktree. Publishing subsequent GUI changes into master requires separate owner authorization.\n\nPreserve the conversation-first design: flat messages, lists and separators; no cards; independently scrolling messages; reachable Send/Stop; one compact model selector with explicit details; mobile navigation drawer; settings on demand; status only for relevant progress, failure or required action. Keep the embedded same-origin client, CSP, authenticated shared transport and existing workbench/state owners. Apply Impeccable guidance to clarity, focus, typography and touch behavior after functionality is verified.\n\nPrevent lost drafts, incorrect cancellation and hidden device capture. Responses, lineage, operations, artifacts, admission and decisions remain server-owned. Browser drafts/settings exclude secrets and captured bytes. Distinguish Stop from disconnect, resume from retry, branch creation from mutation, shared memory admission from exclusive measurement reservations, and recorded attachments from live streams. Reuse existing transactions, evidence handles and abandoned-admission recovery.\n\nMaster is integrated through 216eb296be00 (2026-09-13, the seventh integration that day): dependent checks are preserved when owner results are reused, ranked test costs are retained from required gate executions, scoped operator stops persist until explicit resumption, plan steps edit through validated typed input, plan work is claimed before an executable dispatch, retained gate costs are queryable through plan history, imported Go types are reused within each census, generic CLI helpers no longer depend on inference or the CUDA driver (the served child types its own device-memory exit), the preparation census is computed once, the gate reports actual per-package verification cost and bounds each active test instead of the suite duration, publication cost is measured against retained gate attempts, instruction evaluation progress persists across resumption, and Qwen4 and Qwen9 native instruction validation is complete; exact artifact identity in model selection, declared chat framing and selected model evidence stay preserved. The master-owned reference rows mirror master's open plan at that revision (publication cost, gate selection, modality verification, regression, benchmark, recovery and simplification); the lane never dispatches them, and a lane row that needs master's work names the master step it waits on. Native NDJSON transcription streaming now has production session/checkpoint owners; browser live input still needs a compatible bounded transport and source-identity contract. CPU and server tests do not prove browser live streaming, physical-phone operation, model understanding or held-out quality.\n\nOnly professional_overgo_gui rows are local work. Retain master-owned historical identities, dependencies and verifier floors as coordination references; reconcile their disposition in master before execution. The 27B benchmark remains operator-launched. The four inherited audio/training surface obligations remain under audio-staged-surface pending owner's reconciliation; no parallel audio backend.\n\nFuture named browser tests are implementation obligations, not present evidence. Assert actual actions, encoded bytes, request/terminal state and cleanup. Preserve existing GUI regression floors. Use synthetic devices and fixtures for focused acceptance, then the full real-model lane for local signoff. Separate physical iOS/Android/Safari/screen-reader evidence from Chromium emulation; missing hardware stays outstanding and does not block implementable local rows. Gate commits through cmd/gate. Bind inherited audio and smoke reference fixtures read-only; keep general data root and browser writes local to this worktree. No arbitrary source-size ceilings or silently skipped supported cases.",
+  "campaign": "GUI capability roadmap: conversation-first workbench, local audio input/output and the training loop",
+  "doctrine": "Active owner workflow, 2026-09-13: repeat master-to-GUI integration while retaining this plan, reconcile new capabilities and prioritize the greatest GUI benefit, implement eligible plan steps, exercise their operations in a real browser, inspect screenshots at desktop/mobile/keyboard sizes, validate and commit through the existing gate, then repeat. Preserve independent work and source-store ownership. Each interaction change requires real actions and graphical inspection of relevant progress, success, failure and cancellation states; record exact viewport, fixture/native boundary and unresolved physical-device checks. Fix findings before declaring the slice accepted. No timer or external-lane wait blocks independent eligible GUI work.\n\nOwner audio direction, 2026-09-13: plan the complete text-file-to-audio workflow with TTS, recorded or stored voice samples and reusable cloned voice state, using existing local models only; no external speech services or new downloads. The audio worktree is registered as C:/Users/jeffm/overgo_audiocpp (the supplied C:/Users/jeffm/overgo/_audiocpp path is absent), inspected at 3adcb14f. Coordinate native speechsynth/codec/conditioning/ASR/VAD/speaker work with that lane; do not edit its checkout from this GUI task or create a parallel backend. Its audio-generation-expansion synthesis-lifecycle and voice groups remain the native implementation owners. The GUI-native-voice-contract prerequisite accepts their delivered sample-cloning contract; it neither copies nor dispatches the audio lane's backend plan. Only merge/validated contract evidence can enable dependent GUI functions. Prioritize usable preset text-file TTS and repair transcription independently of voice cloning, multilingual qualification, training, CUDA and physical phones. Capability labels distinguish installed bytes, native support, admitted recipes, measured output quality and GUI availability. Original Pocket-TTS encoder tensors are nonzero; newer language copies have zeroed encoders, so qualify the exact checkpoint rather than repeating stale comments or inferring cloning from a model name. Keep the existing flat conversation-first design, on-demand settings and compact selectors. The owner has now authorized implementation and repeated gated commits of these functions.\n\nOwner direction, 2026-09-13: the roadmap now also covers reachability of Train, Model Builder and Evaluations in the documented launch; correctness of the serving contracts the workbench depends on (declared sampler chain, credential-less GET admission, native video routes, Library validation with a projector); workbench consumers for capabilities that have none (inference sessions, agent recovery and streaming tools, model merge, declared speculative decoding); the workbench side of the training loop (conversation dataset preview, adapter training served from the picker, run export, preference training); and the style floor Impeccable's craft floor, audit, typeset, harden and clarify references describe (C:/Users/jeffm/impeccable, read-only concept source), applied after functionality is verified and only as measurements the browser lane computes and ratchets, never as review prose. Training internals, converters, objectives and their evidence stay master-owned under the train-serve-loop reference row; a lane row that consumes them waits for the master step it names. Each new row binds its own browser journey marker and, where it changes a server contract, a file-guarded owning-package test; comprehensive capability signoff requires every marker; local baseline signoff and each capability bundle remain independently executable. No new model family, optimizer or orchestration framework; derive adapter rank, draft depth and chain defaults from declarations rather than entering them.\n\nCurrent owner direction: merge master into professional_overgo_gui while retaining this plan, then continue with the next GUI capability. Work exclusively in this worktree. Publishing subsequent GUI changes into master requires separate owner authorization.\n\nPreserve the conversation-first design: flat messages, lists and separators; no cards; independently scrolling messages; reachable Send/Stop; one compact model selector with explicit details; mobile navigation drawer; settings on demand; status only for relevant progress, failure or required action. Keep the embedded same-origin client, CSP, authenticated shared transport and existing workbench/state owners. Apply Impeccable guidance to clarity, focus, typography and touch behavior after functionality is verified.\n\nPrevent lost drafts, incorrect cancellation and hidden device capture. Responses, lineage, operations, artifacts, admission and decisions remain server-owned. Browser drafts/settings exclude secrets and captured bytes. Distinguish Stop from disconnect, resume from retry, branch creation from mutation, shared memory admission from exclusive measurement reservations, and recorded attachments from live streams. Reuse existing transactions, evidence handles and abandoned-admission recovery.\n\nEarlier master baseline b10cc6e11002 (superseded by the d279be41b7fb intake below): the image and video runtime lane is merged with its frozen image cases, Wan and LiveEdit validation and the focused media report, checkpoint reuse binds to original execution inputs, census results reuse immutably under live gate admission and publish idempotently, the gate re-ranks by impact, dependent checks are preserved when owner results are reused, ranked test costs are retained from required gate executions, scoped operator stops persist until explicit resumption, plan steps edit through validated typed input, plan work is claimed before an executable dispatch, retained gate costs are queryable through plan history, imported Go types are reused within each census, generic CLI helpers no longer depend on inference or the CUDA driver (the served child types its own device-memory exit), the preparation census is computed once, the gate reports actual per-package verification cost and bounds each active test instead of the suite duration, publication cost is measured against retained gate attempts, instruction evaluation progress persists across resumption, and Qwen4 and Qwen9 native instruction validation is complete; exact artifact identity in model selection, declared chat framing and selected model evidence stay preserved. The master-owned reference rows mirror master's open plan at that revision (publication cost, gate selection, modality verification, regression, benchmark, recovery and simplification); the lane never dispatches them, and a lane row that needs master's work names the master step it waits on. Native NDJSON transcription streaming now has production session/checkpoint owners; browser live input still needs a compatible bounded transport and source-identity contract. CPU and server tests do not prove browser live streaming, physical-phone operation, model understanding or held-out quality.\n\nOnly professional_overgo_gui rows are local work. Retain master-owned historical identities, dependencies and verifier floors as coordination references; reconcile their disposition in master before execution. The 27B benchmark remains operator-launched. The four inherited audio/training surface obligations remain under audio-staged-surface pending owner's reconciliation; no parallel audio backend.\n\nFuture named browser tests are implementation obligations, not present evidence. Assert actual actions, encoded bytes, request/terminal state and cleanup. Preserve existing GUI regression floors. Use synthetic devices and fixtures for focused acceptance, then the full real-model lane for local signoff. Separate physical iOS/Android/Safari/screen-reader evidence from Chromium emulation; missing hardware stays outstanding and does not block implementable local rows. Gate commits through cmd/gate. Bind inherited audio and smoke reference fixtures read-only; keep general data root and browser writes local to this worktree. No arbitrary source-size ceilings or silently skipped supported cases.\n\nGate reference binding: set OVERGO_SMOKE_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store for the existing read-only retained-evidence tests. Keep the general data root, browser output and writable fixtures local. A missing local copy must not trigger model remeasurement or a weakened acceptance check.\n\nMaster intake d279be41b7fb includes 99c142ee: numeric sampler presence, transcription cancellation during shared attachment invalidation/disposal, and video camera-facing selection are implemented upstream. Reuse the actual owning tests and preserve outstanding mode/read-only/page lifecycle checks. The multipart transcription model field remains missing. Baseline browser operation and screenshot review passed conversation scrolling/navigation/settings at desktop, phone and keyboard widths, and capture preview/retake/attachment at small sizes; fixtures do not establish microphone hardware or ASR model quality.",
   "lane": "professional_overgo_gui",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "gui-audio-catalog",
+      "title": "Expose existing local audio models by task and actual readiness",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expose existing local audio models by task and actual readiness",
+          "status": "open",
+          "verify": "test -f internal/server/audio_catalog_test.go \u0026\u0026 go test ./internal/server -run '^TestAudioCatalogReadiness$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AudioCatalog|LayoutAudit)$' -require 'audio catalog leg'",
+          "rationale": "Owner request 2026-09-13: use only models already on this machine, with no external speech API or new model download. Extend the existing capability/Library owners to distinguish files present, registered artifacts, admitted recipes and runnable tasks. Inventory exact source identities across the GUI store and the declared read-only audio reference store; use normal registration/activation and merge ownership to make missing GUI declarations available, never copy model bytes or mutate another worktree. Include Pocket-TTS; Granite Speech 5.0 470M TurboCTC; native Safetensors Nemotron 3.5 ASR; FireRed offline/streaming VAD and separately qualified AED; Sortformer; Gemma E4B and 12B audio input. The audio.cpp source catalog is not installed native support. Keep one compact task/model choice with details on demand and actionable unavailable states; use a flat audio view inside the existing workbench and conversation modes. Browser acceptance must prove task filtering, actual recipe selection, missing/retired artifact refusal and cold-start reachability without requiring an unrelated chat audio projector."
+        }
+      ]
+    },
+    {
+      "id": "gui-audio-transcription",
+      "title": "Bind recorded and stored audio transcription to the selected ASR recipe",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind recorded and stored audio transcription to the selected ASR recipe",
+          "status": "open",
+          "verify": "test -f internal/server/transcription_selection_test.go \u0026\u0026 go test ./internal/server -run '^TestTranscriptionSelectedRecipe$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TranscriptionDraft|TranscriptionSelection|TranscriptionCleanup|LayoutAudit)$' -require 'transcription selection leg'",
+          "rationale": "Repair the demonstrated integration failure first: composer.js sends only file, while readTranscriptionUpload requires file and model. Resolve model from the selected admitted transcription recipe, not the active chat display name; keep reference identities exact when multiple ASR models are available. Accept recorded, uploaded or stored audio under the ASR declaration independently of chat-projector support. Submit through the authenticated real multipart endpoint, expose progress/Cancel/retry, and offer Insert/Replace/Discard without sending or overwriting the draft automatically. Extend the existing transcription browser journey: its intercepted API response is useful for timing tests but cannot establish production endpoint compatibility. Require at least one real handler/runtime fixture request with the model field, wrong-model/invalid-file refusal, stored-file reuse and late-result suppression.",
+          "depends_on": [
+            "gui-audio-catalog/do",
+            "gui-composer-cleanup/do",
+            "gui-transcription-selection/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-text-to-speech",
+      "title": "Turn a text file into a complete downloadable audio file with existing voices",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Turn a text file into a complete downloadable audio file with existing voices",
+          "status": "open",
+          "verify": "test -f internal/server/speech_document_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeechDocumentLifecycle$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TextToSpeech|LayoutAudit)$' -require 'text to speech leg'",
+          "rationale": "Primary user workflow: choose a local .txt file or paste text, inspect/edit the text, choose an admitted local Pocket-TTS recipe and stored voice, Generate, Stop, preview and Download audio. UTF-8/BOM, empty/invalid files and declared size limits have explicit outcomes; loading a file must not silently replace an existing draft. Existing exported voices work without the sample-cloning backend. Use the existing speech/generation operation and artifact owners, same-origin authentication and a named WAV download whose format matches the actual output. Move advanced sampling controls out of the main flow. Whole-document execution must preserve every text segment: derive chunk/context/frame limits from the recipe, retain ordered segment/output identities and progress, detect incomplete synthesis rather than silently truncating at max_frames, assemble one valid audio file with consistent rate/channels, and reuse existing operation/checkpoint owners for cancellation/recovery instead of a browser-only job queue. Accept short and multi-segment fixtures, cancellation before/after acceptance, failure/retry, correct voice identity, decoded output and byte-exact authenticated download. Native engine/codec changes coordinate with overgo_audiocpp's synthesis-lifecycle group; ordinary preset TTS is not blocked on its unrelated training or voice-election receipts.",
+          "depends_on": [
+            "gui-audio-catalog/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-voice-library",
+      "title": "Record, upload and reuse named local voice samples",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record, upload and reuse named local voice samples",
+          "status": "open",
+          "verify": "test -f internal/server/voice_sample_test.go \u0026\u0026 go test ./internal/server -run '^TestVoiceSampleArtifacts$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(VoiceLibrary|LayoutAudit)$' -require 'voice library leg'",
+          "rationale": "Add Record voice sample, Upload sample and Choose stored sample to the existing speech surface. Reuse media_capture, audio intake and artifact browsing; show a flat searchable list with user labels, sample playback, duration/format and source identity, not model-detail cards or raw IDs as the main labels. Keep recorded sample audio separate from exported model voice state; store each through the existing artifact/lineage owners, with model/preprocessor binding for derived state. Validate duration/rate/channels/silence according to the selected voice-encoder declaration; do not apply ASR policy indiscriminately to generated speech. Stored samples remain available for later reuse and unavailable derived voices are explained. Raw bytes and credentials never enter browser draft storage. Remove/reselect/dispose/pagehide/permission failure must release tracks, URLs and requests. No sample may be passed off as a cloned voice before the native conditioning contract accepts it.",
+          "depends_on": [
+            "gui-audio-catalog/do",
+            "gui-composer-cleanup/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-native-voice-contract",
+      "title": "Accept the audio lane's exact recorded-sample cloning contract",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind GUI admission to validated native sample-to-voice-state delivery",
+          "status": "open",
+          "verify": "test -f internal/server/speech_voice_capability_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeechVoiceCapabilityAdmission$' -count=1",
+          "rationale": "GUI integration prerequisite, not a second native implementation plan. Coordinate with audio-generation-expansion/sync-tts-contract-consolidation, tts-contract-consolidation, sync-voice-capability and voice-capability in C:/Users/jeffm/overgo_audiocpp (inspected at 3adcb14f). Reconcile their current disposition and consume the validated backend changes through normal integration; this row does not authorize publishing GUI changes or editing the audio checkout. The audio lane owns encoder/codec/conditioning implementation, independent numerical parity and speaker-quality evidence. Its generic voice election can select multilingual synthesis or conversion, which does not satisfy sample cloning. Through existing recipe/capability/server owners, require an admitted exact local Pocket-TTS checkpoint, usable PCM-to-voice-state encoding, state-to-speech synthesis and retained independent evidence binding source sample, preprocessing, model/configuration/tokenizer and output identity. Acceptance must exercise two distinct recorded/stored samples through the real native contract and reject absent, zeroed or incompatible encoders, stale evidence and mismatched voice state; mocked success cannot qualify the capability. Keep this row open until that delivery exists. Preset text-to-audio, sample-library management and transcription have no dependency on this row.",
+          "depends_on": [
+            "gui-audio-catalog/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-voice-cloning",
+      "title": "Generate document speech using a recorded or stored voice sample",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Generate document speech using a recorded or stored voice sample",
+          "status": "open",
+          "verify": "test -f internal/server/speech_voice_reference_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeechVoiceReferenceBinding$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(VoiceCloning|LayoutAudit)$' -require 'voice cloning leg'",
+          "rationale": "Connect the text-file TTS flow to the native sample-to-voice-state capability delivered by the audio worktree, retaining user choice between preset/exported voices and a recorded/stored sample. Existing-model evidence from 2026-09-13: C:/Users/jeffm/adaptive_new/models/pocket-tts/tts_b6369a24.safetensors has 42 nonzero mimi.encoder tensors; all 12 inspected language/model.safetensors copies have those 42 tensors zeroed. The speechsynth comments claiming every local encoder is amputated are stale. Nonzero tensors establish a candidate, not working cloning: require exact checkpoint/config/tokenizer/encoder/conditioning admission and an independent sample-to-state-to-PCM oracle before enabling Generate with a sample. Coordinate with audio-generation-expansion/sync-voice-capability and voice-capability in C:/Users/jeffm/overgo_audiocpp. Their current generic voice election may choose multilingual synthesis or conversion; that alone cannot close this sample-cloning row. Persist reusable derived voice state with sample/model/preprocessing lineage; test two distinct samples, stored-state reload, wrong-model/zeroed-encoder rejection, state invalidation, Stop/retry and downloadable output. GUI fixtures validate requests and interaction, while the audio lane owns numerical parity and speaker-similarity/quality evidence. No new model family, provider API or parallel inference service.",
+          "depends_on": [
+            "gui-text-to-speech/do",
+            "gui-voice-library/do",
+            "gui-native-voice-contract/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-speech-languages",
+      "title": "Expose qualified existing Pocket-TTS language checkpoints and their voices",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expose qualified existing Pocket-TTS language checkpoints and their voices",
+          "status": "open",
+          "verify": "test -f internal/server/speech_language_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeechLanguageVoiceBinding$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SpeechLanguages|LayoutAudit)$' -require 'speech languages leg'",
+          "rationale": "Qualify the already present Pocket-TTS English, French, German, Italian, Portuguese and Spanish checkpoints through existing artifact/recipe admission before offering them. There are 12 local language directories, including dated English and 24-layer variants, and 26 exported voice files per language directory; the root voice collections offer 21 distinct names. File presence or matching names does not make weights/configuration/tokenizer/voice-state combinations interchangeable. Coordinate native qualification with the audio worktree's existing voice-election group and retain exact per-variant evidence; decline incompatible layer counts or missing declarations explicitly. Show only admitted language/voice combinations in one compact selector, preserve source text on changes, and disable recorded-sample cloning for the zeroed-encoder variants unless another explicitly admitted compatible path exists. Acceptance verifies the served selection and full text-to-audio/download path for every exposed variant; unsupported variants remain listed only in on-demand details. Do not block working English preset TTS or sample cloning on all languages.",
+          "depends_on": [
+            "gui-text-to-speech/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-audio-analysis",
+      "title": "Make existing speech activity, speaker, alignment and audio-understanding functions usable",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make existing speech activity, speaker, alignment and audio-understanding functions usable",
+          "status": "open",
+          "verify": "test -f internal/server/audio_analysis_test.go \u0026\u0026 go test ./internal/server -run '^TestAudioAnalysisTaskBinding$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AudioAnalysis|LayoutAudit)$' -require 'audio analysis leg'",
+          "rationale": "Use recorded/uploaded/stored audio across task-specific views in the existing workbench: FireRed VAD speech regions; Sortformer speaker turns; validated alignment/word timestamps only when the corresponding native contract exists; Gemma audio questions with text answers. Keep transcript, speech activity, speaker diarization and audio-event detection separate. FireRed AED weights/ONNX exports do not establish a native event detector; list the missing native contract as a refusal instead of inventing output. Reuse the audio worktree's admitted operation/session/output owners and gemma-audio-proof/serving-recovery evidence; E4B acceptance must not imply 12B quality or block it unnecessarily. Render a seekable audio player with flat timestamped transcript/turn rows and speaker labels; keep technical details on demand. Export text and structured records; offer subtitle export only for validated alignment, never reinterpret VAD boundaries or decoder frame steps as word timestamps. Test output/source binding, playback seeking, overlap, cancellation/reload, unsupported tasks and actual selected model. Missing one optional task must not block supported transcription, VAD or TTS.",
+          "depends_on": [
+            "gui-audio-catalog/do",
+            "gui-audio-transcription/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-sampler-presence",
+      "title": "Resolve sampler defaults from parameter presence, not zero values",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve sampler defaults from parameter presence, not zero values",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^(TestRequestWithoutSamplersUsesDeclaredChain|TestRequestSamplingPresence)$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SamplingSettings|LayoutAudit)$' -require 'sampling settings leg'",
+          "rationale": "Owner review 2026-09-13 (P2): newSampler in internal/server/server.go fills TypicalP, TopNSigma, XTCThreshold, RepeatPenalty, DryBase, DryAllowedLength, DryPenaltyLastN, MirostatTau and MirostatEta with cmp.Or, which cannot distinguish an omitted parameter from an intentional zero: dry_penalty_last_n: 0 means disable DRY and is replaced by the declared default, while the remaining parameters never receive a declared default at all. Make request sampling fields presence-aware (decoded presence, not zero sentinels) and resolve every parameter through one default-resolution path shared by the chat, completion and responses bodies, so an omitted value takes the declared default, an explicit zero stays zero, and a nonzero value is kept. Keep the resolved values in the response sampling record. Acceptance: the owning-package test covers omitted, explicit-zero and nonzero values independently for each defaulted parameter; the sampling settings journey sends an explicit zero and reads it back unchanged in the response details. Master 99c142ee now implements pointer-presence resolution with the named owning regression. Reconcile browser explicit-zero coverage against the merged implementation; do not implement a second default owner."
+        }
+      ]
+    },
+    {
+      "id": "gui-composer-cleanup",
+      "title": "Cancel transcription in the composer's shared attachment cleanup",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cancel transcription in the composer's shared attachment cleanup",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(TranscriptionCleanup|LayoutAudit)$' -require 'transcription cleanup leg'",
+          "rationale": "Owner review 2026-09-13 (P2): transcription owns its own AbortController on the attachment item; removeFile aborts it, but invalidate (the path dispose and clearAttachments share) cancels only file preparation, so opening another conversation leaves a transcription request running without its row, and its completion callback is guarded only by the disposed flag. Move transcription cancellation into the shared cleanup path so disposal, clearing and invalidation all abort it, release the recording's object URL with it, and leave no offer or status behind. Acceptance: the journey starts a transcription, switches conversations mid-request, and observes the request aborted with no later insertion into either draft; the existing transcription draft journey still passes. Include clearAttachments, file invalidation, model changes and page teardown; abort the transcription controller as well as file preparation, clear stale offer callbacks, and retain both drafts unchanged. Use the real request contract from gui-audio-transcription when integration lands. Master 99c142ee now aborts through invalidate for clear/dispose/remove and retains a real browser disposal check. Verify remaining invalidation, mode changes, read-only transitions and page teardown rather than duplicating that fix."
+        }
+      ]
+    },
+    {
+      "id": "gui-capture-facing",
+      "title": "Apply the front or rear camera choice to video capture",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Apply the front or rear camera choice to video capture",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(CaptureFacing|LayoutAudit)$' -require 'capture facing leg'",
+          "rationale": "Owner review 2026-09-13 (P2): the capture device selector offers Front camera and Rear camera for every camera kind, but constraints() in media_capture.js applies facingMode only to photographs; a video capture with Rear camera selected requests true and the browser picks its default camera, while explicit device ids work for both. Build one constraint from the selection for image and video capture alike (facingMode ideal for the two named choices, exact deviceId for a listed device) and keep the recorder's MIME negotiation unchanged. Acceptance: the journey records a fake getUserMedia and asserts the video constraint carries the selected facing mode and the deviceId for a listed camera; the video capture journey still passes. Master 99c142ee now applies facingMode to video and verifies rear-camera requests in TestWebUIBrowserVideoCapture. Retain physical-phone checks separately; reconcile this row against the merged proof."
+        }
+      ]
+    },
+    {
+      "id": "gui-video-source-edit",
+      "title": "Edit a captured or attached clip through the reference-video recipe's source port",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Edit a captured or attached clip through the reference-video recipe's source port",
+          "status": "open",
+          "verify": "test -f internal/server/video_source_route_test.go \u0026\u0026 go test ./internal/server -run '^TestVideoRouteSourceDocument$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(VideoSourceEdit|LayoutAudit)$' -require 'video source edit leg'",
+          "rationale": "Master b10cc6e11002 validates reference-guided video editing as a video-gen recipe whose reference-video stages read a typed source-video document (internal/latentvideo/production.go: ReferenceEditInputContent binds the condition and source ports; SourceVideo is planar float pixels with declared channels, frames, height and width; CompileSourceCodecBoundary refuses a shape the causal VAE cannot encode). The native video route (internal/server/native_media_protocols.go) carries only the prompt, so the workbench cannot reach that consumer, while the composer already records bounded camera clips and attaches video files. Close the loop: derive the accepted source shape from the served recipe's declared codec profile and expose it in the workspace capability document; sample the attached or recorded clip into that shape in the browser (the photo capture already draws video frames to a canvas; no server-side container decoder exists, and MP4/WebM decoding is not added); upload the typed source-video document with the prompt through the native video route; route it to the recipe's source port; refuse a clip whose frame count or extent exceeds the declared shape before upload, naming the bound. Acceptance: the journey attaches a fixture clip, runs the edit on the reference-video fixture recipe, and reads an output whose frame count matches the request; an oversized clip is refused with the declared bound; a text-only video-gen recipe shows no source control; the owning-package test pins the route contract with the source document.",
+          "depends_on": [
+            "gui-capture-facing/do"
+          ]
+        }
+      ]
+    },
     {
       "id": "gui-live-media",
       "title": "Stream microphone input through native transcription sessions with bounded queues",
@@ -15,9 +225,11 @@
           "title": "Stream microphone input through native transcription sessions with bounded queues",
           "status": "open",
           "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(LiveMedia|LayoutAudit)$' -require 'live media leg'",
-          "rationale": "Reuse native session/checkpoint ownership. First prove a browser-compatible request/response adapter: Fetch half-duplex cannot expose live replies during an unfinished upload. Derive PCM format, resampling and chunk bounds from server capabilities. Bind valid source identity, backpressure, disconnect/Stop cleanup and ordered partial/final transcripts. Require synthetic chunk-to-partial-output acceptance before microphone UX. Camera streaming/frame sampling needs a separately declared compatible consumer; no unbounded upload or model-understanding claim.",
+          "rationale": "Reuse native session/checkpoint ownership. First prove a browser-compatible request/response adapter: Fetch half-duplex cannot expose live replies during an unfinished upload. Derive PCM format, resampling and chunk bounds from server capabilities. Bind valid source identity, backpressure, disconnect/Stop cleanup and ordered partial/final transcripts. Require synthetic chunk-to-partial-output acceptance before microphone UX. Camera streaming/frame sampling needs a separately declared compatible consumer; no unbounded upload or model-understanding claim. Use the selected admitted native Nemotron/Granite session contract, not whichever chat model happens to serve. Provide explicit Start/Stop, microphone/source selection, visible recording state, ordered partial/final text and a choice to insert final text into the draft; reconnect/resume only with exact source/checkpoint identity. Keep recorded-file transcription available when duplex transport, permissions or streaming admission is unavailable. Browser tests must exercise actual incremental request/response delivery, bounded queues and aborted capture across navigation/backgrounding; no external API, prefix re-upload or unbounded retained PCM.",
           "depends_on": [
-            "gui-transcription-draft/do"
+            "gui-transcription-draft/do",
+            "gui-audio-catalog/do",
+            "gui-audio-transcription/do"
           ]
         }
       ]
@@ -87,16 +299,16 @@
     },
     {
       "id": "gui-style-design-document",
-      "title": "Generate the workbench design document from the stylesheet tokens and refuse hard-coded style",
+      "title": "Publish the workbench token and consumer inventory as structured data and refuse hard-coded style",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Generate the workbench design document from the stylesheet tokens and refuse hard-coded style",
+          "title": "Publish the workbench token and consumer inventory as structured data and refuse hard-coded style",
           "status": "open",
           "verify": "test -f internal/webuilane/design_document_test.go \u0026\u0026 go test ./internal/webuilane -run '^TestDesignDocumentMatchesStylesheet$' -count=1",
-          "rationale": "Impeccable's document and extract commands keep one design record whose values mirror the token file verbatim. The workbench already has that token file: style.css declares both themes, the spacing scale and the type scale in :root, and the utilities comment says every size, spacing and emphasis is named there. Generate docs/gui/DESIGN.md from those declarations through the existing webui-lane report owner, the way SIMPLIFICATION.md is generated, and check it fresh. The same generator is the theming ratchet: a colour, size or spacing literal outside :root in style.css, or an inline style attribute in the panel modules, is a finding. Acceptance: the generated document equals the committed one; the token, scale and component inventories are complete; the literal census is zero and a seeded literal fails."
+          "rationale": "Owner direction 2026-09-13: no further generated Markdown contracts. The workbench's single design record is a structured inventory, not a rendered document: the existing webui-lane report owner reads the :root token declarations in style.css (both themes, the spacing scale, the type scale) and every consumer of each token across style.css and the panel modules, and publishes docs/gui/design_tokens.json with the token, scale and component inventories plus per-token consumer counts, checked fresh the way the other generated JSON documents are. A human rendering is optional and derived from that document on demand, never committed. The same inventory is the theming ratchet: a colour, size or spacing literal outside :root in style.css, or an inline style attribute in the panel modules, is a finding whose count only falls. Acceptance: the published inventory equals the committed one; every token has at least one consumer or is listed as unused; the literal census is zero and a seeded literal fails."
         }
       ]
     },
@@ -221,18 +433,76 @@
       ]
     },
     {
-      "id": "gui-local-signoff",
-      "title": "Accept implemented GUI capabilities independently of physical-phone signoff",
+      "id": "gui-audio-acceptance",
+      "title": "Accept audio workflow bundles with real local model evidence",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Accept implemented GUI capabilities independently of physical-phone signoff",
+          "title": "Accept audio workflow bundles with real local model evidence",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser.*$' -require 'media capture leg' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'transcription draft leg' -require 'video capture leg' -require 'live media leg' -require 'workspace reachability leg' -require 'sampling settings leg' -require 'workspace refusal leg' -require 'library validation leg' -require 'agent recovery leg' -require 'session continuation leg' -require 'model merge leg' -require 'speculative decoding leg' -require 'craft floor leg' -require 'typeset leg' -require 'hardened states leg' -require 'dataset preview leg' -require 'adapter training leg' -require 'run export leg' -require 'preference training leg'",
-          "rationale": "Run the complete browser/model lane and preserve all existing conversation, draft, mobile, navigation, actions, attachment and background journeys. Require new capture, transcription, video and live-media markers. Inspect desktop and narrow/keyboard light/dark captures after behavior passes; apply Impeccable guidance to flat surfaces and report actual browsers/models plus unsupported cases. This local acceptance cannot close physical-device signoff.",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(AudioCatalog|TextToSpeech|VoiceLibrary|VoiceCloning|SpeechLanguages|AudioAnalysis|TranscriptionDraft|TranscriptionSelection|TranscriptionCleanup|LiveMedia|LayoutAudit|LayoutAudit)$' -require 'audio catalog leg' -require 'text to speech leg' -require 'voice library leg' -require 'voice cloning leg' -require 'speech languages leg' -require 'audio analysis leg' -require 'transcription selection leg' -require 'transcription cleanup leg' -require 'live media leg'",
+          "rationale": "Integrate the audio bundles through the existing webui-lane and retained evidence owners, not a new audio GUI gate. Each landed bundle has its own acceptance immediately; this final audio row requires every advertised journey and a real endpoint/model path, with actual audio bytes and selected voice/source identities. Reuse exact unchanged backend parity/quality evidence from the audio lane; do not rerun all training/GPU campaigns for a browser-only edit or count intercepted success as end-to-end inference. Keep desktop/narrow/software-keyboard layouts, focus, labels, progress, reachable Stop, playback/download and no lingering capture as explicit checks. Native NDJSON tests alone do not establish browser streaming. Report supported and unavailable models separately, and keep physical iOS/Android evidence with gui-device-signoff.",
           "depends_on": [
+            "gui-text-to-speech/do",
+            "gui-voice-cloning/do",
+            "gui-speech-languages/do",
+            "gui-audio-analysis/do",
+            "gui-live-media/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-local-signoff",
+      "title": "Accept implemented GUI capability bundles incrementally and reuse them in local signoff",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accept implemented GUI capability bundles incrementally and reuse them in local signoff",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser.*$' -require 'media capture leg' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'transcription draft leg' -require 'video capture leg' -require 'workspace reachability leg' -require 'sampling settings leg' -require 'workspace refusal leg' -require 'library validation leg'",
+          "rationale": "Owner direction 2026-09-13: accept capability bundles incrementally instead of holding local acceptance until live media, session recovery, speculative decoding, training and export, and styling all land. Each landed row's journey markers form a bundle the browser lane records as accepted evidence keyed by the inference surface digest and the webui file digests; this row runs the complete browser/model lane once per bundle boundary, retains independently accepted bundles, and reuses their recorded results when nothing in their surface changed, so later bundles add cost only for what they touch. Preserve every existing conversation, draft, mobile, navigation, actions, attachment and background journey; require the capture, transcription, video and sampling markers now and each later bundle's markers as it lands. Inspect desktop and narrow/keyboard light/dark captures after behavior passes; report actual browsers and models plus unsupported cases. Comprehensive signoff stays at the end under gui-capability-signoff, which consumes the accepted bundles rather than re-running them. This local acceptance cannot close physical-device signoff. Plan correction for executable incremental acceptance: this row now binds the landed baseline; its previous future-capability marker floor and prerequisite chain are retained in gui-capability-signoff. New audio capabilities each carry independent acceptance and culminate in gui-audio-acceptance, so preset TTS need not wait for cloning, all languages or phone hardware. Baseline evidence does not close known transcription defects.",
+          "depends_on": [
+            "gui-media-capture/do",
+            "gui-gpu-admission/do",
+            "gui-transcription-draft/do",
+            "gui-video-capture/do",
+            "gui-launch-reachability/do",
+            "gui-sampling-contract/do",
+            "gui-credentialless-get/do",
+            "gui-refused-workspaces/do",
+            "gui-library-validation/do",
+            "gui-video-routes/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-capability-signoff",
+      "title": "Accept the complete conversation workflow on the merged GUI worktree",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accept the complete conversation workflow on the merged GUI worktree",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/professional_overgo_gui OVERGO_GUI_MOBILE_EVIDENCE=docs/gui/mobile-device-evidence.json go run ./cmd/webui-lane -run '^(TestWebUIBrowser|TestGUIMobileDeviceEvidence)' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'physical mobile evidence leg' -require 'media capture leg' -require 'transcription draft leg' -require 'video capture leg' -require 'live media leg' -require 'workspace reachability leg' -require 'sampling settings leg' -require 'workspace refusal leg' -require 'library validation leg' -require 'agent recovery leg' -require 'session continuation leg' -require 'model merge leg' -require 'speculative decoding leg' -require 'craft floor leg' -require 'typeset leg' -require 'hardened states leg' -require 'dataset preview leg' -require 'adapter training leg' -require 'run export leg' -require 'preference training leg' -require 'audio catalog leg' -require 'text to speech leg' -require 'voice library leg' -require 'voice cloning leg' -require 'speech languages leg' -require 'audio analysis leg' -require 'transcription selection leg' -require 'transcription cleanup leg'",
+          "rationale": "Each preceding browser test must emit its named journey marker after asserting behavior. Run the full real-model lane once for this acceptance, inspect desktop/phone light/dark captures and verify the real-device evidence. Include cold start, model/key setup, multi-turn chat, stop/disconnect/recovery, reload, history/branches, attachment reuse and Library/background operations. Keep credentials and model metadata out of the primary conversation. Report tested models, browsers, devices and unsupported/missing modality cases explicitly; missing supported evidence cannot count as complete. Retain all former gui-local-signoff end-state markers/dependencies here and require the complete audio bundle as well. Each implemented bundle may be accepted before all future capabilities land; unchanged evidence is reusable only through existing identity-aware owners. No physical-phone, voice-cloning, per-language quality or live-streaming claim follows from synthetic GUI success.",
+          "depends_on": [
+            "webui-polish-tabs/do",
+            "gui-draft-lifecycle/do",
+            "gui-redesign-acceptance/do",
+            "gui-conversation-navigation/do",
+            "gui-conversation-actions/do",
+            "gui-attachment-workflow/do",
+            "gui-background-work/do",
+            "gui-device-signoff/do",
+            "gui-local-signoff/do",
             "gui-media-capture/do",
             "gui-gpu-admission/do",
             "gui-transcription-draft/do",
@@ -255,33 +525,8 @@
             "gui-dataset-preview/do",
             "gui-adapter-training/do",
             "gui-run-export/do",
-            "gui-preference-training/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "gui-capability-signoff",
-      "title": "Accept the complete conversation workflow on the merged GUI worktree",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Accept the complete conversation workflow on the merged GUI worktree",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/professional_overgo_gui OVERGO_GUI_MOBILE_EVIDENCE=docs/gui/mobile-device-evidence.json go run ./cmd/webui-lane -run '^(TestWebUIBrowser|TestGUIMobileDeviceEvidence)' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'physical mobile evidence leg' -require 'media capture leg' -require 'transcription draft leg' -require 'video capture leg' -require 'live media leg'",
-          "rationale": "Each preceding browser test must emit its named journey marker after asserting behavior. Run the full real-model lane once for this acceptance, inspect desktop/phone light/dark captures and verify the real-device evidence. Include cold start, model/key setup, multi-turn chat, stop/disconnect/recovery, reload, history/branches, attachment reuse and Library/background operations. Keep credentials and model metadata out of the primary conversation. Report tested models, browsers, devices and unsupported/missing modality cases explicitly; missing supported evidence cannot count as complete.",
-          "depends_on": [
-            "webui-polish-tabs/do",
-            "gui-draft-lifecycle/do",
-            "gui-redesign-acceptance/do",
-            "gui-conversation-navigation/do",
-            "gui-conversation-actions/do",
-            "gui-attachment-workflow/do",
-            "gui-background-work/do",
-            "gui-device-signoff/do",
-            "gui-local-signoff/do"
+            "gui-preference-training/do",
+            "gui-audio-acceptance/do"
           ]
         }
       ]
@@ -297,7 +542,7 @@
           "title": "Record real iOS/Android and assistive-technology acceptance",
           "status": "open",
           "verify": "OVERGO_GUI_MOBILE_EVIDENCE=docs/gui/mobile-device-evidence.json go test ./internal/server -run '^TestGUIMobileDeviceEvidence$' -count=1",
-          "rationale": "With actual hardware/operator participation, exercise iOS Safari and Android Chrome: software keyboard, orientation, safe areas, zoom, attachments, long replies, stop/recovery, drawer/Settings focus, and screen-reader announcements. Record browser/device versions, exact cases, observations and captures in the evidence file consumed by the validator implemented under gui-redesign-acceptance. Missing hardware or failures remain outstanding; Chromium emulation is not physical-device evidence. This step grants no permission to merge into master. Include real microphone/camera permissions, interruption/backgrounding, device switching, recorded audio/photo/video preview and supported transcription. Confirm HTTPS/LAN access on the phone without weakening authentication or CSP.",
+          "rationale": "With actual hardware/operator participation, exercise iOS Safari and Android Chrome: software keyboard, orientation, safe areas, zoom, attachments, long replies, stop/recovery, drawer/Settings focus, and screen-reader announcements. Record browser/device versions, exact cases, observations and captures in the evidence file consumed by the validator implemented under gui-redesign-acceptance. Missing hardware or failures remain outstanding; Chromium emulation is not physical-device evidence. This step grants no permission to merge into master. Include real microphone/camera permissions, interruption/backgrounding, device switching, recorded audio/photo/video preview and supported transcription. Confirm HTTPS/LAN access on the phone without weakening authentication or CSP. Include text-file import, recorded/stored voice selection, long-document progress, microphone Stop/background cleanup, speaker/transcript seeking, generated WAV playback and download/share on physical iOS and Android. Require live partial transcripts only for an admitted browser transport; report each unsupported case explicitly.",
           "depends_on": [
             "gui-redesign-acceptance/do"
           ]
@@ -560,6 +805,34 @@
           "status": "open",
           "verify": "test -f internal/capabilityruntime/audio_stream_integration_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestNativeAudioStreamIntegration$' -count=1 \u0026\u0026 test -f internal/audioparity/production_intake_test.go \u0026\u0026 go test ./internal/audioparity -run '^TestNativeAudioProductionIntake$' -count=1",
           "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "media-evidence-binding",
+          "title": "Master reference: Bind imported media results to their exact scope",
+          "status": "open",
+          "verify": "test -f cmd/compatibility/verification_workflow_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestMediaEvidenceBinding$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "experiment-resume",
+          "title": "Master reference: Resume one media acquisition through idempotent publication",
+          "status": "open",
+          "verify": "test -f internal/agentloop/verification_workflow_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestMediaExperimentResume$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "modality-verification/media-evidence-binding"
+          ]
+        },
+        {
+          "id": "media-capacity-plan",
+          "title": "Master reference: Choose media execution from measured request capacity",
+          "status": "open",
+          "verify": "test -f internal/sensenovarecipe/verification_workflow_test.go \u0026\u0026 go test ./internal/sensenovarecipe -run '^TestMediaRequestCapacity$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "modality-verification/media-evidence-binding",
+            "modality-verification/experiment-resume"
+          ]
         }
       ]
     },
@@ -817,6 +1090,13 @@
           "status": "open",
           "verify": "test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestScratchModuleWorkflow$' -count=1",
           "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "merge-portability",
+          "title": "Master reference: Make prepared merges portable across registered worktrees",
+          "status": "open",
+          "verify": "test -f cmd/plan/verification_workflow_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPreparedMergePortability$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
@@ -915,6 +1195,27 @@
           "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
           "depends_on": [
             "validation-gate-selection/call-reach",
+            "validation-gate-selection/measured-adoption"
+          ]
+        },
+        {
+          "id": "verification-sequence",
+          "title": "Master reference: Construct verification DAGs from resolved impact obligations",
+          "status": "open",
+          "verify": "test -f internal/gate/verification_workflow_test.go \u0026\u0026 go test ./internal/gate -run '^TestAnalysisComposedVerification$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/measured-adoption",
+            "validation-gate-selection/recipe-node-reuse"
+          ]
+        },
+        {
+          "id": "static-analysis-sharing",
+          "title": "Master reference: Reuse shared static analysis with rule-specific invalidation",
+          "status": "open",
+          "verify": "test -f internal/repoanalysis/verification_workflow_test.go \u0026\u0026 go test ./internal/repoanalysis -run '^TestIncrementalStaticAnalysisContracts$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
             "validation-gate-selection/measured-adoption"
           ]
         }

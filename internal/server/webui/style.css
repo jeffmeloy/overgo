@@ -89,7 +89,7 @@ button, input, select, textarea, summary { touch-action:manipulation; }
 .btn:active { transform:translateY(1px); }
 .btn.alt { background:transparent; color:var(--dim); border:1px solid var(--line); }
 .btn.alt:hover { color:var(--ink); border-color:var(--dim); filter:none; }
-.btn:disabled { opacity:.5; cursor:default; filter:none; transform:none; }
+.btn:disabled, .link-button:disabled { opacity:.5; cursor:default; filter:none; transform:none; }
 
 /* ---- app shell: sidebar + content ---- */
 .shell { display:flex; height:var(--viewport-height, 100dvh); overflow:hidden; }
@@ -523,3 +523,18 @@ summary { cursor:pointer; min-height:32px; }
 .capture-actions { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:var(--s1); }
 .capture-dialog[data-state="ready"] .capture-actions > .btn:not(.alt) { grid-column:1 / -1; }
 .attachment-info a { display:inline-flex; align-items:center; min-height:44px; }
+
+/* Task selection belongs to the attached audio, outside the primary controls. */
+.transcription-controls { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s1); padding-block:var(--s1); }
+.transcription-controls label { display:flex; flex-wrap:wrap; align-items:center; gap:var(--s1); min-width:0; max-width:100%; }
+.transcription-controls select { min-width:0; max-width:100%; width:auto; }
+/* Audio review gets the capture preview's viewport share; Send/Stop stays below it. */
+.composer-extras:has(.transcription-controls:not([hidden])) { max-height:calc(var(--viewport-height, 100dvh) * .45); }
+.composer:has(.transcription-controls:not([hidden])) .attachment-actions { gap:var(--s2); }
+.transcript-offer .link-button { padding-inline:var(--s2); }
+@media (max-width:860px) {
+  .composer:has(.transcription-controls:not([hidden])) .attachment-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-preview { grid-column:1; grid-row:1; max-width:100%; }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-info { grid-column:1 / -1; grid-row:2; }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-actions { grid-column:2; grid-row:1; max-width:none; }
+}

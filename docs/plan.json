@@ -36,17 +36,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "reference-oscillator",
-          "title": "Validate LiveEdit and Un-0 video requests and source preservation",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_conditioned_video_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoConditionedVideoAcceptance$' -count=1",
-          "rationale": "Inspect actual recipe declarations before assigning generation or edit semantics to LiveEdit and Un-0. Exercise only supported text/image/clip conditioning and video-edit cells; classify unavailable tasks explicitly. Use the existing latentvideo, oscillatorimage, mediacapability and media codec implementations. Preserve supplied source hashes, masks or auxiliary slots, frame/time alignment and edit-strength policy through prepare/integrate/decode. Verify content preservation and requested changes using declared controls, reference comparisons and the visual/temporal rubric. Test missing/incompatible inputs and supported bounds. Reuse TestVideoProductionActivation, TestVideoEditClipActivation and existing request-form tests as lower bounds, not substitutes for actual quality/resource evidence. Export provenance-bound clips and assert the complete stored bundle without regeneration. Reuse any matching representative-cohort baseline or accepted candidate from media-optimization/baseline instead of loading this model again. Collect quality, phase timing, transfer counters, memory observations and exportable outputs in one admitted session where measurement isolation permits. Export each retained sample when available; the later publication rows verify completeness rather than trigger generation. If a shared component changes after this bundle, recheck only its affected assertions and preserve unaffected results; final capacity/consumer acceptance reconciles the complete current-source coverage.",
-          "depends_on": [
-            "media-protocol/quality",
-            "media-protocol/resources"
-          ]
-        },
-        {
           "id": "composition",
           "title": "Validate declared image/video compositions against native baselines",
           "status": "open",

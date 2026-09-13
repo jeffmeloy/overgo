@@ -10,7 +10,7 @@ The [validation index](docs/image_video_validation.json) records each acquisitio
 
 Acquired September 12-13, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. Correctness checks use existing shared resource admission. Explicitly profiled GPU measurements use the exclusive measurement-process owner; each acquisition retains its scope. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.
 
-Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. Selected test results and their actual workload sizes appear below; complete frozen-case and public-workflow coverage remains open.
+Current code generates images with SenseNova, Krea, SimpleDiffusion and Un-0, and video with Wan, LiveEdit and Un-0 through their active recipes. The frozen corpus now accounts for all eight image and seven video requests through new execution or explicitly source-compatible retained results. Numerical, visual and resource limits remain specific to each workload. Public workflows, broader lifecycle, composition, capacity and final publication remain open.
 
 The SenseNova exact-output regression is corrected. A later shared attention optimization admitted strict-causal prefixes to batched SGEMM, changing accumulation order and BF16-rounded prefix states. Selecting the existing per-query attention option for those reference-bound prefixes restores both small-image hashes and the full-resolution reviewed PNG. No model weights, prompts, seeds, reference hashes or quality limits changed.
 
@@ -18,7 +18,7 @@ The freshly generated [SenseNova full-size image](docs/media_samples/5f3a56dff6b
 
 The prior checkpoint fixed shared GIF timing and external JSON-array oracle handling. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates remain predictions rather than measured optimization gains.
 
-Fresh full-length Wan generation and the declared loader, transfer and memory comparisons are complete. Remaining work includes full temporal visual review, complete frozen-case coverage, public workflow and cancellation checks, and the remaining capacity experiments. The earlier operator stop was fulfilled at b1206a56; work resumed on request.
+Full Wan generation, complete frame-sequence visual review, the frozen image/video cases, and the declared loader/transfer/memory comparisons are accounted for. Remaining work covers public workflows, broader robustness, composition, capacity and final publication. Native-rate playback was not part of the recorded frame-sequence reviews.
 
 The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes.
 
@@ -72,6 +72,18 @@ Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/1`: output `output:sha256:31
 
 Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/2`: output `output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99`; bound validation run `run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47`; source `cfcc9a405a3055c8666cc21892877024c4d0ef58`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Complete GIF timing is 31 centiseconds at 16 fps.
 
+The [LiveEdit and Un-0 video bundle](docs/image_video_conditioned_videos.json) includes an encoding correctness repair: LiveEdit now maps its signed VAE output to bytes correctly. Its earlier black GIFs resulted from using a [0,1] encoder for [-1,1] floats. The corrected [five-frame clip](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif) retains native float frames and restores dark color/texture; its 32x16 smoke scale still does not establish semantic editing or natural motion.
+
+LiveEdit's frozen source contains moving crops of one retained still frame. Both requests use the same source, text context and initial latent arrays with one denoising timestep. Changing the seed makes no subsequent noise draw in that schedule, so the exact same output is expected. The corrected clips remain coarse and do not establish pixel-level source preservation or the requested fox interaction. No text encoder, mask or edit-strength control was exercised. Un-0 video generates independent class-conditioned images at consecutive seeds, with no temporal model.
+
+Current sample [Un-0/video-gen/1](docs/media_samples/bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif): output `output:sha256:8998678c48f16a2d4e73a63e764c030acf022775ea8744836cdd6b1ec2cd4024`, bound run `run:sha256:a9dc9487b4428fb7ed5bdf12747473984254a0726d9f1d326054d1b499ae1091`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.
+
+Current sample [Un-0/video-gen/2](docs/media_samples/4869d07c17d398a6c5081b00c96a5a99402fbd4504980e659d81d68c6ef7c658.gif): output `output:sha256:5ce8cb116444a2bfbafbe9c8700a898c2e98ae1a20b7b6ca6ba7bcde0b954aee`, bound run `run:sha256:f5b8b33864e3746916a6d6e1aef33c94958883d3c281886c77564e37076ed523`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.
+
+Current sample [LiveEdit/video-gen/1](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif): output `output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21`, bound run `run:sha256:f9f453c777286cd04d7e6b9cdfa2715debb92d1d32a8d9e59b73a210b0cb6ab1`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.
+
+Current sample [LiveEdit/video-gen/2](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif): output `output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21`, bound run `run:sha256:2e3e28ec5b8d18cadd189f7cf4bb03dc67019c0cfa12158386f1d5a83f222ae0`, source base `23e0128b16654d64925c2fbd72af30a79fe82bce`, environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. Corrected LiveEdit runs additionally require the exact production repair and instrumentation identities in the conditioned-video bundle.
+
 | Check | Recorded result | Scope and observations | Evidence |
 | --- | --- | --- | --- |
 | Wan cancellation, cleanup and reuse | Passed selected tests | Current source passes partial initialization without a panic, the unchanged G3 production reference, changed-negative conditioning against a fresh session, and cleanup after request cancellation. G4 decode stops after the first frame; the next request reproduces all five decoded frames exactly. G3 uses one 32x16 frame and four steps; G4 uses five 32x16 frames and two steps. This is lifecycle and reference coverage, not a new full-resolution clip or a performance comparison. | `evidence:sha256:ed239680eb5ad0b1d4be3179b10b5123075d40ffae34885ea73c06340b55c938` |
@@ -118,6 +130,11 @@ Current Wan small sample `Wan2.1-T2V-1.3B/video-gen/2`: output `output:sha256:c7
 | Wan frozen small compiled-recipe clips | Passed selected tests | Two frozen five-frame 64x64, two-step clips, noise seeds 131 and 31. One loaded WanRuntime executes both active compiled-recipe requests. Load 3.409330 seconds, request walls 0.879840 and 0.323130 seconds, close 0.111697 seconds; successful acquisition process 8.493 seconds. Request Go allocation 414,367,248 and 292,663,856 bytes; process lifetime peak 8,893,042,688 bytes. Separate denoiser/decoder Library peaks are 3,527,123,200 and 376,261,580 bytes; both close with zero owned bytes. Raw transfer counters and direct/captured graph launches establish actual GPU work. Outputs preserve every historical decoded pixel and all metadata except total GIF duration corrected from 30 to 31 centiseconds. The two-step clips show colored patterns with no recognizable prompt subject. A preceding 112.262-second attempt generated the clips but failed a measurement assertion that omitted captured graph launches; its incomplete telemetry required reacquisition. Production code and frozen inputs did not change. | `evidence:sha256:bef98ebec4b32b7c5ddd9c3b5ad7d39bb8b5808e5d75f287f179c2125e1c8487` |
 | Current Wan schedule, request, bounds, layout and GIF owners | Passed selected tests | Current CPU checks cover stride-derived supported controls, prompt-or-tensor request form, declared text pipeline, native UniPC and timestep conditioning references, layout ownership and cumulative GIF cadence. Existing source-compatible CUDA G1/G3/G4, VAE, cancellation and context-lifetime evidence is reused rather than loading the model again. | `evidence:sha256:3b37a839f8e06a8d7b2a4937bd61ac1e2481bc3bdcac0f89ae4bb890e72611a5` |
 | Wan frozen full clip publication and bundle acceptance | Passed selected tests | Read-only acceptance accounts for all three frozen cases, complete stored lineage, actual acquired GPU work, corrected timing, visual review, retained native checks and original full-acquisition source/environment. Mutation cases reject truncation, reordered frames, changed pixels and wrong duration. The reused 81-frame 832x480, 50-step production requests took 373.920021 and 376.232408 seconds including frame audit/encoding; no new full generation ran. The retained full GIF has 506 centiseconds of duration and exactly preserves the historical 486-centisecond clip's pixels and other metadata. All 81 frames were inspected as a storyboard, with original-resolution frames 0, 40 and 80 retained; review is not native-rate playback. The fox and snowy forest are visible, with limited head/mouth movement and palette dithering, but the requested ice-cream cone is absent. Supplied conditioning arrays exactly match the native G1 fixture; these tensor-form requests did not run a text encoder. First streamed-frame latency was not measured. | `evidence:sha256:e4de9fff127fd3ff73035e8d17ae78434f0850ed608e039e92f7239044358afd` |
+| Un-0 frozen CPU video requests | Passed selected tests | Two class-1 requests, seeds 11/111, twelve frames and scale 2 produce 16x16 clips at 8 fps. A transparent hook hashes and checks finite decoded float frames immediately before existing quantization. Load took 0.000891 seconds, requests 0.106756/0.115700 seconds, and load through release 0.234181 seconds. Per-request Go allocation was 2,258,792/2,262,944 bytes; process lifetime peak 442,519,552 bytes. CPU only, with no GPU reservation or fabricated GPU metrics. Both GIFs retain historical pixels and frame metadata while duration changes from 144 to 150 centiseconds. Frames are independent images at consecutive seeds and show low-contrast gray/color patterns, not coherent semantic motion. A 3.498-second reference-reading failure is retained; the corrected acquisition process passed in 3.651 seconds. Production replay already supports JSON envelopes through its existing fallback. | `evidence:sha256:be97063dd90ee55ec3501b585b61b3963fe6499b42cc868c25ce91a72a6cd82b` |
+| LiveEdit signed-pixel encoding correction and frozen clips | Passed selected tests | The VAE emits signed-unit floats, but LiveEdit selected unit-range GIF encoding. Changing that one argument fixes entirely black clips without changing the native frame aggregate 19b2104b562a8fc93848aecf65737b58e9b50e0534dc96f85ffb1beb780061b1. All 7,680 values are negative, between -0.981542 and -0.274297; corrected encoding restores 2,480 of 2,560 pixels as nonblack. Both old and corrected encodings reconstruct exactly from the same captured raw frames. Each seed-specific session loads and closes separately: loads 4.119502/3.997097 seconds, requests 0.714855/0.372293 seconds, closes 0.126644/0.150960 seconds. Request Go allocations 243,039,112/241,559,888 bytes; process lifetime peaks 9,236,320,256/9,950,199,808 bytes. Separate encoder/denoiser/decoder Library peaks are 221,938,688/3,260,313,344/303,567,308 bytes; all close with zero owned bytes. The 429.335-second process includes resource admission and setup; request timing is not complete attempt time. The earlier old-range acquisition passed in 342.454 seconds and remains the encoding-defect baseline. This is a correctness repair with observed costs, not a matched speedup claim. Source identity is the declared base plus the exact recorded repair and observation overlay. | `evidence:sha256:ab2a281f2db64359c3d8b589397b4d04dab435c459742a45a8b15e7d3db16619` |
+| Conditioned video and current-source bundle acceptance | Passed selected tests | All four frozen source-conditioned/oscillator cases have actual compiled-recipe execution, complete input/output/source/environment lineage, resource observations and content-specific visual review. Acceptance checks current working source and permits exactly the documented one-line LiveEdit correction; every other generation file and every other byte of that file must match the prior source. Raw float artifacts reconstruct both faulty and corrected encodings and retain native frame order/hash. Existing image, Wan and rejected-optimization evidence remains valid in its original scope. Un-0 cadence and current source/request/sampler/codec/native reference checks pass. The full frozen corpus now accounts for eight image and seven video cases; public workflows, broader lifecycle, composition, capacity and final publication remain separate. | `evidence:sha256:990ac1126d185870f34c83adba34438797f1895ff1466a94ca9c3b56a0b62717` |
+| Current source-conditioned request, sampler, codec and native Un-0 GIF owners | Passed selected tests | Existing numerical, request-form, source-codec and encoding owners retain their original criteria. These CPU checks establish their declared mechanics and reference comparisons, not full semantic editing quality. | `evidence:sha256:44ab708cc4e2abcb33abf67375d5d6c45f1470498c0419d510780cf69415a6a1` |
+| Existing signed/unit pixel mapping and GIF boundary checks | Passed selected tests | Existing numerical, request-form, source-codec and encoding owners retain their original criteria. These CPU checks establish their declared mechanics and reference comparisons, not full semantic editing quality. | `evidence:sha256:857b6a8dc64120c5465fd068c3e683762c325919cac3753d52ed8414e00be8fd` |
 
 Results describe the selected tests, including failures, rather than all supported requests. Commands and retained overlay sources in the index identify each acquisition. Test output is stored by content identity in OvergoDB.
 
@@ -238,7 +255,7 @@ Succeeded: 4; failed: 0; cancelled: 0.
 
 ### LiveEdit (video-gen)
 
-Succeeded: 4; failed: 0; cancelled: 0.
+Succeeded: 12; failed: 0; cancelled: 0.
 
 ### SenseNova-U1-8B-MoT-Infographic-V3 (image-gen)
 
@@ -257,7 +274,7 @@ Succeeded: 248; failed: 2; cancelled: 0.
 
 ### Un-0 (video-gen)
 
-Succeeded: 164; failed: 0; cancelled: 0.
+Succeeded: 168; failed: 0; cancelled: 0.
 
 ### Wan2.1-T2V-1.3B (video-gen)
 
@@ -323,6 +340,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
 
 ### Un-0 (`video-gen`)
 
+- Video clip: [bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif](docs/media_samples/bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif)
+
+  ![Un-0 clip](docs/media_samples/bbae395b6153b0f2581e72ba32f9c4b77c120ec04d47c8a127efb78fa8ed7448.gif)
+
+  Request: `{"class":1,"frames":12,"scale":2,"seed":11}`
+
+  Run: `run:sha256:a9dc9487b4428fb7ed5bdf12747473984254a0726d9f1d326054d1b499ae1091`; output: `output:sha256:8998678c48f16a2d4e73a63e764c030acf022775ea8744836cdd6b1ec2cd4024`. Source: `23e0128b16654d64925c2fbd72af30a79fe82bce`. Environment: `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`.
+
+  Input artifacts: `file:sha256:1d74176e310fa363bf987866df9d59bf942e301d2d326dbd501ac2b8bc01e80d`.
 - Video clip: [9cc39bd74b99db9f50c8db84433c396e55eafedb28336bdc4901bb5b99e3195d.gif](docs/media_samples/9cc39bd74b99db9f50c8db84433c396e55eafedb28336bdc4901bb5b99e3195d.gif)
 
   ![Un-0 clip](docs/media_samples/9cc39bd74b99db9f50c8db84433c396e55eafedb28336bdc4901bb5b99e3195d.gif)
@@ -339,6 +365,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
   Request: `{"class":1,"frames":12,"scale":2,"seed":111}`
 
   Run: `run:sha256:f05af31a8d850834f3124682aa49775e82df0cc204434160ff1813c095623b31`; output: `output:sha256:4dbbb9ab06b2c7f70cd2cf365d9b9edbde3bbef9f421661700e0f9287c5f0826`. Source: unavailable. Environment: unavailable.
+
+  Input artifacts: `file:sha256:0bf08dc9e7fa42a77c7a375466cf0809af3cfc223fe31a027b8efdd064d6e48e`.
+- Video clip: [4869d07c17d398a6c5081b00c96a5a99402fbd4504980e659d81d68c6ef7c658.gif](docs/media_samples/4869d07c17d398a6c5081b00c96a5a99402fbd4504980e659d81d68c6ef7c658.gif)
+
+  ![Un-0 clip](docs/media_samples/4869d07c17d398a6c5081b00c96a5a99402fbd4504980e659d81d68c6ef7c658.gif)
+
+  Request: `{"class":1,"frames":12,"scale":2,"seed":111}`
+
+  Run: `run:sha256:f0bec678f07dadb08fb477842e8026edc1b100f60869213e0116b4770331dcb8`; output: `output:sha256:5ce8cb116444a2bfbafbe9c8700a898c2e98ae1a20b7b6ca6ba7bcde0b954aee`. Source: unavailable. Environment: unavailable.
 
   Input artifacts: `file:sha256:0bf08dc9e7fa42a77c7a375466cf0809af3cfc223fe31a027b8efdd064d6e48e`.
 
@@ -383,6 +418,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
 
 ### LiveEdit (`video-gen`)
 
+- Video clip: [a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif)
+
+  ![LiveEdit clip](docs/media_samples/a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21.gif)
+
+  Request: `{"context_timestep":0,"frames_per_chunk":1,"initial_noise":"[256 values]","local_attention_frames":1,"seed":100,"sigmas":[0.8333333],"text_context":"[786432 values]","timesteps":[900]}`
+
+  Run: `run:sha256:2e3e28ec5b8d18cadd189f7cf4bb03dc67019c0cfa12158386f1d5a83f222ae0`; output: `output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21`. Source: `23e0128b16654d64925c2fbd72af30a79fe82bce`. Environment: `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`.
+
+  Input artifacts: `file:sha256:35121e6f6d23f5d51b5438029d637dd3fb43d9efa3d59adc5f12bd7c0059bf78`, `file:sha256:e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91`.
 - Video clip: [6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif](docs/media_samples/6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif)
 
   ![LiveEdit clip](docs/media_samples/6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33.gif)
@@ -390,6 +434,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
   Request: `{"context_timestep":0,"frames_per_chunk":1,"initial_noise":"[256 values]","local_attention_frames":1,"seed":0,"sigmas":[0.8333333],"text_context":"[786432 values]","timesteps":[900]}`
 
   Run: `run:sha256:923dc7ca901c00a9c03522df9fbe34a73b4484621d0531f632298464a7c753d1`; output: `output:sha256:6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33`. Source: unavailable. Environment: unavailable.
+
+  Input artifacts: `file:sha256:13d22d58fe9d17432757def7ec1cdcb170f07358c6ccaf0a5d4dcfdeec1e95ca`, `file:sha256:e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91`.
+- Video clip: [c79e6f65fce2fcaa739061ec17f077ae801ca55dbddde0fa17a3912297225efb.gif](docs/media_samples/c79e6f65fce2fcaa739061ec17f077ae801ca55dbddde0fa17a3912297225efb.gif)
+
+  ![LiveEdit clip](docs/media_samples/c79e6f65fce2fcaa739061ec17f077ae801ca55dbddde0fa17a3912297225efb.gif)
+
+  Request: `{"context_timestep":0,"frames_per_chunk":1,"initial_noise":"[256 values]","local_attention_frames":1,"seed":0,"sigmas":[0.8333333],"text_context":"[786432 values]","timesteps":[900]}`
+
+  Run: `run:sha256:9d4a0c8a6447dc3f28b711536dcce76466c899cfaabcd90c795de8cc921c11da`; output: `output:sha256:c79e6f65fce2fcaa739061ec17f077ae801ca55dbddde0fa17a3912297225efb`. Source: `23e0128b16654d64925c2fbd72af30a79fe82bce`. Environment: `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`.
 
   Input artifacts: `file:sha256:13d22d58fe9d17432757def7ec1cdcb170f07358c6ccaf0a5d4dcfdeec1e95ca`, `file:sha256:e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91`.
 

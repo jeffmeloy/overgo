@@ -211,7 +211,7 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 }
 
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
-	sink, err := NewGIFEncoder(r.profile.SampleFPS, UnitPixels)
+	sink, err := NewGIFEncoder(r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}

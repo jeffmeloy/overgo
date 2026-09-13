@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -69,6 +70,92 @@ func compareMediaRuntimeIdentity(expected, actual string) error {
 	return nil
 }
 
+// A later correction does not invalidate unchanged image or Wan acquisitions.
+// Permit only the recorded LiveEdit encoder-range correction: every other
+// production file and every other byte of the corrected file must still match.
+// An empty revision checks the working tree before gate publication.
+func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected string) error {
+	if revision != "" {
+		actual, err := mediaRuntimeIdentity(root, revision, paths)
+		if err != nil {
+			return err
+		}
+		if err := compareMediaRuntimeIdentity(expected, actual); err == nil {
+			return nil
+		}
+	}
+	var bundle struct {
+		Correction struct {
+			Source string `json:"source_base"`
+			Path   string `json:"path"`
+			Before string `json:"before_git_sha256"`
+			After  string `json:"after_git_sha256"`
+		} `json:"pixel_range_correction"`
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_conditioned_videos.json"))
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		return err
+	}
+	fix := bundle.Correction
+	if fix.Source == "" || fix.Path != "internal/latentvideo/production_cuda_windows.go" || fix.Before == "" || fix.After == "" {
+		return errors.New("missing exact LiveEdit correction identity")
+	}
+	base, err := mediaRuntimeIdentity(root, fix.Source, paths)
+	if err != nil {
+		return err
+	}
+	if err := compareMediaRuntimeIdentity(expected, base); err != nil {
+		return err
+	}
+	git := func(args ...string) ([]byte, error) {
+		command := exec.Command("git", args...)
+		command.Dir = root
+		return command.Output()
+	}
+	before, err := git("show", fix.Source+":"+fix.Path)
+	if err != nil {
+		return err
+	}
+	var after []byte
+	if revision == "" {
+		after, err = os.ReadFile(filepath.Join(root, fix.Path))
+		after = []byte(strings.ReplaceAll(string(after), "\r\n", "\n"))
+	} else {
+		after, err = git("show", revision+":"+fix.Path)
+	}
+	if err != nil {
+		return err
+	}
+	old := "func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {\n\tsink, err := NewGIFEncoder(r.profile.SampleFPS, UnitPixels)"
+	want := strings.Replace(string(before), old, strings.Replace(old, "UnitPixels)", "SignedUnitPixels)", 1), 1)
+	if strings.Count(string(before), old) != 1 || string(after) != want || fmt.Sprintf("%x", sha256.Sum256(before)) != fix.Before || fmt.Sprintf("%x", sha256.Sum256(after)) != fix.After {
+		return errors.New("source change exceeds the declared LiveEdit pixel-range correction")
+	}
+	args := []string{"diff", "--name-only", fix.Source}
+	if revision != "" {
+		args = append(args, revision)
+	}
+	args = append(args, "--")
+	changed, err := git(append(args, paths...)...)
+	if err != nil {
+		return err
+	}
+	for path := range strings.SplitSeq(strings.TrimSpace(string(changed)), "\n") {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		if strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".cu") || strings.HasSuffix(path, ".cuh") || path == "kernels/manifest.json" || path == "go.mod" || path == "go.sum" {
+			if path != fix.Path {
+				return fmt.Errorf("unreconciled generation source change: %s", path)
+			}
+		}
+	}
+	return nil
+}
+
 func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testevidence.ShortIntegrationSkip + ": merged media evidence requires the private store")
@@ -97,11 +184,7 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 		t.Fatal("incomplete merged media evidence")
 	}
 	for _, revision := range []string{value.Local, value.Merged, "HEAD"} {
-		identity, err := mediaRuntimeIdentity(root, revision, value.RuntimePaths)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := compareMediaRuntimeIdentity(value.RuntimeSHA256, identity); err != nil {
+		if err := checkMediaRuntimeAtRevision(root, revision, value.RuntimePaths, value.RuntimeSHA256); err != nil {
 			t.Fatalf("%s: %v", revision, err)
 		}
 	}

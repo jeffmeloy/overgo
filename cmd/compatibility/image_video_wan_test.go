@@ -145,11 +145,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, revision := range []string{bundle.Previous, bundle.Source, "HEAD"} {
-		identity, err := mediaRuntimeIdentity(root, revision, merged.RuntimePaths)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := compareMediaRuntimeIdentity(merged.RuntimeSHA256, identity); err != nil {
+		if err := checkMediaRuntimeAtRevision(root, revision, merged.RuntimePaths, merged.RuntimeSHA256); err != nil {
 			t.Fatal(err)
 		}
 	}

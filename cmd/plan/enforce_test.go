@@ -182,12 +182,12 @@ func TestSetVerifyResolvesUpdatedAuthorityBeforeSaving(t *testing.T) {
 // stop-gate can tell a real stop from an invented one.
 func TestEnforceStopReason(t *testing.T) {
 	for _, r := range []string{"user-stop", "user-stop: they said wait", "irreversible: needs confirm", "external-prereq: model missing"} {
-		if err := validateStop(r); err != nil {
+		if _, _, err := plan.ParseStopReason(r); err != nil {
 			t.Fatalf("valid stop %q rejected: %v", r, err)
 		}
 	}
 	for _, r := range []string{"", "checkpoint", "should I continue?", "done for now", "milestone", "picking up fresh"} {
-		if err := validateStop(r); err == nil {
+		if _, _, err := plan.ParseStopReason(r); err == nil {
 			t.Fatalf("manufactured stop %q must be REFUSED", r)
 		}
 	}
@@ -200,7 +200,7 @@ func TestEnforceStopReason(t *testing.T) {
 		"external-prereq: nothing in particular",
 		"external-prereq: taking a break at this milestone",
 	} {
-		if err := validateStop(r); err == nil {
+		if _, _, err := plan.ParseStopReason(r); err == nil {
 			t.Fatalf("self-pacing stop %q must be REFUSED", r)
 		}
 	}
@@ -209,7 +209,7 @@ func TestEnforceStopReason(t *testing.T) {
 		"external-prereq: owner must provision the candidate principal",
 		"external-prereq: tightening-lane merge pending",
 	} {
-		if err := validateStop(r); err != nil {
+		if _, _, err := plan.ParseStopReason(r); err != nil {
 			t.Fatalf("genuinely external stop %q rejected: %v", r, err)
 		}
 	}

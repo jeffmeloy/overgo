@@ -170,11 +170,7 @@ func RecordWorkLease(ctx context.Context, repository artifact.Repository, data [
 
 // ReadWorkLease returns false for a non-lease artifact.
 func ReadWorkLease(ctx context.Context, reader artifact.Reader, id artifact.ID) (WorkLease, bool, error) {
-	descriptor, found, err := reader.Artifact(ctx, id)
-	if err != nil || !found || descriptor.MediaType != WorkLeaseMediaType || descriptor.Schema != WorkLeaseSchema && descriptor.Schema != dispatchLeaseSchema {
-		return WorkLease{}, false, err
-	}
-	return workLeaseCodec.Read(ctx, reader, id)
+	return readTypedDocument(ctx, reader, id, workLeaseCodec.Contract, workLeaseCodec.Read, workLeaseContract(WorkLease{Version: dispatchLeaseVersion}))
 }
 
 // ParseWorkLease decodes one canonical work lease.
@@ -203,11 +199,17 @@ func ResolveWorkLeaseOwner(ctx context.Context, reader artifact.Reader, lease Wo
 	return nil
 }
 
-func readTypedDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, contract artifact.DocumentContract, read func(context.Context, artifact.Reader, artifact.ID) (T, bool, error)) (T, bool, error) {
+func readTypedDocument[T any](ctx context.Context, reader artifact.Reader, id artifact.ID, contract artifact.DocumentContract, read func(context.Context, artifact.Reader, artifact.ID) (T, bool, error), alternatives ...artifact.DocumentContract) (T, bool, error) {
 	var zero T
 	descriptor, ok, err := reader.Artifact(ctx, id)
-	if err != nil || !ok || descriptor.MediaType != contract.MediaType || descriptor.Schema != contract.Schema {
+	if err != nil || !ok {
 		return zero, false, err
+	}
+	matches := func(candidate artifact.DocumentContract) bool {
+		return descriptor.MediaType == candidate.MediaType && descriptor.Schema == candidate.Schema
+	}
+	if !matches(contract) && !slices.ContainsFunc(alternatives, matches) {
+		return zero, false, nil
 	}
 	return read(ctx, reader, id)
 }
@@ -218,7 +220,7 @@ func workLeaseAlias(worktree string) string {
 
 func canonicalizeWorkLease(value *WorkLease) error {
 	if value == nil || value.Version != workLeaseVersion && value.Version != dispatchLeaseVersion || !validAutomationText(value.Task) ||
-		!validAutomationText(value.Worktree) || strings.Contains(value.Worktree, "\\") ||
+		!validAutomationText(value.Worktree) || strings.Contains(value.Worktree, nonCanonicalPathSeparator) ||
 		!validAutomationText(value.Branch) || !validAutomationText(value.Role) || !validCommit(value.TargetHead) {
 		return errors.New("plan: invalid work lease")
 	}
@@ -500,3 +502,6 @@ func (lease WorkLease) ReleaseBatch(worker, reason string) (artifact.Batch, erro
 	}
 	return batch, nil
 }
+
+// Persisted worktree paths use forward slashes on every host.
+const nonCanonicalPathSeparator = "\\"

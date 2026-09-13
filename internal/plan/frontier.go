@@ -14,7 +14,7 @@ type Ref struct {
 }
 
 // String renders the canonical item/step reference.
-func (r Ref) String() string { return r.Item + "/" + r.Step }
+func (r Ref) String() string { return r.Item + stepReferenceSeparator + r.Step }
 
 // ReadyFrontier returns every dispatchable open step in deterministic
 // document order: each open step whose dependencies are all proven by gated
@@ -121,3 +121,6 @@ func FormatFrontier(frontier []Ref) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// A plan reference joins its item and step with a slash.
+const stepReferenceSeparator = "/"

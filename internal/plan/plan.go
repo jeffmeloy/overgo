@@ -2,7 +2,9 @@
 package plan
 
 import (
+	"bytes"
 	"cmp"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -425,4 +427,78 @@ func advancePlan(d Plan, itemID, stepID string, wholeItem bool) (Plan, error) {
 		return Plan{}, fmt.Errorf("step %q not found in %q", stepID, itemID)
 	}
 	return Plan{}, fmt.Errorf("item %q not found", itemID)
+}
+
+// Digest returns the existing canonical plan identity; unencodable state returns empty.
+func (document Plan) Digest() string {
+	digest, err := completionPlanDigest(document)
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(digest[:])
+}
+
+// StepEdit replaces one complete step under an expected plan identity.
+// Create distinguishes insertion from replacement; Before names an optional sibling.
+type StepEdit struct {
+	ExpectedPlan string `json:"expected_plan"`
+	Item         string `json:"item"`
+	Create       bool   `json:"create"`
+	Before       string `json:"before,omitzero"`
+	Step         Step   `json:"step"`
+}
+
+// slices.IndexFunc returns -1 when no element matches.
+const missingPlanIndex = -1
+
+// EditStep validates a copy. Persistence and active-claim checks remain with the caller.
+func (document Plan) EditStep(edit StepEdit) (Plan, error) {
+	if err := Validate(document); err != nil {
+		return Plan{}, err
+	}
+	if !validDigestText(edit.ExpectedPlan) || edit.ExpectedPlan != document.Digest() {
+		return Plan{}, fmt.Errorf("plan: stale edit: expected_plan must match %s; re-read the plan and review the edit", document.Digest())
+	}
+	itemIndex := slices.IndexFunc(document.Items, func(item Item) bool { return item.ID == edit.Item })
+	if itemIndex == missingPlanIndex {
+		return Plan{}, fmt.Errorf("plan: edit item %q does not exist", edit.Item)
+	}
+	item := document.Items[itemIndex]
+	stepIndex := slices.IndexFunc(item.Steps, func(step Step) bool { return step.ID == edit.Step.ID })
+	exists := stepIndex != missingPlanIndex
+	if edit.Create == exists {
+		return Plan{}, errors.New("plan: create requires an absent step; replace requires an existing step")
+	}
+	if edit.Step.Status != StatusOpen || !validAutomationText(edit.Step.Title) {
+		return Plan{}, errors.New("plan: edit requires an open step with a nonempty one-line title")
+	}
+	var outcome json.RawMessage
+	if exists {
+		outcome = item.Steps[stepIndex].Outcome
+	}
+	if !bytes.Equal(outcome, edit.Step.Outcome) {
+		return Plan{}, errors.New("plan: edit cannot create or replace outcome authority")
+	}
+	if edit.Before != "" && (edit.Before == edit.Step.ID || !slices.ContainsFunc(item.Steps, func(step Step) bool { return step.ID == edit.Before })) {
+		return Plan{}, errors.New("plan: before must name a different existing sibling step")
+	}
+	updated := document
+	updated.Items = slices.Clone(document.Items)
+	item.Steps = slices.Clone(item.Steps)
+	if edit.Create {
+		item.Steps = append(item.Steps, edit.Step)
+		stepIndex = len(item.Steps) - 1
+	} else {
+		item.Steps[stepIndex] = edit.Step
+	}
+	if edit.Before != "" {
+		item.Steps = slices.Delete(item.Steps, stepIndex, stepIndex+1)
+		beforeIndex := slices.IndexFunc(item.Steps, func(step Step) bool { return step.ID == edit.Before })
+		item.Steps = slices.Insert(item.Steps, beforeIndex, edit.Step)
+	}
+	updated.Items[itemIndex] = item
+	if err := Validate(updated); err != nil {
+		return Plan{}, err
+	}
+	return updated, nil
 }

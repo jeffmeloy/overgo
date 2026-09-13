@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"overgo/internal/plan"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -254,5 +256,124 @@ func testRetainedGateResultIntegrity(t *testing.T) {
 				t.Fatalf("unbound result accepted: %v", err)
 			}
 		})
+	}
+}
+
+func TestPlanEditCommand(t *testing.T) {
+	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationWorkerEnvironment, "")
+	document := mutationPlan(t, "Existing work")
+	root := initializePlanTestRepository(t, document)
+	t.Chdir(root)
+	editPath := filepath.Join(root, "edit.json")
+	writeEdit := func(edit plan.StepEdit) {
+		t.Helper()
+		data, err := json.Marshal(edit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(editPath, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	readPlan := func() []byte {
+		t.Helper()
+		data, err := os.ReadFile(filepath.Join(root, plan.Path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	edit := plan.StepEdit{ExpectedPlan: document.Digest(), Item: "row", Create: true, Step: plan.Step{ID: "second", Title: "Review second", Status: plan.StatusOpen, Verify: "go test ./internal/plan -run '^TestAtomicStepEdit$'", DependsOn: []string{"row/do"}, Rationale: "Keep an explicit prerequisite."}}
+	writeEdit(edit)
+	output := captureStdout(t, func() {
+		if err := run(cli{edit: editPath, json: true, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var result struct {
+		Before, After       string
+		Created             bool
+		AcceptanceChanged   bool `json:"acceptance_changed"`
+		PublicationRequired bool `json:"publication_required"`
+	}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := plan.Load(filepath.Join(root, plan.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(updated.Items[0].Steps) != 2 || result.Before != document.Digest() || result.After != updated.Digest() || !result.Created || !result.AcceptanceChanged || !result.PublicationRequired {
+		t.Fatalf("edit result %s", output)
+	}
+	// The fixture has no Go module. Successful editing proves the verifier did not execute.
+	before := readPlan()
+	if err := editPlanStep(root, editPath, &bytes.Buffer{}); err == nil {
+		t.Fatal("stale edit accepted")
+	}
+	if !bytes.Equal(before, readPlan()) {
+		t.Fatal("stale edit changed original bytes")
+	}
+	contextOutput := captureStdout(t, func() {
+		if err := run(cli{context: true, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var projected plan.AutomationContext
+	if err := json.Unmarshal([]byte(contextOutput), &projected); err != nil || projected.PlanDigest != updated.Digest() {
+		t.Fatalf("context identity: %s %v", contextOutput, err)
+	}
+	edit = plan.StepEdit{ExpectedPlan: updated.Digest(), Item: "row", Step: updated.Items[0].Steps[1]}
+	edit.Step.Title = "Revised contract"
+	writeEdit(edit)
+	if err := editPlanStep(root, editPath, &bytes.Buffer{}); err != nil {
+		t.Fatal(err)
+	}
+	updated, err = plan.Load(filepath.Join(root, plan.Path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, change := range map[string]func(*plan.StepEdit){
+		"unproven dependency": func(e *plan.StepEdit) { e.Step.DependsOn = []string{"missing/do"} },
+		"completion":          func(e *plan.StepEdit) { e.Step.Status = plan.StatusDone },
+		"batch":               func(e *plan.StepEdit) { e.Step.VerificationBatch = &plan.VerificationBatch{} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			bad := edit
+			bad.ExpectedPlan = updated.Digest()
+			change(&bad)
+			writeEdit(bad)
+			before := readPlan()
+			if err := editPlanStep(root, editPath, &bytes.Buffer{}); err == nil {
+				t.Fatal("invalid edit accepted")
+			}
+			if !bytes.Equal(before, readPlan()) {
+				t.Fatal("refusal changed bytes")
+			}
+		})
+	}
+	if err := os.WriteFile(editPath, []byte(`{"unknown_field":true}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := editPlanStep(root, editPath, &bytes.Buffer{}); err == nil {
+		t.Fatal("unknown schema accepted")
+	}
+	if err := run(cli{edit: editPath, next: true, retireLegacyLeases: noLegacyLeaseRetirement}, nil); err == nil {
+		t.Fatal("mixed edit and dispatch accepted")
+	}
+	claimed, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{Acquire: true, Worker: "other-worker", Reference: "row/do"})
+	if err != nil || claimed.Claim == nil {
+		t.Fatalf("claim: %+v %v", claimed, err)
+	}
+	edit = plan.StepEdit{ExpectedPlan: updated.Digest(), Item: "row", Step: updated.Items[0].Steps[0]}
+	edit.Step.Title = "Cannot change active work"
+	writeEdit(edit)
+	before = readPlan()
+	if err := editPlanStep(root, editPath, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "claimed by worker other-worker") {
+		t.Fatalf("active claim not protected: %v", err)
+	}
+	if !bytes.Equal(before, readPlan()) {
+		t.Fatal("claimed edit changed bytes")
 	}
 }

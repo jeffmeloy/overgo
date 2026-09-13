@@ -808,8 +808,8 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 				t.Fatal(advanceErr)
 			}
 			adoptedReceipt := mergeAuthority
-			adoptedReceipt.PreAdvancePlanDigest = planDigestText(adoptedPreAdvance)
-			adoptedReceipt.ChildPlanDigest = planDigestText(adoptedChild)
+			adoptedReceipt.PreAdvancePlanDigest = adoptedPreAdvance.Digest()
+			adoptedReceipt.ChildPlanDigest = adoptedChild.Digest()
 			adoptedReceipt.ID = artifact.ID{}
 			adoptedReceipt, advanceErr = firstParentTargetMergeAuthorityCodec.New(adoptedReceipt)
 			if advanceErr != nil {

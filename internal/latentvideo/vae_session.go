@@ -595,6 +595,9 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			volume, runErr := media.ExecuteCodecProgram("vae cuda decode", plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
 				Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
 			}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
+				if err := s.ctx.Err(); err != nil {
+					return media.CodecVolume[driver.DevicePtr]{}, err
+				}
 				actIndex = tensor.SingletonExtent - actIndex
 				opStarted := time.Now()
 				next, frames, height, width, stepErr := s.runOp(state, index, chunkIndex, operation, s.weights[index], opState, current.Storage, media.ProgramCodecWorkspace(media.CodecWorkspaceActivation, actIndex), current.Frames, current.Height, current.Width)
@@ -639,6 +642,9 @@ func (s *VAEDecoderCUDASession) Decode(stats VAELatentStats, z []float32, latent
 			}
 			frame := frameScratch[:frameElements]
 			for chunkFrame := range frames {
+				if err := s.ctx.Err(); err != nil {
+					return err
+				}
 				for ch := range geometry.channels {
 					source := x + driver.DevicePtr((ch*frames+chunkFrame)*chunkSpatial*binaryschema.Uint32Bytes)
 					if err := state.Driver.MemcpyDtoH(driver.Bytes(frame[ch*chunkSpatial:(ch+tensor.SingletonExtent)*chunkSpatial]), source); err != nil {
@@ -683,7 +689,7 @@ func (s *VAEDecoderCUDASession) Close() error {
 	}
 	var errs []error
 	if s.worker != nil {
-		errs = append(errs, s.worker.Do(s.ctx, func(state *device.State) error {
+		errs = append(errs, s.worker.Do(context.WithoutCancel(s.ctx), func(state *device.State) error {
 			var innerErrs []error
 			innerErrs = append(innerErrs, state.Driver.StreamSynchronize(state.Stream))
 			for index, weights := range s.weights {

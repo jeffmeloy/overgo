@@ -2,6 +2,19 @@
   "checks": [
     {
       "changed_source_sha256": {
+        "internal/latentvideo/denoiser_session.go": "f6e299e7229da5d936543fdeab15e76abe0b631fb38910825c3001073921d46b",
+        "internal/latentvideo/runtime.go": "dac9f90457f44226e01a24c79c40591bbe412cda5d5f550e3031b57a1905dbe9",
+        "internal/latentvideo/runtime_cuda_windows_test.go": "8ac9c8f9851d54ca71f66f99d4341f18934da4ecbf12e3c2f7ad521102830a53",
+        "internal/latentvideo/vae_session.go": "f036a4061bd8281c2aa22fd75f8adb634012564e73c838171b11d3728dc832a8"
+      },
+      "command": "OVERGO_DATA_ROOT=C:/Users/jeffm/image_video_gen OVERGO_CUDA_TEST=1 go test ./internal/latentvideo -tags=integration -run '^TestWanLifecycleAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:ed239680eb5ad0b1d4be3179b10b5123075d40ffae34885ea73c06340b55c938",
+      "name": "Wan cancellation, cleanup and reuse",
+      "scope": "Current source passes partial initialization without a panic, the unchanged G3 production reference, changed-negative conditioning against a fresh session, and cleanup after request cancellation. G4 decode stops after the first frame; the next request reproduces all five decoded frames exactly. G3 uses one 32x16 frame and four steps; G4 uses five 32x16 frames and two steps. This is lifecycle and reference coverage, not a new full-resolution clip or a performance comparison.",
+      "source_base": "ac10024df221194eb711495b5b8f6277b78a19ba"
+    },
+    {
+      "changed_source_sha256": {
         "internal/routedlm/prefixdevicegraph.go": "3e289f4d6a1132f73a66c0663a8ea67c005a4caf6f3195320c1e66af17a5f1ae",
         "internal/sensenovarecipe/runtime_cuda_windows_test.go": "e794227553c4bc27ebe02f350ad9297fef2ff5402cafd5360f6f29b1dab0eaa3"
       },
@@ -138,7 +151,10 @@
     "The prior checkpoint fixed shared GIF timing and external JSON-array oracle handling. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates remain predictions rather than measured optimization gains.",
     "Remaining work includes fresh full-length Wan generation and visual/temporal review, complete frozen-case coverage, public workflow and cancellation checks, and matched speed/memory/transfer comparisons. The earlier operator stop was fulfilled at b1206a56; work resumed on request.",
     "The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes.",
-    "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. No loading optimization is claimed yet."
+    "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. No loading optimization is claimed yet.",
+    "Wan now returns initialization errors without a cleanup panic, releases session resources after request cancellation, and stops decoding when the request is canceled. The G4 recovery check stops after one frame and then reproduces all five frames exactly on the same generator. The unchanged G3 reference and changed-negative fresh-session comparison also pass. Original failures, the skipped setup attempt, isolation probes and both corrected cohorts remain in OvergoDB as evidence:sha256:4ead158b1a90b0c5b13e17cf09049508f80fdf0d80592c9996f49c29b6ec15b2. These small lifecycle cases do not replace the remaining full-resolution video validation.",
+    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:d389b255d50abf529557b3ad8a2df7f78ef16e5c3bfad5f0e7babc5aaa76631d.",
+    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6."
   ],
   "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
   "version": 1

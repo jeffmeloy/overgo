@@ -1,6 +1,7 @@
 package latentvideo
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -130,9 +131,9 @@ func (g *Generator) Generate(ctx context.Context, request GenerateRequest) (resu
 		return result, errors.New("latent video generator: frame sink is nil")
 	}
 
-	if ctx != nil {
-		g.denoiser.ctx = ctx
-	}
+	ctx = cmp.Or(ctx, context.Background())
+	g.denoiser.ctx = ctx
+	g.decoder.ctx = ctx
 	result.Denoise, err = g.denoiser.Program.DenoiseWithBackend(g, DenoiseRequest{
 		Steps: request.Steps, Shift: request.Shift, GuideScale: request.GuideScale,
 		CondContext: request.CondContext, UncondContext: request.UncondContext,

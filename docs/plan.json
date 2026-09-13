@@ -218,6 +218,7 @@
           "rationale": "Join every required coverage cell, optimization decision, lifecycle/workflow result and report/sample reference through the existing compatibility owner. Reject any required unfinished or failed acceptance, missing evidence, silently excluded model/task, changed baseline criteria, duplicate outcomes or broken artifacts. An explicitly unsupported non-required capability remains a reported limitation; a missing required resource or quality check keeps closeout open until resolved or the operator changes scope. Re-run only checks invalidated by final changes, plus gate-required acceptance, using the same dependencies for scheduling and evidence reuse. Record branch base/head, commits, output/evidence inventory, tested hardware, unresolved master integration considerations and commands in the report. Commit campaign implementation through cmd/gate in image_video_gen. Prepare a concise handoff; do not merge to master or push as part of this worktree request. Require the shared-component caller migration record, accepted/rejected transfer/memory/processing decisions and current-source combined consumer validation. Neither added abstraction nor isolated microbenchmark speed can substitute for the declared end-to-end and memory requirements.",
           "depends_on": [
             "media-sensenova-regression/do",
+            "media-wan-lifecycle/do",
             "media-readiness/private-store",
             "media-readiness/inventory",
             "media-protocol/quality",

@@ -197,8 +197,8 @@ func encodeWeightPayload(data []float32, storage dtype.Type) ([]byte, error) {
 }
 
 // ProjectBranchContext: run once; retain per-block K/V.
-func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, error) {
-	value, err := feedValue(s.Program.contextInput, context, "context")
+func (s *DenoiserCUDASession) ProjectBranchContext(values []float32) (any, error) {
+	value, err := feedValue(s.Program.contextInput, values, "context")
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +216,7 @@ func (s *DenoiserCUDASession) ProjectBranchContext(context []float32) (any, erro
 		key, keyOK := retained.Value(s.Program.contextKeys[layer])
 		val, valueOK := retained.Value(s.Program.contextValues[layer])
 		if !keyOK || !valueOK {
-			return nil, errors.Join(fmt.Errorf("denoiser session context layer %d is not retained", layer), retained.Release(s.ctx))
+			return nil, errors.Join(fmt.Errorf("denoiser session context layer %d is not retained", layer), retained.Release(context.WithoutCancel(s.ctx)))
 		}
 		slots := s.stepCrossSlots[layer]
 		branch.inputs.Pointers[slots.key] = key.Pointer
@@ -256,7 +256,7 @@ func (s *DenoiserCUDASession) ForwardHead(patchTokens, blockE, headE []float32, 
 		return nil, fmt.Errorf("denoiser session step execution: %w", err)
 	}
 	value, err := retained.CopyToHost(s.ctx, s.Program.Head)
-	if releaseErr := retained.Release(s.ctx); releaseErr != nil {
+	if releaseErr := retained.Release(context.WithoutCancel(s.ctx)); releaseErr != nil {
 		err = errors.Join(err, releaseErr)
 	}
 	if err != nil {
@@ -288,7 +288,7 @@ func (s *DenoiserCUDASession) ReleaseRequestResources() error {
 	var errs []error
 	for _, branch := range s.branches {
 		if branch.retained != nil {
-			errs = append(errs, branch.retained.Release(s.ctx))
+			errs = append(errs, branch.retained.Release(context.WithoutCancel(s.ctx)))
 		}
 	}
 	s.branches = nil
@@ -300,12 +300,16 @@ func (s *DenoiserCUDASession) ReleaseDenoiseResources() error {
 	var errs []error
 	errs = append(errs, s.ReleaseRequestResources())
 	if s.headBuffer != nil {
-		errs = append(errs, s.headBuffer.Release(s.ctx))
+		errs = append(errs, s.headBuffer.Release(context.WithoutCancel(s.ctx)))
 		s.headBuffer = nil
 	}
-	errs = append(errs, s.weightAllocs.Close(s.ctx))
-	s.contextCompiled.Inputs = nil
-	s.stepCompiled.Inputs = nil
+	errs = append(errs, s.weightAllocs.Close(context.WithoutCancel(s.ctx)))
+	if s.contextCompiled != nil {
+		s.contextCompiled.Inputs = nil
+	}
+	if s.stepCompiled != nil {
+		s.stepCompiled.Inputs = nil
+	}
 	s.stepCrossSlots = nil
 	return errors.Join(errs...)
 }

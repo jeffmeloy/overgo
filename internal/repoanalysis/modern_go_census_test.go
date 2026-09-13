@@ -158,6 +158,71 @@ func parts(value string) {
 	}
 }
 
+func TestModernGoCensusPackageIsolation(t *testing.T) {
+	const imported = `package sample
+import workers "sync"
+func work() {}
+func launch(wait *workers.WaitGroup) {
+	wait.Add(1)
+	go func() { defer wait.Done(); work() }()
+}
+`
+	const local = `package sample
+import workers "sync"
+var _ workers.WaitGroup
+type localWait struct{}
+func (*localWait) Add(int) {}
+func (*localWait) Done() {}
+func work() {}
+func launch(wait *localWait) {
+	wait.Add(1)
+	go func() { defer wait.Done(); work() }()
+}
+`
+	root := modernGoTestRepository(t, imported)
+	other := "internal/other/sample.go"
+	if err := os.MkdirAll(filepath.Join(root, "internal/other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, other), []byte(imported), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var previous ModernGoCensus
+	for _, changed := range []bool{false, true} {
+		if changed {
+			if err := os.WriteFile(filepath.Join(root, "internal/sample/sample.go"), []byte(local), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		census, err := BuildModernGoCensus(root, ModernGoTargetVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var paths []string
+		for _, site := range modernGoTestFinding(t, census, "sync_waitgroup_go").Candidates {
+			if !site.TypeChecked || site.Symbol != "launch" {
+				t.Fatalf("import binding lost: %+v", site)
+			}
+			paths = append(paths, site.Path)
+		}
+		expected := []string{other, "internal/sample/sample.go"}
+		if changed {
+			expected = []string{other}
+			if census.SourceIdentity == previous.SourceIdentity {
+				t.Fatal("new source retained the previous census identity")
+			}
+		}
+		if !slices.Equal(paths, expected) {
+			t.Fatalf("package-local types leaked across groups: got %v, want %v", paths, expected)
+		}
+		previous = census
+	}
+	current, err := BuildModernGoCensus(root, ModernGoTargetVersion)
+	if err != nil || !reflect.DeepEqual(previous, current) {
+		t.Fatalf("same source changed across census invocations: %v", err)
+	}
+}
+
 func TestModernGoCensusDiscoveryOrderInvariant(t *testing.T) {
 	root := filepath.Join("..", "..")
 	forward, err := DiscoverGo(root, "cmd", "internal")

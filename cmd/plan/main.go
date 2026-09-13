@@ -50,11 +50,17 @@ import (
 	"overgo/internal/webuilane"
 )
 
+// Zero is a reviewed lease count; only this sentinel leaves retirement unrequested.
+const noLegacyLeaseRetirement = -1
+
 func main() {
 	next := flag.Bool("next", false, "print the top open action")
 	frontier := flag.Bool("frontier", false, "print every dispatchable row (the ready frontier) and validate live worktree leases against it")
 	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
 	admitProposalFlag := flag.String("admit-proposal", "", "admit one typed steering proposal from a JSON spec into the store and the plan")
+	phases := flag.Bool("phases", false, "with -history: show retained phase outcomes and costs; add -json for typed output")
+	historyCommit := flag.String("commit", "", "with -history -phases: exact full recorded commit (no revision or prefix expansion)")
+	historyResult := flag.String("result", "", "with -history -phases: exact gate-result artifact ID, preserving individual retries")
 	history := flag.String("history", "", "print attempt history from the store: aggregates and recent attempts (pass a plan item id, or all)")
 	prompt := flag.Bool("prompt", false, "print the generated self-contained task for the top open step")
 	verify := flag.Bool("verify", false, "run the top open step's verify command; exit code is pass/fail")
@@ -66,7 +72,7 @@ func main() {
 	recordLeaseOutcome := flag.String("record-lease-outcome", "", "record measured outcome JSON for an exercised worktree lease")
 	recordExperiment := flag.String("record-experiment", "", "commit one experiment lifecycle transition from a JSON spec (state, experiment, evidence, prior)")
 	leaseReport := flag.Bool("lease-report", false, "emit active worktree leases and resource/conflict advice as JSON")
-	retireLegacyLeases := flag.Int("retire-legacy-leases", -1, "retire pre-contract work-lease aliases through reviewed compare-and-set; the value is the reviewed expected count")
+	retireLegacyLeases := flag.Int("retire-legacy-leases", noLegacyLeaseRetirement, "retire pre-contract work-lease aliases through reviewed compare-and-set; the value is the reviewed expected count")
 	localitySchedule := flag.String("schedule-locality", "", "schedule a JSON worker/artifact request against OvergoDB locations")
 	cpuCapacity := flag.Int("cpu-capacity", 0, "with -lease-report: available CPU threads (0 unknown)")
 	ramCapacity := flag.Int("ram-capacity-gib", 0, "with -lease-report: available host RAM GiB (0 unknown)")
@@ -81,7 +87,7 @@ func main() {
 	owner := flag.String("owner", "", "with -assign: the owning lane")
 	setLane := flag.String("set-lane", "", "record the lane this plan dispatches for (the unassigned role's role)")
 	setverify := flag.Bool("setverify", false, "set an existing step's verify: -setverify <item> <step> -vcmd <cmd> (then runs it; exit code is the verdict)")
-	jsonFlag := flag.Bool("json", false, "with -next: print the dispatch as JSON")
+	jsonFlag := flag.Bool("json", false, "with -next or -history -phases: print typed JSON")
 	prepareMergeFlag := flag.String("prepare-merge", "", "snapshot a ref and prepare a gated merge with semantic plan and compatibility regeneration")
 	planProjectionFlag := flag.String("plan-projection", "", "with -prepare-merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")
 	stop := flag.Bool("stop", false, "record a legitimate loop stop: -stop <user-stop|irreversible|external-prereq>: <detail>")
@@ -93,13 +99,15 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	flag.Parse()
-	if err := run(cli{json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
+	phases                                                                           bool
+	historyCommit, historyResult                                                     string
 	next, prompt, verify, status, context, advance, add, setverify, bindCensus, stop bool
 	move, retitle                                                                    bool
 	frontier                                                                         bool
@@ -121,6 +129,16 @@ type cli struct {
 }
 
 func run(c cli, args []string) error {
+	if (c.phases || c.historyCommit != "" || c.historyResult != "") && (c.history == "" || !c.phases) {
+		return errors.New("-phases, -commit and -result require -history <item|all> -phases")
+	}
+	if c.phases {
+		query := cli{history: c.history, phases: true, historyCommit: c.historyCommit, historyResult: c.historyResult, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
+		if len(args) != 0 || c != query {
+			return errors.New("-history -phases accepts only -commit, -result and -json; incompatible operation or positional arguments")
+		}
+		return printGatePhaseHistory(c, os.Stdout)
+	}
 	document, err := plan.Load("")
 	if err != nil {
 		return err

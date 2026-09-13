@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
 )
 
@@ -19,6 +20,13 @@ func TestMain(m *testing.M) {
 			if mode == "busy" {
 				return fmt.Errorf("load device: %w", processcontrol.ErrResourceBusy)
 			}
+			if mode == "memory" {
+				// CUDA_ERROR_OUT_OF_MEMORY is result 2; text is deliberately unrelated.
+				return fmt.Errorf("load model: %w", &driver.ResultError{Code: 2, Message: "controlled allocation diagnostic"})
+			}
+			if mode == "misleading-text" {
+				return errors.New("out of memory; physical resource is already reserved")
+			}
 			return errors.New("invalid model bytes")
 		})
 		return
@@ -27,7 +35,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestModelSwapStartupBusy(t *testing.T) {
-	for _, mode := range []string{"busy", "invalid"} {
+	for mode, code := range map[string]string{"busy": "resource_busy", "memory": "insufficient_memory", "invalid": "model_load_failed", "misleading-text": "model_load_failed"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Setenv("OVERGO_TEST_MODEL_STARTUP", mode)
 			supervisor, err := New(ServerLauncher{Binary: os.Args[0], Store: t.TempDir()}, 0)
@@ -42,8 +50,7 @@ func TestModelSwapStartupBusy(t *testing.T) {
 				if response.Code != http.StatusServiceUnavailable {
 					t.Fatalf("startup = %d %s", response.Code, response.Body)
 				}
-				busy := strings.Contains(response.Body.String(), `"code":"resource_busy"`)
-				if busy != (mode == "busy") {
+				if !strings.Contains(response.Body.String(), `"code":"`+code+`"`) || response.Header().Get("Content-Type") != "application/json" {
 					t.Fatalf("startup %s misclassified: %s", mode, response.Body)
 				}
 			}

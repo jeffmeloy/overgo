@@ -67,6 +67,8 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 		receipt, waitErr := supervised.Wait(context.WithoutCancel(ctx))
 		if receipt.ExitCode == processcontrol.ResourceBusyExitCode && !receipt.TreeTerminated {
 			waitErr = processcontrol.ErrResourceBusy
+		} else if receipt.ExitCode == processcontrol.DeviceMemoryExitCode && !receipt.TreeTerminated {
+			waitErr = processcontrol.ErrDeviceMemory
 		} else {
 			waitErr = cmp.Or(waitErr, fmt.Errorf("server exited with status %d", receipt.ExitCode))
 		}

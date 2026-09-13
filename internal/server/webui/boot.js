@@ -668,10 +668,12 @@
       for (const choice of currentPanel.querySelectorAll('[data-serve]')) choice.disabled = true;
       const timer = setInterval(() => { button.textContent = "loading… " + Math.round((Date.now() - started) / 1000) + "s"; }, loadingTickMS);
       try {
-        await api.get("/health?swap=" + encodeURIComponent(item.model));
+        // The proxy names its serving child in the header; a server answering directly sends none and cannot swap.
+        let via = null;
+        await api.get("/health?swap=" + encodeURIComponent(item.model), { onHeaders: (headers) => { via = headers.get("X-Overgo-Swap-Proxy"); } });
         invalidateModel();
         const manifest = await api.get("/workspace/manifest");
-        if (manifest.model && manifest.model.recipe === item.recipe) {
+        if (manifest.model && manifest.model.model === item.model && manifest.model.recipe === item.recipe) {
           try { localStorage.setItem(MODEL_STORAGE, name); } catch (_) { /* storage unavailable */ }
           // Reopening history can request its original model; other switches start a fresh chain.
           if (!selectedConversation || selectedConversation.model !== manifest.model.model) rememberConversation(null);
@@ -684,30 +686,38 @@
           if (panel === currentPanel) close();
           return;
         }
-        if (before && manifest.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
-        window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
-        const command = 'overgo_gui.bat "' + (item.location || name) + '"';
-        const copy = el("button", { class: "btn alt", text: "copy launch" });
-        copy.addEventListener("click", () => navigator.clipboard.writeText(command));
-        if (panel !== currentPanel) return;
-        panel.replaceChildren(
-          el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
-          el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
+        if (via == null) {
+          // Served directly: nothing swaps children, so the original model stays usable and a relaunch is the way.
+          if (before && manifest.model && before.model === manifest.model.model && before.recipe === manifest.model.recipe) setModelSwitchBlocked(false);
+          window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
+          const command = 'overgo_gui.bat "' + (item.location || name) + '"';
+          const copy = el("button", { class: "btn alt", text: "copy launch" });
+          copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+          if (panel !== currentPanel) return;
+          panel.replaceChildren(
+            el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
+            el("div", { class: "row" }, el("span", { class: "mono", text: command }), copy));
+          return;
+        }
+        throw new Error('The server did not confirm the requested model. Choose a model again or retry loading.');
       } catch (err) {
         // A refused swap may leave the original model usable. Confirm its
-        // recipe before releasing Send; an unknown model stays blocked.
+        // artifact and recipe before releasing Send; an unknown model stays blocked.
         try {
           const current = await api.get("/workspace/manifest");
-          if (before && current.model && before.recipe === current.model.recipe) {
+          if (before && current.model && before.model === current.model.model && before.recipe === current.model.recipe) {
             await remountActive(current);
             setModelSwitchBlocked(false);
           }
         } catch (_) { /* choose a model again to resolve its unknown state */ }
-        const busy = err.code === 'resource_busy';
-        const message = busy ? 'The GPU is busy with another process. Wait for that work to finish, then retry loading this model.' : friendlyError(err);
+        let message = friendlyError(err);
+        if (err.code === 'resource_busy') message = 'The GPU is reserved for exclusive work. Retry after that reservation ends. Other work can share the GPU when memory fits.';
+        else if (err.code === 'insufficient_memory') message = 'There is not enough free GPU memory to load this model. Choose a smaller model or free memory, then retry.';
+        else if (err.code === 'model_load_failed') message = 'The model could not start. Check the server log for the load failure, then retry or choose another model.';
         window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: message }));
         if (panel === currentPanel) panel.replaceChildren(errorBanner(message),
-          ...(busy ? [el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })), el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) })] : []),
+          el('details', {}, el('summary', { text: 'Technical details' }), el('div', { class: 'mono', text: err.message })),
+          el('button', { class: 'btn', text: 'Retry loading model', onclick: event => swapModel(item, name, event.currentTarget) }),
           el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
       } finally {
         modelSwitchPending = false;

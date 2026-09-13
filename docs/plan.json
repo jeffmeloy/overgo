@@ -1,21 +1,96 @@
 {
-  "campaign": "GUI capability roadmap: flat conversation workflow, reliable execution controls and verified mobile use",
-  "doctrine": "Current owner direction: merge master into professional_overgo_gui while retaining this plan, then continue with the next GUI capability. Work exclusively in this worktree. Publishing subsequent GUI changes into master requires separate owner authorization.\n\nPreserve the conversation-first design: flat messages, lists and separators; no cards; independently scrolling messages; reachable Send/Stop; one compact model selector with explicit details; mobile navigation drawer; settings on demand; status only for relevant progress, failure or required action. Keep the embedded same-origin client, CSP, authenticated shared transport and existing workbench/state owners. Apply Impeccable guidance to clarity, focus, typography and touch behavior after functionality is verified.\n\nPrevent lost drafts, incorrect cancellation and hidden device capture. Responses, lineage, operations, artifacts, admission and decisions remain server-owned. Browser drafts/settings exclude secrets and captured bytes. Distinguish Stop from disconnect, resume from retry, branch creation from mutation, shared memory admission from exclusive measurement reservations, and recorded attachments from live streams. Reuse existing transactions, evidence handles and abandoned-admission recovery.\n\nMaster is integrated through 3764b774: preserve exact artifact identity in model selection, declared chat framing and selected model evidence. Native NDJSON transcription streaming now has production session/checkpoint owners; browser live input still needs a compatible bounded transport and source-identity contract. CPU and server tests do not prove browser live streaming, physical-phone operation, model understanding or held-out quality.\n\nOnly professional_overgo_gui rows are local work. Retain master-owned historical identities, dependencies and verifier floors as coordination references; reconcile their disposition in master before execution. The 27B benchmark remains operator-launched. The four inherited audio/training surface obligations remain under audio-staged-surface pending owner's reconciliation; no parallel audio backend.\n\nFuture named browser tests are implementation obligations, not present evidence. Assert actual actions, encoded bytes, request/terminal state and cleanup. Preserve existing GUI regression floors. Use synthetic devices and fixtures for focused acceptance, then the full real-model lane for local signoff. Separate physical iOS/Android/Safari/screen-reader evidence from Chromium emulation; missing hardware stays outstanding and does not block implementable local rows. Gate commits through cmd/gate. Bind inherited audio and smoke reference fixtures read-only; keep general data root and browser writes local to this worktree. No arbitrary source-size ceilings or silently skipped supported cases.",
+  "campaign": "GUI capability roadmap: flat conversation workflow, reachable workspaces, correct serving contracts and the training loop in the workbench",
+  "doctrine": "Owner direction, 2026-09-13: the roadmap now also covers reachability of Train, Model Builder and Evaluations in the documented launch; correctness of the serving contracts the workbench depends on (declared sampler chain, credential-less GET admission, native video routes, Library validation with a projector); workbench consumers for capabilities that have none (inference sessions, agent recovery and streaming tools, model merge, declared speculative decoding); the workbench side of the training loop (conversation dataset preview, adapter training served from the picker, run export, preference training); and the style floor Impeccable's craft floor, audit, typeset, harden and clarify references describe (C:/Users/jeffm/impeccable, read-only concept source), applied after functionality is verified and only as measurements the browser lane computes and ratchets, never as review prose. Training internals, converters, objectives and their evidence stay master-owned under the train-serve-loop reference row; a lane row that consumes them waits for the master step it names. Each new row binds its own browser journey marker and, where it changes a server contract, a file-guarded owning-package test; local signoff requires every marker. No new model family, optimizer or orchestration framework; derive adapter rank, draft depth and chain defaults from declarations rather than entering them.\n\nCurrent owner direction: merge master into professional_overgo_gui while retaining this plan, then continue with the next GUI capability. Work exclusively in this worktree. Publishing subsequent GUI changes into master requires separate owner authorization.\n\nPreserve the conversation-first design: flat messages, lists and separators; no cards; independently scrolling messages; reachable Send/Stop; one compact model selector with explicit details; mobile navigation drawer; settings on demand; status only for relevant progress, failure or required action. Keep the embedded same-origin client, CSP, authenticated shared transport and existing workbench/state owners. Apply Impeccable guidance to clarity, focus, typography and touch behavior after functionality is verified.\n\nPrevent lost drafts, incorrect cancellation and hidden device capture. Responses, lineage, operations, artifacts, admission and decisions remain server-owned. Browser drafts/settings exclude secrets and captured bytes. Distinguish Stop from disconnect, resume from retry, branch creation from mutation, shared memory admission from exclusive measurement reservations, and recorded attachments from live streams. Reuse existing transactions, evidence handles and abandoned-admission recovery.\n\nMaster is integrated through 0adb893abed1 (2026-09-13): the gate reports actual per-package verification cost and bounds each active test instead of the suite duration, publication cost is measured against retained gate attempts, instruction evaluation progress persists across resumption, and Qwen4 and Qwen9 native instruction validation is complete; exact artifact identity in model selection, declared chat framing and selected model evidence stay preserved. The master-owned reference rows mirror master's open plan at that revision (publication cost, gate selection, modality verification, regression, benchmark, recovery and simplification); the lane never dispatches them, and a lane row that needs master's work names the master step it waits on. Native NDJSON transcription streaming now has production session/checkpoint owners; browser live input still needs a compatible bounded transport and source-identity contract. CPU and server tests do not prove browser live streaming, physical-phone operation, model understanding or held-out quality.\n\nOnly professional_overgo_gui rows are local work. Retain master-owned historical identities, dependencies and verifier floors as coordination references; reconcile their disposition in master before execution. The 27B benchmark remains operator-launched. The four inherited audio/training surface obligations remain under audio-staged-surface pending owner's reconciliation; no parallel audio backend.\n\nFuture named browser tests are implementation obligations, not present evidence. Assert actual actions, encoded bytes, request/terminal state and cleanup. Preserve existing GUI regression floors. Use synthetic devices and fixtures for focused acceptance, then the full real-model lane for local signoff. Separate physical iOS/Android/Safari/screen-reader evidence from Chromium emulation; missing hardware stays outstanding and does not block implementable local rows. Gate commits through cmd/gate. Bind inherited audio and smoke reference fixtures read-only; keep general data root and browser writes local to this worktree. No arbitrary source-size ceilings or silently skipped supported cases.",
   "lane": "professional_overgo_gui",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-gpu-admission",
-      "title": "Explain model admission failures accurately and preserve explicit retry",
+      "id": "gui-launch-reachability",
+      "title": "Reach Train, Model Builder and Evaluations in the documented launch",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Explain model admission failures accurately and preserve explicit retry",
+          "title": "Reach Train, Model Builder and Evaluations in the documented launch",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(BackgroundWork|LayoutAudit)$' -require 'background work leg'",
-          "rationale": "Replace the claim that any other GPU process prevents loading. Use master's structured resource_busy for an exclusive reservation; distinguish insufficient memory and load failures. Preserve exact model identity, conversation and draft, and retry only on user action. Extend the existing browser failure/request assertions; no new reservation owner."
+          "verify": "test -f internal/server/workspace_manifest_launch_test.go \u0026\u0026 go test ./internal/server -run '^TestWorkspaceManifestShippedLaunch$' -count=1 \u0026\u0026 test -f internal/modelswap/launcher_workspaces_test.go \u0026\u0026 go test ./internal/modelswap -run '^TestLauncherForwardsWorkspaceEnablement$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(WorkspaceReachability|LayoutAudit)$' -require 'workspace reachability leg'",
+          "rationale": "The documented launch runs the swap proxy, and its launcher starts every child with only -listen, -repo, -model-id and the location (internal/modelswap/launcher.go:57), so Train and Model Builder can never be enabled that way; the Evaluations tab is refused in every cmd/server launch because the manifest asserts EvaluationWorkspaceAPI on the generator while cmd/server supplies the workspace through Config.Evaluation (internal/server/workspace_manifest.go:167, cmd/server/main.go:312). Carry workspace enablement from the operator's launch declaration through the launcher to each child and gate the Evaluations tab on the configured workspace. Acceptance: the manifest built with the shipped cmd/server generator lists the enabled workspaces, the launcher forwards the declared enablement, and a browser journey opens each enabled tab; a workspace the launch did not enable stays refused with its reason."
+        }
+      ]
+    },
+    {
+      "id": "gui-sampling-contract",
+      "title": "Apply the declared sampler chain when a request omits samplers",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Apply the declared sampler chain when a request omits samplers",
+          "status": "open",
+          "verify": "test -f internal/server/sampling_defaults_test.go \u0026\u0026 go test ./internal/server -run '^TestRequestWithoutSamplersUsesDeclaredChain$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SamplingSettings|LayoutAudit)$' -require 'sampling settings leg'",
+          "rationale": "A chat, completion or Responses request that omits samplers reaches sampling.New with a nil chain (internal/server/server.go:835-842, :900); sampleCandidatePipeline then runs no stage and draws from the temperature-1 softmax over the whole vocabulary, so the temperature, top_k, top_p and penalty values the Settings panel sends have no effect, and temperature 0 with a grammar, tools or logit bias samples stochastically. Apply the recipe serving policy's declared chain when the request omits one, keep an explicit chain authoritative, and expose the resolved chain in the response metadata. Acceptance: a request without samplers resolves the declared chain; temperature 0 with a JSON schema or tool choice is deterministic; the browser journey changes a sampling setting and observes it in the resolved chain."
+        }
+      ]
+    },
+    {
+      "id": "gui-credentialless-get",
+      "title": "Refuse cross-site side-effecting GET requests at the shared admission",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse cross-site side-effecting GET requests at the shared admission",
+          "status": "open",
+          "verify": "test -f internal/apimanifest/admission_get_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestCredentiallessGETSideEffects$' -count=1 \u0026\u0026 test -f internal/modelswap/proxy_cross_site_test.go \u0026\u0026 go test ./internal/modelswap -run '^TestProxyRefusesCrossSiteSwap$' -count=1",
+          "rationale": "AdmitCredentialless relies on net/http CrossOriginProtection, which admits GET, HEAD and OPTIONS before any Origin or Sec-Fetch-Site check (internal/apimanifest/admission.go:40-43). The proxy honours ?swap= on GET, which is the model pill's own path, so a foreign page can launch or swap a model; GET /library/providers/models takes endpoint and key_environment from the query and the intake sends the named environment variable as a bearer token to that endpoint. SECURITY.md states neither is possible. Require a same-origin Sec-Fetch-Site or the bearer key for every GET with a side effect, or move those effects to POST, keep the same-origin workbench working, and correct SECURITY.md in the same batch. Acceptance: cross-site GET swap and provider listing are refused without any mutation; same-origin and authenticated requests pass; the workbench journeys still pass."
+        }
+      ]
+    },
+    {
+      "id": "gui-refused-workspaces",
+      "title": "Explain refused workspaces instead of hiding them and release tab resources on remount",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Explain refused workspaces instead of hiding them and release tab resources on remount",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(WorkspaceRefusal|LayoutAudit)$' -require 'workspace refusal leg'",
+          "rationale": "Refused tabs are removed from the navigation with the reason left in a title attribute, and fragment navigation reaches the refused module anyway (internal/server/webui/boot.js:782-793); safeMount discards module cleanup functions, so SSE streams accumulate on each remount (boot.js:596-597); the Automations tab posts decisions without the approval request identity and receives 409 hidden in an unhandled rejection. Show a refused workspace as a flat status line with its reason and the action that would enable it, refuse fragment navigation to it with the same message, run every module's cleanup on remount, and send the approval identity. Acceptance: the journey opens a refused tab and reads its reason, remounts a streaming tab and observes one live stream, and a decision on a pending approval succeeds."
+        }
+      ]
+    },
+    {
+      "id": "gui-library-validation",
+      "title": "Validate a registered model with a projector from the Library, independently of the working directory",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate a registered model with a projector from the Library, independently of the working directory",
+          "status": "open",
+          "verify": "test -f internal/libraryintake/projector_validation_test.go \u0026\u0026 go test ./internal/libraryintake -run '^TestValidateTextWithProjector$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(LibraryValidation|LayoutAudit)$' -require 'library validation leg'",
+          "rationale": "ModelFiles returns a sibling projector automatically and the page posts it back, but Validate refuses any projector before text validation runs (internal/libraryintake/intake.go:81-82, :123-124), so a model downloaded with its mmproj never becomes servable through the Library. library_validation.json is opened relative to the process working directory (internal/server/library_workspace.go:104), CleanRevision refuses any dirty Go file, and the idle shell routes neither /library/validate nor /hub/downloads. Validate text inference when a projector is present, resolve the validation policy from the repository root, and route validation through the idle shell so an empty store reaches a served model. Acceptance: register-plus-validate on a real small GGUF with a projector activates a text recipe; the journey downloads, registers, validates and selects the model from a cold proxy."
+        }
+      ]
+    },
+    {
+      "id": "gui-video-routes",
+      "title": "Deliver the declared video output on the native video routes",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Deliver the declared video output on the native video routes",
+          "status": "open",
+          "verify": "test -f internal/server/video_routes_output_test.go \u0026\u0026 go test ./internal/server -run '^TestVideoRoutesDeliverDeclaredOutput$' -count=1",
+          "rationale": "Every video executor publishes image/gif (internal/mediacapability/output.go:34-40) and /v1/videos/generations and /v1/videos/edits require a video/ media type (internal/server/native_media_protocols.go:90, :125), so the routes return 500 after the operation has already committed its output; the route tests use a fake video/mp4 artifact. The video-edit task has no executor, so /v1/videos/edits and workflow.video-edit can never execute. Accept the declared output type on the routes, and either give video-edit its executor through the existing LiveEdit reference-edit runtime or retire the task, its route and its workflow declaration in one batch. Acceptance: the route test uses the real executor output type; a video-gen operation's result downloads through the route; video-edit is either exercised or absent from the capability catalog."
         }
       ]
     },
@@ -74,6 +149,204 @@
       ]
     },
     {
+      "id": "gui-agent-sessions",
+      "title": "Resume agent sessions after interruption and stream tool output in the thread",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resume agent sessions after interruption and stream tool output in the thread",
+          "status": "open",
+          "verify": "test -f internal/server/agent_session_recovery_test.go \u0026\u0026 go test ./internal/server -run '^TestAgentSessionRecoveryAndStreaming$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AgentRecovery|LayoutAudit)$' -require 'agent recovery leg'",
+          "rationale": "Agent recovery and checkpoints (internal/agentloop/recovery.go) and the streaming NDJSON tool transport have no production caller; operations are in-memory and evictable (internal/operation/runtime.go:526-543), so a server restart loses the session the README promises to recover. Persist agent sessions and their receipts through the existing interaction store, restore them on startup, and carry tool output through the duplex transport into the thread as it arrives. Acceptance: a session interrupted mid-tool resumes after restart without duplicating the tool effect; streamed tool output appears incrementally; approvals survive the restart."
+        }
+      ]
+    },
+    {
+      "id": "gui-chat-sessions",
+      "title": "Continue a stopped or resumed conversation exactly through inference sessions",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Continue a stopped or resumed conversation exactly through inference sessions",
+          "status": "open",
+          "verify": "test -f internal/server/response_session_test.go \u0026\u0026 go test ./internal/server -run '^TestResponsesContinueSavedSession$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SessionContinuation|LayoutAudit)$' -require 'session continuation leg'",
+          "rationale": "Resumable inference sessions (StartSession, ContinueSession, SaveSession, LoadSession) and KV cache serialization have no caller outside internal/inference; Chat stop and resume replay stored text and re-prefill. Map previous_response_id on /v1/responses to a saved session bound to the model fingerprint and sampler state, persist it through the existing session codec, and release it with the conversation. Acceptance: continuing after Stop produces the same tokens as an uninterrupted run under greedy settings with no re-prefill; a session from another model or sampler configuration is refused with a reason; the journey stops, continues and reads the resumed reply."
+        }
+      ]
+    },
+    {
+      "id": "gui-model-merge",
+      "title": "Merge registered models from Model Builder into a new artifact with lineage",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge registered models from Model Builder into a new artifact with lineage",
+          "status": "open",
+          "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -require 'model merge leg'",
+          "rationale": "The modelmerge operators have no production caller, and the Model Builder workspace already runs scratch construction through /model-builder/run. Add merge and task-arithmetic between registered models of one base as a Model Builder run producing a new artifact with both parents in its lineage, registered through the existing intake and eligible for Library validation. Acceptance: a merge of two small registered models publishes an artifact whose lineage names both parents and whose weights equal the operator's definition on a fixture; the journey selects two models, runs the merge and finds the result in the Library.",
+          "depends_on": [
+            "gui-launch-reachability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-speculative-decoding",
+      "title": "Offer speculative decoding only when the served recipe declares a draft head",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Offer speculative decoding only when the served recipe declares a draft head",
+          "status": "open",
+          "verify": "test -f internal/server/speculative_option_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeculativeDecodingDeclaredOption$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SpeculativeDecoding|LayoutAudit)$' -require 'speculative decoding leg'",
+          "rationale": "NextN/MTP speculative decoding runs only through benchmark -speculative; the host draft and verify sessions have no caller. Expose it as a generation option in Chat and Generate that appears only when the served recipe's capability document declares a draft head, carry it through the request, and report accepted draft length in the response usage. The draft depth is derived from the declaration rather than the 27B-tuned literal. Acceptance: the option is absent for a model without a draft head, present and effective for one that declares it, and greedy output is unchanged with it on."
+        }
+      ]
+    },
+    {
+      "id": "gui-style-design-document",
+      "title": "Generate the workbench design document from the stylesheet tokens and refuse hard-coded style",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Generate the workbench design document from the stylesheet tokens and refuse hard-coded style",
+          "status": "open",
+          "verify": "test -f internal/webuilane/design_document_test.go \u0026\u0026 go test ./internal/webuilane -run '^TestDesignDocumentMatchesStylesheet$' -count=1",
+          "rationale": "Impeccable's document and extract commands keep one design record whose values mirror the token file verbatim. The workbench already has that token file: style.css declares both themes, the spacing scale and the type scale in :root, and the utilities comment says every size, spacing and emphasis is named there. Generate docs/gui/DESIGN.md from those declarations through the existing webui-lane report owner, the way SIMPLIFICATION.md is generated, and check it fresh. The same generator is the theming ratchet: a colour, size or spacing literal outside :root in style.css, or an inline style attribute in the panel modules, is a finding. Acceptance: the generated document equals the committed one; the token, scale and component inventories are complete; the literal census is zero and a seeded literal fails."
+        }
+      ]
+    },
+    {
+      "id": "gui-style-craft-floor",
+      "title": "Measure the Impeccable craft floor in the browser lane at every state, viewport and scheme",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure the Impeccable craft floor in the browser lane at every state, viewport and scheme",
+          "status": "open",
+          "verify": "test -f internal/webuilane/craft_floor_test.go \u0026\u0026 go test ./internal/webuilane -run '^TestCraftFloorTokenContrast$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(CraftFloor|LayoutAudit)$' -require 'craft floor leg'",
+          "rationale": "The layout audit that CaptureStates runs at desktop and phone under dark and light already measures horizontal overflow, overlapping surfaces, clipped text and AA contrast. Extend it with the rest of the floor Impeccable verifies on the built result, as computed measurements rather than review notes: no text below the smallest type token (the .sub label renders at 8.5px today); interactive targets at or above 44 CSS pixels on the phone viewport; a visible focus indicator on every focusable element; a heading hierarchy without skipped levels; easing functions without overshoot; placeholder text at body contrast; and, under emulated prefers-reduced-motion, state changes that still complete, which the current global 0.01ms transition kill does not guarantee for streamed status. Findings are a ratchet baseline the way the composer budget is: the count only falls. Acceptance: the token contrast test computes every text-on-surface pair for both themes from style.css; the browser journey audits every captured state and its baseline holds; a seeded 40px target and a seeded 9px label fail."
+        }
+      ]
+    },
+    {
+      "id": "gui-style-typeset",
+      "title": "Set one role scale and reading measure for an operate surface and remove the eyebrow label",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Set one role scale and reading measure for an operate surface and remove the eyebrow label",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Typeset|LayoutAudit)$' -require 'typeset leg'",
+          "rationale": "Impeccable's typeset guidance for an operate-and-read surface is one well-tuned family with a fixed role scale; the craft floor sets the reading measure at 65 to 75 characters and bans the kicker or eyebrow above a heading outright. The workbench keeps its system family by that rule, recorded as the decision rather than a default, and fixes what the rule finds: the conversation and composer share a 720px measure, which at the 14px body is beyond 75ch; the .sub pill is an uppercase letter-spaced eyebrow at 8.5px; role sizes are pinned in pixels with no fluid step between phone and desktop. Derive the measure from the body size, give each type token one role, and delete the eyebrow. Acceptance: the journey measures the reading width in characters at both viewports, finds no uppercase tracked label above a heading, and finds every text node on a token size."
+        }
+      ]
+    },
+    {
+      "id": "gui-style-hardened-states",
+      "title": "Prove every workspace under extreme input, empty, loading and failure states with copy that names the recovery",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prove every workspace under extreme input, empty, loading and failure states with copy that names the recovery",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(HardenedStates|LayoutAudit)$' -require 'hardened states leg'",
+          "rationale": "Impeccable's harden, clarify and onboard checks are journeys, not styling: names of 100+ characters, emoji, CJK and RTL text, a thousand-row list, ten rapid submits, forced request failures, and every workspace with no data. Each state must render without clipped or overflowing text, keep Send and Stop reachable, and show copy that states what failed and how to recover or what to do first; an empty workspace names what will appear there and the action that creates it. Reuse the existing conversation, attachment and background-work journeys for the inputs and add the extreme-input and empty-state passes. Acceptance: the journey feeds each input class to each workspace at both viewports and both schemes, the layout audit reports no overflow or clipping, and every failure and empty state carries an action."
+        }
+      ]
+    },
+    {
+      "id": "gui-dataset-preview",
+      "title": "Preview conversation datasets as the model will train on them",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Preview conversation datasets as the model will train on them",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(DatasetPreview|LayoutAudit)$' -require 'dataset preview leg'",
+          "rationale": "Once master's conversation dataset processor renders examples through the served model's chat template with response-only loss masking, the Datasets tab previews an example as rendered tokens with the masked and trained spans distinguished, using the existing dataset preview route. Acceptance: the journey opens a conversation dataset, reads a rendered example, and sees which spans train; a dataset the processor refuses shows the refusal reason.",
+          "depends_on": [
+            "train-serve-loop/chat-sft-data"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-adapter-training",
+      "title": "Train an adapter from the Train tab and serve it from the model picker",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train an adapter from the Train tab and serve it from the model picker",
+          "status": "open",
+          "verify": "test -f internal/server/training_adapter_run_test.go \u0026\u0026 go test ./internal/server -run '^TestTrainingAdapterRunPublishesServableAdapter$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AdapterTraining|LayoutAudit)$' -require 'adapter training leg'",
+          "rationale": "Once master's adapter trainer emits a GGUF LoRA adapter, the Train tab offers the adapter recipe kind for a registered base and dataset, the run publishes the adapter through /lora-adapters with its base and dataset lineage, and the model picker lists it beside its base. Rank and scale are derived from the declared parameter budget, not entered. Acceptance: a run on the small fixture base produces an adapter the served model loads; the journey starts the run, follows progress in Runs, selects the adapter and receives a reply with it applied.",
+          "depends_on": [
+            "train-serve-loop/adapter-gguf",
+            "gui-launch-reachability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-run-export",
+      "title": "Export a finished training run to a servable GGUF from the Runs tab",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Export a finished training run to a servable GGUF from the Runs tab",
+          "status": "open",
+          "verify": "test -f internal/server/run_export_test.go \u0026\u0026 go test ./internal/server -run '^TestRunExportPublishesServableModel$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(RunExport|LayoutAudit)$' -require 'run export leg'",
+          "rationale": "Once master's checkpoint-to-GGUF path exists, the Runs tab exports a finished dense run through the existing converter and quantizer into a registered model with the run in its lineage, ready for Library validation. Acceptance: the exported model validates and serves; the journey exports a fixture run and selects the result.",
+          "depends_on": [
+            "train-serve-loop/checkpoint-export",
+            "gui-launch-reachability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-preference-training",
+      "title": "Start DPO and GRPO runs from the Train tab on declared preference and rollout datasets",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Start DPO and GRPO runs from the Train tab on declared preference and rollout datasets",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(PreferenceTraining|LayoutAudit)$' -require 'preference training leg'",
+          "rationale": "Once master records device evidence for the DPO and GRPO objectives, the Train tab offers them for datasets whose declared shape matches (preference pairs, rollout groups with an evaluator) and refuses others with the reason. Acceptance: the journey starts a fixture DPO run, follows it in Runs, and reads the terminal outcome; a mismatched dataset is refused before submission.",
+          "depends_on": [
+            "train-serve-loop/preference-device-evidence",
+            "gui-launch-reachability/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "gui-local-signoff",
       "title": "Accept implemented GUI capabilities independently of physical-phone signoff",
       "owner": "professional_overgo_gui",
@@ -83,14 +356,32 @@
           "id": "do",
           "title": "Accept implemented GUI capabilities independently of physical-phone signoff",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser.*$' -require 'media capture leg' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'transcription draft leg' -require 'video capture leg' -require 'live media leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser.*$' -require 'media capture leg' -require 'conversation control leg' -require 'draft lifecycle leg' -require 'mobile interaction leg' -require 'conversation navigation leg' -require 'conversation actions leg' -require 'attachment workflow leg' -require 'background work leg' -require 'transcription draft leg' -require 'video capture leg' -require 'live media leg' -require 'workspace reachability leg' -require 'sampling settings leg' -require 'workspace refusal leg' -require 'library validation leg' -require 'agent recovery leg' -require 'session continuation leg' -require 'model merge leg' -require 'speculative decoding leg' -require 'craft floor leg' -require 'typeset leg' -require 'hardened states leg' -require 'dataset preview leg' -require 'adapter training leg' -require 'run export leg' -require 'preference training leg'",
           "rationale": "Run the complete browser/model lane and preserve all existing conversation, draft, mobile, navigation, actions, attachment and background journeys. Require new capture, transcription, video and live-media markers. Inspect desktop and narrow/keyboard light/dark captures after behavior passes; apply Impeccable guidance to flat surfaces and report actual browsers/models plus unsupported cases. This local acceptance cannot close physical-device signoff.",
           "depends_on": [
             "gui-media-capture/do",
             "gui-gpu-admission/do",
             "gui-transcription-draft/do",
             "gui-video-capture/do",
-            "gui-live-media/do"
+            "gui-live-media/do",
+            "gui-launch-reachability/do",
+            "gui-sampling-contract/do",
+            "gui-credentialless-get/do",
+            "gui-refused-workspaces/do",
+            "gui-library-validation/do",
+            "gui-video-routes/do",
+            "gui-agent-sessions/do",
+            "gui-chat-sessions/do",
+            "gui-model-merge/do",
+            "gui-speculative-decoding/do",
+            "gui-style-design-document/do",
+            "gui-style-craft-floor/do",
+            "gui-style-typeset/do",
+            "gui-style-hardened-states/do",
+            "gui-dataset-preview/do",
+            "gui-adapter-training/do",
+            "gui-run-export/do",
+            "gui-preference-training/do"
           ]
         }
       ]
@@ -169,6 +460,48 @@
           "status": "open",
           "verify": "test 0 -eq $(grep -Ec '\"name\": \"(OpenAudioStream|NewTextTransform|PublishInputProjection|RestoreInputProjection)\"' docs/staged_surface.json)",
           "rationale": "Master now supplies production consumers for the four retained surfaces, including native transcription streaming and CPU projection checkpoint restore. Master must reconcile this historical row against current staged-surface evidence; preserve its identity and verifier floor here. Production integration does not establish held-out quality, browser live streaming or a GUI training workflow."
+        }
+      ]
+    },
+    {
+      "id": "train-serve-loop",
+      "title": "Master reference: connect training output to serving and evaluation",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "chat-sft-data",
+          "title": "Render conversation datasets through the chat template with response-only loss masking",
+          "status": "open",
+          "verify": "test -f internal/trainingdata/conversation_test.go \u0026\u0026 go test ./internal/trainingdata -run '^TestConversationProcessorMasksResponses$' -count=1",
+          "rationale": "Master-owned; the lane consumes the result in gui-dataset-preview and gui-adapter-training. Text training today turns a file into one record (internal/trainingworkflow/data.go:37-38) and JSONTextPairProcessor pairs input and target; no processor renders conversations through the model's template and masks the non-assistant tokens. Reuse the inference chat templates and the tokenizer; refuse a conversation the template cannot render."
+        },
+        {
+          "id": "adapter-gguf",
+          "title": "Train an adapter that the existing GGUF LoRA loader serves",
+          "status": "open",
+          "verify": "test -f internal/adaptertrain/gguf_adapter_test.go \u0026\u0026 go test ./internal/adaptertrain -run '^TestAdapterTrainingEmitsServableGGUFLoRA$' -count=1",
+          "rationale": "Master-owned; the lane consumes the result in gui-adapter-training. internal/model/lora.go loads GGUF LoRA and aLoRA adapters and /lora-adapters serves them, while adapter training exists only per layer (internal/adaptertrain) and lora-extract does not scale; nothing trains an adapter into that format. Emit the adapter under Muon with rank and scale derived from the declared parameter budget, freeze the quantized base through the existing dequantize-on-load path, and record one compatibility claim on a small model. This is the cheapest closed train-serve-evaluate loop.",
+          "depends_on": [
+            "train-serve-loop/chat-sft-data"
+          ]
+        },
+        {
+          "id": "checkpoint-export",
+          "title": "Publish a dense training checkpoint as a registered, servable GGUF",
+          "status": "open",
+          "verify": "test -f internal/trainingworkflow/checkpoint_export_test.go \u0026\u0026 go test ./internal/trainingworkflow -run '^TestCheckpointExportsServableModel$' -count=1",
+          "rationale": "Master-owned; the lane consumes the result in gui-run-export. cmd/train ends at publishCheckpoint with F32 safetensors on disk (internal/trainingworkflow/workflow.go:256-258); no path registers the checkpoint, derives a recipe or converts it, and the bracket's post slice is keyed to the base model (internal/trainingworkflow/bracket.go:76-95). Convert through the existing hfconvert and gguf-quantize owners, register the result with the run in its lineage, and capture the bracket's post slice from the exported artifact."
+        },
+        {
+          "id": "preference-device-evidence",
+          "title": "Record device evidence for the DPO and GRPO objectives on one small model",
+          "status": "open",
+          "verify": "test -f internal/densecausal/preference_device_test.go \u0026\u0026 go test ./internal/densecausal -run '^TestPreferenceObjectivesDeviceEvidence$' -count=1",
+          "rationale": "Master-owned; the lane consumes the result in gui-preference-training. ObjectiveDPO and ObjectiveGRPO are implemented and tested on the host only (internal/trainingworkflow/workflow.go:307) with no real-artifact evidence. Run each on the device lane on one small model with a declared preference or rollout dataset and record the claims.",
+          "depends_on": [
+            "train-serve-loop/chat-sft-data"
+          ]
         }
       ]
     },
@@ -257,6 +590,20 @@
           "status": "open",
           "verify": "go run ./cmd/model-regress -check -repo overgodb-store",
           "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "full-catalog",
+          "title": "Master reference: Expand and re-accept the full baseline before broad simplification",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "model-regression-baseline/do",
+            "device-memory-retention/do",
+            "decode-attention-per-key-cost/do",
+            "gemma-12b-accuracy/do",
+            "modality-verification/media-report"
+          ]
         }
       ]
     },
@@ -325,6 +672,20 @@
           "depends_on": [
             "modality-verification/speech-ocr-tabular-forecast"
           ]
+        },
+        {
+          "id": "decode-guard-readmission",
+          "title": "Master reference: Complete outstanding text performance evidence independently of modality validation",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "native-audio-streaming-intake",
+          "title": "Master reference: Verify landed native audio production consumers and retire staged APIs",
+          "status": "open",
+          "verify": "test -f internal/capabilityruntime/audio_stream_integration_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestNativeAudioStreamIntegration$' -count=1 \u0026\u0026 test -f internal/audioparity/production_intake_test.go \u0026\u0026 go test ./internal/audioparity -run '^TestNativeAudioProductionIntake$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
         }
       ]
     },
@@ -455,6 +816,348 @@
           "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound. A campaign ends with the plan empty and every claim bound to evidence at one commit; the close-out row is where the loop proves it has nothing left to do.",
           "depends_on": [
             "failure-recovery/gate-recovery-drill"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "plan-publication-cost",
+      "title": "Master reference: Reduce recurring build and gate cost, then simplify dispatch and publication",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "memoize-fixed-phases",
+          "title": "Master reference: Reuse immutable analysis while rechecking current publication authority",
+          "status": "open",
+          "verify": "test -f internal/gate/publication_contract_test.go \u0026\u0026 go test ./internal/gate -run '^TestPlanOnlyPublicationReusesUnchangedPhases$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/source-evidence-binding"
+          ]
+        },
+        {
+          "id": "cli-dependency-boundary",
+          "title": "Master reference: Remove inference dependencies from generic CLI helpers",
+          "status": "open",
+          "verify": "test -f internal/clioptions/dependency_contract_test.go \u0026\u0026 go test ./internal/clioptions -run '^TestCLIInferenceDependencyBoundary$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "internal-consumer-contract",
+          "title": "Master reference: Recognize real internal operations without requiring token executables",
+          "status": "open",
+          "verify": "test -f internal/codeprofile/consumer_contract_test.go \u0026\u0026 go test ./internal/codeprofile -run '^TestDeclaredInternalOperationConsumer$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "dispatch-claim",
+          "title": "Master reference: Atomically claim work before issuing an executable dispatch",
+          "status": "open",
+          "verify": "test -f internal/plan/workflow_contract_test.go \u0026\u0026 go test ./internal/plan -run '^TestAtomicDispatchClaim$' -count=1 \u0026\u0026 test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestDispatchClaimProjection$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "stop-state",
+          "title": "Master reference: Honor explicit operator stops until scoped resumption across every consumer",
+          "status": "open",
+          "verify": "test -f internal/plan/workflow_contract_test.go \u0026\u0026 go test ./internal/plan -run '^TestStopStateContract$' -count=1 \u0026\u0026 test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestStopStatusProjection$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "step-edit",
+          "title": "Master reference: Apply typed step edits with validation and conflict detection",
+          "status": "open",
+          "verify": "test -f internal/plan/workflow_contract_test.go \u0026\u0026 go test ./internal/plan -run '^TestAtomicStepEdit$' -count=1 \u0026\u0026 test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPlanEditCommand$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "retained-gate-report",
+          "title": "Master reference: Query retained gate phases and outcomes by commit",
+          "status": "open",
+          "verify": "test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestRetainedGatePhaseReport$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "one-command-publication",
+          "title": "Master reference: Publish a plan edit through the gate with one command",
+          "status": "open",
+          "verify": "test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPlanPublishCommand$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "command-help",
+          "title": "Master reference: Expose actual flags and correct conflicting usage",
+          "status": "open",
+          "verify": "test -f cmd/overgodb-query/help_test.go \u0026\u0026 go test ./cmd/overgodb-query -run '^TestQueryHelpContract$' -count=1 \u0026\u0026 test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPlanHelpContract$' -count=1 \u0026\u0026 test -f cmd/finding/help_test.go \u0026\u0026 go test ./cmd/finding -run '^TestFindingHelpContract$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "dispatch-readiness",
+          "title": "Master reference: Show cheap admission diagnostics with the task before costly preparation",
+          "status": "open",
+          "verify": "test -f internal/gate/publication_contract_test.go \u0026\u0026 go test ./internal/gate -run '^TestCheapAdmissionReadiness$' -count=1 \u0026\u0026 test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPromptAdmissionReadiness$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "frontier-diagnostics",
+          "title": "Master reference: Keep valid frontier rows visible when advisory leases are stale",
+          "status": "open",
+          "verify": "test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestFrontierLeaseDiagnostics$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "dispatch-contract",
+          "title": "Master reference: Show a concise actionable contract and retain history by reference",
+          "status": "open",
+          "verify": "test -f internal/plan/workflow_contract_test.go \u0026\u0026 go test ./internal/plan -run '^TestDispatchContractBinding$' -count=1 \u0026\u0026 test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPromptContractProjection$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "structural-plan-policy",
+          "title": "Master reference: Replace doctrine substring gates with semantic contract checks",
+          "status": "open",
+          "verify": "test -f internal/plan/workflow_contract_test.go \u0026\u0026 go test ./internal/plan -run '^TestStructuralCampaignPolicy$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "command-discovery",
+          "title": "Master reference: Project command purpose, audience and flags into the API manifest",
+          "status": "open",
+          "verify": "test -f internal/apimanifest/command_discovery_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestCommandDiscoveryProjection$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "plan-publication-cost/command-help"
+          ]
+        },
+        {
+          "id": "verification-failure-summary",
+          "title": "Master reference: Show failing tests and assertion tails while retaining raw evidence",
+          "status": "open",
+          "verify": "test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestVerifyFailureSummary$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "scratch-probe-path",
+          "title": "Master reference: Expose and verify the existing scratch-module workflow",
+          "status": "open",
+          "verify": "test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestScratchModuleWorkflow$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        }
+      ]
+    },
+    {
+      "id": "validation-gate-selection",
+      "title": "Master reference: Determine unnecessary testing and deliver one measured gate reduction",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "source-evidence-binding",
+          "title": "Master reference: Preserve checkpoint result identity when authorizing reuse",
+          "status": "open",
+          "verify": "test -f internal/automationcheck/reuse_authority_test.go \u0026\u0026 go test ./internal/automationcheck -run '^(TestCheckpointReuseAuthority|TestManifestExecutionBinding|TestPlanEvidenceLineage|TestGateReusesUnchangedCheckEvidence)$' -count=1 \u0026\u0026 test -f internal/gate/checkpoint_reuse_authority_test.go \u0026\u0026 go test ./internal/gate -run '^(TestCheckpointReuseCommitAuthority|TestCommitAdmissionUsesManifestPlan)$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "selection-cause-histogram",
+          "title": "Master reference: Partition every selected package by its recorded selection cause",
+          "status": "open",
+          "verify": "test -f internal/gate/selection_cause_histogram_test.go \u0026\u0026 go test ./internal/gate -run '^TestSelectionCauseHistogram$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "suite-cost-ranking",
+          "title": "Master reference: Rank individual test cost inside the two costliest packages",
+          "status": "open",
+          "verify": "test -f internal/gate/suite_cost_ranking_test.go \u0026\u0026 go test ./internal/gate -run '^TestSuiteCostRanking$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "reduction-contract",
+          "title": "Master reference: Freeze the real cost target, the chosen mechanism, the invalidators and the mutation matrix",
+          "status": "open",
+          "verify": "test -f internal/gate/testing_reduction_contract_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestingReductionContract$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/selection-cause-histogram",
+            "validation-gate-selection/suite-cost-ranking"
+          ]
+        },
+        {
+          "id": "repair-iteration",
+          "title": "Master reference: Make focused checkpoint publication stop forcing the whole integration suite",
+          "status": "open",
+          "verify": "test -f internal/gate/repair_iteration_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateRepairBatchAcceptance$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/source-evidence-binding",
+            "plan-publication-cost/memoize-fixed-phases"
+          ]
+        },
+        {
+          "id": "call-reach",
+          "title": "Master reference: Implement the contract's chosen first reduction on the frozen target",
+          "status": "open",
+          "verify": "test -f internal/gate/first_reduction_test.go \u0026\u0026 go test ./internal/gate -run '^TestFirstReductionAcceptance$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/reduction-contract",
+            "validation-gate-selection/repair-iteration"
+          ]
+        },
+        {
+          "id": "measured-adoption",
+          "title": "Master reference: Review retained integration evidence and decide first-reduction adoption",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestChangeSelectiveVerificationShadow|TestBatchedGateCostEvidence|TestIndependentPackageEvidenceAcceptance)$' -count=1 \u0026\u0026 test -f internal/gate/selection_payback_acceptance_test.go \u0026\u0026 go test ./internal/gate -run '^TestSelectionPaybackAcceptance$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/call-reach"
+          ]
+        },
+        {
+          "id": "common-owner-pilot",
+          "title": "Master reference: Remove one duplicated automation API or executable with its callers",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestChangeSelectionRequiredMatrix|TestIndependentPackageEvidenceAcceptance|TestGateStagesMechanicalRepairs|TestCandidateCheckoutOwnsIndexRefresh)$' -count=1 \u0026\u0026 test -f internal/gate/common_owner_consolidation_test.go \u0026\u0026 go test ./internal/gate -run '^TestCommonOwnerConsolidationAcceptance$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "recipe-node-reuse",
+          "title": "Master reference: Reuse unchanged verification nodes across composed recipes",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run '^(TestManifestExecutionBinding|TestPlanEvidenceLineage|TestGateReusesUnchangedCheckEvidence)$' -count=1 \u0026\u0026 test -f internal/gate/verification_recipe_reuse_test.go \u0026\u0026 go test ./internal/gate -run '^TestVerificationRecipeReuseAcceptance$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/source-evidence-binding"
+          ]
+        },
+        {
+          "id": "runtime-value-flow",
+          "title": "Master reference: Resolve runtime paths and commands across one real call boundary",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestRuntimeInputsUnsafeClassifications|TestRuntimeInputsPropagateThroughCallers|TestRuntimeInputsIndirectAndConditional|TestRuntimeReachBindingsAcceptance|TestChangeSelectionRequiredMatrix)$' -count=1 \u0026\u0026 test -f internal/gate/runtime_value_flow_test.go \u0026\u0026 go test ./internal/gate -run '^TestRuntimeValueFlowAcceptance$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-gate-selection/call-reach",
+            "validation-gate-selection/measured-adoption"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "evidence-storage-efficiency",
+      "title": "Master reference: Reuse immutable evidence without copying every small file",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "small-record-layout",
+          "title": "Master reference: Measure and decide whether to pack small immutable records",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^(TestBlobStorePublicationContract|TestObservationChunkPublication|TestSegmentedJournalChainAndRecovery|TestStreamingSnapshotRoundTrip)$' -count=1 \u0026\u0026 test -f internal/overgodb/small_record_layout_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestSmallRecordLayoutDecision$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        }
+      ]
+    },
+    {
+      "id": "validation-batch-control",
+      "title": "Master reference: Stabilize evidence commits; defer broader control policy until model evidence",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "evidence-commit-recovery",
+          "title": "Master reference: Certify the complete evidence workflow across producer and supervisor crashes",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestBatchEvidencePublicationFailure|TestTerminalEvidenceRestart|TestRecoverInterruptedStateCrashRetryBoundaries|TestAbandonedGateAdmission)$' -count=1 \u0026\u0026 test -f internal/gate/evidence_commit_recovery_test.go \u0026\u0026 go test ./internal/gate -run '^TestEvidenceCommitRecoveryAcceptance$' -count=1 \u0026\u0026 go test ./internal/overgodb -run '^(TestOpenContextWriterAdmission|TestTransactionWriter|TestSecondWriterFailsClosed)$' -count=1 \u0026\u0026 test -f internal/gate/evidence_commit_workflow_test.go \u0026\u0026 go test ./internal/gate -run '^TestEvidenceCommitWorkflow$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound."
+        },
+        {
+          "id": "batch-promotion",
+          "title": "Master reference: Promote batching only after recovery, safe selection and measured payback",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestPreflightReportsValidateFindings|TestPreflightSeparatesSkippedChecks|TestPreflightNeverRepairsStore|TestPreflightRejectsCombinedInspection|TestGateStartIndexAdoptsStatRefreshUnderSameTree|TestGateStartIndexRefusesAndPreservesLaterUnplannedStaging)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestCheckpointPersistenceSurvivesKill|TestCheckpointMemoCoversEveryCommand|TestChangeSelectiveVerificationShadow|TestBatchedGateCostEvidence)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestIndependentPackageEvidenceAcceptance|TestGovernedBatchDeclarationAcceptance|TestProjectedMergePreflightBeforeVerification|TestGateReusesUnchangedCheckEvidence|TestPackageSelectiveReuse)$' -count=1 \u0026\u0026 test -f internal/gate/batch_promotion_test.go \u0026\u0026 go test ./internal/gate -run '^TestBatchPromotionControl$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestReusedCheckpointCompletionAuthorityAcceptance$' -count=1 \u0026\u0026 go test ./internal/repoanalysis -run '^(TestDocsHoldNoUnplannedBinaries|TestDocsInventoryPolicy)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestPreflightRejectsUnplannedDocsBeforeStore$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestChangeSelectionUnownedRuntimeInputs$' -count=1 \u0026\u0026 go test ./internal/plan -run '^TestBatchFlush' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestCandidateGoPhasesExcludeIgnoredSource$' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestBatchEvidence' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestChangedPackageFailurePreventsBroadSweep|TestModernGoPreflightBindsCandidateCensus|TestStaticFailurePreventsAcceptance|TestGateRunsStaticChecksBeforeAcceptance|TestCheckpointEvidenceReuseAcrossRuns|TestPackageSelectiveReuse|TestTerminalEvidenceRestart)$' -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "validation-batch-control/evidence-commit-recovery",
+            "modality-verification/media-report",
+            "validation-gate-selection/measured-adoption"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "device-memory-retention",
+      "title": "Master reference: Bound retained device memory across changing context capacities",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Master reference: Bound retained device memory across changing context capacities",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "decode-attention-per-key-cost",
+      "title": "Master reference: Recover small-head decode throughput without losing long-context correctness",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Master reference: Recover small-head decode throughput without losing long-context correctness",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "final-model-validation",
+      "title": "Master reference: Prove the final text execution surface and long-lived serving behavior",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Master reference: Prove the final text execution surface and long-lived serving behavior",
+          "status": "open",
+          "verify": "go test ./internal/longform -count=1",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "simplify-execution-core/do",
+            "simplify-command-surface/do",
+            "simplify-checkpoint-locations/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "benchmark-27b",
+      "title": "Master reference: Operator-launched full 27B benchmark",
+      "owner": "master",
+      "status": "open",
+      "steps": [
+        {
+          "id": "mmlu-pro-pass",
+          "title": "Master reference: Complete the operator-launched 27B MMLU-Pro pass",
+          "status": "open",
+          "verify": "test -f cmd/benchmark-report/accepted_coverage_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedOperator27BMMLUPro$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check",
+          "rationale": "Master-owned; reconcile with current master before execution. Retained verifier is a lower bound.",
+          "depends_on": [
+            "benchmark-completion/mmlu-pro-pass"
           ]
         }
       ]

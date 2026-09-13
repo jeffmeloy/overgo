@@ -6,15 +6,16 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
-func generatePlanar(model *Model, request Request) ([]float32, error) {
-	plan, err := model.prepare(request)
+func generatePlanar(t testing.TB, model *Model, request Request) ([]float32, error) {
+	plan, err := model.prepare(t.Context(), request)
 	if err != nil {
 		return nil, err
 	}
-	features, err := model.integrate(plan)
+	features, err := model.integrate(t.Context(), plan)
 	if err != nil {
 		return nil, err
 	}
@@ -45,15 +46,15 @@ func TestArtifactLoadDerivesDims(t *testing.T) {
 
 func TestArtifactPublishesReferenceGIF(t *testing.T) {
 	m := loadArtifactModel(t)
-	plan, err := m.prepareVideo(VideoRequest{Class: 1, Seed: 202, Frames: 6, Scale: 8})
+	plan, err := m.prepareVideo(t.Context(), VideoRequest{Class: 1, Seed: 202, Frames: 6, Scale: 8})
 	if err != nil {
 		t.Fatal(err)
 	}
-	features, err := m.integrateVideo(plan)
+	features, err := m.integrateVideo(t.Context(), plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := m.decodeVideo(features)
+	encoded, err := m.decodeVideo(t.Context(), features)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,17 +73,35 @@ func TestArtifactPublishesReferenceGIF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UNAVAILABLE: reference video %s: %v", referencePath, err)
 	}
-	if !bytes.Equal(encoded.Data, reference) {
-		t.Fatalf("GIF differs from adaptive_new reference: bytes=%d want=%d", len(encoded.Data), len(reference))
+	original, err := gif.DecodeAll(bytes.NewReader(reference))
+	if err != nil {
+		t.Fatal(err)
 	}
-	t.Logf("real Un-0 GIF: class=1 seed=202 frames=6 size=64x64 encoded_bytes=%d changed_source_pixels=%d exact_reference=true", len(encoded.Data), encoded.ChangedPixels)
+	// The frozen campaign protocol corrects cumulative GIF timing. Preserve
+	// every other native field, including all frame pixels, order and palette.
+	original.Delay = decoded.Delay
+	if !reflect.DeepEqual(decoded, original) {
+		t.Fatal("GIF differs from the native reference beyond corrected delays")
+	}
+	total := 0
+	for _, delay := range decoded.Delay {
+		total += delay
+	}
+	errorNumerator := total*encoded.FPS - encoded.Frames*100
+	if errorNumerator < 0 {
+		errorNumerator = -errorNumerator
+	}
+	if errorNumerator*2 > encoded.FPS {
+		t.Fatal("GIF duration differs from the declared frame rate")
+	}
+	t.Logf("real Un-0 GIF: class=1 seed=202 frames=6 size=64x64 encoded_bytes=%d changed_source_pixels=%d exact_reference_pixels=true original_reference_bytes_equal=%v corrected_duration_centiseconds=%d", len(encoded.Data), encoded.ChangedPixels, bytes.Equal(encoded.Data, reference), total)
 }
 
 // Generation is deterministic and class-sensitive.
 func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	m := loadArtifactModel(t)
 	cfg := m.Cfg
-	img, err := generatePlanar(m, Request{Class: 1, Seed: 42})
+	img, err := generatePlanar(t, m, Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,11 +115,11 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 			}
 		}
 	}
-	again, err := generatePlanar(m, Request{Class: 1, Seed: 42})
+	again, err := generatePlanar(t, m, Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := generatePlanar(m, Request{Class: 2, Seed: 42})
+	other, err := generatePlanar(t, m, Request{Class: 2, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,22 +133,22 @@ func TestArtifactGenerateDeterministicAndClassSensitive(t *testing.T) {
 	if !diff {
 		t.Fatal("class change did not change the image")
 	}
-	if _, err := generatePlanar(m, Request{Class: cfg.NClasses, Seed: 42}); err == nil {
+	if _, err := generatePlanar(t, m, Request{Class: cfg.NClasses, Seed: 42}); err == nil {
 		t.Fatal("out-of-range class accepted")
 	}
 }
 
 func TestArtifactPublishesReferencePNG(t *testing.T) {
 	m := loadArtifactModel(t)
-	plan, err := m.prepare(Request{Class: 1, Seed: 42})
+	plan, err := m.prepare(t.Context(), Request{Class: 1, Seed: 42})
 	if err != nil {
 		t.Fatal(err)
 	}
-	features, err := m.integrate(plan)
+	features, err := m.integrate(t.Context(), plan)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := m.decode(features)
+	encoded, err := m.decode(t.Context(), features)
 	if err != nil {
 		t.Fatal(err)
 	}

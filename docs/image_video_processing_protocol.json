@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "source_base": "ee78f361af1eab94fd3553724105b4af799d7a5f",
+  "hypothesis": "Reuse the existing persisted discovery memo in report and sample export to avoid repeated model hashing; retain the same catalog, report bytes, sample bytes and lineage.",
+  "consumers": [
+    "cmd/compatibility/media.go",
+    "cmd/compatibility/samples.go"
+  ],
+  "harness_sha256": "8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+  "inputs": {
+    "image_video_baseline.json": "fa17ec4e7b898b504793b79117b9067e9021bdc4b5d102d165785f8b9273411a",
+    "image_video_costs.json": "b99901ecedf111422e5c0b4c7117f3fea61dd618c009a240cb5cf265c231103a",
+    "image_video_resources.json": "efd505cc4aa3cfcd932fbad40caf5b48ceddb4d985bf9ace53b57550ad344654",
+    "image_video_memory.json": "ac6b7ce93635ea11feabd129939e85c49285d0850bdcfeeea1f6977c044b4caf",
+    "image_video_shared_components.json": "cc203ab75bf3ae1aab25b1ed417781593eb376bcbada12220f09a3a6c5263523",
+    "image_video_merged.json": "ce356bd473e2a3aaddc8cfda7e379f714ce8c80c4c6179cf7012fa489658c0af",
+    "image_video_transfers.json": "f029574487c143e9c25fe2cd516f7422d2ea7b4aee21e689530aad8ad1f1ee6a",
+    "image_video_protocol.json": "def4f5e35c40adaa5b2c07bbd44c9e8ee8ca7c09e976195f4e2fc8cd1b73f932",
+    "image_video_inventory.json": "e98418341a60c0a53d718f2160ff4877127697dfec58898a2373efc5cb08fdb1",
+    "image_video_validation.json": "34b49a09e8e148fe208fe4181978fce9682594ccd65af0f310057ea9b5b448ca"
+  },
+  "memo_inspection": {
+    "matching_stat_bytes": 228283529075,
+    "matching_stat_rows": 92,
+    "memo": "evidence:sha256:4d91a16c7d04d2c445258785d2359ec00aab0d00a9575bedadd514df944bd03e",
+    "memo_load_allocated_bytes": 374504,
+    "memo_load_allocation_calls": 2923,
+    "rows": 92
+  },
+  "acquisition_order": [
+    "baseline first/repeat",
+    "candidate first/repeat",
+    "ablation first/repeat"
+  ],
+  "lifetime": "Each variant runs in a fresh test process. First export creates an empty destination; repeat validates existing samples. Explicit GC precedes measured intervals. OS file caches are not reset. The private store must retain the same head across acquisitions. No model load or GPU work.",
+  "acceptance": [
+    "Require byte-identical complete report and every exported sample for first/repeat baseline, candidate and ablation, with unchanged store head and source input identities. Require all affected discovery and media correctness checks to pass.",
+    "Both candidate end-to-end durations must be lower than the corresponding baseline. Do not re-acquire a completed cohort for a better result.",
+    "Permit extra Go allocated bytes only up to two measured LoadMemo allocations (one per existing consumer); allocation call allowance uses the same two-load bound. Record raw process lifetime peak separately and require it to fit available host memory at admission. This experiment targets latency with bounded memo overhead; it does not assert a host memory reduction.",
+    "Ablation loads the memo but discards it, restoring both un-memoized catalog calls. Require identical outputs; compare its timing without inventing a statistical probability or additional pass threshold."
+  ],
+  "extra_allocated_bytes": 749008,
+  "extra_allocation_calls": 5846,
+  "available_host_bytes": 53226651648,
+  "scope": "Full report generation and sample export; no generation kernel, GPU transfer, or visual quality claim. Persisted memo validity relies on immutable model artifacts and size/mtime checks; a missing/unreadable memo falls back to hashing."
+}

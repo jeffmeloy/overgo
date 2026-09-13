@@ -14,6 +14,7 @@
 package latentvideo
 
 import (
+	"context"
 	"fmt"
 	"math"
 
@@ -948,7 +949,10 @@ func (p ReferenceEditCheckpoint) LoadTrainerTensors() (map[string][]float32, int
 // RawTextRows: real frozen-encoder text rows for one prompt — tokenizer,
 // streamed relative-position encoder, compacted to the active token rows.
 // These are the pre-projection rows the trainable text embedding consumes.
-func RawTextRows(spec TextConditioningSpec, prompt string) ([]float32, int, int, error) {
+func RawTextRows(ctx context.Context, spec TextConditioningSpec, prompt string) ([]float32, int, int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, 0, 0, err
+	}
 	tok, err := loadFixedUnigramTokenizer(spec.TokenizerDir, spec.SequenceLength)
 	if err != nil {
 		return nil, 0, 0, err
@@ -977,7 +981,7 @@ func RawTextRows(spec TextConditioningSpec, prompt string) ([]float32, int, int,
 	if !checked.PositiveInts(tokens) {
 		return nil, 0, 0, fmt.Errorf("dit train: prompt produced no active tokens")
 	}
-	encoded, _, err := EncodeTokensStreamed(spec.EncoderCheckpoint, plan, ids, mask)
+	encoded, _, err := EncodeTokensStreamed(ctx, spec.EncoderCheckpoint, plan, ids, mask)
 	if err != nil {
 		return nil, 0, 0, err
 	}

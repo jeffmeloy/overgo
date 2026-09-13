@@ -1,0 +1,387 @@
+{
+  "cases": [
+    {
+      "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/1",
+      "inputs": [
+        "file:sha256:818cf1f980c17a498039c0efa4f007e630877424592b5c2013255c36f0223f43"
+      ],
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "observations": [
+        {
+          "artifact": "output:sha256:e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d",
+          "frames": 1,
+          "height": 512,
+          "width": 512
+        }
+      ],
+      "outputs": [
+        "output:sha256:e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d"
+      ],
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "scope": "smoke",
+      "source_run": "run:sha256:09fd4e16a87335eab349fdc801d768f4627e73c1268bf697b9465f84036d8ff4",
+      "task": "image-gen"
+    },
+    {
+      "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
+      "inputs": [
+        "file:sha256:f3caa7db1e6aef43ec9a0caddff9971ab23e94a6e9a8b316eea6d2debcc59e10"
+      ],
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "observations": [
+        {
+          "artifact": "output:sha256:5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68",
+          "frames": 1,
+          "height": 2720,
+          "width": 1536
+        }
+      ],
+      "outputs": [
+        "output:sha256:5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68"
+      ],
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "scope": "visual-review",
+      "source_run": "run:sha256:c71ee19cbc2dc5bfdba69ee809e0d072f8dd662d5e445454a766cb0daf8e98eb",
+      "task": "image-gen"
+    },
+    {
+      "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
+      "inputs": [
+        "file:sha256:44ae255ebc22b8ab3adea63bde557ce5b85b6020aa993a015c411dd06b18fc42"
+      ],
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "observations": [
+        {
+          "artifact": "output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637",
+          "frames": 1,
+          "height": 512,
+          "width": 512
+        }
+      ],
+      "outputs": [
+        "output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637"
+      ],
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "scope": "smoke",
+      "source_run": "run:sha256:fb2dee2bf270183c7c81f61a8b580ceddacca5b0b0267b9571481b18721168d6",
+      "task": "image-gen"
+    },
+    {
+      "id": "Un-0/image-gen/1",
+      "inputs": [
+        "file:sha256:8e601d036e88e152f15809ac993be461f9835d6241e54d851a42946195f3fbfb"
+      ],
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "observations": [
+        {
+          "artifact": "output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28",
+          "frames": 1,
+          "height": 8,
+          "width": 8
+        }
+      ],
+      "outputs": [
+        "output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28"
+      ],
+      "recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+      "scope": "smoke",
+      "source_run": "run:sha256:52b98c37cff7a30883e7982858c573e482c5d47d570ea29d88f8a232d3d76e13",
+      "task": "image-gen"
+    },
+    {
+      "id": "Un-0/image-gen/2",
+      "inputs": [
+        "file:sha256:82b9edbba80bbd74c5f6e3df94b3a7af504d2ffce8e690e91cca7da6a454172a"
+      ],
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "observations": [
+        {
+          "artifact": "output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3",
+          "frames": 1,
+          "height": 8,
+          "width": 8
+        }
+      ],
+      "outputs": [
+        "output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3"
+      ],
+      "recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+      "scope": "smoke",
+      "source_run": "run:sha256:9614c0b2a5cefc90faa85a2715bc93c58c61655bb51f042667577ceab06b31f5",
+      "task": "image-gen"
+    },
+    {
+      "id": "Un-0/video-gen/1",
+      "inputs": [
+        "file:sha256:1d74176e310fa363bf987866df9d59bf942e301d2d326dbd501ac2b8bc01e80d"
+      ],
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "observations": [
+        {
+          "artifact": "output:sha256:5f90247cb36b1ea021dd840ea30585920796630f39ccde1a3c01a0905a85c9c5",
+          "delay_centiseconds": 144,
+          "fps": 8,
+          "fps_source": "internal/oscillatorimage/video.go:videoFPS",
+          "frames": 12,
+          "height": 16,
+          "width": 16
+        }
+      ],
+      "outputs": [
+        "output:sha256:5f90247cb36b1ea021dd840ea30585920796630f39ccde1a3c01a0905a85c9c5"
+      ],
+      "recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+      "scope": "smoke",
+      "source_run": "run:sha256:d692839bbd7a3a5cdb53ec725cf8d6fc7a71639e0d1a341ac21e61d6df31048f",
+      "task": "video-gen"
+    },
+    {
+      "id": "Un-0/video-gen/2",
+      "inputs": [
+        "file:sha256:0bf08dc9e7fa42a77c7a375466cf0809af3cfc223fe31a027b8efdd064d6e48e"
+      ],
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "observations": [
+        {
+          "artifact": "output:sha256:4dbbb9ab06b2c7f70cd2cf365d9b9edbde3bbef9f421661700e0f9287c5f0826",
+          "delay_centiseconds": 144,
+          "fps": 8,
+          "fps_source": "internal/oscillatorimage/video.go:videoFPS",
+          "frames": 12,
+          "height": 16,
+          "width": 16
+        }
+      ],
+      "outputs": [
+        "output:sha256:4dbbb9ab06b2c7f70cd2cf365d9b9edbde3bbef9f421661700e0f9287c5f0826"
+      ],
+      "recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+      "scope": "smoke",
+      "source_run": "run:sha256:f05af31a8d850834f3124682aa49775e82df0cc204434160ff1813c095623b31",
+      "task": "video-gen"
+    },
+    {
+      "id": "SimpleDiffusion-TensorProductAttentionRope/image-gen/1",
+      "inputs": [
+        "file:sha256:ab444aa99af1a85d3b6a2b64fb7459892048e244112cc4e3f88101d797c377ea"
+      ],
+      "model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "observations": [
+        {
+          "artifact": "output:sha256:43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319",
+          "frames": 1,
+          "height": 256,
+          "width": 256
+        }
+      ],
+      "outputs": [
+        "output:sha256:43cb008447732762135bf0dd0d0c106f10277785d460b5481d8a7dfe40599319"
+      ],
+      "recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+      "scope": "smoke",
+      "source_run": "run:sha256:788066c95ff799e0e2989ddf90e6baf8850b5d4cf724c1113d31f96250355f6c",
+      "task": "image-gen"
+    },
+    {
+      "id": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
+      "inputs": [
+        "file:sha256:2b9ae1a1da5bce737b548e20c27223dab9a351ba6e45dcd81c813fc63fc119dd"
+      ],
+      "model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "observations": [
+        {
+          "artifact": "output:sha256:0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e",
+          "frames": 1,
+          "height": 256,
+          "width": 256
+        }
+      ],
+      "outputs": [
+        "output:sha256:0313903cf4506b5beeb9d04c7aad008a44cc37a96ca2abcdb3b02cca8c0c679e"
+      ],
+      "recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+      "scope": "smoke",
+      "source_run": "run:sha256:fe5a68fb780fc092cf5c9505862e5c8584218ea5d9ad042fec9224e7250199ce",
+      "task": "image-gen"
+    },
+    {
+      "id": "LiveEdit/video-gen/1",
+      "inputs": [
+        "file:sha256:13d22d58fe9d17432757def7ec1cdcb170f07358c6ccaf0a5d4dcfdeec1e95ca",
+        "file:sha256:e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91"
+      ],
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "observations": [
+        {
+          "artifact": "output:sha256:6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33",
+          "delay_centiseconds": 30,
+          "fps": 16,
+          "frames": 5,
+          "height": 16,
+          "width": 32
+        }
+      ],
+      "outputs": [
+        "output:sha256:6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33"
+      ],
+      "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+      "scope": "smoke",
+      "source_run": "run:sha256:923dc7ca901c00a9c03522df9fbe34a73b4484621d0531f632298464a7c753d1",
+      "task": "video-gen"
+    },
+    {
+      "id": "LiveEdit/video-gen/2",
+      "inputs": [
+        "file:sha256:35121e6f6d23f5d51b5438029d637dd3fb43d9efa3d59adc5f12bd7c0059bf78",
+        "file:sha256:e14e51433c7ccd5111ee3e176a4da64342f7d24412979eb1faa406836ff39e91"
+      ],
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "observations": [
+        {
+          "artifact": "output:sha256:6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33",
+          "delay_centiseconds": 30,
+          "fps": 16,
+          "frames": 5,
+          "height": 16,
+          "width": 32
+        }
+      ],
+      "outputs": [
+        "output:sha256:6f8c4271f3acb7ebf96fed67575e18a42e6bb850db04cbb899a041b85652dd33"
+      ],
+      "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+      "scope": "smoke",
+      "source_run": "run:sha256:f63892e2852bc0445dfe956552a891f2f30e96674a5720df85bbc59b0ac21e7c",
+      "task": "video-gen"
+    },
+    {
+      "id": "Wan2.1-T2V-1.3B/video-gen/1",
+      "inputs": [
+        "file:sha256:548efce9b4a867734a22f75d4fdb1c00faa9582945fd355f853fdeb71de5ecc9"
+      ],
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "observations": [
+        {
+          "artifact": "output:sha256:e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e",
+          "delay_centiseconds": 30,
+          "fps": 16,
+          "frames": 5,
+          "height": 64,
+          "width": 64
+        }
+      ],
+      "outputs": [
+        "output:sha256:e4442cf7ee01b00d3f12d238640bb14a48b94e89d2a2c0130e4c2202be69a02e"
+      ],
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "scope": "smoke",
+      "source_run": "run:sha256:6d3de950bf9fb97544a04f433a3890d9f134b1af459dc2dfb0d463c8d12085c8",
+      "task": "video-gen"
+    },
+    {
+      "id": "Wan2.1-T2V-1.3B/video-gen/2",
+      "inputs": [
+        "file:sha256:ddb180564d8a0a1fdacff9ce2f3276a3282a00b96af71957eda687646d7b8680"
+      ],
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "observations": [
+        {
+          "artifact": "output:sha256:4cc19c2db162f6f0678d4ab026f12229abebbbc39a07a3f6154bfc07f74faaa1",
+          "delay_centiseconds": 30,
+          "fps": 16,
+          "frames": 5,
+          "height": 64,
+          "width": 64
+        }
+      ],
+      "outputs": [
+        "output:sha256:4cc19c2db162f6f0678d4ab026f12229abebbbc39a07a3f6154bfc07f74faaa1"
+      ],
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "scope": "smoke",
+      "source_run": "run:sha256:8768bd7df757067c19aaac03c266f28ce397d911a79a58ad831582c7db6ea9ab",
+      "task": "video-gen"
+    },
+    {
+      "id": "Wan2.1-T2V-1.3B/video-gen/3",
+      "inputs": [
+        "file:sha256:364be3ce53202ce6b5be13d1265ff1e909f6c232b1796f06c73d451fad326a72"
+      ],
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "observations": [
+        {
+          "artifact": "output:sha256:88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f",
+          "delay_centiseconds": 486,
+          "fps": 16,
+          "frames": 81,
+          "height": 480,
+          "width": 832
+        }
+      ],
+      "outputs": [
+        "output:sha256:88a27a06c4c724e5d92c6271d793528a8dfe4152fc7750a7a08509b59d39c27f"
+      ],
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "scope": "visual-review",
+      "source_run": "run:sha256:d95d3deec8bd0da02fc3b653f421572ceea28049bd34d9051583d501e983a9d3",
+      "task": "video-gen"
+    },
+    {
+      "id": "Krea-2-Turbo/image-gen/1",
+      "inputs": [
+        "file:sha256:1d840594046f2981e9fb7c335808a4f3399101072ab0a8ab2768492642f9b6e2"
+      ],
+      "model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+      "observations": [
+        {
+          "artifact": "output:sha256:4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee",
+          "frames": 1,
+          "height": 512,
+          "width": 512
+        }
+      ],
+      "outputs": [
+        "output:sha256:4044fbe3e2590fbc01436e93d2f9e396f94dc53b5fdf705c86f40fca74a4d2ee"
+      ],
+      "recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+      "scope": "visual-review",
+      "source_run": "run:sha256:584d90be78cff48db34d9dbfb0112dcacef7464772b731c35766ea223b4ff120",
+      "task": "image-gen"
+    }
+  ],
+  "inventory_census": "evidence:sha256:42ce9a29b26232e6f68937df366a4f26c1f81199cca38198c10bd2c89b9fcb45",
+  "required_checks": [
+    "input-and-output-lineage",
+    "decode-and-geometry",
+    "numerical-owner-reference",
+    "pre-quantization-finiteness",
+    "visual-review",
+    "video-frame-order-and-timing",
+    "conditioning-preservation"
+  ],
+  "review_questions": [
+    "Does the output contain the requested subject or declared class?",
+    "Does it preserve the supplied source content where the task requires preservation?",
+    "Which visible defects affect composition, detail, text, or color?",
+    "For video, describe motion, discontinuities, flicker, and consistency across the complete clip."
+  ],
+  "rules": [
+    "Retained input and output identities define review cases, not matched performance baselines; their generation records lack source and environment bindings.",
+    "Use the inventory's pinned references and the owning component's existing numerical criteria; preserve their original requests and distinguish partial oracles from complete comparisons.",
+    "Record pre-quantization finiteness from the executing numerical owner; decoded byte images alone cannot establish it.",
+    "Review images at original resolution and videos across their complete frame sequence. Report each question and the reviewed artifact identity; do not turn a decode or timing result into a quality judgment.",
+    "Treat Un-0 video as independent class-conditioned image generations using successive seeds; describe temporal limitations explicitly.",
+    "Use the declared model/runtime frame rate: Wan and LiveEdit profiles declare 16 fps; the Un-0 runtime declares 8 fps. GIF stores centisecond delays. Bound accumulated clip-duration quantization error by half of one centisecond; preserve frame pixels and order when correcting timing.",
+    "Retain existing encoded-byte oracle results. A justified GIF timing correction requires a separate frame-pixel comparison plus the independent duration requirement; it cannot silently claim unchanged encoded bytes.",
+    "Keep failed, unavailable and incomplete checks visible. Incomplete historical evidence supplies cases and hypotheses, not acceptance of new optimized execution.",
+    "Krea numerical owner: internal/latentimage TestDenoiserResidentG2Distribution and TestFlowScheduleReproducesG2Exactly. Preserve the pinned fixture tolerances and report intermediate-only coverage. TestResidentLifetimeResourceAcceptance covers generation and cancellation, not perceptual equivalence.",
+    "SimpleDiffusion numerical owner: internal/diffusionimage TestTinyModelForwardMatchesTorch; real artifact owner: TestRealCheckpointPublishesReferencePNG with modeltest. Preserve the native seed 7, two-step, 64x64 request separately from the retained 256x256 review cases.",
+    "SenseNova owners: internal/sensenovarecipe TestSenseNovaGenerationLeadership and TestSenseNovaFullGenerationLeadership use the pinned smoke and full-generation manifests respectively. Preserve their scalar, grid and visual criteria; do not replace the full request with a shorter smoke request.",
+    "Un-0 owners: internal/oscillatorimage TestArtifactPublishesReferencePNG, TestArtifactPublishesReferenceGIF, and TestArtifactGenerateDeterministicAndClassSensitive. Retain native artifact hash checks and explicit provenance limitations. Independent frame seeds do not establish temporal conditioning.",
+    "Wan owners: internal/latentvideo TestDenoiserCUDASessionGoldenG3, TestDenoiserCUDASessionBF16G3, TestDenoiserCUDASessionGoldenG4, TestVAEDecodeCUDAGoldenG3 and TestVAEDecodeCUDAGoldenG4 with integration. Preserve existing sample-derived error criteria, dtype and sampling schedule. Tiny golden requests and the full clip are separate required cases.",
+    "LiveEdit owners: internal/latentvideo TestLiveEditReferenceParity and TestLiveEditDeviceRuntime, plus internal/mediacapability TestVideoEditClipActivation. The retained tiny source-conditioned cases lack a full-quality native oracle; report that limitation rather than invent a quality threshold.",
+    "Boundary and invalid-input checks use internal/latentvideo TestWanRequestFormAdmitsPromptOrTensors, TestReferenceEditRequestFormAdmitsClipOrTensors and TestVAEDecodeRejectsInvalidInputs. Preserve distinct prompt and tensor forms, explicit noise, declared geometry and source-artifact requirements. A seed change need not change output when the request supplies initial noise.",
+    "Run device and model checks through the existing device-lane ownership with their required build tags. A skipped, absent or zero-match owner check remains unavailable and cannot satisfy the associated numerical requirement."
+  ],
+  "version": 1
+}

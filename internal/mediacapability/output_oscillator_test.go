@@ -17,8 +17,12 @@ import (
 // rather than published as a malformed video.
 func TestOutputContentPublishesOscillatorClip(t *testing.T) {
 	frame := image.NewPaletted(image.Rect(0, 0, 2, 2), palette.Plan9)
+	delay, err := media.GIFFrameDelay(8, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var encoded bytes.Buffer
-	if err := gif.EncodeAll(&encoded, &gif.GIF{Image: []*image.Paletted{frame}, Delay: []int{media.GIFFrameDelay(8)}}); err != nil {
+	if err := gif.EncodeAll(&encoded, &gif.GIF{Image: []*image.Paletted{frame}, Delay: []int{delay}}); err != nil {
 		t.Fatal(err)
 	}
 	clip := oscillatorimage.EncodedVideo{

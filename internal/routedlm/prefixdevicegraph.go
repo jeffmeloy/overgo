@@ -63,9 +63,11 @@ func BuildDevicePrefixLayer(
 	}
 	var context *tensor.Tensor
 	if strictCausal {
+		// Prefix reference outputs require the per-query accumulation order.
+		// Batched SGEMM changes BF16-rounded prefix states and final image pixels.
 		context = b.AttentionWithOptions(
 			b.BF16Round(query), b.BF16Round(key), b.BF16Round(value),
-			tensor.AttentionOptions{Scale: scale, Causal: true},
+			tensor.AttentionOptions{Scale: scale, Causal: true, NaiveF32: true},
 		)
 		context = b.Reshape(context, qOut, n)
 	} else {

@@ -1,0 +1,90 @@
+{
+  "acceptance": "evidence:sha256:1aec662a785a21c79e4c0ce8d7da5b6ebd98bd3dbda7390260a0ec3436a24c9f",
+  "cases": [
+    {
+      "ablation": "evidence:sha256:459b50fd8b3f233a5132512478b633380216a7de9aa979af7a8fe069ffa1d753",
+      "baseline": "evidence:sha256:99de08d854f9ae97c450b05ab41cbff66874d03b9e88708b24ec638073ad58d7",
+      "candidate": "evidence:sha256:dc6d98c32725830c3ea13617dab1dba542c74928f23e16c9e4ff9139313127f6",
+      "name": "g4",
+      "step_input_bytes": 44032,
+      "steps": 2
+    },
+    {
+      "baseline": "evidence:sha256:9587f4deff5cf099932d664de4575b7d684e952b4dd69c9327a45adff743a969",
+      "candidate": "evidence:sha256:17fea42f02a28d89c25cf838350cb4613d71cb00f8849bc2e6a71e6b1be9b741",
+      "name": "full",
+      "step_input_bytes": 8429568,
+      "steps": 50
+    }
+  ],
+  "decision": "reject",
+  "evidence": [
+    "evidence:sha256:68184f017f8d75e51292a3209770210c5413315393eda51dfbf98ae5cf78ed56",
+    "evidence:sha256:92065c667ce649a3a2e6712c21278865ed85935bab13b6df8e3865935bb2285d",
+    "evidence:sha256:99de08d854f9ae97c450b05ab41cbff66874d03b9e88708b24ec638073ad58d7",
+    "evidence:sha256:9587f4deff5cf099932d664de4575b7d684e952b4dd69c9327a45adff743a969",
+    "evidence:sha256:29cdfe7d6f20e119d23687ed7ee42392137dcb7404fbaed5f94c95664c73ed7e",
+    "evidence:sha256:56b26412cbb6fc8a4eb3fca7d38e70e5209051ae731f9ba68ea5eba3a763d991",
+    "evidence:sha256:052359cc5ef116f944b2c4263930c04ed075cb861f6c4853cb8b944d31cd3ad1",
+    "evidence:sha256:170876c807a9d0175dedc7ccc7a175a7f5b4324b822fb3c05da0eadfba8687da",
+    "evidence:sha256:072c805be3c4d63177ac02313df0515e21b776c497188fc80b20fb713211cab1",
+    "evidence:sha256:0aa5629e86f750c9a784531c538a21f3e17e2f804d2c04e4a714686cb2bbfcaf",
+    "evidence:sha256:17f4ad095a4feefdbeff1cbc95c098073c352fb8de46e548f8903a0a9918de3b",
+    "evidence:sha256:ecefcbfff10ad694dbb42cf9c93282836b51d24959647169c88e526b9570dab0",
+    "evidence:sha256:c0387e71b13a76441b915c2b50552567886691756aed9c5ed48a40f8cb53ef03",
+    "evidence:sha256:839c0f468fcac27797b988f3bfcd13d6b3dc801410de0426e1daf674229f80a1"
+  ],
+  "quality": [
+    {
+      "command": "go test ./internal/latentvideo -tags=integration -run '^(TestWanContextHandleOwnership|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestWanLifecycleAcceptance)$' -count=1 -timeout=15m -json",
+      "evidence": "evidence:sha256:52d4e8887e849425ce49cb81d332ed83807d0025b598c4fa366833ca550e5515",
+      "name": "final-references-and-context-ownership"
+    },
+    {
+      "command": "go test ./internal/latentvideo -tags=integration -run '^TestWanLifecycleAcceptance$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:4ee2f3f2f05360c4ac5e1fa11231b7e88a3858f33af2c928e0391f3ee4b1cee6",
+      "name": "pair-ownership"
+    },
+    {
+      "command": "go test -overlay=tmp/media-step-tests-overlay.json ./internal/latentvideo -tags=integration -run '^(TestWanStepInputOwnership|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestWanLifecycleAcceptance)$' -count=1 -timeout=15m -json",
+      "evidence": "evidence:sha256:8018f495a4270dd017f5aee769ba6f57863e7541ac02840a0e3c0fca9b3b1657",
+      "name": "candidate-references-and-ownership"
+    },
+    {
+      "command": "go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanTransferAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:5f7c24d262db587f70598b52484980a918cf6113f91e7d516d5c0535e4264653",
+      "name": "baseline-complete-requests"
+    },
+    {
+      "command": "go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanTransferAcquisitionGroup$' -count=1 -timeout=40m -json",
+      "evidence": "evidence:sha256:411905808902a03e365f36cd7e5fc63c07e0da520d24642ddf123e6684039973",
+      "name": "candidate-complete-requests"
+    },
+    {
+      "command": "go test -overlay=tmp/media-transfer-overlay.json ./internal/latentvideo -tags=integration -run '^TestMediaWanG4TransferAcquisition$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:08ad4a4eafe247e62bbf82df34fd33a01a0b9754c16322acae75b3e93c11e8b4",
+      "name": "g4-second-upload-ablation"
+    }
+  ],
+  "rationale": "first-request: complete-request wall 377.028205 to 377.891453 seconds; allocated bytes 2494289512 to 2494199808; process peak 10229989376 to 9098006528; denoiser HtoD 3207992256 to 2786513856 bytes and 402 to 252 calls. repeat-request: complete-request wall 379.221847 to 379.700269 seconds; allocated bytes 2467028048 to 2466955560; process peak 10229989376 to 9098006528; denoiser HtoD 3201700800 to 2780222400 bytes and 400 to 250 calls. first-request wall_ns increased from 377028205000 to 377891452900 repeat-request wall_ns increased from 379221846500 to 379700269500 The frozen decision uses both full-request lifetime states; the small G4 case and its second-upload ablation verify output and causal transfer counts. Host copy API time includes validation/blocking, not isolated GPU-active DMA. Separate driver peaks are not a combined device peak. Host process peaks include the earlier G4 check. Ordinary host applications and file cache remain uncontrolled; this comparison does not establish a population speedup. The independently verified conditioning-pair ownership repair remains in either decision. After rejecting the transfer candidate, a regression also confirmed that the original single-branch method accepted released conditioning. The retained implementation adds session ownership, retained-handle and closed-session checks while restoring the original step uploads; its numerical and lifecycle references pass separately. Full-request timings belong to the recorded baseline and candidate snapshots and were not reacquired after those handle checks. No pinned-memory allocator, asynchronous scheduler or geometry-specific threshold was added.",
+  "sources": {
+    "ablation/internal/latentvideo/denoiser.go": "evidence:sha256:553f038474ea7d9ac355831c4aab937e0c65f7da960d77250884d68fe03a7e2e",
+    "ablation/internal/latentvideo/denoiser_session.go": "evidence:sha256:13ee6a56c38e2fb8c9b2c8cd92c3d4aeb25b5bf8cb5f4eb1e01e0863378b74d0",
+    "ablation/internal/latentvideo/runtime.go": "evidence:sha256:4f0681cfe9e7bb6134d49f7d74998850bf3936add9c9979a197a5bf176510f50",
+    "ablation/internal/latentvideo/runtime_cuda_windows_test.go": "evidence:sha256:907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5",
+    "baseline/internal/latentvideo/denoiser.go": "evidence:sha256:414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+    "baseline/internal/latentvideo/denoiser_session.go": "evidence:sha256:4305446c175294e5686d8928021eca422fc97aae13dd202ec125bc3a9b007c7a",
+    "baseline/internal/latentvideo/runtime.go": "evidence:sha256:7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+    "baseline/internal/latentvideo/runtime_cuda_windows_test.go": "evidence:sha256:907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5",
+    "candidate/internal/latentvideo/denoiser.go": "evidence:sha256:553f038474ea7d9ac355831c4aab937e0c65f7da960d77250884d68fe03a7e2e",
+    "candidate/internal/latentvideo/denoiser_session.go": "evidence:sha256:9d9429d992c295382ea1df37ef0abb61d0ebf109e8587e05debf692b309223be",
+    "candidate/internal/latentvideo/runtime.go": "evidence:sha256:4f0681cfe9e7bb6134d49f7d74998850bf3936add9c9979a197a5bf176510f50",
+    "candidate/internal/latentvideo/runtime_cuda_windows_test.go": "evidence:sha256:907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5",
+    "final/internal/latentvideo/context_ownership_cuda_windows_test.go": "evidence:sha256:1a2c5cff13b6bb2425102ebee2bdcd3034c800d19a430ab12612eafd6c7fc148",
+    "final/internal/latentvideo/denoiser.go": "evidence:sha256:414d6acdd98aa3b968eb47fb4038916a2f53a5ba5931bf60140eba6ca01dc290",
+    "final/internal/latentvideo/denoiser_session.go": "evidence:sha256:1a3cf7187c107dd288bff68c6388915b8288a653776b1e2a55daaffe1fc419e6",
+    "final/internal/latentvideo/runtime.go": "evidence:sha256:7fb5dfff3348d1ccc1e2f0a9026b022bfab65a0ac79a908a9f7ab40cd1545fa6",
+    "final/internal/latentvideo/runtime_cuda_windows_test.go": "evidence:sha256:907fd659969dce0ea1f2e86bef60d4823cc56d269b48edcacb1edf074f821dd5"
+  },
+  "version": 1
+}

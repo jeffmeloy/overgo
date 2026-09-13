@@ -28,3 +28,32 @@ func TestGIFEncoderRejectsUnknownPixelRange(t *testing.T) {
 		t.Fatal("unknown pixel range accepted")
 	}
 }
+
+func TestGIFEncoderFrameOrderAndTiming(t *testing.T) {
+	if _, err := NewGIFEncoder(101, UnitPixels); err == nil {
+		t.Fatal("unsupported GIF frame rate accepted")
+	}
+	encoder, err := NewGIFEncoder(16, UnitPixels)
+	if err != nil {
+		t.Fatal(err)
+	}
+	frame := []float32{0, 0, 0}
+	if err := encoder.Add(1, frame, 1, 1); err == nil {
+		t.Fatal("out-of-order first frame accepted")
+	}
+	for index := range 81 {
+		if err := encoder.Add(index, frame, 1, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := encoder.Add(80, frame, 1, 1); err == nil {
+		t.Fatal("duplicate frame index accepted")
+	}
+	total := 0
+	for _, delay := range encoder.animation.Delay {
+		total += delay
+	}
+	if total != 506 {
+		t.Fatalf("81 frames at 16 fps encoded as %d centiseconds, want nearest centisecond to 506.25", total)
+	}
+}

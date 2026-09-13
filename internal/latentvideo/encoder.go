@@ -7,6 +7,7 @@
 package latentvideo
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"runtime"
@@ -272,8 +273,11 @@ type EncoderStats struct {
 
 // EncodeTokensStreamed runs the full encoder, loading one block's weights at
 // a time (peak host memory ~ one F32-decoded block, never the checkpoint).
-func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []int) ([]float32, EncoderStats, error) {
+func EncodeTokensStreamed(ctx context.Context, checkpoint string, plan EncoderPlan, tokenIDs, mask []int) ([]float32, EncoderStats, error) {
 	var stats EncoderStats
+	if err := ctx.Err(); err != nil {
+		return nil, stats, err
+	}
 	config := plan.Config
 	if len(tokenIDs) == 0 {
 		return nil, stats, fmt.Errorf("encoder: no token ids")
@@ -317,9 +321,15 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 		}
 	}
 	for layer := range config.Layers {
+		if err := ctx.Err(); err != nil {
+			return nil, stats, err
+		}
 		start := tensor.SingletonExtent + layer*blockTensorCount
 		weights, err := loadEncoderBlockWeights(reader, plan.bindings[start:start+blockTensorCount])
 		if err != nil {
+			return nil, stats, err
+		}
+		if err := ctx.Err(); err != nil {
 			return nil, stats, err
 		}
 		next, err := encoderBlockForward(hidden, mask, buckets, tensor.SingletonExtent, len(mask), config.Dim, config.Heads, config.FFNDim, config.RelativeBuckets, weights, config.NormEps, true)
@@ -335,6 +345,9 @@ func EncodeTokensStreamed(checkpoint string, plan EncoderPlan, tokenIDs, mask []
 			stats.MaxBlockWeightBytes = blockBytes
 		}
 		runtime.GC()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, stats, err
 	}
 	normBinding, ok := checked.Last(plan.bindings)
 	if !ok {

@@ -1,0 +1,41 @@
+{
+  "acceptance": "evidence:sha256:af7130ae161f6fea541b158be3bc44aaf1835eff194f2333762f626b2258bac3",
+  "acquisitions": [
+    {
+      "command": "OVERGO_MEDIA_LOADER=denoiser OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-baseline-uncontended-denoiser.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "consumer": "denoiser",
+      "evidence": "evidence:sha256:b2a91b8acf922b33c70c06d0455c14b036f8fec83a69302dedd06e899e1545b0",
+      "observations": "evidence:sha256:c8daee942320d2ecd4886e0eccb62ec4a185b6ff5a2ad44045cf18f9ed6623b7"
+    },
+    {
+      "command": "OVERGO_MEDIA_LOADER=projection OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-baseline-uncontended-projection.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "consumer": "projection",
+      "evidence": "evidence:sha256:3b40bb2f46ac23a81e508f661ca5ced9c29739446b8f41e0516e6301f06fc2fc",
+      "observations": "evidence:sha256:bdfdd295593b4a1520ee6688d948096c9d307a01ef9c9270da8dfb83e28e42a4"
+    }
+  ],
+  "environment": "evidence:sha256:94f2fdcdc6f862943355834b63fbf315cfd40dc095703fc3e05394903abd9168",
+  "harness": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219",
+  "limitations": "First load is not cold disk. Map iteration, file cache and background activity remain uncontrolled. The selected cohort ran during a gap in repository tests, with another worktree's gate still active; the environment record reports CPU load before and after. This is not full-machine isolation. Process peaks are cumulative across load states; each consumer uses its own process. Raw wall observations are not statistical population estimates. The earlier cohort overlapped competing test processes and is retained as diagnostic evidence only.",
+  "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+  "prior_attempts": [
+    "evidence:sha256:76217184930e94116fab76c361b0447403e92e53e4e3555c2167d0cd3e27519d",
+    "evidence:sha256:e934a42ef4707c400c814f5aa57d3950af196db3eea2e6371e1b57c28c8b261a",
+    "evidence:sha256:21ff96a3b49d73bae406f2f7c49da4b5ef7bb62fbfccc44cbf3d8c518d440f5a",
+    "evidence:sha256:2e000717fcd3dc0f5d201a37538611404ddbb6d58fc6f231be7adeeedaa46901",
+    "evidence:sha256:f9691f12d100aa4d59c5efa5d18e0e941b5c7e0d7079e977d632dead36f31a26",
+    "evidence:sha256:56f5f573d90a14601e449958374f5a5e66bf91c38ee9aa319b14e2d9abe8ac2b"
+  ],
+  "quality_evidence": "evidence:sha256:4c147dfaa703e01d75ed7ea35368baaa34990408e7b0aa2626da133764c0e57a",
+  "quality_protocol_sha256": "9a270a1847acc8b478fb2b7595fb254f9d89d315bf0dfc23e6a0d97a9ceb3eb2",
+  "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+  "resource_protocol_sha256": "2e7b7bfb8e8d308a498ea5b54572b0dedf3dccfa9ec12731f31758775cc7cc02",
+  "scope": "Two real host-loader consumers, all their checkpoint tensors, first and repeat load in separate consumer processes. These observations authorize the shared F32 decoder migration only; GPU transfers, full-generation quality, constrained-capacity admission and cancellation remain separate campaign obligations.",
+  "source": "4adc06c7fd9581171527f5c60218f5cd7aebb7c8",
+  "source_sha256": {
+    "internal/latentvideo/denoiser.go": "cf42ee97e9a7d7a2b9977007fa0443b53d973cd2fcef170a1406486731a49d5a",
+    "internal/latentvideo/textcond.go": "4efb5c8d3a3d96fac1ee73ce49e89db540bacdbbd73d3c94b66c9bede8607075",
+    "internal/safetensors/convert.go": "fc31ac36ee0548ad190946ed127986ef86cf0ca59de47ab17f20650ce215e461"
+  },
+  "version": 1
+}

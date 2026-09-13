@@ -11,8 +11,6 @@ package latentvideo
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"math"
 	"os"
 	"path/filepath"
 
@@ -249,18 +247,9 @@ func LoadDenoiserWeights(dir string, c DenoiserConfig) (*DenoiserWeights, error)
 		if payload.DType != "F32" || payload.Elements() != uint64(want) {
 			return nil, fmt.Errorf("denoiser weights: tensor %s dtype=%s elements=%d, want F32 %d", name, payload.DType, payload.Elements(), want)
 		}
-		reader, err := safetensors.F32Reader(payload)
+		decoded, err := safetensors.ReadF32(payload)
 		if err != nil {
-			return nil, fmt.Errorf("denoiser weights %s: %w", name, err)
-		}
-		raw := make([]byte, want*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
 			return nil, fmt.Errorf("denoiser weights %s payload: %w", name, err)
-		}
-		decoded := make([]float32, want)
-		for i := range decoded {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			decoded[i] = math.Float32frombits(bits)
 		}
 		weights.values[name] = decoded
 		weights.Bytes += payload.Size()
@@ -656,7 +645,7 @@ type DenoiseResult struct {
 // contexts are opaque engine-resident cross-attention projections;
 // ForwardHead returns the head patches [seq*patchOut] for one branch.
 type DenoiseBackend interface {
-	ProjectBranchContext(context []float32) (any, error)
+	ProjectBranchContexts(conditional, unconditional []float32) (any, any, error)
 	ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error)
 }
 
@@ -667,8 +656,14 @@ type graphRunnerBackend struct {
 	run     graphruntime.Runner
 }
 
-func (b graphRunnerBackend) ProjectBranchContext(context []float32) (any, error) {
-	return b.program.ProjectContext(b.run, context)
+// ProjectBranchContexts projects the conditional then unconditional context.
+func (b graphRunnerBackend) ProjectBranchContexts(conditional, unconditional []float32) (any, any, error) {
+	cond, err := b.program.ProjectContext(b.run, conditional)
+	if err != nil {
+		return nil, nil, err
+	}
+	uncond, err := b.program.ProjectContext(b.run, unconditional)
+	return cond, uncond, err
 }
 
 func (b graphRunnerBackend) ForwardHead(patchTokens, blockE, headE []float32, branchContext any) ([]float32, error) {
@@ -710,11 +705,7 @@ func (p *DenoiserProgram) DenoiseWithBackend(backend DenoiseBackend, request Den
 	} else if err := sampling.FillCounterNormalNoise(sample, request.Noise); err != nil {
 		return result, err
 	}
-	condContext, err := backend.ProjectBranchContext(request.CondContext)
-	if err != nil {
-		return result, err
-	}
-	uncondContext, err := backend.ProjectBranchContext(request.UncondContext)
+	condContext, uncondContext, err := backend.ProjectBranchContexts(request.CondContext, request.UncondContext)
 	if err != nil {
 		return result, err
 	}

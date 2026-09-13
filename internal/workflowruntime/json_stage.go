@@ -56,13 +56,36 @@ func RegisterPipeline[Input, Plan, Features, Output any](
 	decode func(Features) (Output, error),
 	encode func(Output) (artifact.Content, error),
 ) error {
-	if err := RegisterScalarStage(runtime, prepareID, modelID, prepare, nil); err != nil {
+	if prepare == nil || integrate == nil || decode == nil {
+		return fmt.Errorf("workflow runtime: incomplete scalar pipeline")
+	}
+	return RegisterContextPipeline(runtime, modelID,
+		prepareID, func(_ context.Context, input Input) (Plan, error) { return prepare(input) },
+		integrateID, func(_ context.Context, plan Plan) (Features, error) { return integrate(plan) },
+		decodeID, func(_ context.Context, features Features) (Output, error) { return decode(features) },
+		encode,
+	)
+}
+
+// RegisterContextPipeline carries request cancellation through each typed stage.
+func RegisterContextPipeline[Input, Plan, Features, Output any](
+	runtime *Runtime,
+	modelID artifact.ID,
+	prepareID recipe.ModuleID,
+	prepare func(context.Context, Input) (Plan, error),
+	integrateID recipe.ModuleID,
+	integrate func(context.Context, Plan) (Features, error),
+	decodeID recipe.ModuleID,
+	decode func(context.Context, Features) (Output, error),
+	encode func(Output) (artifact.Content, error),
+) error {
+	if err := RegisterContextStage(runtime, prepareID, modelID, prepare, nil); err != nil {
 		return err
 	}
-	if err := RegisterScalarStage(runtime, integrateID, modelID, integrate, nil); err != nil {
+	if err := RegisterContextStage(runtime, integrateID, modelID, integrate, nil); err != nil {
 		return err
 	}
-	return RegisterScalarStage(runtime, decodeID, modelID, decode, encode)
+	return RegisterContextStage(runtime, decodeID, modelID, decode, encode)
 }
 
 // ScalarInput: typed single datum from a step port.
@@ -158,11 +181,17 @@ func RegisterResolvedStage[Output any](
 	expected := runtime.ModuleModel(moduleID, modelID)
 	return runtime.Register(moduleID, AdapterFunc(
 		func(ctx context.Context, request StepRequest) (map[recipe.PortName]Value, error) {
+			if err := context.Cause(ctx); err != nil {
+				return nil, err
+			}
 			if request.Model != expected {
 				return nil, fmt.Errorf("workflow runtime: recipe model differs from resolved stage")
 			}
 			value, err := execute(ctx, request)
 			if err != nil {
+				return nil, err
+			}
+			if err := context.Cause(ctx); err != nil {
 				return nil, err
 			}
 			output := Value{Kind: outputPort.Data, Items: []Datum{{Value: value}}}
@@ -172,6 +201,9 @@ func RegisterResolvedStage[Output any](
 					return nil, err
 				}
 				output = ArtifactValue(outputPort.Data, value, content)
+			}
+			if err := context.Cause(ctx); err != nil {
+				return nil, err
 			}
 			return map[recipe.PortName]Value{outputPort.Name: output}, nil
 		},

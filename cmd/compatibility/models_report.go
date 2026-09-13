@@ -140,11 +140,18 @@ func loadVerificationInventory(root string) (verificationInventory, error) {
 		// The verification directory also holds external tool result
 		// records; a typed specification is exactly a document whose
 		// model field is an artifact-ID string carrying claims.
+		var document json.RawMessage
+		if err := jsonfile.Decode(path, &document); err != nil {
+			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
+		}
+		if len(document) == 0 || document[0] != '{' {
+			continue
+		}
 		var probe struct {
 			Model  json.RawMessage `json:"model"`
 			Claims json.RawMessage `json:"claims"`
 		}
-		if err := jsonfile.Decode(path, &probe); err != nil {
+		if err := json.Unmarshal(document, &probe); err != nil {
 			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
 		}
 		var modelID string

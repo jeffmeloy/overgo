@@ -234,6 +234,7 @@ func (s *DeviceGenerationSession) Run(
 			if selected[layer] || layer == s.cfg.NumHiddenLayers-1 {
 				value, err := retained.CopyToHost(ctx, branch.graph.Output)
 				if err != nil {
+					_ = retained.Release(context.WithoutCancel(ctx))
 					return nil, stats, fmt.Errorf("routed lm generation stack: branch=%d layer=%d copy: %w", index, layer, err)
 				}
 				stats.DeviceToHost += uint64(len(value.Data)) * 4
@@ -244,7 +245,7 @@ func (s *DeviceGenerationSession) Run(
 					out[index] = value.Data
 				}
 			}
-			if err := retained.Release(ctx); err != nil {
+			if err := retained.Release(context.WithoutCancel(ctx)); err != nil {
 				return nil, stats, err
 			}
 		}

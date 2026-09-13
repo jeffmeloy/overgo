@@ -59,6 +59,9 @@ func ValidateRequest(request Request) error {
 }
 
 func LoadGenerator(ctx context.Context, modelDir string, profile Profile, request Request) (*Generator, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := ValidateRequest(request); err != nil {
 		return nil, err
 	}
@@ -171,6 +174,9 @@ func (r Request) SessionKey() (string, error) {
 
 // Reset reuses resident graphs for compatible request-local sampling state.
 func (g *Generator) Reset(ctx context.Context, request Request) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if g == nil || g.pipeline == nil || !g.completed {
 		return errors.New("latent image: resident session is unavailable")
 	}
@@ -191,6 +197,9 @@ func (g *Generator) Reset(ctx context.Context, request Request) error {
 }
 
 func (g *Generator) prepare(ctx context.Context, request Request) (*Generator, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if g == nil || g.pipeline == nil || request.withPolicy(g.profile.Sampling, g.pipeline.Denoiser.GH*g.pipeline.Denoiser.GW) != g.request || g.prepared {
 		return nil, errors.New("latent image: generation session is unavailable")
 	}
@@ -258,7 +267,7 @@ func (g *Generator) Close(ctx context.Context) error {
 	if g == nil || g.pipeline == nil {
 		return nil
 	}
-	err := g.pipeline.Close(ctx)
+	err := g.pipeline.Close(context.WithoutCancel(ctx))
 	g.pipeline = nil
 	g.embed = nil
 	return err
@@ -268,18 +277,11 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, gene
 	if generator == nil || generator.pipeline == nil {
 		return errors.New("latent image: incomplete runtime binding")
 	}
-	if err := workflowruntime.RegisterContextStage(
-		runtime, modelrecipe.ModuleLatentImagePrepare, modelID, generator.prepare, nil,
-	); err != nil {
-		return err
-	}
-	if err := workflowruntime.RegisterContextStage(
-		runtime, modelrecipe.ModuleLatentImageIntegrate, modelID, generator.integrate, nil,
-	); err != nil {
-		return err
-	}
-	return workflowruntime.RegisterContextStage(
-		runtime, modelrecipe.ModuleLatentImageDecode, modelID, generator.decode,
+	return workflowruntime.RegisterContextPipeline(
+		runtime, modelID,
+		modelrecipe.ModuleLatentImagePrepare, generator.prepare,
+		modelrecipe.ModuleLatentImageIntegrate, generator.integrate,
+		modelrecipe.ModuleLatentImageDecode, generator.decode,
 		PNGContent,
 	)
 }

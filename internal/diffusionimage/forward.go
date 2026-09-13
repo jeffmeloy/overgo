@@ -1,6 +1,7 @@
 package diffusionimage
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -523,7 +524,10 @@ func (m *Model) forward(x []float32, b, imgH, imgW int, retain bool) ([]float32,
 // Sample: seeded Gaussian start, Euler-integrated autonomous flow — the
 // reference generate profile's execution (SampleContext; the model ignores
 // time conditioning, vendor forward(x, t=None) discards t).
-func (m *Model) Sample(b, imgH, imgW, steps int, seed int64) ([]float32, error) {
+func (m *Model) Sample(ctx context.Context, b, imgH, imgW, steps int, seed int64) ([]float32, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if steps <= 0 {
 		return nil, fmt.Errorf("diffusionimage sample: steps %d", steps)
 	}
@@ -534,6 +538,9 @@ func (m *Model) Sample(b, imgH, imgW, steps int, seed int64) ([]float32, error) 
 	}
 	dt := float32(1) / float32(steps)
 	for range steps {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		v, err := m.Forward(x, b, imgH, imgW)
 		if err != nil {
 			return nil, err

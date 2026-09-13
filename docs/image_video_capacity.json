@@ -1,0 +1,147 @@
+{
+  "checks": [
+    {
+      "command": "OVERGO_CUDA_TEST=1 go test ./internal/sensenovarecipe -run '^TestSenseNovaVariableRequestResources$' -count=1 -timeout=25m -json",
+      "evidence": "evidence:sha256:1ba924c35eda51930e6fc67013692761f1d0d2b1f6735235a646ac5e2fc1281e",
+      "name": "SenseNova request transitions",
+      "required_tests": [
+        "TestSenseNovaVariableRequestResources"
+      ],
+      "scope": "Real native weights, original fixed PNG and changed width/prompt/seed, exact repeated/fresh output, stable larger-shape idle bytes and zero owned bytes after both closes. Process wall includes GPU admission; request rows exclude admission and model construction."
+    },
+    {
+      "command": "go test ./internal/oscillatorimage -run '^(TestArtifactThreadCountAndShapeResources|TestArtifactPublishesReferenceGIF|TestArtifactPublishesReferencePNG)$' -count=1 -json",
+      "evidence": "evidence:sha256:948386cc7a6ef762c9072072c7ce5685be4b3164b4134ebc6c5226d96dc0a580",
+      "name": "Un-0 CPU and shape transitions",
+      "required_tests": [
+        "TestArtifactThreadCountAndShapeResources",
+        "TestArtifactPublishesReferenceGIF",
+        "TestArtifactPublishesReferencePNG"
+      ],
+      "scope": "Real host model and existing PNG/GIF references; one and all logical CPU threads, repeated changing clip geometry. No OS affinity or hard RAM limit."
+    },
+    {
+      "command": "OVERGO_MEDIA_LOADER=denoiser OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-capacity-loader-denoiser.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -json",
+      "evidence": "evidence:sha256:b541c393f3a7825b78d606a8c9b6032ece01fd21dc2348122d5e99a4ca5dd6c3",
+      "name": "Current complete denoiser loader",
+      "required_tests": [
+        "TestMediaLoaderAcquisition"
+      ],
+      "scope": "Unchanged retained complete-loader harness; first/repeat current source observations. CPU weight decoding only; timings are descriptive, not a new matched comparison."
+    },
+    {
+      "command": "OVERGO_MEDIA_LOADER=projection OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-capacity-loader-projection.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -json",
+      "evidence": "evidence:sha256:1f42452e8611ab59a684de738ced3897b04cd30bdf06e1a33aa09d19136d9ba4",
+      "name": "Current complete projection loader",
+      "required_tests": [
+        "TestMediaLoaderAcquisition"
+      ],
+      "scope": "Unchanged retained complete-loader harness; first/repeat current source observations. CPU weight decoding only; timings are descriptive, not a new matched comparison."
+    },
+    {
+      "command": "MEDIA_PROCESSING_VARIANT=capacity-current go test -overlay=tmp/media-processing-overlay.json ./cmd/compatibility -run '^TestAcquireMediaProcessing$' -count=1 -json",
+      "evidence": "evidence:sha256:0e5e6223584d4b87e4ed644bb88ef83f2590bb44f4b3002c9de76202dd431198",
+      "name": "Current report and sample export",
+      "required_tests": [
+        "TestAcquireMediaProcessing"
+      ],
+      "scope": "Unchanged retained public-owner harness. Stable store head, identical report and all sample bytes across first/repeat. Current store has changed since the original matched comparison; no additional speedup is inferred."
+    },
+    {
+      "command": "go test ./internal/capabilityruntime ./internal/plan ./internal/runrecord ./internal/processcontrol -run '^(TestBoundedSessionAdmission|TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle|TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain|TestSessionAuthorityRebindsCompatibleExecution|TestResourceAdvisory|TestResourceFitnessContract|TestImprovementFitnessRejectsTransferredCost|TestResourceAdmissionWaitsForRelease|TestResourceAdmissionCancellationAndFailure|TestGPUExclusiveMeasurementAdmission|TestGPUCapacityAdmissionConcurrent|TestGPUCapacityAdmissionProcessExit|TestGPUCapacityTransactionRecovery)$' -count=1 -json",
+      "evidence": "evidence:sha256:f1efcb97eecbed83aca5b97c30b2306189ae693679bddb1d25a8599d260593da",
+      "name": "Resource admission and ownership",
+      "required_tests": [
+        "TestBoundedSessionAdmission",
+        "TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle",
+        "TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain",
+        "TestSessionAuthorityRebindsCompatibleExecution",
+        "TestResourceAdvisory",
+        "TestResourceFitnessContract",
+        "TestImprovementFitnessRejectsTransferredCost",
+        "TestResourceAdmissionWaitsForRelease",
+        "TestResourceAdmissionCancellationAndFailure",
+        "TestGPUExclusiveMeasurementAdmission",
+        "TestGPUCapacityAdmissionConcurrent",
+        "TestGPUCapacityAdmissionProcessExit",
+        "TestGPUCapacityTransactionRecovery"
+      ],
+      "scope": "Session queues, waiting cancellation, authority replacement, cost accounting and named-resource process ownership. Named-resource fixtures are separate from physical allocation/refusal checks retained in the lifecycle bundle."
+    },
+    {
+      "command": "go test ./cmd/compatibility -run '^TestImageVideoLifecycleAcceptance$' -count=1 -json",
+      "evidence": "evidence:sha256:55e3e2dd567c65ef7125c6c666db072ba7ea9314f38f7e35f341465ca369d9e9",
+      "name": "Shared receipt validation",
+      "required_tests": [
+        "TestImageVideoLifecycleAcceptance"
+      ],
+      "scope": "The shared named-execution receipt helper retains complete lifecycle evidence validation."
+    }
+  ],
+  "environment": "evidence:sha256:a42101f406a96ce0c718935aac70da596fcd1527905934a1a6039e9d78265754",
+  "failed_attempts": [
+    "evidence:sha256:9436e4be9286af0799689d25a2f7ccd1510c9c9d7c49de95ca6ad59278e66d6c",
+    "evidence:sha256:0049591888e709084edba6a9ed83503e9f471457ff4ef408db37dcc1bf3759b5"
+  ],
+  "failure_scope": "Acceptance harness compilation initially used the wrong existing comparison type and omitted an import still used elsewhere in the lifecycle check. Both are corrected; production code and native test criteria did not change.",
+  "host_observations": "evidence:sha256:bcbdda7b7b3d259b1f6d86ab5bdb6eb817a8d46bbd1837f4088a7e64c5488d35",
+  "limitations": [
+    "No new production candidate or additional matched speedup. Original loader and report/export comparisons measure different operations and cannot be combined into one generation speedup.",
+    "GOMAXPROCS constrains Go scheduling, not CPU affinity or host-memory admission. These media backends have no general whole-request hard RAM/VRAM budget or resource-derived fallback planner. Physical allocation refusal is not successful lower-memory generation.",
+    "Driver memory and counters belong to one library; process host peaks include earlier requests and construction. Whole-device free memory has a separate scope. CUDA admission waiting is excluded from per-request rows.",
+    "SenseNova still constructs request-specific resident components and allocates about 33 GB on the Go heap per measured request. Retaining these components requires a distinct cache policy and comparison of retained VRAM, changed inputs and multi-model pressure; the cleanup fix does not eliminate this cost.",
+    "The changed SenseNova request has repeat/fresh-session equivalence, not a new external pixel oracle or perceptual quality assessment. Prior frozen corpus visual limitations remain unchanged.",
+    "Public API/browser behavior and final publication remain separate plan steps."
+  ],
+  "loader_observations": {
+    "denoiser": "evidence:sha256:9befad6f84858382437bac1bdb0e37f643427a6fe739950cdabbbb007c383416",
+    "projection": "evidence:sha256:ae9a6f350957492e492e21a41cf870425c4c247e4f107e994b38abdebe9349d0"
+  },
+  "native_acquisition_protocol": "evidence:sha256:1bf02da2d523096b34ecce54f4e6586f1d6218fa391fdc6c5f34125a45591fb6",
+  "native_observations": "evidence:sha256:bed7cf31e158e2199d3991d93e733853d22c499dd18e1b6d8eeda623de4610a8",
+  "native_oracle_png": "6ef4065018d328c2945e6de0a8b87fe3eb2aec44039b43207398969712446de0",
+  "prior_bundles": {
+    "docs/image_video_composition.json": "6974a8c383d7a64cc0a02d79b41d2303ccea7760e0fa097572e013209e26461a",
+    "docs/image_video_conditioned_videos.json": "35dfb03e6fc433e4c3b04ddbedcc85cfe46e4513d21f4e0e1dc74e81c3086589",
+    "docs/image_video_latent_images.json": "8d600c3ab06f7531bef85d5d45a077e079efb8e31f550b7081f6db3268a4a77f",
+    "docs/image_video_lifecycle.json": "3c61e885b7c979140ffdcb8956e26836d9223cfd4dc3779ef8d137cc1e718159",
+    "docs/image_video_memory.json": "5c62c46d0f730731a5f1bf199491da557fe3b5295891188a429381fb060006f6",
+    "docs/image_video_processing.json": "d0bd66db0cf42b56093f12d55c2423bcdf57bfb0c5e84025d623a5a927a52b02",
+    "docs/image_video_routed_images.json": "3703f6ab9ad58b847dab9d0adf0e348e5aeb37f9aea1940b29e5e71ca3d498f9",
+    "docs/image_video_shared_components.json": "dfbcd24816c86297a5cd2afb7a8a112e669b24365a176d2284c3d643a0b2472c",
+    "docs/image_video_transfers.json": "331e33f5a9c6c72afe576eae8ac138deeb3c297ce423a0273404cf92a083f3b0",
+    "docs/image_video_wan.json": "9eb2557509af96b4180b5364ba71da4103d393dbaf01d5abcef75f7cf5280183"
+  },
+  "processing_observations": [
+    "evidence:sha256:49ba4145a35a595854996db1c6dbe40db7a74d3783a4ce5cfae0626c45a0279f",
+    "evidence:sha256:411f60ae9b6871a5584c17bfceb56a854e3a7282aff20711442bc3db330c0435"
+  ],
+  "protocol": "evidence:sha256:1c1f05a88e24312e1d4bf604ea984b1210ddd7441c3c077472bacbf1e5fabe6d",
+  "protocol_sha256": "a64683224234061901e4a91aa6eb32a524a4ca316c10a0d81a74beb8d5734d21",
+  "source_base": "9b8c9a953ff888087b6a3f4de09b5a1efe7441f9",
+  "source_files": {
+    "internal/oscillatorimage/resources_test.go": {
+      "evidence": "evidence:sha256:c09bd773eec8fad02ea8eb5ada30b77530d68df06e1e2e9beb5fdb2b73710a96",
+      "sha256": "c09bd773eec8fad02ea8eb5ada30b77530d68df06e1e2e9beb5fdb2b73710a96"
+    },
+    "internal/sensenovarecipe/runtime_resources_cuda_windows_test.go": {
+      "evidence": "evidence:sha256:888854b590aeb73a4bae4fa8f5ea6480ff04f694cd296c5d2c1861853766e027",
+      "sha256": "888854b590aeb73a4bae4fa8f5ea6480ff04f694cd296c5d2c1861853766e027"
+    },
+    "tmp/media_loader_acquisition_test.go": {
+      "evidence": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219",
+      "sha256": "0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+    },
+    "tmp/media_processing_probe_test.go": {
+      "evidence": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+      "sha256": "8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1"
+    }
+  },
+  "test_sources": {
+    "0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219",
+    "8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1": "evidence:sha256:8011be41468d167bd27c645f46c0e13f1bc8aff10b943bb19a21b9e30e5459e1",
+    "888854b590aeb73a4bae4fa8f5ea6480ff04f694cd296c5d2c1861853766e027": "evidence:sha256:888854b590aeb73a4bae4fa8f5ea6480ff04f694cd296c5d2c1861853766e027",
+    "c09bd773eec8fad02ea8eb5ada30b77530d68df06e1e2e9beb5fdb2b73710a96": "evidence:sha256:c09bd773eec8fad02ea8eb5ada30b77530d68df06e1e2e9beb5fdb2b73710a96"
+  },
+  "version": 1
+}

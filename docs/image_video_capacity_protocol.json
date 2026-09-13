@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "source_base": "9b8c9a953ff888087b6a3f4de09b5a1efe7441f9",
+  "scope": "Validate the retained shared loader and report/export memo together with the committed media cancellation and staging-release changes. No new production optimization is proposed in this step.",
+  "accepted_components": [
+    "Shared Safetensors F32 decoding in both Wan weight loaders",
+    "Existing discovery memo reused by report generation and sample export",
+    "Shared request cancellation and release of abandoned prefix outputs and prefix weight staging"
+  ],
+  "excluded_candidates": [
+    "Rejected Wan transfer candidate",
+    "Rejected Wan host-layout memory candidate"
+  ],
+  "comparisons": [
+    "Retain the original matched loader and report/export measurements and their limitations. These measure different operations; do not add their speedups or present them as a matched complete-generation comparison.",
+    "Recheck complete current loader output identities and the current report/export path. Preserve output bytes and explicitly record current observation scope, source, host allocations, process peak and elapsed time. Current-state checks cannot reverse a prior rejected optimization decision.",
+    "Run the real SenseNova native 256-pixel reference, then a separately declared doubled-width request with changed prompt and neighboring seed, then both requests again on the same generator. The original request must retain its existing PNG oracle. Both repeated requests must retain exact output bytes; the second larger request must match a fresh generator. Repeated larger-shape execution must retain stable idle device bytes after its first completed use, and both generators must close to zero owned bytes. The changed request is a resource-transition test, not a smaller substitute for a frozen quality request.",
+    "Run real Un-0 image/video requests with one Go execution thread and with the detected logical CPU count. Include the frozen class-1 seed-11 image and 12-frame scale-2 clip, plus the existing class-1 seed-202 six-frame scale-8 reference. Return to earlier shapes on the same loaded model. Preserve all output bytes across thread counts and repeats; verify the existing image/video references separately. Record actual GOMAXPROCS; this is a scheduler constraint, not OS CPU affinity or a hard memory cap."
+  ],
+  "resources": [
+    "Capture current available RAM, logical CPUs and load, free disk, GPU UUID, driver, total/free VRAM and utilization before acquisitions. Use the existing exclusive GPU measurement owner for native device measurements and retain admission time separately from request timing.",
+    "Reuse current source-compatible tests for bounded session queues, waiting cancellation, physical allocation refusal, preservation of live buffers, process contention and resource release. Synthetic named-resource checks remain separate from physical device checks.",
+    "Component session plans identify stage lifetimes and unique artifact extent; they do not estimate a complete media request's peak memory. Existing advisory RAM/VRAM values do not reserve bytes. CUDA allocation checks query current free memory under the shared physical-resource transaction.",
+    "The media backends expose no hard per-request RAM/VRAM cap or general lower-memory execution planner. Do not claim tests of absent controls. Unsupported fitting plans remain an explicit capability limitation; do not change resolution, frame count, precision or sampling to report a successful fallback.",
+    "Keep per-library live/peak allocations, reusable-buffer storage, process-lifetime host peak and whole-device free memory distinct. Missing metrics remain unavailable, and no sum of overlapping process intervals is reported as elapsed campaign time."
+  ],
+  "acceptance": [
+    "All prior frozen image/video output and numerical acceptance checks still pass for the exact committed media source.",
+    "Every newly selected native test executes and passes; skipped or incomplete receipts provide no coverage.",
+    "Changed request state preserves output identity on repeat and fresh-session comparison, with bounded reusable memory and successful cleanup.",
+    "Retain original performance decisions, failures and measurement scopes. New current-state timings are descriptive and do not establish an additional speedup.",
+    "The report distinguishes implemented resource controls from unsupported whole-request budget planning. Public API/browser behavior remains a separate next step."
+  ]
+}

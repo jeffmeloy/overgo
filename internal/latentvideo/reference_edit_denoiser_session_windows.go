@@ -335,7 +335,10 @@ func (s *ReferenceEditDenoiserCUDASession) projectContext(textContext []float32)
 }
 
 // RunChunk executes one absolute-position chunk. commitHistory advances K/V.
-func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE []float32, startFrame int, commitHistory bool) ([]float32, error) {
+func (s *ReferenceEditDenoiserCUDASession) RunChunk(ctx context.Context, patchTokens, blockE, headE []float32, startFrame int, commitHistory bool) ([]float32, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if s == nil || s.cuda == nil {
 		return nil, errors.New("reference edit denoiser: closed")
 	}
@@ -364,20 +367,20 @@ func (s *ReferenceEditDenoiserCUDASession) RunChunk(patchTokens, blockE, headE [
 		feeds[feed.node] = value
 	}
 	next, err := s.cuda.ExecuteRetainedCompiled(
-		s.ctx, execution.Graph, feeds, execution.Inputs, s.targets[startFrame], nil,
+		ctx, execution.Graph, feeds, execution.Inputs, s.targets[startFrame], nil,
 	)
 	if err != nil {
 		return nil, err
 	}
-	head, err := next.CopyToHost(s.ctx, program.Head)
+	head, err := next.CopyToHost(ctx, program.Head)
 	if err != nil {
-		return nil, errors.Join(err, next.Release(s.ctx))
+		return nil, errors.Join(err, next.Release(context.WithoutCancel(ctx)))
 	}
 	if commitHistory {
 		s.historyFrames += program.Geometry.LatentFrames
 		s.historyProgram = program
 	}
-	if err := next.Release(s.ctx); err != nil {
+	if err := next.Release(context.WithoutCancel(ctx)); err != nil {
 		return nil, err
 	}
 	s.stats.Runs++

@@ -74,7 +74,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		output, err := session.RunChunk(patches, blockE, headE, frame, true)
+		output, err := session.RunChunk(t.Context(), patches, blockE, headE, frame, true)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -124,7 +124,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coldSecond, err := fresh.RunChunk(second, blockE, headE, 0, true)
+	coldSecond, err := fresh.RunChunk(t.Context(), second, blockE, headE, 0, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 		if err := session.ResetHistory(); err != nil {
 			t.Fatal(err)
 		}
-		output, err := session.RunChunk(patches, blockE, headE, 0, true)
+		output, err := session.RunChunk(t.Context(), patches, blockE, headE, 0, true)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -78,7 +78,7 @@ func TestGeneratorMatchesTorch(t *testing.T) {
 		K: f32of(gf("K")), KCond: f32of(gf("K_cond")), Blocks: blocks,
 		ToOutW: f32of(gf("to_out_w")), ToOutB: f32of(gf("to_out_b")),
 	}
-	features, err := model.integrate(phasePlan{state: f32of(gf("init")), drive: f32of(gf("drive"))})
+	features, err := model.integrate(t.Context(), phasePlan{state: f32of(gf("init")), drive: f32of(gf("drive"))})
 	if err != nil {
 		t.Fatal(err)
 	}

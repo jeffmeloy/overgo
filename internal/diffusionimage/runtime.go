@@ -1,6 +1,7 @@
 package diffusionimage
 
 import (
+	"context"
 	"errors"
 
 	"overgo/internal/artifact"
@@ -30,7 +31,10 @@ func ValidateRequest(request Request) error {
 	return nil
 }
 
-func (m *Model) prepare(request Request) (samplePlan, error) {
+func (m *Model) prepare(ctx context.Context, request Request) (samplePlan, error) {
+	if err := ctx.Err(); err != nil {
+		return samplePlan{}, err
+	}
 	if err := ValidateRequest(request); err != nil {
 		return samplePlan{}, err
 	}
@@ -44,28 +48,31 @@ func (m *Model) prepare(request Request) (samplePlan, error) {
 	return samplePlan{request: request}, nil
 }
 
-func (m *Model) integrate(plan samplePlan) (sampleFeatures, error) {
+func (m *Model) integrate(ctx context.Context, plan samplePlan) (sampleFeatures, error) {
 	request := plan.request
-	pixels, err := m.Sample(1, request.Height, request.Width, request.Steps, request.Seed)
+	pixels, err := m.Sample(ctx, 1, request.Height, request.Width, request.Steps, request.Seed)
 	return sampleFeatures{pixels: pixels, height: request.Height, width: request.Width}, err
 }
 
-func (m *Model) decode(features sampleFeatures) (latentimage.EncodedImage, error) {
+func (m *Model) decode(ctx context.Context, features sampleFeatures) (latentimage.EncodedImage, error) {
+	if err := ctx.Err(); err != nil {
+		return latentimage.EncodedImage{}, err
+	}
 	return latentimage.EncodePlanarPNG(features.pixels, features.height, features.width)
 }
 
 type runtimeBinding interface {
 	*Model | *ResidentGenerator
-	prepare(Request) (samplePlan, error)
-	integrate(samplePlan) (sampleFeatures, error)
-	decode(sampleFeatures) (latentimage.EncodedImage, error)
+	prepare(context.Context, Request) (samplePlan, error)
+	integrate(context.Context, samplePlan) (sampleFeatures, error)
+	decode(context.Context, sampleFeatures) (latentimage.EncodedImage, error)
 }
 
 func RegisterRuntime[T runtimeBinding](runtime *workflowruntime.Runtime, modelID artifact.ID, model T) error {
 	if model == nil {
 		return errors.New("diffusionimage: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterPipeline(
+	return workflowruntime.RegisterContextPipeline(
 		runtime, modelID,
 		modelrecipe.ModuleDiffusionImagePrepare, model.prepare,
 		modelrecipe.ModuleDiffusionImageIntegrate, model.integrate,

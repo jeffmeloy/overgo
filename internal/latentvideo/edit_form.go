@@ -195,7 +195,7 @@ func ResolveClipRequest(ctx context.Context, reader artifact.Reader, modelDirect
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}
-	conditioning, err := TextConditioning(WanTextConditioningSpec(wanDirectory, base.TextLen), request.Prompt)
+	conditioning, err := TextConditioning(ctx, WanTextConditioningSpec(wanDirectory, base.TextLen), request.Prompt)
 	if err != nil {
 		return ReferenceEditRequest{}, err
 	}

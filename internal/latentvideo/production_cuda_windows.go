@@ -75,13 +75,16 @@ func LoadWanRuntime(ctx context.Context, store artifact.Reader, path string, pro
 // generation policy fills omitted parameters, a prompt-form request gains
 // its contexts from the text pipeline and its noise plan from the seed on
 // this device, and the result is the complete request the generator runs.
-func (r *WanRuntime) resolve(request WanRequest) (WanRequest, error) {
+func (r *WanRuntime) resolve(ctx context.Context, request WanRequest) (WanRequest, error) {
+	if err := ctx.Err(); err != nil {
+		return WanRequest{}, err
+	}
 	request = request.withGeneration(r.profile.Generation)
 	if !request.PromptForm() {
 		return request, ValidateWanRequest(request)
 	}
 	if r.memo.cond == nil || r.memo.prompt != request.Prompt || r.memo.negative != request.NegativePrompt {
-		cond, uncond, err := promptContexts(r.text, request)
+		cond, uncond, err := promptContexts(ctx, r.text, request)
 		if err != nil {
 			return WanRequest{}, err
 		}
@@ -121,7 +124,7 @@ func (r *WanRuntime) Reset(_ context.Context, request WanRequest) error {
 }
 
 func (r *WanRuntime) Generate(ctx context.Context, request WanRequest) (EncodedVideo, error) {
-	request, err := r.resolve(request)
+	request, err := r.resolve(ctx, request)
 	if err != nil {
 		return EncodedVideo{}, err
 	}
@@ -211,7 +214,7 @@ func (r *LiveEditRuntime) Reset(context.Context, ReferenceEditRequest) error {
 }
 
 func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {
-	sink, err := NewGIFEncoder(r.profile.SampleFPS, UnitPixels)
+	sink, err := NewGIFEncoder(r.profile.SampleFPS, SignedUnitPixels)
 	if err != nil {
 		return EncodedVideo{}, err
 	}

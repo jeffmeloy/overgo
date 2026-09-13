@@ -1,0 +1,56 @@
+{
+  "acceptance": "evidence:sha256:af7130ae161f6fea541b158be3bc44aaf1835eff194f2333762f626b2258bac3",
+  "acquisitions": [
+    {
+      "command": "OVERGO_MEDIA_LOADER=denoiser OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-candidate-denoiser.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "consumer": "denoiser",
+      "evidence": "evidence:sha256:9ed20e4eaf4f90e5f590916dc788272c1c30c52d422a67c5fda9c458a91de138",
+      "observations": "evidence:sha256:0573b1d32f1535a008549b33914e9506e2eccb01e9dcbc685171a0afb7983620"
+    },
+    {
+      "command": "OVERGO_MEDIA_LOADER=projection OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-candidate-projection.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "consumer": "projection",
+      "evidence": "evidence:sha256:278ee3949291345d0e66d602d4a4f0a76b32db5fb0464e928eb7a90b3eee6089",
+      "observations": "evidence:sha256:bba91b2837e8453b347a323d69d771a50c2eff7f93d91b233c3a92b1660379f6"
+    }
+  ],
+  "baseline_sha256": "d652708aa03884476c4cdc8a7e37d56780394bc001db90eeb5150397a5a0e124",
+  "changes": "LoadDenoiserWeights and loadProjectionWeights now call the existing safetensors.ReadF32 instead of independently allocating a full F32 byte buffer and manually decoding it into another full F32 array. Both old loops and their io/math imports are removed: 7 production lines added, 27 removed across the three owners; no public entrypoint, wrapper or allocator added. Denoiser F32/element validation and projection name checks remain unchanged. TextConditioning, the Wan request form and training projection preparation share the migrated projection loader. Unsupported ReadF32 dtypes are rejected before allocation; F32/F16/BF16 promotion and truncated payload errors pass the owning component tests.",
+  "decision": "adopt",
+  "environment": "evidence:sha256:5710a0101669421a5e90b1964419f83bf60c16ae94fec0051cb86fdbda29b196",
+  "harness": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219",
+  "limitations": "Measurements cover complete CPU loading only, not generation speed or GPU transfers. Each consumer uses its own process and the identical frozen first/repeat harness. Process peak is cumulative within that process; OS file cache, map iteration and other application activity remain uncontrolled. Observed CPU load was 39% before and 40% after the candidate cohort, versus 6% and 1% for the baseline. Other worktree gates remained active outside their test phases. Raw comparisons do not establish an isolated causal or population speedup. Existing small G3/G4 numerical, lifecycle and full text-conditioning references pass without changing tolerances. Full-resolution video quality, GPU transfer reuse and constrained-capacity validation remain separate open work.",
+  "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+  "prior_attempts": [
+    "evidence:sha256:bebe938ddefa13e4a0c3e1f136f5d2c828fc231ecad699fcfcbc3fa19f2f9201",
+    "evidence:sha256:acfa744ebcad2d5764c70434a9040a7608ffdb3dc817d7ac8d23a8c88f1c074c",
+    "evidence:sha256:8bc31029d60fe74cb0c813e82876167eb6800a589388ca4d2d9777133fd4950c",
+    "evidence:sha256:11f8c91f64e83076ca70b659b99f46c7386c0d6ddad63678ee1146166cd4fb6e",
+    "evidence:sha256:e34b461074aae2dfda2ac52dc906dcc8f8a2a267b1862e04b0f00e200c212475"
+  ],
+  "quality": [
+    {
+      "command": "go test ./internal/safetensors -run 'Test(F32Reader|ReadF32|SourceMaterialize)' -count=1 -json",
+      "evidence": "evidence:sha256:4bedb4204b38263228fd1dfa2ad255e453b126e94b1229130646fffa5d3fa541",
+      "name": "shared-decoder-contracts"
+    },
+    {
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestTextConditioningGoldenParity|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestVAEDecodeCUDAGoldenG[34]|TestWanLifecycleAcceptance)$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:8a4f58b470631e9d2629644d2bb3accd7cca6aa019ffa6e940c8567a3753623a",
+      "name": "wan-references"
+    }
+  ],
+  "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+  "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7",
+  "source_evidence": {
+    "internal/latentvideo/denoiser.go": "evidence:sha256:13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+    "internal/latentvideo/textcond.go": "evidence:sha256:0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+    "internal/safetensors/convert.go": "evidence:sha256:7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+  },
+  "source_sha256": {
+    "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+    "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+    "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+  },
+  "version": 1
+}

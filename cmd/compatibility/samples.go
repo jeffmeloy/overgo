@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"image/gif"
+	"image/png"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
@@ -18,7 +23,7 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// mediaSamplesDir holds the exported verifier-run outputs the media
+// mediaSamplesDir holds the exported generation outputs the media
 // report links: every file is store content named by its SHA-256, so a
 // sample is checkable against the evidence that produced it.
 const mediaSamplesDir = "docs/media_samples"
@@ -32,18 +37,25 @@ const speechAudioSchema = "overgo.speech-audio.v1"
 const generatedVideoSchema = "overgo.generated-video.v1"
 
 // exportMediaSamples writes each healthy media activation's succeeded
-// verifier-run outputs under docs/media_samples as decodable files --
+// generation outputs under docs/media_samples as decodable files --
 // PNG and GIF bytes exactly as the store holds them, speech audio
 // re-encoded as 16-bit PCM WAV -- named by content SHA-256. Nothing is
 // exported that a run did not publish.
-func exportMediaSamples(root, repository string) error {
+func exportMediaSamples(root, repository string, scope mediaReportScope) error {
 	store, err := overgodb.OpenReadOnly(repository)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	ctx := context.Background()
-	entries, _, err := discovery.CapabilityCatalog(ctx, store, mediaCatalogLimit, nil)
+	entries, truncated, err := discovery.CapabilityCatalogForTasks(ctx, store, mediaCatalogLimit, discovery.LoadMemo(ctx, store), scope.Tasks...)
+	if err != nil {
+		return err
+	}
+	if truncated {
+		return errors.New("media sample catalog is truncated")
+	}
+	selection, err := loadMediaSampleSelection(ctx, root, store, scope, entries)
 	if err != nil {
 		return err
 	}
@@ -61,7 +73,7 @@ func exportMediaSamples(root, repository string) error {
 			if err != nil || !active {
 				continue
 			}
-			count, err := exportRecipeSamples(ctx, store, activation.Definition.ID, directory)
+			count, err := exportRecipeSamples(ctx, store, activation.Definition.ID, directory, selection)
 			if err != nil {
 				return err
 			}
@@ -79,12 +91,16 @@ func exportRecipeSamples(
 	store *overgodb.Store,
 	definition artifact.ID,
 	directory string,
+	selection mediaSampleSelection,
 ) (int, error) {
 	written := 0
-	err := visitRecipeSamples(ctx, store, definition, func(name string, data []byte, _ string) error {
-		path := filepath.Join(directory, name)
+	err := visitRecipeSamples(ctx, store, definition, selection, func(sample sampleRef, data []byte) error {
+		if err := validateMediaSampleContent(sample.Name, data); err != nil {
+			return err
+		}
+		path := filepath.Join(directory, sample.Name)
 		if _, statErr := os.Stat(path); statErr == nil {
-			return nil
+			return validateMediaSampleFile(directory, sample.Name)
 		}
 		if err := os.WriteFile(path, data, 0o644); err != nil {
 			return err
@@ -99,19 +115,22 @@ func exportRecipeSamples(
 // that produced it, so the report shows the prompt and settings beside
 // the artifact.
 type sampleRef struct {
-	Name    string
-	Request string
+	Name                     string
+	Request                  string
+	Run, Output, Environment artifact.ID
+	Commit                   string
+	Inputs                   []artifact.ID
 }
 
 // recipeSampleNames lists the exportable samples one recipe
 // definition's succeeded runs produced, in lineage order.
-func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID) ([]sampleRef, error) {
+func recipeSampleNames(ctx context.Context, store *overgodb.Store, definition artifact.ID, selection mediaSampleSelection) ([]sampleRef, error) {
 	var names []sampleRef
 	seen := map[string]bool{}
-	err := visitRecipeSamples(ctx, store, definition, func(name string, _ []byte, request string) error {
-		if !seen[name] {
-			seen[name] = true
-			names = append(names, sampleRef{Name: name, Request: request})
+	err := visitRecipeSamples(ctx, store, definition, selection, func(sample sampleRef, _ []byte) error {
+		if !seen[sample.Name] {
+			seen[sample.Name] = true
+			names = append(names, sample)
 		}
 		return nil
 	})
@@ -124,8 +143,40 @@ func visitRecipeSamples(
 	ctx context.Context,
 	store *overgodb.Store,
 	definition artifact.ID,
-	visit func(name string, data []byte, request string) error,
+	selection mediaSampleSelection,
+	visit func(sample sampleRef, data []byte) error,
 ) error {
+	return visitRecipeRuns(ctx, store, definition, func(run runrecord.Run) error {
+		if run.Outcome != runrecord.OutcomeSucceeded || !selection.includes(run) {
+			return nil
+		}
+		request := runRequest(ctx, store, run.Inputs)
+		for _, output := range run.Outputs {
+			content, found, err := artifact.ReadContent(ctx, store, output)
+			if err != nil {
+				return err
+			}
+			if !found {
+				return fmt.Errorf("media run %s output %s is unavailable", run.ID, output)
+			}
+			name, data, ok := sampleFile(content)
+			if !ok {
+				if content.Descriptor.Schema == generatedVideoSchema || content.Descriptor.Schema == speechAudioSchema {
+					return fmt.Errorf("media run %s output %s has an invalid media envelope", run.ID, output)
+				}
+				continue
+			}
+			if err := visit(sampleRef{Name: name, Request: request, Run: run.ID, Output: output, Environment: run.Environment, Commit: run.CodeCommit, Inputs: run.Inputs}, data); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// visitRecipeRuns supplies the same typed lineage to sample export and outcome
+// reporting. Failed and cancelled records remain available to the latter.
+func visitRecipeRuns(ctx context.Context, store *overgodb.Store, definition artifact.ID, visit func(runrecord.Run) error) error {
 	edges, err := store.Children(ctx, definition)
 	if err != nil {
 		return err
@@ -135,25 +186,47 @@ func visitRecipeSamples(
 			continue
 		}
 		run, err := runrecord.RequireRun(ctx, store, edge.Child)
-		if err != nil || run.Outcome != runrecord.OutcomeSucceeded {
-			continue
+		if err != nil {
+			return err
 		}
-		request := runRequest(ctx, store, run.Inputs)
-		for _, output := range run.Outputs {
-			content, found, err := artifact.ReadContent(ctx, store, output)
-			if err != nil || !found {
-				continue
-			}
-			name, data, ok := sampleFile(content)
-			if !ok {
-				continue
-			}
-			if err := visit(name, data, request); err != nil {
-				return err
-			}
+		if run.Recipe != definition {
+			return fmt.Errorf("media run %s recipe lineage differs", run.ID)
+		}
+		if err := visit(run); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func validateMediaSampleFile(directory, name string) error {
+	if filepath.Base(name) != name {
+		return errors.New("invalid sample filename")
+	}
+	data, err := os.ReadFile(filepath.Join(directory, name))
+	if err != nil {
+		return err
+	}
+	return validateMediaSampleContent(name, data)
+}
+
+func validateMediaSampleContent(name string, data []byte) error {
+	var err error
+	digest := sha256.Sum256(data)
+	if hex.EncodeToString(digest[:]) != strings.TrimSuffix(name, filepath.Ext(name)) {
+		return errors.New("sample bytes differ from their SHA-256 filename")
+	}
+	switch filepath.Ext(name) {
+	case ".png":
+		_, err = png.Decode(bytes.NewReader(data))
+	case ".gif":
+		_, err = gif.DecodeAll(bytes.NewReader(data))
+	case ".wav":
+		// WAV samples retain the existing exporter and content-hash check.
+	default:
+		return errors.New("unsupported sample format")
+	}
+	return err
 }
 
 // sampleFile decodes one run-output content into an exportable file:

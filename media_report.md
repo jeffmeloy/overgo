@@ -50,6 +50,18 @@ Current sample [SimpleDiffusion-TensorProductAttentionRope/image-gen/2](docs/med
 
 Decoded historical/current PNG comparison: SimpleDiffusion seeds 5/105 differ in two/one RGBA channels, each by one 8-bit level. Krea differs in 474,150 channels, with maximum difference 165 levels, while retaining the requested scene. These comparisons describe output changes, not native numerical acceptance. Raw comparison `evidence:sha256:1f31ebccece67f4c0c9dfe69431d683ef1b2b531c272430d7344e330afbfedb8`; comparison source `evidence:sha256:8eda686e940375d5bd508c14396228d3d02a93e24c95e3f6fa45c46751bd3bda`.
 
+The [SenseNova and Un-0 image bundle](docs/image_video_routed_images.json) accounts for five frozen cases. The two newly executed SenseNova 512x512 requests and two Un-0 CPU images exactly reproduce retained PNGs. The full-size 1536x2720 SenseNova result reuses the existing exact-output recovery, source dependencies and visual review; it was not regenerated. Semantic limits remain explicit: SenseNova smoke labels/marks have defects, and Un-0's 8x8 output is only a smoke capability.
+
+Initial model-load timing covers the constructor call. Krea's 22.815-second first request includes 21.186 seconds of preparation, including deferred generation-weight setup, followed by 1.433 seconds of integration and 0.142 seconds of decode. SenseNova similarly rebuilds resident request state during preparation, even for a seed-only change; its two requests each allocate about 33.1 GB cumulatively. These costs are distinct from peak live memory and identify an existing-owner reuse candidate for capacity analysis, not an accepted optimization.
+
+Current sample [SenseNova-U1-8B-MoT-Infographic-V3/image-gen/1](docs/media_samples/e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d.png): validation run `run:sha256:1b5d9694f11155d4d42a27b7845ef482c28cf0508df19b3bdbae1289c3ff5b42`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.
+
+Current sample [SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3](docs/media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png): validation run `run:sha256:c40dd951984329bb3db5be28f1ac20fca3e6c115f346241987614bfafbfe25c6`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.
+
+Current sample [Un-0/image-gen/1](docs/media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png): validation run `run:sha256:454185fd57242a50ff4b5e9e9d39fad4f4af101a56c4e4e145b3922426ff87c0`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.
+
+Current sample [Un-0/image-gen/2](docs/media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png): validation run `run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343`; source `f20d54190d8591d721bb38eb9cc9005d828cd86e`; environment `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`. These records bind current execution to the unchanged sample bytes; the gallery's first historical run may have less provenance.
+
 | Check | Recorded result | Scope and observations | Evidence |
 | --- | --- | --- | --- |
 | Wan cancellation, cleanup and reuse | Passed selected tests | Current source passes partial initialization without a panic, the unchanged G3 production reference, changed-negative conditioning against a fresh session, and cleanup after request cancellation. G4 decode stops after the first frame; the next request reproduces all five decoded frames exactly. G3 uses one 32x16 frame and four steps; G4 uses five 32x16 frames and two steps. This is lifecycle and reference coverage, not a new full-resolution clip or a performance comparison. | `evidence:sha256:ed239680eb5ad0b1d4be3179b10b5123075d40ffae34885ea73c06340b55c938` |
@@ -89,6 +101,10 @@ Decoded historical/current PNG comparison: SimpleDiffusion seeds 5/105 differ in
 | Krea G2 intermediate distribution and determinism | Passed selected tests | Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases. | `evidence:sha256:0f0a1902a4abce80893acba71c43047ccae63271ba3278d630b4f8940e9902cf` |
 | SimpleDiffusion native owners | Passed selected tests | Preserve the owner's existing numerical criteria and native fixtures. Krea G2 covers real-weight intermediate distributions, shape, finiteness and deterministic replay with synthetic conditioning at 256x256; it does not compare full native pixels. SimpleDiffusion compares the tiny forward graph to Torch and the real 64x64 seed-7 two-step PNG exactly to its pinned reference. These checks complement, rather than replace, the three full frozen review cases. | `evidence:sha256:c6c44930847a4e9cbe2954d5fc2e6fbacb8bf04c83eb6e626f8ef20f7c82ea41` |
 | Frozen Krea and SimpleDiffusion bundle acceptance | Passed selected tests | Read-only acceptance verifies frozen three-case coverage, source-compatible numerical receipts, actual recipe/input/output lineage, environment, finite output, decoding, raw GPU work and transfer counters, memory cleanup, instrumentation identity and image-specific reviews. It rejects omitted cases, changed output/recipe and failed finiteness. Failed instrumentation attempts remain retained. No model acquisition occurs in this check. | `evidence:sha256:f15b491eca289679bdfb1993dfd88154a4327597dca52976fcde851f34ae0554` |
+| SenseNova frozen 512x512 requests | Passed selected tests | Original infographic prompt, seeds 42/142, four steps, CFG 4.5 and shift 3 through the active compiled recipe. Both PNGs exactly match retained outputs. Requests took 21.092110/11.885268 seconds; initial model setup 0.740504 seconds and close 0.067570 seconds. Request preparation includes resident weight setup/rebuilding, so these are not warm denoising timings. Request Go allocations 33128765512/33126759568 bytes, process peak 2357964800 bytes and tracked device peak 16786499844 bytes. Closing releases all tracked GPU bytes. Raw observations retain node timing, generation stages and actual CPU/GPU copies. The seed42 image has unreadable labels; seed142 has readable labels but stray marks. No source image is supplied. This 37.413-second acquisition reused no completed full-size generation and makes no matched speedup claim. | `evidence:sha256:b6d245944f70201f84b1236b2e3f9997f19957d0851ff47a36960e92751534f3` |
+| Un-0 frozen CPU image requests | Passed selected tests | Class 1, seeds 111/11, artifact-derived 8x8 output. Both PNGs match their retained bytes exactly. Initial load 0.010221 seconds; requests 0.035606/0.036167 seconds. Process peak 479653888 bytes; per-request Go allocations 1394144/1354160 bytes. CPU execution uses no GPU reservation or fabricated GPU metrics. The output is a low-contrast color tile without recognizable semantic detail. The 3.228-second successful process follows a 3.367-second environment-metadata failure that loaded no model. New bound runs retain original recipe/input/output identities. | `evidence:sha256:d749dd9ac22308ba2d71e1a089ac77ebbf172783ffc5f613a54f9d9e2a14218b` |
+| Current Un-0 native image and converter checks | Passed selected tests | Artifact-derived dimensions, exact native seed42 PNG pixels, deterministic generation, class sensitivity, Torch dynamics and generator comparisons pass. Shared F32 promotion and malformed-input checks pass after the existing early dtype guard change. These current CPU checks preserve the original numerical criteria and do not establish meaningful semantic image quality at 8x8. | `evidence:sha256:5c3b99531b837e4f06f907cc28384a3197ef8bdd19d806f48b89fa0f66633db8` |
+| Frozen SenseNova and Un-0 image bundle acceptance | Passed selected tests | Accounts for all five frozen cases: four new source/environment-bound runs and one explicitly reused full-size SenseNova result. Checks raw execution, exact request/output lineage, dimensions, finiteness, CPU/GPU resource scopes, cleanup and visual reviews. Reused full-size input parameters and prompt hash match the unchanged native fixture; the exact reviewed PNG and original test receipt remain bound to their original acquisition. Dependency identities are unchanged except the explicitly checked supported-dtype-preserving converter guard. Missing cases, changed inputs, nonfinite outputs and mislabeled historical runs are rejected. | `evidence:sha256:c7ab78023e273eed3b0c8a5adb95c462f4f0f48ebd2a4f25ed863cd822a0bb20` |
 
 Results describe the selected tests, including failures, rather than all supported requests. Commands and retained overlay sources in the index identify each acquisition. Test output is stored by content identity in OvergoDB.
 
@@ -213,7 +229,7 @@ Succeeded: 4; failed: 0; cancelled: 0.
 
 ### SenseNova-U1-8B-MoT-Infographic-V3 (image-gen)
 
-Succeeded: 6; failed: 0; cancelled: 0.
+Succeeded: 8; failed: 0; cancelled: 0.
 
 ### SimpleDiffusion-TensorProductAttentionRope (image-gen)
 
@@ -221,7 +237,7 @@ Succeeded: 8; failed: 0; cancelled: 0.
 
 ### Un-0 (image-gen)
 
-Succeeded: 246; failed: 2; cancelled: 0.
+Succeeded: 248; failed: 2; cancelled: 0.
 
 - `run:sha256:155d0923368a0afba994faa203d4d32a0fc18b8cac6919e84851544b712da9f2`: failed; execution_failed. Source: unavailable. Environment: unavailable.
 - `run:sha256:22d16a199eb8c2373fccb4e8bcf64e85878a2b67ce3fb86bcf83160e6da52d9c`: failed; execution_failed. Source: unavailable. Environment: unavailable.
@@ -252,6 +268,15 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
   Run: `run:sha256:09fd4e16a87335eab349fdc801d768f4627e73c1268bf697b9465f84036d8ff4`; output: `output:sha256:e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d`. Source: unavailable. Environment: unavailable.
 
   Input artifacts: `file:sha256:818cf1f980c17a498039c0efa4f007e630877424592b5c2013255c36f0223f43`.
+- Image: [e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png](docs/media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png)
+
+  ![SenseNova-U1-8B-MoT-Infographic-V3 image](docs/media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png)
+
+  Request: `{"cfg_scale":4.5,"height":512,"prompt":"a minimal infographic of three rising bars labeled A B C","seed":142,"steps":4,"timestep_shift":3,"width":512}`
+
+  Run: `run:sha256:c40dd951984329bb3db5be28f1ac20fca3e6c115f346241987614bfafbfe25c6`; output: `output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637`. Source: `f20d54190d8591d721bb38eb9cc9005d828cd86e`. Environment: `evidence:sha256:6f8bdad8be5737d4275e1a915d2e87ea81d14e18b7d963a0284d813100989742`.
+
+  Input artifacts: `file:sha256:44ae255ebc22b8ab3adea63bde557ce5b85b6020aa993a015c411dd06b18fc42`.
 - Image: [5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png](docs/media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png)
 
   ![SenseNova-U1-8B-MoT-Infographic-V3 image](docs/media_samples/5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68.png)
@@ -261,36 +286,27 @@ Samples match the frozen protocol's input artifact identities. Repeated identica
   Run: `run:sha256:c71ee19cbc2dc5bfdba69ee809e0d072f8dd662d5e445454a766cb0daf8e98eb`; output: `output:sha256:5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68`. Source: unavailable. Environment: unavailable.
 
   Input artifacts: `file:sha256:f3caa7db1e6aef43ec9a0caddff9971ab23e94a6e9a8b316eea6d2debcc59e10`.
-- Image: [e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png](docs/media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png)
-
-  ![SenseNova-U1-8B-MoT-Infographic-V3 image](docs/media_samples/e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637.png)
-
-  Request: `{"cfg_scale":4.5,"height":512,"prompt":"a minimal infographic of three rising bars labeled A B C","seed":142,"steps":4,"timestep_shift":3,"width":512}`
-
-  Run: `run:sha256:fb2dee2bf270183c7c81f61a8b580ceddacca5b0b0267b9571481b18721168d6`; output: `output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637`. Source: unavailable. Environment: unavailable.
-
-  Input artifacts: `file:sha256:44ae255ebc22b8ab3adea63bde557ce5b85b6020aa993a015c411dd06b18fc42`.
 
 ### Un-0 (`image-gen`)
 
-- Image: [cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png](docs/media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png)
-
-  ![Un-0 image](docs/media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png)
-
-  Request: `{"class":1,"seed":111}`
-
-  Run: `run:sha256:52b98c37cff7a30883e7982858c573e482c5d47d570ea29d88f8a232d3d76e13`; output: `output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28`. Source: unavailable. Environment: unavailable.
-
-  Input artifacts: `file:sha256:8e601d036e88e152f15809ac993be461f9835d6241e54d851a42946195f3fbfb`.
 - Image: [a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png](docs/media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png)
 
   ![Un-0 image](docs/media_samples/a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3.png)
 
   Request: `{"class":1,"seed":11}`
 
-  Run: `run:sha256:9614c0b2a5cefc90faa85a2715bc93c58c61655bb51f042667577ceab06b31f5`; output: `output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3`. Source: unavailable. Environment: unavailable.
+  Run: `run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343`; output: `output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3`. Source: `f20d54190d8591d721bb38eb9cc9005d828cd86e`. Environment: `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`.
 
   Input artifacts: `file:sha256:82b9edbba80bbd74c5f6e3df94b3a7af504d2ffce8e690e91cca7da6a454172a`.
+- Image: [cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png](docs/media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png)
+
+  ![Un-0 image](docs/media_samples/cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28.png)
+
+  Request: `{"class":1,"seed":111}`
+
+  Run: `run:sha256:454185fd57242a50ff4b5e9e9d39fad4f4af101a56c4e4e145b3922426ff87c0`; output: `output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28`. Source: `f20d54190d8591d721bb38eb9cc9005d828cd86e`. Environment: `evidence:sha256:18e4c275afe3d4fc3b301935b782451745e33d66a63da9f4bd3cb9afc594fb75`.
+
+  Input artifacts: `file:sha256:8e601d036e88e152f15809ac993be461f9835d6241e54d851a42946195f3fbfb`.
 
 ### Un-0 (`video-gen`)
 

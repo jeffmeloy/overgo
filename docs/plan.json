@@ -30,25 +30,6 @@
       ]
     },
     {
-      "id": "image-validation",
-      "title": "Validate existing image generators and publish complete model bundles",
-      "owner": "image_video_gen",
-      "status": "open",
-      "steps": [
-        {
-          "id": "routed-oscillator",
-          "title": "Validate SenseNova and Un-0 image generation through declared recipes",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_routed_image_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoRoutedImageAcceptance$' -count=1",
-          "rationale": "Reuse the SenseNova prefix-regression recovery retained in docs/image_video_validation.json where source dependencies match. The targeted per-query attention policy restores both unchanged small-image hashes and the full-resolution reviewed PNG. Retain the historical failures and acquire the remaining frozen cases; exact-output recovery alone does not complete model coverage. Reuse the September 12 Un-0 checks where source dependencies still match. Use the current mediacapability, MoT and oscillatorimage consumers selected by active recipe definitions. Validate SenseNova prompt/conditioning and image decode, and Un-0 image output, only for declared coverage. Derive shape, slot and sampling requirements from component artifacts; do not introduce model-name dispatch or arbitrary quality thresholds. Reuse compatible stored model outputs and acquire only missing cases. Keep native parity, user-visible quality and resource observations separate. Publish per-model bundles with reference provenance, sample artifacts, phase times, memory scope and explicit unsupported requests. The read-only acceptance must reject missing conditioning artifacts, altered prompt/seed, wrong task, invalid output, incomplete coverage and mislabeled historical evidence. Reuse any matching representative-cohort baseline or accepted candidate from media-optimization/baseline instead of loading this model again. Collect quality, phase timing, transfer counters, memory observations and exportable outputs in one admitted session where measurement isolation permits. Export each retained sample when available; the later publication rows verify completeness rather than trigger generation. If a shared component changes after this bundle, recheck only its affected assertions and preserve unaffected results; final capacity/consumer acceptance reconciles the complete current-source coverage.\n\nReuse the exact SenseNova 1536x2720 full-resolution reference image and native small-image recovery after checking merged dependency identities. Complete the frozen remaining cases and public recipe lineage without relabeling historical timings as current measurements.",
-          "depends_on": [
-            "media-protocol/quality",
-            "media-protocol/resources"
-          ]
-        }
-      ]
-    },
-    {
       "id": "video-validation",
       "title": "Validate video generation, conditioning, and editing where declared",
       "owner": "image_video_gen",

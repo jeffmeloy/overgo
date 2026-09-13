@@ -76,10 +76,10 @@
               api.post("/operations/cancel", { id: item.id }) }));
           }
           for (const recovery of (item.recovery && item.recovery.actions) || []) {
-            actions.push(el("button", { class: "btn", text: "Grant " + recovery.summary, onclick: () =>
-              api.post("/operations/decision", { operation: item.id, tool: recovery.code, answer: "grant" }) }));
-            actions.push(el("button", { class: "btn alt", text: "Decline", onclick: () =>
-              api.post("/operations/decision", { operation: item.id, tool: recovery.code, answer: "decline" }) }));
+            // The shell's decision binds the advertised approval request; a refusal shows in the status line.
+            const decide = (answer) => overgo.decideOperation(item.id, recovery.code, answer).catch((err) => status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))));
+            actions.push(el("button", { class: "btn", text: "Grant " + recovery.summary, onclick: () => decide("grant") }));
+            actions.push(el("button", { class: "btn alt", text: "Decline", onclick: () => decide("decline") }));
           }
           const outputs = (item.outputs || []).map((id) => el("a", {
             class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),

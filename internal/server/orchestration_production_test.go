@@ -64,7 +64,7 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 		!strings.Contains(history.Body.String(), scheduledStatus.Run.String()) || manualEvidence.Code != http.StatusOK ||
 		scheduledEvidence.Code != http.StatusOK || !strings.Contains(manualEvidence.Body.String(), `"completed":1`) ||
 		!strings.Contains(scheduledEvidence.Body.String(), `"completed":1`) || gui.Code != http.StatusOK ||
-		!strings.Contains(gui.Body.String(), "/automations/stream") || !strings.Contains(gui.Body.String(), "/operations/decision") {
+		!strings.Contains(gui.Body.String(), "/automations/stream") || !strings.Contains(gui.Body.String(), "overgo.decideOperation(") {
 		t.Fatalf("production projections history=(%d %s) manual=(%d %s) scheduled=(%d %s) gui=%d",
 			history.Code, history.Body.String(), manualEvidence.Code, manualEvidence.Body.String(),
 			scheduledEvidence.Code, scheduledEvidence.Body.String(), gui.Code)

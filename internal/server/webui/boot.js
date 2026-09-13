@@ -503,11 +503,11 @@
       for (const tab of tabs) {
         if (!target || tab.id === target) {
           if (!target && tab.onDeactivate) tab.onDeactivate();
-          tab.mounted = false;
+          releaseTab(tab);
         }
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
         const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
-        if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; }
+        if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; tab.action = declared.action; }
       }
       applyCapabilities();
       const current = target || location.hash.slice(1) || (tabs[0] && tabs[0].id);
@@ -552,6 +552,7 @@
       if (!on && wasActive && t.onDeactivate) t.onDeactivate();
       t.button.classList.toggle("active", on);
       t.panel.classList.toggle("active", on);
+      if (on && !tabSupported(t)) { renderRefusal(t); continue; }
       if (on && !t.mounted) { t.mounted = true; safeMount(t); }
       if (on && t.onActivate) t.onActivate();
     }
@@ -595,10 +596,20 @@
     const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
       const result = tab.mount(tab.panel, window.overgo);
-      tab.ready = Promise.resolve(result).then(() => tab.mountAttempt === attempt, failed);
+      // A module that returns a function hands back its cleanup (streams, forms); a remount runs it first.
+      tab.ready = Promise.resolve(result).then((value) => { if (typeof value === "function" && tab.mountAttempt === attempt) tab.cleanup = value; return tab.mountAttempt === attempt; }, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
+  function releaseTab(tab) {
+    const cleanup = tab.cleanup;
+    tab.cleanup = null;
+    tab.mounted = false;
+    if (cleanup) { try { cleanup(); } catch (err) { errors.push(String(err && err.message || err)); } }
+  }
   function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
+  function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
+  // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
+  function renderRefusal(tab) { tab.panel.replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
@@ -795,11 +806,10 @@
   function applyCapabilities() {
     for (const tab of tabs) {
       const ok = tabSupported(tab);
-      // A capability this model does not serve HIDES its tab: the nav shows what works here, and the
-      // manifest still carries every refusal for API clients that ask.
-      tab.button.hidden = !ok;
-      tab.button.disabled = !ok;
-      tab.button.title = ok ? "" : tab.refusal;
+      // A refused workspace stays listed and marked; opening it shows the reason and the enabling action.
+      tab.button.classList.toggle("refused", !ok);
+      tab.button.setAttribute("aria-disabled", String(!ok));
+      tab.button.title = ok ? "" : refusalLine(tab);
     }
     const active = tabs.find((t) => t.button.classList.contains("active"));
     if (active && !tabSupported(active)) { const firstOk = tabs.find(tabSupported); if (firstOk) activate(firstOk.id); }

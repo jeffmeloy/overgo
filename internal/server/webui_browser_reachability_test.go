@@ -54,13 +54,13 @@ func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
 	settle(`!!document.querySelector('#panel-model-builder.active select[aria-label="capability"] option')`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'evaluations'; return true; })()`)
 	settle(`!!document.querySelector('#panel-evaluations.active select[aria-label="model"] option') && !!document.querySelector('#panel-evaluations input[type="checkbox"]')`)
-	assertBrowserPredicate(t, ctx, browser, `[...document.querySelectorAll('button.tab')].filter((button) => !button.hidden).map((button) => button.textContent).join(',').includes('Train,Model Builder')`)
-	// The workspace the launch did not enable is absent from the navigation and the manifest names why.
+	assertBrowserPredicate(t, ctx, browser, `[...document.querySelectorAll('button.tab')].filter((button) => button.getAttribute('aria-disabled') !== 'true').map((button) => button.textContent).join(',').includes('Train,Model Builder')`)
+	// The workspace the launch did not enable stays listed as refused, and the manifest names why and what enables it.
 	assertBrowserPredicate(t, ctx, browser, `(async () => {
   const manifest = await overgo.api.get('/workspace/manifest');
   const tab = manifest.tabs.find((candidate) => candidate.id === 'export-jobs');
   const button = [...document.querySelectorAll('button.tab')].find((candidate) => candidate.textContent === 'Export');
-  return !tab.enabled && tab.refusal.length > 0 && button.hidden && button.title === tab.refusal;
+  return !tab.enabled && tab.refusal.length > 0 && tab.action.length > 0 && button.getAttribute('aria-disabled') === 'true' && button.title.startsWith(tab.refusal);
 })()`)
 	t.Log("workspace reachability leg: Train, Model Builder and Evaluations mount from the launch declaration; Export stays refused with its reason")
 }

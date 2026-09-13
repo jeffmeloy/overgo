@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/strictjson"
 )
 
 const (
@@ -192,7 +193,19 @@ var codec = artifact.JSONDocumentCodec(
 
 // Parse strictly decodes canonical code-manifest bytes.
 func Parse(data []byte) (Manifest, error) {
-	return codec.Parse(data)
+	var value Manifest
+	if err := strictjson.DecodeBytes(data, &value); err != nil {
+		return Manifest{}, fmt.Errorf("code manifest: decode document: %w", err)
+	}
+	var err error
+	value.ID, err = artifact.IdentifyBytes(artifact.KindProfile, data)
+	if err != nil {
+		return Manifest{}, err
+	}
+	if err := value.Validate(); err != nil {
+		return Manifest{}, err
+	}
+	return value, nil
 }
 
 // Validate verifies canonical ordering and content identity.

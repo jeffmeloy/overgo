@@ -11,8 +11,6 @@ package latentvideo
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"math"
 	"os"
 	"path/filepath"
 
@@ -249,18 +247,9 @@ func LoadDenoiserWeights(dir string, c DenoiserConfig) (*DenoiserWeights, error)
 		if payload.DType != "F32" || payload.Elements() != uint64(want) {
 			return nil, fmt.Errorf("denoiser weights: tensor %s dtype=%s elements=%d, want F32 %d", name, payload.DType, payload.Elements(), want)
 		}
-		reader, err := safetensors.F32Reader(payload)
+		decoded, err := safetensors.ReadF32(payload)
 		if err != nil {
-			return nil, fmt.Errorf("denoiser weights %s: %w", name, err)
-		}
-		raw := make([]byte, want*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
 			return nil, fmt.Errorf("denoiser weights %s payload: %w", name, err)
-		}
-		decoded := make([]float32, want)
-		for i := range decoded {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			decoded[i] = math.Float32frombits(bits)
 		}
 		weights.values[name] = decoded
 		weights.Bytes += payload.Size()

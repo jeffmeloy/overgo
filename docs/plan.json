@@ -11,16 +11,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "common-components",
-          "title": "Consolidate duplicated generation operations in existing shared components",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/image_video_shared_components_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestImageVideoSharedComponentsAcceptance$' -count=1",
-          "rationale": "Select the highest-value duplicated responsibility from the profile: examples include static weight/conditioning binding, retained-output handoff, tensor conversion, decode preparation or resource cleanup. Extend the existing responsible component and migrate at least two actual image/video callers where semantics match. Preserve shape/dtype/layout declarations, aliasing, lifetime, cancellation, error propagation, sample order, reference precision and public recipe behavior. Keep distinct sampling methods, causal decode and model-defined operations explicit instead of forcing them through boolean flags or name-based branches. Delete duplicated implementation, obsolete adapters and forwarding-only wrappers with the caller migration. Record before/after entrypoints, call paths, allocations/copies and added/removed code; naming similarity alone is insufficient. Run the owning component's numerical and lifecycle tests plus each migrated real consumer's frozen comparison. A refactor must preserve required performance/memory bounds and remove independently maintained behavior; reject a more abstract implementation that increases coupling or total cost without the declared benefit. If the measured paths already share the correct owner, record the inspected callers and no-change decision rather than manufacture an abstraction.",
-          "depends_on": [
-            "media-optimization/baseline"
-          ]
-        },
-        {
           "id": "transfers",
           "title": "Remove avoidable CPU/GPU round trips and consolidate necessary transfers",
           "status": "open",

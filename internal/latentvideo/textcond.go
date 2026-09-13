@@ -9,8 +9,6 @@ package latentvideo
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"math"
 	"os"
 	"path/filepath"
 
@@ -133,19 +131,9 @@ func loadProjectionWeights(dir string) (projectionWeights, int64, error) {
 		if !ok {
 			return w, 0, fmt.Errorf("text conditioning projection: missing tensor %s", name)
 		}
-		reader, err := safetensors.F32Reader(tensor)
+		decoded, err := safetensors.ReadF32(tensor)
 		if err != nil {
 			return w, 0, fmt.Errorf("text conditioning projection %s: %w", name, err)
-		}
-		elements := tensor.Elements()
-		raw := make([]byte, elements*4)
-		if _, err := io.ReadFull(reader, raw); err != nil {
-			return w, 0, fmt.Errorf("text conditioning projection %s payload: %w", name, err)
-		}
-		decoded := make([]float32, elements)
-		for i := range decoded {
-			bits := uint32(raw[4*i]) | uint32(raw[4*i+1])<<8 | uint32(raw[4*i+2])<<16 | uint32(raw[4*i+3])<<24
-			decoded[i] = math.Float32frombits(bits)
 		}
 		values[index] = decoded
 		sourceBytes += tensor.Size()

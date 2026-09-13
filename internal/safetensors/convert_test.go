@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -104,5 +105,38 @@ func TestReadBF16RetainsNativeWords(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != 0x3f80 || got[1] != 0xc000 {
 		t.Fatalf("words = %x", got)
+	}
+}
+
+func TestReadF32RejectsUnsupportedBeforeAllocation(t *testing.T) {
+	// A valid U8 extent exceeds the maximum allocatable F32 slice. Reject its
+	// unsupported conversion before attempting allocation or touching payload.
+	tensor, err := NewTensor("unsupported", "U8", []uint64{math.MaxInt64}, bytes.NewReader(nil), 0, math.MaxInt64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	values, err := ReadF32(tensor)
+	if values != nil || err == nil || !strings.Contains(err.Error(), "cannot promote U8") {
+		t.Fatalf("unsupported conversion returned values=%v error=%v", values, err)
+	}
+}
+
+func TestReadF32RejectsTruncatedPayload(t *testing.T) {
+	for _, storage := range []string{"F32", "F16", "BF16"} {
+		t.Run(storage, func(t *testing.T) {
+			shape := []uint64{1}
+			size, err := TensorBytes(storage, shape)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tensor, err := NewTensor("truncated", storage, shape, bytes.NewReader([]byte{0}), 0, int64(size))
+			if err != nil {
+				t.Fatal(err)
+			}
+			values, err := ReadF32(tensor)
+			if err == nil || values != nil {
+				t.Fatalf("truncated conversion returned values=%v error=%v", values, err)
+			}
+		})
 	}
 }

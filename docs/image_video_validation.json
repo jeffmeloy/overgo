@@ -141,6 +141,48 @@
       },
       "scope": "Complete CPU projection loading: first/repeat wall 0.020232/0.014561 s, total allocations 71320568/71325608 bytes, process lifetime peaks 76722176/77131776 bytes; selected source payload 34615296 bytes. Exact named F32 hashes agree across states. This is the unchanged-loader baseline, not an optimization result. GPU transfers are zero because this acquisition uses no GPU.",
       "source_base": "4adc06c7fd9581171527f5c60218f5cd7aebb7c8"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+        "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+        "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+      },
+      "command": "OVERGO_MEDIA_LOADER=denoiser OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-candidate-denoiser.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:9ed20e4eaf4f90e5f590916dc788272c1c30c52d422a67c5fda9c458a91de138",
+      "name": "Wan denoiser shared decoder",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_loader_acquisition_test.go": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+      },
+      "scope": "Shared decoder, complete CPU denoiser loading: first/repeat wall 1.263982/1.220275 s (baseline 2.245044/2.315935 s); allocated bytes 5643961432/5643956208 (baseline 11285633280/11285638528); process lifetime peak bytes 5706309632/5706661888 (baseline 7560736768/7560753152). Both named F32 hashes match the baseline exactly. These are observed host-loading costs, not generation or GPU transfer measurements.",
+      "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+        "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+        "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+      },
+      "command": "OVERGO_MEDIA_LOADER=projection OVERGO_MEDIA_LOADER_OUTPUT=tmp/media-loader-candidate-projection.json go test -overlay=tmp/media-loader-overlay.json ./internal/latentvideo -run '^TestMediaLoaderAcquisition$' -count=1 -timeout=10m -json",
+      "evidence": "evidence:sha256:278ee3949291345d0e66d602d4a4f0a76b32db5fb0464e928eb7a90b3eee6089",
+      "name": "Wan projection shared decoder",
+      "overlay_sources": {
+        "C:/Users/jeffm/image_video_gen/internal/latentvideo/media_loader_acquisition_test.go": "evidence:sha256:0c6b9d35651e5821c8c9a499c676a1de1908042f7f302a4c86c5bcd890810219"
+      },
+      "scope": "Shared decoder, complete CPU projection loading: first/repeat wall 0.012819/0.011039 s (baseline 0.020232/0.014561 s); allocated bytes 36700400/36700296 (baseline 71320568/71325608); process lifetime peak bytes 51392512/51924992 (baseline 76722176/77131776). Both named F32 hashes match the baseline exactly. These are observed host-loading costs, not generation or GPU transfer measurements.",
+      "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
+    },
+    {
+      "changed_source_sha256": {
+        "internal/latentvideo/denoiser.go": "13dcb1e7fe10e12e07db3b3f0b39e04a07d030fe74435f29f63168aa1d7065fa",
+        "internal/latentvideo/textcond.go": "0b1a544a8fffa06da8ab9784310bc454822a8916928eefaf2b0e864668f5a78c",
+        "internal/safetensors/convert.go": "7a73b219b646ee764801d5a86742a5422a056e712ccd84accc01dc8fc9c03c78"
+      },
+      "command": "OVERGO_CUDA_TEST=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestTextConditioningGoldenParity|TestDenoiserCUDASession(GoldenG[34]|BF16G3)|TestVAEDecodeCUDAGoldenG[34]|TestWanLifecycleAcceptance)$' -count=1 -timeout=20m -json",
+      "evidence": "evidence:sha256:8a4f58b470631e9d2629644d2bb3accd7cca6aa019ffa6e940c8567a3753623a",
+      "name": "Wan references after shared decoding",
+      "scope": "Full text conditioning, G3 F32/BF16 and G4 F32 denoising, every G3/G4 decoded frame, partial initialization, changed-negative reuse, cancellation and exact five-frame recovery pass unchanged references. The G3/G4 clips use small fixture geometry; this is not a new full-resolution video result.",
+      "source_base": "4c13816021107726b078990a02ae6c83a1d6cea7"
     }
   ],
   "environment": "Acquired September 12, 2026 on Windows with Go 1.26, Ryzen 9950X (16 cores/32 threads), 93.6 GiB installed RAM and RTX 4090 D (48 GiB VRAM), driver 616.64. GPU acquisitions used the existing exclusive measurement-process owner. OVERGO_DATA_ROOT pointed to the private image_video_gen worktree; OVERGO_CUDA_TEST=1 enabled device checks. Model artifacts and native references remained immutable.",
@@ -151,10 +193,11 @@
     "The prior checkpoint fixed shared GIF timing and external JSON-array oracle handling. The [cost profile](docs/image_video_costs.json) maps all seven active model/task pairs, common owners, memory lifetimes and CPU/GPU transfers. Its byte estimates remain predictions rather than measured optimization gains.",
     "Remaining work includes fresh full-length Wan generation and visual/temporal review, complete frozen-case coverage, public workflow and cancellation checks, and matched speed/memory/transfer comparisons. The earlier operator stop was fulfilled at b1206a56; work resumed on request.",
     "The previous checkpoint index, including every original acquisition and failure description, is retained as evidence:sha256:8ed25de9a01b1ac7aac9237c97749935697b0b13221a461906e078462acdca9a. New checks declare their later source base separately; historical failures are not relabeled as passes.",
-    "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. No loading optimization is claimed yet.",
+    "The [shared-loader baseline](docs/image_video_baseline.json) retains complete Wan denoiser and projection loading measurements, exact tensor identities and acceptance criteria frozen before refactoring. Initial timings overlapped another worktree's gate and remain diagnostic only; the accepted cohort was acquired after those test processes exited. That checkpoint records the unchanged loaders before the following comparison.",
     "Wan now returns initialization errors without a cleanup panic, releases session resources after request cancellation, and stops decoding when the request is canceled. The G4 recovery check stops after one frame and then reproduces all five frames exactly on the same generator. The unchanged G3 reference and changed-negative fresh-session comparison also pass. Original failures, the skipped setup attempt, isolation probes and both corrected cohorts remain in OvergoDB as evidence:sha256:4ead158b1a90b0c5b13e17cf09049508f80fdf0d80592c9996f49c29b6ec15b2. These small lifecycle cases do not replace the remaining full-resolution video validation.",
     "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:d389b255d50abf529557b3ad8a2df7f78ef16e5c3bfad5f0e7babc5aaa76631d.",
-    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6."
+    "The preceding lifecycle acquisition, including its passing output and exact source hashes, remains evidence:sha256:060e251d5e4ddd767ae7a2b4601b83ea65702f911abc93bd3291fd2c389c29b6.",
+    "The [shared decoder comparison](docs/image_video_shared_components.json) retains both actual loader acquisitions, exact output hashes, source snapshots, malformed-input regression and unchanged Wan reference results. Both consumers meet the frozen host-allocation, process-peak and complete-loader wall requirements in both load states; the shared implementation removes the two independent decoding loops. Observed CPU load was 39%/40% before/after this cohort, versus 6%/1% for the baseline; the timing observations are not an isolated causal or population estimate. GPU transfer and full-generation claims remain open."
   ],
   "source_base": "84c5059b3171302c09ba10b52b04976ed1b9a5dc",
   "version": 1

@@ -364,6 +364,42 @@
     window.addEventListener("resize", resize);
   }
   let servedEntry = null;
+  let taskModel = null;
+  let servedName = 'Choose a model';
+  let servedEvidence = '';
+  const taskModelHost = el('span', { class: 'task-model-selector', hidden: true });
+  document.getElementById('model-pill').after(taskModelHost);
+  function renderModelSelection() {
+    const pill = document.getElementById('model-pill');
+    const active = taskModel && tabs.some(tab => tab.id === 'chat' && tab.panel.classList.contains('active'));
+    pill.hidden = !!active;
+    taskModelHost.hidden = !active;
+    const capability = active && taskModel.capability();
+    let name = servedName;
+    let evidence = servedEvidence;
+    if (active) {
+      name = taskModel.picker.selectedOptions[0]?.textContent || 'Choose a model';
+      evidence = [capability?.task, capability?.model, capability?.recipe, capability?.refusal].filter(Boolean).join(' · ');
+    }
+    pill.textContent = servedName;
+    pill.title = servedName + ' — choose a model';
+    document.getElementById('model-details').textContent = name;
+    document.getElementById('model-evidence').textContent = evidence;
+  }
+  function bindTaskModel(picker, capability) {
+    const binding = { picker, capability };
+    taskModel = binding;
+    taskModelHost.replaceChildren(picker);
+    picker.addEventListener('change', renderModelSelection);
+    renderModelSelection();
+    return () => {
+      picker.removeEventListener('change', renderModelSelection);
+      if (taskModel !== binding) return;
+      taskModel = null;
+      taskModelHost.replaceChildren();
+      renderModelSelection();
+    };
+  }
   let modelSwitchPending = false;
   let modelSwitchBlocked = false;
   function modelSwitching() { return modelSwitchBlocked; }
@@ -501,7 +537,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
@@ -589,6 +625,7 @@
     }
     syncSectionUI();
     syncColdStart();
+    renderModelSelection();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
     return tab.ready || Promise.resolve(true);
   }
@@ -662,18 +699,17 @@
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
-      // The proxy with no child names no model; the pill says so rather than keeping the last name.
-      modelPill.textContent = (health && health.model) || "no model serves";
-      modelPill.title = modelPill.textContent + " — choose a model";
-      document.getElementById("model-details").textContent = modelPill.textContent;
+      servedName = health.model || 'Choose a model';
       servedEntry = null;
-      document.getElementById("model-evidence").textContent = "";
+      servedEvidence = '';
+      renderModelSelection();
       if (health && health.model) {
         // A catalog that fails to list says so under the pill instead of an empty evidence line.
         const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
         if (attempt !== statusAttempt) return;
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
-        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
+        servedEvidence = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || '';
+        renderModelSelection();
       }
     } catch (err) { if (attempt !== statusAttempt) return; statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
   }

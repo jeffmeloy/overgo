@@ -112,9 +112,9 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	settle(`!!document.querySelector('.composer select[aria-label="mode"] option[value="speech"]')`)
 	check(`(()=>{const mode=document.querySelector('.composer select[aria-label="mode"]');mode.value='speech';mode.dispatchEvent(new Event('change'));return true;})()`)
 	settle(`!!document.querySelector('.mode-controls select[aria-label="voice"]')`)
-	check(`(()=>{document.querySelector('.mode-controls select[aria-label="generation model"]').focus();return true;})()`)
+	check(`(()=>{document.querySelector('.task-model-selector select[aria-label="generation model"]').focus();return true;})()`)
 	pressKey(t, ctx, browser, "ArrowDown", 40)
-	settle(`document.querySelector('.mode-controls select[aria-label="generation model"]').value===` + strconv.Quote(generator.secondRecipe.String()))
+	settle(`document.querySelector('.task-model-selector select[aria-label="generation model"]').value===` + strconv.Quote(generator.secondRecipe.String()))
 	check(`(()=>{const input=document.querySelector('.composer textarea');input.value='Read this document aloud.';input.dispatchEvent(new Event('input'));return true;})()`)
 	for _, viewport := range append(webuilane.ScreenViewports, webuilane.Viewport{Name: "phone-keyboard", Width: 390, Height: 380}) {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-primary-controls")
@@ -173,7 +173,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 		}
 	}
 	check(`(()=>{const mode=document.querySelector('.composer select[aria-label="mode"]');mode.value='chat';mode.dispatchEvent(new Event('change'));mode.value='speech';mode.dispatchEvent(new Event('change'));return true;})()`)
-	settle(`document.querySelector('.mode-controls select[aria-label="generation model"]')?.selectedOptions[0]?.disabled && document.querySelector('.mode-controls').textContent.includes('selected model is unavailable')`)
+	settle(`document.querySelector('.task-model-selector select[aria-label="generation model"]')?.selectedOptions[0]?.disabled && document.querySelector('.mode-controls').textContent.includes('selected model is unavailable')`)
 	check(`document.querySelector('.composer textarea').value==='Read this document aloud.' && !document.querySelector('.mode-controls select[aria-label="voice"]') && !document.querySelector('[aria-label="Open speech options"]')`)
 	for _, viewport := range webuilane.ScreenViewports {
 		findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "speech-model-retired")
@@ -181,9 +181,9 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 			t.Fatalf("retired %s: %v %v", viewport.Name, findings, err)
 		}
 	}
-	check(`(()=>{document.querySelector('.mode-controls select[aria-label="generation model"]').focus();return true;})()`)
+	check(`(()=>{document.querySelector('.task-model-selector select[aria-label="generation model"]').focus();return true;})()`)
 	pressKey(t, ctx, browser, "ArrowDown", 40)
-	settle(`!!document.querySelector('.mode-controls select[aria-label="voice"]') && !document.querySelector('.mode-controls select[aria-label="generation model"]').selectedOptions[0].disabled`)
+	settle(`!!document.querySelector('.mode-controls select[aria-label="voice"]') && !document.querySelector('.task-model-selector select[aria-label="generation model"]').selectedOptions[0].disabled`)
 	check(`(async()=>{window.speechOriginalGet=overgo.api.get;window.speechCurrentCatalog=await overgo.api.get('/generation/capabilities');window.speechCatalogCalls=[];overgo.api.get=function(path,options){if(path!=='/generation/capabilities')return speechOriginalGet.call(this,path,options);return new Promise((resolve,reject)=>speechCatalogCalls.push({resolve,reject,signal:options.signal}));};window.speechMode=mode=>{const picker=document.querySelector('.composer select[aria-label="mode"]');picker.value=mode;picker.dispatchEvent(new Event('change'));};speechMode('chat');speechMode('speech');return true;})()`)
 	settle(`speechCatalogCalls.length===1 && document.querySelector('.mode-controls').textContent.includes('Loading models')`)
 	check(`(()=>{speechMode('chat');speechMode('speech');return speechCatalogCalls[0].signal.aborted;})()`)

@@ -245,7 +245,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// 0. Cold start: the proxy serves the shell with no child; the pill names
 	// no model, the front page says how to choose, and the picker's serve
 	// launches the first child.
-	settle("cold page over the proxy with no child", `document.querySelector("#model-pill").textContent === "no model serves" &&
+	settle("cold page over the proxy with no child", `document.querySelector("#model-pill").textContent === "Choose a model" &&
       !!document.querySelector("#cold-start") && !document.querySelector("#panel-chat.active") &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
 	// 0b. The Library is the one tab the cold page serves: the page's provider
@@ -468,7 +468,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       return true;
     })()`)
 		settle(mode+" mode renders its declaration", `(() => {
-      const picker = document.querySelector('.composer select[aria-label="generation model"]');
+      const picker = document.querySelector('.task-model-selector select[aria-label="generation model"]');
       if (!picker || ![...picker.options].some((option) => option.value === `+strconv.Quote(recipeID)+`)) return false;
       picker.value = `+strconv.Quote(recipeID)+`; picker.dispatchEvent(new Event("change"));
       const speechOptions = document.querySelector('[aria-label="Open speech options"]');

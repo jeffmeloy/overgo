@@ -53,6 +53,7 @@
       let updateSwitch = () => {};
       let disposeComposer = () => {};
       let disposeGeneration = () => {};
+      let releaseTaskModel = () => {};
       let controller = null;
       let activeTurn = null;
       let activeOperation = null;
@@ -65,6 +66,7 @@
         disposed = true;
         disposeComposer();
         disposeGeneration();
+        releaseTaskModel();
         document.removeEventListener("overgo-model-switch", updateSwitch);
         // A queued explicit Stop still needs the incoming ID. Keep only that
         // acknowledgement alive across navigation, then cancel its execution.
@@ -485,6 +487,7 @@
       const galleryLimit = 12; // the newest outputs a mode's gallery rail lists
       async function renderMode(mode) {
         retainGenerationValues();
+        releaseTaskModel();
         if (generation.loading) generation.loading.abort();
         generation.loading = null;
         speechSettings.hidden = mode !== 'speech';
@@ -498,6 +501,9 @@
         generation.fields.clear(); generation.picker = null;
         composer.modeHost.replaceChildren();
         if (!mode || mode === "chat" || mode === "agent") return;
+        const taskLabel = capabilities.modes.find(item => item.id === mode)?.label || mode;
+        const pendingPicker = el('select', { class: 'text w-auto', 'aria-label': 'generation model', disabled: true }, el('option', { text: taskLabel }));
+        releaseTaskModel = overgo.bindTaskModel(pendingPicker, () => ({ task: mode }));
         const request = new AbortController();
         composer.modeHost.appendChild(el('span', { class: 'note', role: 'status', text: 'Loading models…' }));
         generation.loading = request;
@@ -559,6 +565,8 @@
           speechSettings.appendChild(el('details', {}, el('summary', { text: 'Recent speech' }), el('label', { class: 'chip' }, only, ' This model'), rail));
         } else composer.modeHost.append(picker, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
         select();
+        releaseTaskModel();
+        releaseTaskModel = overgo.bindTaskModel(picker, () => generation.capability);
         galleryRail(rail, overgo.outputKind(mode)).then(filterRail);
       }
       async function galleryRail(rail, kind) {
@@ -595,7 +603,10 @@
         el("h2", { text: "What would you like to work on?" }),
         el("div", { class: "starters" }, el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }), el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
           // With nothing catalogued the same control reads as the way in; the picker names the two paths.
-          el("button", { class: "btn alt", text: served ? "Switch model" : "Add a model", onclick: () => document.getElementById("model-pill").click() })));
+          el("button", { class: "btn alt", text: 'Choose a model', onclick: () => {
+            if (composer.mode() && !['chat', 'agent'].includes(composer.mode())) document.querySelector('.task-model-selector select')?.focus();
+            else document.getElementById('model-pill').click();
+          } })));
       thread.node.prepend(welcome);
 
       function renderFacts(inputTokens, usage, timings) {
@@ -807,7 +818,8 @@
 
       // Server state can recover a running conversation even when another
       // conversation has replaced the tab's optional storage handle.
-      if ((capabilities.modes || []).some(mode => mode.enabled && mode.id === draft.mode)) await composer.setMode(draft.mode);
+      const initialMode = (capabilities.modes || []).some(mode => mode.enabled && mode.id === draft.mode) ? draft.mode : composer.mode();
+      if (initialMode) await composer.setMode(initialMode);
       if (disposed) return;
       let saved = null;
       try { saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null"); } catch (_) { /* storage unavailable */ }

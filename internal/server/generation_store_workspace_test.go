@@ -186,7 +186,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 		t.Fatalf("capabilities = %+v, %v", capabilities, err)
 	}
 	capability := capabilities[0]
-	if capability.Task != recipe.TaskImageGen || capability.Model != modelID || capability.Refusal != "" || capability.Name != "model.safetensors" {
+	if capability.Task != recipe.TaskImageGen || capability.Model != modelID || capability.Refusal != "" || capability.Name != filepath.Base(filepath.Dir(capability.Location)) {
 		t.Fatalf("capability = %+v", capability)
 	}
 	names := map[string]string{}

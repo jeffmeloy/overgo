@@ -351,6 +351,7 @@
     const capture = overgo.mediaCapture({ media, accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
     const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly && !paused) capture.open(); } }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
+    const selectedMode = () => modeSelect ? modeSelect.value : options.modes?.[0]?.id || '';
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
     const controls = el("div", { class: "chat-controls" }, send, stop, attach, picker, modeSelect, ...((options.controls) || []), el("span", { class: "grow" }));
@@ -675,7 +676,7 @@
       const text = input.value.trim();
       if (!text && !attachments.length) return;
       if (send.disabled) return;
-      if (options.onSubmit) await options.onSubmit(text, attachments.slice(), modeSelect ? modeSelect.value : "");
+      if (options.onSubmit) await options.onSubmit(text, attachments.slice(), selectedMode());
     }
     send.addEventListener("click", submit);
     stop.addEventListener("click", () => { if (options.onStop) options.onStop(); });
@@ -702,8 +703,13 @@
       },
       openPicker,
       clearInput() { input.value = ""; },
-      mode() { return modeSelect ? modeSelect.value : ""; },
-      setMode(id) { capture.close(); if (!modeSelect) return null; modeSelect.value = id; return options.onMode ? options.onMode(id) : null; },
+      mode: selectedMode,
+      setMode(id) {
+        if (!options.modes?.some(mode => mode.id === id)) return null;
+        capture.close();
+        if (modeSelect) modeSelect.value = id;
+        return options.onMode ? options.onMode(id) : null;
+      },
     };
   }
 

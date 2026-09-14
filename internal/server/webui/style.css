@@ -551,3 +551,6 @@ summary { cursor:pointer; min-height:32px; }
 .audio-result summary { padding: var(--s2) 0; min-height: 44px; }
 .audio-result .audio-download { min-height: 44px; }
 .audio-result .audio-details { margin-top: var(--s1); }
+
+.task-model-selector { flex: 0 1 auto; min-width: 0; }
+.task-model-selector select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }

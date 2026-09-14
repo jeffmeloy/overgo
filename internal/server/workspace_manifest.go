@@ -171,6 +171,8 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 	analysis := h.analysisCapabilities()
 	supported := false
 	switch capability {
+	case "conversation":
+		supported = analysis.Logits || h.hasWorkspaceCapability(ctx, WorkflowGeneration, "")
 	case "analysis.logits":
 		supported = analysis.Logits
 	case "analysis.vocabulary":

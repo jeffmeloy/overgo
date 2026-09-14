@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "device-lane-projector-reach",
-      "title": "Name the program internal/projector runs so the device lane leaves a gate-only plan by closure instead of running ten minutes on every gate change",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name the program internal/projector runs so the device lane leaves a gate-only plan by closure instead of running ten minutes on every gate change",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestTestingReductionContract|TestLaneClosureAcceptance)$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "host-device-overlap",
       "title": "Run the host test step concurrently with the device test step instead of after it",
       "owner": "master-lead",

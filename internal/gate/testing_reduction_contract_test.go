@@ -98,15 +98,20 @@ func TestTestingReductionContract(t *testing.T) {
 	if len(unrelated.structural.Seeds) == 0 {
 		t.Fatal("seeded gate-only plan holds no structural seed")
 	}
-	// Measured 2026-09-14 on the seeded checkout: both lanes stay triggered
-	// by their capability facts because an owned package reaches the gate
-	// through an unnamed program (internal/projector) or a production source
-	// reader; their exclusion is recorded here and held by no assertion yet.
+	// Measured 2026-09-14 on the seeded checkout: the device lane reached
+	// the gate only because a projector test parsed Go, which made every
+	// projector test run a source reader of all roots; that rule now lives
+	// in this package and the device lane is excluded by closure. The
+	// browser lane stays triggered through production source readers; its
+	// exclusion is recorded, not held.
 	for _, name := range contract.Consumer {
 		reason, excluded := unrelated.impact.ExclusionReason(name)
 		t.Logf("gate-only change: %s excluded=%v reason=%s unknown=%v seeds=%v", name, excluded, reason, unrelated.surface.Unknown, unrelated.structural.Seeds)
 		if excluded && !strings.Contains(reason, "closure") {
 			t.Fatalf("%s excluded without a closure proof: %s", name, reason)
+		}
+		if name == "device" && !excluded {
+			t.Fatalf("gate-only change reached the device lane: unknown=%v", unrelated.surface.Unknown)
 		}
 	}
 	if reason, excluded := unrelated.impact.ExclusionReason("sbom"); !excluded || !strings.Contains(reason, "closure") {

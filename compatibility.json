@@ -1388,7 +1388,7 @@
      "contains": "func LoadSynthesizer(",
      "path": "internal/speechsynth/runtime.go",
      "role": "source",
-     "identity": "file:sha256:f0278f19fcfbed6666bd5b45665f9db6656425e60cbec487b40645c1c7cd6bbb"
+     "identity": "file:sha256:e98bdd7493c1e520ae390e80ab5e59677cc0d9e8b8280f05787162b840c89a97"
     },
     {
      "contains": "func TestPocketTTSProductionParity(",

@@ -22,9 +22,12 @@ type GenerateParams struct {
 
 // LatentBatch: Frames rows of Width normalized frame latents, flat.
 type LatentBatch struct {
-	Values []float32
-	Frames int
-	Width  int
+	// Complete means the reference post-EOS stopping condition was reached.
+	// Merely exhausting MaxFrames never establishes completion.
+	Complete bool
+	Values   []float32
+	Frames   int
+	Width    int
 }
 
 // GenerateLatents runs the seeded loop. voiceCond is [voiceFrames][d]
@@ -112,6 +115,7 @@ func (m *Model) generateFromState(ctx context.Context, st *DecodeState, p Genera
 			eosStep = step
 		}
 		if eosStep >= tensor.FirstOffset && step >= eosStep+p.FramesAfterEOS {
+			latents.Complete = true
 			break // reference rule: the breaking frame is not decoded
 		}
 		eos = append(eos, logit)

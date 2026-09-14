@@ -4,6 +4,51 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "gate-lane-closure",
+      "title": "Exclude a lane whose only reach to the change is a test-only Go-parsing or program-running helper, and record each check's trigger reason",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Exclude a lane whose only reach to the change is a test-only Go-parsing or program-running helper, and record each check's trigger reason",
+          "status": "open",
+          "verify": "test -f internal/gate/lane_closure_test.go \u0026\u0026 go test ./internal/gate -run ^TestLaneClosureAcceptance$ -count=1",
+          "rationale": "Measured 2026-09-14 on the surface-area merge gate, the first gate that evaluated the reduction contract on a real seed: every gate commit since 11b13e10 reported impact selection excluded 0 of 6 and ran the device lane (about 1 minute) and the browser lane (4.5 to 6 minutes), while the contract test passed only because a committed tree has no seed. The dependency resolver decides a lane's reach from inputFiles of its owned packages, which follows the runtime binding of every source reader in the closure including test imports; internal/cuda/cublas imports internal/testutil in its tests, testutil parses Go and runs a program the source does not name, so its unnamed reach binds every root and the device lane reaches any Go change. Rule: for lane exclusion, a package reaches the change when it compiles it, names it at run time, or compiles a production source reader; a Go-parsing or program-running helper that only its tests import is the uncertain reach the scope already runs in the short group and does not select a lane. Also record each owned check's trigger reason with the selection-cause record so the gate log explains every lane it runs. Acceptance pins the fixture (a lane whose owned package imports a Go-parsing helper only in tests is excluded for an unrelated source change; a lane whose production code parses Go stays) and the live graph (a gate-only change excludes the device lane and the browser lane by closure while an automationcheck change retains both). Expected effect: 5 to 7 minutes off every gate commit that touches neither lane's compiled closure."
+        }
+      ]
+    },
+    {
+      "id": "testutil-reach-split",
+      "title": "Split the Go-parsing and program-running helpers out of testutil so its 140 test importers stop being source readers",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Split the Go-parsing and program-running helpers out of testutil so its 140 test importers stop being source readers",
+          "status": "open",
+          "verify": "test -f internal/gate/testutil_reach_test.go \u0026\u0026 go test ./internal/gate -run ^TestTestutilReachAcceptance$ -count=1",
+          "rationale": "Measured 2026-09-14 after b3eece67: a gate-only change still selects 158 uncertain packages because internal/testutil, imported by the tests of most packages, parses Go in numeric.go and runs a program the source does not name in process.go, so every test closure that holds testutil is a Go-source reader bound to every root. Move the Go-parsing tolerance reader and the compiled-test-binary runner into their own leaf packages that only their few real users import, keep the numeric comparison, fixture and repository-root helpers in testutil, and pin that testutil is neither a source reader nor a program runner. Acceptance pins the live classes and the gate-only scope: uncertain packages fall from 158 to the count measured after the split, with the floor recorded in the test. Expected effect: the short group of a gate-only change shrinks by the packages that reach Go source only through testutil, which is most of the 106 device packages, so test-device falls with it."
+        }
+      ]
+    },
+    {
+      "id": "host-device-overlap",
+      "title": "Run the host test step concurrently with the device test step instead of after it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the host test step concurrently with the device test step instead of after it",
+          "status": "open",
+          "verify": "test -f internal/gate/host_device_overlap_test.go \u0026\u0026 go test ./internal/gate -run ^TestHostDeviceOverlap$ -count=1",
+          "rationale": "Measured on the retained gate records of 2026-09-14: the pipeline runs test-plan, test-owners, test-device, test (host), the device lane, then the browser lane in sequence; the host step needs no device lease yet waits for the device step, and the device step's wall is build and link of device binaries, not device time (about 150 seconds of test time in a 4 to 11 minute step). Run the host packages of the remaining direct and dependent groups concurrently with the device step under the existing shared admission, keeping the owner step first and the ledger, receipts and cost records per package unchanged. Acceptance pins on the fixture that the host and device parts of one plan execute concurrently with their results and receipts attributed exactly as before, and the retained gate records after the change show the host step's wall inside the device step's. Expected effect: the host step's wall (about 2 to 4 minutes on a broad change) leaves the critical path."
+        }
+      ]
+    },
+    {
       "id": "stale-store-acceptances",
       "title": "Restore the three store-bound acceptances the complete group exposed: capability census denominator, longform guard cohort, speech alignment annotations",
       "owner": "master-lead",
@@ -998,7 +1043,11 @@
             "gate-skip-constant-leaf/do",
             "gate-named-documents/do",
             "stale-store-acceptances/do",
-            "composed-objective-flap/do"
+            "composed-objective-flap/do",
+            "gate-lane-closure/do",
+            "testutil-reach-split/do",
+            "host-device-overlap/do",
+            "docs-scratch-cleanup/do"
           ]
         }
       ]

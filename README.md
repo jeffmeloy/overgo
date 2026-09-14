@@ -9,6 +9,21 @@ recursive self-improvement (RSI). It uses measured outcomes to improve models
 and the processes that propose, execute, and evaluate changes. Operators set
 goals, budgets, and constraints; code checks proposals and controls activation.
 
+Overgo is implemented through its own improvement loop. The
+[development plan](docs/plan.json) selects each task, agents implement it,
+and the [gate](internal/gate/verification.go) verifies the change against
+the task's acceptance and commits it with its plan binding recorded in the
+commit trailers; no change reaches master by another route.
+
+Overgo was built from [llama.cpp](https://github.com/ggml-org/llama.cpp),
+audio.cpp, and
+[Hugging Face Transformers](https://github.com/huggingface/transformers) as
+verified reference implementations. Their model-specific code paths were
+replaced by common inference and training components in Go and CUDA; a
+recipe declares each model's architecture, tensors, and execution policy,
+and the components read those declarations, so no model has its own code
+path.
+
 ![Overgo recursive self-improvement: durable feedback triggers the next experiment through propose, admit, realize, evaluate, decide, and observe; methods derive values and justify assumptions, while execution scales to available RAM, VRAM, CPU, and GPU resources](docs/assets/overgo-platform-technical-architecture.png)
 
 [Editable SVG](docs/assets/overgo-platform-technical-architecture.svg) · [Figure definition](docs/assets/overgo_graphic.json)
@@ -123,6 +138,37 @@ and rollback.
 Registered tools declare their arguments, effects, and transport. Shared backend
 controls check prior inspection and required approvals, and record authorization
 before executing mutations.
+
+## Agent tool calling
+
+Overgo agents call tools the way the Universal Tool Calling Protocol
+(UTCP) prescribes: a tool is described by a manual, and the caller invokes
+the tool's native endpoint from that manual directly, with no wrapper
+server between the agent and the tool.
+
+- A [manual](internal/agenttool/manual.go) declares the tool name, its
+  description, its effect class (inspection reads state; mutation changes
+  it), its typed arguments, and its transport binding: an in-process Go
+  function, a strict-JSON HTTP endpoint, a fixed program with argument
+  words and no shell, one exact MCP tool over HTTP JSON-RPC, or a sequenced
+  JSON stream over one HTTP response.
+- Manuals are published to the artifact store under registered aliases by
+  [cmd/agent-tool](cmd/agent-tool/main.go). Orchestration resolves tools
+  from the store, never from code alone, and an unregistered tool is not
+  callable. Remote peers and recipe capabilities derive their manuals from
+  their published capability identities.
+- The [agent loop](internal/agentloop/coordinator.go) admits every step:
+  an unregistered tool is refused, a mutation must follow a completed
+  inspection and carry an exact approval, a mutation records a durable
+  receipt before it executes, and a session cannot step without a bound.
+  Each step is one durable interaction chained on the previous one.
+- The serving executor refuses loopback, private, and link-local
+  destinations and redirects at dial time; the operator executor admits
+  private destinations.
+- The workbench exposes the same authority through `/agent/tools`,
+  `/agent/step`, `/agent/approval`, `/agent/provenance`, and
+  `/agent/sessions`, and the Agent tab shows effect classes, mutation
+  approvals, and the step timeline.
 
 ## Workbench and APIs
 

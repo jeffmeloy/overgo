@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/testprocess"
 	"overgo/internal/testutil"
 )
 
@@ -27,18 +28,18 @@ func TestFractaleProcessLeadership(t *testing.T) {
 	temporary := t.TempDir()
 	candidateBinary := filepath.Join(temporary, "overgo-fractale.test.exe")
 	referenceBinary := filepath.Join(temporary, "adaptive-fractale.test.exe")
-	testutil.BuildTestBinary(t, root, candidateBinary, "modeltest", "./internal/thoughtbank")
-	testutil.BuildTestBinary(t, adaptiveGo, referenceBinary, "research", "./extmodel")
+	testprocess.BuildTestBinary(t, root, candidateBinary, "modeltest", "./internal/thoughtbank")
+	testprocess.BuildTestBinary(t, adaptiveGo, referenceBinary, "research", "./extmodel")
 
-	candidate := testutil.MeasureTestProcesses(t, fractaleProcessRuns, root, candidateBinary,
+	candidate := testprocess.MeasureTestProcesses(t, fractaleProcessRuns, root, candidateBinary,
 		"TestFractaleTwentyTokenProcessProbe", "FRACTALE_PROCESS_PROBE")
-	reference := testutil.MeasureTestProcesses(t, fractaleProcessRuns, filepath.Join(adaptiveGo, "extmodel"), referenceBinary,
+	reference := testprocess.MeasureTestProcesses(t, fractaleProcessRuns, filepath.Join(adaptiveGo, "extmodel"), referenceBinary,
 		"TestFastWeightBankLMIncrementalDecodeRealCheckpoint", "real-386M")
-	candidatePeak, referencePeak := testutil.MedianProcessPeak(candidate), testutil.MedianProcessPeak(reference)
-	candidateWall, referenceWall := testutil.MedianProcessWall(candidate), testutil.MedianProcessWall(reference)
-	t.Logf("Fractale candidate=%s reference=%s", testutil.FormatProcessMeasurements(candidate), testutil.FormatProcessMeasurements(reference))
+	candidatePeak, referencePeak := testprocess.MedianProcessPeak(candidate), testprocess.MedianProcessPeak(reference)
+	candidateWall, referenceWall := testprocess.MedianProcessWall(candidate), testprocess.MedianProcessWall(reference)
+	t.Logf("Fractale candidate=%s reference=%s", testprocess.FormatProcessMeasurements(candidate), testprocess.FormatProcessMeasurements(reference))
 	if candidatePeak >= referencePeak {
-		t.Fatalf("Fractale process peak %.3f MiB does not beat adaptive %.3f MiB", testutil.MiB(candidatePeak), testutil.MiB(referencePeak))
+		t.Fatalf("Fractale process peak %.3f MiB does not beat adaptive %.3f MiB", testprocess.MiB(candidatePeak), testprocess.MiB(referencePeak))
 	}
 	if candidateWall >= referenceWall {
 		t.Fatalf("Fractale process wall %s does not beat adaptive %s", candidateWall, referenceWall)

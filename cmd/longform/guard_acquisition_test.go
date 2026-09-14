@@ -17,6 +17,9 @@ import (
 
 // TestAcceptedFP8Guard checks the complete cohort; it never loads a model.
 func TestAcceptedFP8Guard(t *testing.T) {
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	selected := readGuardCatalog(t)
 	records := selected.Cohorts["Gemma 12B FP8"]
 	if len(records) != len(guardCohort{}.repeats) {
@@ -76,6 +79,9 @@ func readGuardCatalog(t *testing.T) guardCatalog {
 // TestAcceptedGuardCatalog binds the live text denominator and fixed historical
 // references; the selection cannot discard either.
 func TestAcceptedGuardCatalog(t *testing.T) {
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	selected := readGuardCatalog(t)
 	if len(selected.Pending) != 0 {
 		t.Fatal("full catalog admission has unresolved model obligations")
@@ -134,6 +140,9 @@ func selectedGuardCohorts(t *testing.T, selected guardCatalog) []guardCohort {
 
 // Accept completed cohorts without granting the pending model live credit.
 func TestAcceptedCompletedGuardCohorts(t *testing.T) {
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	selected := readGuardCatalog(t)
 	fixtures := selectedGuardCohorts(t, selected)
 	if len(selected.Pending) == 0 {

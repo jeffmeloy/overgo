@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "testutil-reach-split",
-      "title": "Split the Go-parsing and program-running helpers out of testutil so its 140 test importers stop being source readers",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Split the Go-parsing and program-running helpers out of testutil so its 140 test importers stop being source readers",
-          "status": "open",
-          "verify": "test -f internal/gate/testutil_reach_test.go \u0026\u0026 go test ./internal/gate -run ^TestTestutilReachAcceptance$ -count=1",
-          "rationale": "Measured 2026-09-14 after b3eece67: a gate-only change still selects 158 uncertain packages because internal/testutil, imported by the tests of most packages, parses Go in numeric.go and runs a program the source does not name in process.go, so every test closure that holds testutil is a Go-source reader bound to every root. Move the Go-parsing tolerance reader and the compiled-test-binary runner into their own leaf packages that only their few real users import, keep the numeric comparison, fixture and repository-root helpers in testutil, and pin that testutil is neither a source reader nor a program runner. Acceptance pins the live classes and the gate-only scope: uncertain packages fall from 158 to the count measured after the split, with the floor recorded in the test. Expected effect: the short group of a gate-only change shrinks by the packages that reach Go source only through testutil, which is most of the 106 device packages, so test-device falls with it."
-        }
-      ]
-    },
-    {
       "id": "gate-suite-wall",
       "title": "Cut the gate's own package suite below four minutes so a gate change stops paying twelve minutes of test-owners",
       "owner": "master-lead",

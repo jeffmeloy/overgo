@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "d9f7c777b9edb1b424b63c574e4de9fdd797e312ecfe55024db6b0422f77581b",
+  "source_identity": "2731f44b2db01b84565406e4965e3b6f3524538032581b59f6b5099ed59815ae",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3426,
-    "typed_files": 3362
+    "inspected_files": 3428,
+    "typed_files": 3364
   },
   "guidelines": [
     {
@@ -4776,17 +4776,6 @@
       "candidate_ceiling": 1
     },
     {
-      "guideline": "context_timeout_deadline_cause",
-      "path": "internal/testutil/process.go",
-      "symbol": "MeasureTestProcesses",
-      "owner": "overgo/internal/testutil",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./internal/testutil -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
       "guideline": "context_cancel_cause",
       "path": "internal/artifact/repositorytest/contract.go",
       "symbol": "Run",
@@ -5084,5 +5073,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "9584221e706c9d8c5e15201ccadeb742b2d9cbe33666ced3a1c76c26146eefc1"
+  "exceptions_sha256": "bfdb96f419e70e0da059d4649e04599b701a9850c75b1d6a0a385786ca96de46"
 }

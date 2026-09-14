@@ -395,7 +395,8 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 		case *ast.CallExpr:
 			c.reflectionBoundary(value)
 		case *ast.SelectorExpr:
-			if qualifier, ok := value.X.(*ast.Ident); ok {
+			// Locally bound names shadow import aliases.
+			if qualifier, ok := value.X.(*ast.Ident); ok && qualifier.Obj == nil {
 				if imported := aliases[qualifier.Name]; imported != "" {
 					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true, caller, site)
 					return true

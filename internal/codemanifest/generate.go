@@ -13,7 +13,7 @@ import (
 
 const (
 	analyzerName    = "overgo-codeprofile"
-	analyzerVersion = "consumer-graph-v2"
+	analyzerVersion = "consumer-graph-v3"
 )
 
 type contextGraph struct {

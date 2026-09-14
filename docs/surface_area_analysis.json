@@ -1,14 +1,4 @@
 {
-  "lane_bootstrap_observation": {
-    "operation": "OvergoDB.Backup for original completion provenance",
-    "store_sequence": 32287,
-    "store_head": "44cd032ec1273d85a17d05570dc964732b3d4f4d4922adbbe4386cb91221868a",
-    "files_copied": 91382,
-    "bytes_copied": 2460979366,
-    "elapsed_nanoseconds": 984867224000,
-    "scope": "one-time lane initialization; not per-commit verification",
-    "follow_up": "Compare completion-authority reference reuse against full lane-store bootstrap in the existing plan and store owners; preserve original introductions and isolated writes."
-  },
   "automation": {
     "files": 182,
     "nodes": 202169
@@ -50,6 +40,16 @@
     "files": 5,
     "nodes": 89077
   },
+  "lane_bootstrap_observation": {
+    "bytes_copied": 2460979366,
+    "elapsed_nanoseconds": 984867224000,
+    "files_copied": 91382,
+    "follow_up": "Compare completion-authority reference reuse against full lane-store bootstrap in the existing plan and store owners; preserve original introductions and isolated writes.",
+    "operation": "OvergoDB.Backup for original completion provenance",
+    "scope": "one-time lane initialization; not per-commit verification",
+    "store_head": "44cd032ec1273d85a17d05570dc964732b3d4f4d4922adbbe4386cb91221868a",
+    "store_sequence": 32287
+  },
   "limitations": [
     "Not observed dynamic execution; absence from lexical calls does not prove independence.",
     "Other platforms/tags, interface dispatch, reflection, subprocess effects and non-Go consumers need explicit coverage.",
@@ -62,6 +62,319 @@
     "durable_limit_bytes": 67108864,
     "identity_valid": true,
     "repair_scope": "code-manifest CLI and codemanifest.Parse; bounded durable Content and digest publication retained"
+  },
+  "owner_flow_witness": {
+    "binding_defect": "An AST-resolved local identifier shadowing an import alias was credited as an imported function, losing potential method owners. The new acceptance fails before the qualifier.Obj guard and passes afterward; unknown receivers still keep all same-named methods.",
+    "compiler_context": "go list -deps -json ./cmd/evaluate ./cmd/recipe; windows/amd64",
+    "compiler_paths_and_counterfactual_cuts": [
+      {
+        "remaining_path": [
+          "overgo/cmd/evaluate",
+          "overgo/internal/evaluation",
+          "overgo/internal/capabilityruntime",
+          "overgo/internal/operation",
+          "overgo/internal/plan",
+          "overgo/internal/automationcheck",
+          "overgo/internal/codemanifest"
+        ],
+        "removed_edge": [
+          "",
+          ""
+        ],
+        "root": "overgo/cmd/evaluate"
+      },
+      {
+        "remaining_path": [
+          "overgo/cmd/recipe",
+          "overgo/internal/loop",
+          "overgo/internal/plan",
+          "overgo/internal/automationcheck",
+          "overgo/internal/codemanifest"
+        ],
+        "removed_edge": [
+          "",
+          ""
+        ],
+        "root": "overgo/cmd/recipe"
+      },
+      {
+        "remaining_path": null,
+        "removed_edge": [
+          "overgo/internal/operation",
+          "overgo/internal/plan"
+        ],
+        "root": "overgo/cmd/evaluate"
+      },
+      {
+        "remaining_path": [
+          "overgo/cmd/recipe",
+          "overgo/internal/loop",
+          "overgo/internal/plan",
+          "overgo/internal/automationcheck",
+          "overgo/internal/codemanifest"
+        ],
+        "removed_edge": [
+          "overgo/internal/operation",
+          "overgo/internal/plan"
+        ],
+        "root": "overgo/cmd/recipe"
+      },
+      {
+        "remaining_path": null,
+        "removed_edge": [
+          "overgo/internal/plan",
+          "overgo/internal/automationcheck"
+        ],
+        "root": "overgo/cmd/evaluate"
+      },
+      {
+        "remaining_path": null,
+        "removed_edge": [
+          "overgo/internal/plan",
+          "overgo/internal/automationcheck"
+        ],
+        "root": "overgo/cmd/recipe"
+      }
+    ],
+    "decision": "Prefer testing a single completion-evidence ownership boundary over whole-program call analysis. Cutting operation -\u003e plan alone leaves recipe -\u003e loop -\u003e plan -\u003e automationcheck -\u003e codemanifest. Cutting plan -\u003e automationcheck removes both compiler paths; preserving strict manifest parsing, introduction atomicity and checkpoint checks is mandatory before any migration.",
+    "exclusion_adopted": false,
+    "gate_cost": {
+      "attribution": "phase duration only; not per-package measured savings",
+      "commit": "f0b2f1d6",
+      "test_device_phase": "16m49.099s",
+      "wall": "22m1.238s",
+      "webui_phase": "5m33.003s"
+    },
+    "independent_invalidators": [
+      "compiler source closure including test and producer sources",
+      "runtime named and unresolved file reads",
+      "subprocess executable, arguments and environment",
+      "build selection and toolchain",
+      "model, corpus, reference artifacts and protocol",
+      "gate policy and acceptance identity"
+    ],
+    "interpretation": "Lexical contexts and arguments describe source sites, not runtime order, value resolution or complete effects. Counterfactual cuts remove import edges only; no production dependency or gate selection changed.",
+    "master_updates": [
+      "11b13e10: shared declared static preflight requirements",
+      "3f1c6750: retained package selection causes and executed-cost reporting"
+    ],
+    "parent_commit": "f0b2f1d627a5d1c0fc51222dd2bf93683c4c8bcf",
+    "source_bound_calls": [
+      {
+        "file": "internal/audioparity/reference_roots_test.go",
+        "function": "audioSources",
+        "line": 28,
+        "owner_boundary_calls": [
+          {
+            "arguments_syntax": [
+              "root",
+              "patterns"
+            ],
+            "callee_syntax": "repoanalysis.HostBuildSelection",
+            "lexical_context": [
+              "loop"
+            ],
+            "line": 35
+          },
+          {
+            "arguments_syntax": [
+              "root",
+              "slices.Sorted(maps.Keys(paths))"
+            ],
+            "callee_syntax": "repoanalysis.LoadGo",
+            "lexical_context": [],
+            "line": 45
+          }
+        ],
+        "sha256": "fa8f4d92b84e52f15615af6e72f31d62ef9568733bc008ddce002a9ebe07d484"
+      },
+      {
+        "file": "internal/gate/runtime_inputs.go",
+        "function": "visit",
+        "line": 226,
+        "owner_boundary_calls": [
+          {
+            "arguments_syntax": [
+              "typed"
+            ],
+            "callee_syntax": "execProgram",
+            "lexical_context": [
+              "conditional"
+            ],
+            "line": 229
+          },
+          {
+            "arguments_syntax": [
+              "program",
+              "execArguments(typed, program)"
+            ],
+            "callee_syntax": "classifier.classifyProgram",
+            "lexical_context": [
+              "conditional"
+            ],
+            "line": 230
+          },
+          {
+            "arguments_syntax": [
+              "typed",
+              "program"
+            ],
+            "callee_syntax": "execArguments",
+            "lexical_context": [
+              "conditional"
+            ],
+            "line": 230
+          },
+          {
+            "arguments_syntax": [
+              "typed"
+            ],
+            "callee_syntax": "pathCall",
+            "lexical_context": [
+              "conditional"
+            ],
+            "line": 239
+          },
+          {
+            "arguments_syntax": [
+              "value",
+              "false"
+            ],
+            "callee_syntax": "classifier.classifyPath",
+            "lexical_context": [
+              "conditional",
+              "loop"
+            ],
+            "line": 241
+          },
+          {
+            "arguments_syntax": [
+              "typed.Args[0]"
+            ],
+            "callee_syntax": "classifier.safePath",
+            "lexical_context": [
+              "conditional",
+              "conditional"
+            ],
+            "line": 246
+          },
+          {
+            "arguments_syntax": [
+              "value",
+              "true"
+            ],
+            "callee_syntax": "classifier.classifyPath",
+            "lexical_context": [
+              "conditional",
+              "conditional"
+            ],
+            "line": 254
+          }
+        ],
+        "sha256": "e8734db1efe510ac336240fc2a17d7db6a5e901ac93f68a0a5d3a0866a4d189e"
+      },
+      {
+        "file": "internal/gate/runtime_inputs.go",
+        "function": "pathCall",
+        "line": 555,
+        "owner_boundary_calls": [],
+        "sha256": "e8734db1efe510ac336240fc2a17d7db6a5e901ac93f68a0a5d3a0866a4d189e"
+      },
+      {
+        "file": "internal/operation/runtime.go",
+        "function": "start",
+        "line": 193,
+        "owner_boundary_calls": [
+          {
+            "arguments_syntax": [
+              "*request.Lease",
+              "*active.request.Lease"
+            ],
+            "callee_syntax": "plan.WorkspaceClaimsConflict",
+            "lexical_context": [
+              "conditional",
+              "loop",
+              "conditional"
+            ],
+            "line": 214
+          }
+        ],
+        "sha256": "749a8a001c15d120a07a3c742dfc62f1f087b9663170b748e6225d91187bcc8b"
+      },
+      {
+        "file": "internal/operation/runtime.go",
+        "function": "admitWorkspaceClaim",
+        "line": 306,
+        "owner_boundary_calls": [
+          {
+            "arguments_syntax": [
+              "ctx",
+              "manager.repository",
+              "*request.Lease"
+            ],
+            "callee_syntax": "plan.ResolveWorkLeaseOwner",
+            "lexical_context": [
+              "conditional"
+            ],
+            "line": 313
+          }
+        ],
+        "sha256": "749a8a001c15d120a07a3c742dfc62f1f087b9663170b748e6225d91187bcc8b"
+      },
+      {
+        "file": "internal/operation/runtime.go",
+        "function": "releaseWorkspaceClaim",
+        "line": 335,
+        "owner_boundary_calls": [],
+        "sha256": "749a8a001c15d120a07a3c742dfc62f1f087b9663170b748e6225d91187bcc8b"
+      },
+      {
+        "file": "internal/plan/completion.go",
+        "function": "VerifyPreparedStepAcceptance",
+        "line": 1435,
+        "owner_boundary_calls": [
+          {
+            "arguments_syntax": [
+              "verification.Gate",
+              "reference",
+              "step.Verify"
+            ],
+            "callee_syntax": "requireCompletionAcceptance",
+            "lexical_context": [
+              "conditional"
+            ],
+            "line": 1451
+          },
+          {
+            "arguments_syntax": [
+              "verification.Gate",
+              "checkpoint.GateCheckName()",
+              "reference",
+              "checkpoint.Verify"
+            ],
+            "callee_syntax": "requireNamedCompletionAcceptance",
+            "lexical_context": [
+              "conditional",
+              "loop",
+              "conditional"
+            ],
+            "line": 1457
+          },
+          {
+            "arguments_syntax": [
+              "content.Data"
+            ],
+            "callee_syntax": "automationcheck.ParseManifestAnalysis",
+            "lexical_context": [
+              "loop"
+            ],
+            "line": 1479
+          }
+        ],
+        "sha256": "92a25434b98fd282dc0716d3a079609f4cc47925dad2a5f18444ac50b078ecde"
+      }
+    ],
+    "target": "internal/audioparity audioSources and its evaluate/recipe producer closures"
   },
   "ownership_sequences": [
     {

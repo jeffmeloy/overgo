@@ -279,6 +279,7 @@ func (l *adapterLifecycle) publish(t *testing.T, directory string, state trainin
 }
 
 func TestASRAdapterPublicationAcceptance(t *testing.T) {
+	t.Parallel()
 	l := newAdapterLifecycle(t)
 	step := l.update(t, l.batcher(t, nil))
 	directory := filepath.Join(t.TempDir(), "checkpoint")
@@ -372,6 +373,7 @@ func TestASRAdapterPublicationAcceptance(t *testing.T) {
 }
 
 func TestASRExactResumeAcceptance(t *testing.T) {
+	t.Parallel()
 	l := newAdapterLifecycle(t)
 	if directory := os.Getenv("OVERGO_ASR_RESUME_CHILD"); directory != "" {
 		checkpoint, err := trainingprogram.LoadCheckpoint(directory)

@@ -30,6 +30,7 @@ import (
 // store bindings, model, corpus, capture or any numerical boundary fail it.
 // Python and GPU execution are not prerequisites: the pinned CPU capture is.
 func TestCPUASRReference(t *testing.T) {
+	t.Parallel()
 	storeRoot := resolveReferenceRoots(t).store
 	store, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {

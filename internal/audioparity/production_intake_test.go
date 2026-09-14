@@ -9,6 +9,7 @@ import (
 // the training baseline while recurrent inference enters the shared session.
 // It does not claim recurrent-decoder training or replace the CPU CTC trainer.
 func TestNativeAudioProductionIntake(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": native audio intake requires production training, recovery and held-out resource runs")
 	}

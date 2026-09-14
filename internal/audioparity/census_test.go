@@ -70,6 +70,7 @@ type oracleCensus struct {
 }
 
 func TestPinnedOracleCensus(t *testing.T) {
+	t.Parallel()
 	var census oracleCensus
 	decoder := json.NewDecoder(strings.NewReader(string(pinnedCensusJSON)))
 	decoder.DisallowUnknownFields()

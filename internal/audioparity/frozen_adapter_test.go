@@ -191,6 +191,7 @@ func loadCTCTrainingFixture(t *testing.T) ctcTrainingFixture {
 // pinned training record. It proves the native training boundary, not WER,
 // general tokenizer coverage, checkpoint reload, or a deployed adapted recipe.
 func TestASRFrozenAdapterAcceptance(t *testing.T) {
+	t.Parallel()
 	fixture := loadCTCTrainingFixture(t)
 	root, election, record := fixture.root, fixture.election, fixture.record
 	encoder, features, frames, targets := fixture.encoder, fixture.features, fixture.frames, fixture.targets

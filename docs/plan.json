@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "host-device-overlap",
-      "title": "Run the host test step concurrently with the device test step instead of after it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the host test step concurrently with the device test step instead of after it",
-          "status": "open",
-          "verify": "test -f internal/gate/host_device_overlap_test.go \u0026\u0026 go test ./internal/gate -run ^TestHostDeviceOverlap$ -count=1",
-          "rationale": "Measured on the retained gate records of 2026-09-14: the pipeline runs test-plan, test-owners, test-device, test (host), the device lane, then the browser lane in sequence; the host step needs no device lease yet waits for the device step, and the device step's wall is build and link of device binaries, not device time (about 150 seconds of test time in a 4 to 11 minute step). Run the host packages of the remaining direct and dependent groups concurrently with the device step under the existing shared admission, keeping the owner step first and the ledger, receipts and cost records per package unchanged. Acceptance pins on the fixture that the host and device parts of one plan execute concurrently with their results and receipts attributed exactly as before, and the retained gate records after the change show the host step's wall inside the device step's. Expected effect: the host step's wall (about 2 to 4 minutes on a broad change) leaves the critical path."
-        }
-      ]
-    },
-    {
       "id": "gate-serial-floor",
       "title": "Run the gate package's hook and environment tests in the parallel phase so the suite's serial floor drops below a minute",
       "owner": "master-lead",
@@ -29,6 +14,20 @@
           "title": "Run the gate package's hook and environment tests in the parallel phase so the suite's serial floor drops below a minute",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSuiteWallRatchet$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "host-linear-kernel-reacquisition",
+      "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
+          "status": "open",
+          "verify": "go test ./internal/hostmath -run '^TestLinear' -count=1 \u0026\u0026 go run ./cmd/compatibility -check"
         }
       ]
     },
@@ -1035,7 +1034,8 @@
             "gate-suite-wall/do",
             "stale-source-rows/do",
             "device-lane-projector-reach/do",
-            "gate-serial-floor/do"
+            "gate-serial-floor/do",
+            "host-linear-kernel-reacquisition/do"
           ]
         }
       ]

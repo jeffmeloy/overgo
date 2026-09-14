@@ -15,6 +15,7 @@ import (
 )
 
 func TestTransducerCapturePublication(t *testing.T) {
+	t.Parallel()
 	// Synthetic publication evidence only: this test does not claim ASR parity.
 	election := qualificationElection(t)
 	store, err := overgodb.Open(t.TempDir())

@@ -154,6 +154,7 @@ func (corpus lifecycleCorpus) evaluate(t *testing.T, l *adapterLifecycle, defini
 }
 
 func TestASRCPUClosedLoop(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": full CPU lifecycle runs as its exact mandatory plan acceptance")
 	}

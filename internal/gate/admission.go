@@ -171,6 +171,13 @@ func strayRootExecutables(repo string) ([]string, error) {
 // stepScope refuses staged paths outside the plan (the commit would ship
 // them) and reports unstaged co-implementer dirt without blocking on it.
 func (g *gateContext) stepScope() (bool, error) {
+	competing, err := plan.CompetingPlans(g.repo)
+	if err != nil {
+		return false, err
+	}
+	if len(competing) != 0 {
+		return false, fmt.Errorf("competing live plan files: %s", strings.Join(competing, ", "))
+	}
 	staged, err := stagedPaths(g.repo)
 	if err != nil {
 		return false, err
@@ -184,15 +191,18 @@ func (g *gateContext) stepScope() (bool, error) {
 	if len(rogue) > 0 {
 		return false, fmt.Errorf("staged outside -paths (would ship): %s", strings.Join(rogue, ", "))
 	}
-	status, err := command(g.repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
-	if err != nil {
-		return false, err
-	}
-	dirty, err := repoanalysis.ParseDirtyStatus([]byte(status))
+	dirty, err := g.dirtyStatus()
 	if err != nil {
 		return false, err
 	}
 	dirtyPaths, unplanned := scopeDirty(g.paths, dirty)
+	pending := 0
+	for _, path := range generatedAuthorityPaths {
+		if dirtyPaths[path] {
+			pending++
+		}
+	}
+	g.pendingGenerated = &pending
 	var verificationInputs []string
 	for _, path := range unplanned {
 		g.note("unplanned dirty (not shipped): " + path)
@@ -215,6 +225,14 @@ func (g *gateContext) stepScope() (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+func (g *gateContext) dirtyStatus() ([]repoanalysis.DirtyPath, error) {
+	status, err := command(g.repo, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return nil, err
+	}
+	return repoanalysis.ParseDirtyStatus([]byte(status))
 }
 
 // stagedPaths includes both the deletion and addition of a rename, independent

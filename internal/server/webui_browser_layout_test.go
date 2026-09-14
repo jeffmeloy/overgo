@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -17,7 +17,7 @@ import (
 // a phone viewport reduced by its keyboard, instead of scoring header density.
 func TestWebUIBrowserConversationLayout(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": browser layout runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": browser layout runs through cmd/webui-lane")
 	}
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {

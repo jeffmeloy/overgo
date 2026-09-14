@@ -184,44 +184,53 @@ func (g *gateContext) repairModernGoCensus() error {
 // candidate tightened it and refuses with the delta when the candidate
 // would raise a reviewed ceiling or add a layer violation.
 func (g *gateContext) repairHarnessSurface() error {
+	encoded, err := g.harnessSurfaceUpdate()
+	if err != nil || encoded == nil {
+		return err
+	}
+	path := filepath.Join(g.repo, filepath.FromSlash(harnessSurfaceBaselineFile))
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(encoded, '\n'), info.Mode().Perm())
+}
+
+// Compute and validate once for diagnostics and the derived-file writer.
+func (g *gateContext) harnessSurfaceUpdate() ([]byte, error) {
 	path := filepath.Join(g.repo, filepath.FromSlash(harnessSurfaceBaselineFile))
 	var baseline closurescan.HarnessSurface
 	if err := jsonfile.DecodeStrict(path, &baseline); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
+		if errors.Is(err, os.ErrNotExist) && !g.preflight {
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
-	snapshot, err := repoanalysis.DiscoverGo(g.repo, "internal", "cmd")
+	snapshot, err := g.sourceSnapshot()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	surface, err := closurescan.BuildAgentHarnessSurface(snapshot)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if regressions := closurescan.AgentHarnessSurfaceRegressions(baseline, surface); len(regressions) != 0 {
 		var deltas []string
 		for _, regression := range regressions {
 			deltas = append(deltas, fmt.Sprintf("%s %d -> %d %s", regression.Metric, regression.Base, regression.Value, regression.Detail))
 		}
-		return fmt.Errorf("the repair would move a reviewed threshold; republish %s with the reason recorded: %s", harnessSurfaceBaselineFile, strings.Join(deltas, "; "))
+		return nil, fmt.Errorf("the repair would move a reviewed threshold; republish %s with the reason recorded: %s", harnessSurfaceBaselineFile, strings.Join(deltas, "; "))
 	}
 	current, err := json.MarshalIndent(baseline, "", " ")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	encoded, err := json.MarshalIndent(surface, "", " ")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if bytes.Equal(current, encoded) {
-		return nil
+		return nil, nil
 	}
-	// The republished baseline keeps the committed file's own mode.
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, append(encoded, '\n'), info.Mode().Perm())
+	return encoded, nil
 }

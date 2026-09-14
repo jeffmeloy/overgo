@@ -77,6 +77,98 @@ func TestModernCensusExistingContent(t *testing.T) {
 	}
 }
 
+func TestSurfaceImpactExclusion(t *testing.T) {
+	root := modernMemoFixture(t)
+	testutil.WriteTextFile(t, root, "internal/example/value.go", "package example\nfunc Value() int { return 2 }\n")
+	modernMemoPublish(t, root)
+	first := modernMemoContext(t, root)
+	cache := first.loadRetryCache()
+	initial := runModernMemo(t, first, "before commit", &cache)
+	if initial["modern-go"].Err != nil {
+		t.Fatal(initial["modern-go"].Err)
+	}
+	original := initial[modernCensusCheckName].Evidence
+	want, _, found, err := first.readModernGoOutput(original)
+	if err != nil || !found {
+		t.Fatalf("original census: %t %v", found, err)
+	}
+	encoded, err := json.Marshal(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := first.closeStore(); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, root, "add", "internal/example/value.go")
+	runGitFixture(t, root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "advance baseline")
+	for _, mode := range []string{"rollover", "tampered receipt", "foreign environment", "missing output", "legacy output"} {
+		t.Run(mode, func(t *testing.T) {
+			g := modernMemoContext(t, root)
+			var retained automationcheck.EvidenceCache
+			if err := json.Unmarshal(encoded, &retained); err != nil {
+				t.Fatal(err)
+			}
+			for key, entry := range retained.Entries {
+				switch mode {
+				case "tampered receipt":
+					entry.Source.Detail += " "
+				case "foreign environment":
+					entry.Source.Environment = testutil.ArtifactID(t, artifact.KindEvidence, mode)
+				case "missing output":
+					g.storePath = "other-store"
+				case "legacy output":
+					if entry.Source.Definition != original.Authority.Definition {
+						continue
+					}
+					legacy := original
+					var references modernGoReferences
+					if err := json.Unmarshal([]byte(legacy.Detail), &references); err != nil {
+						t.Fatal(err)
+					}
+					references.CandidateKey = artifact.ID{}
+					detail, err := json.Marshal(references)
+					if err != nil {
+						t.Fatal(err)
+					}
+					legacy.Detail = string(detail)
+					legacy.ID, err = legacy.Identity()
+					if err != nil {
+						t.Fatal(err)
+					}
+					var valid bool
+					entry, valid = automationcheck.NewCacheEntry(entry.Invocation, entry.Input, retained.Environment, legacy)
+					if !valid {
+						t.Fatal("legacy receipt fixture is invalid")
+					}
+				}
+				retained.Entries[key] = entry
+			}
+			results := runModernMemo(t, g, mode, &retained)
+			result := results[modernCensusCheckName]
+			if result.Err != nil || results["modern-go"].Err != nil || result.Evidence.Reused || results["modern-go"].Evidence.Reused {
+				t.Fatalf("rollover must compose outputs and run admission: %+v", results)
+			}
+			var references modernGoReferences
+			if err := json.Unmarshal([]byte(result.Evidence.Detail), &references); err != nil {
+				t.Fatal(err)
+			}
+			if (references.Prior == original.ID) != (mode == "rollover") {
+				t.Fatalf("reuse authority: %+v", references)
+			}
+			got, base, found, err := g.readModernGoOutput(result.Evidence)
+			if err != nil || !found || !reflect.DeepEqual(got, want) || !reflect.DeepEqual(base, want) {
+				t.Fatalf("rollover changed census: found=%t err=%v", found, err)
+			}
+			if g.modernInput.ID == first.modernInput.ID || g.modernInput.CandidateKey != first.modernInput.CandidateKey {
+				t.Fatal("fixture did not change only the pair binding")
+			}
+			if err := g.closeStore(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func modernMemoFixture(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAudioOutput(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": authenticated media runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": authenticated media runs through cmd/webui-lane")
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	fixture.handler.config.APIKey = testAPIKey

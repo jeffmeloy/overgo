@@ -1,4 +1,5 @@
-package model
+// Package modeldevice loads model inventories into device memory and binds them as graph inputs.
+package modeldevice
 
 import (
 	"context"
@@ -24,6 +25,7 @@ type DeviceConvertedWeights struct {
 	encode        convertedTensorEncoder
 }
 
+// NewDeviceConvertedWeights opens a store that converts tensors to storage on upload.
 func NewDeviceConvertedWeights(worker *device.Worker, storage dtype.Type) (*DeviceConvertedWeights, error) {
 	if worker == nil {
 		return nil, errors.New("converted device weights require a CUDA worker")
@@ -47,6 +49,7 @@ func NewDeviceConvertedWeights(worker *device.Worker, storage dtype.Type) (*Devi
 	}, nil
 }
 
+// Load converts and uploads the listed tensors.
 func (w *DeviceConvertedWeights) Load(ctx context.Context, file *gguf.File, infos []gguf.TensorInfo) error {
 	if file == nil {
 		return errors.New("converted device weights: GGUF file is nil")
@@ -54,6 +57,7 @@ func (w *DeviceConvertedWeights) Load(ctx context.Context, file *gguf.File, info
 	return w.loadConverted(ctx, file, infos, w.bytesPerValue, w.encode)
 }
 
+// Input adds a graph input for a loaded tensor and returns its device pointer.
 func (w *DeviceConvertedWeights) Input(builder *tensor.Builder, name string) (*tensor.Tensor, driver.DevicePtr, error) {
 	value, ok := w.Lookup(name)
 	if !ok {

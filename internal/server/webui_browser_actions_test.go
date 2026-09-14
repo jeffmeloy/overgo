@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserConversationActions(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": conversation actions run through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": conversation actions run through cmd/webui-lane")
 	}
 	seed, _, _ := conversationHistoryFixture(t)
 	description, ok := seed.interactionDescription()

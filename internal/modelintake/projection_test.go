@@ -10,7 +10,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -61,7 +61,7 @@ func storedProjectionPair(t *testing.T) (modelPath, projectorPath string, projec
 // artifact, the same media.
 func TestPrepareProjectionCandidateReproducesStoredBinding(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": reading model files is integration")
+		t.Skip(testskip.ShortIntegration + ": reading model files is integration")
 	}
 	modelPath, projectorPath, stored := storedProjectionPair(t)
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))

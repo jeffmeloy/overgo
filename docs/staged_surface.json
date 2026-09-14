@@ -111,12 +111,39 @@
       }
     },
     {
-      "name": "HermeticLlamaGGUF",
       "package": "overgo/internal/testutil",
+      "name": "HermeticLlamaGGUF",
       "reason": "Shared CPU timing and CUDA parity fixture; migrated all prior inference callers and removed the local builder. Test-consumed by design.",
       "retained": {
         "classification": "test-support",
         "evidence": "evidence:sha256:a9753ddf7825c88b536fa7cfb0d334b35053de0aea663ed4f9776db0e33cd551"
+      }
+    },
+    {
+      "package": "overgo/internal/hostoptimizer",
+      "name": "NewtonSchulz",
+      "reason": "The host Newton-Schulz routine is the reference the device stepper parity test in optimizer compares against; it was package-private before the host core moved to its own package and has no production caller by design. The bound finding records the parity consumer.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:b656f1d0ddd9bd36f7b92d48dda0794907b77d79788d67c3a2657a39863e7242"
+      }
+    },
+    {
+      "package": "overgo/internal/testskip",
+      "name": "StoreAcceptance",
+      "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:017c8eb4a3d54e453680f7f072a8cf2b815d16649729785a7837a77db5f60a93"
+      }
+    },
+    {
+      "package": "overgo/internal/testskip",
+      "name": "StoreAcceptanceEnv",
+      "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:017c8eb4a3d54e453680f7f072a8cf2b815d16649729785a7837a77db5f60a93"
       }
     }
   ]

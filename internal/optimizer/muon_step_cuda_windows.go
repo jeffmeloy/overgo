@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/hostoptimizer"
 )
 
 // deviceMuonMatrixStep: staged single-matrix Muon update.
@@ -26,7 +27,7 @@ func deviceMuonMatrixStep(worker *device.Worker, weights, gradient, momentum []f
 
 // muonMatrixGroupResident: transfer-free update on resident W/G/M.
 func (o *deviceOps) muonMatrixGroupResident(dW, dG, dM driver.DevicePtr, rows, cols int, mu, rate float64) error {
-	n, valid := matrixElements(rows, cols)
+	n, valid := hostoptimizer.MatrixElements(rows, cols)
 	if !valid {
 		return fmt.Errorf("muonMatrixGroupResident: bad shape (rows=%d cols=%d)", rows, cols)
 	}
@@ -91,11 +92,11 @@ func (o *deviceOps) muonMatrixGroupWithScratch(
 	scratch muonScratch,
 	orthogonalize func(nsBuffers, int, int) (driver.DevicePtr, error),
 ) error {
-	n, valid := matrixElements(rows, cols)
+	n, valid := hostoptimizer.MatrixElements(rows, cols)
 	if !valid || scratch.ns.dX == 0 || scratch.tmp == 0 {
 		return fmt.Errorf("muonMatrixGroupResidentWithScratch: invalid group or scratch")
 	}
-	scale := math.Sqrt(float64(max(rows, cols))) * stepRMS(mu) * rate
+	scale := math.Sqrt(float64(max(rows, cols))) * hostoptimizer.StepRMS(mu) * rate
 
 	muF := float32(mu)
 	if err := o.scale(dM, dM, muF, n); err != nil {
@@ -122,7 +123,7 @@ func (o *deviceOps) muonMatrixGroupWithScratch(
 
 // muonMatrixGroup: stage, update, return weights and momentum.
 func (o *deviceOps) muonMatrixGroup(weights, gradient, momentum []float32, rows, cols int, mu, rate float64) error {
-	n, valid := matrixElements(rows, cols)
+	n, valid := hostoptimizer.MatrixElements(rows, cols)
 	if !valid || len(weights) != n || len(gradient) != n || len(momentum) != n {
 		return fmt.Errorf("muonMatrixGroup: shape mismatch (n=%d w=%d g=%d m=%d)", n, len(weights), len(gradient), len(momentum))
 	}
@@ -178,8 +179,8 @@ func NewResidentMuonPlan(worker *device.Worker, plan Plan, config Config) (*Resi
 			return err
 		}
 		var scratch muonScratch
-		if plan.maxMatrix > 0 {
-			scratch, err = ops.allocMuonScratch(plan.maxMatrix, plan.maxSquare)
+		if plan.MaxMatrix() > 0 {
+			scratch, err = ops.allocMuonScratch(plan.MaxMatrix(), plan.MaxSquare())
 			if err != nil {
 				ops.close()
 				return err
@@ -214,7 +215,7 @@ func newResidentMatrixMuonPlan(worker *device.Worker, matrices []ResidentMatrix,
 	}
 	maxMatrix, maxSquare := 0, 0
 	for _, matrix := range matrices {
-		elements, valid := matrixElements(matrix.Rows, matrix.Cols)
+		elements, valid := hostoptimizer.MatrixElements(matrix.Rows, matrix.Cols)
 		if matrix.Weights == 0 || matrix.Gradient == 0 || matrix.Momentum == 0 || !valid {
 			return nil, errors.New("resident matrix Muon plan: invalid matrix")
 		}
@@ -248,7 +249,7 @@ func (s *ResidentMuonPlan) Step(weights, gradients, momentum driver.DevicePtr, s
 	}
 	rate := s.config.LearningRate(step)
 	return s.worker.Do(context.Background(), func(_ *device.State) error {
-		for _, group := range s.plan.groups {
+		for _, group := range s.plan.Groups() {
 			if group.Frozen {
 				continue
 			}
@@ -350,7 +351,7 @@ func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []fl
 		defer freeDevicePointers(ops.lib, buffers...)
 		dW, dG, dM := buffers[0], buffers[1], buffers[2]
 
-		for _, group := range plan.groups {
+		for _, group := range plan.Groups() {
 			if group.Frozen {
 				continue
 			}
@@ -371,7 +372,7 @@ func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []fl
 		if err := ops.lib.MemcpyDtoH(driver.Bytes(momentum), dM); err != nil {
 			return err
 		}
-		for _, group := range plan.groups {
+		for _, group := range plan.Groups() {
 			if !group.Frozen {
 				clear(gradients[group.Start:group.End])
 			}

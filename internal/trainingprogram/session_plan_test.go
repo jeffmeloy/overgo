@@ -1,10 +1,9 @@
 package trainingprogram
 
 import (
+	"overgo/internal/hostoptimizer"
 	"testing"
 	"time"
-
-	"overgo/internal/optimizer"
 )
 
 func TestTrainingSessionPlanDerivesUpdatesAndSealsPolicy(t *testing.T) {
@@ -12,7 +11,7 @@ func TestTrainingSessionPlanDerivesUpdatesAndSealsPolicy(t *testing.T) {
 		datasetUnits    = 3
 		maximumSequence = 128
 	)
-	config := optimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9, Schedule: optimizer.ScheduleConstant}
+	config := hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9, Schedule: hostoptimizer.ScheduleConstant}
 	plan, err := CompileTrainingSessionPlan(SessionSpec{
 		Objective: ObjectiveTokenPrediction, DatasetUnits: datasetUnits,
 		MaximumSequence: maximumSequence, Optimizer: config,
@@ -37,7 +36,7 @@ func TestTrainingSessionPlanDerivesUpdatesAndSealsPolicy(t *testing.T) {
 func TestTrainingSessionPlanValidatesRunControls(t *testing.T) {
 	base := SessionSpec{
 		Objective: ObjectiveGRPO, DatasetUnits: 1, MaximumSequence: 128, ObjectiveScale: 1,
-		Optimizer: optimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9, Schedule: optimizer.ScheduleConstant},
+		Optimizer: hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9, Schedule: hostoptimizer.ScheduleConstant},
 	}
 	cases := []struct {
 		name   string

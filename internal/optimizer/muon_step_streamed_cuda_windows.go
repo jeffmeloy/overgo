@@ -26,9 +26,9 @@ func DeviceMuonStepPlanStreamed(worker *device.Worker, weights, gradients, momen
 	if err := config.Validate(); err != nil {
 		return err
 	}
-	if plan.maxMatrix == 0 {
+	if plan.MaxMatrix() == 0 {
 		// Every group is frozen; clearing gradients is the whole step.
-		for _, group := range plan.groups {
+		for _, group := range plan.Groups() {
 			clear(gradients[group.Start:group.End])
 		}
 		return nil
@@ -41,20 +41,20 @@ func DeviceMuonStepPlanStreamed(worker *device.Worker, weights, gradients, momen
 		}
 		defer ops.close()
 
-		staging, err := ops.allocF32Set(plan.maxMatrix, plan.maxMatrix, plan.maxMatrix)
+		staging, err := ops.allocF32Set(plan.MaxMatrix(), plan.MaxMatrix(), plan.MaxMatrix())
 		if err != nil {
 			return err
 		}
 		defer freeDevicePointers(ops.lib, staging...)
 		dW, dG, dM := staging[0], staging[1], staging[2]
 
-		scratch, err := ops.allocMuonScratch(plan.maxMatrix, plan.maxSquare)
+		scratch, err := ops.allocMuonScratch(plan.MaxMatrix(), plan.MaxSquare())
 		if err != nil {
 			return err
 		}
 		defer scratch.free(ops.lib)
 
-		for _, group := range plan.groups {
+		for _, group := range plan.Groups() {
 			if group.Frozen {
 				clear(gradients[group.Start:group.End])
 				continue

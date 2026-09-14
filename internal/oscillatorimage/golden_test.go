@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -40,7 +40,7 @@ func referenceFixturePath(t *testing.T, name string) string {
 func loadReferenceGolden(t *testing.T, name string, out any) {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": requires adaptive_new reference goldens")
+		t.Skip(testskip.ShortIntegration + ": requires adaptive_new reference goldens")
 	}
 	raw, err := os.ReadFile(referenceFixturePath(t, name))
 	if err != nil {
@@ -101,7 +101,7 @@ var (
 func artifactDir(t *testing.T) string {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": requires the Un-0 model artifact")
+		t.Skip(testskip.ShortIntegration + ": requires the Un-0 model artifact")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

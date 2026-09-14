@@ -1,4 +1,4 @@
-package optimizer
+package hostoptimizer
 
 import (
 	"math"
@@ -26,11 +26,11 @@ func TestCompilePlanCompilesAllGeometryAndIdentity(t *testing.T) {
 		matrixCols = 3
 		vectorCols = 2
 	)
-	matrixElements := matrixRows * matrixCols
-	parameterCount := matrixElements + vectorCols
+	MatrixElements := matrixRows * matrixCols
+	parameterCount := MatrixElements + vectorCols
 	specs := []GroupSpec{
-		{Name: "matrix", Start: 0, End: matrixElements, Rows: matrixRows, Cols: matrixCols},
-		{Name: "vector", Start: matrixElements, End: parameterCount, Rows: 1, Cols: vectorCols},
+		{Name: "matrix", Start: 0, End: MatrixElements, Rows: matrixRows, Cols: matrixCols},
+		{Name: "vector", Start: MatrixElements, End: parameterCount, Rows: 1, Cols: vectorCols},
 	}
 	plan, err := CompilePlan(parameterCount, specs)
 	if err != nil {

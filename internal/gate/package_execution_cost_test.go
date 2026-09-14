@@ -34,6 +34,7 @@ func TestGatePackageExecutionCostAcceptance(t *testing.T) {
 	const unstarted = "overgo/internal/isolated"
 	g.paths = []string{"docs/config.txt"}
 	g.testPlan = &testGroups{edited: []string{target, unstarted, "overgo/internal/reader"}}
+	g.setTestStep(testOwnersCheckName)
 	report, err := g.runGoTestsAdmitted(t.Context(), []string{target}, true, nil, false)
 	if err != nil || !report.PackagePassed(target) {
 		t.Fatalf("live execution: %v, %+v", err, report)

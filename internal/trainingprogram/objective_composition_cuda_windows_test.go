@@ -13,7 +13,7 @@ import (
 	"overgo/internal/controlleraction"
 	"overgo/internal/controllertrain"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -142,7 +142,7 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 
 func compileObjectiveRun(t *testing.T, ctx context.Context, store artifact.Repository, composition trainingprogram.ObjectiveComposition, objective trainingprogram.ObjectiveSpec) {
 	t.Helper()
-	plan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

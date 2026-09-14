@@ -20,7 +20,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 type lifecycleCorpus struct {
@@ -155,7 +155,7 @@ func (corpus lifecycleCorpus) evaluate(t *testing.T, l *adapterLifecycle, defini
 
 func TestASRCPUClosedLoop(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": full CPU lifecycle runs as its exact mandatory plan acceptance")
+		t.Skip(testskip.ShortIntegration + ": full CPU lifecycle runs as its exact mandatory plan acceptance")
 	}
 	l := newAdapterLifecycle(t)
 	reference, referenceStore, _ := loadVADReference(t)

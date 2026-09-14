@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": transcription cleanup runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": transcription cleanup runs through cmd/webui-lane")
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	fixture.handler.config.AudioProjector = &fakeAudioProjector{}

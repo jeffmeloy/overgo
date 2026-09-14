@@ -9,14 +9,14 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // TestUpstreamTokenizerCorpus compares against checked-in llama.cpp
 // tokenizer oracle when OVERGO_LLAMA_CPP points at source checkout
 func TestUpstreamTokenizerCorpus(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": requires pinned llama.cpp tokenizer corpus")
+		t.Skip(testskip.ShortIntegration + ": requires pinned llama.cpp tokenizer corpus")
 	}
 	source := os.Getenv("OVERGO_LLAMA_CPP")
 	if source == "" {

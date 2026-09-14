@@ -28,7 +28,7 @@ import (
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
 	"overgo/internal/tensor"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -91,7 +91,7 @@ type qwen35VideoGolden struct {
 
 func TestMultimodalInputMatrix(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real multimodal parity")

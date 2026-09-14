@@ -10,7 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 	"testing"
@@ -79,7 +79,7 @@ func TestAudioStartupCapabilities(t *testing.T) {
 
 func TestWebUIBrowserAudioStartup(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": cold audio browser probe")
+		t.Skip(testskip.ShortIntegration + ": cold audio browser probe")
 	}
 	shell, generator := coldStartSpeechFixture(t)
 	server := httptest.NewServer(shell)

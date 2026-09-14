@@ -20,7 +20,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -184,7 +184,7 @@ func checkImageVideoDefinitions(ctx context.Context, store *overgodb.Store, valu
 
 func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": exact media inventory acceptance checks the private snapshot")
+		t.Skip(testskip.ShortIntegration + ": exact media inventory acceptance checks the private snapshot")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

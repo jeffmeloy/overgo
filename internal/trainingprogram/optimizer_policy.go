@@ -7,7 +7,7 @@ import (
 	"math"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipe"
 )
 
@@ -74,16 +74,16 @@ func (policy OptimizerPolicy) Momentum() float64 {
 	return (samples - 1) / (samples + 1)
 }
 
-func (policy OptimizerPolicy) Config(parameters int) (optimizer.Config, error) {
+func (policy OptimizerPolicy) Config(parameters int) (hostoptimizer.Config, error) {
 	if err := optimizerPolicyCodec.ValidateIdentity(policy); err != nil {
-		return optimizer.Config{}, err
+		return hostoptimizer.Config{}, err
 	}
 	if parameters <= 0 {
-		return optimizer.Config{}, errors.New("training program: optimizer policy requires positive parameters")
+		return hostoptimizer.Config{}, errors.New("training program: optimizer policy requires positive parameters")
 	}
-	return optimizer.Config{
+	return hostoptimizer.Config{
 		BaseLearningRate: policy.BaseLearningRate(parameters), Momentum: policy.Momentum(),
-		Schedule: optimizer.ScheduleConstant,
+		Schedule: hostoptimizer.ScheduleConstant,
 	}, nil
 }
 

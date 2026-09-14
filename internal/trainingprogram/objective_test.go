@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -81,7 +81,7 @@ func TestRepositoryObjectiveBindsTrainingRun(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	muon, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	muon, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestReferenceAdmissionRequiresSemanticRelevance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	muon, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	muon, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func mustOptimizerPolicyContent(t *testing.T) artifact.Content {
 }
 
 func TestCompileObjectiveProgramDerivesOptimizerParameters(t *testing.T) {
-	plan, err := optimizer.CompilePlan(6, []optimizer.GroupSpec{
+	plan, err := hostoptimizer.CompilePlan(6, []hostoptimizer.GroupSpec{
 		{Name: "matrix", Start: 0, End: 4, Rows: 2, Cols: 2},
 		{Name: "frozen", Start: 4, End: 6, Rows: 1, Cols: 2, Frozen: true},
 	})

@@ -17,7 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -28,7 +28,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 			t.Fatalf("browser acceptance prerequisite is absent; run go run ./cmd/webui-lane: %v", err)
 		}
 		// A skip, not a pass: a verify naming this test outside the lane runner is vacuous evidence.
-		t.Skip(testevidence.ShortIntegrationSkip + ": browser acceptance runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": browser acceptance runs through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
@@ -348,7 +348,7 @@ func assertBrowserPredicate(t *testing.T, ctx context.Context, browser *webuilan
 // phone widths.
 func TestWebUIBrowserFrontPage(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": browser acceptance runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": browser acceptance runs through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {

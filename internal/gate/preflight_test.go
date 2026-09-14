@@ -32,7 +32,7 @@ func TestPreflightRejectsUnplannedDocsBeforeStore(t *testing.T) {
 	}
 	g := gateContext{repo: root, storePath: "absent-store"}
 	var docs []automationcheck.Check
-	for _, check := range g.preflightChecks() {
+	for _, check := range g.pipelineChecks() {
 		if check.Descriptor.Name == "docs" {
 			docs = append(docs, check)
 		}

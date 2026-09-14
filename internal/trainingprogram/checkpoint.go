@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/strictjson"
 )
 
@@ -61,7 +61,7 @@ type CheckpointSpec struct {
 	Dataset           artifact.ID
 	Split             artifact.ID
 	Stream            DatasetState
-	Optimizer         optimizer.State
+	Optimizer         hostoptimizer.State
 	ParameterCount    int
 	RNG               []RNGState
 	Processors        []artifact.ID
@@ -81,7 +81,7 @@ type Checkpoint struct {
 	Dataset           artifact.ID             `json:"dataset"`
 	Split             artifact.ID             `json:"split"`
 	Stream            DatasetState            `json:"stream"`
-	Optimizer         optimizer.State         `json:"optimizer"`
+	Optimizer         hostoptimizer.State     `json:"optimizer"`
 	ParameterCount    int                     `json:"parameter_count"`
 	RNG               []RNGState              `json:"rng"`
 	Processors        []artifact.ID           `json:"processors"`
@@ -353,7 +353,7 @@ func canonicalizeCheckpoint(checkpoint *Checkpoint) error {
 		checkpoint.ParameterCount <= 0 || checkpoint.Accumulation != 0 {
 		return errors.New("training checkpoint: invalid authority or accumulation boundary")
 	}
-	if err := optimizer.ValidateState(checkpoint.Optimizer, checkpoint.Optimizer.PlanIdentity, checkpoint.ParameterCount); err != nil {
+	if err := hostoptimizer.ValidateState(checkpoint.Optimizer, checkpoint.Optimizer.PlanIdentity, checkpoint.ParameterCount); err != nil {
 		return fmt.Errorf("training checkpoint: %w", err)
 	}
 	if err := canonicalRNG(&checkpoint.RNG); err != nil {

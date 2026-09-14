@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 	"strconv"
 	"sync"
@@ -18,7 +18,7 @@ import (
 
 func TestWebUIBrowserAudioInput(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": isolated native transcription startup probe")
+		t.Skip(testskip.ShortIntegration + ": isolated native transcription startup probe")
 	}
 	for _, earlyKey := range []bool{true, false} {
 		t.Run("early-key="+strconv.FormatBool(earlyKey), func(t *testing.T) {

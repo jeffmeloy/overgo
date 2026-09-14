@@ -22,7 +22,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -73,7 +73,7 @@ func laneHubServer(t *testing.T, file string) *httptest.Server {
 // validates its text path and keeps the projector as its projection.
 func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": library validation runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

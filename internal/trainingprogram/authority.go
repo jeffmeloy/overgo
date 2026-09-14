@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 )
@@ -125,7 +125,7 @@ type ProgramSpec struct {
 	Objective  ObjectiveKind
 	Operators  []OperatorSpec
 	Parameters []ParameterSpec
-	Optimizer  optimizer.Plan
+	Optimizer  hostoptimizer.Plan
 	Preference *PreferencePolicy
 }
 
@@ -412,7 +412,7 @@ func validPhase(phase OperatorPhase) bool {
 	}
 }
 
-func compileParameters(source []ParameterSpec, plan optimizer.Plan) ([]ParameterSpec, error) {
+func compileParameters(source []ParameterSpec, plan hostoptimizer.Plan) ([]ParameterSpec, error) {
 	if plan.Identity() == "" || len(source) != plan.GroupCount() {
 		return nil, errors.New("training program: parameter manifest differs from Muon plan")
 	}

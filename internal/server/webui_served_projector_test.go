@@ -17,7 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -31,7 +31,7 @@ import (
 // model the check reports UNAVAILABLE.
 func TestFrontPageServedProjector(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": a served model is integration")
+		t.Skip(testskip.ShortIntegration + ": a served model is integration")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

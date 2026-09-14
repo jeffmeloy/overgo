@@ -6,6 +6,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/graphruntime"
 	"overgo/internal/model"
+	"overgo/internal/modeldevice"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -62,7 +63,7 @@ func (runtime *inferenceGraphRuntime) layerWithHost(
 	hostLayer *model.HostLayer,
 ) (model.LayerGraphWeights, error) {
 	if runtime.runner.hasPreloadedWeights() {
-		weights, feeds, err := model.BindDeviceLayerGraphInputs(
+		weights, feeds, err := modeldevice.BindDeviceLayerGraphInputs(
 			runtime.builder, layer, runtime.runner.deviceInput,
 		)
 		if err == nil {

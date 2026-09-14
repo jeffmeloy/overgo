@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "4bd1e8820216d7b9c1bfbc8938bcb19f91f024428917ea451ba63951b2abc8a4",
+  "source_identity": "742168d0cab5488879fc0ae13a4cc9d0639b251dc8b18b313fd3c5ec3c2e86e9",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3416,
-    "typed_files": 3352
+    "inspected_files": 3425,
+    "typed_files": 3361
   },
   "guidelines": [
     {
@@ -4931,17 +4931,6 @@
     },
     {
       "guideline": "context_cancel_cause",
-      "path": "internal/model/device_weights.go",
-      "symbol": "streamTensor",
-      "owner": "overgo/internal/model",
-      "reason": "The owner requires the existing CancelFunc surface or nil-cause cancellation identity across an API or lifecycle boundary.",
-      "oracle": "go test ./internal/model -count=1",
-      "retirement": "Retire when the complete caller chain accepts CancelCauseFunc and tests pin the replacement cause identity.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_cancel_cause",
       "path": "internal/operation/runtime.go",
       "symbol": "start",
       "owner": "overgo/internal/operation",
@@ -5095,5 +5084,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "ba3e364c024752fcef4399da33e1d1cfe3ee84355d928b28dd73b54cc2c530fd"
+  "exceptions_sha256": "9584221e706c9d8c5e15201ccadeb742b2d9cbe33666ced3a1c76c26146eefc1"
 }

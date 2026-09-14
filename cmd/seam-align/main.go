@@ -16,9 +16,9 @@ import (
 	"overgo/internal/bridgetrain"
 	"overgo/internal/clioptions"
 	"overgo/internal/composition"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/jsonfile"
 	"overgo/internal/loop"
-	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 )
 
@@ -187,7 +187,7 @@ type driveTargetSpecification struct {
 		Dataset        artifact.ID           `json:"dataset"`
 		Examples       []bridgetrain.Example `json:"examples"`
 		TrainingPolicy artifact.ID           `json:"training_policy"`
-		Config         optimizer.Config      `json:"config"`
+		Config         hostoptimizer.Config  `json:"config"`
 		Epochs         int                   `json:"epochs"`
 	} `json:"training"`
 	Assembly struct {
@@ -391,7 +391,7 @@ func realizeCandidate(repository, specificationPath string) error {
 			Dataset        artifact.ID           `json:"dataset"`
 			Examples       []bridgetrain.Example `json:"examples"`
 			TrainingPolicy artifact.ID           `json:"training_policy"`
-			Config         optimizer.Config      `json:"config"`
+			Config         hostoptimizer.Config  `json:"config"`
 			Epochs         int                   `json:"epochs"`
 		} `json:"training"`
 		Assembly struct {

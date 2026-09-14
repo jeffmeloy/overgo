@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/codeprofile"
 	"overgo/internal/repoanalysis"
 )
 
@@ -25,6 +26,8 @@ type cacheEntry struct {
 	key               artifact.ID
 	manifest          Manifest
 	used              uint64
+	profileSource     artifact.ID
+	profile           *codeprofile.Profile
 }
 
 // Cache owns a caller-declared capacity; Put evicts the least-recently used
@@ -146,7 +149,10 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 	slices.SortFunc(selected, func(left, right analysisSelection) int {
 		return strings.Compare(left.Selection.Context, right.Selection.Context)
 	})
-	selectionID, err := artifact.JSONID(artifact.KindRecipe, selected)
+	selectionID, err := artifact.JSONID(artifact.KindRecipe, struct {
+		Selections []analysisSelection
+		Files      []repoanalysis.GoFile
+	}{selected, snapshot.Files})
 	if err != nil {
 		return Manifest{}, false, err
 	}
@@ -171,15 +177,68 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 			if err != nil {
 				return Manifest{}, false, err
 			}
-			return manifest, false, cache.put(key, manifest)
+			if err := cache.put(key, manifest); err != nil {
+				return Manifest{}, false, err
+			}
+			cache.attachProfile(key, entry.profileSource, entry.profile)
+			return manifest, false, nil
 		}
 	}
-	manifest, err = Generate(snapshot, selections, external)
+	profile, found := cache.Profile(snapshot)
+	if !found {
+		profile, err = codeprofile.Build(snapshot)
+		if err != nil {
+			return Manifest{}, false, err
+		}
+	}
+	manifest, err = generate(snapshot, profile, selections, external)
 	if err != nil {
 		return Manifest{}, false, err
 	}
 	if err := cache.put(key, manifest); err != nil {
 		return Manifest{}, false, err
 	}
+	source, err := artifact.JSONID(artifact.KindProfile, snapshot.Files)
+	if err != nil {
+		return Manifest{}, false, err
+	}
+	cache.attachProfile(key, source, &profile)
 	return manifest, false, nil
+}
+
+func (cache *Cache) attachProfile(key cacheKey, source artifact.ID, profile *codeprofile.Profile) {
+	id, err := key.id()
+	if err != nil {
+		return
+	}
+	entry := cache.entries[id]
+	entry.profileSource, entry.profile = source, profile
+	cache.entries[id] = entry
+}
+
+// Profile returns a copy of facts already built for an identical snapshot.
+// Facts share the manifest entry's lifetime and eviction; policy is not cached.
+// Files bind content identity, order, path and test classification. Analyzer
+// and toolchain identity are fixed for this in-process cache.
+func (cache *Cache) Profile(snapshot repoanalysis.SourceSnapshot) (codeprofile.Profile, bool) {
+	if cache == nil {
+		return codeprofile.Profile{}, false
+	}
+	source, err := artifact.JSONID(artifact.KindProfile, snapshot.Files)
+	if err != nil {
+		return codeprofile.Profile{}, false
+	}
+	for _, entry := range cache.entries {
+		if entry.profile == nil || entry.profileSource != source {
+			continue
+		}
+		profile := *entry.profile
+		profile.Functions = slices.Clone(profile.Functions)
+		profile.Clones = slices.Clone(profile.Clones)
+		for i := range profile.Clones {
+			profile.Clones[i].Functions = slices.Clone(profile.Clones[i].Functions)
+		}
+		return profile, true
+	}
+	return codeprofile.Profile{}, false
 }

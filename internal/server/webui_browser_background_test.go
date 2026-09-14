@@ -16,14 +16,14 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserColdActivity(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": cold activity uses Chromium")
+		t.Skip(testskip.ShortIntegration + ": cold activity uses Chromium")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -81,7 +81,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 
 func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": background work runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": background work runs through cmd/webui-lane")
 	}
 	root := t.TempDir()
 	store, err := overgodb.Open(root)

@@ -27,7 +27,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -253,7 +253,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 // cheapest of them, the host oscillator, publishing it as a PNG artifact.
 func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": generating from store models is integration")
+		t.Skip(testskip.ShortIntegration + ": generating from store models is integration")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

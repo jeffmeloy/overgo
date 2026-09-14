@@ -45,6 +45,7 @@ type packageEvidenceLedger struct {
 	environment artifact.ID
 	obligations map[string]runrecord.AgentObligation
 	previous    map[string]artifact.ID
+	prepared    map[string]runrecord.SelectionReuse
 }
 
 func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
@@ -63,6 +64,9 @@ func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
 // prepare persists every required package before execution, then rebuilds the
 // cache projection from exact store receipts. A tmp file is never authority.
 func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []string, mode string, inputs map[string]artifact.ID, cache *automationcheck.EvidenceCache) error {
+	if ledger.prepared == nil {
+		ledger.prepared = map[string]runrecord.SelectionReuse{}
+	}
 	store := ledger.store
 	if err := store.Refresh(ctx); err != nil {
 		return err
@@ -105,17 +109,20 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 		}
 		delete(cache.Entries, invocation.String())
 		delete(ledger.previous, pkg)
+		witness := runrecord.SelectionReuse{Obligation: obligation.ID}
 		if found {
 			if prior.Obligation != obligation.ID {
 				return errors.New("package evidence: receipt obligation mismatch")
 			}
 			ledger.previous[pkg] = prior.ID
+			witness.Receipt, witness.Passed = prior.ID, prior.Passed
 			if prior.Passed {
 				if err := cache.RecordPackagePass(pkg, mode, inputs[pkg]); err != nil {
 					return err
 				}
 			}
 		}
+		ledger.prepared[pkg] = witness
 	}
 	if len(identities) == 0 {
 		return nil

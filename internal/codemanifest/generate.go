@@ -13,7 +13,7 @@ import (
 
 const (
 	analyzerName    = "overgo-codeprofile"
-	analyzerVersion = "consumer-graph-v2"
+	analyzerVersion = "consumer-graph-v3"
 )
 
 type contextGraph struct {
@@ -27,12 +27,16 @@ type contextGraph struct {
 // source snapshot, function profile, build selections, consumer graphs, and
 // caller-declared content-identified external inputs.
 func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.BuildSelection, external []ExternalInput) (Manifest, error) {
-	if len(selections) == 0 || len(selections) > maxBuildContexts {
-		return Manifest{}, errors.New("code manifest: invalid build selection count")
-	}
 	profile, err := codeprofile.Build(snapshot)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("code manifest: profile: %w", err)
+	}
+	return generate(snapshot, profile, selections, external)
+}
+
+func generate(snapshot repoanalysis.SourceSnapshot, profile codeprofile.Profile, selections []repoanalysis.BuildSelection, external []ExternalInput) (Manifest, error) {
+	if len(selections) == 0 || len(selections) > maxBuildContexts {
+		return Manifest{}, errors.New("code manifest: invalid build selection count")
 	}
 	graphs := make([]contextGraph, 0, len(selections))
 	seenContexts := map[string]bool{}

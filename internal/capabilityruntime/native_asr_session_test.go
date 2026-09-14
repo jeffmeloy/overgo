@@ -13,13 +13,13 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechrecognitiontest"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/workflowruntime"
 )
 
 func TestNativeASRSessionAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": native recurrent sessions require registered model and corpus captures")
+		t.Skip(testskip.ShortIntegration + ": native recurrent sessions require registered model and corpus captures")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 func TestCIRequiredEvidenceCommand(t *testing.T) {
@@ -16,7 +17,7 @@ func TestCIRequiredEvidenceCommand(t *testing.T) {
 			"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Output\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestSlow\"}\n"+
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
-		testevidence.ShortIntegrationSkip+"\n",
+		testskip.ShortIntegration+"\n",
 	)
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"./..."}, &stdout, &stderr, func([]string) (testevidence.GoTestReport, error) {

@@ -151,7 +151,7 @@ func Run(options Options) (runErr error) {
 	if readOnlyPlan && *merge {
 		return errors.New("gate: -inspect-plan and -preflight require explicit -paths and cannot inspect an in-progress merge")
 	}
-	if (*pathsCSV == "" && !*merge) || (!readOnlyPlan && *messageFile == "") {
+	if (*pathsCSV == "" && !*merge && !*preflight) || (!readOnlyPlan && *messageFile == "") {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
@@ -271,13 +271,25 @@ func Run(options Options) (runErr error) {
 			}
 		}
 	}
+	if *preflight && len(g.paths) == 0 {
+		dirty, err := g.dirtyStatus()
+		if err != nil {
+			return err
+		}
+		_, g.paths = scopeDirty(nil, dirty)
+		if len(g.paths) == 0 {
+			g.paths = []string{plan.Path}
+		}
+	}
 	if err := validatePlannedPaths(g.paths); err != nil {
 		return err
 	}
 	// A lane commit that carries nothing but the plan is refused unless it
 	// is a merge: routine re-planning rides in the implementation commit.
-	if err := g.refusePlanOnlyCommit(*merge); err != nil {
-		return err
+	if !readOnlyPlan {
+		if err := g.refusePlanOnlyCommit(*merge); err != nil {
+			return err
+		}
 	}
 	if err := g.expandDirectoryPaths(); err != nil {
 		return err

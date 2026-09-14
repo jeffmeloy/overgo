@@ -24,7 +24,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -126,7 +126,7 @@ func checkMediaCostBytes(cost mediaCostProfile, profile latentvideo.Profile, con
 }
 func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": cost attribution reads the private snapshot and model metadata")
+		t.Skip(testskip.ShortIntegration + ": cost attribution reads the private snapshot and model metadata")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

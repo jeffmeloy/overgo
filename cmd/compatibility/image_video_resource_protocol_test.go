@@ -21,7 +21,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -42,7 +42,7 @@ type imageVideoResourceProtocol struct {
 
 func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": media resource protocol discovers current hardware")
+		t.Skip(testskip.ShortIntegration + ": media resource protocol discovers current hardware")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

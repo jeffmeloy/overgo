@@ -1,4 +1,4 @@
-package optimizer
+package hostoptimizer
 
 import (
 	"crypto/sha256"
@@ -8,7 +8,7 @@ import (
 	"math"
 )
 
-// State: portable optimizer progress and momentum.
+// State is the portable optimizer progress and momentum.
 type State struct {
 	PlanIdentity string    `json:"plan_identity"`
 	Config       Config    `json:"config"`
@@ -16,7 +16,7 @@ type State struct {
 	Momentum     []float64 `json:"momentum"`
 }
 
-// StepResult: committed step facts.
+// StepResult holds the committed facts of one step.
 type StepResult struct {
 	Step         int
 	LearningRate float64
@@ -24,7 +24,7 @@ type StepResult struct {
 	UpdateL2     float64
 }
 
-// Optimizer: flat CPU adaptive/Muon optimizer.
+// Optimizer is the flat CPU adaptive Muon optimizer.
 type Optimizer struct {
 	weights   []float32
 	gradients []float32
@@ -35,6 +35,7 @@ type Optimizer struct {
 	scratch   newtonSchulzScratch
 }
 
+// New binds an optimizer to caller-owned weights and gradients under a plan and config.
 func New(weights, gradients []float32, plan Plan, config Config) (*Optimizer, error) {
 	if plan.Identity() == "" {
 		return nil, errors.New("optimizer: plan is not compiled")
@@ -55,11 +56,12 @@ func New(weights, gradients []float32, plan Plan, config Config) (*Optimizer, er
 	return optimizer, nil
 }
 
+// Step advances every group once.
 func (o *Optimizer) Step() StepResult {
 	return o.StepGroups(func(Group) bool { return true })
 }
 
-// StepGroups: one step over selected groups; excluded state remains unchanged.
+// StepGroups advances the selected groups once; excluded state remains unchanged.
 func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	o.step++
 	rate := o.config.LearningRate(o.step)
@@ -79,6 +81,10 @@ func (o *Optimizer) StepGroups(include func(Group) bool) StepResult {
 	return StepResult{Step: o.step, LearningRate: rate, GradientL2: math.Sqrt(gradientSquared), UpdateL2: math.Sqrt(updateSquared)}
 }
 
+// Momentum exposes the live momentum buffer for parity checks against a
+// device stepper; callers must not retain or modify it.
+func (o *Optimizer) Momentum() []float64 { return o.momentum }
+
 func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, updateSquared float64) {
 	length := group.End - group.Start
 	o.scratch.ensure(o.plan.maxMatrix, o.plan.maxSquare)
@@ -92,7 +98,7 @@ func (o *Optimizer) stepMuon(group Group, rate float64) (gradientSquared, update
 		direction[offset] = nesterovDirection
 	}
 	newtonSchulz(direction, group.Rows, group.Cols, &o.scratch)
-	scale := math.Sqrt(float64(max(group.Rows, group.Cols))) * stepRMS(o.config.Momentum) * rate
+	scale := math.Sqrt(float64(max(group.Rows, group.Cols))) * StepRMS(o.config.Momentum) * rate
 	for offset := range length {
 		index := group.Start + offset
 		update := scale * direction[offset]
@@ -108,6 +114,7 @@ func nesterov(momentum, previous, gradient float64) (next, direction float64) {
 	return next, momentum*next + gradient
 }
 
+// Snapshot copies the portable state.
 func (o *Optimizer) Snapshot() State {
 	return State{
 		PlanIdentity: o.plan.Identity(),
@@ -117,6 +124,7 @@ func (o *Optimizer) Snapshot() State {
 	}
 }
 
+// Restore replaces the momentum and step from a validated state.
 func (o *Optimizer) Restore(state State) error {
 	if err := ValidateState(state, o.plan.Identity(), len(o.momentum)); err != nil {
 		return err

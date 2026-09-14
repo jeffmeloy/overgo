@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -130,7 +131,7 @@ func compareMediaMemory(before, after mediaTransferRecord) (bool, error) {
 
 func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": memory comparison reads retained acquisitions")
+		t.Skip(testskip.ShortIntegration + ": memory comparison reads retained acquisitions")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

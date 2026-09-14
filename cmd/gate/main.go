@@ -29,7 +29,7 @@ func run() error {
 	admitReview := flag.String("admit-review", "", "read-only: admit a OvergoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from tmp/gate_lifecycle.json")
 	inspectPlan := flag.Bool("inspect-plan", false, "non-committing: construct and print the exact manifest-bound verification plan without executing checks; may write temporary Git object/index state")
-	preflight := flag.Bool("preflight", false, "diagnose working-tree validation failures without admission, store repair or acceptance credit")
+	preflight := flag.Bool("preflight", false, "diagnose working-tree changes without admission, repair or acceptance credit; -paths cmd,internal checks all Go sources")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
 	return gate.Run(gate.Options{

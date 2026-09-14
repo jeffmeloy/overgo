@@ -87,7 +87,7 @@ func loadGatePhaseHistory(ctx context.Context, store *overgodb.Store, c cli) (ga
 		{Kind: artifact.KindEvidence, MediaType: runrecord.AttemptMediaType, Schema: runrecord.AttemptSchema},
 		{Kind: artifact.KindEvidence, MediaType: runrecord.GateMediaType, Schema: runrecord.GateSchema},
 		{Kind: artifact.KindEvidence, MediaType: runrecord.GateLifecycleMediaType, Schema: runrecord.GateLifecycleSchema},
-		runrecord.SelectionCauseContract,
+		runrecord.SelectionCauseCodec.Contract,
 	}
 	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{Contracts: contracts, Order: overgodb.DocumentOldestFirst}, func(view overgodb.DocumentView) error {
 		switch view.Content.Descriptor.MediaType {
@@ -113,8 +113,8 @@ func loadGatePhaseHistory(ctx context.Context, store *overgodb.Store, c cli) (ga
 				return err
 			}
 			lifecycles = append(lifecycles, lifecycle)
-		case runrecord.SelectionCauseMediaType:
-			record, err := runrecord.ParseSelectionCauseRecord(view.Content.Data)
+		case runrecord.SelectionCauseCodec.Contract.MediaType:
+			record, err := runrecord.SelectionCauseCodec.Parse(view.Content.Data)
 			if err != nil {
 				return err
 			}
@@ -224,23 +224,30 @@ func writeSelectionCauses(output io.Writer, histogram *runrecord.SelectionHistog
 		return
 	}
 	for _, step := range histogram.Steps {
-		fmt.Fprintf(output, "  causes %-16s packages=%d executed=%d failed=%d unstarted=%d\n", step.Name, step.Packages, step.Executed, step.Failed, step.Unstarted)
+		fmt.Fprintf(output, "  causes %-16s packages=%d executed=%d failed=%d skipped=%d unstarted=%d\n", step.Name, step.Packages, step.Executed, step.Failed, step.Skipped, step.Unstarted)
 	}
+	var unknown, missing, failed, passed int
+	for _, entry := range histogram.Packages {
+		switch {
+		case !entry.Reuse.Obligation.Valid():
+			unknown++
+		case !entry.Reuse.Receipt.Valid():
+			missing++
+		case entry.Reuse.Passed:
+			passed++
+		default:
+			failed++
+		}
+	}
+	fmt.Fprintf(output, "  receipts before execution: unrecorded=%d no_matching=%d prior_failed=%d prior_passed=%d\n", unknown, missing, failed, passed)
 	for _, bar := range histogram.Primary {
-		fmt.Fprintf(output, "  primary %-14s packages=%d executed=%d unstarted=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.Unstarted, bar.ElapsedSeconds)
+		fmt.Fprintf(output, "  primary %-14s packages=%d executed=%d skipped=%d unstarted=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.Skipped, bar.Unstarted, bar.ElapsedSeconds)
 	}
 	for _, bar := range histogram.Sufficient {
 		fmt.Fprintf(output, "  sufficient %-11s packages=%d\n", bar.Cause, bar.Packages)
 	}
-	for index, bar := range histogram.Inputs {
-		if index == selectionInputLimit {
-			fmt.Fprintf(output, "  inputs: %d more\n", len(histogram.Inputs)-selectionInputLimit)
-			break
-		}
+	for _, bar := range histogram.Inputs {
 		fmt.Fprintf(output, "  input %s packages=%d executed=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.ElapsedSeconds)
 	}
 	fmt.Fprintln(output, "  "+histogram.Limitations)
 }
-
-// The text view lists the changed inputs that selected the most packages.
-const selectionInputLimit = 8

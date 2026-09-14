@@ -1,4 +1,4 @@
-package model
+package modeldevice
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 )
 
-const defaultWeightChunkSize = 16 << 20
 const weightUploadBufferCount = 2
 
 type weightUploadChunk struct {
@@ -21,7 +21,7 @@ type weightUploadChunk struct {
 	err    error
 }
 
-// DeviceTensor: valid only while used on DeviceWeights' worker thread
+// DeviceTensor is valid only while used on the DeviceWeights worker thread.
 type DeviceTensor struct {
 	Info    gguf.TensorInfo
 	Shape   tensor.Shape
@@ -29,11 +29,12 @@ type DeviceTensor struct {
 	Size    uint64
 }
 
-// DeviceWeights: owns persistent raw GGUF tensors in one CUDA context
+// DeviceWeights owns persistent raw GGUF tensors in one CUDA context.
 type DeviceWeights struct {
 	*deviceTensorStore
 }
 
+// NewDeviceWeights opens a raw tensor store on the worker.
 func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 	if worker == nil {
 		return nil, errors.New("device weights require a CUDA worker")
@@ -43,7 +44,7 @@ func NewDeviceWeights(worker *device.Worker) (*DeviceWeights, error) {
 	}, nil
 }
 
-// Load: streams tensors from GGUF into persistent CUDA allocations
+// Load streams tensors from GGUF into persistent CUDA allocations.
 func (w *DeviceWeights) Load(
 	ctx context.Context,
 	file *gguf.File,
@@ -82,7 +83,7 @@ func (w *DeviceWeights) streamTensor(
 	pointer driver.DevicePtr,
 	uploadBuffers *[weightUploadBufferCount][]byte,
 ) error {
-	if info.Size <= defaultWeightChunkSize {
+	if info.Size <= model.WeightChunkSize {
 		if cap((*uploadBuffers)[tensor.FirstOffset]) < int(info.Size) {
 			(*uploadBuffers)[tensor.FirstOffset] = make([]byte, int(info.Size))
 		}
@@ -97,9 +98,9 @@ func (w *DeviceWeights) streamTensor(
 		}
 		return nil
 	}
-	chunkSize := uint64(defaultWeightChunkSize)
-	pipelineCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	chunkSize := uint64(model.WeightChunkSize)
+	pipelineCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 	free := make(chan []byte, weightUploadBufferCount)
 	ready := make(chan weightUploadChunk, weightUploadBufferCount)
 	done := make(chan struct{})
@@ -138,22 +139,25 @@ func (w *DeviceWeights) streamTensor(
 	}()
 	for chunk := range ready {
 		if chunk.err != nil {
-			cancel()
+			err := fmt.Errorf("read tensor %q at %d: %w", info.Name, chunk.offset, chunk.err)
+			cancel(err)
 			<-done
-			return fmt.Errorf("read tensor %q at %d: %w", info.Name, chunk.offset, chunk.err)
+			return err
 		}
 		if uint64(pointer) > math.MaxUint64-chunk.offset {
-			cancel()
+			err := fmt.Errorf("device pointer for tensor %q overflows", info.Name)
+			cancel(err)
 			<-done
-			return fmt.Errorf("device pointer for tensor %q overflows", info.Name)
+			return err
 		}
 		destination := pointer + driver.DevicePtr(chunk.offset)
 		if err := w.worker.Do(ctx, func(state *device.State) error {
 			return state.Driver.MemcpyHtoD(destination, chunk.data)
 		}); err != nil {
-			cancel()
+			err = fmt.Errorf("upload tensor %q at %d: %w", info.Name, chunk.offset, err)
+			cancel(err)
 			<-done
-			return fmt.Errorf("upload tensor %q at %d: %w", info.Name, chunk.offset, err)
+			return err
 		}
 		select {
 		case free <- chunk.data[:int(chunkSize)]:
@@ -164,7 +168,7 @@ func (w *DeviceWeights) streamTensor(
 	return ctx.Err()
 }
 
-// Do exposes loaded device pointers only inside owning worker callback
+// Do exposes loaded device pointers only inside the owning worker callback.
 func (w *DeviceWeights) Do(
 	ctx context.Context,
 	function func(*device.State, map[string]DeviceTensor) error,
@@ -185,7 +189,7 @@ func (w *DeviceWeights) Do(
 	})
 }
 
-// Input: adds graph input using tensor's original GGUF storage type
+// Input adds a graph input using the tensor's original GGUF storage type.
 func (w *DeviceWeights) Input(
 	builder *tensor.Builder,
 	name string,
@@ -211,22 +215,22 @@ func (w *DeviceWeights) Input(
 // BindDeviceLayerGraphInputs binds a compiled layer catalog.
 func BindDeviceLayerGraphInputs(
 	builder *tensor.Builder,
-	info LayerWeights,
+	info model.LayerWeights,
 	bind DeviceTensorBinder,
-) (LayerGraphWeights, tensor.InputBindings[driver.DevicePtr], error) {
+) (model.LayerGraphWeights, tensor.InputBindings[driver.DevicePtr], error) {
 	if builder == nil {
-		return LayerGraphWeights{}, nil, errors.New("device layer graph builder is nil")
+		return model.LayerGraphWeights{}, nil, errors.New("device layer graph builder is nil")
 	}
 	if bind == nil {
-		return LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
+		return model.LayerGraphWeights{}, nil, errors.New("device layer graph binder is nil")
 	}
 	var feeds tensor.InputBindings[driver.DevicePtr]
-	result := LayerGraphWeights{}
+	result := model.LayerGraphWeights{}
 	if err := bindDeviceLayerGraphFields(bind, builder, &info, &result, &feeds); err != nil {
-		return LayerGraphWeights{}, nil, err
+		return model.LayerGraphWeights{}, nil, err
 	}
 	if err := builder.Err(); err != nil {
-		return LayerGraphWeights{}, nil, err
+		return model.LayerGraphWeights{}, nil, err
 	}
 	return result, feeds, nil
 }

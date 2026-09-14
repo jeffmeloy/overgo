@@ -114,7 +114,7 @@ func DotRows(
 	if layout.Count > math.MaxUint32 || layout.Count > uint64(math.MaxInt) {
 		return nil, errors.New("dot rows: row count is invalid")
 	}
-	capacity := min(uint64(defaultWeightChunkSize)/layout.BytesPerRow, layout.Count)
+	capacity := min(uint64(WeightChunkSize)/layout.BytesPerRow, layout.Count)
 	capacity = max(capacity, uint64(tensor.SingletonExtent))
 	storageBytes := capacity * layout.BytesPerRow
 	if storageBytes > uint64(math.MaxInt) || capacity > math.MaxUint64/layout.ElementsPerRow ||
@@ -180,7 +180,7 @@ func (layer *HostLayer) GraphInputs(
 	}
 	var feeds tensor.InputBindings[reference.Value]
 	result := LayerGraphWeights{}
-	err := bindLayerGraphFields((*layerTensorSchema[reference.Value])(layer), &result, func(slot layerBindingSlot, host *reference.Value) (*tensor.Tensor, error) {
+	err := bindLayerGraphFields((*layerTensorSchema[reference.Value])(layer), &result, func(slot LayerBindingSlot, host *reference.Value) (*tensor.Tensor, error) {
 		node := builder.Input(prefix+slot.inputName, dtype.F32, host.Shape)
 		feeds.Add(node, *host)
 		return node, nil
@@ -193,3 +193,6 @@ func (layer *HostLayer) GraphInputs(
 	}
 	return result, feeds, nil
 }
+
+// WeightChunkSize bounds one host or device weight upload chunk in bytes.
+const WeightChunkSize = 16 << 20

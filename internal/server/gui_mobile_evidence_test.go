@@ -17,7 +17,7 @@ import (
 	"testing/fstest"
 
 	"overgo/internal/jsonfile"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -112,7 +112,7 @@ func TestGUIMobileDeviceEvidence(t *testing.T) {
 	t.Logf("GUI asset SHA-256: %s", source)
 	file := os.Getenv("OVERGO_GUI_MOBILE_EVIDENCE")
 	if file == "" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": physical mobile evidence belongs to the explicit operator signoff")
+		t.Skip(testskip.ShortIntegration + ": physical mobile evidence belongs to the explicit operator signoff")
 	}
 	if !filepath.IsAbs(file) {
 		file = filepath.Join(testutil.RepoRoot(t), file)

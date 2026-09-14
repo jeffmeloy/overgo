@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": attachment workflow runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": attachment workflow runs through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

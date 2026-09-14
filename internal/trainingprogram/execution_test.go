@@ -1,14 +1,13 @@
 package trainingprogram
 
 import (
+	"overgo/internal/hostoptimizer"
 	"slices"
 	"testing"
-
-	"overgo/internal/optimizer"
 )
 
 func TestObjectiveExecutionRunsCompiledOrderWithoutAllocation(t *testing.T) {
-	plan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

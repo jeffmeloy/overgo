@@ -9,7 +9,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -40,7 +40,7 @@ func TestInferenceTextAndStructuredMatrix(t *testing.T) {
 
 func TestInferenceTextAndStructuredEvidenceIdentity(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_ADAPTIVE_PARITY") != "1" {
 		t.Skip("set OVERGO_ADAPTIVE_PARITY=1 to verify external evidence identities")

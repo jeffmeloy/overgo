@@ -4,22 +4,13 @@ import (
 	"path/filepath"
 	"slices"
 
-	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 )
 
-// packageInputAttribution explains package-level binding, not function reach.
-// A runtime-only input is a candidate for investigation, not an exclusion.
-type packageInputAttribution struct {
-	Package        string            `json:"package"`
-	Input          artifact.ID       `json:"input,omitzero"`
-	CompilerInputs []string          `json:"compiler_inputs"`
-	RuntimeInputs  []string          `json:"runtime_inputs"`
-	UnboundInputs  []string          `json:"unbound_inputs"`
-	RuntimeReaders map[string]string `json:"runtime_readers"`
-}
-
-func (graph packageInputGraph) attributeInputs(target string, changed []string) (packageInputAttribution, error) {
-	attribution := packageInputAttribution{Package: target, RuntimeReaders: map[string]string{}}
+// attributeInputs fills the shared selection record's input fields.
+// Execution and receipt facts are bound separately; this grants no exclusion.
+func (graph packageInputGraph) attributeInputs(target string, changed []string) (runrecord.SelectionPackage, error) {
+	attribution := runrecord.SelectionPackage{Package: target, RuntimeReaders: map[string]string{}}
 	compiled, err := graph.inputNodes(target, false)
 	if err != nil {
 		return attribution, err

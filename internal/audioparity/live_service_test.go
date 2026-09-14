@@ -28,7 +28,7 @@ import (
 	"overgo/internal/server"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechrecognitiontest"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -99,7 +99,7 @@ type liveASRFixture struct {
 func newLiveASRFixture(t *testing.T) *liveASRFixture {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": real ASR child startup requires registered models and corpus")
+		t.Skip(testskip.ShortIntegration + ": real ASR child startup requires registered models and corpus")
 	}
 	previousLog := log.Writer()
 	log.SetOutput(testutil.UnexpectedLog{Test: t})

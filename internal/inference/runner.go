@@ -14,6 +14,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
@@ -178,9 +179,9 @@ type preparedModel struct {
 	vocab               *tokenizer.Vocab
 	cuda                *executor.Executor
 	worker              *device.Worker
-	deviceWeights       *model.DeviceConvertedWeights
-	rawWeights          *model.DeviceWeights
-	decodeWeights       *model.DeviceConvertedWeights
+	deviceWeights       *modeldevice.DeviceConvertedWeights
+	rawWeights          *modeldevice.DeviceWeights
+	decodeWeights       *modeldevice.DeviceConvertedWeights
 	hostWeights         *model.HostTensorStore
 	outputBias          []float32
 	outputExclusions    []tokenizer.TokenRange

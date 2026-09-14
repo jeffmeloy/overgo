@@ -1,4 +1,4 @@
-package optimizer
+package hostoptimizer
 
 import (
 	"errors"
@@ -7,15 +7,17 @@ import (
 	"overgo/internal/checked"
 )
 
-// Schedule: learning-rate policy.
+// Schedule selects the learning-rate policy.
 type Schedule uint8
 
 const (
+	// ScheduleConstant keeps the base learning rate.
 	ScheduleConstant Schedule = iota
+	// ScheduleLinearDecay decays the rate linearly over the horizon.
 	ScheduleLinearDecay
 )
 
-// Config: adaptive optimizer policy.
+// Config is the adaptive optimizer policy.
 type Config struct {
 	BaseLearningRate float64  `json:"base_learning_rate"`
 	Momentum         float64  `json:"momentum"`
@@ -55,6 +57,7 @@ func (c Config) LearningRate(step int) float64 {
 	return c.BaseLearningRate * (1 - progress)
 }
 
-func stepRMS(momentum float64) float64 {
+// StepRMS is the update root-mean-square scale for a momentum coefficient.
+func StepRMS(momentum float64) float64 {
 	return math.Sqrt(1 - momentum*momentum)
 }

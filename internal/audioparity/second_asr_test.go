@@ -22,7 +22,7 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -286,7 +286,7 @@ func transducerObserver(t *testing.T, f *transducerFixture, oracle *safetensors.
 
 func TestSecondASROfflineAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": exact second-ASR acceptance requires registered native traces")
+		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires registered native traces")
 	}
 	f := loadTransducerFixture(t)
 	for _, id := range f.captures {
@@ -338,7 +338,7 @@ func requireTransducerResult(t *testing.T, f *transducerFixture, oracle *safeten
 
 func TestSecondASRStreamingAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": exact second-ASR acceptance requires cache-aware streaming traces")
+		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires cache-aware streaming traces")
 	}
 	f := loadTransducerFixture(t)
 	for _, id := range f.captures {

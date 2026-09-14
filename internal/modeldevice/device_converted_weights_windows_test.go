@@ -1,6 +1,6 @@
 //go:build windows
 
-package model
+package modeldevice
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
+	"overgo/internal/model"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -26,7 +27,7 @@ func TestDeviceConvertedWeightsFeedExecutor(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := file.Tensors[tensor.FirstOffset]
-	source, err := LoadHostTensor(t.Context(), file, info)
+	source, err := model.LoadHostTensor(t.Context(), file, info)
 	if err != nil {
 		t.Fatal(err)
 	}

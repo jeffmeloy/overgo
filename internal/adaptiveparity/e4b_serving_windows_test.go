@@ -16,7 +16,7 @@ import (
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -25,7 +25,7 @@ import (
 // serving through the numerical tower methods.
 func TestE4BServingModalities(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real E4B serving modality validation")

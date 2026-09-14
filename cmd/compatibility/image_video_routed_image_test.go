@@ -15,6 +15,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"slices"
@@ -62,7 +63,7 @@ func checkMediaCPUImage(row mediaLatentObservation, run runrecord.Run, source st
 
 func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained routed image bundle")
+		t.Skip(testskip.ShortIntegration + ": retained routed image bundle")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

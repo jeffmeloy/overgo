@@ -32,13 +32,17 @@ func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, owner := range []string{"internal/cuda/executor", "internal/launcher", "internal/deviceconsumer"} {
+	for _, owner := range []string{"internal/cuda/executor", "internal/deviceconsumer"} {
 		if !slices.Contains(deviceOwners, owner) {
 			t.Errorf("device execution owner omitted: %s", owner)
 		}
 	}
-	if slices.Contains(deviceOwners, "internal/datareader") {
-		t.Error("reading source data acquired execution's device requirement")
+	// A launcher runs the program its caller hands in: the device
+	// requirement belongs to the caller that names a device program.
+	for _, other := range []string{"internal/datareader", "internal/launcher"} {
+		if slices.Contains(deviceOwners, other) {
+			t.Errorf("%s acquired execution's device requirement without naming a device program", other)
+		}
 	}
 	// An unnamed read reaches the repository's data files, not its Go
 	// sources: a source change outside the reader's compiled closure leaves

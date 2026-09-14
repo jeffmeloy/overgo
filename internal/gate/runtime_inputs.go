@@ -673,6 +673,13 @@ func (classifier *sourceClassifier) classifyProgram(program ast.Expr, arguments 
 	if root != "" && classifier.safeNames[root] {
 		return
 	}
+	// A program the caller hands in is the caller's reach, as a path the
+	// caller hands in is: the launcher stays an unnamed reach over data
+	// without observing Go source on its own.
+	if parameterRooted(program) {
+		*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program its caller names")
+		return
+	}
 
 	*classifier.execFlag = true
 	*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program the source does not name")
@@ -681,10 +688,30 @@ func (classifier *sourceClassifier) classifyProgram(program ast.Expr, arguments 
 // rootIdentifier returns the identifier an expression is rooted in through
 // selectors, indexes and calls on it; empty when there is none.
 func rootIdentifier(expression ast.Expr) string {
+	if root := rootIdent(expression); root != nil {
+		return bindingName(root)
+	}
+	return ""
+}
+
+// parameterRooted reports an expression rooted in a parameter or receiver
+// of the enclosing function: a value the caller supplies.
+func parameterRooted(expression ast.Expr) bool {
+	root := rootIdent(expression)
+	if root == nil || root.Obj == nil || root.Obj.Kind != ast.Var {
+		return false
+	}
+	_, ok := root.Obj.Decl.(*ast.Field)
+	return ok
+}
+
+// rootIdent walks selectors, indexes and calls to the identifier an
+// expression is rooted in; nil when there is none.
+func rootIdent(expression ast.Expr) *ast.Ident {
 	for {
 		switch typed := expression.(type) {
 		case *ast.Ident:
-			return bindingName(typed)
+			return typed
 		case *ast.SelectorExpr:
 			expression = typed.X
 		case *ast.IndexExpr:
@@ -696,7 +723,7 @@ func rootIdentifier(expression ast.Expr) string {
 		case *ast.StarExpr:
 			expression = typed.X
 		default:
-			return ""
+			return nil
 		}
 	}
 }

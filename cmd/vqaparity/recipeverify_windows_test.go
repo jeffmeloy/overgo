@@ -9,13 +9,13 @@ import (
 
 	"overgo/internal/dataroot"
 	"overgo/internal/parity"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
 func TestRxBrainProductionParity(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
 		t.Skip("set OVERGO_CUDA_TEST=1 for real RxBrain parity")

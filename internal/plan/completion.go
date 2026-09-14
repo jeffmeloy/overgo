@@ -388,8 +388,7 @@ func verifyProspectiveMergeAuthority(
 	if requireCommonProtection && !commonProtection {
 		return errors.New("plan: prospective merge parents do not share a protected completion epoch")
 	}
-	if !preservesPlanIdentities(local, merged) ||
-		projection == MergeProjectionSemanticUnion && !preservesPlanIdentities(incoming, merged) {
+	if !preservesPlanIdentities(local, merged) {
 		return errors.New("plan: prospective merge deleted a parent item or step")
 	}
 
@@ -416,9 +415,42 @@ func verifyProspectiveMergeAuthority(
 			}
 			retired[item] = evidence
 		}
+		// A source that still lists rows the target landed drops them
+		// only on the same proof a gate needs to remove them.
+		if reference, unproven := unprovenIncomingDeletion(incoming, merged, completed, retired); unproven {
+			return fmt.Errorf("plan: prospective merge deleted incoming %s without gated completion evidence", reference)
+		}
 	}
 
 	return verifyCompletionAuthorityConstraints(merged, completed, retired)
+}
+
+// unprovenIncomingDeletion names the first incoming step absent from the
+// candidate that neither completion nor item retirement proves.
+func unprovenIncomingDeletion(
+	incoming, candidate Plan,
+	completed, retired map[string]completionEvidence,
+) (string, bool) {
+	for _, incomingItem := range incoming.Items {
+		if _, wasRetired := retired[incomingItem.ID]; wasRetired {
+			continue
+		}
+		candidateIndex := slices.IndexFunc(candidate.Items, func(item Item) bool {
+			return item.ID == incomingItem.ID
+		})
+		for _, incomingStep := range incomingItem.Steps {
+			if candidateIndex >= 0 && slices.ContainsFunc(candidate.Items[candidateIndex].Steps, func(step Step) bool {
+				return step.ID == incomingStep.ID
+			}) {
+				continue
+			}
+			reference := incomingItem.ID + "/" + incomingStep.ID
+			if _, proven := completed[reference]; !proven {
+				return reference, true
+			}
+		}
+	}
+	return "", false
 }
 
 func verifyCompletionAuthorityConstraints(

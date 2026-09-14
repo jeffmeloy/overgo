@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "stale-source-rows",
-      "title": "Let a semantic-union prepared merge drop incoming rows the target authority has already completed",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Let a semantic-union prepared merge drop incoming rows the target authority has already completed",
-          "status": "open",
-          "verify": "test -f internal/plan/stale_source_rows_test.go \u0026\u0026 go test ./internal/plan -run '^TestProspectiveMergeDropsCompletedIncomingRows$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "device-lane-projector-reach",
       "title": "Name the program internal/projector runs so the device lane leaves a gate-only plan by closure instead of running ten minutes on every gate change",
       "owner": "master-lead",

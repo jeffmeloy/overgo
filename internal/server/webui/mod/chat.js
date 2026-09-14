@@ -473,6 +473,9 @@
       // Generation modes project declared capabilities; transitions discard old slots.
       const speechSettings = el('section', { class: 'settings-section', hidden: true, 'aria-label': 'Speech options' });
       settings.appendChild(speechSettings);
+      const transcriptionSettings = el('section', { class: 'settings-section', hidden: true, 'aria-label': 'Transcription options' });
+      settings.appendChild(transcriptionSettings);
+      const transcriptionNote = el('details', { class: 'transcription-note' }, el('summary', { text: 'Add a note' }));
       const generationValues = new Map();
       let speechSelection = '';
       function retainGenerationValues() {
@@ -486,15 +489,28 @@
       }
       const galleryLimit = 12; // the newest outputs a mode's gallery rail lists
       async function renderMode(mode) {
+        welcomeInput.hidden = mode === 'transcription';
+        welcomeInput.textContent = mode === 'speech' ? 'Enter text' : 'Ask a question';
+        welcomeTitle.textContent = mode === 'transcription' ? 'Transcribe audio' : mode === 'speech' ? 'Read text aloud' : 'What would you like to work on?';
         retainGenerationValues();
         releaseTaskModel();
         if (generation.loading) generation.loading.abort();
         generation.loading = null;
+        transcriptionSettings.hidden = mode !== 'transcription';
+        transcriptionSettings.replaceChildren();
+        const taskLabels = { speech: ['Read aloud', 'Text to read…'], transcription: ['Transcribe', 'Optional note…'] };
+        const [actionLabel, placeholder] = taskLabels[mode] || ['Send', 'Message…'];
+        composer.setLabels(actionLabel, placeholder);
+        composer.element.classList.toggle('transcription-mode', mode === 'transcription');
+        if (mode === 'transcription') {
+          if (!transcriptionNote.isConnected) { composer.input.before(transcriptionNote); transcriptionNote.appendChild(composer.input); }
+          if (composer.input.value) transcriptionNote.open = true;
+        } else if (transcriptionNote.isConnected) { transcriptionNote.before(composer.input); transcriptionNote.remove(); }
         speechSettings.hidden = mode !== 'speech';
         speechSettings.replaceChildren();
-        settings.firstElementChild.hidden = mode === 'speech';
+        settings.firstElementChild.hidden = mode === 'speech' || mode === 'transcription';
         composer.modeHost.classList.toggle('speech-mode', mode === 'speech');
-        if (mode === 'speech') composer.element.insertBefore(composer.modeHost, composer.extras);
+        if (mode === 'speech' || mode === 'transcription') composer.element.insertBefore(composer.modeHost, composer.extras);
         else composer.extras.prepend(composer.modeHost);
         composer.invalidateIntake();
         generation.capability = null;
@@ -563,6 +579,10 @@
         if (mode === 'speech') {
           composer.modeHost.append(picker, selectionNote, controlsHost);
           speechSettings.appendChild(el('details', {}, el('summary', { text: 'Recent speech' }), el('label', { class: 'chip' }, only, ' This model'), rail));
+        } else if (mode === 'transcription') {
+          composer.modeHost.append(selectionNote, el('button', { class: 'link-button', text: 'Options', 'aria-label': 'Open transcription options', onclick: () => openSpeechOptions() }));
+          transcriptionSettings.append(el('h3', { text: 'Transcription options' }), controlsHost,
+            el('details', {}, el('summary', { text: 'Recent transcripts' }), el('label', { class: 'chip' }, only, ' This model'), rail));
         } else composer.modeHost.append(picker, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
         select();
         releaseTaskModel();
@@ -572,7 +592,7 @@
       async function galleryRail(rail, kind) {
         try {
           const listed = await overgo.api.get("/artifacts?kind=output&newest=1&media=" + encodeURIComponent(kind + "/") + "&limit=" + galleryLimit);
-          for (const item of (listed.artifacts || []).filter((item) => item.payload && item.producers.length)) {
+          for (const item of (listed.artifacts || []).filter((item) => item.payload && (item.producers || []).length)) {
             const run = await overgo.api.get("/runs?id=" + encodeURIComponent(item.producers[0]));
             const made = generation.capabilities.find((capability) => capability.recipe === run.recipe);
             const url = "/artifacts/content?id=" + encodeURIComponent(item.descriptor.id);
@@ -599,9 +619,10 @@
       if (toolSurface) { toolSurface.setAgent(agents[0], tools); agentPicker.addEventListener("change", () => toolSurface.setAgent(agents.find((item) => item.name === agentPicker.value), tools)); }
 
       // The empty conversation offers direct starting actions.
-      const welcome = el("div", { class: "card front-empty" },
-        el("h2", { text: "What would you like to work on?" }),
-        el("div", { class: "starters" }, el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() }), el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
+      const welcomeTitle = el("h2", { text: "What would you like to work on?" });
+      const welcomeInput = el("button", { class: "btn", text: "Ask a question", onclick: () => composer.input.focus() });
+      const welcome = el("div", { class: "card front-empty" }, welcomeTitle,
+        el("div", { class: "starters" }, welcomeInput, el("button", { class: "btn alt", text: "Attach a file", onclick: () => composer.openPicker() }),
           // With nothing catalogued the same control reads as the way in; the picker names the two paths.
           el("button", { class: "btn alt", text: 'Choose a model', onclick: () => {
             if (composer.mode() && !['chat', 'agent'].includes(composer.mode())) document.querySelector('.task-model-selector select')?.focus();
@@ -734,7 +755,7 @@
         if (mode && !['chat', 'agent', 'embeddings', 'rerank'].includes(mode)) {
           if (!generation.capability) { thread.errorRow('Choose a model for this mode before sending.'); return; }
           const invalid = [...generation.fields.values()].find(field => !field.input.checkValidity());
-          if (invalid) { if (speechSettings.contains(invalid.input)) openSpeechOptions(invalid.input); invalid.input.scrollIntoView({ block: 'nearest' }); invalid.input.focus(); invalid.input.reportValidity(); return; }
+          if (invalid) { if (settings.contains(invalid.input)) openSpeechOptions(invalid.input); invalid.input.scrollIntoView({ block: 'nearest' }); invalid.input.focus(); invalid.input.reportValidity(); return; }
           const body = overgo.bodyControl(generation.capability.controls);
           if (body && body.required && !text.trim()) { composer.input.setCustomValidity('Enter ' + (body.label || body.name) + '.'); composer.input.reportValidity(); return; }
         }

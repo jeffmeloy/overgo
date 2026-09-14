@@ -76,3 +76,49 @@ func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 		t.Fatalf("intake without a repository status=%d body=%s", unavailable.Code, unavailable.Body.String())
 	}
 }
+
+func TestArtifactIntakePreservesNativeAudio(t *testing.T) {
+	for _, first := range []string{"transcription", "attachment"} {
+		t.Run(first, func(t *testing.T) {
+			fixture := newTranscriptionHTTPFixture(t, nil)
+			upload := func() {
+				t.Helper()
+				response := intakeRequest(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					r.Header.Set("Authorization", "Bearer "+testAPIKey)
+					fixture.handler.ServeHTTP(w, r)
+				}), "audio/wav", string(fixture.wave))
+				if response.Code != http.StatusOK {
+					t.Fatalf("reattach: %d %s", response.Code, response.Body.String())
+				}
+			}
+			transcribe := func() {
+				t.Helper()
+				response := httptest.NewRecorder()
+				fixture.handler.ServeHTTP(response, fixture.request(t, fixture.wave, nil))
+				if response.Code != http.StatusOK {
+					t.Fatalf("transcribe: %d %s", response.Code, response.Body.String())
+				}
+			}
+			if first == "transcription" {
+				transcribe()
+			} else {
+				upload()
+			}
+			id, err := artifact.IdentifyBytes(artifact.KindFile, fixture.wave)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, found, err := artifact.ReadContent(t.Context(), fixture.store, id)
+			if err != nil || !found {
+				t.Fatalf("original recording: %v", err)
+			}
+			upload()
+			transcribe()
+			upload()
+			after, found, err := artifact.ReadContent(t.Context(), fixture.store, id)
+			if err != nil || !found || after.Descriptor != before.Descriptor || string(after.Data) != string(fixture.wave) {
+				t.Fatalf("reattachment changed the recording or its immutable facts: %v", err)
+			}
+		})
+	}
+}

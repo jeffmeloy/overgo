@@ -554,3 +554,9 @@ summary { cursor:pointer; min-height:32px; }
 
 .task-model-selector { flex: 0 1 auto; min-width: 0; }
 .task-model-selector select { max-width: 100%; min-width: 0; text-overflow: ellipsis; }
+
+.composer.transcription-mode .composer-extras { max-height:calc(var(--viewport-height, 100dvh) * .45); }
+.composer.transcription-mode .attachment-row { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+.composer.transcription-mode .attachment-preview { grid-column:1 / -1; grid-row:2; max-width:100%; }
+.composer.transcription-mode .attachment-preview audio { width:100%; }
+.attachment-details summary, .transcription-note summary { min-height:44px; padding:var(--s2) 0; }

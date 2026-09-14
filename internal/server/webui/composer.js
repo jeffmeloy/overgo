@@ -347,7 +347,7 @@
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
-    function openPicker() { if (disposed || readOnly || paused) return; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    function openPicker() { if (disposed || readOnly || paused) return; picker.multiple = selectedMode() !== 'transcription' && options.multiple !== false; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
     const capture = overgo.mediaCapture({ media, accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
     const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly && !paused) capture.open(); } }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
@@ -369,11 +369,13 @@
 
     // Stable flat file rows keep keyboard targets and playing previews intact
     // while read/upload state changes elsewhere in the list.
+    const attachmentURL = item => item.dataURL || (item.kind === 'audio' && item.artifact && '/artifacts/content?id=' + encodeURIComponent(item.artifact));
     function attachmentPreview(item) {
-      if (!item.dataURL || item.pending || item.refusal) return null;
-      if (item.kind === "image") return el("img", { src: item.dataURL, alt: item.name, class: "thumb-preview" });
-      if (item.kind === "video") return el("video", { src: item.dataURL, class: "thumb-preview" });
-      if (item.kind === "audio") return el("audio", { src: item.dataURL, controls: "" });
+      const url = attachmentURL(item);
+      if (!url || item.pending || item.refusal) return null;
+      if (item.kind === "image") return el("img", { src: url, alt: item.name, class: "thumb-preview" });
+      if (item.kind === "video") return el("video", { src: url, class: "thumb-preview" });
+      if (item.kind === "audio") return el("audio", { src: url, controls: "" });
       return null;
     }
     function stage(item, phase, reason = '') {
@@ -408,7 +410,7 @@
     }
     // ---- transcription: a recorded or attached audio file transcribes through the served model's own
     // route on explicit action; the transcript is an offer to insert or replace, never a send. ----
-    const transcribable = () => ((overgo.capabilities() || {}).modes || []).some((mode) => mode.id === 'transcription' && mode.enabled);
+    const transcribable = () => selectedMode() !== 'transcription' && ((overgo.capabilities() || {}).modes || []).some((mode) => mode.id === 'transcription' && mode.enabled);
     let transcriptionLoaded = false, transcriptionLoading = null, transcriptionChoices = [], transcriptionSelected = '';
     const transcriptionRecipe = () => transcriptionChoices.find(choice => choice.recipe === transcriptionPicker.value && !choice.refusal)?.recipe;
     function loadTranscriptionChoices() {
@@ -529,8 +531,10 @@
           item.stop = el('button', { class: 'link-button', text: 'Cancel', 'aria-label': 'Cancel ' + item.name, onclick: () => stopFile(item) });
           item.transcribe = el('button', { class: 'link-button', text: 'Transcribe', 'aria-label': 'Transcribe ' + item.name, onclick: () => transcribeFile(item) });
           item.offer = el('span', { class: 'transcript-offer', hidden: true });
+          item.sizeInfo = el('span', { class: 'note', text: overgo.fmt.bytes(item.size) });
+          item.metadata = el('details', { class: 'attachment-details' }, el('summary', { text: 'Details' }));
           item.row = el('span', { class: 'attachment-row' }, item.preview, el('span', { class: 'attachment-info' },
-            el('span', { class: 'attachment-name', text: item.name }), el('span', { class: 'note', text: overgo.fmt.bytes(item.size) }), item.status, item.offer),
+            el('span', { class: 'attachment-name', text: item.name }), item.sizeInfo, item.status, item.offer),
             el('span', { class: 'attachment-actions' }, item.transcribe, item.retry, item.stop, item.remove));
         }
         if (item.row.parentNode !== attachmentHost) attachmentHost.appendChild(item.row);
@@ -557,11 +561,18 @@
         item.transcribe.disabled = readOnly || paused || !!transcriptionLoading || !transcriptionRecipe();
         if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
         else if (focused === item.stop && item.stop.hidden) (item.retry.hidden ? item.remove : item.retry).focus();
-        const previewKey = !item.pending && !item.refusal && item.dataURL;
+        const previewKey = !item.pending && !item.refusal && attachmentURL(item);
         if (item.previewKey !== previewKey) { item.previewKey = previewKey; const preview = attachmentPreview(item); item.preview.replaceChildren(...(preview ? [preview] : [])); }
         if (item.artifact && !item.link) { item.link = overgo.artifactLink(item.artifact, 'Stored file'); item.infoLink = el('span', {}, item.link); item.row.querySelector('.attachment-info').appendChild(item.infoLink); }
         if (item.sourceLink && item.sourceArtifact === item.artifact) { item.sourceLink.remove(); item.sourceLink = null; }
         if (item.sourceArtifact && item.sourceArtifact !== item.artifact && !item.sourceLink) { item.sourceLink = overgo.artifactLink(item.sourceArtifact, 'Source file'); item.row.querySelector('.attachment-info').appendChild(item.sourceLink); }
+        const standalone = selectedMode() === 'transcription';
+        const info = item.row.querySelector('.attachment-info');
+        const facts = standalone ? item.metadata : info;
+        for (const node of [item.sizeInfo, item.infoLink, item.sourceLink].filter(Boolean)) if (node.parentNode !== facts) facts.appendChild(node);
+        if (standalone && item.metadata.parentNode !== info) info.appendChild(item.metadata);
+        else if (!standalone) item.metadata.remove();
+        item.status.hidden = standalone && ['Ready', 'Stored'].includes(status);
       }
       guidance.hidden = !attachments.length;
       guidanceText.textContent = options.takesAny && options.takesAny() ? 'Files fill the selected model input. The server checks supported types and sizes.' :
@@ -579,6 +590,9 @@
     function addFile(file, source = {}) {
       if (disposed || readOnly || paused) return;
       const kind = mediaKind(file.type);
+      if (selectedMode() === 'transcription' && kind === 'audio') {
+        for (const previous of [...attachments]) if (previous.kind === 'audio') removeFile(previous);
+      }
       const item = { file, kind, name: file.name, mime: file.type, size: file.size, sourceArtifact: source.artifact, sourceRun: source.run };
       const missing = attachments.findIndex(saved => saved.needsReattach && saved.name === item.name && saved.size === item.size && saved.mime === item.mime);
       if (missing < 0) attachments.push(item); else { removeFile(attachments[missing]); attachments.splice(missing, 0, item); }
@@ -687,6 +701,7 @@
     input.addEventListener("input", () => { if (options.onChange) options.onChange(); });
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost, extras,
+      setLabels(label, placeholder) { send.textContent = label; input.placeholder = placeholder; },
       setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
       setReadOnly(value) { readOnly = value; if (value) { capture.close(); pauseFiles('Transcription stopped: this conversation became read-only.'); } else renderAttachments(); },
       clearAttachments() { for (const item of attachments) invalidate(item); attachments.length = 0; attachmentHost.replaceChildren(); renderAttachments(); },

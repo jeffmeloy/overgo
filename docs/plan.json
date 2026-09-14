@@ -71,7 +71,8 @@
           "depends_on": [
             "gui-audio-catalog/do",
             "gui-composer-cleanup/do",
-            "gui-transcription-selection/do"
+            "gui-transcription-selection/do",
+            "gui-audio-input/do"
           ]
         }
       ]
@@ -456,7 +457,8 @@
             "gui-live-media/do",
             "gui-speech-controls/do",
             "gui-audio-output/do",
-            "gui-audio-startup/do"
+            "gui-audio-startup/do",
+            "gui-audio-input/do"
           ]
         }
       ]
@@ -537,7 +539,8 @@
             "gui-speech-controls/do",
             "gui-model-preparation/do",
             "gui-audio-output/do",
-            "gui-audio-startup/do"
+            "gui-audio-startup/do",
+            "gui-audio-input/do"
           ]
         }
       ]

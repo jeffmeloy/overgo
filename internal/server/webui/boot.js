@@ -948,13 +948,25 @@
   function capabilities() { return capabilityDocument; }
   window.overgo.capabilities = capabilities;
 
-  async function initShell() {
+  let shellLoading = null;
+  function initShell() {
+    if (!shellLoading) shellLoading = initializeShell().finally(() => { shellLoading = null; });
+    return shellLoading;
+  }
+  async function initializeShell() {
     const sectionBar = document.getElementById("sections");
     const panels = document.getElementById("panels");
     try {
       workspaceManifest = await api.get("/workspace/manifest");
       capabilityDocument = workspaceManifest.model || null;
-    } catch (err) { offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")"); return; }
+    } catch (err) {
+      if (err.status === 401) {
+        clear(panels);
+        panels.appendChild(el("div", { class: "center tall" }, errorBanner(friendlyError(err))));
+      } else offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
+      return;
+    }
+    if (offlineTimer != null) { clearInterval(offlineTimer); offlineTimer = null; }
     clear(panels);
     clear(sectionBar);
     sectionButtons.length = 0;
@@ -975,22 +987,12 @@
       }
       sectionBar.appendChild(group);
     }
-    // The key controls, hash routing and the health re-probe are wired once; the shell may initialise
+    // Hash routing and the health re-probe are wired once; the shell may initialise
     // again after an offline card and must not stack a second listener.
     if (!shellWired) {
       shellWired = true;
       document.getElementById("workbench-toggle").addEventListener("click", () =>
         setFront(!document.querySelector(".shell").classList.contains("front")));
-      const keyInput = document.getElementById("api-key");
-      const keyRemember = document.getElementById("api-key-remember");
-      keyInput.value = getKey();
-      keyRemember.checked = keyWasPersisted;
-      keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
-      keyInput.addEventListener("change", () => {
-        setKey(keyInput.value.trim(), keyRemember.checked);
-        invalidateModel(); // the cached model was fetched under the old key
-        remountActive().catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
-      });
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
@@ -1008,5 +1010,17 @@
 
   // boot.js is deferred: the document is parsed, and the loader brings in
   // every library and module itself, so the shell starts at once.
+  // Connection controls work while workspace modules are still loading.
+  const keyInput = document.getElementById("api-key");
+  const keyRemember = document.getElementById("api-key-remember");
+  keyInput.value = getKey();
+  keyRemember.checked = keyWasPersisted;
+  keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
+  keyInput.addEventListener("change", () => {
+    setKey(keyInput.value.trim(), keyRemember.checked);
+    invalidateModel(); // the cached model was fetched under the old key
+    const refresh = shellWired ? remountActive() : initShell().then(() => shellWired ? remountActive() : initShell());
+    refresh.catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
+  });
   initShell();
 })();

@@ -1,4 +1,14 @@
 {
+  "selection_join_reduction": {
+    "reference_commit": "3f1c6750f37a4365bc44ad0d2bd943c1bd24aa49",
+    "selection_record_ast_nodes_before": 1461,
+    "selection_record_ast_nodes_after": 1452,
+    "removed": "Three codec forwarding functions, separate contract declarations, a duplicated package-input attribution type, repeated attribution computation, and redundant counting state.",
+    "preserved": "Historical record identities, strict decoding, receipt admission policy, independent selection causes, execution timings and the legacy deduplicated log projection.",
+    "added": "Pre-execution obligation/receipt witness and explicit skip classification. Historical records without the witness remain unknown.",
+    "budget": "The original 139-node harness refusal was corrected by implementation reduction. TestStructureBudgetRatchets passes without increasing its reviewed ceiling.",
+    "limits": "No verification exclusion or gate-wall saving is claimed by this diagnostic slice. Package elapsed values overlap. The next step must prove a real exclusion."
+  },
   "automation": {
     "files": 182,
     "nodes": 202169
@@ -431,6 +441,164 @@
     "suite_cost": "evidence:sha256:207ee5bb2bf506eec49ff97944d1ed7389e8befac45e19d2ab4845317129bafb",
     "wall": "19m45.842s"
   },
+  "retained_selection_case_studies": [
+    {
+      "commit": "73b4c3fffa77d8b314d403b0bc4ed36a4426f0e8",
+      "primary": [
+        {
+          "cause": "compiler",
+          "packages": 103,
+          "executed": 76,
+          "unstarted": 0,
+          "skipped": 27,
+          "elapsed_seconds": 2283.298999999999
+        },
+        {
+          "cause": "runtime",
+          "packages": 128,
+          "executed": 94,
+          "unstarted": 0,
+          "skipped": 34,
+          "elapsed_seconds": 472.4899999999999
+        }
+      ],
+      "record": "evidence:sha256:15025942f45dc0732c911914ff07a8736de8b4ec1d15fea52cbbb76627949a4c",
+      "result": "evidence:sha256:06b5ebeccf55d77ca61781df6aa6b0de3c65e36a8c7684de6a50a5b086d93cc7",
+      "scope": "Counts summarize the linked record, not an exclusion certificate. Package durations overlap; their sum is not wall time. Missing legacy reuse witness is unknown, not a guessed cache miss cause.",
+      "sufficient": [
+        {
+          "cause": "compiler",
+          "packages": 103,
+          "executed": 76,
+          "unstarted": 0,
+          "skipped": 27,
+          "elapsed_seconds": 2283.298999999999
+        },
+        {
+          "cause": "runtime",
+          "packages": 231,
+          "executed": 170,
+          "unstarted": 0,
+          "skipped": 61,
+          "elapsed_seconds": 2755.7889999999998
+        },
+        {
+          "cause": "opaque-reader",
+          "packages": 231,
+          "executed": 170,
+          "unstarted": 0,
+          "skipped": 61,
+          "elapsed_seconds": 2755.7889999999998
+        }
+      ],
+      "targets": [
+        {
+          "elapsed_seconds": 588.256,
+          "executed": true,
+          "failed": false,
+          "package": "overgo/internal/audioparity",
+          "reuse_witness_recorded": false,
+          "step": "test-device",
+          "sufficient_reason_counts": {
+            "compiler": 1,
+            "opaque-reader": 46,
+            "runtime": 8
+          }
+        },
+        {
+          "elapsed_seconds": 835.232,
+          "executed": true,
+          "failed": false,
+          "package": "overgo/internal/gate",
+          "reuse_witness_recorded": false,
+          "step": "test-device",
+          "sufficient_reason_counts": {
+            "compiler": 1,
+            "opaque-reader": 41,
+            "runtime": 8
+          }
+        }
+      ]
+    },
+    {
+      "commit": "3f1c6750f37a4365bc44ad0d2bd943c1bd24aa49",
+      "primary": [
+        {
+          "cause": "compiler",
+          "packages": 129,
+          "executed": 93,
+          "unstarted": 0,
+          "skipped": 36,
+          "elapsed_seconds": 2009.147
+        },
+        {
+          "cause": "runtime",
+          "packages": 102,
+          "executed": 77,
+          "unstarted": 0,
+          "skipped": 25,
+          "elapsed_seconds": 430.19200000000006
+        }
+      ],
+      "record": "evidence:sha256:6ab29f5eb4881671f6ed93c47be141ba72f6bda6fbe357f73478b5d446f0a266",
+      "result": "evidence:sha256:135665fd8edcbf01700a01085e81e977f38164794e7f391e8a5b62b524e26175",
+      "scope": "Counts summarize the linked record, not an exclusion certificate. Package durations overlap; their sum is not wall time. Missing legacy reuse witness is unknown, not a guessed cache miss cause.",
+      "sufficient": [
+        {
+          "cause": "compiler",
+          "packages": 129,
+          "executed": 93,
+          "unstarted": 0,
+          "skipped": 36,
+          "elapsed_seconds": 2009.147
+        },
+        {
+          "cause": "runtime",
+          "packages": 231,
+          "executed": 170,
+          "unstarted": 0,
+          "skipped": 61,
+          "elapsed_seconds": 2439.3389999999995
+        },
+        {
+          "cause": "opaque-reader",
+          "packages": 231,
+          "executed": 170,
+          "unstarted": 0,
+          "skipped": 61,
+          "elapsed_seconds": 2439.3389999999995
+        }
+      ],
+      "targets": [
+        {
+          "elapsed_seconds": 567.03,
+          "executed": true,
+          "failed": false,
+          "package": "overgo/internal/audioparity",
+          "reuse_witness_recorded": false,
+          "step": "test-device",
+          "sufficient_reason_counts": {
+            "compiler": 1,
+            "opaque-reader": 46,
+            "runtime": 11
+          }
+        },
+        {
+          "elapsed_seconds": 719.178,
+          "executed": true,
+          "failed": false,
+          "package": "overgo/internal/gate",
+          "reuse_witness_recorded": false,
+          "step": "test-owners",
+          "sufficient_reason_counts": {
+            "compiler": 7,
+            "opaque-reader": 41,
+            "runtime": 5
+          }
+        }
+      ]
+    }
+  ],
   "reviewed_connections": [
     {
       "finding": "Partly overlaps gate pipeline; it also has distinct checks. Map union and semantics before removing either entry point.",

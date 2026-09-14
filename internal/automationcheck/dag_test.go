@@ -2,6 +2,7 @@ package automationcheck
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -103,4 +104,47 @@ func dagFixtureCheckAfter(name, dependency string) Check {
 	check := dagFixtureCheck(name, nil)
 	check.Descriptor.Dependencies = []string{dependency}
 	return check
+}
+
+// TestIndependentPolicyContinuesPastFailure: a failure blocks only its
+// dependents; independent work still runs, blocked results stay empty, and
+// the stop-on-failure executor ends at the failed wave.
+func TestIndependentPolicyContinuesPastFailure(t *testing.T) {
+	failing := dagFixtureCheckAfter("failing", "root")
+	failing.Run = func(context.Context, Invocation) (bool, string, error) { return false, "", errors.New("seeded") }
+	checks := []Check{
+		dagFixtureCheck("root", nil), failing, dagFixtureCheckAfter("sibling", "root"),
+		dagFixtureCheckAfter("behind-failure", "failing"), dagFixtureCheckAfter("behind-sibling", "sibling"),
+	}
+	planned, err := Plan(checks, Impact{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execute := func(ctx context.Context, invocation Invocation) (Evidence, error) { return Run(ctx, invocation) }
+	independent, err := ExecuteDAGIndependent(t.Context(), planned, nil, execute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stopping, err := ExecuteDAG(t.Context(), planned, nil, execute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ran := func(results []DAGResult, name string) bool {
+		index := slices.IndexFunc(planned, func(invocation Invocation) bool { return invocation.Check.Name == name })
+		return results[index].Err != nil || results[index].Evidence.ID.Valid()
+	}
+	for name, want := range map[string]bool{"root": true, "failing": true, "sibling": true, "behind-failure": false, "behind-sibling": true} {
+		if ran(independent, name) != want {
+			t.Fatalf("independent policy ran %s = %v, want %v", name, !want, want)
+		}
+	}
+	for name, want := range map[string]bool{"root": true, "failing": true, "sibling": true, "behind-failure": false, "behind-sibling": false} {
+		if ran(stopping, name) != want {
+			t.Fatalf("stop-on-failure policy ran %s = %v, want %v", name, !want, want)
+		}
+	}
+	orphan := []Invocation{{ID: planned[0].ID, Check: Descriptor{Name: "orphan", Phase: runrecord.PhaseTest, Always: true, Dependencies: []string{"absent"}}}}
+	if _, err := ExecuteDAGIndependent(t.Context(), orphan, nil, execute); err == nil {
+		t.Fatal("unsatisfiable dependency accepted under the independent policy")
+	}
 }

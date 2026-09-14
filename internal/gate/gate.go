@@ -141,6 +141,19 @@ type gateContext struct {
 	testPlan *testGroups
 	// Protected by auditMutex; each invocation retains its own cost and profile.
 	testExecutions []packageExecutionBatch
+	// testStep names the check whose package executions are being recorded;
+	// the test checks run one after another.
+	testStep string
+	// selectionCauses retains every requested package's selection
+	// attribution and observed execution for the final record.
+	selectionCauses []runrecord.SelectionPackage
+}
+
+// setTestStep names the check that owns the next package executions.
+func (g *gateContext) setTestStep(name string) {
+	g.auditMutex.Lock()
+	defer g.auditMutex.Unlock()
+	g.testStep = name
 }
 
 // appends one audit line under the lock the concurrent validate wave shares

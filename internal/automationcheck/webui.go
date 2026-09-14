@@ -31,6 +31,7 @@ func WebUICheck(root string, command LaneCommand) Check {
 			Name: WebUICheckName, Phase: runrecord.PhaseTest, Triggers: []Fact{WebUIImpact},
 			Inapplicable: "no web UI asset, shell or lane implementation changed",
 			Resources:    []Resource{{Name: "device"}},
+			Requirements: Requirements{Process: ProcessBrowser},
 			Ownership: Ownership{
 				Fact: WebUIImpact, Packages: []string{"internal/server", "internal/webuilane", "cmd/webui-lane"},
 			},

@@ -91,8 +91,27 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
+		if requirements, declared := gateCheckRequirements[checks[index].Descriptor.Name]; declared {
+			checks[index].Descriptor.Requirements = requirements
+		}
 	}
 	return checks
+}
+
+// gateCheckRequirements declares what the gate's own checks need beyond the
+// working tree; constructed checks carry their declaration from their owner.
+// Undeclared checks run in process and are static.
+var gateCheckRequirements = map[string]automationcheck.Requirements{
+	modernCensusCheckName: {Intermediate: true},
+	"docs":                {Process: automationcheck.ProcessToolchain},
+	"vet":                 {Process: automationcheck.ProcessToolchain},
+	"build":               {Process: automationcheck.ProcessToolchain},
+	"acceptance":          {Candidate: true, Process: automationcheck.ProcessSuite},
+	testPlanCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
+	testOwnersCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
+	testDeviceCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
+	testRestCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
+	"commit":              {Candidate: true},
 }
 
 // validateWave lists the static prerequisites of build and vet. Independent
@@ -1026,6 +1045,7 @@ func (g *gateContext) stepTestOwners(ctx context.Context) (bool, error) {
 	if len(g.testPlan.edited) == 0 {
 		return true, nil
 	}
+	g.setTestStep(testOwnersCheckName)
 	return false, g.runTestGroup(ctx, g.testPlan.edited, true)
 }
 
@@ -1137,6 +1157,7 @@ func (g *gateContext) stepTestDevice(ctx context.Context) (bool, error) {
 	if g.testPlan.pending == 0 {
 		return true, nil
 	}
+	g.setTestStep(testDeviceCheckName)
 	return false, g.runRestParts(ctx, true)
 }
 
@@ -1149,6 +1170,7 @@ func (g *gateContext) stepTestRest(ctx context.Context) (bool, error) {
 	if g.testPlan.pending == 0 {
 		return true, nil
 	}
+	g.setTestStep(testRestCheckName)
 	return false, g.runRestParts(ctx, false)
 }
 

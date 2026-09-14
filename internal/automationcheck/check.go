@@ -57,6 +57,43 @@ type Ownership struct {
 	Symbols         []Symbol `json:"symbols,omitempty"`
 }
 
+// ProcessClass names the heaviest subprocess a check starts.
+type ProcessClass string
+
+const (
+	// ProcessNone runs the check in process over the source and the store.
+	ProcessNone ProcessClass = ""
+	// ProcessToolchain starts bounded Go tool invocations: vet, build, gofmt,
+	// a generated-document check or one named structural test.
+	ProcessToolchain ProcessClass = "toolchain"
+	// ProcessSuite runs selected test packages.
+	ProcessSuite ProcessClass = "suite"
+	// ProcessBrowser runs the browser lane and its served models.
+	ProcessBrowser ProcessClass = "browser"
+	// ProcessDevice runs the device lane and its models.
+	ProcessDevice ProcessClass = "device"
+)
+
+// Requirements declares what a check needs beyond reading the working tree.
+// Preflight admits only checks whose declared requirements are static.
+type Requirements struct {
+	// Candidate binds the immutable prepared candidate tree and its manifest plan.
+	Candidate bool `json:"candidate,omitzero"`
+	// Intermediate publishes a pipeline result later checks consume; a
+	// standalone consumer computes it itself.
+	Intermediate bool         `json:"intermediate,omitzero"`
+	Process      ProcessClass `json:"process,omitzero"`
+}
+
+// Static reports whether the check diagnoses the working tree without the
+// frozen candidate, a pipeline intermediate or an expensive process.
+func (requirements Requirements) Static() bool {
+	if requirements.Candidate || requirements.Intermediate {
+		return false
+	}
+	return requirements.Process == ProcessNone || requirements.Process == ProcessToolchain
+}
+
 // Descriptor is the immutable, policy-neutral definition of a check.
 type Descriptor struct {
 	Name         string          `json:"name"`
@@ -67,6 +104,7 @@ type Descriptor struct {
 	Dependencies []string        `json:"dependencies,omitempty"`
 	Resources    []Resource      `json:"resources,omitempty"`
 	Ownership    Ownership       `json:"ownership,omitempty"`
+	Requirements Requirements    `json:"requirements,omitzero"`
 }
 
 // Runner returns whether work was inapplicable, diagnostic detail, and error.

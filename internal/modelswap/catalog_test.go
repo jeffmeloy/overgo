@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"overgo/internal/artifact"
@@ -123,26 +125,33 @@ func TestCatalogProgressNamesStagesAndKeepsSlowest(t *testing.T) {
 	}
 	// A caller inside a stage is reported with its wait, so a stalled
 	// picker names the stage it waits behind.
-	holding := make(chan struct{})
-	release := make(chan struct{})
-	go func() {
-		defer resolver.acquire()()
-		defer resolver.begin("catalog")()
-		close(holding)
-		<-release
-	}()
-	<-holding
-	waiting := make(chan struct{})
-	go func() {
-		defer resolver.acquire()()
-		close(waiting)
-	}()
-	for resolver.Progress().Waiting == 0 {
-		time.Sleep(time.Millisecond)
-	}
-	if progress := resolver.Progress(); progress.Stage != "catalog" || progress.Waiting != 1 || progress.Elapsed <= 0 {
-		t.Fatalf("held resolver reports %+v", progress)
-	}
-	close(release)
-	<-waiting
+	synctest.Test(t, func(t *testing.T) {
+		prior := resolver.Progress().Slowest["catalog"]
+		unlock := resolver.acquire()
+		end := resolver.begin("catalog")
+		// Advance an explicit virtual duration before starting the waiter.
+		// Merely observing Waiting == 1 does not imply the real clock ticked.
+		const heldFor = time.Second
+		time.Sleep(heldFor)
+		waiting := make(chan struct{})
+		go func() {
+			defer resolver.acquire()()
+			close(waiting)
+		}()
+		defer func() {
+			end()
+			unlock()
+			<-waiting
+			if progress := resolver.Progress(); progress.Stage != "" || progress.Waiting != 0 || progress.Slowest["catalog"] != max(prior, heldFor) {
+				t.Fatalf("released resolver reports %+v", progress)
+			}
+		}()
+		for resolver.Progress().Waiting == 0 {
+			// Let the caller reach the held mutex without advancing time.
+			runtime.Gosched()
+		}
+		if progress := resolver.Progress(); progress.Stage != "catalog" || progress.Waiting != 1 || progress.Elapsed != heldFor {
+			t.Fatalf("held resolver reports %+v", progress)
+		}
+	})
 }

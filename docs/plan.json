@@ -10,17 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "reduction-contract",
-          "title": "Freeze the real cost target, the chosen mechanism, the invalidators and the mutation matrix",
-          "status": "open",
-          "verify": "test -f internal/gate/testing_reduction_contract_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestingReductionContract$' -count=1",
-          "rationale": "Freeze one real expensive consumer, its required assertions, complete invalidation causes, baseline selection, cost and integration boundary before changing policy. Compare dependency/owner separation, enforced resource inputs and narrowly bounded static call/value analysis on this same consumer; implement only the lowest total-cost sufficient mechanism. Prefer removing accidental cli/plan/runtime coupling when it is cheaper and clearer than proving through it. No requirement to build a whole-program analyzer or three alternatives. Acceptance needs an unrelated change that excludes the chosen expensive work, a relevant mutation that selects and fails it, and counterexamples for omitted readers, native/process effects, test additions/deletions/renames, build/environment/protocol changes and tampered evidence. Freeze the independent oracle before implementation. Name the exact package/check, assertions, resource envelope, expected savings and rollback. An unresolved edge keeps bounded conservative coverage; if the target cannot be proved cheaply, choose a cheaper dependency repair and retain the failed hypothesis.\n\nTreat pure contract isolation as a candidate dependency repair. internal/testutil/numeric.go currently mixes numeric assertions with AST/filesystem/data-root helpers; inspect the actual expensive consumer before deciding whether separating those responsibilities removes compiler or runtime invalidators. Use small existing interfaces, table-driven testing.T.Run cases, httptest handlers and explicit io/fs inputs to exercise production owners without model, browser, working-directory or retained-store setup. Retain a real adapter/integration obligation for effects removed from the pure fixture. The GUI sampler review supplies an independent boundary case: omitted versus explicit zero versus nonzero parameters, including zero disabling DRY. Cross-site admission and provider-present/absent cases are HTTP contracts; browser request wiring and native sampling remain separate obligations. Do not require all candidate mechanisms or count relocating a test as reduced execution; the selector and receipt owner must consume the new boundary.",
-          "depends_on": [
-            "validation-gate-selection/selection-cause-histogram",
-            "validation-gate-selection/suite-cost-ranking"
-          ]
-        },
-        {
           "id": "repair-iteration",
           "title": "Make focused checkpoint publication stop forcing the whole integration suite",
           "status": "open",

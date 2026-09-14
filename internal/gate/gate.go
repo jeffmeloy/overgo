@@ -147,6 +147,9 @@ type gateContext struct {
 	// selectionCauses retains every requested package's selection
 	// attribution and observed execution for the final record.
 	selectionCauses []runrecord.SelectionPackage
+	// attributedDocuments binds each changed document some package names
+	// to its named readers, for the dependency resolver.
+	attributedDocuments map[string][]string
 }
 
 // setTestStep names the check that owns the next package executions.

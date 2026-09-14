@@ -62,6 +62,9 @@ type goPackageInput struct {
 	runtimeReason string
 	// Named repository inputs retain runtime acceptance even when Markdown.
 	declaredFiles []string
+	// productionFiles are the named inputs of the compiled sources alone;
+	// an importer inherits these, never the inputs the tests name.
+	namedProductionFiles []string
 }
 
 type packageInputGraph struct {
@@ -172,6 +175,7 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		}
 		inputs, err := classifyRuntimeInputs(graph.root, node.Dir, packageSources(*node))
 		node.declaredFiles = slices.Concat(inputs.files, inputs.testFiles)
+		node.namedProductionFiles = slices.Clone(inputs.files)
 		// Tests read and run at run time as production code does; a package
 		// whose tests alone import os is a runtime reader of its own tests.
 		edges := slices.Concat(node.Imports, node.TestImports, node.XTestImports)

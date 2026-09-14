@@ -85,6 +85,10 @@ func (g *gateContext) dependencyResolver() (automationcheck.DependencyResolver, 
 	inputs := map[string][]string{}
 	return func(ownership automationcheck.Ownership, changed string) bool {
 		if !known[changed] {
+			reach, attributed := graph.documentReach(ownership, changed, g.attributedDocuments, relative)
+			if attributed {
+				return reach
+			}
 			return true
 		}
 		matched := false

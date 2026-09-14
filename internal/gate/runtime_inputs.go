@@ -566,23 +566,46 @@ func pathCall(call *ast.CallExpr) bool {
 }
 
 // literalArguments lists the string literals among a call's arguments,
-// looking through nested path joins.
+// looking through nested path joins. Adjacent literals of one join name
+// the joined path, not each segment: a root followed by "docs" and a file
+// name reads that file, not the docs tree.
 func literalArguments(call *ast.CallExpr) []string {
 	var values []string
+	joined := false
+	if selector, ok := call.Fun.(*ast.SelectorExpr); ok && (selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join")) {
+		joined = true
+	}
+	var run []string
+	flush := func() {
+		if len(run) != 0 {
+			values = append(values, strings.Join(run, "/"))
+			run = nil
+		}
+	}
 	for _, argument := range call.Args {
 		switch typed := argument.(type) {
 		case *ast.BasicLit:
 			if typed.Kind == token.STRING {
 				if value, err := strconv.Unquote(typed.Value); err == nil {
-					values = append(values, value)
+					if joined {
+						run = append(run, value)
+					} else {
+						values = append(values, value)
+					}
+					continue
 				}
 			}
+			flush()
 		case *ast.CallExpr:
+			flush()
 			if selector, ok := typed.Fun.(*ast.SelectorExpr); ok && selectorIs(selector, "filepath", "Join") || ok && selectorIs(selector, "path", "Join") {
 				values = append(values, literalArguments(typed)...)
 			}
+		default:
+			flush()
 		}
 	}
+	flush()
 	return values
 }
 

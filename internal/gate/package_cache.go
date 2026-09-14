@@ -230,9 +230,12 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			// Temporary files, the test binary and external tools: no edge.
 			continue
 		}
+		// A named path binds to its namer whether or not the package also
+		// reads what it does not name; a named document then leaves the
+		// broad binding below.
+		namedPaths[node.Dir] = append(namedPaths[node.Dir], inputs.files...)
+		namedTestPaths[node.Dir] = append(namedTestPaths[node.Dir], inputs.testFiles...)
 		if reason == "" {
-			namedPaths[node.Dir] = append(namedPaths[node.Dir], inputs.files...)
-			namedTestPaths[node.Dir] = append(namedTestPaths[node.Dir], inputs.testFiles...)
 			if len(inputs.testDynamic) != 0 {
 				// The tests alone reach what they do not name: they run on
 				// any change, but importers observe only the compiled reach.
@@ -292,7 +295,13 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			// repository file: its tests' input when only the tests are
 			// unnamed, otherwise a runtime input that taints importers whose
 			// tests reach the repository. Adjacent assets stay compiled inputs.
-			for _, directory := range runtimeDirectories {
+			// A document some package names is bound above to its namers
+			// alone; an unnamed read pointed at it is outside the boundary.
+			broad := runtimeDirectories
+			if namedDocument(namedPaths, namedTestPaths, name) {
+				broad = nil
+			}
+			for _, directory := range broad {
 				target := graph.runtimeResourceFiles
 				if broadTest[directory] {
 					target = graph.testResourceFiles
@@ -568,6 +577,21 @@ func (graph packageInputGraph) devicePackages(packages []string) ([]string, erro
 		}
 	}
 	return devices, nil
+}
+
+// namedDocument reports a path some package names in production or test source.
+func namedDocument(namedPaths, namedTestPaths map[string][]string, name string) bool {
+	for _, named := range namedPaths {
+		if namesPath(named, name) {
+			return true
+		}
+	}
+	for _, named := range namedTestPaths {
+		if namesPath(named, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // sourceReaderImport reports an import that parses or formats Go source.

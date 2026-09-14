@@ -29,7 +29,7 @@ func Value() int { b,e:=os.ReadFile(os.Getenv("INPUT"));if e==nil&&strings.Conta
 	if e != nil {
 		t.Fatal(e)
 	}
-	if !slices.Contains(slices.Concat(s.direct, s.dependent), "overgo/internal/readerclient") {
+	if !slices.Contains(s.selected(), "overgo/internal/readerclient") {
 		t.Fatalf("opaque reader caller omitted for a data change: direct=%v dependent=%v", s.direct, s.dependent)
 	}
 	if output, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err != nil {

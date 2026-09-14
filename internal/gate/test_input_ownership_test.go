@@ -80,7 +80,7 @@ func TestTestCommandInputsBelongToOwningPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := slices.Concat(scope.direct, scope.dependent)
+	selected := scope.selected()
 	if !slices.Contains(selected, "overgo/internal/reader") || slices.Contains(selected, "overgo/internal/readerclient") {
 		t.Fatalf("test command selected wrong owners: %v", selected)
 	}
@@ -149,7 +149,7 @@ func TestRuntimeReaderLeavesUncompiledTestSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, pkg := range []string{"overgo/internal/reader", "overgo/internal/readerclient"} {
-		if slices.Contains(slices.Concat(scope.direct, scope.dependent), pkg) {
+		if slices.Contains(scope.selected(), pkg) {
 			t.Fatalf("data reader %s selected by an uncompiled test source change: direct=%v dependent=%v", pkg, scope.direct, scope.dependent)
 		}
 	}

@@ -56,7 +56,7 @@ func TestRuntimeReachBindingsAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			selected := slices.Concat(scope.direct, scope.dependent)
+			selected := scope.selected()
 			if !slices.Contains(selected, packages[0]) || before[packages[0]] == after[packages[0]] {
 				t.Errorf("failing indirect consumer escaped: selected=%v invalidated=%t", selected, before[packages[0]] != after[packages[0]])
 			}

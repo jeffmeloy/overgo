@@ -34,6 +34,21 @@
       ]
     },
     {
+      "id": "stale-store-acceptances",
+      "title": "Restore the three store-bound acceptances the complete group exposed: capability census denominator, longform guard cohort, speech alignment annotations",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Restore the three store-bound acceptances the complete group exposed: capability census denominator, longform guard cohort, speech alignment annotations",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility ./cmd/longform ./internal/audioparity -run '^(TestAcceptedCapabilityCensus|TestCurrentGuardControls|TestSpeechAlignmentAcceptance)$' -count=1",
+          "rationale": "Found 2026-09-14 by the first gate of gate-named-documents: with the narrowed document binding the dependent group ran complete for the first time and three store-bound acceptances failed; they fail in the working tree too with OVERGO_DATA_ROOT set to the checkout. cmd/compatibility TestAcceptedCapabilityCensus: the bound census document e544d487 holds 43 registered identities and the live store holds 209, so a new disposition must be recorded before the denominator is replaced. cmd/longform TestCurrentGuardControls: the accepted cohort resolves to two distinct records where three complete immutable records per model are required, and the Qwen 0.5B control no longer identifies the required inference surface and clean measured producer. internal/audioparity TestSpeechAlignmentAcceptance: the annotation archive is read from tmp/ami_public_manual_1.6.2.zip (or OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS) and is absent; an acceptance must not depend on an ignored scratch path, so bind the archive under the declared data roots or skip with the recorded reason when the operator has not supplied it. The verify runs the three tests; run it with OVERGO_DATA_ROOT set, since the tests skip without it and the verify refuses a skipped test. The gate's selection runs these packages short for a gate-only change, so this row does not block the selection rows; it blocks the closeout."
+        }
+      ]
+    },
+    {
       "id": "validation-gate-selection",
       "title": "Determine unnecessary testing and deliver one measured gate reduction",
       "owner": "master-lead",
@@ -995,7 +1010,9 @@
             "gate-live-scans/do",
             "gate-reach-escape/do",
             "gate-device-edges/do",
-            "gate-skip-constant-leaf/do"
+            "gate-skip-constant-leaf/do",
+            "gate-named-documents/do",
+            "stale-store-acceptances/do"
           ]
         }
       ]

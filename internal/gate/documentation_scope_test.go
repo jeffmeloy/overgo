@@ -130,7 +130,7 @@ func TestDocumentationBoundaryAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			selected := slices.Concat(scope.direct, scope.dependent)
+			selected := scope.selected()
 			if !slices.Contains(selected, consumer) {
 				t.Fatalf("lost seeded %s failure: %v", kind, selected)
 			}

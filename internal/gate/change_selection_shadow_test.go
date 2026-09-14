@@ -107,7 +107,7 @@ func TestChangeSelectiveVerificationShadow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			selected := append(slices.Clone(scope.direct), scope.dependent...)
+			selected := scope.selected()
 			if missed := selectionCounterexamples(full.Failed, selected); len(missed) != 0 {
 				t.Fatalf("selection omitted failing packages %v; full failed=%v selected=%v", missed, full.Failed, selected)
 			}
@@ -116,15 +116,17 @@ func TestChangeSelectiveVerificationShadow(t *testing.T) {
 			}
 			t.Logf("candidate=%s full_failed=%d selected=%d excluded=%d", candidate.name, len(full.Failed), len(selected), scope.excluded)
 
-			// Direct-only selection drops the dependents, which fail on every
-			// recorded change; the shadow must name each as a counterexample.
+			// Direct-only selection drops the importers, which fail on every
+			// recorded change; the shadow must name each as a counterexample
+			// from the uncertain or the dependent group.
 			missed := selectionCounterexamples(full.Failed, scope.direct)
 			if len(missed) == 0 {
 				t.Fatal("shadow accepted a selection that omitted failing dependents")
 			}
+			dropped := slices.Concat(scope.uncertain, scope.dependent)
 			for _, dependent := range missed {
-				if !slices.Contains(scope.dependent, dependent) {
-					t.Fatalf("counterexample %s is not a dropped dependent of %v", dependent, scope.dependent)
+				if !slices.Contains(dropped, dependent) {
+					t.Fatalf("counterexample %s is not a dropped importer of %v", dependent, dropped)
 				}
 			}
 			t.Logf("counterexample selection=direct-only missed=%s", strings.Join(missed, ","))

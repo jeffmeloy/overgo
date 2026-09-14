@@ -57,7 +57,7 @@ func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if slices.Contains(slices.Concat(scope.direct, scope.dependent), reader) {
+	if slices.Contains(scope.selected(), reader) {
 		t.Error("data reader selected by a source change outside its closure")
 	}
 	after, err := graph.identity(reader)

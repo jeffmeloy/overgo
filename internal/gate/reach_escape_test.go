@@ -44,12 +44,12 @@ func TestReachEscapeAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	total := len(scope.direct) + len(scope.dependent) + scope.excluded
+	total := len(scope.selected()) + scope.excluded
 	if scope.excluded < total/5 {
 		t.Fatalf("gate-only change excluded %d of %d packages; the data-reach boundary is not in effect", scope.excluded, total)
 	}
 	for _, required := range []string{"overgo/internal/gate", "overgo/cmd/gate"} {
-		if !slices.Contains(slices.Concat(scope.direct, scope.dependent), required) {
+		if !slices.Contains(scope.selected(), required) {
 			t.Fatalf("gate-only change dropped %s", required)
 		}
 	}
@@ -58,9 +58,9 @@ func TestReachEscapeAcceptance(t *testing.T) {
 	// processcontrol launcher's unnamed program reach until that constant
 	// moves to a leaf owner.
 	for _, excluded := range []string{"overgo/internal/jsonfile"} {
-		if slices.Contains(slices.Concat(scope.direct, scope.dependent), excluded) {
+		if slices.Contains(scope.selected(), excluded) {
 			t.Fatalf("data reader %s selected by a gate-only change", excluded)
 		}
 	}
-	t.Logf("gate-only change: direct=%d dependent=%d excluded=%d of %d", len(scope.direct), len(scope.dependent), scope.excluded, total)
+	t.Logf("gate-only change: direct=%d uncertain=%d dependent=%d excluded=%d of %d", len(scope.direct), len(scope.uncertain), len(scope.dependent), scope.excluded, total)
 }

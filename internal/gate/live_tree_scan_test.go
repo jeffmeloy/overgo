@@ -71,5 +71,5 @@ func TestLiveTreeScanRatchet(t *testing.T) {
 	if !slices.Contains(scope.direct, "overgo/internal/gate") {
 		t.Fatalf("gate-only change lost its own owner: %v", scope.direct)
 	}
-	t.Logf("live-tree scanners=%v; gate-only change: direct=%d dependent=%d excluded=%d", scanners, len(scope.direct), len(scope.dependent), scope.excluded)
+	t.Logf("live-tree scanners=%v; gate-only change: direct=%d uncertain=%d dependent=%d excluded=%d", scanners, len(scope.direct), len(scope.uncertain), len(scope.dependent), scope.excluded)
 }

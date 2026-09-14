@@ -237,8 +237,12 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 			*classifier.escapes = true
 		}
 		if pathCall(typed) {
-			for _, value := range literalArguments(typed) {
-				classifier.classifyPath(value, false)
+			// Literals joined under a temporary root name nothing in the
+			// repository: a fixture tree under t.TempDir() is not the tree.
+			if len(typed.Args) == 0 || !classifier.temporaryRooted(typed.Args[0]) {
+				for _, value := range literalArguments(typed) {
+					classifier.classifyPath(value, false)
+				}
 			}
 			// A file owner's call takes its path first (a join takes only
 			// paths); a path it is handed that the source does not name may
@@ -256,6 +260,23 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 		}
 	}
 	return true
+}
+
+// temporaryRooted reports a path argument rooted at a temporary directory: a
+// safe root that is not a literal, or a join whose first part is one.
+func (classifier *sourceClassifier) temporaryRooted(argument ast.Expr) bool {
+	switch typed := argument.(type) {
+	case *ast.BasicLit:
+		return false
+	case *ast.CallExpr:
+		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok && len(typed.Args) != 0 &&
+			(selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join")) {
+			return classifier.temporaryRooted(typed.Args[0])
+		}
+		return classifier.safePath(argument)
+	default:
+		return classifier.safePath(argument)
+	}
 }
 
 // safePath reports a path argument that reaches nothing in the repository:

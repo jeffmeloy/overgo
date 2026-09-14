@@ -133,39 +133,66 @@
 
   // Native media and links cannot send a bearer header. Fetch protected bytes
   // through the shared client and release their object URLs when removed.
-  const artifactURLs = new Map();
+  const artifactResources = new Map();
   new MutationObserver(() => {
-    for (const [node, url] of artifactURLs) {
-      if (!node.isConnected) { URL.revokeObjectURL(url); artifactURLs.delete(node); }
+    for (const [node, resource] of artifactResources) {
+      if (!node.isConnected) {
+        if (node instanceof HTMLMediaElement) node.pause();
+        if (resource.controller) resource.controller.abort();
+        if (resource.url) URL.revokeObjectURL(resource.url);
+        if (resource.failure) resource.failure.remove();
+        artifactResources.delete(node);
+      }
     }
   }).observe(document.documentElement, { childList: true, subtree: true });
+  function resourceFor(node) {
+    if (!artifactResources.has(node)) artifactResources.set(node, {});
+    return artifactResources.get(node);
+  }
   function resourceURL(node, body) {
-    if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
-    const url = URL.createObjectURL(body);
-    artifactURLs.set(node, url);
-    return url;
+    const resource = resourceFor(node);
+    if (resource.url) URL.revokeObjectURL(resource.url);
+    resource.url = URL.createObjectURL(body);
+    return resource.url;
   }
   function downloadBlob(node, body, name) {
     el('a', { href: resourceURL(node, body), download: name }).click();
   }
   function artifactResource(node, attribute, path) {
     const load = async () => {
+      const resource = resourceFor(node);
+      if (resource.controller) return;
+      if (resource.failure) {
+        const restoreFocus = resource.failure.contains(document.activeElement);
+        resource.failure.remove(); resource.failure = null;
+        if (restoreFocus) node.focus();
+      }
+      const controller = resource.controller = new AbortController();
       try {
-        const body = await api.blob(path);
-        if (!node.isConnected) return;
+        const body = await api.blob(path, { signal: controller.signal });
+        if (!node.isConnected || controller.signal.aborted) return;
         const url = resourceURL(node, body);
-        if (attribute === "src") node.src = url;
+        if (attribute === 'src') node.src = url;
         else {
-          const download = el("a", { href: url, download: node.getAttribute("download") || "artifact" });
-          download.click();
+          let name = node.getAttribute('download') || 'artifact';
+          if (name === 'audio' && body.type === 'audio/wav') name += '.wav';
+          el('a', { href: url, download: name }).click();
         }
-      } catch (err) { node.replaceWith(errorBanner(friendlyError(err))); }
+      } catch (err) {
+        if (!node.isConnected || controller.signal.aborted) return;
+        resource.failure = el('div', { class: 'artifact-load-error' }, errorBanner(friendlyError(err)),
+          el('button', { class: 'link-button', text: 'Retry', onclick: load }));
+        node.after(resource.failure);
+      } finally { if (resource.controller === controller) resource.controller = null; }
     };
-    if (attribute === "href") {
-      node.setAttribute("href", path);
-      node.addEventListener("click", (event) => { event.preventDefault(); load(); });
+    if (attribute === 'href') {
+      node.setAttribute('href', path);
+      node.addEventListener('click', event => { event.preventDefault(); load(); });
     } else load();
   }
+  const pausePlayback = () => document.querySelectorAll('audio, video').forEach(player => player.pause());
+  window.addEventListener('pagehide', pausePlayback);
+  window.addEventListener('overgo-panel-change', pausePlayback);
 
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 

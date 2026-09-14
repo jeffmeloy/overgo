@@ -17,7 +17,8 @@
           "verify": "test -f internal/server/speech_document_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeechDocumentLifecycle$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TextToSpeech|LayoutAudit)$' -require 'text to speech leg'",
           "rationale": "Primary user workflow: choose a local .txt file or paste text, inspect/edit the text, choose an admitted local Pocket-TTS recipe and stored voice, Generate, Stop, preview and Download audio. UTF-8/BOM, empty/invalid files and declared size limits have explicit outcomes; loading a file must not silently replace an existing draft. Existing exported voices work without the sample-cloning backend. Use the existing speech/generation operation and artifact owners, same-origin authentication and a named WAV download whose format matches the actual output. Move advanced sampling controls out of the main flow. Whole-document execution must preserve every text segment: derive chunk/context/frame limits from the recipe, retain ordered segment/output identities and progress, detect incomplete synthesis rather than silently truncating at max_frames, assemble one valid audio file with consistent rate/channels, and reuse existing operation/checkpoint owners for cancellation/recovery instead of a browser-only job queue. Accept short and multi-segment fixtures, cancellation before/after acceptance, failure/retry, correct voice identity, decoded output and byte-exact authenticated download. Native engine/codec changes coordinate with overgo_audiocpp's synthesis-lifecycle group; ordinary preset TTS is not blocked on its unrelated training or voice-election receipts. Existing /generation/capabilities already identifies admitted speech recipes and exported voice controls, so broad inventory presentation is not a prerequisite. Prioritize a working preset flow before catalog breadth. Current speechsynth.generate drops EOS/completion information; reaching MaxFrames must not be labelled complete document audio. Extend the existing synthesis/output owner with an explicit complete-output contract for documents while preserving intentionally bounded preview/benchmark requests and numerical goldens. Do not close this row with text-file import or a bounded preview alone. The keyed native audio playback probe passed: boot.artifactResource already fetches protected media through api.blob and owns Blob URLs, and the existing reliability journey checks authenticated download bytes. Reuse that owner instead of adding another downloader or treating direct-looking DOM URLs as unauthenticated. Extend its audio filename/format, failed-fetch retry, cancellation and cleanup acceptance as the actual text-to-audio flow requires. The separate gui-speech-controls prerequisite addresses graphically reproduced voice/options reachability and request recovery. Its completion does not satisfy text-file intake, whole-document coverage, EOS/completion, segmentation, native cancellation or final audio acceptance here. A read-only local Pocket-TTS 2.1.0 reference exists at C:/Users/jeffm/adaptive_new/models/pocket-tts/pocket-tts. Evaluate its exact source policy before defining native document bounds: MAX_TOKEN_PER_CHUNK=50 in default_parameters.py, sentence/fallback splitting and token-based frame estimate in models/tts_model.py, plus its explicit non-EOS exhaustion failure path. This is a source policy to qualify against the exact original checkpoint, not a demonstrated architecture limit or permission to silently copy warning-only oversized chunks. Retain original and normalized source/segment identities, enforce complete source coverage, preserve intentional bounded legacy requests and expose any adopted policy through existing native recipe owners. The inspected tts_model.py SHA256 is f0afff61e4370e31983eea6b09b8801bcaba77766711adff526a8c0c74b644bf. No reference code was executed and no new model was downloaded during this inspection.",
           "depends_on": [
-            "gui-speech-controls/do"
+            "gui-speech-controls/do",
+            "gui-audio-output/do"
           ]
         }
       ]
@@ -450,7 +451,8 @@
             "gui-speech-languages/do",
             "gui-audio-analysis/do",
             "gui-live-media/do",
-            "gui-speech-controls/do"
+            "gui-speech-controls/do",
+            "gui-audio-output/do"
           ]
         }
       ]
@@ -529,7 +531,8 @@
             "gui-preference-training/do",
             "gui-audio-acceptance/do",
             "gui-speech-controls/do",
-            "gui-model-preparation/do"
+            "gui-model-preparation/do",
+            "gui-audio-output/do"
           ]
         }
       ]

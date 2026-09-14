@@ -544,3 +544,10 @@ summary { cursor:pointer; min-height:32px; }
 .speech-primary-controls .control { display: flex; align-items: center; gap: var(--s2); min-width: 0; flex: 1; }
 .speech-primary-controls select { min-width: 0; flex: 1; }
 #settings-dialog > .dialog-heading { position: sticky; top: 0; background: var(--bg0); z-index: 1; }
+
+.msg.media.audio-result { display: block; }
+.audio-result audio { width: 100%; margin: 0 0 var(--s2); }
+.audio-result .audio-output-actions { align-items: start; justify-content: space-between; }
+.audio-result summary { padding: var(--s2) 0; min-height: 44px; }
+.audio-result .audio-download { min-height: 44px; }
+.audio-result .audio-details { margin-top: var(--s1); }

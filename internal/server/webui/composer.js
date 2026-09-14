@@ -230,6 +230,18 @@
       const card = el("div", { class: "artifact msg media" }, player,
         el("div", { class: "note" }, [event.caption, facts.join(" · ")].filter(Boolean).join(" — "),
           event.artifact ? el("span", {}, " — stored as ", overgo.artifactLink(event.artifact)) : null, again, ...replays, lineage));
+      if (event.kind === 'audio') {
+        card.classList.add('audio-result');
+        player.setAttribute('aria-label', event.caption || 'Generated audio');
+        const details = el('details', { class: 'audio-details' }, el('summary', { text: 'Details' }),
+          el('div', { class: 'note', text: [event.caption, facts.join(' · ')].filter(Boolean).join(' — ') }),
+          event.artifact ? overgo.artifactLink(event.artifact) : null, lineage);
+        let actions = null;
+        if (again || replays.length) actions = el('details', { class: 'audio-actions' }, el('summary', { text: 'More actions' }), el('div', { class: 'row' }, again, ...replays));
+        card.replaceChildren(player, el('div', { class: 'row audio-output-actions' },
+          event.url ? el('a', { class: 'link-button audio-download', href: event.url, download: 'audio', text: 'Download audio' }) : null,
+          actions), details);
+      }
       log.appendChild(card);
       scroll();
       return card;

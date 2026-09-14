@@ -309,7 +309,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	base, err := sourceAtHEAD(g.repo, candidate)
+	base, err := g.baseSnapshot(candidate)
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
@@ -340,6 +340,9 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if reused {
 		g.note("candidate code manifest reused by exact analysis authority")
 	}
+	g.sourceMutex.Lock()
+	g.manifestCache = manifestCache
+	g.sourceMutex.Unlock()
 	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err

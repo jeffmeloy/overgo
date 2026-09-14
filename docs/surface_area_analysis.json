@@ -1,4 +1,32 @@
 {
+  "next_reduction_decision": {
+    "decision": "Reuse profiles already built during manifest generation before broader runtime analysis; expensive exclusion remains open.",
+    "gate": "25aacc4c773dc27966c6a9d613938c5dbfab65f9",
+    "limitations": "Single local source-bound observation; allocations are not retained memory. Suite durations overlap. No test exclusion or whole-gate speedup established.",
+    "profile_reuse_measurement": {
+      "additional_profile_heap_bytes": 5082632,
+      "correctness_repair": "Clone groups with equal node count and fingerprint now sort by advisory class; prior map iteration could change output ordering.",
+      "exact_profile_match": true,
+      "memory_method": "Two collections before and after isolate retained profile allocation from transient pooled manifest buffers; single-process observation, not a process memory ceiling.",
+      "reuse_allocated_bytes": 4292152,
+      "reuse_seconds": 0.0020347,
+      "scope": "Per-profile comparison on one source snapshot; gate retains at most the profiles attached to its two bounded manifest entries. No test exclusion or whole-gate multiplier claimed.",
+      "source": "14751c3d77d1559d871c31b0be60badf30fd3b40b513dbc096be855015b0d50c",
+      "uncached_allocated_bytes": 817188352,
+      "uncached_seconds": 4.1027722
+    },
+    "profile_source": "3615ed11a29cefd9921188cb54a37402f84750d2fdcc68fcac8a71f53930e2c7",
+    "rejected_shortcut": "Removing testutil from three numerical consumers leaves 8-10 independent opaque readers; observed package elapsed 0.329, 0.414 and 0.960 seconds.",
+    "repeated_build_allocated_bytes": [
+      1131116328,
+      816761304
+    ],
+    "repeated_build_seconds": [
+      3.3937052,
+      2.9114664
+    ],
+    "suite_cost": "evidence:sha256:ab8c98d590ddfe582c16f5329174b61e08bd0e1387bf6ea62700b2a7033ccbfe"
+  },
   "selection_join_reduction": {
     "reference_commit": "3f1c6750f37a4365bc44ad0d2bd943c1bd24aa49",
     "selection_record_ast_nodes_before": 1461,

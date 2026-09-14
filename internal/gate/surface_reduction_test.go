@@ -3,16 +3,60 @@ package gate
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/codemanifest"
+	"overgo/internal/codeprofile"
+	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
+
+func TestSurfaceProfileReuse(t *testing.T) {
+	root := t.TempDir()
+	const name = "internal/example/example.go"
+	testutil.WriteTextFile(t, root, name, "package example\nfunc Value() int { return 1 }\n")
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := codeprofile.Build(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &gateContext{}
+	if got, err := g.sourceProfile(snapshot); err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("uncached profile: %v", err)
+	}
+	g.manifestCache, err = codemanifest.NewCache(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection := repoanalysis.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
+	if _, _, err := g.manifestCache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil); err != nil {
+		t.Fatal(err)
+	}
+	for _, label := range []string{"first reader", "second reader"} {
+		t.Run(label, func(t *testing.T) {
+			t.Parallel()
+			got, err := g.sourceProfile(snapshot)
+			if err != nil || !reflect.DeepEqual(got, want) {
+				t.Fatalf("shared profile: %v", err)
+			}
+			got.Functions[0].Name = label
+			again, err := g.sourceProfile(snapshot)
+			if err != nil || !reflect.DeepEqual(again, want) {
+				t.Fatalf("caller mutation reached cache: %v", err)
+			}
+		})
+	}
+}
 
 func TestSurfaceSelectionWitness(t *testing.T) {
 	g := runtimeReaderFixture(t)

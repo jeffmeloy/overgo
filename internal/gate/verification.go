@@ -392,6 +392,15 @@ func (g *gateContext) baseSnapshot(candidate repoanalysis.SourceSnapshot) (repoa
 	return base, err
 }
 
+func (g *gateContext) sourceProfile(snapshot repoanalysis.SourceSnapshot) (codeprofile.Profile, error) {
+	g.sourceMutex.Lock()
+	defer g.sourceMutex.Unlock()
+	if profile, found := g.manifestCache.Profile(snapshot); found {
+		return profile, nil
+	}
+	return codeprofile.Build(snapshot)
+}
+
 // stepArchitectureRatchet audits the complete candidate source on every gate
 // run, including documentation-only changes. It is deliberately in-process:
 // the manifest already binds this check to the candidate tree, and a second
@@ -447,7 +456,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	profile, err := codeprofile.Build(snapshot)
+	profile, err := g.sourceProfile(snapshot)
 	if err != nil {
 		return false, err
 	}
@@ -459,7 +468,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	base, err := codeprofile.Build(baseSource)
+	base, err := g.sourceProfile(baseSource)
 	if err != nil {
 		return false, err
 	}

@@ -85,6 +85,7 @@ type gateContext struct {
 	preparationCommit   artifact.CommitID
 	source              *repoanalysis.SourceSnapshot
 	baseSource          *repoanalysis.SourceSnapshot
+	manifestCache       *codemanifest.Cache
 	profile             *codeprofile.Profile
 	profileDirty        bool
 	preflight           bool

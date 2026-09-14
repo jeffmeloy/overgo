@@ -169,16 +169,7 @@ func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyHunyuanVL(t, nonzeroTinyHunyuanVLTensors())
-	cpu, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*HunyuanVLRunner](t, path)
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {

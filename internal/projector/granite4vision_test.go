@@ -118,16 +118,7 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGranite4Vision(t, nonzeroGranite4VisionTensors(true))
 	rewriteGranite4VisionMetadata(t, path, granite4VisionMultiwindowMetadata(), nonzeroGranite4VisionTensors(true))
-	cpu, err := openImageProjectorAs[*Granite4VisionRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Granite4VisionRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*Granite4VisionRunner](t, path)
 	input := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	for y := range 8 {
 		for x := range 8 {

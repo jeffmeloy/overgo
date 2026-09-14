@@ -129,16 +129,7 @@ func TestLlama4CatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyLlama4Vision(t, nonzeroTinyLlama4VisionTensors())
-	cpu, err := openImageProjectorAs[*Llama4VisionRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Llama4VisionRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*Llama4VisionRunner](t, path)
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {

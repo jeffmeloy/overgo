@@ -81,31 +81,10 @@ func TestOpenImageProjectorDispatchesCogVLM(t *testing.T) {
 func TestCogVLMCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyCogVLM(t, true)
-	cpu, err := openImageProjectorAs[*CogVLMVisionRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*CogVLMVisionRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := range 4 {
-		for x := range 4 {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 45), G: uint8(y * 51), B: uint8((x + y) * 27), A: fixtureOpaqueAlpha})
-		}
-	}
-	want, err := cpu.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := cuda.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compareFloat32Tolerance(t, "CogVLM", got.Data, want.Data, 3e-3)
+	input := patternedRGBA(4, 4, func(x, y int) color.RGBA {
+		return color.RGBA{R: uint8(x * 45), G: uint8(y * 51), B: uint8((x + y) * 27), A: fixtureOpaqueAlpha}
+	})
+	referenceParityCase[*CogVLMVisionRunner](t, "CogVLM", path, input, 3e-3)
 }
 
 func writeTinyCogVLM(t *testing.T, patterned bool) string {

@@ -85,7 +85,7 @@ func hostRace() error {
 	}
 	cmd := []string{"go", "test", "-race", "-count=1", "-timeout", hostRaceTimeout.String(), hostRacePattern}
 	began := time.Now()
-	out, err := clioptions.CombinedOutput(append(os.Environ(), "CGO_ENABLED=1", "CC="+cc), cmd[0], cmd[1:]...)
+	out, err := clioptions.CombinedOutputIn("", append(os.Environ(), "CGO_ENABLED=1", "CC="+cc), cmd[0], cmd[1:]...)
 	report("host", hostRacePattern, began, err)
 	if err != nil {
 		fmt.Print(out)
@@ -96,7 +96,7 @@ func hostRace() error {
 
 func deviceRace() error {
 	// cuda-info is the availability probe: failure means no usable device.
-	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
+	if out, err := clioptions.CombinedOutputIn("", os.Environ(), "go", "run", "./cmd/cuda-info"); err != nil {
 		fmt.Print(out)
 		return unavailable("device", "cuda-info failed; no usable GPU/driver")
 	}
@@ -112,14 +112,14 @@ func deviceRace() error {
 	if runtime.GOOS == "windows" {
 		bin += ".exe"
 	}
-	if out, err := clioptions.CombinedOutput(os.Environ(), "go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
+	if out, err := clioptions.CombinedOutputIn("", os.Environ(), "go", "test", "-c", "-o", bin, deviceRacePackage); err != nil {
 		fmt.Print(out)
 		return runrecord.LaneError(runrecord.LaneFailed, "building device test binary failed")
 	}
 	for _, tool := range deviceRaceTools {
 		cmd := sanitizerCmd(tool, bin, "-test.run", "Device", "-test.count=1")
 		began := time.Now()
-		out, err := clioptions.CombinedOutput(append(os.Environ(), cudaTestEnv+"=1"), cmd[0], cmd[1:]...)
+		out, err := clioptions.CombinedOutputIn("", append(os.Environ(), cudaTestEnv+"=1"), cmd[0], cmd[1:]...)
 		report("device:"+tool, deviceRacePackage, began, err)
 		if err != nil {
 			fmt.Print(out)
@@ -136,7 +136,7 @@ func cCompiler() (string, error) {
 		}
 		return "", fmt.Errorf("c compiler unavailable (%s names %q, which is absent); the race detector needs cgo", raceCompilerEnv, override)
 	}
-	out, err := clioptions.CombinedOutput(os.Environ(), "go", "env", "CC")
+	out, err := clioptions.CombinedOutputIn("", os.Environ(), "go", "env", "CC")
 	configured := "gcc"
 	if err == nil {
 		if cc := strings.TrimSpace(out); cc != "" {
@@ -144,7 +144,7 @@ func cCompiler() (string, error) {
 		}
 	}
 	moduleRoot := ""
-	if out, err = clioptions.CombinedOutput(os.Environ(), "go", "env", "GOMOD"); err == nil {
+	if out, err = clioptions.CombinedOutputIn("", os.Environ(), "go", "env", "GOMOD"); err == nil {
 		if module := strings.TrimSpace(out); module != "" && module != os.DevNull {
 			moduleRoot = filepath.Dir(module)
 		}

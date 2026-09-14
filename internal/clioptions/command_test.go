@@ -8,7 +8,7 @@ import (
 )
 
 func TestWriteJSON(t *testing.T) {
-	if _, err := CombinedOutput(os.Environ(), os.Args[0], "-test.run=^$"); err != nil {
+	if _, err := CombinedOutputIn("", os.Environ(), os.Args[0], "-test.run=^$"); err != nil {
 		t.Fatal(err)
 	}
 	if Verdict(nil) != "ok" || Verdict(os.ErrInvalid) != "FAIL" {

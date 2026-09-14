@@ -116,16 +116,7 @@ func TestPaddleOCRCatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyPaddleOCR(t, nonzeroTinyPaddleOCRTensors())
-	cpu, err := openImageProjectorAs[*PaddleOCRRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*PaddleOCRRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*PaddleOCRRunner](t, path)
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {

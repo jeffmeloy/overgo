@@ -24,6 +24,9 @@ import (
 // TestAcceptedE4BResourceRefresh checks current protocol and resource evidence
 // while preserving the original quality and native-mask bundle.
 func TestAcceptedE4BResourceRefresh(t *testing.T) {
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}

@@ -11,15 +11,18 @@ import (
 func TestGeneratorBootstrap(t *testing.T) {
 	for _, name := range []string{
 		"internal/codemanifest/generate.go", "internal/codeprofile/profile.go",
-		"internal/repoanalysis/source.go", "internal/automationcheck/manifest.go", "cmd/gate/main.go",
-		"internal/gate/documentation_scope.go",
+		"internal/repoanalysis/source.go", "internal/automationcheck/manifest.go", "cmd/code-manifest/main.go",
 	} {
 		if !requiresManifestBootstrap([]string{name}) {
 			t.Errorf("analyzer-owned path %s did not force bootstrap", name)
 		}
 	}
-	if requiresManifestBootstrap([]string{"internal/model/model.go"}) {
-		t.Fatal("unrelated model path forced analyzer bootstrap")
+	// The gate is a planner consumer, not an analyzer: its change keeps the
+	// ownership closure, and its own selected tests verify it.
+	for _, name := range []string{"internal/model/model.go", "internal/gate/documentation_scope.go", "cmd/gate/main.go"} {
+		if requiresManifestBootstrap([]string{name}) {
+			t.Fatalf("%s forced analyzer bootstrap", name)
+		}
 	}
 }
 

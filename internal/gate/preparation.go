@@ -170,6 +170,14 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if analysisErr != nil {
 		return plannedPipeline{}, analysisErr
 	}
+	g.attributedDocuments = nil
+	if structuralErr == nil && graphErr == nil {
+		var notes []string
+		structural, g.attributedDocuments, notes = attributeNamedDocuments(structural, inputGraph)
+		for _, note := range notes {
+			g.note(note)
+		}
+	}
 	definitions := g.pipelineChecks(devicePackages...)
 	definitions, err = g.batchAcceptanceChecks(definitions, verificationBatch)
 	if err != nil {
@@ -211,8 +219,11 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	impact := automationcheck.OwnershipImpact(definitions, surface)
 	// Symbol reachability uncertain (interface dispatch, reflection, cgo):
 	// the linker's rule still decides package-owned checks, since a check's
-	// tests observe only packages in their dependency closure.
-	if len(surface.Unknown) != 0 && structuralErr == nil && graphErr == nil && !requiresManifestBootstrap(g.paths) && reachabilityOnlyUncertainty(structural) {
+	// tests observe only packages in their dependency closure. A resolved
+	// impact whose only unknowns are coverage gaps (packages no check
+	// declares, a document's directory among them) takes the same rule.
+	if len(surface.Unknown) != 0 && structuralErr == nil && graphErr == nil && !requiresManifestBootstrap(g.paths) &&
+		(reachabilityOnlyUncertainty(structural) || len(structural.Uncertainty) == 0) {
 		changed := changedPackages(structural)
 		if resolver, resolverErr := g.dependencyResolver(); resolverErr == nil {
 			impact = automationcheck.OwnershipByDependency(definitions, changed, resolver)
@@ -255,12 +266,19 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	return plannedPipeline{definitions: definitions, invocations: checks, impact: impact, surface: surface, manifest: boundPlan, structural: structural}, nil
 }
 
+// requiresManifestBootstrap names the owners whose change makes the impact
+// analysis or the check definitions untrusted, so every owned check runs:
+// the manifest analyzers and the check definition and planning owner. The
+// gate's own packages are not among them: a gate change is verified by the
+// gate's selected owner tests, including the shadow matrix that compares
+// the selector with the complete gate, and the lanes it invokes are
+// excluded only when the ownership closure proves them independent.
 func requiresManifestBootstrap(paths []string) bool {
 	for _, name := range paths {
 		name = filepath.ToSlash(name)
 		for _, owner := range []string{
 			"internal/codemanifest/", "internal/codeprofile/", "internal/repoanalysis/",
-			"internal/automationcheck/", "internal/gate/", "cmd/code-manifest/", "cmd/gate/",
+			"internal/automationcheck/", "cmd/code-manifest/",
 		} {
 			if strings.HasPrefix(name, owner) {
 				return true

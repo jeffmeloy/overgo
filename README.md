@@ -4,10 +4,10 @@ Overgo runs, trains, evaluates, and composes AI models in Go and CUDA.
 Its browser workbench, command-line tools, and HTTP APIs share one execution
 system and one artifact store.
 
-Overgo aims to improve task capability, robustness, and efficiency through
-recursive self-improvement (RSI). It uses measured outcomes to improve models
-and the processes that propose, execute, and evaluate changes. Operators set
-goals, budgets, and constraints; code checks proposals and controls activation.
+Overgo improves task capability, robustness, and efficiency through recursive 
+self-improvement (RSI). It uses measured outcomes to improve models and the 
+processes that propose, execute, and evaluate changes. Operators set goals, 
+budgets, and constraints; code checks proposals and controls activation.
 
 Overgo is implemented through its own improvement loop. The
 [development plan](docs/plan.json) selects each task, agents implement it,
@@ -109,7 +109,8 @@ The [built-in policy](internal/trainingprogram/optimizer_policy.json) sets:
 - **Learning rate:** $\eta=P^{-1/2}$, where $P$ is the parameter count supplied
   to the policy. The rate stays constant across training steps.
 - **Momentum:** $\mu=(N-1)/(N+1)=29/31\approx0.9355$, using the shared effective
-  sample count $N=30$.
+  sample count $N=30$, based on rule of thumb from Cochran’s confidence-interval
+  criterion.
 - **Update scale:** $\eta\sqrt{\max(m,n)}\sqrt{1-\mu^2}$ for each $m\times n$
   parameter group.
 

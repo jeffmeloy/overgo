@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/testevidence"
 )
 
 type packageCostAttribution struct {
@@ -153,6 +155,10 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 		return
 	}
 	began := time.Now()
+	g.auditMutex.Lock()
+	batches := g.packageGraph.normalizePackageExecutions(g.testExecutions)
+	g.auditMutex.Unlock()
+	g.retainSelectionCauses(batches)
 	var selected runrecord.GateStep
 	for _, step := range steps {
 		if step.Name != "test-owners" && step.Name != "test-device" && step.Name != "test" {
@@ -168,9 +174,6 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 	if selected.Name == "" {
 		return
 	}
-	g.auditMutex.Lock()
-	batches := g.packageGraph.normalizePackageExecutions(g.testExecutions)
-	g.auditMutex.Unlock()
 	packages := slices.Clone(g.testPlan.edited)
 	if selected.Name != "test-owners" {
 		packages = slices.Concat(g.testPlan.remaining, g.testPlan.dependent)
@@ -225,4 +228,73 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 		return
 	}
 	g.note("test input attribution: " + string(data))
+}
+
+// retainSelectionCauses attributes every package a test check requested,
+// with its observed execution, for the retained selection-cause record; a
+// package retried within one check keeps its observed execution.
+func (g *gateContext) retainSelectionCauses(batches []packageExecutionBatch) {
+	var packages []runrecord.SelectionPackage
+	index := map[string]int{}
+	for _, batch := range batches {
+		if batch.Step == "" {
+			continue
+		}
+		for _, target := range batch.Requested {
+			if len(g.packageGraph.byID[target]) == 0 {
+				continue
+			}
+			entry := runrecord.SelectionPackage{Package: target, Step: batch.Step}
+			if position := slices.IndexFunc(batch.Executions, func(execution testevidence.PackageExecution) bool { return execution.Package == target }); position >= 0 {
+				execution := batch.Executions[position]
+				entry.Action, entry.Started, entry.ElapsedSeconds = execution.Action, execution.Started, execution.Elapsed
+			}
+			key := batch.Step + "\x00" + target
+			if previous, seen := index[key]; seen {
+				if entry.Started {
+					packages[previous].Action, packages[previous].Started, packages[previous].ElapsedSeconds = entry.Action, entry.Started, entry.ElapsedSeconds
+				}
+				continue
+			}
+			attribution, err := g.packageGraph.attributeInputs(target, g.paths)
+			if err != nil {
+				g.note("selection causes not retained: " + err.Error())
+				return
+			}
+			entry.Input = g.testPlan.directInputs[target]
+			if !entry.Input.Valid() {
+				entry.Input = g.testPlan.dependentInputs[target]
+			}
+			entry.CompilerInputs, entry.RuntimeInputs, entry.UnboundInputs = attribution.CompilerInputs, attribution.RuntimeInputs, attribution.UnboundInputs
+			if len(attribution.RuntimeReaders) != 0 {
+				entry.RuntimeReaders = attribution.RuntimeReaders
+			}
+			index[key] = len(packages)
+			packages = append(packages, entry)
+		}
+	}
+	g.selectionCauses = packages
+}
+
+// appendSelectionCauses retains the selection explanation beside the gate
+// result so the histogram derives from retained records alone.
+func (g *gateContext) appendSelectionCauses(batch *artifact.Batch, result artifact.ID) error {
+	if len(g.selectionCauses) == 0 {
+		return nil
+	}
+	record, err := runrecord.NewSelectionCauseRecord(runrecord.SelectionCauseRecord{
+		Result: result, Changed: slices.Clone(g.paths), Packages: slices.Clone(g.selectionCauses),
+		Limitations: "Attribution is package-level binding on the frozen candidate graph, not function reach. Elapsed values come from go test and overlap within a check.",
+	})
+	if err != nil {
+		return err
+	}
+	content, err := record.Content()
+	if err != nil {
+		return err
+	}
+	batch.Contents = append(batch.Contents, content)
+	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: content.Descriptor.ID, Parent: result, Relation: artifact.RelationDependsOn})
+	g.note(fmt.Sprintf("selection causes: evidence=%s result=%s packages=%d; query with plan -history all -phases -result %s", content.Descriptor.ID, result, len(record.Packages), result))
+	return nil
 }

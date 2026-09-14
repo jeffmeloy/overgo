@@ -1,0 +1,378 @@
+{
+  "lane_bootstrap_observation": {
+    "operation": "OvergoDB.Backup for original completion provenance",
+    "store_sequence": 32287,
+    "store_head": "44cd032ec1273d85a17d05570dc964732b3d4f4d4922adbbe4386cb91221868a",
+    "files_copied": 91382,
+    "bytes_copied": 2460979366,
+    "elapsed_nanoseconds": 984867224000,
+    "scope": "one-time lane initialization; not per-commit verification",
+    "follow_up": "Compare completion-authority reference reuse against full lane-store bootstrap in the existing plan and store owners; preserve original introductions and isolated writes."
+  },
+  "automation": {
+    "files": 182,
+    "nodes": 202169
+  },
+  "base_commit": "d279be41b7fbf8c663be2335723dcc79998cf9df",
+  "boundary_reasons": {
+    "build-variant": 83,
+    "command": 107,
+    "generated": 220,
+    "initialization": 846,
+    "interface": 217,
+    "method-dispatch": 2524,
+    "serialization": 9341,
+    "test-helper": 209
+  },
+  "build_context": "windows/amd64",
+  "clone_classes": {
+    "runtime": 215,
+    "test": 106,
+    "validator": 3
+  },
+  "clone_excess_by_class": {
+    "runtime": 2788,
+    "test": 7192
+  },
+  "clone_groups": 324,
+  "command_count_scope": "105 main-function declarations in parsed source, not a claim about installed or distinct shipped executables; derive packaging/build-context inventory before deletion.",
+  "commands": 105,
+  "consumer_summary": {
+    "boundary": 9832,
+    "production": 20874,
+    "test_only": 370,
+    "zero": 79
+  },
+  "duplicate_excess_nodes": 9980,
+  "exported_declarations": 9710,
+  "functions": 18696,
+  "generated": {
+    "files": 5,
+    "nodes": 89077
+  },
+  "limitations": [
+    "Not observed dynamic execution; absence from lexical calls does not prove independence.",
+    "Other platforms/tags, interface dispatch, reflection, subprocess effects and non-Go consumers need explicit coverage.",
+    "code-manifest CLI failed document identity mismatch; these raw facts are not canonical exclusion authority.",
+    "Clone counts are structural candidates, not permission to merge distinct contracts or remove test cases."
+  ],
+  "manifest_diagnosis": {
+    "base_graph_bytes": 144789119,
+    "cause": "analysis export and replay incorrectly use the durable artifact size boundary",
+    "durable_limit_bytes": 67108864,
+    "identity_valid": true,
+    "repair_scope": "code-manifest CLI and codemanifest.Parse; bounded durable Content and digest publication retained"
+  },
+  "ownership_sequences": [
+    {
+      "boundary": "Check.Run callback targets and phase dependencies require resolution; lexical order is not an execution trace",
+      "entry": "verification.go:pipeline",
+      "owner": "internal/gate",
+      "sequence": [
+        "planPipeline",
+        "phaseInputFingerprint",
+        "bindCheckExecution",
+        "executeChecks",
+        "saveRetryCache",
+        "checkFailures"
+      ]
+    },
+    {
+      "boundary": "runPreflight is a separate sequential executor; cmd/preflight also declares its own checks; coordinate with master's active preflight repair",
+      "entry": "preflight.go:Preflight",
+      "owner": "internal/gate",
+      "sequence": [
+        "preflightChecks",
+        "pipelineChecks",
+        "PhaseValidate filter",
+        "runPreflight"
+      ]
+    },
+    {
+      "boundary": "gate.stepProfile independently builds candidate and base profiles; measure identical input reuse before adding caching",
+      "entry": "generate.go:Generate",
+      "owner": "internal/codemanifest",
+      "sequence": [
+        "codeprofile.Build",
+        "ProductionConsumerGraph per selected context",
+        "identifyManifest"
+      ]
+    }
+  ],
+  "package_import_edges": 5216,
+  "purpose": "Initial advisory assessment for the surface-area-reduction lane; not gate exclusion authority",
+  "reference_kinds": {
+    "call": 21645,
+    "interface": 265915,
+    "use": 260806
+  },
+  "retained_gate_witness": {
+    "browser": "4m27.708s",
+    "commit": "99c142ee8d07e9aa7f6893a51af93c8ff29e1231",
+    "dependent_tests": "13m7.777s",
+    "opaque_readers": 191,
+    "packages_executed": 231,
+    "packages_reused": 0,
+    "result": "evidence:sha256:64db2bfa1f4b6dee880ba05c0e47858cec42d26e8591dae89c11a73836431e56",
+    "scope": "Retained master observation, not a new lane run; overlapping phase durations must not be summed.",
+    "suite_cost": "evidence:sha256:207ee5bb2bf506eec49ff97944d1ed7389e8befac45e19d2ab4845317129bafb",
+    "wall": "19m45.842s"
+  },
+  "reviewed_connections": [
+    {
+      "finding": "Partly overlaps gate pipeline; it also has distinct checks. Map union and semantics before removing either entry point.",
+      "from": "cmd/preflight/main.go:run",
+      "through": "eight local check entries and repoCheck subprocess closures",
+      "to": "API manifest, compatibility, SBOM, formatting and structural owners"
+    },
+    {
+      "finding": "Shares gate definitions but selects diagnostics by phase and runs a separate sequential loop; vet and test-classified structural checks are not included.",
+      "from": "internal/gate/preflight.go:Preflight",
+      "through": "preflightChecks -\u003e pipelineChecks -\u003e PhaseValidate filter -\u003e runPreflight",
+      "to": "Check.Run"
+    },
+    {
+      "finding": "Composition, identity and execution already have owners. Prove actual duplicate computation and invalidation before consolidating more policy here.",
+      "from": "internal/gate/verification.go:pipeline",
+      "through": "planPipeline -\u003e phaseInputFingerprint -\u003e bindCheckExecution -\u003e executeChecks -\u003e saveRetryCache",
+      "to": "terminal evidence and checkFailures"
+    },
+    {
+      "finding": "codemanifest.Generate also calls codeprofile.Build. Different source/build identities require separate computation; count same-identity repetition before introducing shared state.",
+      "from": "internal/gate/verification.go:stepProfile",
+      "through": "sourceSnapshot -\u003e codeprofile.Build; baseSnapshot -\u003e codeprofile.Build",
+      "to": "profile ratchets and advisories"
+    },
+    {
+      "finding": "Current code-manifest command fails document identity mismatch. Two serialization/identity paths are a concrete suspect, not a confirmed root cause; retain a counterexample and repair through the existing owner.",
+      "from": "internal/codemanifest/generate.go:Generate",
+      "through": "identifyManifest canonicalizes and hashes JSON",
+      "to": "Manifest.Content -\u003e artifact.DocumentCodec.Content"
+    }
+  ],
+  "runtime": {
+    "files": 1447,
+    "nodes": 1850896
+  },
+  "scope": "Go AST census across cmd/internal; resolved syntactic reference graph in the selected host context; source-reading of focused gate sequences",
+  "source_identity": "6be708422261f74904fe6232a8cdbe758d369dfbe6092d56d22f53dfd09d13c7",
+  "test": {
+    "files": 1766,
+    "nodes": 1759134
+  },
+  "top_clone_candidates": [
+    {
+      "advisory_class": "test",
+      "fingerprint": "f556d238cdadb4ec72ce70fbb83f0efaa64824f2a49122bc65b8e60217e25099",
+      "functions": [
+        "internal/projector/cogvlm_test.go:TestCogVLMCUDAMatchesCPU",
+        "internal/projector/deepseekocr2_test.go:TestDeepSeekOCR2CUDAMatchesCPU",
+        "internal/projector/deepseekocr_test.go:TestDeepSeekOCRCUDAMatchesCPU",
+        "internal/projector/gemma3nvision_test.go:TestGemma3nVisionCUDAMatchesCPU"
+      ],
+      "nodes": 188
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "f8b477e8196cc8d4aa3e8597c60879b017819e7075926c3ef9ddb79805c3de60",
+      "functions": [
+        "cmd/modern-census/main_test.go:TestModernCensusExtremaFixReportsAudit",
+        "cmd/modern-census/main_test.go:TestModernCensusManualIdiomFixReportsAudit",
+        "cmd/modern-census/main_test.go:TestModernCensusNumericRangeFixReportsAudit"
+      ],
+      "nodes": 196
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "93c94c9d46e860f545cd1c4ab9f50b26237cdc54493081efa90f4f9bdb5e3fe5",
+      "functions": [
+        "internal/model/spec_dense_recurrent_test.go:TestReadCodeShellSpec",
+        "internal/model/spec_dense_recurrent_test.go:TestReadNemotronSpec",
+        "internal/model/spec_dense_recurrent_test.go:TestReadStarCoder2Spec"
+      ],
+      "nodes": 143
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "92cef9d2019abdcb0d57114b4c5b9d3f281deb17adda770cdee9765e9576880b",
+      "functions": [
+        "internal/projector/qwen2vl_test.go:TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU",
+        "internal/projector/qwen3vl_test.go:TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU"
+      ],
+      "nodes": 284
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "307374c47200d818855bcfe186362ddae2c8778ff531c042174a3246f09c36b3",
+      "functions": [
+        "internal/server/training_workspace_test.go:dpoFixtureDefinition",
+        "internal/trainingworkflow/workflow_test.go:dpoDefinition"
+      ],
+      "nodes": 233
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "9bd886d3df49fb784ee4397b18fe6c3a1417554e43f1832be97bb1cdae39687a",
+      "functions": [
+        "cmd/compatibility/training_test.go:trainingID",
+        "internal/adaptiveparity/multimodal_training_cuda_windows_test.go:identifyBytes",
+        "internal/adaptiveparity/snapshot_test.go:identify",
+        "internal/bridgegraph/graph_test.go:bridgeTestID",
+        "internal/controllertrain/controllertrain_test.go:fixtureID",
+        "internal/evaluation/plan_test.go:planID",
+        "internal/representation/contract_test.go:contractTestID",
+        "internal/trainingdata/materializer_test.go:profileKindID"
+      ],
+      "nodes": 31
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "3052d8d713ef97a94f360ac2a1f64beaf1bdd1f656c288689be7d4bce26ca777",
+      "functions": [
+        "internal/inference/chat_test.go:TestNativeBonsaiChatTemplateMatchesPinnedOracle",
+        "internal/inference/chat_test.go:TestNativeQwen35ChatTemplateMatchesPinnedOracle",
+        "internal/inference/chat_test.go:TestNativeQwenChatTemplateMatchesPinnedOracle"
+      ],
+      "nodes": 101
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "b7f738ddd3ecafca49137083cabff2d76c2b0e609bebe701657f4953b07b09dd",
+      "functions": [
+        "internal/projector/hunyuanvl_test.go:TestHunyuanVLCUDAMatchesCPU",
+        "internal/projector/paddleocr_test.go:TestPaddleOCRCUDAMatchesCPU"
+      ],
+      "nodes": 198
+    },
+    {
+      "fingerprint": "7fb4045841a0ad11ad1012be57f009cb836b2ddcbb1c569bbde611c85ca105ad",
+      "functions": [
+        "cmd/compatibility/main.go:valid",
+        "internal/controllertrain/corpus.go:validModality",
+        "internal/dataset/interaction_arc.go:valid",
+        "internal/evaluation/media_target.go:validMediaOracle",
+        "internal/evaluation/media_target.go:validMediaScorer",
+        "internal/inference/chat.go:Valid",
+        "internal/model/state_space_plan.go:recurrentOnly",
+        "internal/operation/runtime.go:terminal",
+        "internal/recipe/decision.go:validEvidenceTier",
+        "internal/runrecord/interaction_trace.go:valid",
+        "internal/trainingdata/materializer.go:validRole",
+        "internal/workflowcontract/journey.go:validState"
+      ],
+      "nodes": 17
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "5fe6e58e87226312b08778bdb3066313d5f134ed2bb8c5652b5ed01b78719ed7",
+      "functions": [
+        "internal/model/weights_dense_moe_recurrent_test.go:TestReadWeightsDenseMistral3",
+        "internal/model/weights_hybrid_mla_test.go:TestReadWeightsMiniCPM"
+      ],
+      "nodes": 185
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "49f6212afc0ca346f0a42b08bf6fdb213893fd5051afb4c77be6d11260ff8f1f",
+      "functions": [
+        "internal/tensor/tensor_test.go:TestBuilderSigmoidMoEWithSelectionBias",
+        "internal/tensor/tensor_test.go:TestBuilderSoftmaxMoEWithSelectionBias"
+      ],
+      "nodes": 179
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "60f9b9643a36c514f91beac8bb20f42ab4edfcdb203f1bf8fed35ad85dedb9f6",
+      "functions": [
+        "internal/hostmath/backward_fd_test.go:TestGELUErfBackwardFiniteDifference",
+        "internal/hostmath/e4b_backward_fd_test.go:TestGELUTanhBackwardFiniteDifference"
+      ],
+      "nodes": 173
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "429e1ed7a1cf159d323c048cdad66cd7a55af63f66d5ecab2ef377cd94b71a37",
+      "functions": [
+        "internal/projector/granite4vision_test.go:TokenizeText",
+        "internal/projector/hunyuanvl_test.go:TokenizeText",
+        "internal/projector/llama4vision_test.go:TokenizeText",
+        "internal/projector/paddleocr_test.go:TokenizeText"
+      ],
+      "nodes": 57
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "13641d835ee1c537e89f2737cf19cc9d97fa28aa899f15a80bdf434d6a0b5f76",
+      "functions": [
+        "internal/inference/chat_test.go:chatTestVocab",
+        "internal/inference/chat_test.go:gemmaChatTestVocab"
+      ],
+      "nodes": 170
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "824de58b428bb6db182e8e8ad26b191c8344286a013cfb4832021c46e22b4545",
+      "functions": [
+        "internal/adaptiveparity/pocket_tts_test.go:pocketF32",
+        "internal/hostmath/backward_golden_test.go:f64To32",
+        "internal/hostmath/hybrid_grad_parity_test.go:f32",
+        "internal/latentimage/denoiser_residency_cuda_windows_test.go:f64of",
+        "internal/latentimage/encoder_program_test.go:f32slice",
+        "internal/oscillatorimage/golden_test.go:f32of",
+        "internal/seriesforecast/backward_golden_test.go:f32",
+        "internal/speechsynth/golden_test.go:f32of"
+      ],
+      "nodes": 24
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "98ecb73b09b16a11fd94714099f706a4702c8315b309037784064b44d2a0bcc7",
+      "functions": [
+        "internal/model/weights_test.go:TestReadWeightsHunyuanDense",
+        "internal/model/weights_test.go:TestReadWeightsHunyuanVL"
+      ],
+      "nodes": 160
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "b17ec9de8f2fe401f1dbd25e858c093439641bdd97088c9a89a53c08566e1dab",
+      "functions": [
+        "internal/projector/granite4vision_test.go:TestOpenImageProjectorDispatchesGranite4Vision",
+        "internal/projector/hunyuanvl_test.go:TestOpenImageProjectorDispatchesHunyuanVL",
+        "internal/projector/llama4vision_test.go:TestOpenImageProjectorDispatchesLlama4",
+        "internal/projector/paddleocr_test.go:TestOpenImageProjectorDispatchesPaddleOCR"
+      ],
+      "nodes": 53
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "087b89cede57ba2452b058605e22502ebb1bd9c88dcac3f9d50134cc34ccd8b9",
+      "functions": [
+        "internal/projector/cogvlm_test.go:TestOpenImageProjectorDispatchesCogVLM",
+        "internal/projector/deepseekocr2_test.go:TestOpenImageProjectorDispatchesDeepSeekOCR2",
+        "internal/projector/deepseekocr_test.go:TestOpenImageProjectorDispatchesDeepSeekOCR",
+        "internal/projector/gemma3nvision_test.go:TestOpenImageProjectorDispatchesGemma3nVision"
+      ],
+      "nodes": 52
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "519f5c9693bab9a450b3842ca6f99c41cce3a38f953f3d4f557d4b34ea33ec1c",
+      "functions": [
+        "internal/projector/deepseekocr2_test.go:TestDeepSeekOCR2PromptContract",
+        "internal/projector/deepseekocr_test.go:TestDeepSeekOCRPromptContract"
+      ],
+      "nodes": 154
+    },
+    {
+      "advisory_class": "test",
+      "fingerprint": "1a426b0b7b5e233088403b1c3159325141776e7193f0c51c9ae8df530225c30c",
+      "functions": [
+        "internal/model/spec_dense_recurrent_test.go:TestReadArceeSpec",
+        "internal/model/spec_dense_recurrent_test.go:TestReadSeedOSSSpec"
+      ],
+      "nodes": 146
+    }
+  ],
+  "version": 1
+}

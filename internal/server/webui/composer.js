@@ -5,10 +5,6 @@
   "use strict";
   const overgo = window.overgo;
   const { el, clear, fmt } = overgo;
-  const threadScrollers = new WeakMap();
-  const resizeThreads = () => document.querySelectorAll('.chat-log').forEach(log => { const scroll = threadScrollers.get(log); if (scroll) scroll(); });
-  window.addEventListener("resize", resizeThreads);
-  if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeThreads);
 
   // ---- adapters: served protocols to the event vocabulary ----
 
@@ -126,16 +122,22 @@
     let thinkingRow = null;
 
     let following = true;
+    let scrollHeight = log.scrollHeight, clientHeight = log.clientHeight;
     log.addEventListener("scroll", () => {
+      if (scrollHeight !== log.scrollHeight || clientHeight !== log.clientHeight) { scroll(); return; }
       following = Math.ceil(log.scrollTop + log.clientHeight) >= log.scrollHeight;
       latest.hidden = following;
     });
     function scroll() {
+      scrollHeight = log.scrollHeight; clientHeight = log.clientHeight;
       latest.hidden = following || log.scrollHeight <= log.clientHeight;
       if (!following) return;
       log.scrollTop = log.scrollHeight;
     }
-    threadScrollers.set(log, scroll);
+    // Observe the message area after layout, including keyboard and composer changes.
+    const resizeObserver = new ResizeObserver(scroll);
+    resizeObserver.observe(log);
+    function dispose() { resizeObserver.disconnect(); }
 
     function renderMessage(message, streaming) {
       const position = log.scrollTop;
@@ -314,7 +316,7 @@
 
     function reset() { messages.length = 0; clear(log); thinkingRow = null; following = true; latest.hidden = true; announcement.textContent = ""; }
 
-    return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, messages, node: log, renderMessage };
+    return { add, consume, toolCard, mediaCard, errorRow, thinking, reset, dispose, messages, node: log, renderMessage };
   }
 
   // mediaPlayer: the element that shows a media artifact as what it is (image, video, audio).

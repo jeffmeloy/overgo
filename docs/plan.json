@@ -5,19 +5,19 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-conversation-resize",
-      "title": "Keep the latest reply visible when the conversation resizes",
+      "id": "gui-speech-completion-recovery",
+      "title": "Distinguish complete speech and recover completed native segments",
       "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Preserve follow-latest through keyboard and layout changes",
+          "title": "Retain completed native generation through existing stage receipts",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(ConversationLayout|MobileInteraction|NativeASRMicrophone)$' -require 'conversation resize leg' -require 'mobile interaction leg' -require 'native ASR microphone leg'",
-          "rationale": "Graphical native microphone acceptance exposed a completed transcript below the visible conversation at 390x480, despite layout audit and pre-capture follow assertions passing. A short conversation which initially fits becomes scrollable after the keyboard changes layout; window resize callbacks alone can run before final shell geometry, and no scroll event occurs when scrollTop stays zero. Keep one thread owner: replace global window/visual-viewport scanning with a native ResizeObserver on the actual message area, schedule its follow action after layout, distinguish changed scroll/client geometry from deliberate reading, and disconnect the observer and cancel its pending frame through existing chat and agent cleanup. Preserve reader position, streaming, Jump to latest and explicit new-message behavior. Extend ConversationLayout with long and short populated threads, settled desktop/phone/reduced-height changes, deliberate-reader resize preservation and actual conversation replacement cleanup. Native microphone tests must assert the VISIBLE active log is at its latest reply AFTER CaptureState settles and captures the viewport, then inspect the actual Granite/Nemotron screenshots. A pre-resize or pre-capture assertion can pass against stale geometry and is insufficient. Remove diagnostic traces before promotion, retain strict browser-error checks after capture, and add no status widgets or cosmetic layout changes. This is Chromium geometry and synthetic-stream evidence, not physical phone/keyboard testing. Optional chat microphone model selection and arbitrary-file sample-rate normalization remain separate work.",
+          "verify": "test -f internal/speechsynth/recovery_test.go \u0026\u0026 go test ./internal/speechsynth -run '^Test(SpeechCompletion|SpeechRecovery|SpeechFrameCancellation|SpeechCodecCancellation|SpeechPipelineCancellation|GenerationGolden|SpeakE2EProducesReferenceAudio|LatentsToPCMContracts)$' -count=1",
+          "rationale": "Native prerequisite for complete document speech. Retained finding evidence:sha256:c8be1e34bf528f432ede4417ebb8c7e52e41bad476798b30ecfbf95613accbf9 shows that exact completed requests regenerate after reopening the store because intermediate native stages are value-only. Persist generated latents through existing workflow stage receipts using RegisterContextStage; preserve request, recipe, model and source identities, artifact bounds and decode validation. Carry actual post-EOS completion in LatentBatch and decoded Audio, including recovered output. Keep SynthesisRequest and GUI control declarations unchanged; no completion checkbox, cache, scheduler or additional browser state. Intentional bounded previews remain playable and explicitly incomplete; gui-text-to-speech/do must reject any incomplete segment before publishing the full document. Acceptance uses actual RegisterRuntime for exact output replay after store reopen with unchanged generation attempt count; distinct text, seed and exported voice identities; cancellation before execution; and cancellation immediately after the store commits generated latents followed by reopen and decoding without regeneration. Retain existing cancellation tests and original waveform/latent reference thresholds. TMP native tests demonstrate these behaviors, and a three-segment trial covers all 383 source bytes with 22.160 seconds of audio, but canonical implementation and required verification remain outstanding. The document row still owns ordered assembly, resource bounds, source lineage, progress and the complete import-to-download graphical journey. This step does not establish voice cloning, physical-phone behavior or broad speech quality.",
           "depends_on": [
-            "gui-microphone-format/do"
+            "gui-speech-cancellation/do"
           ]
         }
       ]
@@ -37,7 +37,8 @@
           "depends_on": [
             "gui-speech-controls/do",
             "gui-audio-output/do",
-            "gui-speech-cancellation/do"
+            "gui-speech-cancellation/do",
+            "gui-speech-completion-recovery/do"
           ]
         }
       ]

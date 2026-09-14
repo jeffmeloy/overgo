@@ -140,10 +140,12 @@ func TestWebUIBrowserNativeASRMicrophone(t *testing.T) {
 			check(`overgo.errors.length===0 && !document.body.textContent.includes('Cannot read properties')`)
 			for _, viewport := range append(append([]webuilane.Viewport(nil), webuilane.ScreenViewports...), webuilane.Viewport{Name: "phone-keyboard", Width: 390, Height: 480}) {
 				findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, name+"-native-transcription")
+				check(`(()=>{const log=document.querySelector('#panel-chat.active > .chat-log');return log&&log.clientHeight>0&&Math.ceil(log.scrollTop+log.clientHeight)>=log.scrollHeight;})()`)
 				if err != nil || len(findings) != 0 {
 					t.Fatalf("%s: %v %v", viewport.Name, findings, err)
 				}
 			}
+			check(`overgo.errors.length===0`)
 			t.Logf("native ASR microphone leg: real %s GUI: exact recipe %s, %d source-clip bytes recorded through synthetic microphone, keyboard submit, native transcript %q matches direct native HTTP; isolated model activations, not promotion or held-out quality", name, f.definitions[index].ID, len(f.inputs[index]), want)
 		})
 	}

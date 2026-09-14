@@ -403,7 +403,7 @@
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
         controls: [],
       });
-      disposeComposer = () => composer.dispose();
+      disposeComposer = () => { composer.dispose(); thread.dispose(); };
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
       if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true,
         sourceArtifact: typeof item.sourceArtifact === 'string' ? item.sourceArtifact : undefined, sourceRun: typeof item.sourceRun === 'string' ? item.sourceRun : undefined })));

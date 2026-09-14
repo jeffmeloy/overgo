@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -32,7 +32,7 @@ func artifactDir(t *testing.T) string {
 // artifact (the port's first parity point).
 func TestDimsDeriveFromRealArtifact(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~930MB weights")
+		t.Skip(testskip.ShortIntegration + ": loads ~930MB weights")
 	}
 	model, err := Load(artifactDir(t))
 	if err != nil {

@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"overgo/internal/optimizer"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 )
 
 func TestDecoderTrainerRealArtifacts(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": loads both TabFM heads")
+		t.Skip(testskip.ShortIntegration + ": loads both TabFM heads")
 	}
 	golden := readGolden(t)
 	for _, task := range Tasks() {

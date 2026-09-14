@@ -12,6 +12,7 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
@@ -23,7 +24,7 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		files := map[string]string{
 			"app/app_test.go":          "package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) { t.Fatal(\"declared failure\") }\n",
 			"other/other.go":           "package other\nconst Value = 1\n",
-			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\nfunc TestIntegration(t *testing.T) { if testing.Short() { t.Skip(\"" + testevidence.ShortIntegrationSkip + "\") }; if Value != 1 { t.Fatal(Value) } }\n",
+			"other/other_test.go":      "package other\nimport (_ \"embed\"; \"testing\")\n//go:embed testdata/value.txt\nvar data string\nfunc TestRequired(t *testing.T) { if data != \"pass\" || Value != 1 { t.Fatalf(\"fixture=%s value=%d\", data, Value) } }\nfunc TestIntegration(t *testing.T) { if testing.Short() { t.Skip(\"" + testskip.ShortIntegration + "\") }; if Value != 1 { t.Fatal(Value) } }\n",
 			"other/testdata/value.txt": "pass",
 		}
 		for name, data := range files {
@@ -232,7 +233,7 @@ func assertIndependentPackageStreams(t *testing.T) {
 	}{
 		{"failed sibling", start("bad") + event("fail", "bad", "TestRequired", "") + event("fail", "bad", "", ""), false},
 		{"skipped sibling", start("bad") + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
-		{"classified skip", start("bad") + event("output", "bad", "TestRequired", testevidence.ShortIntegrationSkip) + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
+		{"classified skip", start("bad") + event("output", "bad", "TestRequired", testskip.ShortIntegration) + event("skip", "bad", "TestRequired", "") + event("pass", "bad", "", ""), false},
 		{"unavailable test", start("bad") + event("output", "bad", "TestRequired", "UNAVAILABLE") + pass("bad"), false},
 		{"unavailable package", start("bad") + event("output", "bad", "", "UNAVAILABLE") + pass("bad"), false},
 		{"unfinished package", start("bad") + event("pass", "bad", "TestRequired", ""), false},

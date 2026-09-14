@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/safetensors"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // TestLoadDerivesDimsAndMatchesManifest gates the loader (ladder g0): the
@@ -91,7 +91,7 @@ func TestLoadRefusesContradictoryConfig(t *testing.T) {
 // artifact files (config beside weights beside tokenizer).
 func TestLoadArtifactPresenceContract(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	dir := artifactDir(t)
 	if _, err := os.Stat(dir); err != nil {

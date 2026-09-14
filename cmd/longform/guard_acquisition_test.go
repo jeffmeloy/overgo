@@ -12,7 +12,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // TestAcceptedFP8Guard checks the complete cohort; it never loads a model.
@@ -61,7 +61,7 @@ type guardCatalog struct {
 func readGuardCatalog(t *testing.T) guardCatalog {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT for complete guard catalog acceptance")

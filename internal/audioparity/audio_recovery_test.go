@@ -22,7 +22,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
@@ -47,7 +47,7 @@ func (ctx *cancelDecodeContext) Err() error {
 
 func TestAudioCancellationAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": real audio cancellation runs as its exact mandatory batch acceptance")
+		t.Skip(testskip.ShortIntegration + ": real audio cancellation runs as its exact mandatory batch acceptance")
 	}
 	l := newAdapterLifecycle(t)
 	t.Run("decode", func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestAudioCancellationAcceptance(t *testing.T) {
 
 func TestAudioPublicationRecoveryAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": real audio publication recovery runs as its exact mandatory batch acceptance")
+		t.Skip(testskip.ShortIntegration + ": real audio publication recovery runs as its exact mandatory batch acceptance")
 	}
 	l := newAdapterLifecycle(t)
 	step := l.update(t, l.batcher(t, nil))

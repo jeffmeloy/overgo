@@ -21,6 +21,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -112,7 +113,7 @@ func mediaProcessingRecordedRows(raw []byte) ([]mediaProcessingObservation, erro
 
 func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained media processing comparison")
+		t.Skip(testskip.ShortIntegration + ": retained media processing comparison")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

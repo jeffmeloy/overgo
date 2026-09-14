@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-skip-constant-leaf",
-      "title": "Move the short-integration skip constant to a leaf owner so 24 test suites stop inheriting the process launcher's program reach",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the short-integration skip constant to a leaf owner so 24 test suites stop inheriting the process launcher's program reach",
-          "status": "open",
-          "verify": "test -f internal/gate/skip_constant_reach_test.go \u0026\u0026 go test ./internal/gate -run ^TestSkipConstantReach$ -count=1",
-          "rationale": "Measured 2026-09-13 after the data-reach boundary: 33 packages import internal/testevidence from their tests, and 24 of them (cmd/closure-scan, cmd/generate, cmd/gguf-hash, cmd/vqaparity, adaptiveparity, audioparity, capabilityruntime, densecausal, gguf, inference, latentimage, model, modelintake, oscillatorimage, projector, sensenovarecipe, seq2seq, seriesforecast, server, speechsynth, tabularicl, tokenizer, webuilane and diffusionimage, which also uses VerifyOutput) use it only for the ShortIntegrationSkip constant. testevidence imports internal/processcontrol, whose supervisor runs a caller-named program, so every one of those test variants is classed as a program runner whose unnamed reach binds the Go trees, and each is selected by every Go change. Move the constant (and VerifyOutput if it is leaf-safe) to a package with no launcher import, repoint the 24 test files, and pin the result: the acceptance test asserts that a gate-only change no longer selects gguf and tokenizer, and that the number of test variants reaching processcontrol is at most the nine real runners. Expected effect is on test-owners and test-device selection counts; the device link cost of the packages that also import cuda is the separate gate-device-edges row."
-        }
-      ]
-    },
-    {
       "id": "gate-device-edges",
       "title": "Cut the two core CUDA edges so most test binaries stop linking the device runtime",
       "owner": "master-lead",

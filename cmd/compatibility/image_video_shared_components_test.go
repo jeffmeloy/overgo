@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -68,7 +69,7 @@ func compareMediaLoaderObservations(consumer string, before, after []mediaLoader
 
 func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": shared decoder reads retained acquisitions")
+		t.Skip(testskip.ShortIntegration + ": shared decoder reads retained acquisitions")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

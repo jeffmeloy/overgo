@@ -13,7 +13,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 type guardCohort struct {
@@ -57,7 +57,7 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 		t.Fatal("empty guard cohort")
 	}
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT to check exact guard cohorts; no models execute")

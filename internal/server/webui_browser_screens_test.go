@@ -10,7 +10,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
@@ -24,7 +24,7 @@ const tabSettle = 8 * time.Second
 // layout audit holds at zero.
 func TestWebUIBrowserScreens(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": browser screens run through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": browser screens run through cmd/webui-lane")
 	}
 	browserPath, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {

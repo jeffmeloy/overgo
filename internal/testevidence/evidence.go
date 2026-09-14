@@ -15,9 +15,13 @@ import (
 	"strings"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/testskip"
 )
 
-const ShortIntegrationSkip = "integration excluded by -short"
+// ShortIntegrationSkip is the skip reason under its retained name, kept
+// for harness files whose bytes an acquisition record binds; a new test
+// names testskip.ShortIntegration.
+const ShortIntegrationSkip = testskip.ShortIntegration
 
 type GoTestReport struct {
 	// StreamDigest binds diagnostics to consumed bytes without retaining raw output.
@@ -120,7 +124,7 @@ func RequireComplete(report GoTestReport) error {
 }
 
 // GoTestJSONShortReport decodes a hermetic short-mode lane. Only skips whose
-// output carries ShortIntegrationSkip are classified exclusions; they remain
+// output carries testskip.ShortIntegration are classified exclusions; they remain
 // visible in the report and are never counted as passing evidence.
 func GoTestJSONShortReport(out string) (GoTestReport, error) {
 	return goTestJSONReport(out, true, false)
@@ -245,7 +249,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			tail.append(event.Output, diagnosticBytes)
 			tails[key] = tail
 		}
-		if short && strings.Contains(event.Output, ShortIntegrationSkip) {
+		if short && strings.Contains(event.Output, testskip.ShortIntegration) {
 			classified[key] = true
 		}
 		if reason := unavailable(event.Output); reason != "" {

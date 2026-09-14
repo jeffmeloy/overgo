@@ -20,7 +20,7 @@ import (
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
 	"overgo/internal/strictjson"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -58,7 +58,7 @@ type gemma4FP8PerformanceEvidence struct {
 
 func TestGemma4FP8Leadership(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_GEMMA4_BASELINE") != "1" {
 		t.Skip("set OVERGO_GEMMA4_BASELINE=1 for Gemma4 FP8 leadership")

@@ -17,13 +17,13 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
 func TestSpeakerDiarizationAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": pinned real speaker model, independent traces and continuous annotated speech")
+		t.Skip(testskip.ShortIntegration + ": pinned real speaker model, independent traces and continuous annotated speech")
 	}
 	root := cmp.Or(os.Getenv("OVERGO_AUDIO_SPEAKER_REFERENCE"), filepath.Join(testutil.RepoRoot(t), "tmp", "speaker-reference"))
 	t.Run("numerical", func(t *testing.T) { verifySpeakerNumerical(t, root) })

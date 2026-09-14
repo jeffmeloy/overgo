@@ -17,7 +17,7 @@ import (
 	"testing/fstest"
 
 	"overgo/internal/jsonfile"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 type guiMobileCapture struct {
@@ -112,7 +112,7 @@ func TestGUIMobileDeviceEvidence(t *testing.T) {
 	file := os.Getenv("OVERGO_GUI_MOBILE_EVIDENCE")
 	if file == "" {
 		if testing.Short() {
-			t.Skip(testevidence.ShortIntegrationSkip + ": physical mobile evidence belongs to the explicit operator signoff")
+			t.Skip(testskip.ShortIntegration + ": physical mobile evidence belongs to the explicit operator signoff")
 		}
 		t.Fatal("physical mobile evidence not supplied; set OVERGO_GUI_MOBILE_EVIDENCE to the operator record")
 	}

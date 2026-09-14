@@ -17,7 +17,7 @@ import (
 	"overgo/internal/closurescan"
 	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 const closureAuthorityTestEnv = "OVERGO_CLOSURE_AUTHORITY_TEST"
@@ -25,7 +25,7 @@ const closureAuthorityTestEnv = "OVERGO_CLOSURE_AUTHORITY_TEST"
 func requireRepositoryClosureAuthority(t *testing.T) {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(closureAuthorityTestEnv) != "1" {
 		t.Skip("set " + closureAuthorityTestEnv + "=1 to verify the current worktree against shared closure authority")

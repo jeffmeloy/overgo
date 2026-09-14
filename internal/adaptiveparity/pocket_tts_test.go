@@ -18,7 +18,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -53,7 +53,7 @@ type pocketGenerationGolden struct {
 
 func TestPocketTTSProductionParity(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	directory := pocketArtifactDirectory(t)
 

@@ -28,7 +28,7 @@ import (
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -53,7 +53,7 @@ import (
 // the image-in leg.
 func TestWebUIBrowserFirstRun(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": the journey runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane")
 	}
 	journey, err := prepareBrowserJourney(t)
 	if err != nil {

@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": capability refresh runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": capability refresh runs through cmd/webui-lane")
 	}
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()

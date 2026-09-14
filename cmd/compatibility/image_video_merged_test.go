@@ -20,6 +20,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -170,7 +171,7 @@ func checkMediaRuntimeBeforeLifecycle(root, revision string, paths []string, exp
 
 func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": merged media evidence requires the private store")
+		t.Skip(testskip.ShortIntegration + ": merged media evidence requires the private store")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

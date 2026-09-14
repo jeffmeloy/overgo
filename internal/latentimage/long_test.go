@@ -1,14 +1,13 @@
 package latentimage
 
 import (
+	"overgo/internal/testskip"
 	"testing"
-
-	"overgo/internal/testevidence"
 )
 
 func requireLongTest(t *testing.T) {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 }

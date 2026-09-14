@@ -21,6 +21,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -56,7 +57,7 @@ type mediaCompositionBundle struct {
 
 func TestImageVideoCompositionAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained composition evidence")
+		t.Skip(testskip.ShortIntegration + ": retained composition evidence")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

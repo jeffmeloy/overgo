@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/optimizer"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 func testTrainingConfig() optimizer.Config {
@@ -88,7 +88,7 @@ func TestTrainerRefusesGradientsOutsidePack(t *testing.T) {
 // TestRealArtifactBootstrapTraining verifies objective band and scratch descent.
 func TestRealArtifactBootstrapTraining(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	real, err := Load(artifactDir(t))
 	if err != nil {

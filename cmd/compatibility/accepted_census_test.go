@@ -12,7 +12,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // TestAcceptedCapabilityCensus binds the clean producer's immutable before
@@ -20,7 +20,7 @@ import (
 // not execute models or turn historical verification tiers into current claims.
 func TestAcceptedCapabilityCensus(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")

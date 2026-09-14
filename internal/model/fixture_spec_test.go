@@ -1,15 +1,14 @@
 package model
 
 import (
+	"overgo/internal/testskip"
 	"testing"
-
-	"overgo/internal/testevidence"
 )
 
 func requireIntegration(t *testing.T) {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 }
 

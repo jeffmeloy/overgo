@@ -16,6 +16,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"reflect"
@@ -79,7 +80,7 @@ func checkMediaWanGIF(current, historical []byte, observation imageVideoObservat
 
 func TestImageVideoWanAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained Wan evidence")
+		t.Skip(testskip.ShortIntegration + ": retained Wan evidence")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

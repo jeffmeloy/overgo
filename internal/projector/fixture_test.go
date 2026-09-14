@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
 func classifyProjectorIntegration(t *testing.T) {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 }
 

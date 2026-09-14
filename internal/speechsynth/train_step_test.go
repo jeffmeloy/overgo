@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 )
 
@@ -50,7 +50,7 @@ func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
 
 func TestRealArtifactJointMuonTraining(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	dir := artifactDir(t)
 	if _, err := os.Stat(filepath.Join(dir, configFileName)); err != nil {

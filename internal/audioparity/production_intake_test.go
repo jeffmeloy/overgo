@@ -1,9 +1,8 @@
 package audioparity
 
 import (
+	"overgo/internal/testskip"
 	"testing"
-
-	"overgo/internal/testevidence"
 )
 
 // TestNativeAudioProductionIntake retains the existing production owners as
@@ -11,7 +10,7 @@ import (
 // It does not claim recurrent-decoder training or replace the CPU CTC trainer.
 func TestNativeAudioProductionIntake(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": native audio intake requires production training, recovery and held-out resource runs")
+		t.Skip(testskip.ShortIntegration + ": native audio intake requires production training, recovery and held-out resource runs")
 	}
 	t.Run("production-training-and-exact-resume", TestASRProductionTrainingAcceptance)
 	t.Run("publication-and-authority-recovery", TestAudioPublicationRecoveryAcceptance)

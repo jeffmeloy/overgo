@@ -15,7 +15,7 @@ import (
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechrecognitiontest"
 	"overgo/internal/strictjson"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/workflowruntime"
 )
 
@@ -30,7 +30,7 @@ type nativeStreamRestart struct {
 
 func TestNativeAudioStreamIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": registered native model and fresh-process restart required")
+		t.Skip(testskip.ShortIntegration + ": registered native model and fresh-process restart required")
 	}
 	if path := os.Getenv("OVERGO_NATIVE_AUDIO_RESTART_CHILD"); path != "" {
 		verifyNativeRestartChild(t, path)

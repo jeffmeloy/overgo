@@ -12,6 +12,9 @@ import (
 )
 
 func TestIntentKeepaliveSurvivesGCForStagedOnlyRollback(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "keepalive@example.invalid")
@@ -149,6 +152,9 @@ func TestIntentKeepaliveSurvivesGCForAutoMergeRollback(t *testing.T) {
 }
 
 func TestIntentKeepaliveRefIsLockedAcrossIndexMutation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	if err := os.MkdirAll(filepath.Join(repo, "tmp"), 0o755); err != nil {
 		t.Fatal(err)
@@ -185,6 +191,9 @@ func TestIntentKeepaliveRefIsLockedAcrossIndexMutation(t *testing.T) {
 }
 
 func TestPreparedCompletionBlocksBranchAndHeadContendersAtIndexSeam(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	if err := os.MkdirAll(filepath.Join(repo, "tmp"), 0o755); err != nil {
 		t.Fatal(err)
@@ -241,6 +250,9 @@ func TestPreparedCompletionBlocksBranchAndHeadContendersAtIndexSeam(t *testing.T
 }
 
 func TestPreparedRecoveryBlocksBranchAndHeadContendersUntilRollbackCommit(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {

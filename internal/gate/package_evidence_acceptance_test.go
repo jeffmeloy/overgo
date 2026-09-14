@@ -16,6 +16,9 @@ import (
 )
 
 func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	t.Run("real failed group survives restart and retries only failures", func(t *testing.T) {
 		root, _ := packageIdentityFixture(t)
 		if err := os.Mkdir(filepath.Join(root, "tmp"), 0o755); err != nil {

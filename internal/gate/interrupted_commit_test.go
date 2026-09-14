@@ -317,6 +317,9 @@ func TestGateGitLockRecoveryRefusesMixedExactAndForeignMarkers(t *testing.T) {
 }
 
 func TestGateGitStateProcessGuardRefusesNestedTransaction(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -658,6 +661,9 @@ func TestRecoverInterruptedCommitRefusesUnboundPreCASIndex(t *testing.T) {
 }
 
 func TestRecoveryPreLockMergeRaceRefusesBeforeMutation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	side := prepareRecoveryMergeRaceBranch(t, fixture)
 	var mergeErr error
@@ -729,6 +735,9 @@ func TestRecoveryIndexModeRaceRefusesBeforeHeadMutation(t *testing.T) {
 }
 
 func TestRecoveryLockBlocksMidTransactionMerge(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	side := prepareRecoveryMergeRaceBranch(t, fixture)
 	var mergeErr error
@@ -763,6 +772,9 @@ func TestRecoveryLockBlocksMidTransactionMerge(t *testing.T) {
 }
 
 func TestRecoveryParentPublicationHandoffRefusesWinningBranchWriter(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -1272,6 +1284,9 @@ func TestRecoverRefAdvancedDuringPlanPublicationDetach(t *testing.T) {
 }
 
 func TestRecoverPlanPublicationDetachPreservesConcurrentCreation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	planPath := filepath.Join(fixture.repo, filepath.FromSlash(plan.Path))
 	detachPlanPublicationForTest(t, fixture)
@@ -1346,6 +1361,9 @@ func detachPlanPublicationForTest(t *testing.T, fixture interruptedCommitFixture
 }
 
 func TestRecoverInterruptedCommitPreservesPlanChangedBeforeRestore(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	concurrent := append([]byte(nil), fixture.planAfter...)
 	concurrent = bytes.Replace(concurrent, []byte("test recovery"), []byte("concurrent recovery edit"), 1)

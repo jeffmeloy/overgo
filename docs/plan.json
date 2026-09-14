@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-serial-floor",
-      "title": "Run the gate package's hook and environment tests in the parallel phase so the suite's serial floor drops below a minute",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the gate package's hook and environment tests in the parallel phase so the suite's serial floor drops below a minute",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestSuiteWallRatchet$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "host-linear-kernel-reacquisition",
       "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
       "owner": "master-lead",

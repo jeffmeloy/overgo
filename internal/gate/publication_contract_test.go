@@ -18,6 +18,9 @@ import (
 var retainedPublicationCost = flag.Bool("retained-publication-cost", false, "verify frozen publication attempts in the canonical data-root store")
 
 func TestPlanOnlyPublicationReusesUnchangedPhases(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	t.Run("restart and live admission", testModernCensusRestartAndLiveAdmission)
 	t.Run("missing and unproven results", testModernCensusMissingAndUnprovenResults)
 	t.Run("source and build invalidation", testModernCensusSourceAndBuildInvalidation)

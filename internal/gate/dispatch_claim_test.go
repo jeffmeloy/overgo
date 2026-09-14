@@ -14,6 +14,9 @@ import (
 )
 
 func TestClaimedGateAdmission(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "claim-worker")
 	document := plan.Plan{Items: []plan.Item{{ID: "row", Status: plan.StatusOpen, Steps: []plan.Step{
@@ -110,6 +113,9 @@ func TestClaimedGateAdmission(t *testing.T) {
 }
 
 func TestPersistentGateStop(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	root := t.TempDir()
 	if err := os.Mkdir(filepath.Join(root, "docs"), 0700); err != nil {
 		t.Fatal(err)

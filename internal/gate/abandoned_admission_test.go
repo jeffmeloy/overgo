@@ -38,6 +38,9 @@ func TestAbandonedGateProcess(t *testing.T) {
 }
 
 func TestAbandonedGateAdmission(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	for _, obstacle := range []string{"missing locator", "corrupt locator", "record debt", "commit intent"} {
 		t.Run(obstacle, func(t *testing.T) {
 			repo := newAbandonedGateRepo(t)

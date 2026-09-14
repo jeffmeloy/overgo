@@ -16,6 +16,9 @@ import (
 // operator's override still wins, and the environment evidence identifies
 // the reference the acceptances read.
 func TestGateDerivesLaneEnvironment(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo := t.TempDir()
 	reference := filepath.Join(t.TempDir(), "overgodb-store")
 	declaration := `{"datasets": "` + filepath.ToSlash(filepath.Join(t.TempDir(), "datasets")) + `", "audio_reference_store": "` + filepath.ToSlash(reference) + `"}`

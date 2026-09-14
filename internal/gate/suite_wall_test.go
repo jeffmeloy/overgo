@@ -27,7 +27,9 @@ import (
 // isolated short runs held 214 to 398 s over six runs of the same code (106
 // to 253 s of serial Setenv and hook tests, then the parallel tests, which
 // are process-spawn bound: 8-way and 32-way parallelism give the same wall)
-// with one graph load. The budget is half the prior wall and above the
+// with one graph load; with every Setenv and hook test isolated into a child
+// process through isolatedProcess the serial phase is gone and the isolated
+// short run holds 143 s. The budget is half the prior wall and above the
 // measured range; the counters are exact: a live-tree graph is loaded once
 // per binary through liveRepository and no test adds a candidate worktree
 // of the live repository outside it.

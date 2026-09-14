@@ -13,6 +13,9 @@ import (
 // commit may only serve the plan's current open step. This is the enforcement
 // that makes off-plan work impossible to commit (the failure that motivated it).
 func TestEnforcePlanBindingRefusesOffPlan(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -38,6 +41,9 @@ func TestEnforcePlanBindingRefusesOffPlan(t *testing.T) {
 }
 
 func TestPlanBindingRole(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
 		t.Fatal(err)

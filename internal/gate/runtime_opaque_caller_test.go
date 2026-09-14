@@ -14,6 +14,7 @@ import (
 // Go source, which only a Go-parsing or program-running reach observes, so
 // a source change outside the compiled closure selects nothing.
 func TestRuntimeOpaqueCallerSourceInput(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	source := `package reader
 import ("os";"strings")
@@ -23,7 +24,7 @@ func Value() int { b,e:=os.ReadFile(os.Getenv("INPUT"));if e==nil&&strings.Conta
 		t.Fatal(e)
 	}
 	input := filepath.Join(g.repo, "docs", "config.txt")
-	t.Setenv("INPUT", input)
+	environment := append(os.Environ(), "INPUT="+input)
 	g.paths = []string{"docs/config.txt"}
 	s, e := g.deriveTestScope()
 	if e != nil {
@@ -32,7 +33,7 @@ func Value() int { b,e:=os.ReadFile(os.Getenv("INPUT"));if e==nil&&strings.Conta
 	if !slices.Contains(s.selected(), "overgo/internal/readerclient") {
 		t.Fatalf("opaque reader caller omitted for a data change: direct=%v dependent=%v", s.direct, s.dependent)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err != nil {
+	if output, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/readerclient", "-count=1"); err != nil {
 		t.Fatalf("baseline caller: %v\n%s", err, output)
 	}
 	graph, err := g.inputGraph()
@@ -50,7 +51,7 @@ func Value() int { b,e:=os.ReadFile(os.Getenv("INPUT"));if e==nil&&strings.Conta
 	if err != nil || after == before {
 		t.Fatalf("runtime data mutation retained caller identity: %v", err)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err == nil {
+	if output, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/readerclient", "-count=1"); err == nil {
 		t.Fatalf("seeded runtime regression escaped the selected caller: %s", output)
 	}
 

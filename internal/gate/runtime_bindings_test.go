@@ -7,6 +7,7 @@ import (
 )
 
 func TestRuntimeInputBindingsDoNotCrossScopes(t *testing.T) {
+	t.Parallel()
 	for _, source := range []string{
 		"package probe\nimport \"os\"\nfunc Read(path string)([]byte,error){return os.ReadFile(path)}\nfunc Fixture(){path:=os.TempDir();_,_=os.ReadFile(path)}\n",
 		"package probe\nimport \"os\"\nconst path=\"fixture\"\nfunc Read(path string)([]byte,error){return os.ReadFile(path)}\n",

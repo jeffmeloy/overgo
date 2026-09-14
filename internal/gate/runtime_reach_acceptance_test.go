@@ -8,6 +8,7 @@ import (
 )
 
 func TestRuntimeReachBindingsAcceptance(t *testing.T) {
+	t.Parallel()
 	for name, declarations := range map[string]string{
 		"shadowed_owner":     `import realos "os";type paths struct{};func(paths)Executable()string{return os.Getenv("INPUT")};func readInput()([]byte,error){os:=paths{};p:=os.Executable();return realos.ReadFile(p)}`,
 		"escaped_path_alias": `func replace(p *string){*p=os.Getenv("INPUT")};func readInput()([]byte,error){p:=os.TempDir();replace(&p);q:=p;r:=q;return os.ReadFile(r)}`,
@@ -28,7 +29,7 @@ func TestRuntimeReachBindingsAcceptance(t *testing.T) {
 				t.Fatal(err)
 			}
 			input := filepath.Join(g.repo, "docs", "config.txt")
-			t.Setenv("INPUT", input)
+			environment := append(os.Environ(), "INPUT="+input)
 			graph, err := g.inputGraph()
 			if err != nil {
 				t.Fatal(err)
@@ -38,13 +39,13 @@ func TestRuntimeReachBindingsAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if out, err := command(g.repo, "go", "test", "./internal/readerclient", "./internal/isolated", "-count=1"); err != nil {
+			if out, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/readerclient", "./internal/isolated", "-count=1"); err != nil {
 				t.Fatalf("baseline: %v\n%s", err, out)
 			}
 			if err := os.WriteFile(input, []byte("2\n"), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			if out, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err == nil {
+			if out, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/readerclient", "-count=1"); err == nil {
 				t.Fatalf("seeded consumer did not fail: %s", out)
 			}
 			after, err := packageInputIdentities(graph, packages)
@@ -68,6 +69,7 @@ func TestRuntimeReachBindingsAcceptance(t *testing.T) {
 }
 
 func TestRuntimeBoundTemporarySources(t *testing.T) {
+	t.Parallel()
 	for name, source := range map[string]string{
 		"testing":         "package probe\nimport(\"os\";\"path/filepath\";\"testing\")\nfunc fixture(t *testing.T){p:=filepath.Join(t.TempDir(),\"fixture\");_,_=os.ReadFile(p)}",
 		"testing_alias":   "package probe\nimport(myos \"os\";test \"testing\")\nfunc fixture(t *test.T){_,_=myos.ReadFile(t.TempDir())}",

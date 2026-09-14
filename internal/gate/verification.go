@@ -1707,6 +1707,9 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 		return err
 	}
 	added = true
+	if gateCandidateWorktreeAddedHook != nil {
+		gateCandidateWorktreeAddedHook(g.repo)
+	}
 	if _, err := gitWriterCommand(worktree, "read-tree", tree); err != nil {
 		return err
 	}

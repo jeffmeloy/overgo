@@ -14,6 +14,7 @@ import (
 )
 
 func TestGateGitWriterCommandOverridesWeakRepositoryFsyncConfiguration(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	runGitFixture(t, repository, "init", "-q")
 	runGitFixture(t, repository, "config", "core.fsync", "none")
@@ -54,6 +55,7 @@ func TestGateGitWriterCommandOverridesWeakRepositoryFsyncConfiguration(t *testin
 }
 
 func TestGateGitReaderStatusDoesNotRefreshCapturedIndex(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	runGitFixture(t, repository, "init", "-q")
 	runGitFixture(t, repository, "config", "user.email", "gate@example.invalid")
@@ -122,6 +124,7 @@ func TestGateGitReaderStatusDoesNotRefreshCapturedIndex(t *testing.T) {
 }
 
 func TestGateGitWriterRequirementCoversOnlyWriterEntryModes(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name                                                      string
 		reconcile, recordFailure, recoverInterrupted, admitReview bool

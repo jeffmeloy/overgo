@@ -19,6 +19,7 @@ import (
 // state under its own lock and complete, instead of refusing a rollback
 // that is still provably safe.
 func TestRecoverInterruptedCommitSurvivesStatRefreshedIndex(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -69,6 +70,7 @@ func TestRecoverInterruptedCommitSurvivesStatRefreshedIndex(t *testing.T) {
 // genuine drift, stays byte-identical on disk, and the byte comparison
 // refuses recovery exactly as before.
 func TestNormalizeGateIndexRefusesForeignTree(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {

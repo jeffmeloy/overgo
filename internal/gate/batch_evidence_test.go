@@ -13,6 +13,7 @@ import (
 )
 
 func TestBatchEvidenceRetainsReplanObligations(t *testing.T) {
+	t.Parallel()
 	g, batch, tree := verificationBatchFixture(t, "failure")
 	checks := persistenceInvocations(t, g, batch, tree)
 	cache := g.loadRetryCache()
@@ -61,6 +62,7 @@ func TestBatchEvidenceRetainsReplanObligations(t *testing.T) {
 }
 
 func TestBatchEvidencePublicationFailure(t *testing.T) {
+	t.Parallel()
 	for _, conflict := range []bool{false, true} {
 		t.Run(map[bool]string{false: "closed store", true: "competing writer"}[conflict], func(t *testing.T) {
 			g, batch, tree := verificationBatchFixture(t, "pass")
@@ -111,6 +113,7 @@ func TestBatchEvidencePublicationFailure(t *testing.T) {
 }
 
 func TestBatchEvidenceConcurrentTerminalPublication(t *testing.T) {
+	t.Parallel()
 	g, batch, tree := verificationBatchFixture(t, "pass")
 	checks := persistenceInvocations(t, g, batch, tree)
 	cache := g.loadRetryCache()

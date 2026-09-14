@@ -8,6 +8,7 @@ import (
 )
 
 func TestModernGoNoBroadSuppressions(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name   string
 		change func(*repoanalysis.ModernGoBaseline, *repoanalysis.ModernGoCensus)

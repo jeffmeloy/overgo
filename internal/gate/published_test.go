@@ -12,6 +12,7 @@ import (
 // all, so its ownership must cover the document-schema owners and its trigger
 // must be its own ownership fact.
 func TestGateReadsPublishedDocuments(t *testing.T) {
+	t.Parallel()
 	for _, check := range (&gateContext{}).pipelineChecks() {
 		if check.Descriptor.Name != "published" {
 			continue

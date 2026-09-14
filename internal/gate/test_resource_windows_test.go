@@ -15,6 +15,7 @@ import (
 )
 
 func TestHostTestResourceAdmission(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	name := "test-batch:" + root
 	owner := resourceProcessCommand(t, resourceProcessSpec{Name: name, Role: "holder", Root: root})

@@ -11,6 +11,7 @@ import (
 )
 
 func TestReviewAdmissionStore(t *testing.T) {
+	t.Parallel()
 	const base = "0123456789abcdef0123456789abcdef01234567"
 	const target = "89abcdef0123456789abcdef0123456789abcdef"
 	developer := mustGateValue(runrecord.NewReviewActor("local:developer", runrecord.ReviewDeveloper))

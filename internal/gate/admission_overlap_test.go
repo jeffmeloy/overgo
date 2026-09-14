@@ -18,6 +18,7 @@ import (
 // for the gate's readers, and the staged repairs run in one wave after the
 // formatter, so the chain's wall is the longest repair, not their sum.
 func TestAdmissionStepsOverlap(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@test")

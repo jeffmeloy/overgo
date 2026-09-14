@@ -17,6 +17,7 @@ import (
 // early-failed check leaves its unobserved packages unstarted, and the
 // gate's own retention assembles the record from its execution batches.
 func TestSelectionCauseHistogram(t *testing.T) {
+	t.Parallel()
 	recipeID, err := artifact.JSONID(artifact.KindRecipe, "selection cause fixture recipe")
 	if err != nil {
 		t.Fatal(err)

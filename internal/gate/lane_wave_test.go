@@ -15,6 +15,7 @@ import (
 // the device like the device lane. Their prerequisites remain explicit;
 // eligible shared consumers overlap while exclusive measurements wait.
 func TestSharedLanesCoSchedule(t *testing.T) {
+	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/server/webui_shell.go"}}
 	byName := map[string]automationcheck.Descriptor{}
 	for _, check := range g.pipelineChecks() {

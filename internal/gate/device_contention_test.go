@@ -17,6 +17,7 @@ import (
 // batch that fails for any other reason returns that failure at once, and a
 // batch that passes runs once.
 func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
+	t.Parallel()
 	g := &gateContext{repo: t.TempDir()}
 	type call struct {
 		packages []string

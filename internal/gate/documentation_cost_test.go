@@ -9,6 +9,7 @@ import (
 )
 
 func TestDocumentationCostAcceptance(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	runGitFixture(t, root, "init")
 	testutil.WriteTextFile(t, root, "go.mod", "module failurefixture\n\ngo 1.26\n")

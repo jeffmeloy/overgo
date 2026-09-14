@@ -113,6 +113,7 @@ func TestIntentKeepaliveSurvivesGCForStagedOnlyRollback(t *testing.T) {
 }
 
 func TestIntentKeepaliveSurvivesGCForAutoMergeRollback(t *testing.T) {
+	t.Parallel()
 	repo, transaction := newRealConflictMergeTransactionFixture(t)
 	if err := os.MkdirAll(filepath.Join(repo, "tmp"), 0o755); err != nil {
 		t.Fatal(err)

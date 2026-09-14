@@ -15,6 +15,7 @@ import (
 )
 
 func TestCheckpointCacheMeasurementEligibility(t *testing.T) {
+	t.Parallel()
 	input := testutil.ArtifactID(t, artifact.KindProfile, "phase input")
 	memo := checkpointMemoEntry{
 		slot:  testutil.ArtifactID(t, artifact.KindRecipe, "memo slot"),
@@ -109,6 +110,7 @@ func TestCheckpointCacheMeasurementEligibility(t *testing.T) {
 // key or changed package source misses; a verify without a package is refused
 // with an audited reason and no memo.
 func TestCheckpointEvidenceReuseAcrossRuns(t *testing.T) {
+	t.Parallel()
 	g, batch, tree := verificationBatchFixture(t, "pass")
 	batch.Flush = &plan.BatchFlush{Key: "fixture", MaxSize: 2, MaxInterval: "1m", MaxBytes: 1 << 20}
 	checks, err := g.batchAcceptanceChecks([]automationcheck.Check{

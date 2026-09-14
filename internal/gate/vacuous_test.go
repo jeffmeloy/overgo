@@ -10,34 +10,22 @@ import (
 )
 
 func TestGateRejectsSkippedCapabilityTest(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, true, nil); err == nil {
+	t.Parallel()
+	if _, err := liveRepositoryFixture(t).context().runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, true, nil); err == nil {
 		t.Fatal("skipped capability test passed gate evidence")
 	}
 }
 
 func TestGateAcceptsPassingCapabilityTest(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(repo, "go.mod")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./internal/testevidence"}, true, nil); err != nil {
+	t.Parallel()
+	if _, err := liveRepositoryFixture(t).context().runGoTests(t.Context(), []string{"./internal/testevidence"}, true, nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestGateReportsUnchangedImporterSkipWithoutCreditingIt(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	report, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, false, nil)
+	t.Parallel()
+	report, err := liveRepositoryFixture(t).context().runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,6 +35,7 @@ func TestGateReportsUnchangedImporterSkipWithoutCreditingIt(t *testing.T) {
 }
 
 func TestGateNamesFailureBeforeDiagnosticTail(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init")
 	if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module failurefixture\n\ngo 1.26\n"), 0o600); err != nil {

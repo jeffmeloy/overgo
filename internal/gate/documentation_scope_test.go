@@ -14,16 +14,7 @@ import (
 func TestDocumentationBoundaryAcceptance(t *testing.T) {
 	t.Parallel()
 	t.Run("repository README selects no runtime suites", func(t *testing.T) {
-		root, err := filepath.Abs(filepath.Join("..", ".."))
-		if err != nil {
-			t.Fatal(err)
-		}
-		g := &gateContext{repo: root, paths: []string{"README.md"}}
-		tree, err := g.plannedTree()
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = g.withCandidateWorktree(tree, func(string) error {
+		liveRepositoryFixture(t).plan(t, []string{"README.md"}, func(g *gateContext) {
 			started := time.Now()
 			planned, err := g.planPipeline()
 			if err != nil {
@@ -50,11 +41,7 @@ func TestDocumentationBoundaryAcceptance(t *testing.T) {
 				}
 			}
 			t.Logf("repository packages=%d executed=0; device=excluded browser=excluded; planning=%s", scope.excluded, time.Since(started))
-			return nil
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
 	})
 	t.Run("opaque fixture reader retains evidence across prose edits", func(t *testing.T) {
 		g := scopeCompilerFixture(t)

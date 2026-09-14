@@ -8,6 +8,7 @@ import (
 )
 
 func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
+	t.Parallel()
 	g := scopeCompilerFixture(t)
 	for name, content := range map[string]string{
 		"internal/cuda/executor/executor.go":  "package executor\nconst Value = 1\n",

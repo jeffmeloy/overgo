@@ -68,6 +68,7 @@ func fixtureRootPackages(t *testing.T, g *gateContext) []string {
 // selective), and a narrower selection that drops the dependents is caught as
 // a counterexample by the same shadow.
 func TestChangeSelectiveVerificationShadow(t *testing.T) {
+	t.Parallel()
 	candidates := []shadowCandidate{
 		{
 			name: "production constant", paths: []string{"internal/plan/plan.go"},

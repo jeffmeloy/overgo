@@ -14,6 +14,7 @@ import (
 )
 
 func TestGateStoreLifetime(t *testing.T) {
+	t.Parallel()
 	repo := newLifecycleRepo(t)
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate-store@example.invalid")

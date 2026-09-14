@@ -10,6 +10,7 @@ import (
 )
 
 func TestModernGoPreflightBindsCandidateCensus(t *testing.T) {
+	t.Parallel()
 	repo, candidate := t.TempDir(), t.TempDir()
 	if err := os.Mkdir(filepath.Join(repo, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -89,6 +90,7 @@ func TestModernGoPreflightBindsCandidateCensus(t *testing.T) {
 }
 
 func TestGateAlwaysRunsModernGoRatchet(t *testing.T) {
+	t.Parallel()
 	checks := (&gateContext{}).pipelineChecks()
 	for _, check := range checks {
 		if check.Descriptor.Name == "modern-go" {

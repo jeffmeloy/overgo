@@ -11,6 +11,7 @@ import (
 )
 
 func TestDeviceImpactUsesSymbolOwnership(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	graph := packageInputGraph{root: root, nodes: []goPackageInput{
 		{ImportPath: "example/internal/cuda/executor", Dir: filepath.Join(root, "internal", "cuda", "executor")},
@@ -24,6 +25,7 @@ func TestDeviceImpactUsesSymbolOwnership(t *testing.T) {
 }
 
 func TestPackageInputIdentityTracksTransitiveFiles(t *testing.T) {
+	t.Parallel()
 	root, graph := packageIdentityFixture(t)
 	first, err := graph.identity("example/app")
 	if err != nil {
@@ -42,6 +44,7 @@ func TestPackageInputIdentityTracksTransitiveFiles(t *testing.T) {
 }
 
 func TestPackageEvidenceCacheUsesExactInput(t *testing.T) {
+	t.Parallel()
 	root, graph := packageIdentityFixture(t)
 	input, err := graph.identity("example/app")
 	if err != nil {
@@ -61,6 +64,7 @@ func TestPackageEvidenceCacheUsesExactInput(t *testing.T) {
 }
 
 func TestPackageSelectiveReuse(t *testing.T) {
+	t.Parallel()
 	root, graph := packageIdentityFixture(t)
 	graph.nodes = append(graph.nodes, goPackageInput{ImportPath: "example/other", Dir: filepath.Join(root, "other"), GoFiles: []string{"other.go"}})
 	graph.byID["example/other"] = []int{len(graph.nodes) - 1}

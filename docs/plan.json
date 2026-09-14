@@ -4,17 +4,30 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-suite-wall",
-      "title": "Cut the gate's own package suite below four minutes so a gate change stops paying twelve minutes of test-owners",
+      "id": "stale-source-rows",
+      "title": "Let a semantic-union prepared merge drop incoming rows the target authority has already completed",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Cut the gate's own package suite below four minutes so a gate change stops paying twelve minutes of test-owners",
+          "title": "Let a semantic-union prepared merge drop incoming rows the target authority has already completed",
           "status": "open",
-          "verify": "test -f internal/gate/suite_wall_test.go \u0026\u0026 go test ./internal/gate -run ^TestSuiteWallRatchet$ -count=1",
-          "rationale": "Measured on the retained records of 2026-09-14: internal/gate's own suite ran 743 seconds in the surface-area merge gate and 640 to 790 seconds in every gate that changed the gate, which is the whole test-owners phase (10m45 to 13m29) on a campaign where every row touches internal/gate; the package's slowest tests are the live-repository acceptances that each plan a candidate worktree and rebuild the code manifest (TestTestingReductionContract 139 s, TestDocumentationBoundaryAcceptance, TestNamedDocumentReach 45 s, the recovery and reconcile fixtures at 20 to 57 s each). Share the live snapshot, package graph and manifest across the acceptances through one package-level fixture built once per test binary, mark the fixture-isolated tests parallel, and move the pure lifecycle drills that need no live tree onto the compiler fixture; keep every assertion. Acceptance pins a wall ratchet from the retained suite-cost record of the previous gate: the suite's summed elapsed for the package falls below 240 s and the count of live-tree plans per test binary below five, with the measured values in the test. Expected effect: 8 to 9 minutes off every gate commit that touches the gate."
+          "verify": "test -f internal/plan/stale_source_rows_test.go \u0026\u0026 go test ./internal/plan -run '^TestProspectiveMergeDropsCompletedIncomingRows$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "device-lane-projector-reach",
+      "title": "Name the program internal/projector runs so the device lane leaves a gate-only plan by closure instead of running ten minutes on every gate change",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Name the program internal/projector runs so the device lane leaves a gate-only plan by closure instead of running ten minutes on every gate change",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestTestingReductionContract|TestLaneClosureAcceptance)$' -count=1"
         }
       ]
     },
@@ -30,6 +43,20 @@
           "status": "open",
           "verify": "test -f internal/gate/host_device_overlap_test.go \u0026\u0026 go test ./internal/gate -run ^TestHostDeviceOverlap$ -count=1",
           "rationale": "Measured on the retained gate records of 2026-09-14: the pipeline runs test-plan, test-owners, test-device, test (host), the device lane, then the browser lane in sequence; the host step needs no device lease yet waits for the device step, and the device step's wall is build and link of device binaries, not device time (about 150 seconds of test time in a 4 to 11 minute step). Run the host packages of the remaining direct and dependent groups concurrently with the device step under the existing shared admission, keeping the owner step first and the ledger, receipts and cost records per package unchanged. Acceptance pins on the fixture that the host and device parts of one plan execute concurrently with their results and receipts attributed exactly as before, and the retained gate records after the change show the host step's wall inside the device step's. Expected effect: the host step's wall (about 2 to 4 minutes on a broad change) leaves the critical path."
+        }
+      ]
+    },
+    {
+      "id": "gate-serial-floor",
+      "title": "Run the gate package's hook and environment tests in the parallel phase so the suite's serial floor drops below a minute",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the gate package's hook and environment tests in the parallel phase so the suite's serial floor drops below a minute",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestSuiteWallRatchet$' -count=1"
         }
       ]
     },
@@ -1033,7 +1060,10 @@
             "testutil-reach-split/do",
             "host-device-overlap/do",
             "docs-scratch-cleanup/do",
-            "gate-suite-wall/do"
+            "gate-suite-wall/do",
+            "stale-source-rows/do",
+            "device-lane-projector-reach/do",
+            "gate-serial-floor/do"
           ]
         }
       ]

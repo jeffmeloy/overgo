@@ -15,6 +15,7 @@ import (
 // owner import. Each keeps the broad binding or names its repository input;
 // the binary's own argument and a dot import of an owner stay classified.
 func TestRuntimeInputsUnsafeClassifications(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	write := func(pkg, name, source string) string {
 		dir := filepath.Join(root, "internal", pkg)

@@ -16,6 +16,7 @@ import (
 const checkpointCompletionRepoEnvironment = "OVERGO_TEST_CHECKPOINT_COMPLETION_REPO"
 
 func TestReusedCheckpointCompletionAuthorityAcceptance(t *testing.T) {
+	t.Parallel()
 	if repo := os.Getenv(checkpointCompletionRepoEnvironment); repo != "" {
 		document, err := plan.Load(filepath.Join(repo, plan.Path))
 		if err != nil {

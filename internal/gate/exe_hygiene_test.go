@@ -12,6 +12,7 @@ import (
 // directory -- and the gate surfaces it instead of leaving it hidden
 // behind the gitignore until the release check.
 func TestGateRefusesStrayExecutables(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "bin"), 0o755); err != nil {
 		t.Fatal(err)

@@ -9,6 +9,7 @@ import (
 )
 
 func TestGeneratorBootstrap(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{
 		"internal/codemanifest/generate.go", "internal/codeprofile/profile.go",
 		"internal/repoanalysis/source.go", "internal/automationcheck/manifest.go", "cmd/code-manifest/main.go",
@@ -27,6 +28,7 @@ func TestGeneratorBootstrap(t *testing.T) {
 }
 
 func TestAnalyzerFailureRunsFullPlan(t *testing.T) {
+	t.Parallel()
 	checks := []automationcheck.Check{
 		bootstrapCheck("first", "owner:first"), bootstrapCheck("second", "owner:second"),
 	}

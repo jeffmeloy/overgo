@@ -38,6 +38,7 @@ func TestGateAdmissionStoreReuse(t *testing.T) {
 }
 
 func TestGateStoreAcceleration(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	store, err := overgodb.Open(filepath.Join(repo, storePath))
 	if err != nil {

@@ -19,6 +19,7 @@ import (
 // Commit joins the required work. Missing preparation fails explicitly;
 // store contention waits for the writer's release.
 func TestTestGroupsOverlapUnderLedger(t *testing.T) {
+	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/gate.go"}}
 	checks := g.pipelineChecks()
 	byName := map[string]automationcheck.Descriptor{}

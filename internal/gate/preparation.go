@@ -355,9 +355,16 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	manifestCache, err := codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
-	if err != nil {
-		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	// A context that already holds a cache keeps it: every derivation of
+	// the same base and candidate authority reuses the generated manifests.
+	g.sourceMutex.Lock()
+	manifestCache := g.manifestCache
+	g.sourceMutex.Unlock()
+	if manifestCache == nil {
+		manifestCache, err = codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
+		if err != nil {
+			return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+		}
 	}
 	baseManifest, _, err := manifestCache.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
 	if err != nil {

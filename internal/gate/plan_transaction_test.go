@@ -10,6 +10,7 @@ import (
 )
 
 func TestGateCommitAdvancesPlanAtomically(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repo, "docs"), 0o755); err != nil {
 		t.Fatal(err)

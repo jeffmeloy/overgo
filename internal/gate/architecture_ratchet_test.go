@@ -13,6 +13,7 @@ import (
 )
 
 func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
+	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -106,6 +107,7 @@ func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
 }
 
 func TestProductionAuthorityBoundaries(t *testing.T) {
+	t.Parallel()
 	repo, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

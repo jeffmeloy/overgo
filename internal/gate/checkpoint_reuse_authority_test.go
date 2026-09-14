@@ -22,6 +22,7 @@ import (
 // survives the retry projection and the batch ledger: after a sibling
 // failure and a restart the producer is reused with zero new execution.
 func TestCheckpointReuseCommitAuthority(t *testing.T) {
+	t.Parallel()
 	runner := func(context.Context, automationcheck.Invocation) (bool, string, error) { return false, "", nil }
 	checks := []automationcheck.Check{
 		{Descriptor: automationcheck.Descriptor{Name: "verify", Phase: runrecord.PhaseTest, Always: true}, Run: runner},

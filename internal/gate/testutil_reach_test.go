@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"path/filepath"
 	"testing"
 )
 
@@ -11,11 +10,9 @@ import (
 // process measurer keep that reach in their own leaf packages. The live
 // gate-only scope is the measured witness.
 func TestTestutilReachAcceptance(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := &gateContext{repo: root, paths: []string{"internal/gate/preflight.go"}}
+	t.Parallel()
+	live := liveRepositoryFixture(t)
+	g := live.context("internal/gate/preflight.go")
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

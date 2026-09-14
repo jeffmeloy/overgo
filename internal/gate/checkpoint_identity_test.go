@@ -14,6 +14,7 @@ import (
 // file guard is accepted; an unsupported segment, an uncovered guard, or an
 // absent package refuses the memo with an audited reason.
 func TestCheckpointMemoCoversEveryCommand(t *testing.T) {
+	t.Parallel()
 	g, batch, _ := verificationBatchFixture(t, "pass")
 	// This case requires proven package independence. The general batch
 	// fixture reads runtime paths and must conservatively bind sibling inputs.

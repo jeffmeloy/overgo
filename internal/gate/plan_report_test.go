@@ -9,6 +9,7 @@ import (
 )
 
 func TestGatePlanReportNamesDependencyRelationships(t *testing.T) {
+	t.Parallel()
 	definitions := []automationcheck.Check{
 		{Descriptor: automationcheck.Descriptor{
 			Name: "prepare", Phase: runrecord.PhaseValidate,

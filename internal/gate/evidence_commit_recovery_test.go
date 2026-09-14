@@ -25,6 +25,7 @@ func TestEvidenceCommitRecoveryProcess(t *testing.T) {
 }
 
 func TestEvidenceCommitRecoveryAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("normal gate finishes a committed evidence batch", func(t *testing.T) {
 		fixture := newInterruptedCommitFixture(t)
 		// The public gate uses the canonical store name; the recovery fixture's

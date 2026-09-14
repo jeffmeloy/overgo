@@ -13,6 +13,7 @@ import (
 )
 
 func TestGateScopePreservesAffectedCoverage(t *testing.T) {
+	t.Parallel()
 	g := scopeCompilerFixture(t)
 	imports := func(names ...string) []string {
 		var result []string
@@ -186,7 +187,8 @@ func assertScopeMeasuredIncident(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g := gateContext{repo: root, paths: strings.Fields(changed)}
+	live := liveRepositoryFixture(t)
+	g := live.context(strings.Fields(changed)...)
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)

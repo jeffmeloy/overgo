@@ -88,6 +88,7 @@ func waitResourceFile(t *testing.T, path string) {
 }
 
 func TestCrossWorktreeGPUAdmission(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	name := "gpu-test:" + root
 	probe := func(resource, directory string) error {

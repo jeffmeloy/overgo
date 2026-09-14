@@ -13,6 +13,7 @@ import (
 )
 
 func TestPermanentMagicGate(t *testing.T) {
+	t.Parallel()
 	t.Run("accepts exact closed authority", func(t *testing.T) {
 		root, _ := magicGateFixture(t, true)
 		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}

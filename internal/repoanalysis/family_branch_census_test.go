@@ -1,19 +1,33 @@
-package model
+package repoanalysis
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"overgo/internal/jsonfile"
 )
 
-// TestArchitectureFamilyBranchCensus pins the model-abstraction boundary: a
-// new model expressible through existing primitives introduces no
-// family-named branch in shared execution code. The census enumerates every
-// remaining branch outside catalogs, converters, fixtures, and
-// presentation, and the reviewed baseline only shrinks -- a branch leaves
-// when its check moves into a declared profile policy, and a new one
-// refuses here.
+func TestFamilyBranchSnapshot(t *testing.T) {
+	source := []byte(`package shared
+func Match(a string) bool { switch a { case "gemma3": return true }; return a == "llama3" || a != "qwen2.5" }
+`)
+	const owner = "internal/shared/value.go"
+	snapshot, err := (SourceSnapshot{}).Overlay(map[string][]byte{
+		owner: source, "internal/model/architecture_catalog.go": source,
+		"internal/testutil/fixture.go": source, "cmd/example/main_test.go": source,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := FamilyBranchCensus(snapshot)
+	want := []FamilyBranch{{owner, "gemma3", 1}, {owner, "llama3", 1}, {owner, "qwen2.5", 1}}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("branches=%+v error=%v", got, err)
+	}
+}
+
+// Keep the repository's independent family-branch ceiling assertion.
 func TestArchitectureFamilyBranchCensus(t *testing.T) {
 	root := filepath.Join("..", "..")
 	var baseline struct {
@@ -28,7 +42,11 @@ func TestArchitectureFamilyBranchCensus(t *testing.T) {
 	for _, branch := range baseline.Branches {
 		allowed[[2]string{branch.File, branch.Literal}] = branch.Count
 	}
-	current, err := FamilyBranchCensus(root)
+	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := FamilyBranchCensus(snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

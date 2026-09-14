@@ -1,4 +1,20 @@
 {
+  "preflight_consolidation": {
+    "base_commit": "bfdba2322ddac7397cdbd1ed00d6ed1847a90696",
+    "source": "59e6b6586b304b0b34a1d86400d00685eeb990bcdc2893d36c9bd31cb6f23bfe",
+    "removed": "Standalone preflight command, test-only preflight selector, separate model-family source walk and parser; callers use the gate pipeline and repository analysis snapshot.",
+    "production_ast_nodes": { "before": 20824, "after": 20264 },
+    "test_ast_nodes": { "before": 3879, "after": 4236 },
+    "net_ast_nodes_removed": 203,
+    "command_manifest_entries": { "before": 102, "after": 101 },
+    "model_import_closure": { "before": 133, "after": 125 },
+    "family_branch_sites": 12,
+    "family_branch_output_exact": true,
+    "replacement": "go run ./cmd/gate -preflight diagnoses dirty paths; -paths cmd,internal checks all Go sources. Diagnostic results do not grant acceptance credit.",
+    "validation": "Focused gate and repository-analysis tests pass. Prior scoped preflight: 15 checks, zero findings, 79.663 seconds. Full gate exposed whole-repository audit coupling in mechanical repair; moved that audit into architecture validation. Repair and preflight regression tests pass together after correction. Existing family-branch and harness refusals retained; generated-file advisory retained.",
+    "closure": "Retired one unmatched literal binding from the deleted parser invocation; historical closure evidence retained.",
+    "limits": "AST counts exclude comments and compare all changed Go files with the base, including added tests. Command entries are not executable-size measurements. No whole-gate speedup claimed."
+  },
   "next_reduction_decision": {
     "decision": "Reuse profiles already built during manifest generation before broader runtime analysis; expensive exclusion remains open.",
     "gate": "25aacc4c773dc27966c6a9d613938c5dbfab65f9",

@@ -12,17 +12,11 @@ import (
 	"overgo/internal/automationcheck"
 )
 
-// preflightChecks selects the pipeline's static checks in pipeline order: the
-// declared requirements admit a check, never its phase. Descriptors are the
-// gate's own, so the planned identities are the gate's.
-func (g *gateContext) preflightChecks() []automationcheck.Check {
-	var checks []automationcheck.Check
-	for _, check := range g.pipelineChecks() {
-		if check.Descriptor.Requirements.Static() {
-			checks = append(checks, check)
-		}
-	}
-	return checks
+// Generated authority outputs reported by the existing scope inspection.
+var generatedAuthorityPaths = []string{
+	"docs/api_manifest.json", "compatibility.json", "docs/COMPATIBILITY.md",
+	"SBOM.cdx.json", "kernels/manifest.json",
+	"docs/modern_go_census.json", "docs/modern_go_baseline.json",
 }
 
 // preflightInvocations plans the whole pipeline exactly as the gate does and
@@ -168,5 +162,9 @@ func (g *gateContext) Preflight(output io.Writer) error {
 	if g.stepEvidence == nil {
 		g.stepEvidence = map[string]string{}
 	}
-	return runPreflight(context.Background(), g.pipelineChecks(), output)
+	err := runPreflight(context.Background(), g.pipelineChecks(), output)
+	if g.pendingGenerated != nil {
+		fmt.Fprintf(output, "preflight: dirty-generated: ok (%d generated file(s) pending commit)\n", *g.pendingGenerated)
+	}
+	return err
 }

@@ -18,6 +18,60 @@ import (
 	"overgo/internal/testutil"
 )
 
+func TestSurfacePreflightComposition(t *testing.T) {
+	root, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, retired := range []string{"cmd/preflight/main.go", "internal/model/family_branch_census.go"} {
+		if _, err := os.Stat(filepath.Join(root, retired)); !os.IsNotExist(err) {
+			t.Fatalf("retired entry remains: %s %v", retired, err)
+		}
+	}
+	snapshot, err := repoanalysis.DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselinePath := filepath.Join(root, harnessSurfaceBaselineFile)
+	before, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := &gateContext{repo: root, source: &snapshot, preflight: true}
+	if err := g.architectureDiagnostics(snapshot); err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range []struct{ path, source, refusal string }{
+		{"internal/shared/fixture.go", "package shared\nfunc Forbidden(s string) bool { return s == \"qwen999\" }", "family-named branch"},
+		{"internal/automationpolicy/fixture.go", "package automationpolicy\nfunc Legacy() {}", "harness consolidation"},
+	} {
+		changed, err := snapshot.Overlay(map[string][]byte{fixture.path: []byte(fixture.source)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		g.source = &changed
+		if err := g.architectureDiagnostics(changed); err == nil || !strings.Contains(err.Error(), fixture.refusal) {
+			t.Fatalf("lost %s refusal: %v", fixture.refusal, err)
+		}
+	}
+	after, err := os.ReadFile(baselinePath)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("diagnostic changed baseline: %v", err)
+	}
+	fixtureRoot := t.TempDir()
+	runGitFixture(t, fixtureRoot, "init")
+	const generated = "docs/api_manifest.json"
+	testutil.WriteTextFile(t, fixtureRoot, generated, "{}\n")
+	scope := &gateContext{repo: fixtureRoot, paths: []string{generated}, preflight: true}
+	if _, err := scope.stepScope(); err != nil || scope.pendingGenerated == nil || *scope.pendingGenerated != 1 {
+		t.Fatalf("lost generated-file advisory: %v %+v", err, scope.pendingGenerated)
+	}
+	testutil.WriteTextFile(t, fixtureRoot, "nested/plan.json", "{}\n")
+	if _, err := scope.stepScope(); err == nil || !strings.Contains(err.Error(), "competing live plan") {
+		t.Fatalf("nested plan admitted: %v", err)
+	}
+}
+
 func TestSurfaceProfileReuse(t *testing.T) {
 	root := t.TempDir()
 	const name = "internal/example/example.go"

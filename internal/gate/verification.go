@@ -432,6 +432,9 @@ func (g *gateContext) stepArchitectureRatchet() (bool, error) {
 	if err := errors.Join(violations...); err != nil {
 		return false, err
 	}
+	if err := g.architectureDiagnostics(snapshot); err != nil {
+		return false, err
+	}
 	if err := runrecord.ValidateTriggerRegistry(); err != nil {
 		return false, err
 	}

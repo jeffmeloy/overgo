@@ -37,6 +37,7 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 				return err
 			}
 			g.testPlan = &testGroups{edited: []string{target}, directInputs: map[string]artifact.ID{target: frozen}}
+			g.testExecutions = []packageExecutionBatch{{Step: testOwnersCheckName, Requested: []string{target}}}
 			g.steps = []runrecord.GateStep{{Name: "test-owners", Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Second)}}
 			return nil
 		})
@@ -130,6 +131,7 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 			t.Fatalf("pure implementation mutation escaped its caller: %s", out)
 		}
 		g.testPlan = &testGroups{edited: []string{pureTarget}}
+		g.testExecutions = []packageExecutionBatch{{Step: testOwnersCheckName, Requested: []string{pureTarget}}}
 		g.dependencyCostAudit([]runrecord.GateStep{
 			{Name: "test-owners", Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Second)},
 			{Name: "test", Outcome: runrecord.StepReused, DurationNS: uint64(2 * time.Second)},

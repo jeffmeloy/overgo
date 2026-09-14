@@ -15,7 +15,7 @@ import (
 )
 
 type packageCostAttribution struct {
-	packageInputAttribution
+	runrecord.SelectionPackage
 	RuntimeReaders []string `json:"runtime_readers"`
 }
 
@@ -174,27 +174,6 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 	if selected.Name == "" {
 		return
 	}
-	packages := slices.Clone(g.testPlan.edited)
-	if selected.Name != "test-owners" {
-		packages = slices.Concat(g.testPlan.remaining, g.testPlan.dependent)
-		device, err := g.packageGraph.devicePackages(packages)
-		if err != nil {
-			g.note("test input attribution unavailable: " + err.Error())
-			return
-		}
-		packages = slices.DeleteFunc(packages, func(target string) bool {
-			return slices.Contains(device, target) != (selected.Name == "test-device")
-		})
-	}
-	for _, batch := range batches {
-		for _, execution := range batch.Executions {
-			if len(g.packageGraph.byID[execution.Package]) != 0 {
-				packages = append(packages, execution.Package)
-			}
-		}
-	}
-	slices.Sort(packages)
-	packages = slices.Compact(packages)
 	report := struct {
 		Step       string                   `json:"step"`
 		DurationNS uint64                   `json:"duration_ns"`
@@ -203,17 +182,11 @@ func (g *gateContext) dependencyCostAudit(steps []runrecord.GateStep) {
 		Readers    map[string]string        `json:"readers"`
 		Executions []packageExecutionBatch  `json:"executions"`
 	}{Step: selected.Name, DurationNS: selected.DurationNS, Readers: map[string]string{}, Executions: batches}
-	for _, target := range packages {
-		attribution, err := g.packageGraph.attributeInputs(target, g.paths)
-		if err != nil {
-			g.note("test input attribution unavailable: " + err.Error())
-			return
+	for _, attribution := range g.selectionCauses {
+		if attribution.Step != selected.Name {
+			continue
 		}
-		attribution.Input = g.testPlan.directInputs[target]
-		if !attribution.Input.Valid() {
-			attribution.Input = g.testPlan.dependentInputs[target]
-		}
-		entry := packageCostAttribution{packageInputAttribution: attribution}
+		entry := packageCostAttribution{SelectionPackage: attribution}
 		for reader, reason := range attribution.RuntimeReaders {
 			report.Readers[reader] = reason
 			entry.RuntimeReaders = append(entry.RuntimeReaders, reader)
@@ -244,33 +217,32 @@ func (g *gateContext) retainSelectionCauses(batches []packageExecutionBatch) {
 			if len(g.packageGraph.byID[target]) == 0 {
 				continue
 			}
-			entry := runrecord.SelectionPackage{Package: target, Step: batch.Step}
+			key := batch.Step + "\x00" + target
+			_, seen := index[key]
+			if !seen {
+				entry, err := g.packageGraph.attributeInputs(target, g.paths)
+				if err != nil {
+					g.note("selection causes not retained: " + err.Error())
+					return
+				}
+				entry.Step = batch.Step
+				if g.testPlan.ledger != nil {
+					entry.Reuse = g.testPlan.ledger.prepared[target]
+				}
+				entry.Input = g.testPlan.directInputs[target]
+				if !entry.Input.Valid() {
+					entry.Input = g.testPlan.dependentInputs[target]
+				}
+				index[key] = len(packages)
+				packages = append(packages, entry)
+			}
 			if position := slices.IndexFunc(batch.Executions, func(execution testevidence.PackageExecution) bool { return execution.Package == target }); position >= 0 {
 				execution := batch.Executions[position]
-				entry.Action, entry.Started, entry.ElapsedSeconds = execution.Action, execution.Started, execution.Elapsed
-			}
-			key := batch.Step + "\x00" + target
-			if previous, seen := index[key]; seen {
-				if entry.Started {
-					packages[previous].Action, packages[previous].Started, packages[previous].ElapsedSeconds = entry.Action, entry.Started, entry.ElapsedSeconds
+				if !seen || execution.Started {
+					entry := &packages[index[key]]
+					entry.Action, entry.Started, entry.ElapsedSeconds = execution.Action, execution.Started, execution.Elapsed
 				}
-				continue
 			}
-			attribution, err := g.packageGraph.attributeInputs(target, g.paths)
-			if err != nil {
-				g.note("selection causes not retained: " + err.Error())
-				return
-			}
-			entry.Input = g.testPlan.directInputs[target]
-			if !entry.Input.Valid() {
-				entry.Input = g.testPlan.dependentInputs[target]
-			}
-			entry.CompilerInputs, entry.RuntimeInputs, entry.UnboundInputs = attribution.CompilerInputs, attribution.RuntimeInputs, attribution.UnboundInputs
-			if len(attribution.RuntimeReaders) != 0 {
-				entry.RuntimeReaders = attribution.RuntimeReaders
-			}
-			index[key] = len(packages)
-			packages = append(packages, entry)
 		}
 	}
 	g.selectionCauses = packages
@@ -282,14 +254,14 @@ func (g *gateContext) appendSelectionCauses(batch *artifact.Batch, result artifa
 	if len(g.selectionCauses) == 0 {
 		return nil
 	}
-	record, err := runrecord.NewSelectionCauseRecord(runrecord.SelectionCauseRecord{
+	record, err := runrecord.SelectionCauseCodec.NewInitial(runrecord.SelectionCauseRecord{
 		Result: result, Changed: slices.Clone(g.paths), Packages: slices.Clone(g.selectionCauses),
 		Limitations: "Attribution is package-level binding on the frozen candidate graph, not function reach. Elapsed values come from go test and overlap within a check.",
 	})
 	if err != nil {
 		return err
 	}
-	content, err := record.Content()
+	content, err := runrecord.SelectionCauseCodec.Content(record)
 	if err != nil {
 		return err
 	}

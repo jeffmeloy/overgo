@@ -25,6 +25,13 @@ func (g *gateContext) preflightChecks() []automationcheck.Check {
 	return checks
 }
 
+// Generated authority outputs reported by the existing scope inspection.
+var generatedAuthorityPaths = []string{
+	"docs/api_manifest.json", "compatibility.json", "docs/COMPATIBILITY.md",
+	"SBOM.cdx.json", "kernels/manifest.json",
+	"docs/modern_go_census.json", "docs/modern_go_baseline.json",
+}
+
 // preflightInvocations plans the whole pipeline exactly as the gate does and
 // splits it: the static invocations run; the rest count as satisfied
 // dependencies, so a static check that follows expensive work in the gate
@@ -168,5 +175,9 @@ func (g *gateContext) Preflight(output io.Writer) error {
 	if g.stepEvidence == nil {
 		g.stepEvidence = map[string]string{}
 	}
-	return runPreflight(context.Background(), g.pipelineChecks(), output)
+	err := runPreflight(context.Background(), g.pipelineChecks(), output)
+	if g.pendingGenerated != nil {
+		fmt.Fprintf(output, "preflight: dirty-generated: ok (%d generated file(s) pending commit)\n", *g.pendingGenerated)
+	}
+	return err
 }

@@ -26,6 +26,9 @@ func TestSpeechAlignmentAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": real CTC alignment and independent corpus annotations run as exact acceptance")
 	}
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	fixture := loadCTCTrainingFixture(t)
 	source := loadAlignmentFixture(t, fixture.root, fixture.storeRoot)
 	sourceDirectory, commit := snapshotAudioSource(t)

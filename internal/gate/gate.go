@@ -85,6 +85,7 @@ type gateContext struct {
 	preparationCommit   artifact.CommitID
 	source              *repoanalysis.SourceSnapshot
 	baseSource          *repoanalysis.SourceSnapshot
+	manifestCache       *codemanifest.Cache
 	profile             *codeprofile.Profile
 	profileDirty        bool
 	preflight           bool
@@ -123,10 +124,12 @@ type gateContext struct {
 	runCommand func(repo, name string, args ...string) (string, error)
 	// The validate wave runs its checks concurrently; the snapshots and
 	// the audit they share are written under these locks.
-	sourceMutex   sync.Mutex
-	auditMutex    sync.Mutex
-	terminalMutex sync.Mutex
-	modernInput   *modernGoInput
+	sourceMutex      sync.Mutex
+	auditMutex       sync.Mutex
+	terminalMutex    sync.Mutex
+	modernInput      *modernGoInput
+	modernPrior      *automationcheck.ReuseSource
+	pendingGenerated *int
 	// The planned tree is built once per candidate state and the plan is
 	// parsed once for the admission and verification readers; the commit
 	// phase rewrites the plan after every such reader has run.

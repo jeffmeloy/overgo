@@ -28,6 +28,9 @@ type guardCohort struct {
 
 // TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	selected := readGuardCatalog(t)
 	fixtures := []guardCohort{
 		{

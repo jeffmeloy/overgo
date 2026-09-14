@@ -204,7 +204,10 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 		if profile.Clones[i].Nodes != profile.Clones[j].Nodes {
 			return profile.Clones[i].Nodes > profile.Clones[j].Nodes
 		}
-		return profile.Clones[i].Fingerprint < profile.Clones[j].Fingerprint
+		if profile.Clones[i].Fingerprint != profile.Clones[j].Fingerprint {
+			return profile.Clones[i].Fingerprint < profile.Clones[j].Fingerprint
+		}
+		return profile.Clones[i].AdvisoryClass < profile.Clones[j].AdvisoryClass
 	})
 	return profile, nil
 }

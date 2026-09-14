@@ -127,6 +127,18 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:b656f1d0ddd9bd36f7b92d48dda0794907b77d79788d67c3a2657a39863e7242"
       }
+    },
+    {
+      "package": "overgo/internal/testskip",
+      "name": "StoreAcceptance",
+      "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
+      "retire_with": "stale-store-acceptances/do"
+    },
+    {
+      "package": "overgo/internal/testskip",
+      "name": "StoreAcceptanceEnv",
+      "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
+      "retire_with": "stale-store-acceptances/do"
     }
   ]
 }

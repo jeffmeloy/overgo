@@ -10,19 +10,6 @@ import (
 	"overgo/internal/artifact"
 )
 
-const (
-	// SelectionCauseMediaType names the retained selection-cause document.
-	SelectionCauseMediaType = "application/vnd.overgo.gate-selection-cause+json"
-	// SelectionCauseSchema versions the retained selection-cause document.
-	SelectionCauseSchema = "overgo/gate-selection-cause/v1"
-)
-
-// SelectionCauseContract names the retained explanation of one gate's
-// package selection: why each package was selected and what its execution cost.
-var SelectionCauseContract = artifact.DocumentContract{
-	Kind: artifact.KindEvidence, MediaType: SelectionCauseMediaType, Schema: SelectionCauseSchema,
-}
-
 // SelectionPackage binds one package's selection causes to its observed
 // execution in one gate step. Inputs are repository paths of the change.
 type SelectionPackage struct {
@@ -36,6 +23,15 @@ type SelectionPackage struct {
 	RuntimeInputs  []string          `json:"runtime_inputs,omitempty"`
 	UnboundInputs  []string          `json:"unbound_inputs,omitempty"`
 	RuntimeReaders map[string]string `json:"runtime_readers,omitempty"`
+	Reuse          SelectionReuse    `json:"reuse,omitzero"`
+}
+
+// SelectionReuse records the exact obligation and its receipt before execution.
+// No receipt means no matching authority, not proof of a particular input change.
+type SelectionReuse struct {
+	Obligation artifact.ID `json:"obligation"`
+	Receipt    artifact.ID `json:"receipt,omitzero"`
+	Passed     bool        `json:"passed,omitzero"`
 }
 
 // SelectionCauseRecord retains every package the gate's test steps requested
@@ -49,18 +45,20 @@ type SelectionCauseRecord struct {
 	ID          artifact.ID        `json:"-"`
 }
 
-var selectionCauseCodec = artifact.JSONDocumentCodec(
-	"gate selection cause", SelectionCauseContract.Kind, SelectionCauseContract.MediaType, SelectionCauseContract.Schema,
+// SelectionCauseCodec owns selection-record construction, encoding and queries.
+var SelectionCauseCodec = artifact.JSONDocumentCodec(
+	"gate selection cause", artifact.KindEvidence, "application/vnd.overgo.gate-selection-cause+json", "overgo/gate-selection-cause/v1",
 	canonicalizeSelectionCause, func(value SelectionCauseRecord) artifact.ID { return value.ID },
 	func(value *SelectionCauseRecord, id artifact.ID) { value.ID = id },
 	func(value SelectionCauseRecord) SelectionCauseRecord {
 		value.Changed = slices.Clone(value.Changed)
 		value.Packages = slices.Clone(value.Packages)
 		for index := range value.Packages {
-			value.Packages[index].CompilerInputs = slices.Clone(value.Packages[index].CompilerInputs)
-			value.Packages[index].RuntimeInputs = slices.Clone(value.Packages[index].RuntimeInputs)
-			value.Packages[index].UnboundInputs = slices.Clone(value.Packages[index].UnboundInputs)
-			value.Packages[index].RuntimeReaders = maps.Clone(value.Packages[index].RuntimeReaders)
+			entry := &value.Packages[index]
+			entry.CompilerInputs = slices.Clone(entry.CompilerInputs)
+			entry.RuntimeInputs = slices.Clone(entry.RuntimeInputs)
+			entry.UnboundInputs = slices.Clone(entry.UnboundInputs)
+			entry.RuntimeReaders = maps.Clone(entry.RuntimeReaders)
 		}
 		return value
 	},
@@ -75,42 +73,32 @@ func canonicalizeSelectionCause(value *SelectionCauseRecord) error {
 	}
 	slices.Sort(value.Changed)
 	value.Changed = slices.Compact(value.Changed)
-	seen := map[string]bool{}
+	slices.SortFunc(value.Packages, func(left, right SelectionPackage) int {
+		return strings.Compare(left.Step+"\x00"+left.Package, right.Step+"\x00"+right.Package)
+	})
+	var previous string
 	for index := range value.Packages {
 		entry := &value.Packages[index]
 		if strings.TrimSpace(entry.Package) == "" || strings.TrimSpace(entry.Step) == "" {
 			return errors.New("run record: selection cause package requires its package and step")
 		}
 		key := entry.Step + "\x00" + entry.Package
-		if seen[key] {
+		if reuse := entry.Reuse; reuse != (SelectionReuse{}) &&
+			(reuse.Obligation.Kind() != artifact.KindEvidence ||
+				reuse.Receipt != (artifact.ID{}) && reuse.Receipt.Kind() != artifact.KindEvidence ||
+				reuse.Passed && !reuse.Receipt.Valid()) {
+			return errors.New("run record: selection reuse requires an obligation and a receipt for a prior pass")
+		}
+		if previous == key {
 			return fmt.Errorf("run record: selection cause repeats %s in %s", entry.Package, entry.Step)
 		}
-		seen[key] = true
+		previous = key
 		for _, names := range []*[]string{&entry.CompilerInputs, &entry.RuntimeInputs, &entry.UnboundInputs} {
 			slices.Sort(*names)
 			*names = slices.Compact(*names)
 		}
 	}
-	slices.SortFunc(value.Packages, func(left, right SelectionPackage) int {
-		return strings.Compare(left.Step+"\x00"+left.Package, right.Step+"\x00"+right.Package)
-	})
 	return nil
-}
-
-// NewSelectionCauseRecord identifies one retained explanation.
-func NewSelectionCauseRecord(record SelectionCauseRecord) (SelectionCauseRecord, error) {
-	record.Version = artifact.InitialDocumentVersion
-	return selectionCauseCodec.New(record)
-}
-
-// Content encodes the record for the final gate batch.
-func (record SelectionCauseRecord) Content() (artifact.Content, error) {
-	return selectionCauseCodec.Content(record)
-}
-
-// ParseSelectionCauseRecord decodes one retained explanation.
-func ParseSelectionCauseRecord(content []byte) (SelectionCauseRecord, error) {
-	return selectionCauseCodec.Parse(content)
 }
 
 // Every cause listed on a package is independently sufficient for its
@@ -143,7 +131,9 @@ type SelectionPackageCauses struct {
 	Causes         []SelectionCause `json:"causes"`
 	Executed       bool             `json:"executed"`
 	Failed         bool             `json:"failed,omitzero"`
+	Skipped        bool             `json:"skipped,omitzero"`
 	ElapsedSeconds *float64         `json:"elapsed_seconds,omitempty"`
+	Reuse          SelectionReuse   `json:"reuse,omitzero"`
 }
 
 // SelectionCauseCount is one histogram bar.
@@ -152,6 +142,7 @@ type SelectionCauseCount struct {
 	Packages       int     `json:"packages"`
 	Executed       int     `json:"executed"`
 	Unstarted      int     `json:"unstarted"`
+	Skipped        int     `json:"skipped"`
 	ElapsedSeconds float64 `json:"elapsed_seconds"`
 }
 
@@ -164,6 +155,7 @@ type SelectionStepSummary struct {
 	Executed   int         `json:"executed"`
 	Failed     int         `json:"failed"`
 	Unstarted  int         `json:"unstarted"`
+	Skipped    int         `json:"skipped"`
 }
 
 // SelectionHistogram explains one gate's executed cost by selection cause.
@@ -205,13 +197,11 @@ func SelectionCauseHistogram(result GateResult, record SelectionCauseRecord) (Se
 		return SelectionHistogram{}, errors.New("run record: selection cause record does not explain this gate result")
 	}
 	steps := map[string]*SelectionStepSummary{}
-	var order []string
 	for _, step := range result.Steps {
 		if _, known := steps[step.Name]; known {
 			return SelectionHistogram{}, fmt.Errorf("run record: gate result repeats step %s", step.Name)
 		}
 		steps[step.Name] = &SelectionStepSummary{Name: step.Name, Outcome: step.Outcome, DurationNS: step.DurationNS}
-		order = append(order, step.Name)
 	}
 	histogram := SelectionHistogram{
 		Result: result.ID, Changed: slices.Clone(record.Changed), Packages: []SelectionPackageCauses{},
@@ -220,7 +210,7 @@ func SelectionCauseHistogram(result GateResult, record SelectionCauseRecord) (Se
 	primary := map[string]*SelectionCauseCount{}
 	sufficient := map[string]*SelectionCauseCount{}
 	inputs := map[string]*SelectionCauseCount{}
-	count := func(index map[string]*SelectionCauseCount, key string, executed bool, elapsed *float64) {
+	count := func(index map[string]*SelectionCauseCount, key string, executed, skipped bool, elapsed *float64) {
 		bar := index[key]
 		if bar == nil {
 			bar = &SelectionCauseCount{Cause: key}
@@ -232,6 +222,8 @@ func SelectionCauseHistogram(result GateResult, record SelectionCauseRecord) (Se
 			if elapsed != nil {
 				bar.ElapsedSeconds += *elapsed
 			}
+		} else if skipped {
+			bar.Skipped++
 		} else {
 			bar.Unstarted++
 		}
@@ -242,41 +234,43 @@ func SelectionCauseHistogram(result GateResult, record SelectionCauseRecord) (Se
 			return SelectionHistogram{}, fmt.Errorf("run record: package %s names step %s absent from the gate result", entry.Package, entry.Step)
 		}
 		causes := SelectionCauses(entry)
-		executed := entry.Started && (entry.Action == "pass" || entry.Action == "fail")
 		failed := entry.Action == "fail"
+		executed := entry.Started && (entry.Action == "pass" || failed)
+		skipped := entry.Action == "skip"
 		step.Packages++
-		switch {
-		case executed && failed:
+		if executed {
 			step.Executed++
-			step.Failed++
-		case executed:
-			step.Executed++
-		default:
+			if failed {
+				step.Failed++
+			}
+		} else if skipped {
+			step.Skipped++
+		} else {
 			step.Unstarted++
 		}
 		var elapsed *float64
 		if executed {
 			elapsed = entry.ElapsedSeconds
 		}
-		count(primary, causes[0].Kind, executed, elapsed)
-		kinds := map[string]bool{}
+		count(primary, causes[0].Kind, executed, skipped, elapsed)
+		var previousKind string
 		for _, cause := range causes {
-			if !kinds[cause.Kind] {
-				kinds[cause.Kind] = true
-				count(sufficient, cause.Kind, executed, elapsed)
+			if cause.Kind != previousKind {
+				previousKind = cause.Kind
+				count(sufficient, cause.Kind, executed, skipped, elapsed)
 			}
 			if cause.Kind == SelectionCauseCompiler || cause.Kind == SelectionCauseRuntime {
-				count(inputs, cause.Detail, executed, elapsed)
+				count(inputs, cause.Detail, executed, skipped, elapsed)
 			}
 		}
 		histogram.Packages = append(histogram.Packages, SelectionPackageCauses{
 			Package: entry.Package, Step: entry.Step, Primary: causes[0].Kind, Causes: causes,
-			Executed: executed, Failed: failed, ElapsedSeconds: elapsed,
+			Executed: executed, Failed: failed, Skipped: skipped, ElapsedSeconds: elapsed, Reuse: entry.Reuse,
 		})
 	}
-	for _, name := range order {
-		if steps[name].Packages != 0 {
-			histogram.Steps = append(histogram.Steps, *steps[name])
+	for _, step := range result.Steps {
+		if steps[step.Name].Packages != 0 {
+			histogram.Steps = append(histogram.Steps, *steps[step.Name])
 		}
 	}
 	for _, kind := range selectionCausePrecedence {

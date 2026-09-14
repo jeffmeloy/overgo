@@ -24,6 +24,21 @@ func (g *gateContext) executeChecks(
 	cache *automationcheck.EvidenceCache,
 	drift func() error,
 ) ([]automationcheck.DAGResult, error) {
+	g.modernPrior = nil
+	for _, check := range checks {
+		if check.Check.Name != modernCensusCheckName || cache == nil {
+			continue
+		}
+		slot, _, _ := g.checkCacheKey(check, inputs[check.ID])
+		entry, found := cache.Entries[slot.ID.String()]
+		if found && entry.Source != nil && entry.Source.Definition == slot.ID {
+			// Ask the cache to validate its original authority, not the new pair.
+			slot.Authority = entry.Source.Authority
+			if evidence, valid := cache.Lookup(slot, entry.Input); valid {
+				g.modernPrior = evidence.Source
+			}
+		}
+	}
 	ledger, err := g.openBatchEvidence(checks, inputs, cache)
 	if err != nil {
 		return nil, err

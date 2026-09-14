@@ -22,6 +22,9 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
 	}

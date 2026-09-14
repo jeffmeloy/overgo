@@ -1,11 +1,8 @@
-package model
+package repoanalysis
 
 import (
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"io/fs"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -40,54 +37,37 @@ func familyBranchExcluded(path string) bool {
 		path == "internal/model/architecture_catalog.go"
 }
 
-// FamilyBranchCensus walks the production tree under root and enumerates
-// every family-named branch in shared execution code: string literals
-// matching a family stem inside equality comparisons or switch cases. A new
-// model expressible through existing primitives must introduce none; the
-// remaining set is pinned by its reviewed baseline.
-func FamilyBranchCensus(root string) ([]FamilyBranch, error) {
+// FamilyBranchCensus finds family-named comparisons in the shared snapshot.
+func FamilyBranchCensus(snapshot SourceSnapshot) ([]FamilyBranch, error) {
 	counts := map[[2]string]int{}
-	for _, top := range []string{"internal", "cmd"} {
-		err := filepath.WalkDir(filepath.Join(root, top), func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil || entry.IsDir() || !strings.HasSuffix(path, ".go") {
-				return walkErr
-			}
-			relative, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			relative = filepath.ToSlash(relative)
-			if familyBranchExcluded(relative) {
-				return nil
-			}
-			parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-			if err != nil {
-				return err
-			}
-			ast.Inspect(parsed, func(node ast.Node) bool {
-				switch typed := node.(type) {
-				case *ast.BinaryExpr:
-					if typed.Op == token.EQL || typed.Op == token.NEQ {
-						for _, side := range []ast.Expr{typed.X, typed.Y} {
-							if literal := familyLiteral(side); literal != "" {
-								counts[[2]string{relative, literal}]++
-							}
-						}
-					}
-				case *ast.CaseClause:
-					for _, value := range typed.List {
-						if literal := familyLiteral(value); literal != "" {
+	for _, file := range snapshot.Files {
+		relative := file.Path
+		if familyBranchExcluded(relative) {
+			continue
+		}
+		parsed, err := file.Syntax()
+		if err != nil {
+			return nil, err
+		}
+		ast.Inspect(parsed, func(node ast.Node) bool {
+			switch typed := node.(type) {
+			case *ast.BinaryExpr:
+				if typed.Op == token.EQL || typed.Op == token.NEQ {
+					for _, side := range []ast.Expr{typed.X, typed.Y} {
+						if literal := familyLiteral(side); literal != "" {
 							counts[[2]string{relative, literal}]++
 						}
 					}
 				}
-				return true
-			})
-			return nil
+			case *ast.CaseClause:
+				for _, value := range typed.List {
+					if literal := familyLiteral(value); literal != "" {
+						counts[[2]string{relative, literal}]++
+					}
+				}
+			}
+			return true
 		})
-		if err != nil {
-			return nil, err
-		}
 	}
 	branches := make([]FamilyBranch, 0, len(counts))
 	for key, count := range counts {

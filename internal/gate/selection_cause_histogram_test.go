@@ -37,7 +37,7 @@ func TestSelectionCauseHistogram(t *testing.T) {
 	result := gateRecord.Result
 	resultID := result.ID
 	elapsed := func(seconds float64) *float64 { return new(seconds) }
-	record, err := runrecord.NewSelectionCauseRecord(runrecord.SelectionCauseRecord{
+	record, err := runrecord.SelectionCauseCodec.NewInitial(runrecord.SelectionCauseRecord{
 		Result:  resultID,
 		Changed: []string{"internal/reader/reader.go", "docs/config.txt"},
 		Packages: []runrecord.SelectionPackage{
@@ -172,7 +172,7 @@ func TestSelectionCauseHistogram(t *testing.T) {
 	if len(batch.Contents) != 1 || len(batch.Lineage) != 1 || batch.Lineage[0].Parent != final {
 		t.Fatalf("selection record not bound to the gate result: %+v", batch)
 	}
-	retained, err := runrecord.ParseSelectionCauseRecord(batch.Contents[0].Data)
+	retained, err := runrecord.SelectionCauseCodec.Parse(batch.Contents[0].Data)
 	if err != nil || retained.Result != final || len(retained.Packages) != 2 {
 		t.Fatalf("retained record = %+v, %v", retained, err)
 	}

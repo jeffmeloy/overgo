@@ -93,7 +93,7 @@
      "path": "internal/audioparity/alignment_acceptance_test.go",
      "contains": "func TestSpeechAlignmentAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:7394061e5c04ed5aab2ee0e17f7202d9761ae25cb6a6d9031ee57b486b285027"
+     "identity": "evidence:sha256:c09ec5bdca58c4afc8f40056ccdbb6259fc0e1d46a6a3d6b5df82cc7bc698eaa"
     },
     {
      "path": "internal/audioparity/testdata/ami_alignment.json",

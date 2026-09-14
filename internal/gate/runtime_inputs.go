@@ -37,6 +37,11 @@ type runtimeInputs struct {
 	// a parent path, the working directory, the caller's file or a git
 	// query. Without it a fixture root is a temporary directory.
 	escapes bool
+	// dynamicExec records a program the compiled sources run without naming
+	// it, which may be any repository command; testDynamicExec the same for
+	// the tests alone.
+	dynamicExec     bool
+	testDynamicExec bool
 }
 
 // confined reports a package whose runtime reach stays inside its own
@@ -75,6 +80,7 @@ type sourceClassifier struct {
 	// a temporary path, which reach nothing in the repository.
 	safeNames map[string]bool
 	escapes   *bool
+	execFlag  *bool
 }
 
 // classifyRuntimeInputs parses the package's compiled and test sources under
@@ -127,12 +133,13 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		temporary := temporarySources(parsed)
 		classifier := sourceClassifier{
 			inputs: &inputs, relativeDir: relativeDir, file: name, commands: commands,
-			named: paths, pending: trees, reasons: &inputs.dynamic,
+			named: paths, pending: trees, reasons: &inputs.dynamic, execFlag: &inputs.dynamicExec,
 			safeNames: safeNames(parsed, constants, temporary), temporary: temporary, escapes: &escapes,
 		}
 		if strings.HasSuffix(name, "_test.go") {
 			classifier.commands = testCommands
 			classifier.named, classifier.pending, classifier.reasons = testPaths, testTrees, &inputs.testDynamic
+			classifier.execFlag = &inputs.testDynamicExec
 		}
 		if dotImported {
 			// A file or process owner imported without a name hides every
@@ -241,6 +248,10 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 			// repository: a fixture tree under t.TempDir() is not the tree.
 			if len(typed.Args) == 0 || !classifier.temporaryRooted(typed.Args[0]) {
 				for _, value := range literalArguments(typed) {
+					// A parent path handed to a path call reaches the
+					// repository root; the same literal in a comparison
+					// or a message reaches nothing.
+					*classifier.escapes = *classifier.escapes || escapesPackage(value, classifier.relativeDir)
 					classifier.classifyPath(value, false)
 				}
 			}
@@ -254,7 +265,6 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 	case *ast.BasicLit:
 		if typed.Kind == token.STRING {
 			if value, err := strconv.Unquote(typed.Value); err == nil {
-				*classifier.escapes = *classifier.escapes || escapesPackage(value, classifier.relativeDir)
 				classifier.classifyPath(value, true)
 			}
 		}
@@ -664,6 +674,7 @@ func (classifier *sourceClassifier) classifyProgram(program ast.Expr, arguments 
 		return
 	}
 
+	*classifier.execFlag = true
 	*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program the source does not name")
 }
 

@@ -40,6 +40,9 @@ func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
 	if slices.Contains(deviceOwners, "internal/datareader") {
 		t.Error("reading source data acquired execution's device requirement")
 	}
+	// An unnamed read reaches the repository's data files, not its Go
+	// sources: a source change outside the reader's compiled closure leaves
+	// the reader unselected with its identity intact.
 	const reader = "overgo/internal/datareader"
 	before, err := graph.identity(reader)
 	if err != nil {
@@ -54,14 +57,14 @@ func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(slices.Concat(scope.direct, scope.dependent), reader) {
-		t.Error("data reader omitted from validation scope")
+	if slices.Contains(slices.Concat(scope.direct, scope.dependent), reader) {
+		t.Error("data reader selected by a source change outside its closure")
 	}
 	after, err := graph.identity(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before == after {
-		t.Error("changed source data retained reader identity")
+	if before != after {
+		t.Error("source change outside the closure altered the data reader identity")
 	}
 }

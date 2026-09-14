@@ -124,10 +124,12 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		if slices.ContainsFunc(graph.runtimeResourceFiles[node.Dir], func(path string) bool { return changedAbsolute[filepath.Clean(path)] }) {
 			named[node.ImportPath], tainted[node.ImportPath] = true, true
 		}
-		// Opaque readers may inspect test source as data. A test-only edit
-		// therefore reaches them even without a production import change;
-		// a reader that names its inputs follows its named edges instead.
-		if node.opaqueReader && len(g.paths) != 0 {
+		// A Go-parsing opaque reader may inspect any source as data, test
+		// source included, so any edit reaches it without an import change.
+		// Any other unnamed reach binds data files, which the resource
+		// check above already covers; a reader that names its inputs
+		// follows its named edges instead.
+		if node.opaqueReader && node.sourceReader && len(g.paths) != 0 {
 			tainted[node.ImportPath] = true
 		}
 	}
@@ -185,7 +187,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			scope.dependent = append(scope.dependent, node.ImportPath)
 			continue
 		}
-		if (node.testOpaque || node.opaqueReader) && len(g.paths) != 0 {
+		if (node.opaqueReader && node.sourceReader || node.testOpaque && node.testSourceReader) && len(g.paths) != 0 {
 			scope.dependent = append(scope.dependent, node.ImportPath)
 			continue
 		}
@@ -194,7 +196,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	slices.Sort(scope.direct)
 	slices.Sort(scope.dependent)
 	for _, node := range graph.nodes {
-		if len(node.inputDependencies) == 0 && len(node.testInputDependencies) == 0 {
+		if len(node.inputDependencies) == 0 && len(node.testInputDependencies) == 0 && !node.opaqueReader && !node.testOpaque {
 			continue
 		}
 		target := node.ImportPath

@@ -4,6 +4,7 @@
 package speechsynth
 
 import (
+	"context"
 	"fmt"
 
 	"overgo/internal/tensor"
@@ -31,7 +32,13 @@ type LatentBatch struct {
 // returns the generated normalized latents and the per-frame EOS logits.
 // The reference break rule holds: the frame that trips the post-EOS budget
 // is never decoded.
-func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
+func (m *Model) GenerateLatents(ctx context.Context, voiceCond []float32, voiceFrames int, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
+	if ctx == nil {
+		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation requires a context")
+	}
+	if err := context.Cause(ctx); err != nil {
+		return LatentBatch{}, nil, err
+	}
 	d := m.Dims.DModel
 	if len(voiceCond) != voiceFrames*d {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: voice conditioning %d values != %d rows x %d", len(voiceCond), voiceFrames, d)
@@ -48,13 +55,19 @@ func (m *Model) GenerateLatents(voiceCond []float32, voiceFrames int, textIDs []
 		return LatentBatch{}, nil, err
 	}
 	m.AppendForward(st, prompt, voiceFrames+len(textIDs))
-	return m.generateFromState(st, p)
+	return m.generateFromState(ctx, st, p)
 }
 
 // GenerateLatentsWithVoice seeds the decode state from an exported
 // voice attention state -- the artifact's only voice representation --
 // then prompts the text and runs the same seeded loop.
-func (m *Model) GenerateLatentsWithVoice(voice *VoiceState, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
+func (m *Model) GenerateLatentsWithVoice(ctx context.Context, voice *VoiceState, textIDs []int, p GenerateParams) (LatentBatch, []float64, error) {
+	if ctx == nil {
+		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation requires a context")
+	}
+	if err := context.Cause(ctx); err != nil {
+		return LatentBatch{}, nil, err
+	}
 	if p.MaxFrames <= tensor.FirstOffset || p.NoiseAt == nil {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: generation needs MaxFrames > 0 and a noise source")
 	}
@@ -70,12 +83,15 @@ func (m *Model) GenerateLatentsWithVoice(voice *VoiceState, textIDs []int, p Gen
 		return LatentBatch{}, nil, err
 	}
 	m.AppendForward(st, prompt, len(textIDs))
-	return m.generateFromState(st, p)
+	return m.generateFromState(ctx, st, p)
 }
 
 // generateFromState runs the seeded frame loop against a prompted
 // decode state.
-func (m *Model) generateFromState(st *DecodeState, p GenerateParams) (LatentBatch, []float64, error) {
+func (m *Model) generateFromState(ctx context.Context, st *DecodeState, p GenerateParams) (LatentBatch, []float64, error) {
+	if err := context.Cause(ctx); err != nil {
+		return LatentBatch{}, nil, err
+	}
 	d, latent := m.Dims.DModel, m.Dims.LatentDim
 
 	latents := LatentBatch{Values: make([]float32, p.MaxFrames*latent), Width: latent}
@@ -86,6 +102,9 @@ func (m *Model) generateFromState(st *DecodeState, p GenerateParams) (LatentBatc
 	m.LatentInputInto(input, m.BosEmb)
 	eosStep := -tensor.SingletonExtent
 	for step := tensor.FirstOffset; step < p.MaxFrames; step++ {
+		if err := context.Cause(ctx); err != nil {
+			return LatentBatch{}, nil, err
+		}
 		m.AppendForward(st, input, tensor.SingletonExtent)
 		m.OutNormInto(cond, input, tensor.SingletonExtent)
 		logit := m.EOSLogit(cond)
@@ -97,10 +116,16 @@ func (m *Model) generateFromState(st *DecodeState, p GenerateParams) (LatentBatc
 		}
 		eos = append(eos, logit)
 		p.NoiseAt(step, noise)
+		if err := context.Cause(ctx); err != nil {
+			return LatentBatch{}, nil, err
+		}
 		lat := latents.Values[latents.Frames*latent : (latents.Frames+tensor.SingletonExtent)*latent]
 		m.OneStepLatentInto(lat, cond, noise)
 		latents.Frames++
 		m.LatentInputInto(input, lat)
+	}
+	if err := context.Cause(ctx); err != nil {
+		return LatentBatch{}, nil, err
 	}
 	if latents.Frames == tensor.FirstOffset {
 		return LatentBatch{}, nil, fmt.Errorf("speechsynth: no frames generated")

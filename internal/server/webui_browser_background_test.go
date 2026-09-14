@@ -55,7 +55,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector('#cold-start')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := browser.Eventually(ctx, `document.querySelector('#model-pill').textContent==='no model serves' && !document.querySelector('#panel-chat.active') && document.querySelector('#proxy-dot').classList.contains('ok') && overgo.errors.length===0`); err != nil {
+	if err := browser.Eventually(ctx, `document.querySelector('#model-pill').textContent==='Choose a model' && !document.querySelector('#panel-chat.active') && document.querySelector('#proxy-dot').classList.contains('ok') && overgo.errors.length===0`); err != nil {
 		t.Fatal(err)
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {window.coldActivityIdle=false;const stop=overgo.runtimeEvents.subscribe(name=>{if(name==='stream.idle'){coldActivityIdle=true;stop();}});return true;})()`)

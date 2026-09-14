@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -50,12 +51,13 @@ func (policy TranscriptionPolicy) validate() error {
 
 // TranscriptionWorkspace adapts the native transcriber to the workflow owner.
 type TranscriptionWorkspace struct {
-	store       *overgodb.Store
-	policy      TranscriptionPolicy
-	program     recipe.Program
-	sessions    *speechrecognition.Session
-	commit      string
-	environment artifact.ID
+	store          *overgodb.Store
+	policy         TranscriptionPolicy
+	program        recipe.Program
+	sessions       *speechrecognition.Session
+	commit         string
+	environment    artifact.ID
+	name, location string
 }
 
 // NewTranscriptionWorkspace loads one exact recipe on the CPU. The assembly
@@ -97,8 +99,14 @@ func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, polic
 	if err != nil {
 		return nil, err
 	}
+	// A source label is optional presentation metadata; the loaded recipe and
+	// model identity remain authoritative when no directory location is recorded.
+	name, location := "Transcription", ""
+	if directory, err := artifact.AvailablePath(ctx, store, definition.Model, artifact.LocationDirectory); err == nil {
+		name, location = filepath.Base(directory), directory
+	}
 	return &TranscriptionWorkspace{store: store, policy: policy, program: program,
-		sessions: sessions, commit: revision.Commit, environment: environment.ID}, nil
+		sessions: sessions, commit: revision.Commit, environment: environment.ID, name: name, location: location}, nil
 }
 
 // Close drains and releases the recipe's resident model and mutable buffers.
@@ -115,7 +123,7 @@ func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context,
 		return nil, nil
 	}
 	definition := workspace.program.Definition()
-	return []WorkflowCapability{{Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model,
+	return []WorkflowCapability{{Task: definition.Task, Recipe: definition.ID, Stages: workspace.program.Stages(), model: definition.Model, Model: definition.Model, Name: workspace.name, Location: workspace.location,
 		transcriptionStream: workspace.openTranscriptionStream,
 		Inputs:              definition.Inputs, Outputs: definition.Outputs,
 		// The audio control names a stored file artifact: an attachment the

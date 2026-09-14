@@ -81,7 +81,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertChatAttachmentModeReset(t, ctx, browser)
-	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Add a model"); if (add) add.click(); return !!add; })()`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Choose a model"); if (add) add.click(); return !!add; })()`)
 	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "register a local model|declare a hosted provider"`); err != nil {
 		t.Fatal(err)
 	}

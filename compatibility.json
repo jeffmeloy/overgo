@@ -1388,13 +1388,13 @@
      "contains": "func LoadSynthesizer(",
      "path": "internal/speechsynth/runtime.go",
      "role": "source",
-     "identity": "file:sha256:650b0b2b39d62bf1e26aef93524ecc72c1b70c3bd4e5febdb7e1524a4b09b744"
+     "identity": "file:sha256:f0278f19fcfbed6666bd5b45665f9db6656425e60cbec487b40645c1c7cd6bbb"
     },
     {
      "contains": "func TestPocketTTSProductionParity(",
      "path": "internal/adaptiveparity/pocket_tts_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:302d512387243594ff7079092cbab578a1c1be44f715a57370bafea6e431af66"
+     "identity": "evidence:sha256:cccb627bb9cd4b17b8ec3bdf19b112b5876af95b43b16937592fbf8c12fcf6ed"
     }
    ],
    "id": "pocket-tts-production-oracle",

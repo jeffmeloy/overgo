@@ -72,6 +72,14 @@ func (h *Handler) artifactIntake(response http.ResponseWriter, request *http.Req
 		writeInvalidRequest(response, err)
 		return
 	}
+	// Native transcription and other consumers may have already registered these
+	// exact bytes. Preserve their immutable descriptor when attaching them again.
+	if prior, found, err := h.repository.Artifact(request.Context(), content.Descriptor.ID); err != nil {
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+		return
+	} else if found {
+		content.Descriptor = prior
+	}
 	if _, err := artifact.CommitBatch(request.Context(), h.repository, artifact.Batch{
 		Key: "artifact-intake/" + content.Descriptor.ID.String(), Contents: []artifact.Content{content},
 	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {

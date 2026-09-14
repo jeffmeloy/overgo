@@ -70,7 +70,7 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := overgodb.OpenReadOnly(roots.Store)
+	source, err := overgodb.OpenReadOnly(roots.AudioReference)
 	if err != nil {
 		t.Fatal(err)
 	}

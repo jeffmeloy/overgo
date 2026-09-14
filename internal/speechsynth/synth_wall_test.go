@@ -42,7 +42,7 @@ func TestSynthWall(t *testing.T) {
 	total := make([]float64, synthWallRuns)
 	for run := range total {
 		start := time.Now()
-		latents, _, err := m.GenerateLatents(voiceCond, tv, g1.IDs, GenerateParams{
+		latents, _, err := m.GenerateLatents(t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
 			MaxFrames:    nFrames,
 			EOSThreshold: math.Inf(1),
 			NoiseAt:      func(step int, dst []float32) { copy(dst, noises[step]) },
@@ -52,7 +52,7 @@ func TestSynthWall(t *testing.T) {
 		}
 		backbone[run] = time.Since(start).Seconds()
 		codecStart := time.Now()
-		pcm, err := m.LatentsToPCM(latents)
+		pcm, err := m.LatentsToPCM(t.Context(), latents)
 		if err != nil {
 			t.Fatal(err)
 		}

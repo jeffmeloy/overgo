@@ -122,8 +122,11 @@
     {
       "package": "overgo/internal/hostoptimizer",
       "name": "NewtonSchulz",
-      "reason": "The host Newton-Schulz routine is the reference the device stepper parity test in optimizer compares against; it was package-private before the host core moved to its own package and has no production caller by design.",
-      "retire_with": "gate-device-edges/do"
+      "reason": "The host Newton-Schulz routine is the reference the device stepper parity test in optimizer compares against; it was package-private before the host core moved to its own package and has no production caller by design. The bound finding records the parity consumer.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:b656f1d0ddd9bd36f7b92d48dda0794907b77d79788d67c3a2657a39863e7242"
+      }
     }
   ]
 }

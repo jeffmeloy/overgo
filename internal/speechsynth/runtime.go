@@ -1,6 +1,7 @@
 package speechsynth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -138,7 +139,7 @@ func (s *Synthesizer) voiceState(name string) (*VoiceState, error) {
 	return voice, nil
 }
 
-func (s *Synthesizer) generate(plan generationPlan) (LatentBatch, error) {
+func (s *Synthesizer) generate(ctx context.Context, plan generationPlan) (LatentBatch, error) {
 	if !s.complete() || len(plan.tokens) == tensor.FirstOffset || plan.maxFrames <= tensor.FirstOffset ||
 		plan.voice == "" || plan.temperature <= 0 {
 		return LatentBatch{}, errors.New("speechsynth: invalid generation plan")
@@ -149,7 +150,7 @@ func (s *Synthesizer) generate(plan generationPlan) (LatentBatch, error) {
 	}
 	random := rand.New(rand.NewSource(plan.seed))
 	deviation := math.Sqrt(plan.temperature)
-	latents, _, err := s.model.GenerateLatentsWithVoice(voice, plan.tokens, GenerateParams{
+	latents, _, err := s.model.GenerateLatentsWithVoice(ctx, voice, plan.tokens, GenerateParams{
 		MaxFrames: plan.maxFrames, EOSThreshold: referenceEOSThreshold,
 		NoiseAt: func(_ int, values []float32) {
 			for index := range values {
@@ -163,12 +164,18 @@ func (s *Synthesizer) generate(plan generationPlan) (LatentBatch, error) {
 	return latents, nil
 }
 
-func (s *Synthesizer) decode(latents LatentBatch) (Audio, error) {
+func (s *Synthesizer) decode(ctx context.Context, latents LatentBatch) (Audio, error) {
 	if !s.complete() {
 		return Audio{}, errors.New("speechsynth: incomplete synthesizer")
 	}
-	pcm, err := s.model.LatentsToPCM(latents)
+	if err := context.Cause(ctx); err != nil {
+		return Audio{}, err
+	}
+	pcm, err := s.model.LatentsToPCM(ctx, latents)
 	if err != nil {
+		return Audio{}, err
+	}
+	if err := context.Cause(ctx); err != nil {
 		return Audio{}, err
 	}
 	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: tensor.SingletonExtent}, nil
@@ -179,10 +186,16 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, synt
 	if synthesizer == nil {
 		return errors.New("speechsynth: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterJSONPipeline(
-		runtime, modelID, audioContract,
-		modelrecipe.ModuleSpeechTokenize, synthesizer.tokenize,
+	return workflowruntime.RegisterContextPipeline(
+		runtime, modelID,
+		modelrecipe.ModuleSpeechTokenize, func(ctx context.Context, request SynthesisRequest) (generationPlan, error) {
+			if err := context.Cause(ctx); err != nil {
+				return generationPlan{}, err
+			}
+			return synthesizer.tokenize(request)
+		},
 		modelrecipe.ModuleSpeechGenerate, synthesizer.generate,
 		modelrecipe.ModuleSpeechDecode, synthesizer.decode,
+		func(audio Audio) (artifact.Content, error) { return artifact.JSONContent(audioContract, audio) },
 	)
 }

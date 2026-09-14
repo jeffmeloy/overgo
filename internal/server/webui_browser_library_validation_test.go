@@ -114,7 +114,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	workbench, err := New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
 		HubEndpoint: hub.URL, HubDownloadRoot: filepath.Join(t.TempDir(), "downloads"),
-	}, &fakeGenerator{})
+	}, GenerationRefused{Reason: idleRefusal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	}
 
 	// 0. The cold page: no child, the Library is the way in, and the workbench's validation answers are captured.
-	settleWithin("cold page", stepBound, `document.querySelector("#model-pill").textContent === "no model serves" && !!document.querySelector("#cold-start") && window.overgo.errors.length === 0`)
+	settleWithin("cold page", stepBound, `document.querySelector("#model-pill").textContent === "Choose a model" && !!document.querySelector("#cold-start") && window.overgo.errors.length === 0`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   window.laneValidation = '';
   const post = overgo.api.post;

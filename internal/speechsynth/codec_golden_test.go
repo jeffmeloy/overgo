@@ -79,18 +79,26 @@ func TestMimiDecodeStagesGolden(t *testing.T) {
 	if decStage.In == nil {
 		t.Fatal("g5 decoder stage missing input tensor")
 	}
-	c.TransformInPlace(up, upT)
+	if err := c.TransformInPlace(t.Context(), up, upT); err != nil {
+		t.Fatal(err)
+	}
 	requireWithin(t, "decoder transformer", up, decStage.In.Values, tolCodecTr)
 
 	// Stage 3: SEANet conv stack -> PCM, from the golden stage input.
-	pcm := c.SeanetDecode(f32of(decStage.In.Values), upT)
+	pcm, err := c.SeanetDecode(t.Context(), f32of(decStage.In.Values), upT)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(pcm) != decStage.Out.Shape[2] {
 		t.Fatalf("pcm length %d want %d", len(pcm), decStage.Out.Shape[2])
 	}
 	requireWithin(t, "seanet decode", pcm, decStage.Out.Values, tolSeanetPCM)
 
 	// End-to-end: latent -> pcm, gated on the pcm head slice + rms.
-	full := c.DecodeFromLatent(latent, T)
+	full, err := c.DecodeFromLatent(t.Context(), latent, T)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(full) != g.PCM.Numel {
 		t.Fatalf("e2e length %d want %d", len(full), g.PCM.Numel)
 	}
@@ -129,7 +137,7 @@ func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 	}
 
 	wallStart := time.Now()
-	latents, _, err := m.GenerateLatents(voiceCond, tv, g1.IDs, GenerateParams{
+	latents, _, err := m.GenerateLatents(t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
 		MaxFrames:    nFrames,
 		EOSThreshold: math.Inf(1),
 		NoiseAt:      func(step int, dst []float32) { copy(dst, noises[step]) },
@@ -139,7 +147,7 @@ func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 	}
 	backboneWall := time.Since(wallStart)
 	codecStart := time.Now()
-	pcm, err := m.LatentsToPCM(latents)
+	pcm, err := m.LatentsToPCM(t.Context(), latents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,14 +217,14 @@ func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 // incompatible latent geometry.
 func TestLatentsToPCMContracts(t *testing.T) {
 	var unloaded Model
-	if pcm, err := unloaded.LatentsToPCM(LatentBatch{Values: make([]float32, 32), Frames: 1, Width: 32}); err == nil || pcm != nil {
+	if pcm, err := unloaded.LatentsToPCM(t.Context(), LatentBatch{Values: make([]float32, 32), Frames: 1, Width: 32}); err == nil || pcm != nil {
 		t.Fatal("want refusal without a loaded codec")
 	}
 	m := loadArtifactModel(t)
-	if _, err := m.LatentsToPCM(LatentBatch{Values: make([]float32, 8), Frames: 1, Width: 8}); err == nil {
+	if _, err := m.LatentsToPCM(t.Context(), LatentBatch{Values: make([]float32, 8), Frames: 1, Width: 8}); err == nil {
 		t.Fatal("want refusal on latent width mismatch")
 	}
-	if _, err := m.LatentsToPCM(LatentBatch{Values: nil, Frames: 0, Width: m.Dims.LatentDim}); err == nil {
+	if _, err := m.LatentsToPCM(t.Context(), LatentBatch{Values: nil, Frames: 0, Width: m.Dims.LatentDim}); err == nil {
 		t.Fatal("want refusal on empty batch")
 	}
 }

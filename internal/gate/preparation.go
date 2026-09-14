@@ -240,6 +240,18 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	}
 	g.selection = automationcheck.MeasureSelection(definitions, impact)
 	g.selectionID = surface.Identity
+	// Every owned check's decision is on the record: the closure proof that
+	// excluded it, or the fact that triggered it.
+	for _, check := range definitions {
+		if check.Descriptor.Ownership.Fact == "" {
+			continue
+		}
+		if reason, excluded := impact.ExclusionReason(check.Descriptor.Name); excluded {
+			g.note(fmt.Sprintf("impact selection: %s excluded: %s", check.Descriptor.Name, reason))
+		} else {
+			g.note(fmt.Sprintf("impact selection: %s triggered: %s", check.Descriptor.Name, check.Descriptor.Ownership.Fact))
+		}
+	}
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return plannedPipeline{}, err

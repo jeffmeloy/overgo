@@ -242,24 +242,21 @@ func modernGoContextDoneWait(statements []ast.Stmt, info *types.Info) bool {
 }
 
 func astContainsContextDoneCall(node ast.Node, info *types.Info) bool {
-	found := false
-	ast.Inspect(node, func(current ast.Node) bool {
-		if found {
-			return false
-		}
+	for current := range ast.Preorder(node) {
 		call, ok := current.(*ast.CallExpr)
 		if !ok {
-			return true
+			continue
 		}
 		selector, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok || selector.Sel.Name != "Done" {
-			return true
+			continue
 		}
 		selection := info.Selections[selector]
-		found = selection != nil && selection.Obj().Pkg() != nil && selection.Obj().Pkg().Path() == "context"
-		return !found
-	})
-	return found
+		if selection != nil && selection.Obj().Pkg() != nil && selection.Obj().Pkg().Path() == "context" {
+			return true
+		}
+	}
+	return false
 }
 
 func modernGoNewExpressionCandidate(node ast.Node) bool {
@@ -791,26 +788,23 @@ func modernGoStableRangeBound(expression ast.Expr) bool {
 }
 
 func astMutatesIdentifiers(root ast.Node, names map[string]bool) bool {
-	mutated := false
-	ast.Inspect(root, func(node ast.Node) bool {
+	for node := range ast.Preorder(root) {
+		var expressions []ast.Expr
 		switch statement := node.(type) {
 		case *ast.AssignStmt:
-			mutated = mutated || slices.ContainsFunc(statement.Lhs, func(expression ast.Expr) bool {
-				identifier, ok := expression.(*ast.Ident)
-				return ok && names[identifier.Name]
-			})
+			expressions = statement.Lhs
 		case *ast.IncDecStmt:
-			identifier, ok := statement.X.(*ast.Ident)
-			mutated = mutated || ok && names[identifier.Name]
+			expressions = []ast.Expr{statement.X}
 		case *ast.RangeStmt:
-			for _, expression := range []ast.Expr{statement.Key, statement.Value} {
-				identifier, ok := expression.(*ast.Ident)
-				mutated = mutated || ok && names[identifier.Name]
+			expressions = []ast.Expr{statement.Key, statement.Value}
+		}
+		for _, expression := range expressions {
+			if identifier, ok := expression.(*ast.Ident); ok && names[identifier.Name] {
+				return true
 			}
 		}
-		return !mutated
-	})
-	return mutated
+	}
+	return false
 }
 
 func modernGoSelfAssignment(assignment *ast.AssignStmt) bool {
@@ -1046,51 +1040,38 @@ func astContainsCall(node ast.Node, name string) bool {
 	if node == nil {
 		return false
 	}
-	found := false
-	ast.Inspect(node, func(candidate ast.Node) bool {
-		call, ok := candidate.(*ast.CallExpr)
-		if ok {
-			identifier, ok := call.Fun.(*ast.Ident)
-			if ok && identifier.Name == name {
-				found = true
-				return false
+	for candidate := range ast.Preorder(node) {
+		if call, ok := candidate.(*ast.CallExpr); ok {
+			if identifier, ok := call.Fun.(*ast.Ident); ok && identifier.Name == name {
+				return true
 			}
 		}
-		return !found
-	})
-	return found
+	}
+	return false
 }
 
 func astContainsQualifiedCall(node ast.Node, info *types.Info, imports map[string]string, key string) bool {
 	if node == nil {
 		return false
 	}
-	found := false
-	ast.Inspect(node, func(candidate ast.Node) bool {
-		call, ok := candidate.(*ast.CallExpr)
-		if ok && modernGoCallKey(call, info, imports) == key {
-			found = true
-			return false
+	for candidate := range ast.Preorder(node) {
+		if call, ok := candidate.(*ast.CallExpr); ok && modernGoCallKey(call, info, imports) == key {
+			return true
 		}
-		return !found
-	})
-	return found
+	}
+	return false
 }
 
 func astContainsSelector(node ast.Node, name string) bool {
 	if node == nil {
 		return false
 	}
-	found := false
-	ast.Inspect(node, func(candidate ast.Node) bool {
-		selector, ok := candidate.(*ast.SelectorExpr)
-		if ok && selector.Sel.Name == name {
-			found = true
-			return false
+	for candidate := range ast.Preorder(node) {
+		if selector, ok := candidate.(*ast.SelectorExpr); ok && selector.Sel.Name == name {
+			return true
 		}
-		return !found
-	})
-	return found
+	}
+	return false
 }
 
 func modernGoBenchmarkLoopCandidate(node ast.Node, info *types.Info) bool {
@@ -1106,15 +1087,12 @@ func modernGoBenchmarkLoopCandidate(node ast.Node, info *types.Info) bool {
 	if expression == nil {
 		return false
 	}
-	found := false
-	ast.Inspect(expression, func(candidate ast.Node) bool {
-		selector, ok := candidate.(*ast.SelectorExpr)
-		if ok && modernGoBenchmarkCounter(selector, info) {
-			found = true
+	for candidate := range ast.Preorder(expression) {
+		if selector, ok := candidate.(*ast.SelectorExpr); ok && modernGoBenchmarkCounter(selector, info) {
+			return true
 		}
-		return !found
-	})
-	return found
+	}
+	return false
 }
 
 func modernGoBenchmarkCounter(selector *ast.SelectorExpr, info *types.Info) bool {
@@ -1455,13 +1433,12 @@ func astContainsIdent(root ast.Node, name string) bool {
 	if root == nil {
 		return false
 	}
-	found := false
-	ast.Inspect(root, func(node ast.Node) bool {
-		identifier, ok := node.(*ast.Ident)
-		found = found || ok && identifier.Name == name
-		return !found
-	})
-	return found
+	for node := range ast.Preorder(root) {
+		if identifier, ok := node.(*ast.Ident); ok && identifier.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func isReflectTypeToken(call *ast.CallExpr) bool {

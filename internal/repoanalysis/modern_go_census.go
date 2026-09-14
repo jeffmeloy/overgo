@@ -229,10 +229,7 @@ func parseModernGoFiles(snapshot SourceSnapshot, selection BuildSelection) ([]mo
 func measureModernGoFile(file modernGoParsedFile, findings []ModernGoFinding, index map[string]int) {
 	imports := importBases(file.syntax)
 	scan := func(symbol string, root ast.Node) {
-		ast.Inspect(root, func(node ast.Node) bool {
-			if node == nil {
-				return false
-			}
+		for node := range ast.Preorder(root) {
 			for id, findingIndex := range index {
 				candidate, adopted := modernGoNodeMatch(id, node, file.info, imports, file.source.Test)
 				if !candidate && !adopted {
@@ -248,8 +245,7 @@ func measureModernGoFile(file modernGoParsedFile, findings []ModernGoFinding, in
 					findings[findingIndex].Adopted = append(findings[findingIndex].Adopted, site)
 				}
 			}
-			return true
-		})
+		}
 	}
 	for _, declaration := range file.syntax.Decls {
 		symbol := "package"

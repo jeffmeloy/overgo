@@ -152,7 +152,7 @@ func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection rep
 	testImports := map[string]bool{}
 	for _, source := range snapshot.Files {
 		file, _ := source.Syntax()
-		ast.Inspect(file, func(node ast.Node) bool {
+		for node := range ast.Preorder(file) {
 			if value, ok := node.(*ast.InterfaceType); ok && value.Methods != nil {
 				for _, field := range value.Methods.List {
 					for _, name := range field.Names {
@@ -160,8 +160,7 @@ func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection rep
 					}
 				}
 			}
-			return true
-		})
+		}
 		importer := packagePath(source, file, selection)
 		for _, imported := range file.Imports {
 			importPath, err := strconv.Unquote(imported.Path.Value)
@@ -360,13 +359,7 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node, packagePath string, aliases map[string]string, active bool, caller referenceCaller) {
 	selectorNames := map[*ast.Ident]bool{}
 	invocations := map[ast.Node]bool{}
-	var ancestors []ast.Node
-	ast.Inspect(root, func(node ast.Node) bool {
-		if node == nil {
-			ancestors = ancestors[:len(ancestors)-1]
-			return true
-		}
-		ancestors = append(ancestors, node)
+	ast.PreorderStack(root, nil, func(node ast.Node, ancestors []ast.Node) bool {
 		if selector, ok := node.(*ast.SelectorExpr); ok {
 			selectorNames[selector.Sel] = true
 		}
@@ -383,13 +376,11 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 		}
 		return true
 	})
-	ast.Inspect(root, func(node ast.Node) bool {
+	for node := range ast.Preorder(root) {
 		site := referenceSite{kind: "use"}
-		if node != nil {
-			site.line, site.offset = source.Line(node.Pos()), int(node.Pos())-1
-			if invocations[node] {
-				site.kind = "call"
-			}
+		site.line, site.offset = source.Line(node.Pos()), int(node.Pos())-1
+		if invocations[node] {
+			site.kind = "call"
 		}
 		switch value := node.(type) {
 		case *ast.CallExpr:
@@ -399,7 +390,7 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 			if qualifier, ok := value.X.(*ast.Ident); ok && qualifier.Obj == nil {
 				if imported := aliases[qualifier.Name]; imported != "" {
 					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true, caller, site)
-					return true
+					continue
 				}
 			}
 			// A selector use is a reference, credited to every same-named
@@ -413,23 +404,22 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false, caller, site)
 		case *ast.Ident:
 			if _, defined := c.definitions[value]; defined {
-				return true
+				continue
 			}
 			if selectorNames[value] {
-				return true
+				continue
 			}
 			if value.Obj != nil {
 				if index, ok := c.objects[value.Obj]; ok {
 					c.count([]int{index}, source.Test, false, caller, site)
 				}
-				return true
+				continue
 			}
 			if candidates := c.resolve(c.keys[symbolKey(packagePath, value.Name)], active); len(candidates) == 1 {
 				c.count(candidates, source.Test, false, caller, site)
 			}
 		}
-		return true
-	})
+	}
 }
 
 func referenceCallee(expression ast.Expr) ast.Expr {

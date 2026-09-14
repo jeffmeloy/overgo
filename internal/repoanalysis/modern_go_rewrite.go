@@ -1142,16 +1142,10 @@ func RewriteModernGoTestingContexts(root string) (int, []string, error) {
 
 func modernGoParents(root ast.Node) map[ast.Node]ast.Node {
 	parents := map[ast.Node]ast.Node{}
-	stack := []ast.Node{}
-	ast.Inspect(root, func(node ast.Node) bool {
-		if node == nil {
-			stack = stack[:len(stack)-1]
-			return false
-		}
+	ast.PreorderStack(root, nil, func(node ast.Node, stack []ast.Node) bool {
 		if len(stack) != 0 {
 			parents[node] = stack[len(stack)-1]
 		}
-		stack = append(stack, node)
 		return true
 	})
 	return parents

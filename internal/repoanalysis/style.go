@@ -196,12 +196,11 @@ func inspectStyleFunction(report *goStyleReport, source GoFile, function *ast.Fu
 		return
 	}
 	used := map[string]bool{}
-	ast.Inspect(function.Body, func(node ast.Node) bool {
+	for node := range ast.Preorder(function.Body) {
 		if identifier, ok := node.(*ast.Ident); ok {
 			used[identifier.Name] = true
 		}
-		return true
-	})
+	}
 	ast.Inspect(function.Body, func(node ast.Node) bool {
 		switch value := node.(type) {
 		case *ast.FuncLit:

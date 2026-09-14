@@ -48,7 +48,21 @@ type WorkflowControl struct {
 	Media string `json:"media,omitzero"`
 	// Bounds are a numeric control's declared default, step and rate, from
 	// which a page derives its presets (aspect ratios, durations).
-	Bounds *WorkflowControlBounds `json:"bounds,omitempty"`
+	Bounds *WorkflowControlBounds               `json:"bounds,omitempty"`
+	Audio  *speechrecognition.InputRequirements `json:"audio,omitempty"`
+}
+
+func audioFormatMessage(audio *speechrecognition.InputRequirements) string {
+	if audio == nil {
+		return "Audio format does not match this model. Attach a compatible audio file."
+	}
+	channels := fmt.Sprintf("%d-channel", audio.Format.Channels)
+	if audio.Format.Channels == 1 {
+		channels = "mono"
+	} else if audio.Format.Channels == 2 {
+		channels = "stereo"
+	}
+	return fmt.Sprintf("This model needs %d Hz %s audio. Record in Transcribe or attach a compatible audio file.", audio.Format.SampleRate, channels)
 }
 
 // WorkflowControlBounds is a numeric control's declared default, the step a
@@ -313,6 +327,9 @@ func validateWorkflowCapabilities(capabilities []WorkflowCapability) error {
 			if control.Name == "" || !control.Type.valid() || fields[control.Name] || !slotMedia[control.Media] ||
 				control.Bounds != nil && (control.Bounds.Step < 0 || control.Bounds.Rate < 0) {
 				return fmt.Errorf("workflow workspace: invalid control %q", control.Name)
+			}
+			if control.Audio != nil && (control.Type != WorkflowControlArtifact || control.Media != "audio" || control.Audio.Format.Validate() != nil || control.Audio.MaximumEncodedBytes == 0 || control.Audio.MaximumSamples == 0) {
+				return fmt.Errorf("workflow workspace: invalid audio input %q", control.Name)
 			}
 			fields[control.Name] = true
 		}

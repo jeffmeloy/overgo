@@ -204,7 +204,7 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	return true, nil
 }
 
-var browserTestPackages = []string{"overgo/internal/server", "overgo/internal/webuilane"}
+var browserTestPackages = []string{"overgo/internal/server", "overgo/internal/webuilane", "overgo/internal/audioparity"}
 
 // Compiler discovery selects owners, not acceptance evidence. Subtest filters
 // retain the existing complete owner set until their reach is resolved.

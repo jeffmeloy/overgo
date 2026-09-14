@@ -23,6 +23,14 @@ type StreamRequest struct {
 	Resume artifact.ID                   `json:"resume,omitzero"`
 }
 
+// InputRequirements tells audio producers the selected recipe's decoded format
+// and the intake policy's existing bounds, before they record or submit audio.
+type InputRequirements struct {
+	Format              recipecontract.AudioFormat `json:"format"`
+	MaximumEncodedBytes uint64                     `json:"maximum_encoded_bytes"`
+	MaximumSamples      uint64                     `json:"maximum_samples"`
+}
+
 // Session owns the compiled component lifetimes for one CPU speech
 // recipe. Evaluation and serving share this owner, its exclusive workspaces and
 // cancellation behavior. Memory is a per-component numeric ceiling, not RSS.

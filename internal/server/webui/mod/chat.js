@@ -380,6 +380,7 @@
         onStop: overgo.stopTurn,
         onChange: () => { composer.input.setCustomValidity(''); saveDraft(); },
         takesAny: () => !!artifactField(),
+        captureAudio: () => [...generation.fields.values()].find(field => field.control.type === "artifact" && field.control.media === "audio")?.control.audio,
         captureAccept: () => {
           const slots = [...generation.fields.values()].filter(field => field.control.type === "artifact");
           return slots.length ? (capabilities.media.intake_accept || []).filter(mime => slots.some(field => !field.control.media || mime.startsWith(field.control.media + "/"))) : capabilities.media.accept || [];

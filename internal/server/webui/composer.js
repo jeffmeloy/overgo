@@ -348,7 +348,7 @@
     const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
     function openPicker() { if (disposed || readOnly || paused) return; picker.multiple = selectedMode() !== 'transcription' && options.multiple !== false; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
-    const capture = overgo.mediaCapture({ media, accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
+    const capture = overgo.mediaCapture({ media, audio: () => options.captureAudio?.(), accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
     const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly && !paused) capture.open(); } }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     const selectedMode = () => modeSelect ? modeSelect.value : options.modes?.[0]?.id || '';

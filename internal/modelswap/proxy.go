@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"net/http/httputil"
@@ -153,7 +154,18 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	response.Header().Set("X-Overgo-Swap-Proxy", servable.Name)
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 	proxy.FlushInterval = -1
+	proxy.ErrorHandler = writeProxyError
 	proxy.ServeHTTP(response, request)
+}
+
+// A cancelled client no longer receives a gateway response. Preserve normal
+// upstream failure diagnostics and status for requests that are still live.
+func writeProxyError(response http.ResponseWriter, request *http.Request, err error) {
+	if errors.Is(request.Context().Err(), context.Canceled) {
+		return
+	}
+	log.Printf("http: proxy error: %v", err)
+	http.Error(response, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 }
 
 // routeServable picks the servable a request names: the swap query

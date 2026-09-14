@@ -155,7 +155,7 @@
       if (device.value.startsWith('device:')) return { deviceId: { exact: device.value.slice('device:'.length) } };
       return kind !== 'audio' ? { facingMode: { ideal: device.value || 'user' } } : true;
     }
-    function ready(blob, name, s) {
+    function ready(blob, name, s, message = '') {
       if (!current(s)) return;
       const limit = kind === 'image' ? options.media.max_image_bytes : options.media.max_media_bytes;
       if (!blob || !blob.size || !limit || blob.size > limit || !accepted().includes(blob.type)) {
@@ -165,7 +165,7 @@
       file = new File([blob], name, { type: blob.type });
       objectURL = URL.createObjectURL(file);
       preview.replaceChildren(kind === 'image' ? el('img', { src: objectURL, alt: 'Captured photo' }) : kind === 'video' ? el('video', { src: objectURL, controls: '', playsinline: '' }) : el('audio', { src: objectURL, controls: '' }));
-      state = 'ready'; render(overgo.fmt.bytes(file.size) + ' · Preview before attaching.');
+      state = 'ready'; render(message || overgo.fmt.bytes(file.size) + ' · Preview before attaching.');
       attach.focus();
     }
     function wav(s) {
@@ -189,9 +189,17 @@
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext || !window.AudioWorkletNode) throw new Error('This browser cannot record WAV audio. Attach an audio file instead.');
-        const maxSamples = Math.floor((options.media.max_media_bytes - 44) / Int16Array.BYTES_PER_ELEMENT);
+        const declaration = options.audio?.();
+        const format = declaration?.format;
+        if (declaration && (!format || !Number.isSafeInteger(format.sample_rate) || format.sample_rate <= 0 || format.channels !== 1 || format.encoding !== 'pcm-f32le' || !Number.isSafeInteger(declaration.maximum_encoded_bytes) || declaration.maximum_encoded_bytes <= 0 || !Number.isSafeInteger(declaration.maximum_samples) || declaration.maximum_samples <= 0)) {
+          throw new Error('This model requires an audio format this recorder cannot produce. Attach a compatible audio file.');
+        }
+        const byteLimit = Math.min(options.media.max_media_bytes, declaration?.maximum_encoded_bytes ?? Infinity);
+        const maxSamples = Math.min(Math.floor((byteLimit - 44) / Int16Array.BYTES_PER_ELEMENT), declaration?.maximum_samples ?? Infinity);
         if (!(maxSamples > 0)) throw new Error('No usable audio byte limit is declared by the server.');
-        s.context = new AudioContext();
+        try { s.context = new AudioContext(format ? { sampleRate: format.sample_rate } : undefined); }
+        catch (error) { if (format) throw new Error('This browser cannot record at ' + format.sample_rate + ' Hz. Attach a compatible audio file.', { cause: error }); throw error; }
+        if (format && s.context.sampleRate !== format.sample_rate) throw new Error('This browser cannot record at ' + format.sample_rate + ' Hz. Attach a compatible audio file.');
         await s.context.resume();
         if (!current(s)) return;
         s.stream = await navigator.mediaDevices.getUserMedia({ audio: constraints(), video: false });
@@ -210,7 +218,7 @@
           }
           if (event.data.done) {
             if (!s.samples) { failure(new Error('No audio was recorded. Try again.'), s); return; }
-            ready(wav(s), 'recording.wav', s);
+            ready(wav(s), 'recording.wav', s, s.samples === maxSamples ? 'Recording limit reached. Preview before attaching.' : '');
           }
         };
         s.node.onprocessorerror = () => failure(new Error('Audio recording failed. Retry or attach an audio file.'), s);
@@ -295,6 +303,9 @@
       const secure = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
       const unavailable = !window.isSecureContext ? 'Microphone and camera access require HTTPS or localhost. File attachments are still available.' :
         'This browser does not provide microphone or camera access. You can still choose files.';
+      audio.hidden = !accepted().some(type => type.startsWith('audio/'));
+      camera.hidden = !accepted().some(type => type.startsWith('image/'));
+      clip.hidden = !accepted().some(type => type.startsWith('video/'));
       audio.disabled = !secure || !accepted().includes('audio/wav');
       camera.disabled = !secure || !accepted().includes('image/png');
       clip.disabled = !secure || !clipType();
@@ -317,12 +328,8 @@
         el('label', { class: 'setting-field' }, 'Device', device), preview, status, actions);
       dialog.addEventListener('close', () => { if (dialog && !dialog.open) close(); });
       document.body.appendChild(dialog); render(); dialog.showModal();
-      if (!secure) { status.hidden = false; status.textContent = unavailable; }
-      else if (audio.disabled || camera.disabled) {
-        status.hidden = false;
-        status.textContent = audio.disabled && camera.disabled ? 'This input does not accept recordings or photos. You can still choose files.' :
-          audio.disabled ? 'This input does not accept audio recordings.' : 'This input does not accept photos.';
-      }
+      const declined = [audio, camera, clip].filter(button => !button.hidden && button.disabled);
+      if (declined.length) { status.hidden = false; status.textContent = [...new Set(declined.map(button => button.title))].join(' '); }
     }
     const hidden = () => { if (document.hidden) close(); };
     window.addEventListener('pagehide', close);

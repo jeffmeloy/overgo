@@ -27,6 +27,12 @@ func diagnosticEvent(action, pkg, test, output string) string {
 func TestFailureDiagnostics(t *testing.T) {
 	if os.Getenv("OVERGO_FAILURE_DIAGNOSTICS_CHILD") == "wait" {
 		fmt.Fprint(os.Stdout, diagnosticEvent("run", "fixture", "TestBlocked", ""))
+		// The observer acknowledges this package only after the parser has
+		// consumed the preceding unfinished test's run event.
+		fmt.Fprint(os.Stdout, diagnosticEvent("start", "ready", "", ""))
+		fmt.Fprint(os.Stdout, diagnosticEvent("run", "ready", "TestReady", ""))
+		fmt.Fprint(os.Stdout, diagnosticEvent("pass", "ready", "TestReady", ""))
+		fmt.Fprint(os.Stdout, diagnosticEvent("pass", "ready", "", ""))
 		time.Sleep(time.Minute)
 		os.Exit(0)
 	}
@@ -183,12 +189,18 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("cancellation preserves unfinished evidence", func(t *testing.T) {
-		ctx, cancel := context.WithTimeoutCause(t.Context(), time.Second, errors.New("cancel blocked diagnostic fixture"))
-		defer cancel()
+		ctx, cancel := context.WithCancelCause(t.Context())
+		defer cancel(context.Canceled)
 		report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestFailureDiagnostics$"},
 			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=wait"),
-		}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
+		}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes,
+			Observe: func(name string, passed bool) error {
+				if name == "ready" && passed {
+					cancel(context.DeadlineExceeded)
+				}
+				return nil
+			}})
 		if !errors.Is(err, context.DeadlineExceeded) || len(report.Unfinished) != 1 || report.Unfinished[0] != "fixture: TestBlocked" {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}

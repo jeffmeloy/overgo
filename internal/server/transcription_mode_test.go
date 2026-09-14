@@ -35,9 +35,14 @@ func TestTranscriptionModeRunsThroughGenericRoute(t *testing.T) {
 		!strings.Contains(manifest.Body.String(), `{"id":"transcription","label":"Transcribe","enabled":true}`) {
 		t.Fatalf("manifest status=%d body=%s", manifest.Code, manifest.Body.String())
 	}
+	var declared []WorkflowCapability
 	if capabilities := authorized(http.MethodGet, "/generation/capabilities", "", ""); capabilities.Code != http.StatusOK ||
-		!strings.Contains(capabilities.Body.String(), `"controls":[{"name":"audio","type":"artifact","required":true,"label":"audio clip","media":"audio"}]`) {
+		json.Unmarshal(capabilities.Body.Bytes(), &declared) != nil || len(declared) != 1 || len(declared[0].Controls) != 1 {
 		t.Fatalf("capabilities status=%d body=%s", capabilities.Code, capabilities.Body.String())
+	}
+	control := declared[0].Controls[0]
+	if control.Name != "audio" || control.Type != WorkflowControlArtifact || !control.Required || control.Label != "audio clip" || control.Media != "audio" || control.Audio == nil || *control.Audio != fixture.workspace.audio {
+		t.Fatalf("audio control differs from transcription input requirements: %+v", control)
 	}
 	var stored attachmentIntake
 	if intake := authorized(http.MethodPost, "/artifacts/intake", string(fixture.wave), "audio/wav"); intake.Code != http.StatusOK ||

@@ -7,7 +7,8 @@ import (
 )
 
 func TestBrowserPackageSelection(t *testing.T) {
-	const listed = `{"Package":"overgo/internal/server","Output":"ok server [no tests to run]\n"}
+	const listed = `{"Package":"overgo/internal/audioparity","Output":"TestWebUIBrowserNativeASRMicrophone\n"}
+{"Package":"overgo/internal/server","Output":"ok server [no tests to run]\n"}
 {"Package":"overgo/internal/webuilane","Output":"TestWebUIBrowserLayoutAudit\n"}
 {"Package":"overgo/internal/server","Output":"TestWebUIBrowserFirstRun\n"}
 {"Package":"overgo/internal/webuilane","Output":"TestWebUIBrowserLayoutAudit\n"}
@@ -16,6 +17,7 @@ func TestBrowserPackageSelection(t *testing.T) {
 		name, pattern, listing string
 		want                   []string
 	}{
+		{"native microphone", "^TestWebUIBrowserNativeASRMicrophone$", listed, []string{"overgo/internal/audioparity"}},
 		{"layout only", "^TestWebUIBrowserLayoutAudit$", listed, []string{"overgo/internal/webuilane"}},
 		{"model journey", "^TestWebUIBrowserFirstRun$", listed, []string{"overgo/internal/server"}},
 		{"all browser tests", "^TestWebUIBrowser", listed, browserTestPackages},

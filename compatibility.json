@@ -251,7 +251,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:f4695d002e42a772ce53b3205bdf8bd1d7df24abb00790de6e93f99e6da618c5"
+     "identity": "file:sha256:92a4fabc73cefa8ec3e53cd34b0eaa21aa19c57748a9e26545f5b21c27c41a71"
     }
    ]
   },
@@ -290,7 +290,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:f4695d002e42a772ce53b3205bdf8bd1d7df24abb00790de6e93f99e6da618c5"
+     "identity": "file:sha256:92a4fabc73cefa8ec3e53cd34b0eaa21aa19c57748a9e26545f5b21c27c41a71"
     },
     {
      "path": "internal/audioparity/segmented_transcription_test.go",
@@ -414,7 +414,7 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:0591f7b60e05dde5e78d9745047c186219f10f885670c973db6dc442f5329b64"
+     "identity": "file:sha256:fc7c8c20eca27bab0d1a6afc003f4ed2e6c6d34e4146b713b735e8fe680ec40c"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
@@ -1622,7 +1622,7 @@
      "path": "internal/modelswap/proxy.go",
      "contains": "func routingEnvelope(",
      "role": "source",
-     "identity": "file:sha256:f22b83bb7f07ba793532e04c7ed71d338de2ae3e99b62aad0ab53a4f03f8a9f5"
+     "identity": "file:sha256:c749528a270831ddef3cc2b0dc2680cf3935f31246f895ccf464d33b5b950744"
     },
     {
      "path": "internal/audioparity/live_service_test.go",

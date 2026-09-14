@@ -41,24 +41,10 @@ func TestWindowedCausalAttentionBackwardFiniteDifference(t *testing.T) {
 	WindowedCausalAttentionBackward(dq, dk, dv, q, k, v, dOut, seq, heads, kvHeads, headDim, window)
 
 	tol := fdTol(fdStep, seq*headDim)
-	check := func(name string, vec, grad []float32) {
-		t.Helper()
-		for i := range vec {
-			orig := vec[i]
-			vec[i] = orig + fdStep
-			lp := loss()
-			vec[i] = orig - fdStep
-			lm := loss()
-			vec[i] = orig
-			fd := (lp - lm) / (2 * fdStep)
-			if math.Abs(fd-float64(grad[i])) > tol*(1+math.Abs(fd)) {
-				t.Fatalf("%s[%d]: fd %.6g vs analytic %.6g (tol %.1e)", name, i, fd, grad[i], tol)
-			}
-		}
-	}
-	check("dq", q, dq)
-	check("dk", k, dk)
-	check("dv", v, dv)
+
+	checkVectorBackwardFD(t, "dq", q, dq, loss, tol)
+	checkVectorBackwardFD(t, "dk", k, dk, loss, tol)
+	checkVectorBackwardFD(t, "dv", v, dv, loss, tol)
 }
 
 // Windowed backward with window<=0 must equal the existing full-causal VJP.
@@ -95,25 +81,7 @@ func TestWindowedCausalAttentionBackwardReducesToFullCausal(t *testing.T) {
 func TestGELUTanhBackwardFiniteDifference(t *testing.T) {
 	x := []float32{-3, -1.5, -0.5, 0, 0.25, 0.9, 2, 4}
 	dy := []float32{1, -2, 0.5, 3, -1, 0.7, 1.3, -0.4}
-	dx := make([]float32, len(x))
-	GELUTanhBackward(dx, x, dy)
-	tol := fdTol(fdStep, 1)
-	for i := range x {
-		lp := GELUTanh(float64(x[i])+fdStep) * float64(dy[i])
-		lm := GELUTanh(float64(x[i])-fdStep) * float64(dy[i])
-		fd := (lp - lm) / (2 * fdStep)
-		if math.Abs(fd-float64(dx[i])) > tol*(1+math.Abs(fd)) {
-			t.Fatalf("gelu-tanh dx[%d]: fd %.6g vs analytic %.6g", i, fd, dx[i])
-		}
-	}
-	// Aliasing contract: dst may be dy.
-	aliased := append([]float32(nil), dy...)
-	GELUTanhBackward(aliased, x, aliased)
-	for i := range aliased {
-		if aliased[i] != dx[i] {
-			t.Fatalf("aliased gelu-tanh backward diverges at %d", i)
-		}
-	}
+	checkUnaryBackwardFD(t, "gelu-tanh", x, dy, GELUTanh, GELUTanhBackward)
 }
 
 func TestSoftcapBackwardFiniteDifference(t *testing.T) {
@@ -159,18 +127,7 @@ func TestActivationSparsityBackwardFiniteDifference(t *testing.T) {
 		return s
 	}
 	tol := fdTol(fdStep, width)
-	for i := range gate {
-		orig := gate[i]
-		gate[i] = orig + fdStep
-		lp := loss()
-		gate[i] = orig - fdStep
-		lm := loss()
-		gate[i] = orig
-		fd := (lp - lm) / (2 * fdStep)
-		if math.Abs(fd-float64(dGate[i])) > tol*(1+math.Abs(fd)) {
-			t.Fatalf("sparsity dGate[%d]: fd %.6g vs analytic %.6g (tol %.1e)", i, fd, dGate[i], tol)
-		}
-	}
+	checkVectorBackwardFD(t, "sparsity dGate", gate, dGate, loss, tol)
 }
 
 func TestMatchMagnitudeBackwardFiniteDifference(t *testing.T) {
@@ -214,46 +171,15 @@ func TestMatchMagnitudeBackwardFiniteDifference(t *testing.T) {
 	MatchMagnitudeBackward(dInput, dTarget, input, target, dOut, rows, width)
 
 	tol := fdTol(fdStep, width)
-	check := func(name string, vec, grad []float32) {
-		t.Helper()
-		for i := range vec {
-			orig := vec[i]
-			vec[i] = orig + fdStep
-			lp := loss()
-			vec[i] = orig - fdStep
-			lm := loss()
-			vec[i] = orig
-			fd := (lp - lm) / (2 * fdStep)
-			if math.Abs(fd-float64(grad[i])) > tol*(1+math.Abs(fd)) {
-				t.Fatalf("%s[%d]: fd %.6g vs analytic %.6g (tol %.1e)", name, i, fd, grad[i], tol)
-			}
-		}
-	}
-	check("dInput", input, dInput)
-	check("dTarget", target, dTarget)
+
+	checkVectorBackwardFD(t, "dInput", input, dInput, loss, tol)
+	checkVectorBackwardFD(t, "dTarget", target, dTarget, loss, tol)
 }
 
 func TestTanhBackwardFiniteDifference(t *testing.T) {
 	x := []float32{-3, -1.2, -0.4, 0, 0.3, 0.8, 1.7, 4}
 	dy := []float32{0.6, -1.4, 0.9, 2, -0.5, 1.1, -0.8, 0.7}
-	dx := make([]float32, len(x))
-	TanhBackward(dx, x, dy)
-	tol := fdTol(fdStep, 1)
-	for i := range x {
-		lp := math.Tanh(float64(x[i])+fdStep) * float64(dy[i])
-		lm := math.Tanh(float64(x[i])-fdStep) * float64(dy[i])
-		fd := (lp - lm) / (2 * fdStep)
-		if math.Abs(fd-float64(dx[i])) > tol*(1+math.Abs(fd)) {
-			t.Fatalf("tanh dx[%d]: fd %.6g vs analytic %.6g", i, fd, dx[i])
-		}
-	}
-	aliased := append([]float32(nil), dy...)
-	TanhBackward(aliased, x, aliased)
-	for i := range aliased {
-		if aliased[i] != dx[i] {
-			t.Fatalf("aliased tanh backward diverges at %d", i)
-		}
-	}
+	checkUnaryBackwardFD(t, "tanh", x, dy, math.Tanh, TanhBackward)
 }
 
 func TestEmbedInputScaleBackwardFiniteDifference(t *testing.T) {
@@ -277,16 +203,5 @@ func TestEmbedInputScaleBackwardFiniteDifference(t *testing.T) {
 		return s
 	}
 	tol := fdTol(fdStep, len(tokens))
-	for j := range embed {
-		orig := embed[j]
-		embed[j] = orig + fdStep
-		lp := loss()
-		embed[j] = orig - fdStep
-		lm := loss()
-		embed[j] = orig
-		fd := (lp - lm) / (2 * fdStep)
-		if math.Abs(fd-float64(dEmbed[j])) > tol*(1+math.Abs(fd)) {
-			t.Fatalf("embed-scale dEmbed[%d]: fd %.6g vs analytic %.6g", j, fd, dEmbed[j])
-		}
-	}
+	checkVectorBackwardFD(t, "embed-scale dEmbed", embed, dEmbed, loss, tol)
 }

@@ -60,17 +60,11 @@ const fdStep = 1e-2
 func TestLayerNormBackwardFiniteDifference(t *testing.T) {
 	const rows, d, eps = 2, 6, 1e-5
 	rng := rand.New(rand.NewSource(11))
-	vec := func(n int, base, s float64) []float32 {
-		v := make([]float32, n)
-		for i := range v {
-			v[i] = float32(base + rng.NormFloat64()*s)
-		}
-		return v
-	}
-	x := vec(rows*d, 0, 0.8)
-	weight := vec(d, 1, 0.1)
-	bias := vec(d, 0, 0.1)
-	dy := vec(rows*d, 0, 1)
+
+	x := e4bRandVec(rng, rows*d, 0, 0.8)
+	weight := e4bRandVec(rng, d, 1, 0.1)
+	bias := e4bRandVec(rng, d, 0, 0.1)
+	dy := e4bRandVec(rng, rows*d, 0, 1)
 
 	loss := func(w, b []float32) float64 {
 		out := make([]float32, rows*d)
@@ -88,28 +82,14 @@ func TestLayerNormBackwardFiniteDifference(t *testing.T) {
 	LayerNormBackward(dx, dW, dB, x, weight, dy, rows, d, eps, false)
 
 	tol := fdTol(fdStep, rows*d)
-	check := func(name string, vec, grad []float32, eval func() float64) {
-		t.Helper()
-		for i := range vec {
-			orig := vec[i]
-			vec[i] = orig + fdStep
-			lp := eval()
-			vec[i] = orig - fdStep
-			lm := eval()
-			vec[i] = orig
-			fd := (lp - lm) / (2 * fdStep)
-			if math.Abs(fd-float64(grad[i])) > tol*(1+math.Abs(fd)) {
-				t.Fatalf("%s[%d]: fd %.6g vs analytic %.6g (tol %.1e)", name, i, fd, grad[i], tol)
-			}
-		}
-	}
-	check("dx", x, dx, func() float64 { return loss(weight, bias) })
-	check("dW", weight, dW, func() float64 { return loss(weight, bias) })
-	check("dB", bias, dB, func() float64 { return loss(weight, bias) })
+
+	checkVectorBackwardFD(t, "dx", x, dx, func() float64 { return loss(weight, bias) }, tol)
+	checkVectorBackwardFD(t, "dW", weight, dW, func() float64 { return loss(weight, bias) }, tol)
+	checkVectorBackwardFD(t, "dB", bias, dB, func() float64 { return loss(weight, bias) }, tol)
 
 	// No-affine variant: LN(x) with nil weight, plus the addDX contract.
 	dxPlain := make([]float32, rows*d)
-	seed := vec(rows*d, 0, 0.5)
+	seed := e4bRandVec(rng, rows*d, 0, 0.5)
 	copy(dxPlain, seed)
 	LayerNormBackward(dxPlain, nil, nil, x, nil, dy, rows, d, eps, true)
 	lossPlain := func() float64 {
@@ -138,23 +118,45 @@ func TestLayerNormBackwardFiniteDifference(t *testing.T) {
 func TestGELUErfBackwardFiniteDifference(t *testing.T) {
 	x := []float32{-3, -1.5, -0.5, 0, 0.25, 0.9, 2, 4}
 	dy := []float32{1, -2, 0.5, 3, -1, 0.7, 1.3, -0.4}
-	dx := make([]float32, len(x))
-	GELUErfBackward(dx, x, dy)
-	tol := fdTol(fdStep, 1)
-	for i := range x {
-		lp := GELUErf(float64(x[i])+fdStep) * float64(dy[i])
-		lm := GELUErf(float64(x[i])-fdStep) * float64(dy[i])
-		fd := (lp - lm) / (2 * fdStep)
-		if math.Abs(fd-float64(dx[i])) > tol*(1+math.Abs(fd)) {
-			t.Fatalf("gelu-erf dx[%d]: fd %.6g vs analytic %.6g", i, fd, dx[i])
+	checkUnaryBackwardFD(t, "gelu-erf", x, dy, GELUErf, GELUErfBackward)
+}
+
+// checkVectorBackwardFD perturbs float32 inputs and restores each before comparison.
+func checkVectorBackwardFD(t *testing.T, name string, values, gradients []float32, loss func() float64, tolerance float64) {
+	t.Helper()
+	for i := range values {
+		original := values[i]
+		values[i] = original + fdStep
+		plus := loss()
+		values[i] = original - fdStep
+		minus := loss()
+		values[i] = original
+		fd := (plus - minus) / (2 * fdStep)
+		if math.IsInf(fd, 0) || !(math.Abs(fd-float64(gradients[i])) <= tolerance*(1+math.Abs(fd))) {
+			t.Fatalf("%s[%d]: fd %.6g vs analytic %.6g (tol %.1e)", name, i, fd, gradients[i], tolerance)
 		}
 	}
-	// Aliasing contract: dst may be dy.
+}
+
+// checkUnaryBackwardFD evaluates float64 perturbations and verifies destination aliasing.
+func checkUnaryBackwardFD(t *testing.T, name string, x, dy []float32, forward func(float64) float64, backward func([]float32, []float32, []float32)) {
+	t.Helper()
+	dx := make([]float32, len(x))
+	backward(dx, x, dy)
+	tolerance := fdTol(fdStep, 1)
+	for i := range x {
+		plus := forward(float64(x[i])+fdStep) * float64(dy[i])
+		minus := forward(float64(x[i])-fdStep) * float64(dy[i])
+		fd := (plus - minus) / (2 * fdStep)
+		if math.IsInf(fd, 0) || !(math.Abs(fd-float64(dx[i])) <= tolerance*(1+math.Abs(fd))) {
+			t.Fatalf("%s dx[%d]: fd %.6g vs analytic %.6g (tol %.1e)", name, i, fd, dx[i], tolerance)
+		}
+	}
 	aliased := append([]float32(nil), dy...)
-	GELUErfBackward(aliased, x, aliased)
+	backward(aliased, x, aliased)
 	for i := range aliased {
 		if aliased[i] != dx[i] {
-			t.Fatalf("aliased gelu-erf backward diverges at %d", i)
+			t.Fatalf("aliased %s backward diverges at %d", name, i)
 		}
 	}
 }

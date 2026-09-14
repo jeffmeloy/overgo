@@ -33,24 +33,10 @@ func TestAdaptiveShiftScaleBackwardFiniteDifference(t *testing.T) {
 	AdaptiveShiftScaleBackward(dx, dShift, dScale, x, scale, dy, rows, d)
 
 	tol := fdTol(fdStep, rows*d)
-	check := func(name string, vec, grad []float32) {
-		t.Helper()
-		for i := range vec {
-			orig := vec[i]
-			vec[i] = orig + fdStep
-			lp := loss()
-			vec[i] = orig - fdStep
-			lm := loss()
-			vec[i] = orig
-			fd := (lp - lm) / (2 * fdStep)
-			if math.Abs(fd-float64(grad[i])) > tol*(1+math.Abs(fd)) {
-				t.Fatalf("%s[%d]: fd %.6g vs analytic %.6g", name, i, fd, grad[i])
-			}
-		}
-	}
-	check("dx", x, dx)
-	check("dShift", shift, dShift)
-	check("dScale", scale, dScale)
+
+	checkVectorBackwardFD(t, "dx", x, dx, loss, tol)
+	checkVectorBackwardFD(t, "dShift", shift, dShift, loss, tol)
+	checkVectorBackwardFD(t, "dScale", scale, dScale, loss, tol)
 }
 
 func TestMultiplyBackward(t *testing.T) {
@@ -82,18 +68,7 @@ func TestAxisRotaryInterleavedBackwardFiniteDifference(t *testing.T) {
 	AxisRotaryInterleavedBackward(dx, spans, invFreq, positions)
 
 	tol := fdTol(fdStep, len(x))
-	for i := range x {
-		orig := x[i]
-		x[i] = orig + fdStep
-		lp := loss()
-		x[i] = orig - fdStep
-		lm := loss()
-		x[i] = orig
-		fd := (lp - lm) / (2 * fdStep)
-		if math.Abs(fd-float64(dx[i])) > tol*(1+math.Abs(fd)) {
-			t.Fatalf("dx[%d]: fd %.6g vs analytic %.6g", i, fd, dx[i])
-		}
-	}
+	checkVectorBackwardFD(t, "dx", x, dx, loss, tol)
 	// Empty-span variant (head widths that give an axis zero channels).
 	narrow := [3]int{4, 0, 0}
 	narrowFreq := AxisRotaryInvFreq(10000, narrow)

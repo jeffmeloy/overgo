@@ -21,6 +21,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
 	"overgo/internal/libraryintake"
+	"overgo/internal/mediacapability"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelswap"
 	"overgo/internal/overgodb"
@@ -65,7 +66,7 @@ func run() error {
 	// downloads, validation and operations over the store, so an empty store reaches a served model without a child.
 	intake := providerintake.Intake{CatalogLimit: *catalogLimit}.Library(libraryintake.ModelFiles, libraryintake.Register)
 	intake.Validate = libraryintake.Validate
-	workbench, err := idleWorkbench(repository, intake)
+	workbench, err := idleWorkbench(repository, intake, *catalogLimit)
 	if err != nil {
 		return err
 	}
@@ -103,7 +104,7 @@ func fileExists(path string) bool {
 // idleWorkbench opens the store's workbench for the cold proxy: hub
 // downloads into the data root's models directory, library validation
 // through the model intake, and the operations those produce.
-func idleWorkbench(repository *overgodb.Store, intake server.LibraryIntake) (*server.Handler, error) {
+func idleWorkbench(repository *overgodb.Store, intake server.LibraryIntake, catalogLimit int) (*server.Handler, error) {
 	policy, found, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !found {
 		return nil, fmt.Errorf("swap: inference runtime policy: %w", cmp.Or(err, errors.New("absent from the catalog")))
@@ -112,9 +113,16 @@ func idleWorkbench(repository *overgodb.Store, intake server.LibraryIntake) (*se
 	if roots, err := dataroot.Resolve("."); err == nil {
 		hubRoot = roots.Models
 	}
-	// The workbench exists for the store's routes, never for text: generation refuses while no model serves.
+	// Media recipes execute through the existing store workspace without loading a chat model.
+	generation := server.NewStoreGenerationWorkspace(repository, server.BindGenerationCatalog(mediacapability.Catalog, mediacapability.Controls, mediacapability.OutputContent), catalogLimit)
 	return server.New(server.Config{
 		RuntimePolicy: policy, Repository: repository, LibraryIntake: intake,
 		HubToken: os.Getenv("OVERGO_HF_TOKEN"), HubDownloadRoot: hubRoot,
-	}, server.GenerationRefused{Reason: "no model serves; choose one from the model pill"})
+	}, &idleRuntime{GenerationRefused: server.GenerationRefused{Reason: "Choose a chat model to send a conversation."}, WorkflowWorkspaceAPI: generation})
+}
+
+// idleRuntime retains explicit text refusal alongside admitted media workflows.
+type idleRuntime struct {
+	server.GenerationRefused
+	server.WorkflowWorkspaceAPI
 }

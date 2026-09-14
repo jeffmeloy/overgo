@@ -80,7 +80,7 @@ func TestTestCommandInputsBelongToOwningPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := slices.Concat(scope.direct, scope.dependent)
+	selected := scope.selected()
 	if !slices.Contains(selected, "overgo/internal/reader") || slices.Contains(selected, "overgo/internal/readerclient") {
 		t.Fatalf("test command selected wrong owners: %v", selected)
 	}
@@ -111,7 +111,12 @@ func TestTestCommandInputsBelongToOwningPackage(t *testing.T) {
 	}
 }
 
-func TestRuntimeReaderIncludesUncompiledTestSource(t *testing.T) {
+// TestRuntimeReaderLeavesUncompiledTestSource pins the data-reach boundary
+// for an unnamed read: a reader that neither parses Go nor runs a program
+// observes the repository's data files, so an uncompiled test source it is
+// pointed at through the environment is outside its reach; the caller's
+// identity holds and neither package is selected for that source change.
+func TestRuntimeReaderLeavesUncompiledTestSource(t *testing.T) {
 	g := runtimeReaderFixture(t)
 	source := "package reader\nimport(\"os\";\"strings\")\nfunc Value()int{return read(os.Getenv(\"INPUT\"))}\nfunc read(path string)int{b,e:=os.ReadFile(path);if e==nil&&strings.Contains(string(b),\"Value = 1\"){return 1};return -1}\nfunc fixture(){path:=os.TempDir();_,_=os.ReadFile(path)}\n"
 	if err := os.WriteFile(filepath.Join(g.repo, "internal", "reader", "reader.go"), []byte(source), 0o644); err != nil {
@@ -130,17 +135,25 @@ func TestRuntimeReaderIncludesUncompiledTestSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err != nil {
-		t.Fatalf("baseline: %v\n%s", err, output)
-	}
 	if err := os.WriteFile(input, []byte("package unrelated\n// Value = 2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	after, err := graph.identity("overgo/internal/readerclient")
-	if err != nil || before == after {
-		t.Fatalf("runtime reader omitted test source identity: %v", err)
+	if err != nil || before != after {
+		t.Fatalf("uncompiled test source altered the data reader caller identity: %v", err)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err == nil {
-		t.Fatalf("seeded test-source regression escaped: %s", output)
+	g.paths = []string{"internal/unrelated/unrelated_test.go"}
+	g.packageGraph = nil
+	scope, err := g.deriveTestScope()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pkg := range []string{"overgo/internal/reader", "overgo/internal/readerclient"} {
+		if slices.Contains(scope.selected(), pkg) {
+			t.Fatalf("data reader %s selected by an uncompiled test source change: direct=%v dependent=%v", pkg, scope.direct, scope.dependent)
+		}
+	}
+	if !slices.Contains(scope.direct, "overgo/internal/unrelated") {
+		t.Fatalf("test source owner lost: %v", scope.direct)
 	}
 }

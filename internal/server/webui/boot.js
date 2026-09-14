@@ -133,39 +133,66 @@
 
   // Native media and links cannot send a bearer header. Fetch protected bytes
   // through the shared client and release their object URLs when removed.
-  const artifactURLs = new Map();
+  const artifactResources = new Map();
   new MutationObserver(() => {
-    for (const [node, url] of artifactURLs) {
-      if (!node.isConnected) { URL.revokeObjectURL(url); artifactURLs.delete(node); }
+    for (const [node, resource] of artifactResources) {
+      if (!node.isConnected) {
+        if (node instanceof HTMLMediaElement) node.pause();
+        if (resource.controller) resource.controller.abort();
+        if (resource.url) URL.revokeObjectURL(resource.url);
+        if (resource.failure) resource.failure.remove();
+        artifactResources.delete(node);
+      }
     }
   }).observe(document.documentElement, { childList: true, subtree: true });
+  function resourceFor(node) {
+    if (!artifactResources.has(node)) artifactResources.set(node, {});
+    return artifactResources.get(node);
+  }
   function resourceURL(node, body) {
-    if (artifactURLs.has(node)) URL.revokeObjectURL(artifactURLs.get(node));
-    const url = URL.createObjectURL(body);
-    artifactURLs.set(node, url);
-    return url;
+    const resource = resourceFor(node);
+    if (resource.url) URL.revokeObjectURL(resource.url);
+    resource.url = URL.createObjectURL(body);
+    return resource.url;
   }
   function downloadBlob(node, body, name) {
     el('a', { href: resourceURL(node, body), download: name }).click();
   }
   function artifactResource(node, attribute, path) {
     const load = async () => {
+      const resource = resourceFor(node);
+      if (resource.controller) return;
+      if (resource.failure) {
+        const restoreFocus = resource.failure.contains(document.activeElement);
+        resource.failure.remove(); resource.failure = null;
+        if (restoreFocus) node.focus();
+      }
+      const controller = resource.controller = new AbortController();
       try {
-        const body = await api.blob(path);
-        if (!node.isConnected) return;
+        const body = await api.blob(path, { signal: controller.signal });
+        if (!node.isConnected || controller.signal.aborted) return;
         const url = resourceURL(node, body);
-        if (attribute === "src") node.src = url;
+        if (attribute === 'src') node.src = url;
         else {
-          const download = el("a", { href: url, download: node.getAttribute("download") || "artifact" });
-          download.click();
+          let name = node.getAttribute('download') || 'artifact';
+          if (name === 'audio' && body.type === 'audio/wav') name += '.wav';
+          el('a', { href: url, download: name }).click();
         }
-      } catch (err) { node.replaceWith(errorBanner(friendlyError(err))); }
+      } catch (err) {
+        if (!node.isConnected || controller.signal.aborted) return;
+        resource.failure = el('div', { class: 'artifact-load-error' }, errorBanner(friendlyError(err)),
+          el('button', { class: 'link-button', text: 'Retry', onclick: load }));
+        node.after(resource.failure);
+      } finally { if (resource.controller === controller) resource.controller = null; }
     };
-    if (attribute === "href") {
-      node.setAttribute("href", path);
-      node.addEventListener("click", (event) => { event.preventDefault(); load(); });
+    if (attribute === 'href') {
+      node.setAttribute('href', path);
+      node.addEventListener('click', event => { event.preventDefault(); load(); });
     } else load();
   }
+  const pausePlayback = () => document.querySelectorAll('audio, video').forEach(player => player.pause());
+  window.addEventListener('pagehide', pausePlayback);
+  window.addEventListener('overgo-panel-change', pausePlayback);
 
   function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
@@ -337,6 +364,42 @@
     window.addEventListener("resize", resize);
   }
   let servedEntry = null;
+  let taskModel = null;
+  let servedName = 'Choose a model';
+  let servedEvidence = '';
+  const taskModelHost = el('span', { class: 'task-model-selector', hidden: true });
+  document.getElementById('model-pill').after(taskModelHost);
+  function renderModelSelection() {
+    const pill = document.getElementById('model-pill');
+    const active = taskModel && tabs.some(tab => tab.id === 'chat' && tab.panel.classList.contains('active'));
+    pill.hidden = !!active;
+    taskModelHost.hidden = !active;
+    const capability = active && taskModel.capability();
+    let name = servedName;
+    let evidence = servedEvidence;
+    if (active) {
+      name = taskModel.picker.selectedOptions[0]?.textContent || 'Choose a model';
+      evidence = [capability?.task, capability?.model, capability?.recipe, capability?.refusal].filter(Boolean).join(' · ');
+    }
+    pill.textContent = servedName;
+    pill.title = servedName + ' — choose a model';
+    document.getElementById('model-details').textContent = name;
+    document.getElementById('model-evidence').textContent = evidence;
+  }
+  function bindTaskModel(picker, capability) {
+    const binding = { picker, capability };
+    taskModel = binding;
+    taskModelHost.replaceChildren(picker);
+    picker.addEventListener('change', renderModelSelection);
+    renderModelSelection();
+    return () => {
+      picker.removeEventListener('change', renderModelSelection);
+      if (taskModel !== binding) return;
+      taskModel = null;
+      taskModelHost.replaceChildren();
+      renderModelSelection();
+    };
+  }
   let modelSwitchPending = false;
   let modelSwitchBlocked = false;
   function modelSwitching() { return modelSwitchBlocked; }
@@ -474,7 +537,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, stat, fold,
@@ -562,6 +625,7 @@
     }
     syncSectionUI();
     syncColdStart();
+    renderModelSelection();
     if (location.hash.slice(1) !== id) history.replaceState(null, "", "#" + id);
     return tab.ready || Promise.resolve(true);
   }
@@ -635,18 +699,17 @@
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
-      // The proxy with no child names no model; the pill says so rather than keeping the last name.
-      modelPill.textContent = (health && health.model) || "no model serves";
-      modelPill.title = modelPill.textContent + " — choose a model";
-      document.getElementById("model-details").textContent = modelPill.textContent;
+      servedName = health.model || 'Choose a model';
       servedEntry = null;
-      document.getElementById("model-evidence").textContent = "";
+      servedEvidence = '';
+      renderModelSelection();
       if (health && health.model) {
         // A catalog that fails to list says so under the pill instead of an empty evidence line.
         const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
         if (attempt !== statusAttempt) return;
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
-        document.getElementById("model-evidence").textContent = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || "";
+        servedEvidence = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || '';
+        renderModelSelection();
       }
     } catch (err) { if (attempt !== statusAttempt) return; statusPill.textContent = "offline"; statusPill.className = "pill err"; dot("server-dot", "err", "server offline"); document.getElementById("connection-alert").hidden = false; }
   }
@@ -885,13 +948,25 @@
   function capabilities() { return capabilityDocument; }
   window.overgo.capabilities = capabilities;
 
-  async function initShell() {
+  let shellLoading = null;
+  function initShell() {
+    if (!shellLoading) shellLoading = initializeShell().finally(() => { shellLoading = null; });
+    return shellLoading;
+  }
+  async function initializeShell() {
     const sectionBar = document.getElementById("sections");
     const panels = document.getElementById("panels");
     try {
       workspaceManifest = await api.get("/workspace/manifest");
       capabilityDocument = workspaceManifest.model || null;
-    } catch (err) { offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")"); return; }
+    } catch (err) {
+      if (err.status === 401) {
+        clear(panels);
+        panels.appendChild(el("div", { class: "center tall" }, errorBanner(friendlyError(err))));
+      } else offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
+      return;
+    }
+    if (offlineTimer != null) { clearInterval(offlineTimer); offlineTimer = null; }
     clear(panels);
     clear(sectionBar);
     sectionButtons.length = 0;
@@ -912,22 +987,12 @@
       }
       sectionBar.appendChild(group);
     }
-    // The key controls, hash routing and the health re-probe are wired once; the shell may initialise
+    // Hash routing and the health re-probe are wired once; the shell may initialise
     // again after an offline card and must not stack a second listener.
     if (!shellWired) {
       shellWired = true;
       document.getElementById("workbench-toggle").addEventListener("click", () =>
         setFront(!document.querySelector(".shell").classList.contains("front")));
-      const keyInput = document.getElementById("api-key");
-      const keyRemember = document.getElementById("api-key-remember");
-      keyInput.value = getKey();
-      keyRemember.checked = keyWasPersisted;
-      keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
-      keyInput.addEventListener("change", () => {
-        setKey(keyInput.value.trim(), keyRemember.checked);
-        invalidateModel(); // the cached model was fetched under the old key
-        remountActive().catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
-      });
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
@@ -945,5 +1010,17 @@
 
   // boot.js is deferred: the document is parsed, and the loader brings in
   // every library and module itself, so the shell starts at once.
+  // Connection controls work while workspace modules are still loading.
+  const keyInput = document.getElementById("api-key");
+  const keyRemember = document.getElementById("api-key-remember");
+  keyInput.value = getKey();
+  keyRemember.checked = keyWasPersisted;
+  keyRemember.addEventListener("change", () => { setKey(keyInput.value.trim(), keyRemember.checked); });
+  keyInput.addEventListener("change", () => {
+    setKey(keyInput.value.trim(), keyRemember.checked);
+    invalidateModel(); // the cached model was fetched under the old key
+    const refresh = shellWired ? remountActive() : initShell().then(() => shellWired ? remountActive() : initShell());
+    refresh.catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
+  });
   initShell();
 })();

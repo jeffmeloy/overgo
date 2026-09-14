@@ -14,7 +14,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -22,7 +22,7 @@ import (
 // launches inference or promotes a partial or fixture-only model result.
 func TestAcceptedE4BModalities(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT for canonical E4B evidence acceptance")

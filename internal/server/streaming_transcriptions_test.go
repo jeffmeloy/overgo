@@ -21,14 +21,14 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechrecognitiontest"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
 
 func TestStreamingTranscriptionAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": authenticated native streaming requires registered waveform and model captures")
+		t.Skip(testskip.ShortIntegration + ": authenticated native streaming requires registered waveform and model captures")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

@@ -19,7 +19,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -88,7 +88,7 @@ func checkImageVideoObservation(value imageVideoObservation, content artifact.Co
 
 func TestImageVideoProtocolAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": media protocol reads retained private-store outputs")
+		t.Skip(testskip.ShortIntegration + ": media protocol reads retained private-store outputs")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

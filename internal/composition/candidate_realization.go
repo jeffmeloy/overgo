@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgetrain"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 )
 
 // RealizationSeamActivations carries the paired bounded seam activations
@@ -27,7 +27,7 @@ type RealizationTraining struct {
 	SourceForward  bridgetrain.FrozenForward
 	TargetForward  bridgetrain.FrozenForward
 	TrainingPolicy artifact.ID
-	Config         optimizer.Config
+	Config         hostoptimizer.Config
 	Epochs         int
 }
 
@@ -109,7 +109,7 @@ func RealizeCompositionCandidate(
 			}
 		}
 		gradients := make([]float32, len(weights))
-		plan, err := optimizer.CompilePlan(len(weights), []optimizer.GroupSpec{{
+		plan, err := hostoptimizer.CompilePlan(len(weights), []hostoptimizer.GroupSpec{{
 			Name: "bridge.linear", Start: 0, End: len(weights), Rows: rows, Cols: columns,
 		}})
 		if err != nil {

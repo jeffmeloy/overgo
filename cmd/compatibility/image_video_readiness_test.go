@@ -18,7 +18,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -124,7 +124,7 @@ func checkImageVideoWorktreeReadiness(ctx context.Context, root string, roots da
 
 func TestImageVideoWorktreeReadiness(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT for image/video worktree readiness")

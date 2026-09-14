@@ -16,14 +16,14 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserColdActivity(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": cold activity uses Chromium")
+		t.Skip(testskip.ShortIntegration + ": cold activity uses Chromium")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -55,7 +55,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	if err := browser.Eventually(ctx, `!!document.querySelector('#cold-start')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := browser.Eventually(ctx, `document.querySelector('#model-pill').textContent==='no model serves' && !document.querySelector('#panel-chat.active') && document.querySelector('#proxy-dot').classList.contains('ok') && overgo.errors.length===0`); err != nil {
+	if err := browser.Eventually(ctx, `document.querySelector('#model-pill').textContent==='Choose a model' && !document.querySelector('#panel-chat.active') && document.querySelector('#proxy-dot').classList.contains('ok') && overgo.errors.length===0`); err != nil {
 		t.Fatal(err)
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {window.coldActivityIdle=false;const stop=overgo.runtimeEvents.subscribe(name=>{if(name==='stream.idle'){coldActivityIdle=true;stop();}});return true;})()`)
@@ -81,7 +81,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 
 func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": background work runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": background work runs through cmd/webui-lane")
 	}
 	root := t.TempDir()
 	store, err := overgodb.Open(root)

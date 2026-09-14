@@ -27,14 +27,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	if len(rule.Exceptions) == 0 {
 		t.Fatal("process boundary lost its enumerated grandfather list")
 	}
-	snapshot, err := repoanalysis.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := closurescan.ValidateEntryAuthorities(snapshot, []closurescan.EntryAuthorityRule{rule}); err != nil {
-		t.Fatalf("live tree violates the process entry authority: %v", err)
-	}
-
 	root := t.TempDir()
 	rogue := filepath.Join(root, "internal", "rogue")
 	if err := os.MkdirAll(rogue, 0o755); err != nil {

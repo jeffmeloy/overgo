@@ -31,7 +31,7 @@ func TestGenerationGolden(t *testing.T) {
 		noises[i] = f32of(g7.FlowCalls[2+i].Noise.Values)
 	}
 
-	latents, eos, err := m.GenerateLatents(voiceCond, tv, g1.IDs, GenerateParams{
+	latents, eos, err := m.GenerateLatents(t.Context(), voiceCond, tv, g1.IDs, GenerateParams{
 		MaxFrames:    nFrames,
 		EOSThreshold: math.Inf(1),
 		NoiseAt:      func(step int, dst []float32) { copy(dst, noises[step]) },
@@ -77,16 +77,16 @@ func TestGenerationGolden(t *testing.T) {
 func TestGenerateLatentsInputContracts(t *testing.T) {
 	m := loadArtifactModel(t)
 	noise := func(int, []float32) {}
-	if _, _, err := m.GenerateLatents(make([]float32, m.Dims.DModel), 2, nil, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
+	if _, _, err := m.GenerateLatents(t.Context(), make([]float32, m.Dims.DModel), 2, nil, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
 		t.Fatal("want refusal on voice conditioning size mismatch")
 	}
-	if _, _, err := m.GenerateLatents(nil, 0, nil, GenerateParams{MaxFrames: 0, NoiseAt: noise}); err == nil {
+	if _, _, err := m.GenerateLatents(t.Context(), nil, 0, nil, GenerateParams{MaxFrames: 0, NoiseAt: noise}); err == nil {
 		t.Fatal("want refusal on MaxFrames <= 0")
 	}
-	if _, _, err := m.GenerateLatents(nil, 0, nil, GenerateParams{MaxFrames: 1}); err == nil {
+	if _, _, err := m.GenerateLatents(t.Context(), nil, 0, nil, GenerateParams{MaxFrames: 1}); err == nil {
 		t.Fatal("want refusal on missing noise source")
 	}
-	if _, _, err := m.GenerateLatents(nil, 0, []int{-1}, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
+	if _, _, err := m.GenerateLatents(t.Context(), nil, 0, []int{-1}, GenerateParams{MaxFrames: 1, NoiseAt: noise}); err == nil {
 		t.Fatal("want refusal on out-of-table text id")
 	}
 }

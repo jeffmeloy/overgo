@@ -14,7 +14,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/server"
 	"overgo/internal/servingtest"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -26,7 +26,7 @@ import (
 // fixture location. Only -short excludes this device integration check.
 func TestAnalyzeAttentionEndToEnd(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	modelPath := os.Getenv("OVERGO_QWEN2_MODEL")
 	if modelPath == "" {

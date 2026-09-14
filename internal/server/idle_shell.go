@@ -43,7 +43,11 @@ func (s *IdleShell) ServeHTTP(response http.ResponseWriter, request *http.Reques
 	case "/health":
 		writeJSON(response, http.StatusOK, map[string]any{"status": "ok", "model": ""})
 	case "/workspace/manifest":
-		s.manifest(response)
+		if s.Workbench != nil {
+			s.Workbench.ServeHTTP(response, request)
+		} else {
+			s.manifest(response)
+		}
 	case "/catalog/models":
 		s.catalog(response, request)
 	case "/providers/key":

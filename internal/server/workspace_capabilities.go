@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	"overgo/internal/inference"
 	"overgo/internal/media"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -60,11 +61,12 @@ type workspaceMode struct {
 // generator, the loaded projectors, the media decoders this binary
 // registers, and the same capability switch the tabs use.
 func (h *Handler) workspaceModelCapabilities(ctx context.Context) (workspaceModelCapabilities, bool) {
-	api, ok := h.generator.(ModelPropertiesAPI)
-	if !ok {
+	var model inference.ModelProperties
+	if api, ok := h.generator.(ModelPropertiesAPI); ok {
+		model = api.ModelProperties()
+	} else if !h.hasWorkspaceCapability(ctx, WorkflowGeneration, "") {
 		return workspaceModelCapabilities{}, false
 	}
-	model := api.ModelProperties()
 	image := h.config.ImageProjector != nil || h.config.Qwen3VLProjector != nil
 	audio := h.config.AudioProjector != nil
 	// Video rides the image projector frame by frame: GIF frames decode

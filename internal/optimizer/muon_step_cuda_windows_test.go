@@ -74,7 +74,7 @@ func TestDeviceMuonMatrixStepMatchesHost(t *testing.T) {
 				if d := math.Abs(float64(devW[i]) - float64(hostW[i])); d > maxW {
 					maxW = d
 				}
-				if d := math.Abs(float64(devM[i]) - opt.momentum[i]); d > maxM {
+				if d := math.Abs(float64(devM[i]) - opt.Momentum()[i]); d > maxM {
 					maxM = d
 				}
 			}
@@ -211,7 +211,7 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 		if d := math.Abs(float64(devW[i]) - float64(hostW[i])); d > maxW {
 			maxW = d
 		}
-		if d := math.Abs(float64(devM[i]) - opt.momentum[i]); d > maxM {
+		if d := math.Abs(float64(devM[i]) - opt.Momentum()[i]); d > maxM {
 			maxM = d
 		}
 	}

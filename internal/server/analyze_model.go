@@ -103,7 +103,8 @@ func (h *Handler) analyzeModel(response http.ResponseWriter, request *http.Reque
 
 // analysisCapabilities reports executable analysis surfaces.
 func (h *Handler) analysisCapabilities() analyzeCapabilities {
-	capabilities := analyzeCapabilities{Logits: true}
+	_, refused := h.generator.(interface{ textGenerationRefused() })
+	capabilities := analyzeCapabilities{Logits: !refused}
 	if _, ok := h.generator.(ModelPropertiesAPI); ok {
 		capabilities.Tensors = true
 	}
@@ -149,6 +150,12 @@ func deriveModelStatistics(model inference.ModelProperties) analyzeModelDerived 
 // factored out so the analysis surface stays in lockstep with it.
 func (h *Handler) modelCapabilities() []string {
 	capabilities := []string{"completion", "embedding"}
+	if _, refused := h.generator.(interface{ textGenerationRefused() }); refused {
+		capabilities = nil
+		if _, supported := h.generator.(Embedder); supported {
+			capabilities = append(capabilities, "embedding")
+		}
+	}
 	if capability, ok := h.generator.(RankCapability); ok && capability.SupportsRank() {
 		capabilities = append(capabilities, "rerank")
 	}

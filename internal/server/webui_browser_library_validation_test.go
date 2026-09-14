@@ -22,7 +22,7 @@ import (
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -73,7 +73,7 @@ func laneHubServer(t *testing.T, file string) *httptest.Server {
 // validates its text path and keeps the projector as its projection.
 func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": library validation runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
@@ -114,7 +114,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	workbench, err := New(Config{
 		RuntimePolicy: testRuntimePolicy(), Repository: store, LibraryIntake: intake,
 		HubEndpoint: hub.URL, HubDownloadRoot: filepath.Join(t.TempDir(), "downloads"),
-	}, &fakeGenerator{})
+	}, GenerationRefused{Reason: idleRefusal})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	}
 
 	// 0. The cold page: no child, the Library is the way in, and the workbench's validation answers are captured.
-	settleWithin("cold page", stepBound, `document.querySelector("#model-pill").textContent === "no model serves" && !!document.querySelector("#cold-start") && window.overgo.errors.length === 0`)
+	settleWithin("cold page", stepBound, `document.querySelector("#model-pill").textContent === "Choose a model" && !!document.querySelector("#cold-start") && window.overgo.errors.length === 0`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   window.laneValidation = '';
   const post = overgo.api.post;

@@ -81,7 +81,7 @@ func (p *TensorPack) Plan() Plan { return p.plan }
 func (p *TensorPack) BindMapViews(tensors map[string][]float32) map[string][]float32 {
 	gradients := make(map[string][]float32, len(p.bindings))
 	for index := range p.bindings {
-		group := p.plan.groups[index]
+		group := p.plan.Groups()[index]
 		weights := p.weights[group.Start:group.End:group.End]
 		tensors[group.Name] = weights
 		p.bindings[index] = weights
@@ -103,7 +103,7 @@ func (p *TensorPack) NewStepper(config Config) (Stepper, error) {
 // Scatter publishes packed weights to bound model tensors.
 func (p *TensorPack) Scatter() {
 	for index, values := range p.bindings {
-		group := p.plan.groups[index]
+		group := p.plan.Groups()[index]
 		copy(values, p.weights[group.Start:group.End])
 	}
 }
@@ -111,7 +111,7 @@ func (p *TensorPack) Scatter() {
 // GatherGradients replaces the complete packed gradient slab.
 func (p *TensorPack) GatherGradients(gradients map[string][]float32) error {
 	for index := range p.bindings {
-		group := p.plan.groups[index]
+		group := p.plan.Groups()[index]
 		destination := p.gradients[group.Start:group.End]
 		clear(destination)
 		source, ok := gradients[group.Name]

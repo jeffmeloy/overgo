@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor/dtype"
@@ -51,9 +52,9 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	}
 	var cuda *executor.Executor
 	var worker *device.Worker
-	var deviceWeights *model.DeviceConvertedWeights
-	var rawWeights *model.DeviceWeights
-	var decodeWeights *model.DeviceConvertedWeights
+	var deviceWeights *modeldevice.DeviceConvertedWeights
+	var rawWeights *modeldevice.DeviceWeights
+	var decodeWeights *modeldevice.DeviceConvertedWeights
 	fail := func(openErr error) (*Runner, error) {
 		return nil, errors.Join(
 			openErr,
@@ -177,12 +178,12 @@ func loadResidentWeights(
 	loraAdapters []loadedLoRA,
 	residency residencyBinding,
 	worker *device.Worker,
-	deviceWeights **model.DeviceConvertedWeights,
-	rawWeights **model.DeviceWeights,
-	decodeWeights **model.DeviceConvertedWeights,
+	deviceWeights **modeldevice.DeviceConvertedWeights,
+	rawWeights **modeldevice.DeviceWeights,
+	decodeWeights **modeldevice.DeviceConvertedWeights,
 ) error {
 	var err error
-	*deviceWeights, err = model.NewDeviceConvertedWeights(worker, dtype.F32)
+	*deviceWeights, err = modeldevice.NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
 		return err
 	}
@@ -222,7 +223,7 @@ func loadResidentWeights(
 				f32Tensors = append(f32Tensors, info)
 			}
 		}
-		*rawWeights, err = model.NewDeviceWeights(worker)
+		*rawWeights, err = modeldevice.NewDeviceWeights(worker)
 		if err != nil {
 			return err
 		}
@@ -248,7 +249,7 @@ func loadResidentWeights(
 			}
 		}
 		if len(decodeTensors) > 0 {
-			*decodeWeights, err = model.NewDeviceConvertedWeights(worker, dtype.BF16)
+			*decodeWeights, err = modeldevice.NewDeviceConvertedWeights(worker, dtype.BF16)
 			if err == nil {
 				err = (*decodeWeights).Load(ctx, file, decodeTensors)
 			}
@@ -304,9 +305,9 @@ func releasePromptCaches(ctx context.Context, caches []*cachedPrompt) ([]*cached
 }
 
 func closeAcceleratorResources(
-	decodeWeights *model.DeviceConvertedWeights,
-	rawWeights *model.DeviceWeights,
-	deviceWeights *model.DeviceConvertedWeights,
+	decodeWeights *modeldevice.DeviceConvertedWeights,
+	rawWeights *modeldevice.DeviceWeights,
+	deviceWeights *modeldevice.DeviceConvertedWeights,
 	cuda *executor.Executor,
 	worker *device.Worker,
 ) error {
@@ -332,9 +333,9 @@ func closeAcceleratorResources(
 type preparedResources struct {
 	file          *gguf.File
 	hostWeights   *model.HostTensorStore
-	decodeWeights *model.DeviceConvertedWeights
-	rawWeights    *model.DeviceWeights
-	deviceWeights *model.DeviceConvertedWeights
+	decodeWeights *modeldevice.DeviceConvertedWeights
+	rawWeights    *modeldevice.DeviceWeights
+	deviceWeights *modeldevice.DeviceConvertedWeights
 	cuda          *executor.Executor
 	worker        *device.Worker
 }

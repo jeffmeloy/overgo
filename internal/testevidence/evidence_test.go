@@ -2,6 +2,7 @@ package testevidence
 
 import (
 	"fmt"
+	"overgo/internal/testskip"
 	"testing"
 )
 
@@ -9,7 +10,7 @@ func TestGoTestJSONShort(t *testing.T) {
 	classified := fmt.Sprintf(
 		"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestX\",\"Output\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestX\"}\n",
-		ShortIntegrationSkip+"\n",
+		testskip.ShortIntegration+"\n",
 	)
 	if err := GoTestJSONShort(classified); err != nil {
 		t.Fatal(err)
@@ -47,7 +48,7 @@ func TestCIRequiredEvidence(t *testing.T) {
 			"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestSlow\",\"Output\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestSlow\"}\n"+
 			"{\"Action\":\"pass\",\"Package\":\"x\"}\n",
-		ShortIntegrationSkip+"\n",
+		testskip.ShortIntegration+"\n",
 	)
 	report, err := GoTestJSONShortReport(out)
 	if err != nil {
@@ -108,7 +109,7 @@ func TestVerifyGoTestEvidenceClassifiesExplicitShortExclusions(t *testing.T) {
 	classified := fmt.Sprintf(
 		"{\"Action\":\"output\",\"Package\":\"x\",\"Test\":\"TestIntegration\",\"Output\":%q}\n"+
 			"{\"Action\":\"skip\",\"Package\":\"x\",\"Test\":\"TestIntegration\"}\n",
-		ShortIntegrationSkip+"\n",
+		testskip.ShortIntegration+"\n",
 	)
 	if err := VerifyGoTestEvidence("go test -race -short ./x", passing+classified); err != nil {
 		t.Fatal(err)

@@ -19,7 +19,7 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -230,7 +230,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 
 func TestAudioBenchmarkCoverageAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": held-out measurement runs as its exact mandatory batch acceptance")
+		t.Skip(testskip.ShortIntegration + ": held-out measurement runs as its exact mandatory batch acceptance")
 	}
 	f := newAudioMeasurementFixture(t)
 	f.measure(t)

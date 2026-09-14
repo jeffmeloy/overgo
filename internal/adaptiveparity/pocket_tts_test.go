@@ -18,7 +18,7 @@ import (
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -53,7 +53,7 @@ type pocketGenerationGolden struct {
 
 func TestPocketTTSProductionParity(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	directory := pocketArtifactDirectory(t)
 
@@ -67,7 +67,7 @@ func TestPocketTTSProductionParity(t *testing.T) {
 			t.Fatal(err)
 		}
 		audio := modelrecipetest.MustExecuteScalar[speechsynth.Audio](t, capability, "pocket-tts/production", speechsynth.SynthesisRequest{
-			Text: "Green always green.", MaxFrames: 2, Seed: 7,
+			Text: "Green always green.", Voice: "alba", MaxFrames: 2, Seed: 7,
 		})
 		requireMonoAudio(t, audio)
 	})
@@ -114,7 +114,7 @@ func TestPocketTTSProductionParity(t *testing.T) {
 		var pcm []float32
 		for run := range walls {
 			started := time.Now()
-			latents, eos, err := model.GenerateLatents(voice, voiceFrames, tokens.IDs, speechsynth.GenerateParams{
+			latents, eos, err := model.GenerateLatents(t.Context(), voice, voiceFrames, tokens.IDs, speechsynth.GenerateParams{
 				MaxFrames: generation.NQuantizerCalls, EOSThreshold: math.Inf(1),
 				NoiseAt: func(step int, destination []float32) { copy(destination, noises[step]) },
 			})
@@ -137,7 +137,7 @@ func TestPocketTTSProductionParity(t *testing.T) {
 					t.Fatalf("EOS frame %d diverges", frame)
 				}
 			}
-			pcm, err = model.LatentsToPCM(latents)
+			pcm, err = model.LatentsToPCM(t.Context(), latents)
 			if err != nil {
 				t.Fatal(err)
 			}

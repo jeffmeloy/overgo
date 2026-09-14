@@ -37,6 +37,11 @@ type runtimeInputs struct {
 	// a parent path, the working directory, the caller's file or a git
 	// query. Without it a fixture root is a temporary directory.
 	escapes bool
+	// dynamicExec records a program the compiled sources run without naming
+	// it, which may be any repository command; testDynamicExec the same for
+	// the tests alone.
+	dynamicExec     bool
+	testDynamicExec bool
 }
 
 // confined reports a package whose runtime reach stays inside its own
@@ -75,6 +80,7 @@ type sourceClassifier struct {
 	// a temporary path, which reach nothing in the repository.
 	safeNames map[string]bool
 	escapes   *bool
+	execFlag  *bool
 }
 
 // classifyRuntimeInputs parses the package's compiled and test sources under
@@ -127,12 +133,13 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		temporary := temporarySources(parsed)
 		classifier := sourceClassifier{
 			inputs: &inputs, relativeDir: relativeDir, file: name, commands: commands,
-			named: paths, pending: trees, reasons: &inputs.dynamic,
+			named: paths, pending: trees, reasons: &inputs.dynamic, execFlag: &inputs.dynamicExec,
 			safeNames: safeNames(parsed, constants, temporary), temporary: temporary, escapes: &escapes,
 		}
 		if strings.HasSuffix(name, "_test.go") {
 			classifier.commands = testCommands
 			classifier.named, classifier.pending, classifier.reasons = testPaths, testTrees, &inputs.testDynamic
+			classifier.execFlag = &inputs.testDynamicExec
 		}
 		if dotImported {
 			// A file or process owner imported without a name hides every
@@ -237,8 +244,16 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 			*classifier.escapes = true
 		}
 		if pathCall(typed) {
-			for _, value := range literalArguments(typed) {
-				classifier.classifyPath(value, false)
+			// Literals joined under a temporary root name nothing in the
+			// repository: a fixture tree under t.TempDir() is not the tree.
+			if len(typed.Args) == 0 || !classifier.temporaryRooted(typed.Args[0]) {
+				for _, value := range literalArguments(typed) {
+					// A parent path handed to a path call reaches the
+					// repository root; the same literal in a comparison
+					// or a message reaches nothing.
+					*classifier.escapes = *classifier.escapes || escapesPackage(value, classifier.relativeDir)
+					classifier.classifyPath(value, false)
+				}
 			}
 			// A file owner's call takes its path first (a join takes only
 			// paths); a path it is handed that the source does not name may
@@ -250,12 +265,28 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 	case *ast.BasicLit:
 		if typed.Kind == token.STRING {
 			if value, err := strconv.Unquote(typed.Value); err == nil {
-				*classifier.escapes = *classifier.escapes || escapesPackage(value, classifier.relativeDir)
 				classifier.classifyPath(value, true)
 			}
 		}
 	}
 	return true
+}
+
+// temporaryRooted reports a path argument rooted at a temporary directory: a
+// safe root that is not a literal, or a join whose first part is one.
+func (classifier *sourceClassifier) temporaryRooted(argument ast.Expr) bool {
+	switch typed := argument.(type) {
+	case *ast.BasicLit:
+		return false
+	case *ast.CallExpr:
+		if selector, ok := typed.Fun.(*ast.SelectorExpr); ok && len(typed.Args) != 0 &&
+			(selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join")) {
+			return classifier.temporaryRooted(typed.Args[0])
+		}
+		return classifier.safePath(argument)
+	default:
+		return classifier.safePath(argument)
+	}
 }
 
 // safePath reports a path argument that reaches nothing in the repository:
@@ -566,23 +597,46 @@ func pathCall(call *ast.CallExpr) bool {
 }
 
 // literalArguments lists the string literals among a call's arguments,
-// looking through nested path joins.
+// looking through nested path joins. Adjacent literals of one join name
+// the joined path, not each segment: a root followed by "docs" and a file
+// name reads that file, not the docs tree.
 func literalArguments(call *ast.CallExpr) []string {
 	var values []string
+	joined := false
+	if selector, ok := call.Fun.(*ast.SelectorExpr); ok && (selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join")) {
+		joined = true
+	}
+	var run []string
+	flush := func() {
+		if len(run) != 0 {
+			values = append(values, strings.Join(run, "/"))
+			run = nil
+		}
+	}
 	for _, argument := range call.Args {
 		switch typed := argument.(type) {
 		case *ast.BasicLit:
 			if typed.Kind == token.STRING {
 				if value, err := strconv.Unquote(typed.Value); err == nil {
-					values = append(values, value)
+					if joined {
+						run = append(run, value)
+					} else {
+						values = append(values, value)
+					}
+					continue
 				}
 			}
+			flush()
 		case *ast.CallExpr:
+			flush()
 			if selector, ok := typed.Fun.(*ast.SelectorExpr); ok && selectorIs(selector, "filepath", "Join") || ok && selectorIs(selector, "path", "Join") {
 				values = append(values, literalArguments(typed)...)
 			}
+		default:
+			flush()
 		}
 	}
+	flush()
 	return values
 }
 
@@ -619,17 +673,45 @@ func (classifier *sourceClassifier) classifyProgram(program ast.Expr, arguments 
 	if root != "" && classifier.safeNames[root] {
 		return
 	}
+	// A program the caller hands in is the caller's reach, as a path the
+	// caller hands in is: the launcher stays an unnamed reach over data
+	// without observing Go source on its own.
+	if parameterRooted(program) {
+		*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program its caller names")
+		return
+	}
 
+	*classifier.execFlag = true
 	*classifier.reasons = append(*classifier.reasons, classifier.file+": executes a program the source does not name")
 }
 
 // rootIdentifier returns the identifier an expression is rooted in through
 // selectors, indexes and calls on it; empty when there is none.
 func rootIdentifier(expression ast.Expr) string {
+	if root := rootIdent(expression); root != nil {
+		return bindingName(root)
+	}
+	return ""
+}
+
+// parameterRooted reports an expression rooted in a parameter or receiver
+// of the enclosing function: a value the caller supplies.
+func parameterRooted(expression ast.Expr) bool {
+	root := rootIdent(expression)
+	if root == nil || root.Obj == nil || root.Obj.Kind != ast.Var {
+		return false
+	}
+	_, ok := root.Obj.Decl.(*ast.Field)
+	return ok
+}
+
+// rootIdent walks selectors, indexes and calls to the identifier an
+// expression is rooted in; nil when there is none.
+func rootIdent(expression ast.Expr) *ast.Ident {
 	for {
 		switch typed := expression.(type) {
 		case *ast.Ident:
-			return bindingName(typed)
+			return typed
 		case *ast.SelectorExpr:
 			expression = typed.X
 		case *ast.IndexExpr:
@@ -641,7 +723,7 @@ func rootIdentifier(expression ast.Expr) string {
 		case *ast.StarExpr:
 			expression = typed.X
 		default:
-			return ""
+			return nil
 		}
 	}
 }

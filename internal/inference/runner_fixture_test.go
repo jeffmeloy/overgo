@@ -8,13 +8,13 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 func requireIntegration(t *testing.T) {
 	t.Helper()
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 }
 

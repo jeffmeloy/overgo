@@ -32,14 +32,21 @@ func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, owner := range []string{"internal/cuda/executor", "internal/launcher", "internal/deviceconsumer"} {
+	for _, owner := range []string{"internal/cuda/executor", "internal/deviceconsumer"} {
 		if !slices.Contains(deviceOwners, owner) {
 			t.Errorf("device execution owner omitted: %s", owner)
 		}
 	}
-	if slices.Contains(deviceOwners, "internal/datareader") {
-		t.Error("reading source data acquired execution's device requirement")
+	// A launcher runs the program its caller hands in: the device
+	// requirement belongs to the caller that names a device program.
+	for _, other := range []string{"internal/datareader", "internal/launcher"} {
+		if slices.Contains(deviceOwners, other) {
+			t.Errorf("%s acquired execution's device requirement without naming a device program", other)
+		}
 	}
+	// An unnamed read reaches the repository's data files, not its Go
+	// sources: a source change outside the reader's compiled closure leaves
+	// the reader unselected with its identity intact.
 	const reader = "overgo/internal/datareader"
 	before, err := graph.identity(reader)
 	if err != nil {
@@ -54,14 +61,14 @@ func TestRuntimeDataDependencyDoesNotReserveDevice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(slices.Concat(scope.direct, scope.dependent), reader) {
-		t.Error("data reader omitted from validation scope")
+	if slices.Contains(scope.selected(), reader) {
+		t.Error("data reader selected by a source change outside its closure")
 	}
 	after, err := graph.identity(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before == after {
-		t.Error("changed source data retained reader identity")
+	if before != after {
+		t.Error("source change outside the closure altered the data reader identity")
 	}
 }

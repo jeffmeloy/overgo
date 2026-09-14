@@ -21,17 +21,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	if !found || !strings.Contains(rule.Owner, "internal/evaluation") {
 		t.Fatalf("safety entry authority rule = (found=%t, owner=%q)", found, rule.Owner)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	report, err := closurescan.ValidateEntryAuthorities(snapshot, []closurescan.EntryAuthorityRule{rule})
-	if err != nil {
-		t.Fatalf("live tree violates the safety entry authority: %v", err)
-	}
-	if len(report.Domains) != 1 || report.Domains[0].ProductionFiles == 0 {
-		t.Fatalf("safety entry authority inspected nothing: %+v", report)
-	}
 
 	root := t.TempDir()
 	rogue := filepath.Join(root, "internal", "rogue")

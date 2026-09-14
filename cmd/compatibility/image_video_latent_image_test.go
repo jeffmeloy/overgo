@@ -16,6 +16,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"slices"
@@ -121,7 +122,7 @@ func checkMediaLatentCoverage(cases []mediaLatentBundleCase, expected []string) 
 
 func TestImageVideoLatentImageAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained image case bundle")
+		t.Skip(testskip.ShortIntegration + ": retained image case bundle")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

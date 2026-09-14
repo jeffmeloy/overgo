@@ -57,7 +57,7 @@ func TestChangeSelectionUnownedRuntimeInputs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			selected := slices.Concat(scope.direct, scope.dependent)
+			selected := scope.selected()
 			if missed := selectionCounterexamples(full.Failed, selected); len(missed) != 0 {
 				t.Errorf("runtime consumer omitted: %v; selected=%v", missed, selected)
 			}

@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/hostoptimizer"
 )
 
 // TestDeviceNewtonSchulzMatchesHost gates the fp32 device Newton-Schulz against
@@ -41,13 +42,7 @@ func TestDeviceNewtonSchulzMatchesHost(t *testing.T) {
 				host[i] = v
 				dev[i] = float32(v)
 			}
-			dim := tc.cols
-			if tc.rows < tc.cols {
-				dim = tc.rows
-			}
-			var scratch newtonSchulzScratch
-			scratch.ensure(n, dim*dim)
-			newtonSchulz(host, tc.rows, tc.cols, &scratch)
+			hostoptimizer.NewtonSchulz(host, tc.rows, tc.cols)
 
 			got, err := deviceNewtonSchulz(worker, dev, tc.rows, tc.cols)
 			if err != nil {

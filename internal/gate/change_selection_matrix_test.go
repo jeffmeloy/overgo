@@ -86,7 +86,7 @@ func TestChangeSelectionRequiredMatrix(t *testing.T) {
 				t.Fatal(err)
 			}
 			selectionWall := time.Since(started)
-			selected := append(slices.Clone(scope.direct), scope.dependent...)
+			selected := scope.selected()
 			if missed := selectionCounterexamples(full.Failed, selected); len(missed) != 0 {
 				t.Fatalf("selection omitted failing packages %v; full failed=%v selected=%v", missed, full.Failed, selected)
 			}
@@ -117,8 +117,9 @@ func TestChangeSelectionRequiredMatrix(t *testing.T) {
 // resolver under OwnershipByDependency, over the compiler fixture extended
 // with a shared launcher, a runtime file reader and a deleted command: a lane
 // whose owned package reaches a command only through a helper that runs it
-// stays in scope, a lane owning a file reader stays in scope for any change,
-// a changed package the graph no longer holds keeps every lane, and a lane
+// stays in scope, a lane owning a file reader stays in scope for a data
+// change and leaves a source change it neither compiles nor parses, a
+// changed package the graph no longer holds keeps every lane, and a lane
 // owning a pure package leaves the scope of an unrelated change.
 func laneExclusionMatrix(t *testing.T) {
 	g := scopeCompilerFixture(t)
@@ -157,15 +158,20 @@ func laneExclusionMatrix(t *testing.T) {
 		}
 		return names
 	}
+	// A file reader whose path arrives from its caller reaches the
+	// repository's data files, never its Go sources: a source change
+	// outside its compiled closure excludes its lane, a change under a data
+	// directory keeps it.
 	cases := []struct {
 		name     string
 		changed  []string
 		excluded []string
 	}{
-		{name: "shared launcher reaches the command", changed: []string{"cmd/tool"}, excluded: []string{"pure-lane"}},
-		{name: "runtime file reader stays in scope", changed: []string{"internal/other"}, excluded: []string{"launcher-lane", "pure-lane"}},
+		{name: "shared launcher reaches the command", changed: []string{"cmd/tool"}, excluded: []string{"pure-lane", "reader-lane"}},
+		{name: "runtime file reader leaves a source change", changed: []string{"internal/other"}, excluded: []string{"launcher-lane", "pure-lane", "reader-lane"}},
+		{name: "runtime file reader stays in scope for data", changed: []string{"docs"}, excluded: nil},
 		{name: "deleted command keeps every lane", changed: []string{"cmd/gone"}, excluded: nil},
-		{name: "pure lane follows its imports", changed: []string{"internal/recipe"}, excluded: []string{"launcher-lane"}},
+		{name: "pure lane follows its imports", changed: []string{"internal/recipe"}, excluded: []string{"launcher-lane", "reader-lane"}},
 	}
 	for _, entry := range cases {
 		impact := automationcheck.OwnershipByDependency(checks, entry.changed, resolver)

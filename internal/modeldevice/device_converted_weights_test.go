@@ -1,4 +1,4 @@
-package model
+package modeldevice
 
 import (
 	"encoding/binary"

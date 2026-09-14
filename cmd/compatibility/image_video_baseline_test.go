@@ -20,6 +20,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -120,7 +121,7 @@ func checkMediaLoaderObservations(consumer string, rows []mediaLoaderObservation
 
 func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": loader baseline reads retained acquisitions")
+		t.Skip(testskip.ShortIntegration + ": loader baseline reads retained acquisitions")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

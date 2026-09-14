@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,7 +15,7 @@ import (
 
 func TestWebUIBrowserDownloadIsolation(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": download isolation runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": download isolation runs through cmd/webui-lane")
 	}
 	executable, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {

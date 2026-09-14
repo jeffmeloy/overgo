@@ -24,7 +24,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // TestAcceptedBaselineEvidence reads immutable measurements, never the latest
@@ -32,7 +32,7 @@ import (
 // guard; -validate-baselines separately requires current-surface admission.
 func TestAcceptedBaselineEvidence(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip)
+		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT to validate the exact stored guard records; no measurement runs")

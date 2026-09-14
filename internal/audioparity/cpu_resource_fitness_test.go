@@ -7,7 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 func (f *audioMeasurementFixture) compareRepeats(t *testing.T, baseline audioMeasuredProcess) {
@@ -70,7 +70,7 @@ func (f *audioMeasurementFixture) compareRepeats(t *testing.T, baseline audioMea
 
 func TestAudioResourceEnvelopeAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": exact CPU resource batch acceptance executes measured child processes")
+		t.Skip(testskip.ShortIntegration + ": exact CPU resource batch acceptance executes measured child processes")
 	}
 	f := newAudioMeasurementFixture(t)
 	f.compareRepeats(t, f.measure(t))
@@ -78,7 +78,7 @@ func TestAudioResourceEnvelopeAcceptance(t *testing.T) {
 
 func TestAudioResourceFitnessAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": exact CPU fitness acceptance executes held-out, profile and repeated processes")
+		t.Skip(testskip.ShortIntegration + ": exact CPU fitness acceptance executes held-out, profile and repeated processes")
 	}
 	f := newAudioMeasurementFixture(t)
 	baseline := f.measure(t)

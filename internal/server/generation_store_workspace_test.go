@@ -27,7 +27,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -186,7 +186,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 		t.Fatalf("capabilities = %+v, %v", capabilities, err)
 	}
 	capability := capabilities[0]
-	if capability.Task != recipe.TaskImageGen || capability.Model != modelID || capability.Refusal != "" || capability.Name != "model.safetensors" {
+	if capability.Task != recipe.TaskImageGen || capability.Model != modelID || capability.Refusal != "" || capability.Name != filepath.Base(filepath.Dir(capability.Location)) {
 		t.Fatalf("capability = %+v", capability)
 	}
 	names := map[string]string{}
@@ -253,7 +253,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 // cheapest of them, the host oscillator, publishing it as a PNG artifact.
 func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": generating from store models is integration")
+		t.Skip(testskip.ShortIntegration + ": generating from store models is integration")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

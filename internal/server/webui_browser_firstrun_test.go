@@ -28,7 +28,7 @@ import (
 	"overgo/internal/remoterelay"
 	"overgo/internal/remoterelay/relaytest"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 )
@@ -53,7 +53,7 @@ import (
 // the image-in leg.
 func TestWebUIBrowserFirstRun(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": the journey runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane")
 	}
 	journey, err := prepareBrowserJourney(t)
 	if err != nil {
@@ -245,7 +245,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// 0. Cold start: the proxy serves the shell with no child; the pill names
 	// no model, the front page says how to choose, and the picker's serve
 	// launches the first child.
-	settle("cold page over the proxy with no child", `document.querySelector("#model-pill").textContent === "no model serves" &&
+	settle("cold page over the proxy with no child", `document.querySelector("#model-pill").textContent === "Choose a model" &&
       !!document.querySelector("#cold-start") && !document.querySelector("#panel-chat.active") &&
       document.querySelector("#proxy-dot").classList.contains("ok") && window.overgo.errors.length === 0`)
 	// 0b. The Library is the one tab the cold page serves: the page's provider
@@ -468,14 +468,17 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       return true;
     })()`)
 		settle(mode+" mode renders its declaration", `(() => {
-      const picker = document.querySelector('.composer select[aria-label="generation model"]');
+      const picker = document.querySelector('.task-model-selector select[aria-label="generation model"]');
       if (!picker || ![...picker.options].some((option) => option.value === `+strconv.Quote(recipeID)+`)) return false;
       picker.value = `+strconv.Quote(recipeID)+`; picker.dispatchEvent(new Event("change"));
-      for (const label of document.querySelectorAll(".mode-controls label.control")) {
+      const speechOptions = document.querySelector('[aria-label="Open speech options"]');
+      if (speechOptions) speechOptions.click();
+      for (const label of document.querySelectorAll('.mode-controls label.control, [aria-label="Speech options"] label.control')) {
         const input = label.querySelector("input, select, textarea");
         if (input.tagName === "SELECT" && !input.value) input.value = [...input.options].map((option) => option.value).find(Boolean) || "";
         else if (input.type === "number" && !input.value) input.value = label.textContent.trim().startsWith("seed") ? String(Date.now() % 100000) : "1";
       }
+      if (speechOptions) document.getElementById('settings-dialog').close();
       return true;
     })()`)
 		return true

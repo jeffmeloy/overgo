@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -78,7 +78,7 @@ func headDir(t *testing.T, task string) string {
 // and compares every golden case's outputs.
 func TestPredictParity(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": loads ~6.5GB weights per head")
+		t.Skip(testskip.ShortIntegration + ": loads ~6.5GB weights per head")
 	}
 	golden := readGolden(t)
 	wantDims := map[string]Dims{

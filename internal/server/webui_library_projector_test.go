@@ -12,7 +12,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/libraryintake"
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -55,7 +55,7 @@ func storedProjectorPair(t *testing.T) (modelPath, projectorPath string) {
 // validate.
 func TestFrontPageLibraryProjector(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": reading model files is integration")
+		t.Skip(testskip.ShortIntegration + ": reading model files is integration")
 	}
 	modelPath, projectorPath := storedProjectorPair(t)
 	model, projector, err := libraryintake.ModelFiles(modelPath, projectorPath)

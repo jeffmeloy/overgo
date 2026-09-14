@@ -6,16 +6,15 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"overgo/internal/testskip"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"overgo/internal/testevidence"
 )
 
 func TestWriterAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": requires pinned llama-gguf-hash")
+		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-hash")
 	}
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
@@ -76,7 +75,7 @@ func TestWriterAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 
 func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": requires pinned llama-gguf-hash")
+		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-hash")
 	}
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
@@ -130,7 +129,7 @@ func TestQuantizerOutputAcceptedByPinnedLlamaCPPGGUFHash(t *testing.T) {
 
 func TestSplitWriterAcceptedByPinnedLlamaCPPMerge(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": requires pinned llama-gguf-split")
+		t.Skip(testskip.ShortIntegration + ": requires pinned llama-gguf-split")
 	}
 	oracle := os.Getenv("OVERGO_GGUF_SPLIT_ORACLE")
 	if oracle == "" {

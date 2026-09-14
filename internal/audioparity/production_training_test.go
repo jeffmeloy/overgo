@@ -24,14 +24,14 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 	"overgo/internal/trainingworkflow"
 )
 
 func TestASRProductionTrainingAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": production CPU training runs as its exact mandatory acceptance")
+		t.Skip(testskip.ShortIntegration + ": production CPU training runs as its exact mandatory acceptance")
 	}
 	l := newAdapterLifecycle(t)
 	reference := l.update(t, l.batcher(t, nil))

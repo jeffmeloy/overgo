@@ -1,4 +1,4 @@
-package optimizer
+package hostoptimizer
 
 import (
 	"math"
@@ -6,15 +6,23 @@ import (
 	"overgo/internal/scratch"
 )
 
+// The two-stage Newton-Schulz iteration the host and device orthogonalizers
+// share: stage 1 iterations, stage 2 iterations, the Frobenius norm below
+// which a matrix is left untouched, and the polynomial coefficients.
 const (
-	newtonSchulzStage1Iterations = 8
-	newtonSchulzStage2Iterations = 2
-	newtonSchulzFrobeniusGuard   = 1e-12
+	// NewtonSchulzStage1Iterations counts the aggressive first-stage steps.
+	NewtonSchulzStage1Iterations = 8
+	// NewtonSchulzStage2Iterations counts the refining second-stage steps.
+	NewtonSchulzStage2Iterations = 2
+	// NewtonSchulzFrobeniusGuard is the norm floor for a nonzero matrix.
+	NewtonSchulzFrobeniusGuard = 1e-12
 )
 
 var (
-	newtonSchulzStage1 = [3]float64{3.4445, -4.7750, 2.0315}
-	newtonSchulzStage2 = [3]float64{2, -1.5, 0.5}
+	// NewtonSchulzStage1 holds the first-stage polynomial coefficients.
+	NewtonSchulzStage1 = [3]float64{3.4445, -4.7750, 2.0315}
+	// NewtonSchulzStage2 holds the second-stage polynomial coefficients.
+	NewtonSchulzStage2 = [3]float64{2, -1.5, 0.5}
 )
 
 type newtonSchulzScratch struct {
@@ -31,13 +39,22 @@ func (s *newtonSchulzScratch) ensure(maxMatrix, maxSquare int) {
 	s.output = scratch.Resize(s.output, maxMatrix)
 }
 
+// NewtonSchulz orthogonalizes a rows by cols matrix in place with fresh
+// scratch; the device stepper's parity check compares against it.
+func NewtonSchulz(input []float64, rows, cols int) {
+	var scratch newtonSchulzScratch
+	square := min(rows, cols)
+	scratch.ensure(rows*cols, square*square)
+	newtonSchulz(input, rows, cols, &scratch)
+}
+
 func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch) {
 	var normSquared float64
 	for _, value := range input {
 		normSquared += value * value
 	}
 	norm := math.Sqrt(normSquared)
-	if norm < newtonSchulzFrobeniusGuard {
+	if norm < NewtonSchulzFrobeniusGuard {
 		return
 	}
 	for index := range input {
@@ -49,10 +66,10 @@ func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch)
 	gram := scratch.gram[:dimension*dimension]
 	square := scratch.square[:dimension*dimension]
 	output := scratch.output[:rows*cols]
-	for iteration := range newtonSchulzStage1Iterations + newtonSchulzStage2Iterations {
-		coefficients := newtonSchulzStage1
-		if iteration >= newtonSchulzStage1Iterations {
-			coefficients = newtonSchulzStage2
+	for iteration := range NewtonSchulzStage1Iterations + NewtonSchulzStage2Iterations {
+		coefficients := NewtonSchulzStage1
+		if iteration >= NewtonSchulzStage1Iterations {
+			coefficients = NewtonSchulzStage2
 		}
 		if tall {
 			gramColumns(gram, input, rows, cols)

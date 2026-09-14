@@ -174,7 +174,7 @@ func (workspace *StoreGenerationWorkspace) WorkflowCapabilities(ctx context.Cont
 			capabilities = append(capabilities, WorkflowCapability{
 				Task: capability.Task, Recipe: definition.ID, Stages: stages,
 				Inputs: definition.Inputs, Outputs: definition.Outputs, Controls: declared,
-				Model: entry.Model, Name: filepath.Base(entry.Location), Location: entry.Location, Refusal: refusal,
+				Model: entry.Model, Name: filepath.Base(directory), Location: entry.Location, Refusal: refusal,
 			})
 		}
 	}

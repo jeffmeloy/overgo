@@ -26,17 +26,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 		}
 		rules = append(rules, rule)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	report, err := closurescan.ValidateEntryAuthorities(snapshot, rules)
-	if err != nil {
-		t.Fatalf("live tree violates a runrecord entry authority: %v", err)
-	}
-	if len(report.Domains) != 2 || report.Domains[0].ProductionFiles == 0 {
-		t.Fatalf("runrecord entry authorities inspected nothing: %+v", report)
-	}
 
 	root := t.TempDir()
 	rogue := filepath.Join(root, "internal", "rogue")

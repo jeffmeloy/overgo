@@ -1,20 +1,14 @@
 Copyright (c) 2026 Jeff Meloy. All rights reserved.
 
-This repository is a private research codebase. No license is granted to
-use, copy, modify, distribute, or create derivative works of this software,
-in whole or in part, without the prior written permission of the copyright
-holder.
+This repository is an unrestricted research codebase.
 
-This default does not replace the licenses of identified third-party portions.
-The identified CTC alignment, acoustic speaker-activity and speaker-boundary
-portions of internal/speechrecognition are derived from audio.cpp, Copyright
-2026 ShugoAI LLC, and retain Apache-2.0 terms (licenses/audio.cpp.txt).
-Their modifications are identified in the source and licenses/audio-notices.txt.
+Third-party acknowledgement: Overgo was built from llama.cpp
+(https://github.com/ggml-org/llama.cpp, MIT license), audio.cpp
+(Copyright 2026 ShugoAI LLC, Apache-2.0 license), and Hugging Face
+Transformers (https://github.com/huggingface/transformers, Apache-2.0
+license) as verified reference implementations. The inference and training
+runtimes are independent Go and CUDA implementations of the behaviour
+studied there; no llama.cpp, audio.cpp, or Transformers source code is
+included in this repository.
 
-Third-party acknowledgement: the inference runtime reimplements behavior
-studied from the llama.cpp project (https://github.com/ggml-org/llama.cpp,
-MIT license) as an independent Go implementation used for format and parity
-reference. No llama.cpp source code is included in this repository.
-
-Relicensing of original portions remains an owner decision. Identified
-third-party portions retain their separate license obligations.
+Relicensing of original portions remains an owner decision.

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/executor"
 	"overgo/internal/model"
+	"overgo/internal/modeldevice"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
@@ -1330,14 +1331,14 @@ func (r *Runner) buildDeviceCachedBatchBranch(
 	states := make([]deviceGraphStates, len(r.weights.Layers))
 	cacheBindings := make([]layerGraphCacheInputs, len(r.weights.Layers))
 	decodeCatalog := plan.is(deviceOutputGreedy) && tokensPerSequence == 1 && r.decodeWeights != nil
-	bindLayerTensor := model.DeviceTensorBinder(r.deviceInput)
+	bindLayerTensor := modeldevice.DeviceTensorBinder(r.deviceInput)
 	if decodeCatalog {
 		bindLayerTensor = r.decodeDeviceInput
 	}
 	for layerIndex, info := range r.weights.Layers {
 		program := r.layerProgram(layerIndex)
 		plan := program.Layer()
-		graphWeights, layerFeeds, layerErr := model.BindDeviceLayerGraphInputs(
+		graphWeights, layerFeeds, layerErr := modeldevice.BindDeviceLayerGraphInputs(
 			builder, info, bindLayerTensor,
 		)
 		if layerErr != nil {

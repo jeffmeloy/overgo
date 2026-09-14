@@ -68,6 +68,9 @@ type GenerationRefused struct {
 	Reason string
 }
 
+// textGenerationRefused preserves the refusal through composed runtime wrappers.
+func (GenerationRefused) textGenerationRefused() {}
+
 // Generate refuses with the reason.
 func (refused GenerationRefused) Generate(context.Context, string, inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
 	return nil, "", errors.New(refused.Reason)

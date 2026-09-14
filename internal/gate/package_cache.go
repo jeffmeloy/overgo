@@ -58,10 +58,20 @@ type goPackageInput struct {
 	// only its own tests run on any change. The reason is audited.
 	opaqueReader bool
 	testOpaque   bool
+	// sourceReader marks a package whose compiled sources observe Go source
+	// as data: they parse or format Go, or run a program the source does
+	// not name, which may be any repository command. Any other unnamed
+	// reach binds the repository's data files, never its sources.
+	// testSourceReader marks the same for the package's tests alone.
+	sourceReader     bool
+	testSourceReader bool
 	// runtimeReason explains a broad binding: what the source left unnamed.
 	runtimeReason string
 	// Named repository inputs retain runtime acceptance even when Markdown.
 	declaredFiles []string
+	// productionFiles are the named inputs of the compiled sources alone;
+	// an importer inherits these, never the inputs the tests name.
+	namedProductionFiles []string
 }
 
 type packageInputGraph struct {
@@ -172,6 +182,7 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		}
 		inputs, err := classifyRuntimeInputs(graph.root, node.Dir, packageSources(*node))
 		node.declaredFiles = slices.Concat(inputs.files, inputs.testFiles)
+		node.namedProductionFiles = slices.Clone(inputs.files)
 		// Tests read and run at run time as production code does; a package
 		// whose tests alone import os is a runtime reader of its own tests.
 		edges := slices.Concat(node.Imports, node.TestImports, node.XTestImports)
@@ -179,6 +190,10 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		if !runtimeReader {
 			continue
 		}
+		node.sourceReader = inputs.dynamicExec || slices.ContainsFunc(node.Imports, sourceReaderImport)
+		node.testSourceReader = node.sourceReader || inputs.testDynamicExec ||
+			slices.ContainsFunc(slices.Concat(node.TestImports, node.XTestImports), sourceReaderImport)
+		testSourceReader := node.testSourceReader
 		reason := ""
 		switch {
 		case err != nil:
@@ -215,15 +230,20 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			// Temporary files, the test binary and external tools: no edge.
 			continue
 		}
+		// A named path binds to its namer whether or not the package also
+		// reads what it does not name; a named document then leaves the
+		// broad binding below.
+		namedPaths[node.Dir] = append(namedPaths[node.Dir], inputs.files...)
+		namedTestPaths[node.Dir] = append(namedTestPaths[node.Dir], inputs.testFiles...)
 		if reason == "" {
-			namedPaths[node.Dir] = append(namedPaths[node.Dir], inputs.files...)
-			namedTestPaths[node.Dir] = append(namedTestPaths[node.Dir], inputs.testFiles...)
 			if len(inputs.testDynamic) != 0 {
 				// The tests alone reach what they do not name: they run on
 				// any change, but importers observe only the compiled reach.
 				node.testOpaque = true
 				node.runtimeReason = "tests: " + strings.Join(inputs.testDynamic, "; ")
-				node.testInputDependencies = slices.Clone(roots)
+				if testSourceReader {
+					node.testInputDependencies = slices.Clone(roots)
+				}
 				if !slices.Contains(runtimeDirectories, node.Dir) {
 					runtimeDirectories = append(runtimeDirectories, node.Dir)
 					broadTest[node.Dir] = true
@@ -233,7 +253,11 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		}
 		node.opaqueReader = true
 		node.runtimeReason = reason
-		node.inputDependencies = slices.Clone(roots)
+		// Only a Go-parsing reach observes every root's sources; any other
+		// unnamed reach binds the data files the broad resource loop adds.
+		if node.sourceReader {
+			node.inputDependencies = slices.Clone(roots)
+		}
 		if slices.Contains(edges, "os/exec") {
 			node.executionDependencies = node.inputDependencies
 		}
@@ -271,7 +295,13 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 			// repository file: its tests' input when only the tests are
 			// unnamed, otherwise a runtime input that taints importers whose
 			// tests reach the repository. Adjacent assets stay compiled inputs.
-			for _, directory := range runtimeDirectories {
+			// A document some package names is bound above to its namers
+			// alone; an unnamed read pointed at it is outside the boundary.
+			broad := runtimeDirectories
+			if namedDocument(namedPaths, namedTestPaths, name) {
+				broad = nil
+			}
+			for _, directory := range broad {
 				target := graph.runtimeResourceFiles
 				if broadTest[directory] {
 					target = graph.testResourceFiles
@@ -547,4 +577,24 @@ func (graph packageInputGraph) devicePackages(packages []string) ([]string, erro
 		}
 	}
 	return devices, nil
+}
+
+// namedDocument reports a path some package names in production or test source.
+func namedDocument(namedPaths, namedTestPaths map[string][]string, name string) bool {
+	for _, named := range namedPaths {
+		if namesPath(named, name) {
+			return true
+		}
+	}
+	for _, named := range namedTestPaths {
+		if namesPath(named, name) {
+			return true
+		}
+	}
+	return false
+}
+
+// sourceReaderImport reports an import that parses or formats Go source.
+func sourceReaderImport(edge string) bool {
+	return strings.HasPrefix(edge, "go/") || strings.Contains(edge, "/x/tools/go/")
 }

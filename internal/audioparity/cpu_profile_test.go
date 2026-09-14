@@ -16,7 +16,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 // Only target-free inputs cross this child boundary. Profiling measurements
@@ -171,7 +171,7 @@ func TestASRCPUSimplificationAcceptance(t *testing.T) {
 		return
 	}
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": exact CPU simplification acceptance profiles a separate real-model child")
+		t.Skip(testskip.ShortIntegration + ": exact CPU simplification acceptance profiles a separate real-model child")
 	}
 	f := newAudioMeasurementFixture(t)
 	f.profile(t, f.measure(t))

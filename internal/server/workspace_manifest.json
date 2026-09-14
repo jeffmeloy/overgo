@@ -8,7 +8,7 @@
     {"id": "workbench", "label": "Workbench"}
   ],
   "tabs": [
-    {"id": "chat", "label": "Chat", "section": "inference", "capability": "analysis.logits"},
+    {"id": "chat", "label": "Chat", "section": "inference", "capability": "conversation"},
     {"id": "agent", "label": "Agent", "section": "inference", "capability": "agent"},
     {"id": "generation", "label": "Generate", "section": "inference", "capability": "workflow.generation"},
     {"id": "runtime", "label": "Runtime", "section": "inference", "capability": "operations"},

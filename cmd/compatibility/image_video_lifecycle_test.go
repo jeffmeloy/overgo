@@ -19,6 +19,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -140,7 +141,7 @@ func checkMediaLifecycleSource(root, revision string, paths []string) (string, e
 
 func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained media lifecycle evidence")
+		t.Skip(testskip.ShortIntegration + ": retained media lifecycle evidence")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

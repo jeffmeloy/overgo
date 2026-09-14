@@ -19,6 +19,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"path/filepath"
 	"reflect"
@@ -91,7 +92,7 @@ type mediaConditionedObservation struct {
 
 func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	if testing.Short() {
-		t.Skip(testevidence.ShortIntegrationSkip + ": retained source-conditioned video evidence")
+		t.Skip(testskip.ShortIntegration + ": retained source-conditioned video evidence")
 	}
 	root := testutil.RepoRoot(t)
 	document, err := plan.Load(filepath.Join(root, plan.Path))

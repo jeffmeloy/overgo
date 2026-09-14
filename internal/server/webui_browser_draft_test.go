@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
 
 func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testevidence.ShortIntegrationSkip + ": draft lifecycle runs through cmd/webui-lane")
+		t.Skip(testskip.ShortIntegration + ": draft lifecycle runs through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -47,6 +47,10 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	}
 	check := func(expression string) { t.Helper(); assertBrowserPredicate(t, ctx, browser, expression) }
 	settle(`!!document.querySelector('#panel-chat .composer')`)
+	// A draft written before model selection must not become this recipe's draft.
+	check(`(() => {sessionStorage.setItem('overgo.draft:'+JSON.stringify(['unassigned','']),JSON.stringify({text:'Unassigned speech draft'}));window.previousDraftComposer=document.querySelector('.composer');overgo.openConversation(null);return true;})()`)
+	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==previousDraftComposer && document.querySelector('.composer textarea').value===''`)
+	check(`JSON.parse(sessionStorage.getItem('overgo.draft:'+JSON.stringify(['unassigned','']))).text==='Unassigned speech draft'`)
 	check(`(() => {
    const cap=overgo.capabilities();
    window.draftInput=()=>document.querySelector('#panel-chat .composer textarea');
@@ -143,7 +147,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	check(`(async () => {rejectDraftMount(new Error('obsolete mount failure'));await new Promise(resolve=>requestAnimationFrame(resolve));return !!document.querySelector('.composer') && !document.querySelector('#panel-chat').textContent.includes('obsolete mount failure');})()`)
 	// Storage can fail on read or write: retain navigation drafts and tell the truth about reload.
 	check(`(() => {window.draftStorageSet=Storage.prototype.setItem;window.draftStorageGet=Storage.prototype.getItem;Storage.prototype.setItem=function(){throw new Error('storage unavailable');};Storage.prototype.getItem=function(){throw new Error('storage unavailable');};draftType(draftInput(),'Memory-only draft');window.previousDraftComposer=document.querySelector('.composer');overgo.openConversation(null);return true;})()`)
-	settle(`document.querySelector('.composer')!==previousDraftComposer && draftInput().value==='Memory-only draft' && document.querySelector('.composer').textContent.includes('reloading may lose it')`)
+	settle(`document.querySelector('.composer')!==previousDraftComposer && draftInput().value==='Memory-only draft' && document.querySelector('.composer').textContent.includes('Copy it before reloading')`)
 	check(`(() => {Storage.prototype.setItem=draftStorageSet;Storage.prototype.getItem=draftStorageGet;return true;})()`)
 	// The first response changes the draft's root without duplicating the next prompt into New chat.
 	check(`(() => {

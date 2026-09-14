@@ -4,6 +4,24 @@
   "staged": [
     {
       "package": "overgo/internal/modelrecipetest",
+      "name": "DPODefinition",
+      "reason": "Shared DPO fixture replaces identical server and workflow constructors. Independent assertions remain; the closed finding records 28 fewer SLOC and 339 fewer AST nodes including shared helper overhead.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:4c952c12bd289b58e885fae3dfec4a0daefb613938b96f6cb4cfa1ee6e19bd1c"
+      }
+    },
+    {
+      "package": "overgo/internal/modelrecipetest",
+      "name": "PolicyDependencies",
+      "reason": "Shared policy-binding fixture replaces identical server and workflow constructors; it preserves recipe roles and caller-supplied artifact identities and is intentionally test-consumed.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:4c952c12bd289b58e885fae3dfec4a0daefb613938b96f6cb4cfa1ee6e19bd1c"
+      }
+    },
+    {
+      "package": "overgo/internal/modelrecipetest",
       "name": "CandidateExecution",
       "reason": "Shared testing.TB fixture consolidates duplicate candidate-compilation helpers from runtime and media tests; it is test-consumed by design and adds no serving API. The bound finding records the consumers, passing scoped checks and 32-node duplication reduction.",
       "retained": {

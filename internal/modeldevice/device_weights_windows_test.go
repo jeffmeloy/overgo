@@ -1,6 +1,6 @@
 //go:build windows
 
-package model
+package modeldevice
 
 import (
 	"bytes"

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 )
@@ -18,7 +18,7 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	dataset := id(artifact.KindDataset, "dpo-dataset")
 	split := id(artifact.KindDatasetShard, "dpo-split")
 	processor := id(artifact.KindProfile, "dpo-processor")
-	muonPlan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
+	muonPlan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +55,8 @@ func TestDPOCheckpointAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := optimizer.Config{BaseLearningRate: 0.1, Momentum: 0.9, Steps: 1, Schedule: optimizer.ScheduleConstant}
-	opt, err := optimizer.New([]float32{1}, []float32{0}, muonPlan, config)
+	config := hostoptimizer.Config{BaseLearningRate: 0.1, Momentum: 0.9, Steps: 1, Schedule: hostoptimizer.ScheduleConstant}
+	opt, err := hostoptimizer.New([]float32{1}, []float32{0}, muonPlan, config)
 	if err != nil {
 		t.Fatal(err)
 	}

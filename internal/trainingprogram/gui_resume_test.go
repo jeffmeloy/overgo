@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 )
 
 func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	id := func(kind artifact.Kind, value string) artifact.ID { return testutil.ArtifactID(t, kind, value) }
-	optimizerPlan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
+	optimizerPlan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestQuantileRouterCheckpointResumeIsExactAndMismatchRefuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := optimizer.New([]float32{1}, []float32{0}, optimizerPlan, config)
+	state, err := hostoptimizer.New([]float32{1}, []float32{0}, optimizerPlan, config)
 	if err != nil {
 		t.Fatal(err)
 	}

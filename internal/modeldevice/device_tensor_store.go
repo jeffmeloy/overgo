@@ -1,4 +1,4 @@
-package model
+package modeldevice
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
+	"overgo/internal/model"
 )
 
 // deviceTensorStore: shared CUDA tensor ownership.
@@ -80,7 +81,7 @@ func (s *deviceTensorStore) loadConverted(
 	encode func([]float32, int) []byte,
 ) error {
 	return s.load(ctx, infos, func(info gguf.TensorInfo) (DeviceTensor, error) {
-		value, err := LoadHostTensor(ctx, file, info)
+		value, err := model.LoadHostTensor(ctx, file, info)
 		if err != nil {
 			return DeviceTensor{}, err
 		}
@@ -115,6 +116,7 @@ func (s *deviceTensorStore) loadConverted(
 	})
 }
 
+// Lookup returns the loaded tensor by name.
 func (s *deviceTensorStore) Lookup(name string) (DeviceTensor, bool) {
 	if s == nil {
 		return DeviceTensor{}, false
@@ -128,6 +130,7 @@ func (s *deviceTensorStore) Lookup(name string) (DeviceTensor, bool) {
 	return value, ok
 }
 
+// Close frees every loaded tensor.
 func (s *deviceTensorStore) Close() error {
 	if s == nil {
 		return nil

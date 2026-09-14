@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/testutil"
 )
 
 func TestDPOProgramRequiresReferenceAndScale(t *testing.T) {
-	plan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
+	plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

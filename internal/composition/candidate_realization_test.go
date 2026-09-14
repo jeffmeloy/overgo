@@ -6,7 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/bridgetrain"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -60,9 +60,9 @@ func TestCandidateRealizationFreezesDonorsTrainsAdapter(t *testing.T) {
 		Dataset: datasetID, Examples: examples,
 		SourceForward: sourceForward, TargetForward: targetForward,
 		TrainingPolicy: trainingPolicy,
-		Config: optimizer.Config{
+		Config: hostoptimizer.Config{
 			BaseLearningRate: 0.05, Momentum: 0.9, Steps: 4,
-			Schedule: optimizer.ScheduleConstant,
+			Schedule: hostoptimizer.ScheduleConstant,
 		},
 		Epochs: 2,
 	}

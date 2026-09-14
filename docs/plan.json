@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-device-edges",
-      "title": "Cut the two core CUDA edges so most test binaries stop linking the device runtime",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cut the two core CUDA edges so most test binaries stop linking the device runtime",
-          "status": "open",
-          "verify": "test -f internal/gate/device_group_test.go \u0026\u0026 go test ./internal/gate -run ^TestDeviceGroupRatchet$ -count=1",
-          "rationale": "Measured 2026-09-13 on the live import graph: 151 of 256 packages transitively import internal/cuda in production (219 counting test imports), so nearly every test binary links the device runtime, runs under the device lease in the test-device group (9 to 14 minutes of wall for about 150 seconds of test time; the rest is build and link), and costs device memory to build. Two core edges carry most of it: internal/runrecord imports internal/trainingprogram only for the MechanismCensus, ImprovementProposal and MechanismCandidate types, and internal/model imports internal/cuda/device and driver for its device weight and tensor store code (device_converted_weights.go, device_tensor_store.go, device_weights.go, layer_schema.go). Cutting both leaves 108 device packages. Move the run-record facing types to a leaf owner and the model device code to a subpackage its device consumers import; the ratchet pins the device package count and refuses regrowth. No behaviour change; the retained receipts and the device lane keep their coverage."
-        }
-      ]
-    },
-    {
       "id": "stale-store-acceptances",
       "title": "Restore the three store-bound acceptances the complete group exposed: capability census denominator, longform guard cohort, speech alignment annotations",
       "owner": "master-lead",
@@ -30,6 +15,21 @@
           "status": "open",
           "verify": "go test ./cmd/compatibility ./cmd/longform ./internal/audioparity -run '^(TestAcceptedCapabilityCensus|TestCurrentGuardControls|TestSpeechAlignmentAcceptance)$' -count=1",
           "rationale": "Found 2026-09-14 by the first gate of gate-named-documents: with the narrowed document binding the dependent group ran complete for the first time and three store-bound acceptances failed; they fail in the working tree too with OVERGO_DATA_ROOT set to the checkout. cmd/compatibility TestAcceptedCapabilityCensus: the bound census document e544d487 holds 43 registered identities and the live store holds 209, so a new disposition must be recorded before the denominator is replaced. cmd/longform TestCurrentGuardControls: the accepted cohort resolves to two distinct records where three complete immutable records per model are required, and the Qwen 0.5B control no longer identifies the required inference surface and clean measured producer. internal/audioparity TestSpeechAlignmentAcceptance: the annotation archive is read from tmp/ami_public_manual_1.6.2.zip (or OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS) and is absent; an acceptance must not depend on an ignored scratch path, so bind the archive under the declared data roots or skip with the recorded reason when the operator has not supplied it. The verify runs the three tests; run it with OVERGO_DATA_ROOT set, since the tests skip without it and the verify refuses a skipped test. The gate's selection runs these packages short for a gate-only change, so this row does not block the selection rows; it blocks the closeout."
+        }
+      ]
+    },
+    {
+      "id": "composed-objective-flap",
+      "title": "Make the composed-objective descendant acceptance judge a margin its seed mean can hold, not a one-sample modality flap",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the composed-objective descendant acceptance judge a margin its seed mean can hold, not a one-sample modality flap",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run ^TestComposedObjectiveProducesBetterDescendant$ -count=3",
+          "rationale": "Observed 2026-09-14 on the second gate of gate-device-edges, code identical to the run that passed 25 minutes earlier: TestComposedObjectiveProducesBetterDescendant failed with incumbent loss 14.00 against candidate 0.31 (a clear improvement) because the candidate's mean modality accuracy over three seeds was 0.333 against the incumbent's 0.375, one holdout case on one seed. The test's own comment records that device training is not run-context deterministic and that a single seed's one-sample margin flaps; the seed mean still flaps at this holdout size. Judge the promotion contract on a margin the seed mean can hold: require the loss improvement and refuse a regression of action or modality accuracy larger than one holdout case over the seeds, or enlarge the holdout so one case is below the tolerance. The verify runs the test three times in a row on the device; the test skips unless OVERGO_CUDA_TEST=1 is set, so set it when verifying."
         }
       ]
     },
@@ -997,7 +997,8 @@
             "gate-device-edges/do",
             "gate-skip-constant-leaf/do",
             "gate-named-documents/do",
-            "stale-store-acceptances/do"
+            "stale-store-acceptances/do",
+            "composed-objective-flap/do"
           ]
         }
       ]

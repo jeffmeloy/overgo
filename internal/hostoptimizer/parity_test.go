@@ -1,4 +1,4 @@
-package optimizer
+package hostoptimizer
 
 import (
 	"math"
@@ -7,7 +7,7 @@ import (
 
 func TestMuonFlatOptimizerFixture(t *testing.T) {
 	const (
-		matrixElements  = 4
+		MatrixElements  = 4
 		parameterCount  = 7
 		paritySteps     = 4
 		gradientDivisor = 64
@@ -16,8 +16,8 @@ func TestMuonFlatOptimizerFixture(t *testing.T) {
 	weights := []float32{0.5, -0.25, 0.125, -0.75, 0.25, -0.5, 0.75}
 	gradients := make([]float32, parameterCount)
 	plan := mustPlan(t, parameterCount, []GroupSpec{
-		{Name: "matrix", Start: 0, End: matrixElements, Rows: 2, Cols: 2},
-		{Name: "vector", Start: matrixElements, End: parameterCount, Rows: 1, Cols: 3},
+		{Name: "matrix", Start: 0, End: MatrixElements, Rows: 2, Cols: 2},
+		{Name: "vector", Start: MatrixElements, End: parameterCount, Rows: 1, Cols: 3},
 	})
 	instance := mustOptimizer(t, weights, gradients, plan, fixtureConfig)
 	for step := range paritySteps {

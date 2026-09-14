@@ -11,6 +11,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/graphruntime"
 	"overgo/internal/model"
+	"overgo/internal/modeldevice"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
@@ -19,7 +20,7 @@ import (
 type projectorCUDA struct {
 	worker   *device.Worker
 	executor *executor.Executor
-	weights  *model.DeviceConvertedWeights
+	weights  *modeldevice.DeviceConvertedWeights
 }
 
 func openProjectorCUDA(
@@ -41,7 +42,7 @@ func openProjectorCUDA(
 	if err != nil {
 		return fail(err)
 	}
-	state.weights, err = model.NewDeviceConvertedWeights(worker, dtype.F32)
+	state.weights, err = modeldevice.NewDeviceConvertedWeights(worker, dtype.F32)
 	if err != nil {
 		return fail(err)
 	}

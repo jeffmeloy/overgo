@@ -106,7 +106,7 @@ settings, update count, and momentum for resume.
 Hybrid training keeps matrix gradients in GPU optimizer buffers and reuses
 forward-pass caches. Its continuation API preserves momentum and update progress
 between training calls; callers manage model, dataset, and random-state persistence.
-See the [implementation](internal/optimizer/optimizer.go) and
+See the [implementation](internal/hostoptimizer/optimizer.go) and
 [training compatibility](docs/TRAINING_COMPATIBILITY.md) for backend and checkpoint details.
 
 ## Recipes and durable state

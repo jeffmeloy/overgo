@@ -1,5 +1,5 @@
-// Package optimizer owns Muon parameter groups, updates and portable optimizer state.
-package optimizer
+// Package hostoptimizer owns Muon parameter groups, host updates and portable optimizer state; the device steppers live in optimizer.
+package hostoptimizer
 
 import (
 	"crypto/sha256"
@@ -15,7 +15,7 @@ import (
 
 const planIdentityDomain = "overgo.optimizer.plan.v2"
 
-// GroupSpec: named flat parameter matrix.
+// GroupSpec names one flat parameter matrix.
 type GroupSpec struct {
 	Name   string
 	Start  int
@@ -25,10 +25,10 @@ type GroupSpec struct {
 	Frozen bool
 }
 
-// Group: validated Muon group.
+// Group is a validated Muon group.
 type Group struct{ GroupSpec }
 
-// Plan: immutable flat parameter layout.
+// Plan is the immutable flat parameter layout.
 type Plan struct {
 	parameterCount int
 	groups         []Group
@@ -36,6 +36,15 @@ type Plan struct {
 	maxMatrix      int
 	maxSquare      int
 }
+
+// Groups lists the plan's parameter groups in layout order.
+func (p Plan) Groups() []Group { return p.groups }
+
+// MaxMatrix is the largest matrix element count of any group.
+func (p Plan) MaxMatrix() int { return p.maxMatrix }
+
+// MaxSquare is the largest Gram matrix element count of any group.
+func (p Plan) MaxSquare() int { return p.maxSquare }
 
 // CompilePlan validates a complete, ordered parameter partition.
 func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
@@ -65,7 +74,7 @@ func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
 		if spec.Start != next || spec.End < spec.Start || spec.End > parameterCount {
 			return Plan{}, fmt.Errorf("optimizer plan: group %q range [%d,%d) does not continue at %d", spec.Name, spec.Start, spec.End, next)
 		}
-		elements, valid := matrixElements(spec.Rows, spec.Cols)
+		elements, valid := MatrixElements(spec.Rows, spec.Cols)
 		if !valid || elements != spec.End-spec.Start {
 			return Plan{}, fmt.Errorf("optimizer plan: group %q shape %dx%d does not match range [%d,%d)", spec.Name, spec.Rows, spec.Cols, spec.Start, spec.End)
 		}
@@ -79,7 +88,9 @@ func CompilePlan(parameterCount int, specs []GroupSpec) (Plan, error) {
 	return newPlan(parameterCount, groups), nil
 }
 
-func matrixElements(rows, cols int) (int, bool) {
+// MatrixElements is the element count of a rows by cols matrix, false when
+// a dimension is not positive or the product overflows.
+func MatrixElements(rows, cols int) (int, bool) {
 	if rows <= 0 || cols <= 0 || rows > math.MaxInt/cols {
 		return 0, false
 	}
@@ -102,9 +113,14 @@ func newPlan(parameterCount int, groups []Group) Plan {
 	return plan
 }
 
+// ParameterCount is the number of parameters the plan covers.
 func (p Plan) ParameterCount() int { return p.parameterCount }
-func (p Plan) GroupCount() int     { return len(p.groups) }
-func (p Plan) Identity() string    { return p.identity }
+
+// GroupCount is the number of groups.
+func (p Plan) GroupCount() int { return len(p.groups) }
+
+// Identity is the plan digest.
+func (p Plan) Identity() string { return p.identity }
 
 // HostStateBytes returns the complete CPU optimizer's numeric storage: momentum
 // and reusable Newton-Schulz scratch. Caller-owned weights and gradients are
@@ -124,6 +140,7 @@ func (p Plan) HostStateBytes() (uint64, error) {
 	return bytes, nil
 }
 
+// Group returns the group at index, false when out of range.
 func (p Plan) Group(index int) (Group, bool) {
 	if index < 0 || index >= len(p.groups) {
 		return Group{}, false

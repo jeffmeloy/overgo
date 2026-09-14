@@ -8,6 +8,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 )
 
@@ -24,7 +25,7 @@ func progressModel(t *testing.T) *Model {
 
 func verifyOptimizerResume(t *testing.T, train segmentTrainer) {
 	t.Helper()
-	for _, schedule := range []optimizer.Schedule{optimizer.ScheduleConstant, optimizer.ScheduleLinearDecay} {
+	for _, schedule := range []hostoptimizer.Schedule{optimizer.ScheduleConstant, optimizer.ScheduleLinearDecay} {
 		cfg := optimizer.Config{BaseLearningRate: testLearningRate, Momentum: testMomentum, Schedule: schedule, Steps: testSteps}
 		whole := progressModel(t)
 		var want optimizer.State

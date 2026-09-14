@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 )
 
 // SessionSpec supplies compiled model, data, optimizer, and run facts.
@@ -20,7 +20,7 @@ type SessionSpec struct {
 	MaximumSequence  int
 	ObjectiveScale   float64
 	MaxProjectedWall time.Duration
-	Optimizer        optimizer.Config
+	Optimizer        hostoptimizer.Config
 }
 
 // ProbeSpec supplies bounded evidence-run facts.
@@ -41,7 +41,7 @@ type TrainingSessionPlan struct {
 	maximumSequence  int
 	objectiveScale   float64
 	maxProjectedWall time.Duration
-	optimizer        optimizer.Config
+	optimizer        hostoptimizer.Config
 }
 
 // CompileTrainingSessionPlan resolves omitted updates from dataset facts.
@@ -67,13 +67,13 @@ func CompileTrainingSessionPlan(spec SessionSpec) (TrainingSessionPlan, error) {
 	}
 	spec.Optimizer.Steps = updates
 	body := struct {
-		Objective        ObjectiveKind    `json:"objective"`
-		DatasetUnits     int              `json:"dataset_units"`
-		Updates          int              `json:"updates"`
-		MaximumSequence  int              `json:"maximum_sequence"`
-		ObjectiveScale   float64          `json:"objective_scale,omitzero"`
-		MaxProjectedWall int64            `json:"max_projected_wall_ns,omitzero"`
-		Optimizer        optimizer.Config `json:"optimizer"`
+		Objective        ObjectiveKind        `json:"objective"`
+		DatasetUnits     int                  `json:"dataset_units"`
+		Updates          int                  `json:"updates"`
+		MaximumSequence  int                  `json:"maximum_sequence"`
+		ObjectiveScale   float64              `json:"objective_scale,omitzero"`
+		MaxProjectedWall int64                `json:"max_projected_wall_ns,omitzero"`
+		Optimizer        hostoptimizer.Config `json:"optimizer"`
 	}{
 		Objective: spec.Objective, DatasetUnits: spec.DatasetUnits, Updates: updates,
 		MaximumSequence: spec.MaximumSequence, ObjectiveScale: spec.ObjectiveScale,
@@ -152,4 +152,4 @@ func (plan TrainingSessionPlan) ObjectiveScale() float64 { return plan.objective
 func (plan TrainingSessionPlan) MaxProjectedWall() time.Duration { return plan.maxProjectedWall }
 
 // Optimizer returns compiled optimizer configuration.
-func (plan TrainingSessionPlan) Optimizer() optimizer.Config { return plan.optimizer }
+func (plan TrainingSessionPlan) Optimizer() hostoptimizer.Config { return plan.optimizer }

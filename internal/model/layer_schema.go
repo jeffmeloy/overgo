@@ -6,7 +6,6 @@ import (
 	"strings"
 	"unicode"
 
-	"overgo/internal/cuda/driver"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/reference"
@@ -217,8 +216,8 @@ type HostLayer layerTensorSchema[reference.Value]
 // LayerGraphWeights: graph inputs for one dense decoder block.
 type LayerGraphWeights = layerTensorSchema[tensor.Tensor]
 
-// layerBindingSlot: one compiled catalog slot shared by all schema views.
-type layerBindingSlot struct {
+// LayerBindingSlot is one compiled catalog slot shared by all schema views.
+type LayerBindingSlot struct {
 	name      string
 	inputName string
 	index     int
@@ -242,15 +241,15 @@ var layerRuntimeOnlySlots = map[string]bool{
 // layerBindingSchema is compiled once from the unified layer schema.
 var layerBindingSchema = compileLayerBindingSchema()
 
-func compileLayerBindingSchema() []layerBindingSlot {
+func compileLayerBindingSchema() []LayerBindingSlot {
 	schema := reflect.TypeOf(layerTensorSchema[gguf.TensorInfo]{})
-	slots := make([]layerBindingSlot, 0, schema.NumField())
+	slots := make([]LayerBindingSlot, 0, schema.NumField())
 	for index := range schema.NumField() {
 		field := schema.Field(index)
 		if field.Type.Kind() != reflect.Pointer || layerRuntimeOnlySlots[field.Name] {
 			continue
 		}
-		slots = append(slots, layerBindingSlot{
+		slots = append(slots, LayerBindingSlot{
 			name: field.Name, inputName: graphInputName(field.Name), index: index,
 		})
 	}
@@ -308,7 +307,7 @@ func loadHostLayerGraphFieldsWith(
 func bindLayerGraphFields[T any](
 	source *layerTensorSchema[T],
 	result *LayerGraphWeights,
-	bind func(layerBindingSlot, *T) (*tensor.Tensor, error),
+	bind func(LayerBindingSlot, *T) (*tensor.Tensor, error),
 ) error {
 	sourceValue := reflect.ValueOf(source).Elem()
 	graphValue := reflect.ValueOf(result).Elem()
@@ -326,25 +325,9 @@ func bindLayerGraphFields[T any](
 	return nil
 }
 
-// DeviceTensorBinder: metadata-to-device graph binding.
-type DeviceTensorBinder func(
-	*tensor.Builder,
-	gguf.TensorInfo,
-) (*tensor.Tensor, driver.DevicePtr, error)
-
-func bindDeviceLayerGraphFields(
-	bind DeviceTensorBinder,
-	builder *tensor.Builder,
-	info *LayerWeights,
-	result *LayerGraphWeights,
-	feeds *tensor.InputBindings[driver.DevicePtr],
-) error {
-	return bindLayerGraphFields(info, result, func(_ layerBindingSlot, tensorInfo *gguf.TensorInfo) (*tensor.Tensor, error) {
-		node, pointer, err := bind(builder, *tensorInfo)
-		if err != nil {
-			return nil, err
-		}
-		feeds.Add(node, pointer)
-		return node, nil
-	})
+// BindLayerGraphInventory binds every present inventory slot of a layer into
+// the graph view through bind; the device binder in modeldevice builds on
+// it, so this package links no device runtime.
+func BindLayerGraphInventory(info *LayerWeights, result *LayerGraphWeights, bind func(LayerBindingSlot, *gguf.TensorInfo) (*tensor.Tensor, error)) error {
+	return bindLayerGraphFields(info, result, bind)
 }

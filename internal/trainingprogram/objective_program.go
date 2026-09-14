@@ -1,6 +1,6 @@
 package trainingprogram
 
-import "overgo/internal/optimizer"
+import "overgo/internal/hostoptimizer"
 
 const (
 	ObjectiveOperatorForward  = "objective-forward"
@@ -9,7 +9,7 @@ const (
 )
 
 // CompileObjectiveProgram seals the shared forward/backward/Muon order.
-func CompileObjectiveProgram(objective ObjectiveKind, parameters []ParameterSpec, plan optimizer.Plan) (TrainingProgram, error) {
+func CompileObjectiveProgram(objective ObjectiveKind, parameters []ParameterSpec, plan hostoptimizer.Plan) (TrainingProgram, error) {
 	if parameters == nil {
 		parameters = make([]ParameterSpec, plan.GroupCount())
 		for index := range parameters {

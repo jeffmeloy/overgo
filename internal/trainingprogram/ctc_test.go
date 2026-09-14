@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/recipecontract"
 	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
@@ -116,7 +116,7 @@ func TestCTCObjectiveAcceptance(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			plan, err := optimizer.CompilePlan(1, []optimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
+			plan, err := hostoptimizer.CompilePlan(1, []hostoptimizer.GroupSpec{{Name: "weight", End: 1, Rows: 1, Cols: 1}})
 			if err != nil {
 				t.Fatal(err)
 			}

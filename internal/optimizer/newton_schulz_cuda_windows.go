@@ -14,6 +14,7 @@ import (
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/cuda/kernel"
+	"overgo/internal/hostoptimizer"
 )
 
 const deviceF32Bytes = uint64(4)
@@ -269,7 +270,7 @@ const residentNewtonSchulzStage1Iterations = 4
 
 // newtonSchulz matches the host 8+2 FP32 oracle.
 func (o *deviceOps) newtonSchulz(b nsBuffers, rows, cols int) (driver.DevicePtr, error) {
-	return o.runNewtonSchulz(b, rows, cols, o.handle, newtonSchulzStage1Iterations)
+	return o.runNewtonSchulz(b, rows, cols, o.handle, hostoptimizer.NewtonSchulzStage1Iterations)
 }
 
 // newtonSchulzResident runs the measured 4+2 TF32 training schedule.
@@ -301,18 +302,18 @@ func (o *deviceOps) runNewtonSchulz(
 		return 0, err
 	}
 	norm := math.Sqrt(float64(normSquared[0]))
-	if norm < newtonSchulzFrobeniusGuard {
+	if norm < hostoptimizer.NewtonSchulzFrobeniusGuard {
 		return dX, nil
 	}
 	if err := o.scale(dX, dX, float32(1/norm), n); err != nil {
 		return 0, err
 	}
 
-	iterations := stage1Iterations + newtonSchulzStage2Iterations
+	iterations := stage1Iterations + hostoptimizer.NewtonSchulzStage2Iterations
 	for iteration := range iterations {
-		coefficients := newtonSchulzStage1
+		coefficients := hostoptimizer.NewtonSchulzStage1
 		if iteration >= stage1Iterations {
-			coefficients = newtonSchulzStage2
+			coefficients = hostoptimizer.NewtonSchulzStage2
 		}
 		c0 := float32(coefficients[0])
 		c1 := float32(coefficients[1])

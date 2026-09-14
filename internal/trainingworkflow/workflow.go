@@ -13,8 +13,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/densecausal"
+	"overgo/internal/hostoptimizer"
 
-	"overgo/internal/optimizer"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -72,7 +72,7 @@ type Result struct {
 	Candidate      artifact.ID
 	Backend        string
 	Objective      trainingprogram.ObjectiveKind
-	Optimizer      optimizer.Config
+	Optimizer      hostoptimizer.Config
 	Plan           trainingprogram.TrainingSessionPlan
 	Losses         []float64
 	DPO            []trainingprogram.DPOObservation
@@ -201,8 +201,8 @@ type denseSession struct {
 	request         Request
 	runtime         recipe.Program
 	objective       trainingprogram.ObjectiveKind
-	optimizerPlan   optimizer.Plan
-	optimizerConfig optimizer.Config
+	optimizerPlan   hostoptimizer.Plan
+	optimizerConfig hostoptimizer.Config
 	inputDirectory  string
 	model           *densecausal.Model
 	encode          func(string) ([]int, error)
@@ -452,7 +452,7 @@ func compileAuthority(
 	ctx context.Context,
 	repository artifact.Reader,
 	runtime recipe.Program,
-	muonPlan optimizer.Plan,
+	muonPlan hostoptimizer.Plan,
 	modelDirectory string,
 	data batchAuthority,
 	stream trainingdata.StreamState,

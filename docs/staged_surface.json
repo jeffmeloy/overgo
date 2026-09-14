@@ -111,13 +111,19 @@
       }
     },
     {
-      "name": "HermeticLlamaGGUF",
       "package": "overgo/internal/testutil",
+      "name": "HermeticLlamaGGUF",
       "reason": "Shared CPU timing and CUDA parity fixture; migrated all prior inference callers and removed the local builder. Test-consumed by design.",
       "retained": {
         "classification": "test-support",
         "evidence": "evidence:sha256:a9753ddf7825c88b536fa7cfb0d334b35053de0aea663ed4f9776db0e33cd551"
       }
+    },
+    {
+      "package": "overgo/internal/hostoptimizer",
+      "name": "NewtonSchulz",
+      "reason": "The host Newton-Schulz routine is the reference the device stepper parity test in optimizer compares against; it was package-private before the host core moved to its own package and has no production caller by design.",
+      "retire_with": "gate-device-edges/do"
     }
   ]
 }

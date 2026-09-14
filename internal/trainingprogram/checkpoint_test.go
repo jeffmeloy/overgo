@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/optimizer"
+	"overgo/internal/hostoptimizer"
 )
 
 func TestProductionCheckpointResumeExact(t *testing.T) {
@@ -18,11 +18,11 @@ func TestProductionCheckpointResumeExact(t *testing.T) {
 		}
 		return result
 	}
-	plan, err := optimizer.CompilePlan(2, []optimizer.GroupSpec{{Name: "weight", Start: 0, End: 2, Rows: 1, Cols: 2}})
+	plan, err := hostoptimizer.CompilePlan(2, []hostoptimizer.GroupSpec{{Name: "weight", Start: 0, End: 2, Rows: 1, Cols: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	muon, err := optimizer.New([]float32{1, 2}, []float32{3, 4}, plan, optimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9})
+	muon, err := hostoptimizer.New([]float32{1, 2}, []float32{3, 4}, plan, hostoptimizer.Config{BaseLearningRate: 0.01, Momentum: 0.9})
 	if err != nil {
 		t.Fatal(err)
 	}

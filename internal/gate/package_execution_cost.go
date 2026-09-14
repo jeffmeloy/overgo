@@ -73,18 +73,15 @@ func suiteCostRanking(report testevidence.GoTestReport) []suiteTestCost {
 var suiteCostContract = artifact.DocumentContract{
 	Kind:      artifact.KindEvidence,
 	MediaType: "application/vnd.overgo.gate-suite-cost+json",
-	Schema:    "overgo/gate-suite-cost/v1",
+	Schema:    "overgo/gate-suite-cost/v2",
 }
 
 // Retain compact costs in the gate's final atomic batch, including recovery debt.
 // No child spans exist in this stream: subprocess/assertion attribution stays null.
 func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID) error {
 	type invocation struct {
-		StreamDigest string          `json:"stream_digest"`
-		Short        bool            `json:"short"`
-		Failed       bool            `json:"failed"`
-		WallNS       uint64          `json:"wall_ns"`
-		Suites       []suiteTestCost `json:"suites"`
+		packageExecutionBatch
+		Suites []suiteTestCost `json:"suites"`
 	}
 	record := struct {
 		Result      artifact.ID  `json:"result"`
@@ -92,9 +89,7 @@ func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID)
 		Limitations string       `json:"limitations"`
 	}{Result: result, Limitations: "Parent and child elapsed may overlap. Top-level sums are neither package wall nor complete work: parallel children need not appear in parent elapsed. Child-execution and assertion costs are unknown without child spans. Diagnostic observations grant no test or reuse credit."}
 	for _, batch := range g.testExecutions {
-		if len(batch.TestCosts) != 0 {
-			record.Invocations = append(record.Invocations, invocation{batch.StreamDigest, batch.Short, batch.Failed, batch.WallNS, batch.TestCosts})
-		}
+		record.Invocations = append(record.Invocations, invocation{batch, batch.TestCosts})
 	}
 	if len(record.Invocations) == 0 {
 		return nil

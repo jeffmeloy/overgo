@@ -153,9 +153,7 @@ func TestSurfaceSelectionWitness(t *testing.T) {
 		t.Fatalf("exact prior pass lost: %+v", passed)
 	}
 	const changed = "docs/config.txt"
-	if err := os.WriteFile(filepath.Join(g.repo, filepath.FromSlash(changed)), []byte("2\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteTextFile(t, g.repo, changed, "2\n")
 	inputs[target], err = graph.identity(target)
 	if err != nil || inputs[target] == original {
 		t.Fatalf("runtime data did not invalidate the consumer input: %v", err)
@@ -191,6 +189,9 @@ func TestSurfaceSelectionWitness(t *testing.T) {
 	var batch artifact.Batch
 	if err := g.appendSelectionCauses(&batch, record.Result.ID); err != nil {
 		t.Fatal(err)
+	}
+	if notes := compactAudit(g.audit); len(notes) != 1 || !strings.Contains(notes[0], batch.Contents[0].Descriptor.ID.String()) || !strings.Contains(notes[0], "plan -history") {
+		t.Fatalf("retained selection query is not discoverable: %v", notes)
 	}
 	retained, err := runrecord.SelectionCauseCodec.Parse(batch.Contents[0].Data)
 	if err != nil {

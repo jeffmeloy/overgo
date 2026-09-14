@@ -635,16 +635,12 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 func compactAudit(lines []string) []string {
 	var output []string
 	for _, line := range lines {
-		// Keep the costliest group's typed explanation parseable. It contains
-		// input paths and reasons, never copied source or test output.
-		if strings.HasPrefix(line, "test input attribution: ") {
-			output = append(output, "advisory: dependency: "+line)
-			continue
-		}
 		label := ""
 		switch {
 		case strings.HasPrefix(line, "suite cost ranking:"):
 			label = "advisory: suite-cost: "
+		case strings.HasPrefix(line, "selection causes:"):
+			label = "advisory: dependency: "
 		case strings.Contains(line, "code profile delta vs HEAD"):
 			label = "advisory: delta: "
 		case strings.HasPrefix(line, "automation ROI"):

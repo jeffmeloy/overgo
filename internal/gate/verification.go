@@ -1716,7 +1716,7 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	g.candidateRoot, g.candidateTree = worktree, tree
 	g.packageGraph = nil
 	defer func() {
-		g.dependencyCostAudit(g.steps)
+		g.captureSelectionCauses()
 		g.candidateRoot, g.candidateTree = "", ""
 		g.packageGraph = nil
 	}()

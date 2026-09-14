@@ -19,16 +19,20 @@ const modernCensusCheckName = "modern-census"
 var modernCensusContract = artifact.JSONContract(artifact.KindProfile, "overgo/modern-go-computation/v1")
 
 type modernGoInput struct {
-	ID        artifact.ID
-	Source    repoanalysis.SourceSnapshot
-	Base      repoanalysis.SourceSnapshot
-	Selection repoanalysis.BuildSelection
-	TargetGo  string
+	ID           artifact.ID
+	CandidateKey artifact.ID
+	BaseKey      artifact.ID
+	Source       repoanalysis.SourceSnapshot
+	Base         repoanalysis.SourceSnapshot
+	Selection    repoanalysis.BuildSelection
+	TargetGo     string
 }
 
 type modernGoReferences struct {
-	Candidate artifact.ID `json:"candidate"`
-	Base      artifact.ID `json:"base"`
+	Candidate    artifact.ID `json:"candidate"`
+	Base         artifact.ID `json:"base"`
+	CandidateKey artifact.ID `json:"candidate_key,omitzero"`
+	Prior        artifact.ID `json:"prior,omitzero"`
 }
 
 // Preparation binds computation inputs. Policy, paths and current authority
@@ -66,14 +70,28 @@ func (g *gateContext) prepareModernGoInput() (*modernGoInput, error) {
 		return nil, err
 	}
 	input := &modernGoInput{Source: snapshot, Base: base, Selection: selection, TargetGo: baseline.TargetGo}
-	input.ID, err = artifact.JSONID(artifact.KindProfile, struct {
-		Schema, Source, Base, Context, TargetGo, Catalog, Compiler, Build string
-		Module                                                            artifact.ID
-		Environment                                                       artifact.ID `json:"environment,omitzero"`
-		Files                                                             map[string]bool
-		Packages                                                          map[string]string
-	}{modernCensusContract.Schema, snapshot.Identity(), base.Identity(), selection.Context, baseline.TargetGo,
+	producer, err := artifact.JSONID(artifact.KindProfile, struct {
+		Schema, Source, Context, TargetGo, Catalog, Compiler, Build string
+		Module                                                      artifact.ID
+		Environment                                                 artifact.ID `json:"environment,omitzero"`
+		Files                                                       map[string]bool
+		Packages                                                    map[string]string
+	}{modernCensusContract.Schema, snapshot.Identity(), selection.Context, baseline.TargetGo,
 		repoanalysis.ModernGoCatalogSHA256, compiler, build, module, g.environment.ID, selection.Files, selection.Packages})
+	if err != nil {
+		return nil, err
+	}
+	keys := []*artifact.ID{&input.CandidateKey, &input.BaseKey}
+	for index, source := range []repoanalysis.SourceSnapshot{snapshot, base} {
+		*keys[index], err = artifact.JSONID(artifact.KindProfile, struct {
+			Producer artifact.ID
+			Files    []repoanalysis.GoFile
+		}{producer, source.Files})
+		if err != nil {
+			return nil, err
+		}
+	}
+	input.ID, err = artifact.JSONID(artifact.KindProfile, []artifact.ID{input.CandidateKey, input.BaseKey})
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +104,7 @@ func (g *gateContext) computeModernGo(ctx context.Context, _ automationcheck.Inv
 	if err != nil {
 		return false, "", err
 	}
-	candidate, previous, err := input.compute()
+	candidate, previous, prior, err := g.computeModernGoOutputs(input)
 	if err != nil {
 		return false, "", err
 	}
@@ -100,7 +118,8 @@ func (g *gateContext) computeModernGo(ctx context.Context, _ automationcheck.Inv
 		return false, "", err
 	}
 	batch.Contents = append(batch.Contents, candidateContent)
-	references := modernGoReferences{Candidate: candidateContent.Descriptor.ID, Base: candidateContent.Descriptor.ID}
+	references := modernGoReferences{Candidate: candidateContent.Descriptor.ID, Base: candidateContent.Descriptor.ID,
+		CandidateKey: input.CandidateKey, Prior: prior}
 	if input.Base.Identity() != input.Source.Identity() {
 		baseContent, err := artifact.JSONContent(modernCensusContract, previous)
 		if err != nil {
@@ -126,6 +145,27 @@ func (input *modernGoInput) compute() (repoanalysis.ModernGoCensus, repoanalysis
 		previous, err = repoanalysis.ModernGoCensusSnapshot(input.Base, input.Selection, input.TargetGo)
 	}
 	return candidate, previous, err
+}
+
+// Baseline rollover changes the pair, not the candidate computation. The
+// prior execution is captured before parallel cache writes begin.
+func (g *gateContext) computeModernGoOutputs(input *modernGoInput) (repoanalysis.ModernGoCensus, repoanalysis.ModernGoCensus, artifact.ID, error) {
+	if g.modernPrior != nil && input.CandidateKey == input.BaseKey {
+		var references modernGoReferences
+		if json.Unmarshal([]byte(g.modernPrior.Detail), &references) == nil && references.CandidateKey == input.CandidateKey {
+			references.Base = references.Candidate
+			detail, err := json.Marshal(references)
+			if err != nil {
+				return repoanalysis.ModernGoCensus{}, repoanalysis.ModernGoCensus{}, artifact.ID{}, err
+			}
+			candidate, base, found, err := g.readModernGoOutput(automationcheck.Evidence{Detail: string(detail)})
+			if err != nil || found {
+				return candidate, base, g.modernPrior.Evidence, err
+			}
+		}
+	}
+	candidate, base, err := input.compute()
+	return candidate, base, artifact.ID{}, err
 }
 
 // A proven result with an absent output runs again through the same DAG node.

@@ -128,6 +128,7 @@ type gateContext struct {
 	auditMutex    sync.Mutex
 	terminalMutex sync.Mutex
 	modernInput   *modernGoInput
+	modernPrior   *automationcheck.ReuseSource
 	// The planned tree is built once per candidate state and the plan is
 	// parsed once for the admission and verification readers; the commit
 	// phase rewrites the plan after every such reader has run.

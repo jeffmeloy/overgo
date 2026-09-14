@@ -883,5 +883,16 @@
       "nodes": 146
     }
   ],
+  "census_rollover_measurement": {
+    "source": "abefbe730fb2268fcde4ebfd17b3503edf6bc5bcb35a5805bd7cdc6e33ff7375",
+    "baseline_gate": "f0b351c77c57c696d27bb4d30624bf0ed8542c71",
+    "baseline_gate_census_seconds": 39.244,
+    "comparison": "Production census DAG node on the repository snapshot, then unchanged candidate promoted to baseline; isolated temporary store and identical computation environment.",
+    "cold_seconds": 42.3418098,
+    "rollover_seconds": 0.0349173,
+    "exact_candidate_and_baseline_equal": true,
+    "reuse": "Original execution validated by the existing evidence cache; immutable output reused under an independently bound candidate key.",
+    "limitations": "One local phase measurement; excludes input preparation and live admission. No behavioral package exclusion or whole-gate speedup claimed. Measurement store was temporary; acceptance is retained in TestSurfaceImpactExclusion."
+  },
   "version": 1
 }

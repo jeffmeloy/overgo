@@ -52,6 +52,7 @@
       let saveDraft = () => {};
       let updateSwitch = () => {};
       let disposeComposer = () => {};
+      let disposeGeneration = () => {};
       let controller = null;
       let activeTurn = null;
       let activeOperation = null;
@@ -63,6 +64,7 @@
         saveDraft();
         disposed = true;
         disposeComposer();
+        disposeGeneration();
         document.removeEventListener("overgo-model-switch", updateSwitch);
         // A queued explicit Stop still needs the incoming ID. Keep only that
         // acknowledgement alive across navigation, then cancel its execution.
@@ -80,13 +82,13 @@
       const params = capabilities.generation;
       const contextLength = capabilities.context_length;
       const tokenLimit = capabilities.max_output_tokens;
-      // Without a declared recipe, never reuse a draft under a display name.
-      const draftScope = capabilities.recipe || crypto.randomUUID();
+      // Unassigned drafts have their own scope and never replace a recipe's draft.
+      const draftScope = capabilities.recipe || 'unassigned';
       const draftKey = () => DRAFT_STORAGE + JSON.stringify([draftScope, conversationRoot]);
-      let storageUnavailable = !capabilities.recipe;
+      let storageUnavailable = false;
       let draft = drafts.get(draftKey());
       if (!draft) {
-        try { if (capabilities.recipe) draft = JSON.parse(sessionStorage.getItem(draftKey()) || "null"); }
+        try { draft = JSON.parse(sessionStorage.getItem(draftKey()) || "null"); }
         catch (_) { storageUnavailable = true; }
       }
       if (!draft || typeof draft !== "object") draft = {};
@@ -156,7 +158,8 @@
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
       // a fresh attachment in such a mode stores through the intake route and fills the control.
       // A file goes to the slot of its kind (the slot's declared media), else to the first slot.
-      const generation = { capabilities: null, capability: null, fields: new Map() };
+      const generation = { capabilities: null, capability: null, fields: new Map(), loading: null };
+      disposeGeneration = () => { if (generation.loading) generation.loading.abort(); };
       const artifactField = (file) => { const slots = [...generation.fields.values()].filter((field) => field.control.type === "artifact");
         return slots.find((field) => file && field.control.media && file.type.startsWith(field.control.media + "/")) || slots[0]; };
       const fieldUploads = new WeakMap();
@@ -419,10 +422,10 @@
       composer.extras.appendChild(branchNotice);
       function persistDraft(key, value) {
         drafts.set(key, value);
-        try { if (capabilities.recipe) sessionStorage.setItem(key, JSON.stringify(value)); }
+        try { sessionStorage.setItem(key, JSON.stringify(value)); storageUnavailable = false; }
         catch (_) { storageUnavailable = true; }
         draftNotice.hidden = !storageUnavailable || !(value.text || value.system || value.attachments.length || value.temperature !== String(params.temperature) || value.tokens !== String(Math.min(params.max_tokens, tokenLimit)));
-        draftNotice.textContent = capabilities.recipe ? "Draft kept for this page only. Browser storage is unavailable; reloading may lose it." : "Draft cannot be restored: the server has not declared this model's recipe.";
+        draftNotice.textContent = "Couldn't save draft. Copy it before reloading.";
       }
       saveDraft = () => {
         if (disposed) return;
@@ -466,20 +469,54 @@
       }
 
       // Generation modes project declared capabilities; transitions discard old slots.
+      const speechSettings = el('section', { class: 'settings-section', hidden: true, 'aria-label': 'Speech options' });
+      settings.appendChild(speechSettings);
+      const generationValues = new Map();
+      let speechSelection = '';
+      function retainGenerationValues() {
+        if (generation.capability?.task === 'speech') generationValues.set(generation.capability.recipe, new Map([...generation.fields].map(([name, field]) => [name, field.input.value])));
+      }
+      function openSpeechOptions(field) {
+        const dialog = document.getElementById('settings-dialog');
+        if (!dialog.open) dialog.showModal();
+        dialog.scrollTop = 0;
+        if (field) field.focus();
+      }
       const galleryLimit = 12; // the newest outputs a mode's gallery rail lists
       async function renderMode(mode) {
+        retainGenerationValues();
+        if (generation.loading) generation.loading.abort();
+        generation.loading = null;
+        speechSettings.hidden = mode !== 'speech';
+        speechSettings.replaceChildren();
+        settings.firstElementChild.hidden = mode === 'speech';
+        composer.modeHost.classList.toggle('speech-mode', mode === 'speech');
+        if (mode === 'speech') composer.element.insertBefore(composer.modeHost, composer.extras);
+        else composer.extras.prepend(composer.modeHost);
         composer.invalidateIntake();
         generation.capability = null;
         generation.fields.clear(); generation.picker = null;
         composer.modeHost.replaceChildren();
         if (!mode || mode === "chat" || mode === "agent") return;
+        const request = new AbortController();
+        composer.modeHost.appendChild(el('span', { class: 'note', role: 'status', text: 'Loading models…' }));
+        generation.loading = request;
+        let available;
         try {
-          if (!generation.capabilities) generation.capabilities = await overgo.api.get("/generation/capabilities");
-        } catch (err) { composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
-        if (disposed || composer.mode() !== mode) return;
+          available = await overgo.api.get("/generation/capabilities", { signal: request.signal });
+        } catch (err) {
+          if (!disposed && generation.loading === request && !request.signal.aborted) composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) }));
+          return;
+        } finally { if (generation.loading === request) generation.loading = null; }
+        if (disposed || request.signal.aborted || composer.mode() !== mode) return;
+        generation.capabilities = available;
+        composer.modeHost.replaceChildren();
         const declared = generation.capabilities.filter((capability) => capability.task === mode);
-        if (!declared.length) return;
-        const controlsHost = el("span", { class: "row" });
+        if (!declared.length) { composer.modeHost.replaceChildren(el('span', { class: 'note', role: 'status', text: 'No model is available for this task. Check Library, then retry.' }), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) })); return; }
+        const controlsHost = el("span", { class: mode === 'speech' ? 'row speech-primary-controls' : 'row' });
+        const selectionNote = el('span', { class: 'note', role: 'status', hidden: true });
+        const speechFields = el('div', { class: 'row' });
+        if (mode === 'speech') speechSettings.append(el('h3', { text: 'Speech options' }), speechFields);
         const picker = el("select", { class: "text w-auto", "aria-label": "generation model" }, ...declared.map((capability) => el("option", {
           value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
         // The gallery rail: the store's outputs of the mode's kind newest first, each thumb named by the
@@ -488,16 +525,39 @@
         const only = el("input", { type: "checkbox", "aria-label": "this model only" });
         const filterRail = () => { for (const thumb of rail.children) thumb.hidden = only.checked && thumb.dataset.recipe !== picker.value; };
         const select = () => {
+          retainGenerationValues();
+          if (mode === 'speech') speechSelection = picker.value;
           composer.invalidateIntake();
           generation.capability = declared.find((capability) => capability.recipe === picker.value && !capability.refusal) || null;
           const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls)) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);
+          selectionNote.hidden = !!generation.capability;
+          selectionNote.textContent = generation.capability ? '' : 'The selected model is unavailable. Choose another model for this task.';
+          const saved = generation.capability && generationValues.get(generation.capability.recipe);
+          for (const [name, field] of generation.fields) if (saved && saved.has(name)) {
+            const value = saved.get(name);
+            if (field.control.choices?.length && !field.control.choices.includes(value)) field.input.value = '';
+            else field.input.value = value;
+          }
+          if (mode === 'speech') {
+            speechFields.replaceChildren();
+            for (const [name, field] of generation.fields) if (name !== 'voice') speechFields.appendChild(field.input.closest('label'));
+            if (generation.capability) controlsHost.appendChild(el('button', { class: 'link-button', text: 'Options', 'aria-label': 'Open speech options', onclick: () => openSpeechOptions() }));
+          }
           filterRail();
         };
+        if (mode === 'speech' && speechSelection) {
+          const previous = speechSelection;
+          if (!declared.some(capability => capability.recipe === previous)) picker.prepend(el('option', { value: previous, text: 'Unavailable model', disabled: true }));
+          picker.value = previous;
+        }
         picker.addEventListener("change", select);
         generation.picker = picker;
         only.addEventListener("change", filterRail);
-        composer.modeHost.append(picker, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
+        if (mode === 'speech') {
+          composer.modeHost.append(picker, selectionNote, controlsHost);
+          speechSettings.appendChild(el('details', {}, el('summary', { text: 'Recent speech' }), el('label', { class: 'chip' }, only, ' This model'), rail));
+        } else composer.modeHost.append(picker, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
         select();
         galleryRail(rail, overgo.outputKind(mode)).then(filterRail);
       }
@@ -659,11 +719,11 @@
         invalid.focus(); invalid.reportValidity(); return false;
       }
       async function submit(text, attachments, mode, branch) {
-        if (actionsBlocked() || !validateSettings()) return;
+        if (actionsBlocked() || ((!mode || mode === 'chat' || mode === 'agent') && !validateSettings())) return;
         if (mode && !['chat', 'agent', 'embeddings', 'rerank'].includes(mode)) {
           if (!generation.capability) { thread.errorRow('Choose a model for this mode before sending.'); return; }
           const invalid = [...generation.fields.values()].find(field => !field.input.checkValidity());
-          if (invalid) { invalid.input.scrollIntoView({ block: 'nearest' }); invalid.input.focus(); invalid.input.reportValidity(); return; }
+          if (invalid) { if (speechSettings.contains(invalid.input)) openSpeechOptions(invalid.input); invalid.input.scrollIntoView({ block: 'nearest' }); invalid.input.focus(); invalid.input.reportValidity(); return; }
           const body = overgo.bodyControl(generation.capability.controls);
           if (body && body.required && !text.trim()) { composer.input.setCustomValidity('Enter ' + (body.label || body.name) + '.'); composer.input.reportValidity(); return; }
         }

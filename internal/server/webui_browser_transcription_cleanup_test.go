@@ -69,7 +69,7 @@ func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 			t.Log(stage + "/" + test.name)
 			check(`(() => {window.cleanupOld=document.querySelector('.composer');overgo.openConversation(null);return true;})()`)
 			settle(`!!window.cleanupOwned && cleanupOwned.element.isConnected && cleanupOwned.element!==cleanupOld`)
-			check(`(() => {cleanupOwned.input.value='Keep this draft';cleanupOwned.input.dispatchEvent(new Event('input'));cleanupOwned.addFile(new File([cleanupWave],'cleanup.wav',{type:'audio/wav'}));return true;})()`)
+			check(`(() => {cleanupOwned.setMode('chat');cleanupOwned.clearAttachments();cleanupOwned.input.value='Keep this draft';cleanupOwned.input.dispatchEvent(new Event('input'));cleanupOwned.addFile(new File([cleanupWave],'cleanup.wav',{type:'audio/wav'}));return true;})()`)
 			settle(`!!cleanupOwned.element.querySelector('.attachment-row button[aria-label^="Transcribe "]:not([hidden]):not([disabled])')`)
 			check(`(() => {window.cleanupCount=cleanupCalls.length;cleanupOwned.element.querySelector('.attachment-row button[aria-label^="Transcribe "]').focus();return true;})()`)
 			pressKey(t, ctx, browser, "Enter", 13)
@@ -153,7 +153,7 @@ func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 	// requires explicit reselection; the alternate is a catalog-only fixture.
 	check(`(() => {window.cleanupOld=document.querySelector('.composer');overgo.openConversation(null);return true;})()`)
 	settle(`cleanupOwned.element.isConnected && cleanupOwned.element!==cleanupOld`)
-	check(`(() => {cleanupOwned.input.value='Keep selection draft';cleanupOwned.addFile(new File([cleanupWave],'cleanup.wav',{type:'audio/wav'}));return true;})()`)
+	check(`(() => {cleanupOwned.setMode('chat');cleanupOwned.clearAttachments();cleanupOwned.input.value='Keep selection draft';cleanupOwned.addFile(new File([cleanupWave],'cleanup.wav',{type:'audio/wav'}));return true;})()`)
 	settle(`!!cleanupOwned.element.querySelector('.attachment-row button[aria-label^="Transcribe "]:not([hidden]):not([disabled])')`)
 	check(`(() => {
  window.cleanupChosen=cleanupOwned.element.querySelector('[aria-label="Transcription model"]').value;

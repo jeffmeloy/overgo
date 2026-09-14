@@ -471,11 +471,14 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
       const picker = document.querySelector('.composer select[aria-label="generation model"]');
       if (!picker || ![...picker.options].some((option) => option.value === `+strconv.Quote(recipeID)+`)) return false;
       picker.value = `+strconv.Quote(recipeID)+`; picker.dispatchEvent(new Event("change"));
-      for (const label of document.querySelectorAll(".mode-controls label.control")) {
+      const speechOptions = document.querySelector('[aria-label="Open speech options"]');
+      if (speechOptions) speechOptions.click();
+      for (const label of document.querySelectorAll('.mode-controls label.control, [aria-label="Speech options"] label.control')) {
         const input = label.querySelector("input, select, textarea");
         if (input.tagName === "SELECT" && !input.value) input.value = [...input.options].map((option) => option.value).find(Boolean) || "";
         else if (input.type === "number" && !input.value) input.value = label.textContent.trim().startsWith("seed") ? String(Date.now() % 100000) : "1";
       }
+      if (speechOptions) document.getElementById('settings-dialog').close();
       return true;
     })()`)
 		return true

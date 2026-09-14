@@ -58,6 +58,13 @@ type goPackageInput struct {
 	// only its own tests run on any change. The reason is audited.
 	opaqueReader bool
 	testOpaque   bool
+	// sourceReader marks a package whose compiled sources observe Go source
+	// as data: they parse or format Go, or run a program the source does
+	// not name, which may be any repository command. Any other unnamed
+	// reach binds the repository's data files, never its sources.
+	// testSourceReader marks the same for the package's tests alone.
+	sourceReader     bool
+	testSourceReader bool
 	// runtimeReason explains a broad binding: what the source left unnamed.
 	runtimeReason string
 	// Named repository inputs retain runtime acceptance even when Markdown.
@@ -183,6 +190,10 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		if !runtimeReader {
 			continue
 		}
+		node.sourceReader = inputs.dynamicExec || slices.ContainsFunc(node.Imports, sourceReaderImport)
+		node.testSourceReader = node.sourceReader || inputs.testDynamicExec ||
+			slices.ContainsFunc(slices.Concat(node.TestImports, node.XTestImports), sourceReaderImport)
+		testSourceReader := node.testSourceReader
 		reason := ""
 		switch {
 		case err != nil:
@@ -227,7 +238,9 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 				// any change, but importers observe only the compiled reach.
 				node.testOpaque = true
 				node.runtimeReason = "tests: " + strings.Join(inputs.testDynamic, "; ")
-				node.testInputDependencies = slices.Clone(roots)
+				if testSourceReader {
+					node.testInputDependencies = slices.Clone(roots)
+				}
 				if !slices.Contains(runtimeDirectories, node.Dir) {
 					runtimeDirectories = append(runtimeDirectories, node.Dir)
 					broadTest[node.Dir] = true
@@ -237,7 +250,11 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		}
 		node.opaqueReader = true
 		node.runtimeReason = reason
-		node.inputDependencies = slices.Clone(roots)
+		// Only a Go-parsing reach observes every root's sources; any other
+		// unnamed reach binds the data files the broad resource loop adds.
+		if node.sourceReader {
+			node.inputDependencies = slices.Clone(roots)
+		}
 		if slices.Contains(edges, "os/exec") {
 			node.executionDependencies = node.inputDependencies
 		}
@@ -551,4 +568,9 @@ func (graph packageInputGraph) devicePackages(packages []string) ([]string, erro
 		}
 	}
 	return devices, nil
+}
+
+// sourceReaderImport reports an import that parses or formats Go source.
+func sourceReaderImport(edge string) bool {
+	return strings.HasPrefix(edge, "go/") || strings.Contains(edge, "/x/tools/go/")
 }

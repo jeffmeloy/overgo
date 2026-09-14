@@ -325,6 +325,7 @@
     let readOnly = false;
     let sendBlocked = false;
     let disposed = false;
+    let paused = false;
     const attachmentHost = el("div", { class: "row attachment-strip" });
     // Accepted media and its bounds come from the capability document, never
     // from a list typed into a surface; a surface may narrow it to kinds.
@@ -334,9 +335,9 @@
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
-    function openPicker() { if (disposed || readOnly) return; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    function openPicker() { if (disposed || readOnly || paused) return; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
     const capture = overgo.mediaCapture({ media, accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
-    const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly) capture.open(); } }, options.attachLabel || "attach") : null;
+    const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly && !paused) capture.open(); } }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
     // modeHost: what a generation mode declares (its model, its controls) rendered by the page.
     const modeHost = el("span", { class: "row mode-controls" });
@@ -365,10 +366,11 @@
     function stage(item, phase, reason = '') {
       item.phase = phase; item.pending = ['reading', 'validating', 'fetching'].includes(phase); item.storing = phase === 'uploading'; item.refusal = reason;
     }
+    function pausePreview(item) { for (const player of item.preview?.querySelectorAll('audio, video') || []) player.pause(); }
     function invalidate(item) {
+      pausePreview(item);
       item.attempt = null; if (item.cancel) item.cancel();
-      if (item.transcription) item.transcription.abort();
-      item.transcription = null; item.transcribing = false;
+      clearTranscript(item);
     }
     function releaseFile(item) {
       if (item.release && !attachments.some(other => other !== item && other.target === item.target && other.artifact === item.artifact)) item.release();
@@ -376,6 +378,7 @@
       if (item.infoLink) item.infoLink.remove(); item.infoLink = item.link = null;
     }
     function removeFile(item) {
+      if (disposed || readOnly || paused) return;
       const index = attachments.indexOf(item);
       if (index < 0) return;
       const focused = item.row && item.row.contains(document.activeElement);
@@ -385,6 +388,7 @@
       if (focused) (attachments[index]?.remove || attachments[index - 1]?.remove || attach || input).focus();
     }
     function stopFile(item) {
+      if (disposed || readOnly || paused) return;
       if (item.transcribing) { stopTranscription(item, 'Transcription stopped. Transcribe again or send the recording.'); return; }
       if (!item.file && item.sourceArtifact) item.needsReattach = true;
       invalidate(item); stage(item, 'cancelled', 'File preparation stopped. Retry or remove it.'); renderAttachments(); item.retry.focus();
@@ -392,7 +396,7 @@
     // ---- transcription: a recorded or attached audio file transcribes through the served model's own
     // route on explicit action; the transcript is an offer to insert or replace, never a send. ----
     const transcribable = () => ((overgo.capabilities() || {}).modes || []).some((mode) => mode.id === 'transcription' && mode.enabled);
-    let transcriptionLoaded = false, transcriptionLoading = null, transcriptionChoices = [];
+    let transcriptionLoaded = false, transcriptionLoading = null, transcriptionChoices = [], transcriptionSelected = '';
     const transcriptionRecipe = () => transcriptionChoices.find(choice => choice.recipe === transcriptionPicker.value && !choice.refusal)?.recipe;
     function loadTranscriptionChoices() {
       if (transcriptionLoaded || transcriptionLoading || disposed) return;
@@ -405,8 +409,12 @@
         transcriptionPicker.replaceChildren(...transcriptionChoices.map(choice => el('option', {
           value: choice.recipe, text: choice.name || fmt.shortID(choice.recipe), disabled: !!choice.refusal, title: choice.refusal || ''
         })));
-        transcriptionPicker.value = transcriptionChoices.find(choice => !choice.refusal)?.recipe || '';
-        transcriptionNote.textContent = transcriptionRecipe() ? '' : 'No transcription model is available. Check models, then retry.';
+        if (transcriptionSelected && !transcriptionChoices.some(choice => choice.recipe === transcriptionSelected)) {
+          transcriptionPicker.prepend(el('option', { value: transcriptionSelected, text: 'Unavailable model', disabled: true }));
+        }
+        transcriptionPicker.value = transcriptionSelected || transcriptionChoices.find(choice => !choice.refusal)?.recipe || '';
+        transcriptionSelected = transcriptionPicker.value;
+        transcriptionNote.textContent = transcriptionRecipe() ? '' : transcriptionChoices.some(choice => !choice.refusal) ? 'The selected model is unavailable. Choose another transcription model.' : 'No transcription model is available. Check models, then retry.';
         transcriptionRetry.hidden = !!transcriptionRecipe();
       }).catch(err => {
         if (disposed || transcriptionLoading !== controller) return;
@@ -418,22 +426,46 @@
       });
     }
     transcriptionPicker.addEventListener('change', () => {
+      transcriptionSelected = transcriptionPicker.value;
+      transcriptionNote.textContent = transcriptionRecipe() ? '' : 'Choose an available transcription model.';
+      transcriptionRetry.hidden = !!transcriptionRecipe();
       for (const item of attachments) if (item.kind === 'audio') {
-        stopTranscription(item, 'Transcription model changed. Transcribe when ready.');
-        item.offer.replaceChildren(); item.offer.hidden = true;
+        clearTranscript(item, 'Transcription model changed. Transcribe when ready.');
       }
       renderAttachments();
     });
-    function stopTranscription(item, note) {
+    function clearTranscript(item, note = '') {
       if (item.transcription) item.transcription.abort();
-      item.transcription = null; item.transcribing = false; item.transcriptNote = note; item.transcriptAlert = false;
+      item.transcription = null; item.transcribing = false; item.transcriptOffer = null;
+      item.transcriptNote = note; item.transcriptAlert = false;
+      if (item.offer) { item.offer.replaceChildren(); item.offer.hidden = true; }
+    }
+    function stopTranscription(item, note) { clearTranscript(item, note); renderAttachments(); }
+    function pauseFiles(note) {
+      for (const item of attachments) {
+        const hadTranscript = item.transcribing || item.transcriptOffer;
+        if (item.pending || item.storing) {
+          invalidate(item); stage(item, 'cancelled', 'File preparation stopped. Retry or remove the file.');
+        }
+        if (hadTranscript) clearTranscript(item, note);
+      }
       renderAttachments();
     }
+    function pagehide() {
+      paused = true;
+      for (const item of attachments) pausePreview(item);
+      if (transcriptionLoading) transcriptionLoading.abort();
+      transcriptionLoading = null; transcriptionLoaded = false;
+      pauseFiles('Transcription stopped when leaving this page. Transcribe again when ready.');
+    }
+    function pageshow() { paused = false; renderAttachments(); }
+    window.addEventListener('pagehide', pagehide);
+    window.addEventListener('pageshow', pageshow);
     function transcribeFile(item) {
-      if (disposed || readOnly || !attachments.includes(item) || !item.file || item.transcribing || !transcriptionRecipe()) return;
+      if (disposed || readOnly || paused || !attachments.includes(item) || !item.file || item.transcribing || !transcriptionRecipe()) return;
+      clearTranscript(item);
       const controller = new AbortController();
-      item.transcription = controller; item.transcribing = true; item.transcriptNote = ''; item.transcriptAlert = false;
-      item.offer.replaceChildren(); item.offer.hidden = true;
+      item.transcription = controller; item.transcribing = true;
       renderAttachments();
       const current = () => !disposed && attachments.includes(item) && item.transcription === controller;
       const form = new FormData();
@@ -452,16 +484,19 @@
       });
     }
     function offerTranscript(item, text) {
+      const offer = {}; item.transcriptOffer = offer;
+      const current = () => !disposed && !readOnly && !paused && attachments.includes(item) && item.transcriptOffer === offer;
       const apply = (replace) => {
+        if (!current()) return;
         input.value = replace || !input.value ? text : input.value + '\n' + text;
-        input.dispatchEvent(new Event('input')); item.offer.replaceChildren(); item.offer.hidden = true; item.transcriptNote = replace ? 'Draft replaced by the transcript.' : 'Transcript inserted into the draft.';
-        renderAttachments(); input.focus();
+        clearTranscript(item, replace ? 'Draft replaced by the transcript.' : 'Transcript inserted into the draft.');
+        input.dispatchEvent(new Event('input')); renderAttachments(); input.focus();
       };
       item.transcriptNote = 'Transcript ready. Insert it after the draft, replace the draft, or discard it.';
       item.offer.replaceChildren(el('span', { class: 'note transcript-text', text: text }),
         el('button', { class: 'link-button', text: 'Insert', 'aria-label': 'Insert the transcript after the draft', onclick: () => apply(false) }),
         el('button', { class: 'link-button', text: 'Replace', 'aria-label': 'Replace the draft with the transcript', onclick: () => apply(true) }),
-        el('button', { class: 'link-button', text: 'Discard', 'aria-label': 'Discard the transcript', onclick: () => { item.offer.replaceChildren(); item.offer.hidden = true; item.transcriptNote = ''; renderAttachments(); } }));
+        el('button', { class: 'link-button', text: 'Discard', 'aria-label': 'Discard the transcript', onclick: () => { if (current()) { clearTranscript(item); renderAttachments(); } } }));
       item.offer.hidden = false;
       renderAttachments();
       item.offer.scrollIntoView({ block: 'nearest' });
@@ -469,8 +504,9 @@
     function renderAttachments() {
       if (disposed) return;
       transcriptionHost.hidden = !transcribable() || !attachments.some(item => item.kind === 'audio' && item.file);
-      if (!transcriptionHost.hidden) loadTranscriptionChoices();
-      transcriptionPicker.disabled = readOnly || !!transcriptionLoading || !transcriptionRecipe();
+      if (!paused && !transcriptionHost.hidden) loadTranscriptionChoices();
+      transcriptionPicker.disabled = readOnly || paused || !!transcriptionLoading || !transcriptionChoices.some(choice => !choice.refusal);
+      transcriptionRetry.disabled = readOnly || paused;
       transcriptionPicker.parentElement.hidden = !transcriptionChoices.length;
       for (const item of attachments) {
         if (!item.row) {
@@ -504,7 +540,8 @@
         item.retry.textContent = item.file ? 'Retry' : 'Reload stored file';
         item.stop.hidden = !item.pending && !item.storing && !item.transcribing;
         item.transcribe.hidden = item.kind !== 'audio' || !item.file || item.phase !== 'ready' || item.transcribing || !transcribable();
-        item.transcribe.disabled = readOnly || !!transcriptionLoading || !transcriptionRecipe();
+        item.remove.disabled = item.retry.disabled = item.stop.disabled = readOnly || paused;
+        item.transcribe.disabled = readOnly || paused || !!transcriptionLoading || !transcriptionRecipe();
         if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
         else if (focused === item.stop && item.stop.hidden) (item.retry.hidden ? item.remove : item.retry).focus();
         const previewKey = !item.pending && !item.refusal && item.dataURL;
@@ -527,7 +564,7 @@
       return limit && file.size > limit ? "exceeds the " + overgo.fmt.bytes(limit) + " limit" : "";
     }
     function addFile(file, source = {}) {
-      if (disposed || readOnly) return;
+      if (disposed || readOnly || paused) return;
       const kind = mediaKind(file.type);
       const item = { file, kind, name: file.name, mime: file.type, size: file.size, sourceArtifact: source.artifact, sourceRun: source.run };
       const missing = attachments.findIndex(saved => saved.needsReattach && saved.name === item.name && saved.size === item.size && saved.mime === item.mime);
@@ -535,7 +572,7 @@
       prepareFile(item);
     }
     function reloadStored(item) {
-      if (disposed || readOnly || !attachments.includes(item)) return;
+      if (disposed || readOnly || paused || !attachments.includes(item)) return;
       invalidate(item);
       const attempt = Symbol(), controller = new AbortController();
       item.attempt = attempt; item.cancel = () => controller.abort(); item.needsReattach = false;
@@ -549,7 +586,7 @@
       }, err => { if (current()) { item.needsReattach = true; stage(item, 'error', overgo.friendlyError(err)); renderAttachments(); } });
     }
     function prepareFile(item) {
-      if (disposed || readOnly || !attachments.includes(item)) return;
+      if (disposed || readOnly || paused || !attachments.includes(item)) return;
       invalidate(item);
       releaseFile(item);
       const attempt = Symbol(), controller = new AbortController();
@@ -614,7 +651,10 @@
     function setBusy(value, stopping = stop.disabled) {
       const focused = document.activeElement;
       busy = value; stop.disabled = !!(busy && stopping); stop.textContent = stop.disabled ? "Stopping…" : "Stop";
-      send.disabled = readOnly || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing);
+      input.readOnly = readOnly || paused;
+      if (attach) attach.disabled = readOnly || paused;
+      if (modeSelect) modeSelect.disabled = readOnly || paused;
+      send.disabled = readOnly || paused || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing);
       send.hidden = busy; stop.hidden = !busy;
       if (focused === send && busy) stop.focus();
       else if (focused === stop && !busy) send.focus();
@@ -635,12 +675,19 @@
     return {
       element, input, attachments, attachmentParts, setBusy, addFile, modeHost, extras,
       setSendBlocked(value) { sendBlocked = value; setBusy(busy); },
-      setReadOnly(value) { readOnly = value; if (value) capture.close(); input.readOnly = value; if (attach) attach.disabled = value; if (modeSelect) modeSelect.disabled = value; setBusy(busy); },
+      setReadOnly(value) { readOnly = value; if (value) { capture.close(); pauseFiles('Transcription stopped: this conversation became read-only.'); } else renderAttachments(); },
       clearAttachments() { for (const item of attachments) invalidate(item); attachments.length = 0; attachmentHost.replaceChildren(); renderAttachments(); },
       restoreAttachments(items) { attachments.push(...items); renderAttachments(); },
-      dispose() { disposed = true; if (transcriptionLoading) transcriptionLoading.abort(); capture.dispose(); for (const item of attachments) invalidate(item); },
+      dispose() { disposed = true; window.removeEventListener('pagehide', pagehide); window.removeEventListener('pageshow', pageshow); if (transcriptionLoading) transcriptionLoading.abort(); capture.dispose(); for (const item of attachments) invalidate(item); },
       closeCapture: capture.close,
-      invalidateIntake() { capture.close(); for (const item of attachments) if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); } renderAttachments(); },
+      invalidateIntake() {
+        capture.close();
+        for (const item of attachments) {
+          clearTranscript(item, item.transcribing || item.transcriptOffer ? 'Model input changed. Transcribe again when ready.' : '');
+          if (item.storing || item.artifact) { invalidate(item); stage(item, 'error', 'Model input changed. Retry to use this file here, or remove it.'); }
+        }
+        renderAttachments();
+      },
       openPicker,
       clearInput() { input.value = ""; },
       mode() { return modeSelect ? modeSelect.value : ""; },

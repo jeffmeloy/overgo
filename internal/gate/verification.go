@@ -203,7 +203,11 @@ func (g *gateContext) pipeline() error {
 			tree := planned.manifest.CandidateTree
 			drift = func() error { return g.requireCandidateTree(tree) }
 		}
-		results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift)
+		deferred, err := g.checkpointDeferrals(definitions)
+		if err != nil {
+			return err
+		}
+		results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift, deferred)
 		if err != nil {
 			return err
 		}
@@ -234,6 +238,10 @@ func (g *gateContext) pipeline() error {
 			name := definition.Descriptor.Name
 			result, ran := byName[name]
 			if !ran {
+				if deferred[name] {
+					g.note(name + " deferred: checkpoint " + g.checkpoint + " publication leaves it outstanding until the step's cumulative gate")
+					continue
+				}
 				if exclusion, excluded := impact.ExclusionReason(name); excluded {
 					g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
 					g.note(name + " skipped: " + exclusion)

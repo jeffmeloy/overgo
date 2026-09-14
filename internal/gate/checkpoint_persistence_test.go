@@ -73,7 +73,7 @@ func TestCheckpointPersistenceCrashProcess(t *testing.T) {
 		}
 	}
 	cache := g.loadRetryCache()
-	if _, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil); err != nil {
+	if _, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	t.Fatal("checks returned without reaching the persisted checkpoint boundary")
@@ -135,7 +135,7 @@ func TestCheckpointPersistenceSurvivesKill(t *testing.T) {
 		t.Fatal("retry projection unexpectedly survived deletion")
 	}
 
-	results, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil)
+	results, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

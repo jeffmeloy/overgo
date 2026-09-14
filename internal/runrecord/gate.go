@@ -154,9 +154,16 @@ func canonicalizeGateResult(result *GateResult) error {
 		if result.Failure != "" {
 			return errors.New("run record: cancelled gate has failure code")
 		}
+	case OutcomeCheckpoint:
+		if result.Failure != "" {
+			return errors.New("run record: checkpoint gate has failure code")
+		}
 	default:
 		return errors.New("run record: invalid gate outcome")
 	}
+	// A checkpoint publication ends like a success without its commit: every
+	// executed step passed, was reused or was left out.
+	passing := result.Outcome == OutcomeSucceeded || result.Outcome == OutcomeCheckpoint
 	seen := make(map[string]struct{}, len(result.Steps))
 	terminalMatch := false
 	for _, step := range result.Steps {
@@ -183,11 +190,11 @@ func canonicalizeGateResult(result *GateResult) error {
 		default:
 			return errors.New("run record: invalid gate step outcome")
 		}
-		if result.Outcome == OutcomeSucceeded && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != StepInapplicable && step.Outcome != StepReused {
+		if passing && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != StepInapplicable && step.Outcome != StepReused {
 			return errors.New("run record: successful gate has terminal step")
 		}
 	}
-	if result.Outcome != OutcomeSucceeded && !terminalMatch {
+	if !passing && !terminalMatch {
 		return errors.New("run record: gate outcome lacks matching terminal step")
 	}
 	return nil

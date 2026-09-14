@@ -35,7 +35,11 @@ type Options struct {
 	Watchdog           bool
 	InspectPlan        bool
 	// Preflight diagnoses validation failures without admission.
-	Preflight  bool
+	Preflight bool
+	// Checkpoint names one checkpoint of the dispatched step's verification
+	// batch: the gate publishes that checkpoint's evidence with the affected
+	// owner tests and stops before the cumulative suites and the commit.
+	Checkpoint string
 	StaleAfter time.Duration
 }
 
@@ -151,7 +155,11 @@ func Run(options Options) (runErr error) {
 	if readOnlyPlan && *merge {
 		return errors.New("gate: -inspect-plan and -preflight require explicit -paths and cannot inspect an in-progress merge")
 	}
-	if (*pathsCSV == "" && !*merge && !*preflight) || (!readOnlyPlan && *messageFile == "") {
+	checkpoint := strings.TrimSpace(options.Checkpoint)
+	if checkpoint != "" && (readOnlyPlan || *merge || *planRef == "" || *pathsCSV == "") {
+		return errors.New("gate: -checkpoint publishes one checkpoint of -plan <item>/<step> over explicit -paths and cannot merge, inspect or preflight")
+	}
+	if (*pathsCSV == "" && !*merge && !*preflight) || (!readOnlyPlan && checkpoint == "" && *messageFile == "") {
 		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
@@ -214,7 +222,7 @@ func Run(options Options) (runErr error) {
 		}
 	}
 	g := &gateContext{
-		repo: repo, planRef: *planRef, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
+		repo: repo, planRef: *planRef, checkpoint: checkpoint, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 		completionAuthority: completionAuthority, planHead: planHead, dispatchClaim: dispatchClaim,
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
@@ -339,6 +347,9 @@ func Run(options Options) (runErr error) {
 	// commit it; after a successful commit the worktree diff is gone.
 	g.diff = observeDiff(repo)
 	outcome := runrecord.OutcomeSucceeded
+	if g.checkpoint != "" {
+		outcome = runrecord.OutcomeCheckpoint
+	}
 	failureCode := ""
 	var pipelineErr error
 	if pipelineErr = g.pipeline(); pipelineErr != nil {

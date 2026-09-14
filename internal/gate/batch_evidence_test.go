@@ -17,7 +17,7 @@ func TestBatchEvidenceRetainsReplanObligations(t *testing.T) {
 	g, batch, tree := verificationBatchFixture(t, "failure")
 	checks := persistenceInvocations(t, g, batch, tree)
 	cache := g.loadRetryCache()
-	results, err := g.executeChecks(checks, nil, map[artifact.ID]artifact.ID{}, &cache, nil)
+	results, err := g.executeChecks(checks, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil)
 	if err != nil || results[0].Err != nil || results[1].Err == nil {
 		t.Fatalf("expected independent producer pass and consumer failure: %+v %v", results, err)
 	}

@@ -77,7 +77,7 @@ func assertOwnerReuseRetainsDependentChecks(t *testing.T, missingMethod string) 
 		}
 		cache := g.loadRetryCache()
 		g.retryCache = &cache
-		results, err := g.executeChecks(selected, map[string]bool{"acceptance": true}, inputs, &cache, nil)
+		results, err := g.executeChecks(selected, map[string]bool{"acceptance": true}, inputs, &cache, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}

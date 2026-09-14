@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -23,6 +24,7 @@ func (g *gateContext) executeChecks(
 	inputs map[artifact.ID]artifact.ID,
 	cache *automationcheck.EvidenceCache,
 	drift func() error,
+	deferred map[string]bool,
 ) ([]automationcheck.DAGResult, error) {
 	g.modernPrior = nil
 	for _, check := range checks {
@@ -39,12 +41,18 @@ func (g *gateContext) executeChecks(
 			}
 		}
 	}
+	// The ledger registers every batch obligation, deferred ones included,
+	// so an outstanding checkpoint stays recorded; only the executed set
+	// enters the DAG, and a deferred check is never marked satisfied.
 	ledger, err := g.openBatchEvidence(checks, inputs, cache)
 	if err != nil {
 		return nil, err
 	}
 	if g.terminal == nil {
 		g.terminal = map[string]automationcheck.Evidence{}
+	}
+	if len(deferred) != 0 {
+		checks = slices.DeleteFunc(slices.Clone(checks), func(check automationcheck.Invocation) bool { return deferred[check.Check.Name] })
 	}
 	var cacheMutex sync.Mutex
 	return automationcheck.ExecuteDAG(context.Background(), checks, satisfied, func(ctx context.Context, check automationcheck.Invocation) (automationcheck.Evidence, error) {

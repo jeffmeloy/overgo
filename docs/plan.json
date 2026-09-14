@@ -4,38 +4,11 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "host-linear-kernel-reacquisition",
-      "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -run '^TestLinear' -count=1 \u0026\u0026 go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
       "id": "validation-gate-selection",
       "title": "Determine unnecessary testing and deliver one measured gate reduction",
       "owner": "master-lead",
       "status": "open",
       "steps": [
-        {
-          "id": "repair-iteration",
-          "title": "Make focused checkpoint publication stop forcing the whole integration suite",
-          "status": "open",
-          "verify": "test -f internal/gate/repair_iteration_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateRepairBatchAcceptance$' -count=1",
-          "rationale": "Implement focused checkpoint publication in the existing gate, plan and evidence owners after the declared prerequisites. Pass the current integration acceptance once to bootstrap this control change. Later implementation checkpoints execute their own obligations and required affected critical checks, preserve current scope and admission, and remain unpromoted until cumulative integration obligations pass. Persist failed attempts, exact successful package receipts and outstanding skipped or failed work across source changes, restart and cancellation. Audit identity changes must not reacquire an unchanged model or repeat valid integration checks. No bypass flag, second scheduler or alternate gate path. TestGateRepairBatchAcceptance must exercise the actual commit path, relevant and unrelated failures, sibling reuse, changed inputs, restart and cancellation.\n\nRetained scheduling counterexample: gate result evidence:sha256:81b00c9ec04553187d10f711353a3b3cf0b87854c48326ca7e21a2640ca129a0 and costs evidence:sha256:b1d02d880a48f3f7f27a60ee3bb90d4115b67e5d72ae5154a2eca68b2b736b20 show TestTestGroupsOverlapUnderLedger failing in effectively zero time after more than seven minutes of package work. Its changed callee was pipelineChecks. The corrected graph/order group passed in 20.414 seconds. Compose affected cheap control assertions before expensive acceptance fixtures using existing ownership, direct caller evidence and retained execution costs; ordering never grants an exclusion. Preserve individual package receipts and outstanding skipped or failed work. An aggregate successful test phase must not replace missing package evidence. Do not add another scheduler or make a declaration change reacquire a previously valid model result.\n\nCensus reuse is a bounded predecessor, not an overall gate-speed claim. The equal-source probe at source 5a33cfe6923b0bbfc7f012098be23538c6b54d4f8d2eff0f11b18057a9542c51 measured cold computation plus admission at 22.932 seconds, warm reuse plus live admission at 0.063 seconds, and warm input preparation at 2.075 seconds. Candidate/base shared the 2,749,790-byte output profile:sha256:775d1485425f707bfa44fd8e257bd963e35c943d66fd28c8142c7c2f949440dc. This is a computation experiment, not a publication benchmark. The preceding e54391bf integration still took 26m36s and executed 231 packages; its retained costs are evidence:sha256:69c9a0abcc6eb82b9b16606ee2154172bb89c9bba6811eff2a51ce70c17776e4. Target that repeated integration work next. Include implementation, integration, storage and lookup cost in payback; do not multiply the isolated speed ratio or claim this small analysis saving pays for every Go-change gate.\n\nConsume static-preflight's check definitions, candidate/environment binding and cheap failure barrier. This row owns only cumulative checkpoint publication and recovery: retain exact successful sibling receipts, outstanding failures/skips and current admission across repair/restart. Do not rerun preflight's acceptance or rebuild its ordering implementation as another checkpoint. A late static repair reopens only genuinely changed inputs. Exercise the actual commit path, concurrency, cancellation and cumulative integration; no bypass switch or phase-wide evidence exemption.",
-          "depends_on": [
-            "validation-gate-selection/source-evidence-binding",
-            "validation-gate-selection/scope-and-reuse",
-            "plan-publication-cost/memoize-fixed-phases",
-            "validation-gate-selection/static-preflight"
-          ]
-        },
         {
           "id": "call-reach",
           "title": "Prove one real exclusion and preserve relevant failure detection",
@@ -158,6 +131,20 @@
           "depends_on": [
             "validation-gate-selection/measured-adoption"
           ]
+        }
+      ]
+    },
+    {
+      "id": "host-linear-kernel-reacquisition",
+      "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
+          "status": "open",
+          "verify": "go test ./internal/hostmath -run '^TestLinear' -count=1 \u0026\u0026 go run ./cmd/compatibility -check"
         }
       ]
     },

@@ -75,6 +75,7 @@ type gateContext struct {
 	candidateTree       string
 	paths               []string
 	planRef             string
+	checkpoint          string
 	messageFile         string
 	storePath           string
 	steps               []runrecord.GateStep

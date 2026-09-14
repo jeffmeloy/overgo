@@ -163,5 +163,5 @@ var processPrimitiveAllowances = []authorityAllowance{
 	{File: "internal/repoanalysis/build.go", Count: twoAuthoritySites},
 	{File: "internal/repoanalysis/imports.go", Count: oneAuthoritySite},
 	{File: "internal/runrecord/verifying_commit.go", Count: threeAuthoritySites},
-	{File: "internal/testutil/process.go", Count: twoAuthoritySites},
+	{File: "internal/testprocess/process.go", Count: twoAuthoritySites},
 }

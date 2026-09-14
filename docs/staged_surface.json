@@ -93,7 +93,7 @@
       }
     },
     {
-      "package": "overgo/internal/testutil",
+      "package": "overgo/internal/testvocab",
       "name": "ForbidVocabularyRedefinition",
       "reason": "Anti-fork scanner keeping canonical vocabularies from being restated per package; test-support surface is test-consumed by design.",
       "retained": {

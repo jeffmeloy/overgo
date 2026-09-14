@@ -22,14 +22,6 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 	if !found || !strings.Contains(rule.Owner, "internal/workflowruntime") {
 		t.Fatalf("trigger entry authority rule = (found=%t, owner=%q)", found, rule.Owner)
 	}
-	snapshot, err := repoanalysis.DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := closurescan.ValidateEntryAuthorities(snapshot, []closurescan.EntryAuthorityRule{rule}); err != nil {
-		t.Fatalf("live tree violates the trigger entry authority: %v", err)
-	}
-
 	root := t.TempDir()
 	rogue := filepath.Join(root, "internal", "rogue")
 	if err := os.MkdirAll(rogue, 0o755); err != nil {

@@ -249,6 +249,10 @@ var (
 	gateRecoveryLockedHook       func(string)
 	gateRecoveryAfterStepHook    func(string, string)
 	gateCheckPersistedHook       func(string)
+	// Observe every package graph load and candidate worktree so the
+	// package's tests can ratchet their live-tree work per binary.
+	gatePackageGraphLoadedHook     func(root string, nodes int)
+	gateCandidateWorktreeAddedHook func(repo string)
 )
 
 func (transaction *gatePreparedReferenceTransaction) exchange(command, expected string) error {

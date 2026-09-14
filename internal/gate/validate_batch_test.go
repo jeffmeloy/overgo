@@ -18,6 +18,7 @@ import (
 // overlaps a store reader, vet and build follow the whole wave, and two
 // failures inside the wave are both reported.
 func TestValidateChecksRunFirstConcurrently(t *testing.T) {
+	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/gate.go"}}
 	checks := g.pipelineChecks()
 	byName := map[string]automationcheck.Descriptor{}

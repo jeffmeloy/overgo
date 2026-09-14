@@ -84,6 +84,7 @@ func TestCheckpointPersistenceCrashProcess(t *testing.T) {
 // entry reusable, a never-run checkpoint stays absent, and a fresh run reuses
 // the persisted checkpoint while executing the rest.
 func TestCheckpointPersistenceSurvivesKill(t *testing.T) {
+	t.Parallel()
 	g, batch, tree := verificationBatchFixture(t, "pass")
 	batch.Flush = &plan.BatchFlush{Key: "persist", MaxSize: 2, MaxInterval: "1m", MaxBytes: 1 << 20}
 	// The lifecycle test environment is deterministic, so the helper and the

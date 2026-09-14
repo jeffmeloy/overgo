@@ -9,6 +9,7 @@ import (
 // Immutable phases reuse exact inputs. Live admission remains live;
 // package tests reuse individual receipts rather than aggregate phase passes.
 func TestGateReusesUnchangedCheckEvidence(t *testing.T) {
+	t.Parallel()
 	for phase, reusable := range map[string]bool{
 		"fmt": true, "style": true, "profile": true, "scope": true, "protection": true,
 		"manifest": true, "sbom": true, "claims": true, "docs": true, "architecture": true,

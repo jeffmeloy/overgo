@@ -15,6 +15,7 @@ import (
 // stays one batch and an empty group has none. The batch admission reads
 // the same fact.
 func TestDevicePackagesRunFirstUnderTheLease(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join(t.TempDir(), "repo")
 	node := func(importPath, dir string, imports ...string) goPackageInput {
 		return goPackageInput{ImportPath: importPath, Dir: filepath.Join(root, filepath.FromSlash(dir)), Match: []string{importPath}, Imports: imports}

@@ -57,6 +57,7 @@ func requiredSelectionMatrix() []matrixCase {
 // selected, the matrix denominator and per-case timings are reported, and
 // at least one case excludes packages so the comparison proves something.
 func TestChangeSelectionRequiredMatrix(t *testing.T) {
+	t.Parallel()
 	matrix := requiredSelectionMatrix()
 	excludedCases := 0
 	for _, entry := range matrix {

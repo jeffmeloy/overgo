@@ -11,6 +11,7 @@ import (
 )
 
 func TestGateTestFailureDiagnostics(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init")
 	for name, content := range map[string]string{

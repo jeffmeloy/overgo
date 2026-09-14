@@ -17,12 +17,10 @@ import (
 // excludes the device lane by closure while an automation-check change
 // retains it. The browser lane's decision is measured and recorded.
 func TestLaneClosureAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("fixture", laneClosureFixture)
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := &gateContext{repo: root, paths: []string{"internal/gate/preflight.go"}}
+	live := liveRepositoryFixture(t)
+	g := live.context("internal/gate/preflight.go")
 	resolver, err := g.dependencyResolver()
 	if err != nil {
 		t.Fatal(err)

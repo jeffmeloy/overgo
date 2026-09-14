@@ -68,6 +68,7 @@ func TestTerminalEvidenceProcess(t *testing.T) {
 }
 
 func TestTerminalEvidenceRestart(t *testing.T) {
+	t.Parallel()
 	t.Run("publication cost and identical durable results", testPackageLedgerCost)
 	for _, failure := range []string{"closed store", "competing revocation"} {
 		t.Run("publication refuses "+failure, func(t *testing.T) {

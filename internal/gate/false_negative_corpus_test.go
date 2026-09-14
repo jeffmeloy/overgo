@@ -13,6 +13,7 @@ import (
 )
 
 func TestManifestFalseNegativeCorpus(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, base, candidate string
 		kind                  codemanifest.UncertaintyKind

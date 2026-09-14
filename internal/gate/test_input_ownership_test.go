@@ -8,6 +8,7 @@ import (
 )
 
 func TestImportedTestInputsDoNotInvalidateCaller(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	write := func(name, source string) {
 		t.Helper()
@@ -17,7 +18,7 @@ func TestImportedTestInputsDoNotInvalidateCaller(t *testing.T) {
 	}
 	write("internal/reader/reader.go", "package reader\nfunc Value() int { return 1 }\n")
 	write("internal/reader/reader_test.go", "package reader\nimport (\"os\";\"strings\";\"testing\")\nfunc TestFixture(t *testing.T){ b,e:=os.ReadFile(os.Getenv(\"INPUT\")); if e!=nil||strings.TrimSpace(string(b))!=\"1\"{t.Fatalf(\"fixture: %s %v\",b,e)} }\n")
-	t.Setenv("INPUT", filepath.Join(g.repo, "docs", "config.txt"))
+	environment := append(os.Environ(), "INPUT="+filepath.Join(g.repo, "docs", "config.txt"))
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +31,7 @@ func TestImportedTestInputsDoNotInvalidateCaller(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/reader", "./internal/readerclient", "-count=1"); err != nil {
+	if output, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/reader", "./internal/readerclient", "-count=1"); err != nil {
 		t.Fatalf("baseline: %v\n%s", err, output)
 	}
 	write("docs/config.txt", "2\n")
@@ -42,10 +43,10 @@ func TestImportedTestInputsDoNotInvalidateCaller(t *testing.T) {
 	if err != nil || readerAfter == readerBefore {
 		t.Fatalf("own test fixture retained identity: %v", err)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err != nil {
+	if output, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/readerclient", "-count=1"); err != nil {
 		t.Fatalf("unaffected caller: %v\n%s", err, output)
 	}
-	if output, err := command(g.repo, "go", "test", "./internal/reader", "-count=1"); err == nil {
+	if output, err := commandEnvironment(g.repo, environment, "go", "test", "./internal/reader", "-count=1"); err == nil {
 		t.Fatalf("seeded fixture regression escaped: %s", output)
 	}
 	write("internal/unrelated/unrelated.go", "package unrelated\nconst Value = 2\n")
@@ -61,6 +62,7 @@ func TestImportedTestInputsDoNotInvalidateCaller(t *testing.T) {
 }
 
 func TestTestCommandInputsBelongToOwningPackage(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	write := func(name, source string) {
 		t.Helper()
@@ -117,6 +119,7 @@ func TestTestCommandInputsBelongToOwningPackage(t *testing.T) {
 // pointed at through the environment is outside its reach; the caller's
 // identity holds and neither package is selected for that source change.
 func TestRuntimeReaderLeavesUncompiledTestSource(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	source := "package reader\nimport(\"os\";\"strings\")\nfunc Value()int{return read(os.Getenv(\"INPUT\"))}\nfunc read(path string)int{b,e:=os.ReadFile(path);if e==nil&&strings.Contains(string(b),\"Value = 1\"){return 1};return -1}\nfunc fixture(){path:=os.TempDir();_,_=os.ReadFile(path)}\n"
 	if err := os.WriteFile(filepath.Join(g.repo, "internal", "reader", "reader.go"), []byte(source), 0o644); err != nil {
@@ -126,7 +129,6 @@ func TestRuntimeReaderLeavesUncompiledTestSource(t *testing.T) {
 	if err := os.WriteFile(input, []byte("package unrelated\n// Value = 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("INPUT", input)
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

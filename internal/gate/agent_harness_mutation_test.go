@@ -16,6 +16,7 @@ import (
 )
 
 func TestAgentHarnessMutations(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, check, invariant string
 		caught                 func(*testing.T) bool

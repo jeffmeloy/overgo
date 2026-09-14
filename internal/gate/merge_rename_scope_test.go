@@ -8,6 +8,7 @@ import (
 )
 
 func TestMergeScopeIncludesBothRenamePaths(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")

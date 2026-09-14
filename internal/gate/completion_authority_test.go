@@ -24,6 +24,7 @@ import (
 // an operator cannot smuggle a second completion identity into the message
 // that the shared authority reader will later consume.
 func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -98,6 +99,7 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 }
 
 func TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -133,6 +135,7 @@ func TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit(t *testing.T) {
 }
 
 func TestCompletionAuthorityRejectsAlternateGateStore(t *testing.T) {
+	t.Parallel()
 	if err := requireCanonicalGateStore("alternate-store", true); err == nil {
 		t.Fatal("alternate completion-authority store was accepted")
 	}
@@ -145,6 +148,7 @@ func TestCompletionAuthorityRejectsAlternateGateStore(t *testing.T) {
 }
 
 func TestMutatingGateModeCannotHideBehindReadOnlyMode(t *testing.T) {
+	t.Parallel()
 	if err := requireExclusiveGateMode(false, false, true, false, false, true, false); err == nil {
 		t.Fatal("recover-interrupted combined with inspect-plan was accepted")
 	}
@@ -157,6 +161,7 @@ func TestMutatingGateModeCannotHideBehindReadOnlyMode(t *testing.T) {
 }
 
 func TestGatePlanProjectionIsExplicitAndMergeOnly(t *testing.T) {
+	t.Parallel()
 	if projection, err := gatePlanProjection("", false); err != nil ||
 		projection != plan.MergeProjectionSemanticUnion {
 		t.Fatalf("default projection = %q, %v", projection, err)
@@ -177,6 +182,7 @@ func TestGatePlanProjectionIsExplicitAndMergeOnly(t *testing.T) {
 }
 
 func TestGateMergeSourceStoreIsFirstParentTargetOnly(t *testing.T) {
+	t.Parallel()
 	store := filepath.Join(t.TempDir(), gitauthority.CanonicalOvergoDBDirectory)
 	resolved, err := gateMergeSourceStore(store, true, plan.MergeProjectionFirstParentTarget)
 	if err != nil || !filepath.IsAbs(resolved) || filepath.Base(resolved) != gitauthority.CanonicalOvergoDBDirectory {
@@ -198,6 +204,7 @@ func TestGateMergeSourceStoreIsFirstParentTargetOnly(t *testing.T) {
 }
 
 func TestGateCompletionMessageBindsFirstParentTarget(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	document := completionAuthorityPlan()
 	messagePath := filepath.Join(repository, "message.txt")
@@ -242,6 +249,7 @@ func TestGateCompletionMessageBindsFirstParentTarget(t *testing.T) {
 }
 
 func TestProspectiveGateCompletionRejectsAuditedSourceDependency(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	publishSuccessfulInterruptedAttempt(t, fixture, true)
 	if err := removeGateCommitIntent(fixture.repo); err != nil {
@@ -366,6 +374,7 @@ func TestProspectiveGateCompletionRejectsAuditedSourceDependency(t *testing.T) {
 }
 
 func TestProspectiveGateCompletionRejectsUnrelatedPlanDeletion(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -411,6 +420,7 @@ func TestProspectiveGateCompletionRejectsUnrelatedPlanDeletion(t *testing.T) {
 }
 
 func TestProjectedMergePreflightBeforeVerification(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	publishSuccessfulInterruptedAttempt(t, fixture, true)
 	local, err := plan.Parse(fixture.planAfter)
@@ -456,6 +466,7 @@ func TestProjectedMergePreflightBeforeVerification(t *testing.T) {
 }
 
 func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repository, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -548,6 +559,7 @@ func TestProspectiveGateCompletionRejectsAmbiguousMergeBase(t *testing.T) {
 }
 
 func TestProspectiveGateCompletionAuditsProtectedSideHistory(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	publishSuccessfulInterruptedAttempt(t, fixture, true)
 	if err := removeGateCommitIntent(fixture.repo); err != nil {
@@ -600,6 +612,7 @@ func TestProspectiveGateCompletionAuditsProtectedSideHistory(t *testing.T) {
 }
 
 func TestProspectiveGateCompletionRejectsCrossParentIdentityReuse(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	publishSuccessfulInterruptedAttempt(t, fixture, true)
 	if err := removeGateCommitIntent(fixture.repo); err != nil {

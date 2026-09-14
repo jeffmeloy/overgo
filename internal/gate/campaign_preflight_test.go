@@ -14,6 +14,7 @@ import (
 // TestCampaignStructurePreflight rejects a failed or missing campaign check
 // before opening the evidence store, even when the test command exits zero.
 func TestCampaignStructurePreflight(t *testing.T) {
+	t.Parallel()
 	for _, outcome := range []string{"fail", "missing", "pass"} {
 		t.Run(outcome, func(t *testing.T) {
 			root := t.TempDir()

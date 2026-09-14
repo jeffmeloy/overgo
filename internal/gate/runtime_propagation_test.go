@@ -56,6 +56,7 @@ func runtimeReaderFixture(t *testing.T) *gateContext {
 // package input identity, while a package importing nothing that reads the
 // file is excluded and keeps its identity.
 func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	graph, err := g.inputGraph()
 	if err != nil {

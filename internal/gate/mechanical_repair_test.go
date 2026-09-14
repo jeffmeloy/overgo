@@ -22,6 +22,7 @@ import (
 // ceiling refuses with the delta, a census refusal stops the gate, and a
 // commit without Go input stages nothing.
 func TestGateStagesMechanicalRepairs(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	write := func(path, content string) {
 		full := filepath.Join(repo, filepath.FromSlash(path))

@@ -12,6 +12,7 @@ import (
 // TestSelectionReceiptAcceptance compares lane admission and receipt validity
 // against a real failing file consumer and an independent temporary-file test.
 func TestSelectionReceiptAcceptance(t *testing.T) {
+	t.Parallel()
 	g := scopeCompilerFixture(t)
 	write := func(name, content string) {
 		t.Helper()

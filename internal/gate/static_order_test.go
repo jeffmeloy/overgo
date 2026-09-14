@@ -15,6 +15,7 @@ import (
 // TestStaticFailurePreventsAcceptance exercises the executable dependency graph,
 // including subordinate batches: failed build/vet must never start model work.
 func TestStaticFailurePreventsAcceptance(t *testing.T) {
+	t.Parallel()
 	for _, failed := range []string{modernCensusCheckName, "modern-go", "vet", "build", ""} {
 		for _, batched := range []bool{false, true} {
 			name := cmp.Or(failed, "success")

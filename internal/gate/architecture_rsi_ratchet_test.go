@@ -11,6 +11,7 @@ import (
 )
 
 func TestArchitectureRatchetIncludesGoOnlyPolicy(t *testing.T) {
+	t.Parallel()
 	rule, found := closurescan.EntryAuthorityRuleFor(closurescan.EntryAuthorityGoOnly)
 	if !found || !strings.Contains(rule.Owner, "Go") {
 		t.Fatalf("go-only entry authority rule = (found=%t, owner=%q)", found, rule.Owner)
@@ -52,14 +53,17 @@ func TestArchitectureRatchetIncludesGoOnlyPolicy(t *testing.T) {
 }
 
 func TestArchitectureRatchetClassifiesCapabilityInvocationBoundaries(t *testing.T) {
+	t.Parallel()
 	architectureRSIFinding(t, "internal/server/rogue_invocation.go", "package server\nimport tools \"overgo/internal/agenttool\"\nfunc invoke(e *tools.Executor) { _, _, _ = e.InvokeWithEffect(nil, tools.Manual{}, nil) }\n", "invocation-boundary", "unclassified")
 }
 
 func TestInternalOrchestrationDoesNotInvokeUTCPTransport(t *testing.T) {
+	t.Parallel()
 	architectureRSIFinding(t, "internal/loop/rogue_transport.go", "package loop\nimport tools \"overgo/internal/agenttool\"\nfunc routeInternally(e *tools.Executor) { _, _, _ = e.InvokeWithEffect(nil, tools.Manual{}, nil) }\n", "direct-go", "transport-bypass")
 }
 
 func TestCrossDomainCandidateHasSingleAdmissionOwner(t *testing.T) {
+	t.Parallel()
 	snapshot := architectureRSISnapshot(t)
 	clean := architectureRSIAudit(t, snapshot)
 	if err := clean.Error(); err != nil {
@@ -77,10 +81,12 @@ func TestCrossDomainCandidateHasSingleAdmissionOwner(t *testing.T) {
 }
 
 func TestCrossDomainPromotionLifecycleHasOneTransitionOwner(t *testing.T) {
+	t.Parallel()
 	architectureRSIFinding(t, "internal/composition/duplicate_transition.go", "package composition\nfunc Transition() {}\n", "promotion-lifecycle", "owner")
 }
 
 func TestEvidenceDriverHasSingleDecisionOwner(t *testing.T) {
+	t.Parallel()
 	snapshot := architectureRSISnapshot(t)
 	owned := architectureRSIOverlay(t, snapshot, map[string][]byte{
 		"internal/runrecord/driver_decision.go": []byte("package runrecord\ntype DriverDecision struct{}\nfunc NewDriverDecision() DriverDecision { return DriverDecision{} }\n"),
@@ -100,10 +106,12 @@ func TestEvidenceDriverHasSingleDecisionOwner(t *testing.T) {
 }
 
 func TestTrainingEvidenceSinglePublicationAuthority(t *testing.T) {
+	t.Parallel()
 	requireReservedArchitectureOwner(t, "training-evidence-publication")
 }
 
 func TestSequentialControlHasSingleOwner(t *testing.T) {
+	t.Parallel()
 	requireReservedArchitectureOwner(t, "sequential-control")
 }
 
@@ -148,6 +156,7 @@ func requireReservedArchitectureOwner(t *testing.T, family string) {
 }
 
 func TestRSIRuntimeIsGoOnly(t *testing.T) {
+	t.Parallel()
 	snapshot := architectureRSISnapshot(t)
 	tests := []struct {
 		name string

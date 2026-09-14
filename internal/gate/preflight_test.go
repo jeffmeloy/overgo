@@ -20,6 +20,7 @@ import (
 )
 
 func TestPreflightRejectsUnplannedDocsBeforeStore(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	screens := filepath.Join(root, "docs", "gui", "screens")
 	if err := os.MkdirAll(screens, 0o755); err != nil {
@@ -55,6 +56,7 @@ func TestPreflightRejectsUnplannedDocsBeforeStore(t *testing.T) {
 }
 
 func TestPreflightStructureBudget(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +77,7 @@ func TestPreflightStructureBudget(t *testing.T) {
 
 // TestPreflightReportsValidateFindings pins order, findings and path admission.
 func TestPreflightReportsValidateFindings(t *testing.T) {
+	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/preflight.go"}}
 	var names []string
 	for _, check := range g.preflightChecks() {
@@ -136,6 +139,7 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 }
 
 func TestPreflightSeparatesSkippedChecks(t *testing.T) {
+	t.Parallel()
 	checks := []automationcheck.Check{{
 		Descriptor: automationcheck.Descriptor{Name: "fixture", Phase: runrecord.PhaseValidate, Always: true},
 		Run: func(context.Context, automationcheck.Invocation) (bool, string, error) {
@@ -164,6 +168,7 @@ func TestPreflightSeparatesSkippedChecks(t *testing.T) {
 }
 
 func TestPreflightNeverRepairsStore(t *testing.T) {
+	t.Parallel()
 	root, path := magicGateFixture(t, true)
 	writeMagicSource(t, path, "package p\nconst ExistingLimit = 9\n")
 	g := &gateContext{
@@ -179,6 +184,7 @@ func TestPreflightNeverRepairsStore(t *testing.T) {
 }
 
 func TestPreflightRejectsCombinedInspection(t *testing.T) {
+	t.Parallel()
 	if err := Run(Options{Preflight: true, InspectPlan: true}); err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Fatalf("combined modes accepted: %v", err)
 	}
@@ -189,6 +195,7 @@ func TestPreflightRejectsCombinedInspection(t *testing.T) {
 // identities, report the same seeded findings, and never start the expensive
 // work behind a failed check.
 func TestGateEquivalentStaticPreflight(t *testing.T) {
+	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/preflight.go"}}
 	pipeline := g.pipelineChecks()
 	var wantStatic []string

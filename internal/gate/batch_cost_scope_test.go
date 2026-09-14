@@ -14,6 +14,7 @@ import (
 // checkpoint cost and the estimated saving; each is labelled on the audit
 // line and the saving is never folded into the wall.
 func TestBatchedGateCostReportScope(t *testing.T) {
+	t.Parallel()
 	second := uint64(time.Second)
 	steps := []runrecord.GateStep{
 		{Name: "protection", Phase: runrecord.PhasePackage, Outcome: runrecord.StepSucceeded, DurationNS: 9},

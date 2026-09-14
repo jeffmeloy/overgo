@@ -15,6 +15,7 @@ import (
 // successes carry none; the summary prints the table between the GATE
 // line and the audit lines.
 func TestPhaseWallTableOrdersByCost(t *testing.T) {
+	t.Parallel()
 	steps := []runrecord.GateStep{
 		{Name: "build", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: uint64(30 * time.Second)},
 		{Name: "test", Phase: runrecord.PhaseTest, Outcome: runrecord.StepSucceeded, DurationNS: uint64(90 * time.Second)},

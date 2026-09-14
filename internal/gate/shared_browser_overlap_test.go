@@ -14,6 +14,7 @@ import (
 
 // A channel handshake proves overlap without relying on sleep durations.
 func TestSharedBrowserDependencyOverlap(t *testing.T) {
+	t.Parallel()
 	checks := (&gateContext{repo: t.TempDir()}).pipelineChecks()
 	for _, check := range checks {
 		if check.Descriptor.Name == automationcheck.WebUICheckName && !slices.Equal(check.Descriptor.Dependencies, []string{"test-owners"}) {

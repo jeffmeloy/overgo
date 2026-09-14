@@ -12,6 +12,7 @@ import (
 )
 
 func TestASTStructuralProfileGate(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	path := filepath.Join(root, "internal", "p", "p.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -39,6 +40,7 @@ func TestASTStructuralProfileGate(t *testing.T) {
 }
 
 func TestGateRejectsNewUnconsumedProductionSurface(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	path := filepath.Join(root, "internal", "p", "p.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -67,6 +69,7 @@ func TestGateRejectsNewUnconsumedProductionSurface(t *testing.T) {
 }
 
 func TestAdvisoryCandidate(t *testing.T) {
+	t.Parallel()
 	profile := codeprofile.Profile{
 		Functions: []codeprofile.Function{
 			{File: "internal/other/large.go", Name: "larger", Nodes: 40, Branches: 8},
@@ -95,6 +98,7 @@ func TestAdvisoryCandidate(t *testing.T) {
 }
 
 func TestSurfaceDeltaAudit(t *testing.T) {
+	t.Parallel()
 	base := codeprofile.Profile{
 		Runtime: codeprofile.Partition{Files: 2, Nodes: 100}, Test: codeprofile.Partition{Files: 1, Nodes: 30},
 		Functions: []codeprofile.Function{{File: "v.go", Name: "validateBase", Nodes: 20, AdvisoryClass: "validator"}},
@@ -122,6 +126,7 @@ func TestSurfaceDeltaAudit(t *testing.T) {
 }
 
 func TestAutomationROIProjection(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	path := filepath.Join(root, "internal", "p", "p.go")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -159,6 +164,7 @@ func TestAutomationROIProjection(t *testing.T) {
 }
 
 func TestASTProfileEvidenceGate(t *testing.T) {
+	t.Parallel()
 	gate, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("gate"))
 	if err != nil {
 		t.Fatal(err)

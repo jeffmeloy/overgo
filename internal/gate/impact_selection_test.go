@@ -18,6 +18,7 @@ import (
 )
 
 func TestImpactExclusionRateEvidence(t *testing.T) {
+	t.Parallel()
 	checks := []automationcheck.Check{
 		impactMetricCheck("first", "owner:first", "internal/first"),
 		impactMetricCheck("second", "owner:second", "internal/second"),
@@ -51,6 +52,7 @@ func TestImpactExclusionRateEvidence(t *testing.T) {
 }
 
 func TestNoPathOnlySelection(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

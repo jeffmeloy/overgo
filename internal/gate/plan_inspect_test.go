@@ -13,6 +13,7 @@ import (
 )
 
 func TestPlanOutput(t *testing.T) {
+	t.Parallel()
 	planned, _ := planInspectionFixture(t)
 	var output bytes.Buffer
 	if err := writeGatePlanReport(&output, planned); err != nil {
@@ -34,6 +35,7 @@ func TestPlanOutput(t *testing.T) {
 }
 
 func TestPlanReasons(t *testing.T) {
+	t.Parallel()
 	planned, _ := planInspectionFixture(t)
 	report := buildGatePlanReport(planned)
 	wantSelected := map[string]string{
@@ -55,6 +57,7 @@ func TestPlanReasons(t *testing.T) {
 }
 
 func TestPlanDoesNotExecute(t *testing.T) {
+	t.Parallel()
 	planned, executions := planInspectionFixture(t)
 	var output bytes.Buffer
 	if err := writeGatePlanReport(&output, planned); err != nil {

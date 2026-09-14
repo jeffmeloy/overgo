@@ -121,6 +121,9 @@ func loadPackageInputGraph(root string) (packageInputGraph, error) {
 		return packageInputGraph{}, fmt.Errorf("derive repository inputs: %w", err)
 	}
 	graph.bindResourceFiles(paths)
+	if gatePackageGraphLoadedHook != nil {
+		gatePackageGraphLoadedHook(root, len(graph.nodes))
+	}
 	return graph, nil
 }
 

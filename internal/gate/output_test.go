@@ -17,6 +17,7 @@ import (
 )
 
 func TestGateAdvisoryFindingPublication(t *testing.T) {
+	t.Parallel()
 	store := mustGateValue(overgodb.Open(filepath.Join(t.TempDir(), "store")))
 	defer store.Close()
 	batch := artifact.Batch{Key: "gate/fixture"}
@@ -33,6 +34,7 @@ func TestGateAdvisoryFindingPublication(t *testing.T) {
 }
 
 func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
+	t.Parallel()
 	gate := gateContext{
 		start: time.Now(),
 		steps: []runrecord.GateStep{
@@ -71,6 +73,7 @@ func TestGateSummarySeparatesBlockersAndAdvisories(t *testing.T) {
 }
 
 func TestGateRunsStaticChecksBeforeAcceptance(t *testing.T) {
+	t.Parallel()
 	steps := (&gateContext{}).pipelineChecks()
 	positions := make(map[string]int, len(steps))
 	for index, step := range steps {
@@ -89,6 +92,7 @@ func TestGateRunsStaticChecksBeforeAcceptance(t *testing.T) {
 }
 
 func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
+	t.Parallel()
 	steps := (&gateContext{}).pipelineChecks()
 	positions := make(map[string]int, len(steps))
 	for index, step := range steps {
@@ -104,6 +108,7 @@ func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
 }
 
 func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
+	t.Parallel()
 	checks := (&gateContext{repo: t.TempDir(), paths: []string{"internal/cuda/kernel/load.go"}}).pipelineChecks()
 	byName := make(map[string]automationcheck.Descriptor, len(checks))
 	for _, check := range checks {

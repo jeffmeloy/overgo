@@ -12,6 +12,7 @@ import (
 )
 
 func TestCommitAdmissionUsesManifestPlan(t *testing.T) {
+	t.Parallel()
 	runner := func(context.Context, automationcheck.Invocation) (bool, string, error) { return false, "", nil }
 	checks := []automationcheck.Check{
 		{Descriptor: automationcheck.Descriptor{Name: "verify", Phase: runrecord.PhaseTest, Always: true}, Run: runner},
@@ -58,6 +59,7 @@ func TestCommitAdmissionUsesManifestPlan(t *testing.T) {
 }
 
 func TestOutcomeDistinctions(t *testing.T) {
+	t.Parallel()
 	passed := automationcheck.Evidence{DurationNS: 1}
 	inapplicable := passed
 	inapplicable.Inapplicable = true

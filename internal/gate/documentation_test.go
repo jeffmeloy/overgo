@@ -7,6 +7,7 @@ import (
 )
 
 func TestDocumentationFreshnessRejectsStaleRankings(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	docs := filepath.Join(root, "docs")
 	if err := os.Mkdir(docs, 0o755); err != nil {

@@ -86,7 +86,7 @@ func TestChangeSelectionRequiredMatrix(t *testing.T) {
 				t.Fatal(err)
 			}
 			selectionWall := time.Since(started)
-			selected := append(slices.Clone(scope.direct), scope.dependent...)
+			selected := scope.selected()
 			if missed := selectionCounterexamples(full.Failed, selected); len(missed) != 0 {
 				t.Fatalf("selection omitted failing packages %v; full failed=%v selected=%v", missed, full.Failed, selected)
 			}

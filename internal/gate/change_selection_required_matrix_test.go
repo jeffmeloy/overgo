@@ -149,7 +149,7 @@ func TestChangeSelectionExternalConsumers(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			selected := append(slices.Clone(scope.direct), scope.dependent...)
+			selected := scope.selected()
 			if missed := selectionCounterexamples(full.Failed, selected); len(missed) != 0 {
 				t.Errorf("subprocess regression omitted: %v; selected=%v", missed, selected)
 			}

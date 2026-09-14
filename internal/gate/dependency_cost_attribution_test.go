@@ -107,7 +107,7 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 		}
 		g.paths = changes[:1]
 		scope, err := g.deriveTestScope()
-		if err != nil || !slices.Contains(slices.Concat(scope.direct, scope.dependent), pureTarget) {
+		if err != nil || !slices.Contains(scope.selected(), pureTarget) {
 			t.Fatalf("diagnosis changed conservative selection: %+v, %v", scope, err)
 		}
 		if err := os.WriteFile(filepath.Join(g.repo, "docs", "config.txt"), []byte("2\n"), 0o644); err != nil {

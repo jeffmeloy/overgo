@@ -72,7 +72,7 @@ func TestDeclaredExecutionEdgesBoundSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected := append(slices.Clone(scope.direct), scope.dependent...)
+	selected := scope.selected()
 	for _, want := range []string{"overgo/internal/runner", "overgo/internal/dynamic"} {
 		if !slices.Contains(selected, want) {
 			t.Fatalf("command change did not select %s: %v", want, selected)
@@ -92,7 +92,7 @@ func TestDeclaredExecutionEdgesBoundSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selected = append(slices.Clone(scope.direct), scope.dependent...)
+	selected = scope.selected()
 	if !slices.Contains(selected, "overgo/internal/reader") || slices.Contains(selected, "overgo/internal/confined") {
 		t.Fatalf("file change selection = %v", selected)
 	}

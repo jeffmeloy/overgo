@@ -1057,12 +1057,13 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(scope.direct)+len(scope.dependent) == 0 {
+	if len(scope.selected()) == 0 {
 		g.testPlan = &testGroups{}
 		g.note("tests skipped: no Go package owns a compiler or repository input in -paths")
 		return true, nil
 	}
-	direct, dependent := scope.direct, scope.dependent
+	// Uncertain packages take the short group beside the direct ones.
+	direct, dependent := slices.Concat(scope.direct, scope.uncertain), scope.dependent
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
 		return false, err
@@ -1078,7 +1079,7 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if len(boundaryCoverage.Boundaries) != 0 {
 		g.note("assembled agent boundaries: " + strings.Join(boundaryCoverage.Boundaries, ","))
 	}
-	g.note(fmt.Sprintf("test scope: %d direct + %d dependent packages (derived from import graph)", len(direct), len(dependent)))
+	g.note(fmt.Sprintf("test scope: %d direct + %d uncertain packages in the short group, %d dependent packages in the complete group (derived from import graph)", len(scope.direct), len(scope.uncertain), len(dependent)))
 	g.note(fmt.Sprintf("test exclusions: %d packages without affected compiled production or test inputs", scope.excluded))
 	if len(scope.opaqueRuntimeInputs) != 0 {
 		g.note("test scope: runtime consumers bind named commands, named paths or every repository input: " + strings.Join(scope.opaqueRuntimeInputs, ","))

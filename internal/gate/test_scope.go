@@ -11,8 +11,12 @@ import (
 
 type packageTestScope struct {
 	direct, dependent, productionPaths []string
-	unresolved                         []string
-	opaqueRuntimeInputs                []string
+	// uncertain: packages selected only because an unnamed Go-source reach
+	// in their closure might observe the change; they run in the short
+	// group with the direct packages, not in the complete group.
+	uncertain           []string
+	unresolved          []string
+	opaqueRuntimeInputs []string
 	// opaqueReaders: packages bound to every root with the reason the
 	// source left their runtime reach unnamed.
 	opaqueReaders []string
@@ -115,6 +119,9 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	for _, name := range g.paths {
 		changedAbsolute[filepath.Clean(filepath.Join(graph.root, filepath.FromSlash(name)))] = true
 	}
+	// A source reader observes Go source; a change holding none reaches it
+	// only as data, through the resource bindings above.
+	sourceChange := slices.ContainsFunc(g.paths, func(name string) bool { return strings.EqualFold(filepath.Ext(name), ".go") })
 	for _, node := range graph.nodes {
 		if productionDirs[node.Dir] {
 			affected[node.ImportPath] = true
@@ -129,7 +136,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		// Any other unnamed reach binds data files, which the resource
 		// check above already covers; a reader that names its inputs
 		// follows its named edges instead.
-		if node.opaqueReader && node.sourceReader && len(g.paths) != 0 {
+		if node.opaqueReader && node.sourceReader && sourceChange {
 			tainted[node.ImportPath] = true
 		}
 	}
@@ -164,37 +171,47 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	}
 	changeAffected := maps.Clone(affected)
 	maps.Copy(affected, tainted)
-	testTargets := map[string]bool{}
-	for _, node := range graph.nodes {
-		if affected[node.ImportPath] && node.ForTest != "" {
-			testTargets[node.ForTest] = true
+	// A root is a test target when a test variant compiled for it, or a
+	// command its tests run, is affected.
+	targets := func(affected map[string]bool) map[string]bool {
+		targets := map[string]bool{}
+		for _, node := range graph.nodes {
+			if affected[node.ImportPath] && node.ForTest != "" {
+				targets[node.ForTest] = true
+			}
 		}
-	}
-	for _, node := range roots {
-		if slices.ContainsFunc(node.testInputDependencies, func(imported string) bool { return affected[imported] }) {
-			testTargets[node.ImportPath] = true
+		for _, node := range roots {
+			if slices.ContainsFunc(node.testInputDependencies, func(imported string) bool { return affected[imported] }) {
+				targets[node.ImportPath] = true
+			}
 		}
+		return targets
 	}
+	compiledTargets, taintedTargets := targets(changeAffected), targets(affected)
 	for _, node := range roots {
 		if slices.Contains(direct, node.ImportPath) {
 			continue
 		}
-		// A production change or a change to a file the package names at
-		// run time runs the package in the complete group. A package whose
-		// unnamed reach might observe the change also needs complete checks;
-		// uncertainty cannot establish that integration tests are irrelevant.
-		if changeAffected[node.ImportPath] || testTargets[node.ImportPath] || named[node.ImportPath] || tainted[node.ImportPath] {
+		// A package that compiles the change runs in the complete group. A
+		// package that inherits a changed data input through an import, or
+		// whose unnamed Go-source reach might observe the change, runs in the
+		// short group beside the reader that names the input: the short tests
+		// exercise the read and the parse; the integration tests behind the
+		// short flag bind stores and models the change does not reach.
+		switch {
+		case changeAffected[node.ImportPath] || compiledTargets[node.ImportPath]:
 			scope.dependent = append(scope.dependent, node.ImportPath)
-			continue
+		case named[node.ImportPath] || tainted[node.ImportPath] || taintedTargets[node.ImportPath]:
+			scope.uncertain = append(scope.uncertain, node.ImportPath)
+		case (node.opaqueReader && node.sourceReader || node.testOpaque && node.testSourceReader) && sourceChange:
+			scope.uncertain = append(scope.uncertain, node.ImportPath)
+		default:
+			scope.excluded++
 		}
-		if (node.opaqueReader && node.sourceReader || node.testOpaque && node.testSourceReader) && len(g.paths) != 0 {
-			scope.dependent = append(scope.dependent, node.ImportPath)
-			continue
-		}
-		scope.excluded++
 	}
 	slices.Sort(scope.direct)
 	slices.Sort(scope.dependent)
+	slices.Sort(scope.uncertain)
 	for _, node := range graph.nodes {
 		if len(node.inputDependencies) == 0 && len(node.testInputDependencies) == 0 && !node.opaqueReader && !node.testOpaque {
 			continue
@@ -203,7 +220,7 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 		if node.ForTest != "" {
 			target = node.ForTest
 		}
-		if (slices.Contains(scope.direct, target) || slices.Contains(scope.dependent, target)) && !slices.Contains(scope.opaqueRuntimeInputs, target) {
+		if slices.Contains(scope.selected(), target) && !slices.Contains(scope.opaqueRuntimeInputs, target) {
 			scope.opaqueRuntimeInputs = append(scope.opaqueRuntimeInputs, target)
 		}
 		if (node.opaqueReader || node.testOpaque) && !slices.Contains(scope.opaqueReaders, target+": "+node.runtimeReason) {
@@ -213,6 +230,11 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 	slices.Sort(scope.opaqueReaders)
 	slices.Sort(scope.opaqueRuntimeInputs)
 	return scope, nil
+}
+
+// selected lists every package the scope runs, in group order.
+func (scope packageTestScope) selected() []string {
+	return slices.Concat(scope.direct, scope.uncertain, scope.dependent)
 }
 
 // physicalOwners names, in graph order, the root packages whose directory

@@ -62,7 +62,7 @@ func TestGateScopePreservesAffectedCoverage(t *testing.T) {
 			if (len(coverage.Boundaries) != 0) != tc.assembly {
 				t.Errorf("production assembly scope = %+v", coverage)
 			}
-			selected := append(slices.Clone(scope.direct), scope.dependent...)
+			selected := scope.selected()
 			if err := automationcheck.RequireAgentHarnessBoundaries(coverage, selected); err != nil {
 				t.Fatal(err)
 			}

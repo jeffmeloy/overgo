@@ -52,9 +52,9 @@ func runtimeReaderFixture(t *testing.T) *gateContext {
 
 // TestRuntimeInputsPropagateThroughCallers pins the owner's counterexample:
 // a change to a file a library reads at run time selects the library's
-// caller in the complete group and changes the caller's package input
-// identity, while a package importing nothing that reads the file is
-// excluded and keeps its identity.
+// caller beside the reader in the short group and changes the caller's
+// package input identity, while a package importing nothing that reads the
+// file is excluded and keeps its identity.
 func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 	g := runtimeReaderFixture(t)
 	graph, err := g.inputGraph()
@@ -75,12 +75,12 @@ func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The reader itself is a direct owner of the file it names; its caller
-	// inherits the read and runs in the complete group.
-	if !slices.Contains(scope.dependent, "overgo/internal/readerclient") || !slices.Contains(slices.Concat(scope.direct, scope.dependent), "overgo/internal/reader") {
-		t.Fatalf("the library's caller is not selected in the complete group: direct=%v dependent=%v", scope.direct, scope.dependent)
+	// inherits the read and runs in the same short group.
+	if !slices.Contains(scope.uncertain, "overgo/internal/readerclient") || !slices.Contains(scope.direct, "overgo/internal/reader") {
+		t.Fatalf("the library's caller is not selected beside the reader: direct=%v uncertain=%v dependent=%v", scope.direct, scope.uncertain, scope.dependent)
 	}
-	if slices.Contains(scope.direct, "overgo/internal/isolated") || slices.Contains(scope.dependent, "overgo/internal/isolated") || scope.excluded == 0 {
-		t.Fatalf("a package reading nothing was selected: direct=%v dependent=%v excluded=%d", scope.direct, scope.dependent, scope.excluded)
+	if slices.Contains(scope.selected(), "overgo/internal/isolated") || scope.excluded == 0 {
+		t.Fatalf("a package reading nothing was selected: direct=%v uncertain=%v dependent=%v excluded=%d", scope.direct, scope.uncertain, scope.dependent, scope.excluded)
 	}
 	if err := os.WriteFile(filepath.Join(g.repo, "docs", "config.txt"), []byte("2\n"), 0o644); err != nil {
 		t.Fatal(err)

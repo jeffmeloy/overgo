@@ -102,7 +102,7 @@ func (g *gateContext) dependencyResolver() (automationcheck.DependencyResolver, 
 			}
 			paths, found := inputs[importPath]
 			if !found {
-				files, err := graph.inputFiles(importPath)
+				files, err := graph.laneInputFiles(importPath)
 				if err != nil {
 					return true
 				}

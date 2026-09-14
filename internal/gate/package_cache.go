@@ -379,6 +379,15 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 // inputNodes follows the identity owner's edges. Compiler-only traversal is a
 // diagnostic view; it cannot authorize test exclusion or evidence reuse.
 func (graph packageInputGraph) inputNodes(target string, runtimeInputs bool) (map[int]bool, error) {
+	return graph.closureNodes(target, runtimeInputs, true)
+}
+
+// closureNodes walks the target's imports, its own test imports, and the
+// runtime edges of every node reached. With testRuntime false the runtime
+// edges of a node reached only through the target's test imports are not
+// followed: a Go-parsing or program-running helper that only the tests
+// import is the uncertain reach the scope runs short, not a lane's reach.
+func (graph packageInputGraph) closureNodes(target string, runtimeInputs, testRuntime bool) (map[int]bool, error) {
 	queue := append([]int(nil), graph.byID[target]...)
 	for index, node := range graph.nodes {
 		if node.ForTest == target {
@@ -389,41 +398,65 @@ func (graph packageInputGraph) inputNodes(target string, runtimeInputs bool) (ma
 		return nil, fmt.Errorf("package input identity: package %q is absent", target)
 	}
 	withTests := map[int]bool{}
-	var visit func(int, bool)
-	visit = func(index int, tests bool) {
+	compiled := map[int]bool{}
+	var visit func(int, bool, bool)
+	visit = func(index int, tests, viaTest bool) {
 		prior, seen := withTests[index]
-		if seen && (!tests || prior) {
+		if seen && (!tests || prior) && (viaTest || compiled[index]) {
 			return
 		}
 		withTests[index] = prior || tests
-		imports := slices.Clone(graph.nodes[index].Imports)
-		if tests {
-			imports = append(imports, graph.nodes[index].TestImports...)
-			imports = append(imports, graph.nodes[index].XTestImports...)
+		if !viaTest {
+			compiled[index] = true
 		}
-		for _, imported := range imports {
+		for _, imported := range graph.nodes[index].Imports {
 			for _, dependency := range graph.byID[imported] {
-				visit(dependency, false)
+				visit(dependency, false, viaTest)
+			}
+		}
+		if tests {
+			for _, imported := range slices.Concat(graph.nodes[index].TestImports, graph.nodes[index].XTestImports) {
+				for _, dependency := range graph.byID[imported] {
+					visit(dependency, false, true)
+				}
 			}
 		}
 		if !runtimeInputs {
 			return
 		}
-		runtime := slices.Clone(graph.nodes[index].inputDependencies)
-		if tests {
+		// A named command a test helper runs is a real reach; the unnamed
+		// Go-source binding of a test-only parser or runner is not.
+		var runtime []string
+		if !(viaTest && !testRuntime && graph.nodes[index].sourceReader) {
+			runtime = slices.Clone(graph.nodes[index].inputDependencies)
+		}
+		if tests && !(viaTest && !testRuntime && graph.nodes[index].testSourceReader) {
 			runtime = append(runtime, graph.nodes[index].testInputDependencies...)
 		}
 		for _, imported := range runtime {
 			for _, dependency := range graph.byID[imported] {
 				// Runtime commands may run tests; opaque readers may read test source.
-				visit(dependency, true)
+				visit(dependency, true, viaTest)
 			}
 		}
 	}
 	for _, index := range queue {
-		visit(index, true)
+		// A compiler-generated test variant imports the test's imports as
+		// its own; they are test imports for the reach.
+		visit(index, true, graph.nodes[index].ForTest != "")
 	}
 	return withTests, nil
+}
+
+// laneInputFiles lists the files a lane's owned package reaches: what it
+// compiles, what its tests compile, and the runtime reach of its compiled
+// closure. A test-only helper's unnamed reach is not among them.
+func (graph packageInputGraph) laneInputFiles(target string) (map[string]bool, error) {
+	withTests, err := graph.closureNodes(target, true, false)
+	if err != nil {
+		return nil, err
+	}
+	return graph.closureFiles(withTests)
 }
 
 func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error) {
@@ -431,6 +464,13 @@ func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error
 	if err != nil {
 		return nil, err
 	}
+	return graph.closureFiles(withTests)
+}
+
+// closureFiles lists the files of a walked closure: each node's compiled
+// sources (its tests too where the walk reached them with tests), the
+// resources bound to its directory, and the module files.
+func (graph packageInputGraph) closureFiles(withTests map[int]bool) (map[string]bool, error) {
 	files := map[string]bool{}
 	for index := range withTests {
 		node := graph.nodes[index]

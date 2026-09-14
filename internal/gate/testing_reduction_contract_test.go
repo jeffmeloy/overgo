@@ -110,6 +110,11 @@ func TestTestingReductionContract(t *testing.T) {
 			if excluded && !strings.Contains(reason, "closure") {
 				t.Fatalf("%s excluded without a closure proof: %s", name, reason)
 			}
+			// The device lane compiles no Go-parsing reader; gate-lane-closure
+			// keeps its test-only helper out of the lane's reach.
+			if name == "device" && !excluded {
+				t.Fatalf("gate-only change reached the device lane: unknown=%d", len(unrelated.surface.Unknown))
+			}
 		}
 		if reason, excluded := unrelated.impact.ExclusionReason("sbom"); !excluded || !strings.Contains(reason, "closure") {
 			t.Fatalf("gate-only change did not exclude sbom by closure: excluded=%v reason=%s", excluded, reason)

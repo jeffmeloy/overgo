@@ -1,0 +1,546 @@
+{
+ "version": 1,
+ "doc": "Reviewed census of waits bound to a duration the source fixes at writing time (owner rule 2026-09-14: no arbitrary timers). Each removal replaces the bound with observation of the awaited operation under caller cancellation and lowers this census; a new fixed timer is refused.",
+ "timers": [
+  {
+   "file": "cmd/device-lane/admission_test.go",
+   "function": "TestDeviceLaneAdmissionWaitsWithinBudget",
+   "count": 1
+  },
+  {
+   "file": "cmd/evaluate/transcription_projected_windows_test.go",
+   "function": "TestE4BProjectedTranscription",
+   "count": 1
+  },
+  {
+   "file": "cmd/longform/e4b_recovery_windows_test.go",
+   "function": "TestE4BResourceRecovery",
+   "count": 1
+  },
+  {
+   "file": "cmd/longform/publication_lifetime_test.go",
+   "function": "TestPublicationStoreLifetime",
+   "count": 1
+  },
+  {
+   "file": "cmd/server/main.go",
+   "function": "serve",
+   "count": 1
+  },
+  {
+   "file": "cmd/test-lane/failure_diagnostics_test.go",
+   "function": "TestFailureDiagnostics",
+   "count": 3
+  },
+  {
+   "file": "cmd/webui-lane/main.go",
+   "function": "captureLive",
+   "count": 1
+  },
+  {
+   "file": "cmd/webui-lane/main.go",
+   "function": "runLane",
+   "count": 1
+  },
+  {
+   "file": "internal/adaptiveparity/pocket_tts_test.go",
+   "function": "samplePocketHeap",
+   "count": 1
+  },
+  {
+   "file": "internal/adaptiveparity/process_harness_windows_model_test.go",
+   "function": "measureModelProcesses",
+   "count": 1
+  },
+  {
+   "file": "internal/adaptiveparity/scratch_training_leadership_cuda_windows_test.go",
+   "function": "sampleHeap",
+   "count": 1
+  },
+  {
+   "file": "internal/agenttool/entry_wait_test.go",
+   "function": "TestTransportEntryWaitHonorsDeadline",
+   "count": 1
+  },
+  {
+   "file": "internal/agenttool/output_limit_test.go",
+   "function": "TestArgvOutputLimit",
+   "count": 2
+  },
+  {
+   "file": "internal/agenttool/output_limit_test.go",
+   "function": "TestArgvOutputProcess",
+   "count": 3
+  },
+  {
+   "file": "internal/agenttool/transport.go",
+   "function": "Executor.InvokeWithEffect",
+   "count": 1
+  },
+  {
+   "file": "internal/audioparity/live_service_test.go",
+   "function": "TestASRLiveOperationsAcceptance",
+   "count": 2
+  },
+  {
+   "file": "internal/audioparity/live_service_test.go",
+   "function": "liveASRFixture.refusedStartup",
+   "count": 1
+  },
+  {
+   "file": "internal/audioparity/live_service_test.go",
+   "function": "liveASRFixture.transcribe",
+   "count": 1
+  },
+  {
+   "file": "internal/audioparity/live_service_test.go",
+   "function": "openLiveASRStream",
+   "count": 1
+  },
+  {
+   "file": "internal/capabilityruntime/runtime_test.go",
+   "function": "TestModelSessionDirectorConcurrentKeys",
+   "count": 1
+  },
+  {
+   "file": "internal/capabilityruntime/session_admission_test.go",
+   "function": "waitForParkedSession",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/admission_overlap_test.go",
+   "function": "TestAdmissionStepsOverlap",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/deferred_lanes.go",
+   "function": "gateContext.startLaneLocator",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/evidence_commit_recovery_test.go",
+   "function": "TestEvidenceCommitRecoveryAcceptance",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/gate.go",
+   "function": "commandEnvironment",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/gpu_admission_test.go",
+   "function": "waitResourceFile",
+   "count": 2
+  },
+  {
+   "file": "internal/gate/interrupted_commit_test.go",
+   "function": "assertGitReferenceTransactionLocksReleased",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/lane_server_test.go",
+   "function": "TestLaneServerEndsWithRun",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/lane_wave_test.go",
+   "function": "TestSharedLanesCoSchedule",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/recovery.go",
+   "function": "gateContext.startHeartbeat",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/shared_browser_overlap_test.go",
+   "function": "TestSharedBrowserDependencyOverlap",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/store_lifetime_test.go",
+   "function": "TestGateStoreLifetime",
+   "count": 4
+  },
+  {
+   "file": "internal/gate/terminal_evidence_restart_test.go",
+   "function": "TestTerminalEvidenceRestart",
+   "count": 4
+  },
+  {
+   "file": "internal/gate/test_groups_test.go",
+   "function": "TestTestGroupsOverlapUnderLedger",
+   "count": 2
+  },
+  {
+   "file": "internal/gate/test_resource.go",
+   "function": "admitSharedTestResource",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/test_resource_windows_test.go",
+   "function": "TestHostTestResourceAdmission",
+   "count": 1
+  },
+  {
+   "file": "internal/gate/validate_batch_test.go",
+   "function": "TestValidateChecksRunFirstConcurrently",
+   "count": 1
+  },
+  {
+   "file": "internal/inference/continuous_generation_test.go",
+   "function": "TestContinuousGeneratorCancelsOneFusedSequence",
+   "count": 1
+  },
+  {
+   "file": "internal/inference/continuous_generation_test.go",
+   "function": "TestContinuousGeneratorFusesAndShrinksActiveSet",
+   "count": 1
+  },
+  {
+   "file": "internal/modelswap/catalog_test.go",
+   "function": "TestCatalogProgressNamesStagesAndKeepsSlowest",
+   "count": 1
+  },
+  {
+   "file": "internal/modelswap/launcher.go",
+   "function": "serverProcess.Ready",
+   "count": 1
+  },
+  {
+   "file": "internal/modelswap/proxy_test.go",
+   "function": "TestModelSwapRoutesLiveEnvelopeBeforeEOF",
+   "count": 1
+  },
+  {
+   "file": "internal/modelswap/supervisor_test.go",
+   "function": "TestModelSwapCanceledDrainAndArtifactIdentity",
+   "count": 2
+  },
+  {
+   "file": "internal/modelswap/supervisor_test.go",
+   "function": "TestModelSwapSupervisor",
+   "count": 3
+  },
+  {
+   "file": "internal/overgodb/open_context_test.go",
+   "function": "TestOpenContextWriterAdmission",
+   "count": 2
+  },
+  {
+   "file": "internal/overgodb/transaction_writer_test.go",
+   "function": "TestTransactionWriter",
+   "count": 3
+  },
+  {
+   "file": "internal/processcontrol/detached_child_windows_test.go",
+   "function": "TestWindowsWaitIncludesDetachedDescendant",
+   "count": 1
+  },
+  {
+   "file": "internal/processcontrol/resource_wait.go",
+   "function": "AwaitResource",
+   "count": 1
+  },
+  {
+   "file": "internal/processcontrol/resource_wait_test.go",
+   "function": "TestResourceAdmissionCancellationAndFailure",
+   "count": 1
+  },
+  {
+   "file": "internal/processcontrol/resource_windows_test.go",
+   "function": "TestResourceContention",
+   "count": 1
+  },
+  {
+   "file": "internal/processcontrol/supervisor_test.go",
+   "function": "TestSupervisorProcessTreeContract",
+   "count": 3
+  },
+  {
+   "file": "internal/processlock/lock_test.go",
+   "function": "TestAcquireCancellationReleaseRace",
+   "count": 1
+  },
+  {
+   "file": "internal/processlock/lock_test.go",
+   "function": "TestAcquireContextContentionIdentity",
+   "count": 1
+  },
+  {
+   "file": "internal/processlock/lock_test.go",
+   "function": "TestAcquireReleasedAfterProcessDeath",
+   "count": 2
+  },
+  {
+   "file": "internal/processlock/lock_unix.go",
+   "function": "AcquireContext",
+   "count": 1
+  },
+  {
+   "file": "internal/processmeasure/measure.go",
+   "function": "samplePeak",
+   "count": 1
+  },
+  {
+   "file": "internal/processmeasure/measure_test.go",
+   "function": "TestMeasureTracksChildPeakWorkingSet",
+   "count": 2
+  },
+  {
+   "file": "internal/server/audio_startup_test.go",
+   "function": "TestWebUIBrowserAudioStartup",
+   "count": 1
+  },
+  {
+   "file": "internal/server/download_shutdown_test.go",
+   "function": "TestDownloadShutdownOwnership",
+   "count": 1
+  },
+  {
+   "file": "internal/server/e4b_modalities_windows_test.go",
+   "function": "TestE4BHTTPModalities",
+   "count": 1
+  },
+  {
+   "file": "internal/server/e4b_resource_windows_test.go",
+   "function": "TestE4BMediaResourceRecovery",
+   "count": 1
+  },
+  {
+   "file": "internal/server/global_operation_shell_test.go",
+   "function": "TestGlobalOperationShellSSE",
+   "count": 1
+  },
+  {
+   "file": "internal/server/hub_lifecycle_test.go",
+   "function": "TestWorkbenchAPIDownloadAdmissionAndCancellation",
+   "count": 1
+  },
+  {
+   "file": "internal/server/hub_workspace_test.go",
+   "function": "TestWorkbenchAPIDownloadJob",
+   "count": 1
+  },
+  {
+   "file": "internal/server/idle_shell_test.go",
+   "function": "TestIdleShellWriterLifetime",
+   "count": 1
+  },
+  {
+   "file": "internal/server/server.go",
+   "function": "Handler.Close",
+   "count": 1
+  },
+  {
+   "file": "internal/server/server_completion_chat_embedding_test.go",
+   "function": "TestContextAfterFuncDoesNotLeak",
+   "count": 1
+  },
+  {
+   "file": "internal/server/server_completion_chat_embedding_test.go",
+   "function": "TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame",
+   "count": 1
+  },
+  {
+   "file": "internal/server/server_test.go",
+   "function": "TestSlotsReportStableBusyAndIdleState",
+   "count": 1
+  },
+  {
+   "file": "internal/server/server_test.go",
+   "function": "TestWrappedErrorClassification",
+   "count": 1
+  },
+  {
+   "file": "internal/server/session_parking_test.go",
+   "function": "waitForServerSessionWaiter",
+   "count": 1
+  },
+  {
+   "file": "internal/server/transcription_selection_test.go",
+   "function": "TestWebUIBrowserTranscriptionSelection",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_acceptance_test.go",
+   "function": "TestWebUIBrowserAcceptance",
+   "count": 2
+  },
+  {
+   "file": "internal/server/webui_browser_acceptance_test.go",
+   "function": "TestWebUIBrowserFrontPage",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_acceptance_test.go",
+   "function": "waitBrowserOperationState",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_actions_test.go",
+   "function": "TestWebUIBrowserConversationActions",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_attachment_test.go",
+   "function": "TestWebUIBrowserAttachmentWorkflow",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_audio_input_test.go",
+   "function": "TestWebUIBrowserAudioInput",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_audio_output_test.go",
+   "function": "TestWebUIBrowserAudioOutput",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_background_test.go",
+   "function": "TestWebUIBrowserBackgroundWork",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_background_test.go",
+   "function": "TestWebUIBrowserColdActivity",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_capability_test.go",
+   "function": "TestWebUIBrowserAgentCapabilityRefresh",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_capture_test.go",
+   "function": "TestWebUIBrowserMediaCapture",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_control_test.go",
+   "function": "TestWebUIBrowserConversationControl",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_draft_test.go",
+   "function": "TestWebUIBrowserDraftLifecycle",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_firstrun_test.go",
+   "function": "TestWebUIBrowserFirstRun",
+   "count": 2
+  },
+  {
+   "file": "internal/server/webui_browser_layout_test.go",
+   "function": "TestWebUIBrowserConversationLayout",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_library_validation_test.go",
+   "function": "TestWebUIBrowserLibraryValidation",
+   "count": 2
+  },
+  {
+   "file": "internal/server/webui_browser_mobile_test.go",
+   "function": "TestWebUIBrowserMobileInteraction",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_navigation_test.go",
+   "function": "TestWebUIBrowserConversationNavigation",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_reachability_test.go",
+   "function": "TestWebUIBrowserWorkspaceReachability",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_refusal_test.go",
+   "function": "TestWebUIBrowserWorkspaceRefusal",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_reliability_test.go",
+   "function": "TestWebUIBrowserReliability",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_sampling_test.go",
+   "function": "TestWebUIBrowserSamplingSettings",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_screens_test.go",
+   "function": "TestWebUIBrowserScreens",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_speech_controls_test.go",
+   "function": "TestWebUIBrowserSpeechControls",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_transcription_cleanup_test.go",
+   "function": "TestWebUIBrowserTranscriptionCleanup",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_transcription_draft_test.go",
+   "function": "TestWebUIBrowserTranscriptionDraft",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_browser_video_capture_test.go",
+   "function": "TestWebUIBrowserVideoCapture",
+   "count": 1
+  },
+  {
+   "file": "internal/server/webui_served_projector_test.go",
+   "function": "TestFrontPageServedProjector",
+   "count": 2
+  },
+  {
+   "file": "internal/server/workbench_writer_test.go",
+   "function": "testWorkbenchEvidencePublication",
+   "count": 2
+  },
+  {
+   "file": "internal/testevidence/deadline_test.go",
+   "function": "TestActiveDeadlineProcess",
+   "count": 1
+  },
+  {
+   "file": "internal/testevidence/package_updates_test.go",
+   "function": "TestTerminalPublicationDoesNotBlockOutput",
+   "count": 2
+  },
+  {
+   "file": "internal/testprocess/process.go",
+   "function": "MeasureTestProcesses",
+   "count": 1
+  },
+  {
+   "file": "internal/webuilane/browser.go",
+   "function": "Browser.Eventually",
+   "count": 1
+  },
+  {
+   "file": "internal/webuilane/browser.go",
+   "function": "waitDevToolsPort",
+   "count": 1
+  },
+  {
+   "file": "internal/webuilane/screens_test.go",
+   "function": "TestWebUIBrowserCaptureWaitsForTransition",
+   "count": 1
+  },
+  {
+   "file": "internal/webuilane/screens_test.go",
+   "function": "TestWebUIBrowserLayoutAudit",
+   "count": 2
+  }
+ ]
+}

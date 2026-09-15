@@ -329,6 +329,7 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 			inputs[check.ID] = input
 			checks = append(checks, check)
 		}
+		checks = wireLaneRunnerDependencies(checks)
 		cache := g.loadRetryCache()
 		results, err := g.executeChecks(checks, satisfied, inputs, &cache, nil, nil)
 		if err != nil {
@@ -347,6 +348,22 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 		return checkFailures(results)
 	})
 	return outcome, failure, steps, err
+}
+
+// wireLaneRunnerDependencies makes the device test group follow the test
+// plan it consumes: in the gate the owners' tests stand between them, and
+// the runner satisfies those without executing them.
+func wireLaneRunnerDependencies(checks []automationcheck.Invocation) []automationcheck.Invocation {
+	for index := range checks {
+		if checks[index].Check.Name != testDeviceCheckName {
+			continue
+		}
+		dependencies := checks[index].Check.Dependencies
+		if !slices.Contains(dependencies, testPlanCheckName) {
+			checks[index].Check.Dependencies = append(slices.Clone(dependencies), testPlanCheckName)
+		}
+	}
+	return checks
 }
 
 func (g *gateContext) publishLaneState(state runrecord.GateLaneObligation, previous artifact.ID) error {

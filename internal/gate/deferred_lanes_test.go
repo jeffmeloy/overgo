@@ -127,6 +127,15 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err := g.closeStore(); err != nil {
 		t.Fatal(err)
 	}
+	// The runner satisfies the owners' tests without executing them, so the
+	// device group must follow the test plan directly; the first live run
+	// started test-device beside test-plan and found no scope.
+	wired := wireLaneRunnerDependencies(slices.Clone(invocations))
+	for _, invocation := range wired {
+		if invocation.Check.Name == testDeviceCheckName && !slices.Contains(invocation.Check.Dependencies, testPlanCheckName) {
+			t.Fatalf("runner left test-device without the test plan: %v", invocation.Check.Dependencies)
+		}
+	}
 
 	repo := t.TempDir()
 	if err := os.Mkdir(filepath.Join(repo, "tmp"), 0o755); err != nil {

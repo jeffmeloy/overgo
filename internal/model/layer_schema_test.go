@@ -102,7 +102,7 @@ func TestUnifiedLayerBindingSchema(t *testing.T) {
 	// Host and graph views of one loaded layer must expose the same
 	// underlying data: the graph feed for every bound slot aliases the
 	// host slice, so weights flow without copies or divergence.
-	data := hostTensorFixture(t)
+	data := hostTensorFixture(t, "weight", 4)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestGraphInputName(t *testing.T) {
 }
 
 func TestLoadHostLayerGraphFields(t *testing.T) {
-	data := hostTensorFixture(t)
+	data := hostTensorFixture(t, "weight", 4)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
 		t.Fatal(err)

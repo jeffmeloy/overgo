@@ -50,8 +50,8 @@ func (lock *Lock) Close() error {
 // waited for with a blocking flock on its own thread, and a wait the caller
 // abandons releases the lock the moment it is finally granted.
 func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if err := context.Cause(ctx); err != nil {
+		return nil, contendedCause(err, path, mode)
 	}
 	lock, err := Acquire(path, mode)
 	if !errors.Is(err, ErrBusy) {
@@ -83,6 +83,6 @@ func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, 
 				_ = result.lock.Close()
 			}
 		}()
-		return nil, errors.Join(ctx.Err(), ErrBusy)
+		return nil, errors.Join(context.Cause(ctx), ErrBusy)
 	}
 }

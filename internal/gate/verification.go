@@ -1333,11 +1333,11 @@ func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short 
 		len(contended), strings.Join(contended, ",")))
 	for _, pkg := range contended {
 		attempts := 0
-		err := processcontrol.AwaitResource(ctx, g.deviceResource, func() error {
+		err := processcontrol.AwaitResource(ctx, func() error {
 			attempts++
 			report, err = run(ctx, []string{pkg}, short, observe, false)
 			if err != nil && report.ContentionOnly() {
-				return processcontrol.ErrResourceBusy
+				return &processcontrol.ResourceBusyError{Name: g.deviceResource}
 			}
 			return err
 		})

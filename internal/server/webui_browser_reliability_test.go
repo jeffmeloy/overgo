@@ -2,8 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -13,7 +11,6 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/overgodb"
 	"overgo/internal/testskip"
@@ -71,8 +68,7 @@ func TestWebUIBrowserReliability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 45*time.Second, errors.New("GUI reliability journey did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

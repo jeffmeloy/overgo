@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
@@ -26,9 +25,12 @@ func TestPublicationStoreLifetime(t *testing.T) {
 			return err
 		}
 		defer lock.Close()
-		ctx, cancel := context.WithTimeoutCause(t.Context(), 50*time.Millisecond, errors.New("publication contention test deadline"))
-		defer cancel()
-		if _, err := publish(ctx, record.Inputs.Model, record); !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, processlock.ErrBusy) {
+		// A publication whose caller has left waits for no writer and carries
+		// the caller's cause; the lock beside it proves the contention.
+		left := errors.New("the publication's caller left")
+		ctx, leave := context.WithCancelCause(t.Context())
+		leave(left)
+		if _, err := publish(ctx, record.Inputs.Model, record); !errors.Is(err, left) {
 			t.Fatalf("publication must wait cancellably, not reopen and fail immediately: %v", err)
 		}
 		if err := lock.Close(); err != nil {

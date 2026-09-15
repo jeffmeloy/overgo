@@ -1,12 +1,9 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"overgo/internal/operation"
 	"overgo/internal/testskip"
@@ -31,8 +28,7 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("workspace refusal did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
 	if err != nil {
 		t.Fatal(err)

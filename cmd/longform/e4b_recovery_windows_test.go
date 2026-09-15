@@ -36,8 +36,7 @@ func TestE4BResourceRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 10*time.Minute, errors.New("E4B resource recovery budget exhausted"))
-	defer cancel()
+	ctx := t.Context()
 	observer, err := device.New(0)
 	if err != nil {
 		t.Fatal(err)

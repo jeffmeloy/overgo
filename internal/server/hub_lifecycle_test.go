@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestWorkbenchAPIDownloadAdmissionAndCancellation pins the transfer
@@ -65,17 +65,15 @@ func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
 	if cancel.Code != http.StatusOK || !strings.Contains(cancel.Body.String(), downloadStateCancelled) {
 		t.Fatalf("cancel status=%d body=%s", cancel.Code, cancel.Body.String())
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	// The cancelled job settles once its goroutine has recorded the
+	// interruption; the scheduler, not a clock, paces the look.
 	for {
 		listed := httptest.NewRecorder()
 		handler.ServeHTTP(listed, httptest.NewRequest(http.MethodGet, "/hub/downloads", nil))
 		if strings.Count(listed.Body.String(), downloadStateCancelled) == 1 {
 			break
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("cancelled job did not settle: %s", listed.Body.String())
-		}
-		time.Sleep(20 * time.Millisecond)
+		runtime.Gosched()
 	}
 	if admitted := start(strconv.Itoa(len(accepted) + 1)); admitted.Code != http.StatusAccepted {
 		t.Fatalf("post-cancel admission status = %d body=%s", admitted.Code, admitted.Body.String())

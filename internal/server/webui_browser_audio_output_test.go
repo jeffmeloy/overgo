@@ -1,14 +1,11 @@
 package server
 
 import (
-	"context"
 	"encoding/base64"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
@@ -26,8 +23,7 @@ func TestWebUIBrowserAudioOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 60*time.Second, errors.New("audio output journey did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

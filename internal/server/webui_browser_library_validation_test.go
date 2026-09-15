@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -84,8 +82,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	if _, err := os.Stat(small); err != nil {
 		t.Fatalf("library validation unavailable: the small text model is absent: %v", err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 12*time.Minute, errors.New("webui lane: the library validation journey did not complete"))
-	defer cancel()
+	ctx := t.Context()
 	projectedName, projectedLocation, projectorPath := smallestDeclaredProjector(t, ctx, roots.Store)
 	if projectedLocation == "" {
 		t.Fatal("library validation unavailable: no model with a declared projector has bytes on disk")
@@ -169,11 +166,21 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 		// script itself and the libraries and modules it loads are progress
 		// the pending count only sees once the shell exists.
 		observe := `(() => { if (` + expression + `) return "ready"; if (document.readyState !== "complete" || !window.overgo) return "busy"; return window.overgo.api.pending() === 0 ? "idle" : "busy"; })()`
+		// The page observes itself once per animation frame while busy and
+		// answers the first state that is not; the wait follows the page's
+		// clock under the journey's context.
+		notBusy := `new Promise((resolve) => {
+	const check = () => {
+		const state = ` + observe + `;
+		if (state !== "busy") { resolve(state); return; }
+		(document.visibilityState === "visible" ? requestAnimationFrame : setTimeout)(check);
+	};
+	check();
+})`
 		settled := `new Promise((resolve) => requestAnimationFrame(() => resolve(` + observe + `)))`
-		ticker := time.Tick(time.Millisecond)
 		for {
 			var state string
-			if err := browser.Evaluate(ctx, observe, &state); err != nil {
+			if err := browser.Evaluate(ctx, notBusy, &state); err != nil {
 				fail(err)
 			}
 			if state == "idle" {
@@ -188,11 +195,6 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 			}
 			if state == "ready" {
 				return
-			}
-			select {
-			case <-ctx.Done():
-				fail(ctx.Err())
-			case <-ticker:
 			}
 		}
 	}

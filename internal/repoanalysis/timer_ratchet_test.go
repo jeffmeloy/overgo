@@ -12,8 +12,9 @@ import (
 // TestNoFixedTimers holds the owner's rule that no wait is bound to a
 // duration the source fixes: the census classifies literal, unit, constant
 // and constant-initialised durations as fixed, a constant a sibling file
-// declares included, and parameters, fields and
-// flags as the caller's declaration; over the live tree the census never
+// declares included, and parameters, fields and flags as the caller's
+// declaration; a duration under a testing/synctest bubble advances a
+// simulated clock and is no wall wait; over the live tree the census never
 // exceeds the reviewed baseline and the baseline never lists a timer the
 // source has already lost, so the count only falls.
 func TestNoFixedTimers(t *testing.T) {
@@ -45,6 +46,15 @@ func Fixed(ctx context.Context) {
 import "time"
 const sharedBudget = 10 * time.Minute
 var sharedRetry = sharedBudget / 100
+`)
+	write("bubble_test.go", `package probe
+import ("testing"; "testing/synctest"; "time")
+func TestBubble(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		time.Sleep(time.Second)
+		<-time.After(time.Minute)
+	})
+}
 `)
 	write("declared.go", `package probe
 import ("context"; "flag"; "time")

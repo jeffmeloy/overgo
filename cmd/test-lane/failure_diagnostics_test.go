@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
@@ -24,11 +24,21 @@ func diagnosticEvent(action, pkg, test, output string) string {
 	return string(data) + "\n"
 }
 
+// blockedAnnouncement names the environment variable carrying the address
+// the blocked fixture connects to once it has entered its block.
+const blockedAnnouncement = "OVERGO_FAILURE_DIAGNOSTICS_BLOCKED"
+
 func TestFailureDiagnostics(t *testing.T) {
 	if os.Getenv("OVERGO_FAILURE_DIAGNOSTICS_CHILD") == "wait" {
 		fmt.Fprint(os.Stdout, diagnosticEvent("run", "fixture", "TestBlocked", ""))
-		time.Sleep(time.Minute)
-		os.Exit(0)
+		// Both streams feed the parser, so the fixture announces its block by
+		// connecting to its caller, then lives until the caller ends it.
+		connection, err := net.Dial("tcp", os.Getenv(blockedAnnouncement))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = connection.Close()
+		select {}
 	}
 	if os.Getenv("OVERGO_FAILURE_DIAGNOSTICS_CHILD") == "1" {
 		fmt.Fprint(os.Stdout, diagnosticEvent("output", "fixture", "TestBroken", "assertion: expected preserved value\n"))
@@ -160,8 +170,7 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("malformed subprocess drains pipe", func(t *testing.T) {
-		ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("diagnostic subprocess drain stalled"))
-		defer cancel()
+		ctx := t.Context()
 		report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestFailureDiagnostics$"},
 			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=1"),
@@ -183,13 +192,25 @@ func TestFailureDiagnostics(t *testing.T) {
 		}
 	})
 	t.Run("cancellation preserves unfinished evidence", func(t *testing.T) {
-		ctx, cancel := context.WithTimeoutCause(t.Context(), time.Second, errors.New("cancel blocked diagnostic fixture"))
-		defer cancel()
+		// The caller ends the run once the fixture announces its block.
+		ended := errors.New("the caller ended the blocked run")
+		ctx, cancel := context.WithCancelCause(t.Context())
+		blocked, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer blocked.Close()
+		go func() {
+			if connection, err := blocked.Accept(); err == nil {
+				_ = connection.Close()
+			}
+			cancel(ended)
+		}()
 		report, err := testevidence.RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestFailureDiagnostics$"},
-			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=wait"),
+			Env: append(os.Environ(), "OVERGO_FAILURE_DIAGNOSTICS_CHILD=wait", blockedAnnouncement+"="+blocked.Addr().String()),
 		}, testevidence.GoTestOptions{Short: true, DiagnosticBytes: clioptions.DiagnosticTailBytes})
-		if !errors.Is(err, context.DeadlineExceeded) || len(report.Unfinished) != 1 || report.Unfinished[0] != "fixture: TestBlocked" {
+		if !errors.Is(err, ended) || len(report.Unfinished) != 1 || report.Unfinished[0] != "fixture: TestBlocked" {
 			t.Fatalf("err=%v report=%+v", err, report)
 		}
 	})

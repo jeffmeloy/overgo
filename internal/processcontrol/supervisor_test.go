@@ -3,19 +3,19 @@ package processcontrol
 import (
 	"bytes"
 	"context"
-	"os"
-	"path/filepath"
+	"errors"
 	"runtime"
+	"strconv"
+	"strings"
 	"testing"
-	"time"
 )
 
 // TestSupervisorProcessTreeContract holds the supervisor to its
 // contract: a completed command yields a receipt with its exit code
 // and drained output; termination takes down the WHOLE tree including
-// a grandchild the direct child spawned -- proven by the grandchild's
-// heartbeat file going quiet -- and Wait never reports success while
-// anything still runs; a context deadline terminates the tree and
+// a grandchild the direct child spawned -- proven by the announced
+// grandchild's death -- and Wait never reports success while
+// anything still runs; the caller's cancellation terminates the tree and
 // surfaces as an error with the receipt intact.
 func TestSupervisorProcessTreeContract(t *testing.T) {
 	ctx := t.Context()
@@ -35,20 +35,17 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 		t.Fatalf("stdout not drained: %d bytes %q", receipt.StdoutBytes, out.String())
 	}
 
-	marker := filepath.Join(t.TempDir(), "grandchild-heartbeat")
-	tree, err := Start(ctx, grandchildCommand(t, marker))
+	announced := WatchLine(nil, grandchildAnnouncement)
+	spawn := grandchildCommand(t)
+	spawn.Stdout = announced
+	tree, err := Start(ctx, spawn)
 	if err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		if info, statErr := os.Stat(marker); statErr == nil && info.Size() > 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("grandchild never started writing")
-		}
-		time.Sleep(50 * time.Millisecond)
+	// The shell announces its child's pid once that child runs.
+	grandchild, err := strconv.Atoi(strings.TrimSpace(<-announced.Line()))
+	if err != nil || grandchild <= 0 || !ProcessAlive(grandchild) {
+		t.Fatalf("grandchild announcement: pid %d, %v", grandchild, err)
 	}
 	if err := tree.Terminate(); err != nil {
 		t.Fatal(err)
@@ -60,28 +57,21 @@ func TestSupervisorProcessTreeContract(t *testing.T) {
 	if !receipt.TreeTerminated {
 		t.Fatalf("termination not receipted: %+v", receipt)
 	}
-	settled, statErr := os.Stat(marker)
-	if statErr != nil {
-		t.Fatal(statErr)
-	}
-	time.Sleep(600 * time.Millisecond)
-	after, statErr := os.Stat(marker)
-	if statErr != nil {
-		t.Fatal(statErr)
-	}
-	if after.Size() != settled.Size() {
-		t.Fatalf("grandchild survived tree termination: %d -> %d bytes", settled.Size(), after.Size())
+	if ProcessAlive(grandchild) {
+		t.Fatalf("grandchild %d survived tree termination", grandchild)
 	}
 
-	bounded, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
-	defer cancel()
+	// The caller's cancellation, not a deadline, ends a wait on a tree
+	// that has not exited; the tree is terminated and the receipt kept.
+	bounded, cancel := context.WithCancelCause(ctx)
+	cancel(errors.New("the caller ended the wait"))
 	long, err := Start(ctx, sleepCommand(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	receipt, err = long.Wait(bounded)
 	if err == nil {
-		t.Fatal("deadline expiry reported success")
+		t.Fatal("cancellation reported success")
 	}
 	if receipt.WallNS == 0 {
 		t.Fatalf("deadline receipt lacks wall evidence: %+v", receipt)
@@ -125,15 +115,18 @@ func sleepCommand(t *testing.T) Command {
 	return Command{Path: "sh", Args: []string{"-c", "sleep 60"}}
 }
 
-// grandchildCommand builds a shell whose CHILD process writes the
-// heartbeat, so tree termination is observable one level below the
-// supervised command.
-func grandchildCommand(t *testing.T, marker string) Command {
+// grandchildAnnouncement prefixes the line the shell writes with its
+// CHILD's pid, so tree termination is observable one level below the
+// supervised command through that process's liveness.
+const grandchildAnnouncement = "grandchild="
+
+// grandchildCommand builds a shell that spawns a long-lived child,
+// announces the child's pid, and then waits on it.
+func grandchildCommand(t *testing.T) Command {
 	t.Helper()
 	if runtime.GOOS == "windows" {
-		spawn := "Start-Process -WindowStyle Hidden cmd -ArgumentList '/c','for /l %g in (1,1,600) do (echo 1>> \"" + marker + "\" & ping -n 1 127.0.0.1 > nul)'; Start-Sleep -Seconds 60"
+		spawn := "$child = Start-Process -WindowStyle Hidden -PassThru cmd -ArgumentList '/c','ping -n 600 127.0.0.1 > nul'; Write-Output ('" + grandchildAnnouncement + "' + $child.Id); Wait-Process -Id $child.Id"
 		return Command{Path: "powershell", Args: []string{"-NoProfile", "-Command", spawn}}
 	}
-	script := "while true; do echo 1 >> \"" + marker + "\"; sleep 0.1; done"
-	return Command{Path: "sh", Args: []string{"-c", "sh -c '" + script + "' & wait"}}
+	return Command{Path: "sh", Args: []string{"-c", "sleep 600 & echo " + grandchildAnnouncement + "$!; wait"}}
 }

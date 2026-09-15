@@ -4,7 +4,6 @@ package processcontrol
 
 import (
 	"bufio"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -12,7 +11,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestResourceContention(t *testing.T) {
@@ -29,8 +27,7 @@ func TestResourceContention(t *testing.T) {
 		}
 		return
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 15*time.Second, errors.New("resource contention probe did not finish"))
-	defer cancel()
+	ctx := t.Context()
 	environment := append(os.Environ(), "OVERGO_TEST_RESOURCE_CLAIM="+t.TempDir())
 	owner := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestResourceContention$")
 	owner.Env = append(environment, "OVERGO_TEST_RESOURCE_OWNER=1")

@@ -51,7 +51,7 @@ func claimResource(name string) error {
 		return fmt.Errorf("processcontrol: inspect resource membership: %w", err)
 	}
 	if errors.Is(callErr, syscall.ERROR_ALREADY_EXISTS) && member == 0 {
-		return fmt.Errorf("processcontrol: %w: %q", ErrResourceBusy, name)
+		return fmt.Errorf("processcontrol: %w", &ResourceBusyError{Name: name})
 	}
 	if member == 0 {
 		admission, err := openResourceAdmission(name, false)

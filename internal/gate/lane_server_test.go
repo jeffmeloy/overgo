@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/processcontrol"
 )
@@ -132,9 +131,8 @@ func TestLaneServerEndsWithRun(t *testing.T) {
 				t.Fatalf("exiting lane: receipt %q, err %v", receipt, err)
 			}
 			// The server's claim is gone once the runner has returned.
-			admitted, done := context.WithTimeoutCause(t.Context(), 10*time.Second, errors.New("the lane's server still holds its resource"))
-			err = processcontrol.AwaitResource(admitted, resource, func() error { return processcontrol.ClaimResource(resource) })
-			done()
+			admitted := t.Context()
+			err = processcontrol.AwaitResource(admitted, func() error { return processcontrol.ClaimResource(resource) })
 			if err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}

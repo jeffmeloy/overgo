@@ -312,11 +312,7 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 	stream := newSynchronizedSSE(response, response)
 	ctx, cancel := context.WithCancel(t.Context())
 	stop := stream.startHeartbeat(ctx, time.Millisecond)
-	select {
-	case <-response.flushed:
-	case <-time.After(time.Second):
-		t.Fatal("heartbeat did not flush")
-	}
+	<-response.flushed
 	stop()
 	cancel()
 	if body := response.Body.String(); !strings.Contains(body, ":\n\n") {
@@ -342,13 +338,7 @@ func TestContextAfterFuncDoesNotLeak(t *testing.T) {
 		stop()
 		close(done)
 	}()
-	timer := time.NewTimer(time.Second)
-	defer timer.Stop()
-	select {
-	case <-done:
-	case <-timer.C:
-		t.Fatal("heartbeat cleanup did not complete")
-	}
+	<-done
 }
 
 func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {

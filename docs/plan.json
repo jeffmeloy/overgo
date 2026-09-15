@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "timer-sweep",
-      "title": "Retire every remaining entry of the fixed-timer census: each wait observes the awaited operation under caller cancellation, production and tests alike",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire every remaining entry of the fixed-timer census: each wait observes the awaited operation under caller cancellation, production and tests alike",
-          "status": "open",
-          "verify": "test -f internal/repoanalysis/timer_sweep_test.go \u0026\u0026 go test ./internal/repoanalysis -run '^TestFixedTimersRetired$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "browser-lane-decomposition",
       "title": "Take model serving and hashing out of the browser lane so page acceptances run against retained receipts and model work stays with its owning suites",
       "owner": "master-lead",

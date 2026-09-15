@@ -3,13 +3,12 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
@@ -41,8 +40,7 @@ func TestFrontPageServedProjector(t *testing.T) {
 	if _, err := os.Stat(store); err != nil {
 		t.Fatalf("served projector unavailable: no store at %s", store)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 8*time.Minute, errors.New("served projector: the model did not serve in time"))
-	defer cancel()
+	ctx := t.Context()
 	name, location, projectorPath := smallestDeclaredProjector(t, ctx, store)
 	if location == "" {
 		t.Fatal("served projector unavailable: no servable model declares a projector with bytes on disk")
@@ -81,24 +79,23 @@ func TestFrontPageServedProjector(t *testing.T) {
 			} `json:"media"`
 		} `json:"model"`
 	}
-	for {
-		response, err := http.Get(front.URL + "/workspace/manifest")
-		if err == nil && response.StatusCode == http.StatusOK {
-			err = json.NewDecoder(response.Body).Decode(&document)
-			response.Body.Close()
-			if err != nil {
-				t.Fatal(err)
-			}
-			break
-		}
-		if response != nil {
-			response.Body.Close()
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("the capability document did not answer: %v", context.Cause(ctx))
-		case <-time.After(2 * time.Second):
-		}
+	// The proxy admits the request once the served child has announced its
+	// listener, so one request reads the capability document.
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, front.URL+"/workspace/manifest", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("the capability document did not answer: %v", err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(response.Body)
+		t.Fatalf("the capability document answered %d: %s", response.StatusCode, body)
+	}
+	if err := json.NewDecoder(response.Body).Decode(&document); err != nil {
+		t.Fatal(err)
 	}
 	if !document.Model.Modalities["image"] {
 		t.Fatalf("the served model %s refuses images although the store declares its projector: refusals=%v accept=%v",

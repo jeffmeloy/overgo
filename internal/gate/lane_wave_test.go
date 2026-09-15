@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/runrecord"
@@ -58,9 +57,13 @@ func TestSharedLanesCoSchedule(t *testing.T) {
 		invocation("measure", exclusive, "test"),
 		invocation("commit", nil, "test", "device", automationcheck.WebUICheckName, "measure"),
 	}
+	// The shared lanes run in one wave and prove it by meeting; whoever is
+	// active while a check enters is recorded, so an exclusive measurement
+	// that met a shared lane would show.
 	var mutex sync.Mutex
 	active := map[string]bool{}
 	overlaps := map[string][]string{}
+	sharedWave := newRendezvous("device", automationcheck.WebUICheckName)
 	execute := func(ctx context.Context, current automationcheck.Invocation) (automationcheck.Evidence, error) {
 		mutex.Lock()
 		active[current.Check.Name] = true
@@ -71,7 +74,7 @@ func TestSharedLanesCoSchedule(t *testing.T) {
 			}
 		}
 		mutex.Unlock()
-		time.Sleep(80 * time.Millisecond)
+		sharedWave.meet(current.Check.Name)
 		mutex.Lock()
 		delete(active, current.Check.Name)
 		mutex.Unlock()

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/automationcheck"
 )
@@ -21,8 +20,7 @@ func TestSharedBrowserDependencyOverlap(t *testing.T) {
 			t.Fatalf("browser unnecessarily serialized: %v", check.Descriptor.Dependencies)
 		}
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("shared check handshake did not complete"))
-	defer cancel()
+	ctx := t.Context()
 	deviceStarted, browserStarted := make(chan struct{}), make(chan struct{})
 	var ownersDone, deviceDone, browserDone atomic.Bool
 	for i := range checks {

@@ -59,6 +59,11 @@ func FixedTimerCensus(snapshot SourceSnapshot) ([]FixedTimer, error) {
 				if !ok {
 					return true
 				}
+				// A testing/synctest bubble runs on a simulated clock: a
+				// duration inside it advances that clock and waits on no wall.
+				if simulatedClock(call) {
+					return false
+				}
 				if duration, timer := timerDuration(call); timer && fixedDuration(duration, scope, 0) {
 					counts[[2]string{file.Path, name}]++
 				}
@@ -99,6 +104,17 @@ func AdmitFixedTimers(baseline FixedTimerBaseline, census []FixedTimer) error {
 		return fmt.Errorf("fixed timer baseline lists a timer the source no longer holds: %s %s; lower %s", key[0], key[1], FixedTimerBaselineFile)
 	}
 	return nil
+}
+
+// simulatedClock reports a call that runs its function under the
+// testing/synctest bubble's simulated clock.
+func simulatedClock(call *ast.CallExpr) bool {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	pkg, ok := selector.X.(*ast.Ident)
+	return ok && pkg.Name == "synctest" && (selector.Sel.Name == "Test" || selector.Sel.Name == "Run")
 }
 
 // timerDuration returns the duration argument of a timer call.

@@ -624,7 +624,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:436c79fdb7d4f6b4d87af9d1b2a22f18f769e68e7e5907b38e00365332c28f9d"
+     "identity": "evidence:sha256:56f878710ba602aeec732060f8799376c15e4fbbed4b751d3154380a365b6cc5"
     }
    ],
    "id": "bounded-server-media",
@@ -983,7 +983,7 @@
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:57a9ee9df04cb8a936666538ad1563420c74069d3f7227077ab826092ac305f3"
+     "identity": "evidence:sha256:d6a87777012500868fada375e6ad783f82bcd3d9e7b5841ddda4068c79ffc945"
     }
    ],
    "id": "media-history",
@@ -1004,7 +1004,7 @@
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:57a9ee9df04cb8a936666538ad1563420c74069d3f7227077ab826092ac305f3"
+     "identity": "evidence:sha256:d6a87777012500868fada375e6ad783f82bcd3d9e7b5841ddda4068c79ffc945"
     }
    ],
    "id": "mixed-media-history",
@@ -1109,7 +1109,7 @@
      "contains": "func TestMultimodalInputTokenCounting(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:57a9ee9df04cb8a936666538ad1563420c74069d3f7227077ab826092ac305f3"
+     "identity": "evidence:sha256:d6a87777012500868fada375e6ad783f82bcd3d9e7b5841ddda4068c79ffc945"
     }
    ],
    "id": "multimodal-token-counting",
@@ -1136,7 +1136,7 @@
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:57a9ee9df04cb8a936666538ad1563420c74069d3f7227077ab826092ac305f3"
+     "identity": "evidence:sha256:d6a87777012500868fada375e6ad783f82bcd3d9e7b5841ddda4068c79ffc945"
     }
    ],
    "id": "unified-prompt-preparation",
@@ -1241,7 +1241,7 @@
      "contains": "func TestResponsesContinuationRestart(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:57a9ee9df04cb8a936666538ad1563420c74069d3f7227077ab826092ac305f3"
+     "identity": "evidence:sha256:d6a87777012500868fada375e6ad783f82bcd3d9e7b5841ddda4068c79ffc945"
     }
    ],
    "id": "responses-continuation",
@@ -1394,7 +1394,7 @@
      "contains": "func TestPocketTTSProductionParity(",
      "path": "internal/adaptiveparity/pocket_tts_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:cccb627bb9cd4b17b8ec3bdf19b112b5876af95b43b16937592fbf8c12fcf6ed"
+     "identity": "evidence:sha256:596d5934ff16e87b4c140b7e3b8886dd52f5babcd72937dd2a3463896a58c541"
     }
    ],
    "id": "pocket-tts-production-oracle",
@@ -1606,7 +1606,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRModelSwitchAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:cf1cd91620a96d4b91be8e01d31599e0c449b4ebe3f62f54f256e495889bf3ed"
+     "identity": "evidence:sha256:255fcfed37a55a09995fb1d63b74cdd33680c5696cf41a5d4778933d0bb98ebd"
     }
    ]
   },
@@ -1628,7 +1628,7 @@
      "path": "internal/audioparity/live_service_test.go",
      "contains": "func TestASRLiveOperationsAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:cf1cd91620a96d4b91be8e01d31599e0c449b4ebe3f62f54f256e495889bf3ed"
+     "identity": "evidence:sha256:255fcfed37a55a09995fb1d63b74cdd33680c5696cf41a5d4778933d0bb98ebd"
     }
    ]
   }

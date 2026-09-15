@@ -21,9 +21,9 @@ func TestResourceAdmissionWaitsForRelease(t *testing.T) {
 	var released atomic.Bool
 	done := make(chan error, 1)
 	go func() {
-		done <- AwaitResource(t.Context(), name, func() error {
+		done <- AwaitResource(t.Context(), func() error {
 			if !released.Load() {
-				return ErrResourceBusy
+				return &ResourceBusyError{Name: name}
 			}
 			return nil
 		})
@@ -67,7 +67,7 @@ func TestResourceAdmissionWakesOnHolderExit(t *testing.T) {
 	attempts := 0
 	done := make(chan error, 1)
 	go func() {
-		done <- AwaitResource(t.Context(), name, func() error {
+		done <- AwaitResource(t.Context(), func() error {
 			attempts++
 			return ClaimResource(name)
 		})
@@ -91,22 +91,22 @@ func TestResourceAdmissionCancellationAndFailure(t *testing.T) {
 	name := "overgo-test-await-" + t.Name()
 	ended := errors.New("the caller ended the wait")
 	ctx, cancel := context.WithCancelCause(t.Context())
-	err := AwaitResource(ctx, name, func() error {
+	err := AwaitResource(ctx, func() error {
 		cancel(ended)
-		return ErrResourceBusy
+		return &ResourceBusyError{Name: name}
 	})
 	if !errors.Is(err, ended) || !errors.Is(err, ErrResourceBusy) {
 		t.Fatalf("lost cause or contention: %v", err)
 	}
 	fatal := errors.New("device unavailable")
 	calls := 0
-	err = AwaitResource(t.Context(), name, func() error { calls++; return fatal })
+	err = AwaitResource(t.Context(), func() error { calls++; return fatal })
 	if !errors.Is(err, fatal) || calls != 1 {
 		t.Fatalf("non-contention failure retried: calls=%d error=%v", calls, err)
 	}
 	canceled, stop := context.WithCancelCause(t.Context())
 	stop(context.Canceled)
-	err = AwaitResource(canceled, name, func() error { t.Error("claim after cancellation"); return nil })
+	err = AwaitResource(canceled, func() error { t.Error("claim after cancellation"); return nil })
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation lost: %v", err)
 	}

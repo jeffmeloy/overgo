@@ -3,10 +3,10 @@ package inference
 import (
 	"context"
 	"errors"
+	"runtime"
 	"slices"
 	"sync"
 	"testing"
-	"time"
 
 	"overgo/internal/model"
 	"overgo/internal/sampling"
@@ -109,12 +109,10 @@ func TestContinuousGeneratorFusesAndShrinksActiveSet(t *testing.T) {
 			results <- outcome{ids: ids, err: err}
 		}()
 	}
-	deadline := time.Now().Add(time.Second)
-	for len(generator.submit) != 2 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if len(generator.submit) != 2 {
-		t.Fatal("requests were not queued")
+	// Both requests queue once their goroutines have run; the scheduler,
+	// not a clock, paces the look.
+	for len(generator.submit) != 2 {
+		runtime.Gosched()
 	}
 	go generator.run()
 	got := []int{}
@@ -302,9 +300,8 @@ func TestContinuousGeneratorCancelsOneFusedSequence(t *testing.T) {
 			results <- err
 		}()
 	}
-	deadline := time.Now().Add(time.Second)
-	for len(generator.submit) != 2 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+	for len(generator.submit) != 2 {
+		runtime.Gosched()
 	}
 	go generator.run()
 	<-batch.started

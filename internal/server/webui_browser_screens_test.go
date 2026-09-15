@@ -1,12 +1,9 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
@@ -42,8 +39,7 @@ func TestWebUIBrowserScreens(t *testing.T) {
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 4*time.Minute, errors.New("webui lane: the screens did not capture"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
 	if err != nil {
 		t.Fatal(err)

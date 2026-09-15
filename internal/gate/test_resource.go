@@ -57,7 +57,7 @@ func admitSharedTestResource(ctx context.Context, name string) (func() error, er
 	var release func() error
 	began := time.Now()
 	fmt.Fprintf(os.Stderr, "gate: resource=%s mode=shared state=waiting\n", name)
-	err := processcontrol.AwaitResource(ctx, name, func() error {
+	err := processcontrol.AwaitResource(ctx, func() error {
 		var err error
 		release, err = processcontrol.ShareResource(name)
 		return err

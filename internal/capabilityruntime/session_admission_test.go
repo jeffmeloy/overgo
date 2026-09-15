@@ -5,7 +5,6 @@ import (
 	"errors"
 	"runtime"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -306,14 +305,9 @@ func TestSessionAuthorityRebindsCompatibleExecution(t *testing.T) {
 
 func waitForParkedSession[Input, Model, Output any](t *testing.T, director *ModelSessionDirector[Input, Model, Output]) {
 	t.Helper()
-	timer := time.NewTimer(time.Second)
-	defer timer.Stop()
+	// The parked session shows in the director's snapshot once its
+	// goroutine has yielded; the scheduler, not a clock, paces the look.
 	for director.Snapshot().Waiting == 0 {
-		select {
-		case <-timer.C:
-			t.Fatal("session did not enter admission parking")
-		default:
-			runtime.Gosched()
-		}
+		runtime.Gosched()
 	}
 }

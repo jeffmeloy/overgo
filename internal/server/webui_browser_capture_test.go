@@ -1,14 +1,11 @@
 package server
 
 import (
-	"context"
 	"encoding/base64"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
@@ -33,8 +30,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("media capture journey did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

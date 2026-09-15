@@ -1,13 +1,10 @@
 package webuilane
 
 import (
-	"context"
-	"errors"
 	"os"
 	"overgo/internal/testskip"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
@@ -18,8 +15,7 @@ func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("capture did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	html := `<style>body{margin:0;background:rgb(0,0,0);color:rgb(255,255,255);transition:background-color 1s linear}body.light{background:rgb(255,255,255);color:rgb(0,0,0)}@keyframes pulse{to{opacity:.5}}.spinner{animation:pulse 1s infinite}.paused{animation:pulse 1s paused}</style><body><span class="spinner"></span><span class="paused"></span><p>Readable after the theme transition.</p></body>`
 	browser, err := Open(ctx, path, "data:text/html,"+strings.ReplaceAll(html, " ", "%20"))
 	if err != nil {
@@ -64,8 +60,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		`<script>const details=document.getElementById('collapsed');details.querySelector('p').getBoundingClientRect();details.open=false;</script></body>`
 	audit := func(html string) []LayoutFinding {
 		t.Helper()
-		ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("webui lane: the synthetic page did not audit"))
-		defer cancel()
+		ctx := t.Context()
 		// A data URL keeps a "+" literal, so spaces travel percent-encoded.
 		browser, err := Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(html, " ", "%20"))
 		if err != nil {
@@ -107,8 +102,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	}
 	// A phone-wide page whose header pushes the content below the first screen's upper part.
 	tall := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><div style="height:500px"></div><div id="panels">content</div></body>`
-	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("webui lane: the tall header did not audit"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(tall, " ", "%20"))
 	if err != nil {
 		t.Fatal(err)

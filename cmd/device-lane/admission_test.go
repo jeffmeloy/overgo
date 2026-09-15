@@ -65,8 +65,7 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer release()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("shared command probe did not terminate"))
-	defer cancel()
+	ctx := t.Context()
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^$")
 	command.Env = append(os.Environ(), admissionProbeEnvironment+"="+name, "OVERGO_DEVICE_LANE_SHARED_STEP=1")
 	result, err := command.CombinedOutput()
@@ -87,30 +86,27 @@ func TestDeviceLaneAdmissionWaitsWithinBudget(t *testing.T) {
 func TestDeviceLaneAdmissionSeparatesWaitingFromExecution(t *testing.T) {
 	var output bytes.Buffer
 	budget := 50 * time.Millisecond
+	// The budget bounds admission alone: the admitted step runs under the
+	// caller's own context, which carries no deadline of the budget's.
 	code, err := runStepAdmitted(t.Context(), &output, "GPU-test", budget, func(ctx context.Context) (int, error) {
-		select {
-		case <-time.After(4 * budget):
-			return 0, nil
-		case <-ctx.Done():
-			return 0, context.Cause(ctx)
+		if deadline, bounded := ctx.Deadline(); bounded {
+			return 0, fmt.Errorf("the admission budget reached the step as a deadline at %s", deadline)
 		}
+		return 0, nil
 	})
 	if code != 0 || err != nil {
-		t.Fatalf("admitted step outliving the budget = code %d, %v, want completion", code, err)
+		t.Fatalf("admitted step under the budget = code %d, %v, want completion", code, err)
 	}
+	// A stuck step ends with its caller's cause and no other.
 	errCaller := errors.New("the caller's bound")
-	bounded, cancel := context.WithTimeoutCause(t.Context(), 4*budget, errCaller)
-	defer cancel()
-	began := time.Now()
+	bounded, cancel := context.WithCancelCause(t.Context())
 	code, err = runStepAdmitted(bounded, &output, "GPU-test", budget, func(ctx context.Context) (int, error) {
+		cancel(errCaller)
 		<-ctx.Done()
 		return 0, context.Cause(ctx)
 	})
 	if code != 0 || !errors.Is(err, errCaller) || errors.Is(err, errAdmissionBudget) {
 		t.Fatalf("stuck step = code %d, %v, want the caller's cause alone", code, err)
-	}
-	if elapsed := time.Since(began); elapsed < 3*budget || elapsed > 5*time.Second {
-		t.Fatalf("stuck step ended after %s, want the caller's bound", elapsed)
 	}
 	runs := 0
 	code, err = runStepAdmitted(t.Context(), &output, "GPU-test", budget, func(context.Context) (int, error) {
@@ -141,7 +137,7 @@ func TestDeviceLaneTestStepsHoldSharedLease(t *testing.T) {
 			if err := hold(); err != nil {
 				return nil, err
 			}
-			return nil, processcontrol.ErrResourceBusy
+			return nil, &processcontrol.ResourceBusyError{Name: "GPU-test"}
 		}
 		return func() error { released++; return nil }, nil
 	}
@@ -158,7 +154,7 @@ func TestDeviceLaneTestStepsHoldSharedLease(t *testing.T) {
 		t.Fatalf("lease report = %q", output.String())
 	}
 	output.Reset()
-	if _, err := holdSharedLease(t.Context(), &output, "GPU-test", 120*time.Millisecond, func() (func() error, error) { return nil, processcontrol.ErrResourceBusy }); !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, errAdmissionBudget) {
+	if _, err := holdSharedLease(t.Context(), &output, "GPU-test", 120*time.Millisecond, func() (func() error, error) { return nil, &processcontrol.ResourceBusyError{Name: "GPU-test"} }); !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, errAdmissionBudget) {
 		t.Fatalf("exhausted budget = %v, want the contention and the budget cause", err)
 	}
 	if strings.Contains(output.String(), "state=admitted") {

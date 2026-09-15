@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
@@ -40,16 +39,13 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	httpServer := httptest.NewServer(fixture.handler)
 	defer httpServer.Close()
 
-	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/app.html#automations")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer browser.Close()
-	probeCtx, probeCancel := context.WithTimeoutCause(ctx, 30*time.Second, errors.New("webui lane: the shell did not present the automations panel"))
-	defer probeCancel()
-	if err := browser.Eventually(probeCtx, `!!document.querySelector("#panel-automations.active .schema-form") &&
+	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-automations.active .schema-form") &&
         document.querySelectorAll(".operation-chip").length >= 2`); err != nil {
 		var page string
 		_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, html: document.documentElement.outerHTML.slice(0, 1500)})`, &page)
@@ -310,22 +306,37 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 	return running, blocked
 }
 
+// waitBrowserOperationState follows the operation manager's own events
+// until the operation reaches the state, subscribing before the first look
+// so no transition between the look and the events is lost.
 func waitBrowserOperationState(t *testing.T, handler *Handler, id artifact.ID, state operation.State) {
 	t.Helper()
-	ticker := time.Tick(time.Millisecond)
+	events, stop, err := handler.operations.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	reached := func(current operation.Status) bool {
+		t.Helper()
+		if current.State == state {
+			return true
+		}
+		if current.State == operation.StateCompleted || current.State == operation.StateCancelled || current.State == operation.StateFailed {
+			t.Fatalf("browser operation reached %s while waiting for %s: %s", current.State, state, current.Failure)
+		}
+		return false
+	}
+	if current, found := handler.operations.Status(id); found && reached(current) {
+		return
+	}
 	for {
-		if current, found := handler.operations.Status(id); found {
-			if current.State == state {
+		select {
+		case event := <-events:
+			if event.Status.ID == id && reached(event.Status) {
 				return
 			}
-			if current.State == operation.StateCompleted || current.State == operation.StateCancelled || current.State == operation.StateFailed {
-				t.Fatalf("browser operation reached %s while waiting for %s: %s", current.State, state, current.Failure)
-			}
-		}
-		select {
 		case <-t.Context().Done():
 			t.Fatal(t.Context().Err())
-		case <-ticker:
 		}
 	}
 }
@@ -374,8 +385,7 @@ func TestWebUIBrowserFrontPage(t *testing.T) {
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("webui lane: the front page did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
 	if err != nil {
 		t.Fatal(err)

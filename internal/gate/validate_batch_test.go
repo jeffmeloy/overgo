@@ -42,14 +42,23 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 			t.Fatalf("%s depends on %v, want the whole validate wave", static, byName[static].Dependencies)
 		}
 	}
+	// The independent static checks run in one wave with profile: they
+	// prove it by meeting, while the spans keep the order between phases.
+	staticWave := []string{"profile"}
+	for _, name := range validateWave {
+		if name != "profile" && name != "modern-go" && name != modernCensusCheckName && name != "docs" && name != "published" {
+			staticWave = append(staticWave, name)
+		}
+	}
 	type span struct{ start, end time.Time }
 	run := func(failing ...string) (map[string]span, []automationcheck.DAGResult) {
 		var mutex sync.Mutex
 		spans := map[string]span{}
+		wave := newRendezvous(staticWave...)
 		for index := range checks {
 			checks[index].Run = func(_ context.Context, invocation automationcheck.Invocation) (bool, string, error) {
 				started := time.Now()
-				time.Sleep(60 * time.Millisecond)
+				wave.meet(invocation.Check.Name)
 				mutex.Lock()
 				spans[invocation.Check.Name] = span{started, time.Now()}
 				mutex.Unlock()
@@ -87,12 +96,6 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 			if spans[static].start.Before(spans[name].end) {
 				t.Fatalf("%s started before %s ended", static, name)
 			}
-		}
-		if name == "profile" || name == "modern-go" || name == modernCensusCheckName || name == "docs" || name == "published" {
-			continue
-		}
-		if !overlaps(spans, name, "profile") {
-			t.Fatalf("%s did not run in the independent static wave", name)
 		}
 	}
 	for _, reader := range []string{modernCensusCheckName, "docs", "published"} {

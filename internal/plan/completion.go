@@ -388,8 +388,8 @@ func verifyProspectiveMergeAuthority(
 	if requireCommonProtection && !commonProtection {
 		return errors.New("plan: prospective merge parents do not share a protected completion epoch")
 	}
-	if !preservesPlanIdentities(local, merged) ||
-		projection == MergeProjectionSemanticUnion && !preservesPlanIdentities(incoming, merged) {
+	if !preservesPlanIdentities(local, merged, false) ||
+		projection == MergeProjectionSemanticUnion && !preservesPlanIdentities(incoming, merged, false) {
 		return errors.New("plan: prospective merge deleted a parent item or step")
 	}
 
@@ -511,7 +511,7 @@ func verifyPreparedCompletionTransition(baseline, preAdvance, child Plan, traile
 	if err := verifyCompletionSnapshot(preAdvance, trailers); err != nil {
 		return err
 	}
-	if !preservesPlanIdentities(baseline, preAdvance) {
+	if !preservesPlanIdentities(baseline, preAdvance, true) {
 		return errors.New("plan: completion pre-advance plan deleted a baseline item or step")
 	}
 	expected, err := Advance(preAdvance, trailers.item, trailers.step)
@@ -727,11 +727,9 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 		candidates = append(candidates, completionCandidate{commit: commit, trailers: trailers, relevant: relevant})
 	}
 	transitionCommits := make([]gitCompletionMessage, 0, len(protected)+len(candidates))
-	seenTransition := make(map[string]bool, len(protected)+len(candidates))
-	for _, commit := range protected {
-		transitionCommits = append(transitionCommits, commit)
-		seenTransition[commit.hash] = true
-	}
+	transitionCommits = append(transitionCommits, protected...)
+	// Candidate classification is complete; reuse its protected membership set.
+	seenTransition := protectedSet
 	for _, candidate := range candidates {
 		if !seenTransition[candidate.commit.hash] {
 			transitionCommits = append(transitionCommits, candidate.commit)
@@ -822,7 +820,7 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 			continue
 		}
 		transition := transitions[commit.hash]
-		if !preservesPlanIdentities(transition.baseline, transition.child) {
+		if !preservesPlanIdentities(transition.baseline, transition.child, false) {
 			return CompletionAuthority{}, fmt.Errorf(
 				"plan: protected commit %.12s deleted a plan item or step without gated completion", commit.hash,
 			)
@@ -836,7 +834,7 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 		if !found {
 			return CompletionAuthority{}, errors.New("plan: protected revision transition is absent")
 		}
-		if !preservesPlanIdentities(transition.child, document) {
+		if !preservesPlanIdentities(transition.child, document, true) {
 			return CompletionAuthority{}, fmt.Errorf(
 				"plan: live plan deleted an item or step retained at protected revision %.12s", revision,
 			)
@@ -897,22 +895,14 @@ func resolveCompletionRevision(ctx context.Context, repository, revision string)
 func completionNeeds(document Plan) (map[string]bool, map[string]bool, map[string]bool) {
 	present := make(map[string]bool)
 	presentItems := make(map[string]bool)
+	wanted := make(map[string]bool)
 	for _, item := range document.Items {
 		presentItems[item.ID] = true
 		for _, step := range item.Steps {
 			present[item.ID+"/"+step.ID] = true
-		}
-	}
-	wanted := make(map[string]bool, len(present))
-	for reference := range present {
-		wanted[reference] = true
-	}
-	for _, item := range document.Items {
-		for _, step := range item.Steps {
+			wanted[item.ID+"/"+step.ID] = true
 			for _, reference := range step.DependsOn {
-				if !present[reference] {
-					wanted[reference] = true
-				}
+				wanted[reference] = true
 			}
 		}
 	}
@@ -1411,11 +1401,12 @@ func requireCompletionEvidence(
 			return completionEvidence{}, err
 		}
 	}
+	_, retainedItem := exactPlanItem(child, trailers.item)
 	return completionEvidence{
 		commit: commit, verify: trailers.verify, contract: contract, manifest: trailers.manifest,
 		codeManifest: trailers.codeManifest, attempt: attempt.ID, result: attempt.Result,
 		finalization: verification.Finalization.ID,
-		retiredItem:  !planHasItem(child, trailers.item),
+		retiredItem:  !retainedItem,
 	}, nil
 }
 
@@ -1548,15 +1539,19 @@ func reconstructCompletionPrePlan(child Plan, trailers completionTrailers) (Plan
 	return preAdvance, nil
 }
 
-func preservesPlanIdentities(baseline, candidate Plan) bool {
+// Gated lane projection may omit whole foreign-owned items, without completion
+// credit. Raw history and merge unions still require every identity.
+func preservesPlanIdentities(baseline, candidate Plan, laneProjection bool) bool {
+	laneProjection = laneProjection && candidate.Scope == ScopeLane && candidate.Lane == baseline.Lane &&
+		normalizedRole(candidate.Lane) != UnassignedRole
 	for _, baselineItem := range baseline.Items {
-		candidateIndex := slices.IndexFunc(candidate.Items, func(item Item) bool {
-			return item.ID == baselineItem.ID
-		})
-		if candidateIndex < 0 {
+		candidateItem, found := exactPlanItem(candidate, baselineItem.ID)
+		if !found {
+			if laneProjection && normalizedRole(baselineItem.Owner) != UnassignedRole && baselineItem.Owner != candidate.Lane {
+				continue
+			}
 			return false
 		}
-		candidateItem := candidate.Items[candidateIndex]
 		for _, baselineStep := range baselineItem.Steps {
 			if !slices.ContainsFunc(candidateItem.Steps, func(step Step) bool {
 				return step.ID == baselineStep.ID
@@ -1767,16 +1762,11 @@ func requireNamedCompletionAcceptance(gate runrecord.GateResult, name, reference
 }
 
 func exactPlanStep(document Plan, itemID, stepID string) (Step, bool) {
-	for _, item := range document.Items {
-		if item.ID != itemID {
-			continue
+	item, _ := exactPlanItem(document, itemID)
+	for _, step := range item.Steps {
+		if step.ID == stepID {
+			return step, true
 		}
-		for _, step := range item.Steps {
-			if step.ID == stepID {
-				return step, true
-			}
-		}
-		return Step{}, false
 	}
 	return Step{}, false
 }
@@ -1788,15 +1778,6 @@ func exactPlanItem(document Plan, itemID string) (Item, bool) {
 		}
 	}
 	return Item{}, false
-}
-
-func planHasItem(document Plan, itemID string) bool {
-	for _, item := range document.Items {
-		if item.ID == itemID {
-			return true
-		}
-	}
-	return false
 }
 
 func gitCompletionCommand(ctx context.Context, repository string, arguments ...string) ([]byte, error) {

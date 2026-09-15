@@ -46,7 +46,7 @@ func mergeDocuments(base, local, upstream Plan, validate func(Plan) error, compl
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
 	// The lane is the local plan's: a lane plan never takes another lane's identity.
-	merged := Plan{Campaign: campaign, Doctrine: doctrine, Lane: cmp.Or(local.Lane, upstream.Lane), Census: census}
+	merged := Plan{Campaign: campaign, Doctrine: doctrine, Lane: cmp.Or(local.Lane, upstream.Lane), Scope: local.Scope, Census: census}
 	for _, id := range unionOrder(itemID, base.Items, local.Items, upstream.Items) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]
@@ -116,7 +116,7 @@ func mergeProjectionHeaders(base, local, upstream Plan) (string, string, error) 
 	switch {
 	case len(local.Items) != 0 && len(upstream.Items) == 0:
 		return local.Campaign, local.Doctrine, nil
-	case len(upstream.Items) != 0 && len(local.Items) == 0, len(local.Items) == 0 && len(upstream.Items) == 0:
+	case len(local.Items) == 0:
 		return upstream.Campaign, upstream.Doctrine, nil
 	case campaignErr != nil:
 		return "", "", campaignErr

@@ -912,6 +912,104 @@ func TestProtectedCompletionAuthorityBindsRetainedRevisionIdentities(t *testing.
 	}
 }
 
+func TestLanePlanScope(t *testing.T) {
+	baseline := standardCompletionPlan()
+	baseline.Lane = "local"
+	for i := range baseline.Items {
+		baseline.Items[i].Owner = baseline.Lane
+	}
+	foreign := baseline.Items[0]
+	foreign.ID, foreign.Owner = "foreign", "other"
+	baseline.Items = append(baseline.Items, foreign)
+	projected := baseline
+	projected.Scope = ScopeLane
+	projected.Items = slices.Clone(baseline.Items[:2])
+	if err := Validate(projected); err != nil {
+		t.Fatal(err)
+	}
+	if !preservesPlanIdentities(baseline, projected, true) || preservesPlanIdentities(baseline, projected, false) {
+		t.Fatal("lane projection must preserve local identities without permitting raw deletion")
+	}
+	for name, mutate := range map[string]func(*Plan, *Plan){
+		"implicit scope":  func(_, c *Plan) { c.Scope = "" },
+		"changed lane":    func(_, c *Plan) { c.Lane = "other" },
+		"unowned work":    func(b, _ *Plan) { b.Items[2].Owner = "" },
+		"blank owner":     func(b, _ *Plan) { b.Items[2].Owner = " " },
+		"unassigned work": func(b, _ *Plan) { b.Items[2].Owner = UnassignedRole },
+		"local item":      func(_, c *Plan) { c.Items = c.Items[1:] },
+		"local step":      func(_, c *Plan) { c.Items[0].Steps = nil },
+		"partial foreign item": func(_, c *Plan) {
+			retained := foreign
+			retained.Owner, retained.Steps = c.Lane, nil
+			c.Items = append(c.Items, retained)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			b, c := baseline, projected
+			b.Items, c.Items = slices.Clone(b.Items), slices.Clone(c.Items)
+			mutate(&b, &c)
+			if preservesPlanIdentities(b, c, true) {
+				t.Fatal("unsafe omission accepted")
+			}
+		})
+	}
+	t.Run("strict load", func(t *testing.T) {
+		for _, invalid := range []Plan{{Scope: "unknown", Lane: "local"}, {Scope: ScopeLane}, {Scope: ScopeLane, Lane: UnassignedRole}, {Scope: ScopeLane, Lane: "local", Items: []Item{foreign}}} {
+			if err := Validate(invalid); err == nil {
+				t.Fatalf("invalid scope accepted: %+v", invalid)
+			}
+		}
+		if _, err := MergeDocuments(projected, projected, baseline); err == nil {
+			t.Fatal("merge imported a foreign row into lane scope")
+		}
+	})
+	t.Run("protected live projection", func(t *testing.T) {
+		fixture := newCompletionFixture(t, baseline, "root", "do")
+		fixture.commit(fixture.canonicalMessage(), true)
+		live := fixture.child
+		live.Scope = ScopeLane
+		live.Items = slices.Clone(live.Items[:1])
+		authority, err := resolveFixture(fixture, live, "HEAD")
+		if err != nil || authority.completed("foreign/do") {
+			t.Fatalf("live projection authority: %v", err)
+		}
+	})
+	t.Run("gated projection and replay", func(t *testing.T) {
+		fixture := newCompletionFixture(t, baseline, "root", "do")
+		fixture.preAdvance = projected
+		var err error
+		fixture.child, err = Advance(projected, "root", "do")
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixture.commit(fixture.canonicalMessage(), true)
+		authority, err := resolveFixture(fixture, fixture.child, "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !authority.completed("root/do") || authority.completed("foreign/do") {
+			t.Fatal("projection changed completion credit")
+		}
+		dependent := fixture.child
+		dependent.Items = slices.Clone(dependent.Items)
+		dependent.Items[0].Steps = slices.Clone(dependent.Items[0].Steps)
+		dependent.Items[0].Steps[0].DependsOn = []string{"foreign/do"}
+		if _, err := resolveFixture(fixture, dependent, "HEAD"); err == nil {
+			t.Fatal("omitted foreign item satisfied a prerequisite")
+		}
+	})
+	t.Run("raw projection refused", func(t *testing.T) {
+		fixture := newCompletionFixture(t, baseline, "root", "do")
+		fixture.commit(fixture.canonicalMessage(), true)
+		fixture.child.Scope = ScopeLane
+		fixture.child.Items = slices.Clone(fixture.child.Items[:1])
+		fixture.commit([]byte("raw projection"), false)
+		if _, err := resolveFixture(fixture, fixture.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "without gated completion") {
+			t.Fatalf("raw projection error = %v", err)
+		}
+	})
+}
+
 func TestCompletionAuthorityRequiresExplicitCanonicalRepository(t *testing.T) {
 	t.Run("ambient Git repository redirect", func(t *testing.T) {
 		requested := newCompletionFixture(t, standardCompletionPlan(), "root", "do")

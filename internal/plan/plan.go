@@ -31,6 +31,9 @@ const (
 // Path is the campaign plan, relative to the repo root.
 const Path = "docs/plan.json"
 
+// ScopeLane retains only work explicitly owned by the declared lane.
+const ScopeLane = "lane"
+
 const (
 	// StatusOpen permits dispatch.
 	StatusOpen = "open"
@@ -77,6 +80,7 @@ type Plan struct {
 	// role it is the role, so the lane's own rows come first, unowned rows
 	// after, and another lane's rows never.
 	Lane   string       `json:"lane,omitzero"`
+	Scope  string       `json:"scope,omitzero"`
 	Census *artifact.ID `json:"census_evidence,omitempty"`
 	Items  []Item       `json:"items"`
 }
@@ -140,6 +144,9 @@ func Validate(d Plan) error {
 }
 
 func validatePlanGraph(d Plan) error {
+	if d.Scope != "" && (d.Scope != ScopeLane || normalizedRole(d.Lane) == UnassignedRole) {
+		return errors.New("plan: lane scope requires an explicit lane")
+	}
 	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
 		return errors.New("plan: census authority is not evidence")
 	}
@@ -148,6 +155,9 @@ func validatePlanGraph(d Plan) error {
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {
+		if d.Scope == ScopeLane && item.Owner != d.Lane {
+			return fmt.Errorf("plan: lane-scoped item %s must be owned by %s", item.ID, d.Lane)
+		}
 		if !validPlanID(item.ID) || items[item.ID] {
 			return fmt.Errorf("plan item id %q is invalid or duplicated", item.ID)
 		}
@@ -256,21 +266,8 @@ func validateDependencies(d Plan) error {
 func dependenciesSatisfied(d Plan, step Step, authority CompletionAuthority) bool {
 	for _, reference := range step.DependsOn {
 		itemID, stepID, _ := strings.Cut(reference, "/")
-		present := false
-		satisfied := false
-		for _, item := range d.Items {
-			if item.ID != itemID {
-				continue
-			}
-			for _, candidate := range item.Steps {
-				if candidate.ID == stepID {
-					present = true
-					satisfied = candidate.Status == StatusDone
-					break
-				}
-			}
-			break
-		}
+		candidate, present := exactPlanStep(d, itemID, stepID)
+		satisfied := candidate.Status == StatusDone
 		if !present {
 			satisfied = authority.completed(reference)
 		}

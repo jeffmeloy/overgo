@@ -183,6 +183,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if err != nil {
 		return plannedPipeline{}, err
 	}
+	definitions = g.rewireDeferredLanes(definitions)
 	surface := automationcheck.Surface{}
 	if structuralErr == nil {
 		surface = automationcheck.ManifestSurface(structural)
@@ -481,6 +482,9 @@ func (g *gateContext) requirePreparedCandidate(candidateKey string) error {
 // verification check reads the files instead of rebuilding the index, and
 // any change to a planned path or to HEAD rebuilds it.
 func (g *gateContext) plannedTree() (string, error) {
+	if g.fixedTree != "" {
+		return g.fixedTree, nil
+	}
 	fingerprint, err := g.plannedFingerprint()
 	if err != nil {
 		return "", err

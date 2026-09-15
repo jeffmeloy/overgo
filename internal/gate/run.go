@@ -41,6 +41,9 @@ type Options struct {
 	// batch: the gate publishes that checkpoint's evidence with the affected
 	// owner tests and stops before the cumulative suites and the commit.
 	Checkpoint string
+	// Lanes runs the deferred lanes of the last landed commit and records
+	// their outcome; a successful gate starts this itself.
+	Lanes      bool
 	StaleAfter time.Duration
 }
 
@@ -76,6 +79,12 @@ func Run(options Options) (runErr error) {
 	cleanStore := filepath.Clean(*storePath)
 	if cleanStore == "." || filepath.IsAbs(cleanStore) || cleanStore == ".." || strings.HasPrefix(cleanStore, ".."+string(filepath.Separator)) {
 		return errors.New("gate: store path must stay below the repository root")
+	}
+	if options.Lanes {
+		if err := requireCanonicalGateStore(cleanStore, true); err != nil {
+			return err
+		}
+		return runDeferredLanes(repo, cleanStore)
 	}
 	if err := requireExclusiveGateMode(
 		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, readOnlyPlan, *merge,
@@ -172,6 +181,7 @@ func Run(options Options) (runErr error) {
 	var indexBefore gateIndexSnapshot
 	var mergeBefore *gateMergeIntent
 	var admissionStore *overgodb.Store
+	var laneDebt *runrecord.GateLaneObligation
 	defer func() {
 		if admissionStore != nil {
 			runErr = errors.Join(runErr, admissionStore.Close())
@@ -195,6 +205,12 @@ func Run(options Options) (runErr error) {
 		if recoveredPlan != "" && recoveredPlan == *planRef {
 			fmt.Fprintf(os.Stderr, "gate: recovered %s; new verification=0 new commits=0\n", recoveredPlan)
 			return nil
+		}
+		if err := reportGateAdmissionPhase("validate deferred lanes", func() error {
+			laneDebt, err = requireLaneObligationsResolved(repo, admissionStore)
+			return err
+		}); err != nil {
+			return err
 		}
 		err = reportGateAdmissionPhase("capture candidate state", func() error {
 			mergeBefore, indexBefore, err = captureGateStartState(repo)
@@ -227,6 +243,9 @@ func Run(options Options) (runErr error) {
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 		completionAuthority: completionAuthority, planHead: planHead, dispatchClaim: dispatchClaim,
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
+		// A failed obligation forces the lanes inline; a merge and a checkpoint
+		// publication keep their declared graph.
+		laneDebt: laneDebt, deferLanes: laneDebt == nil && !*merge && checkpoint == "" && !readOnlyPlan,
 		planProjection: planProjection, mergeSourceStore: mergeSourceStore,
 	}
 	defer func() { runErr = errors.Join(runErr, g.closeStore()) }()
@@ -432,6 +451,11 @@ func Run(options Options) (runErr error) {
 		}
 	} else {
 		_ = g.writeHeartbeat(runrecord.HeartbeatFinalized)
+	}
+	if pipelineErr == nil && recordErr == nil {
+		if err := g.spawnLaneRunner(cleanStore); err != nil {
+			return fmt.Errorf("commit landed but its deferred lanes did not start; run `go run ./cmd/gate -lanes`: %w", err)
+		}
 	}
 	if pipelineErr != nil {
 		return pipelineErr

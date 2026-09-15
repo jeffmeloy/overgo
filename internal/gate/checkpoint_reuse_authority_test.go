@@ -73,18 +73,18 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 		reused.Authority.Plan != secondPlan.ID || reused.Source.Authority.Plan != firstPlan.ID {
 		t.Fatalf("reloaded reuse = %+v found=%t", reused, found)
 	}
-	if err := validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": reused}); err != nil {
+	if err := validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": reused}, nil); err != nil {
 		t.Fatal(err)
 	}
 	restamped := original
 	restamped.Authority = second.Authority
 	restamped.Reused = true
-	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": restamped}) == nil {
+	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": restamped}, nil) == nil {
 		t.Fatal("restamped original admitted under the successor plan")
 	}
 	unproven := reused
 	unproven.Source = nil
-	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": unproven}) == nil {
+	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": unproven}, nil) == nil {
 		t.Fatal("reuse without its original admitted")
 	}
 	selfCiting := reused
@@ -94,7 +94,7 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 	if selfCiting.ID, err = selfCiting.Identity(); err != nil {
 		t.Fatal(err)
 	}
-	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": selfCiting}) == nil {
+	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": selfCiting}, nil) == nil {
 		t.Fatal("self-citing reuse admitted")
 	}
 

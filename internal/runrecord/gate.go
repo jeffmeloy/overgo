@@ -40,6 +40,8 @@ const (
 	StepInapplicable StepOutcome = "inapplicable"
 	// StepReused reports a successful step satisfied by exact cached evidence.
 	StepReused StepOutcome = "reused"
+	// StepDeferred reports a lane the gate ran after its commit under a recorded obligation.
+	StepDeferred StepOutcome = "deferred"
 )
 
 type GateStep struct {
@@ -182,7 +184,7 @@ func canonicalizeGateResult(result *GateResult) error {
 		}
 		seen[step.Name] = struct{}{}
 		switch step.Outcome {
-		case StepSucceeded, StepSkipped, StepInapplicable, StepReused:
+		case StepSucceeded, StepSkipped, StepInapplicable, StepReused, StepDeferred:
 		case StepFailed:
 			terminalMatch = terminalMatch || result.Outcome == OutcomeFailed
 		case StepCancelled:
@@ -190,7 +192,7 @@ func canonicalizeGateResult(result *GateResult) error {
 		default:
 			return errors.New("run record: invalid gate step outcome")
 		}
-		if passing && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != StepInapplicable && step.Outcome != StepReused {
+		if passing && step.Outcome != StepSucceeded && step.Outcome != StepSkipped && step.Outcome != StepInapplicable && step.Outcome != StepReused && step.Outcome != StepDeferred {
 			return errors.New("run record: successful gate has terminal step")
 		}
 	}

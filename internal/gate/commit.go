@@ -56,7 +56,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 			return false, err
 		}
 	}
-	if err := validateManifestCommitAdmission(*g.manifestPlan, g.terminal); err != nil {
+	if err := validateManifestCommitAdmission(*g.manifestPlan, g.terminal, g.laneDeferral()); err != nil {
 		return false, err
 	}
 	// Validate the immutable result shape before Git advances. A schema error
@@ -875,7 +875,10 @@ func gateReferenceEquals(repo, reference, commit string) bool {
 	return err == nil && strings.TrimSpace(string(value)) == commit
 }
 
-func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, terminal map[string]automationcheck.Evidence) error {
+// validateManifestCommitAdmission requires terminal passing evidence for every
+// planned check the commit follows; a lane the gate defers past the commit is
+// recorded as an obligation instead and is exempt here.
+func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, terminal map[string]automationcheck.Evidence, deferred map[string]bool) error {
 	if err := manifest.Validate(); err != nil {
 		return fmt.Errorf("commit admission: %w", err)
 	}
@@ -883,6 +886,9 @@ func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, term
 		return errors.New("commit admission: commit is not the final planned invocation")
 	}
 	for _, invocation := range manifest.Invocations[:len(manifest.Invocations)-1] {
+		if deferred[invocation.Check.Name] {
+			continue
+		}
 		evidence, found := terminal[invocation.Check.Name]
 		if !found || !evidence.ID.Valid() {
 			return fmt.Errorf("commit admission: %s lacks terminal evidence", invocation.Check.Name)

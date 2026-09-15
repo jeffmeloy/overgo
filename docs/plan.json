@@ -4,6 +4,76 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "deferred-lanes",
+      "title": "Run the device step and the browser lane after the commit as recorded obligations and refuse the next admission while one is unresolved",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the device step and the browser lane after the commit as recorded obligations and refuse the next admission while one is unresolved",
+          "status": "open",
+          "verify": "test -f internal/gate/deferred_lanes_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeferredLaneObligations$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "browser-lane-decomposition",
+      "title": "Take model serving and hashing out of the browser lane so page acceptances run against retained receipts and model work stays with its owning suites",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Take model serving and hashing out of the browser lane so page acceptances run against retained receipts and model work stays with its owning suites",
+          "status": "open",
+          "verify": "test -f internal/webuilane/page_only_test.go \u0026\u0026 go test ./internal/webuilane -run '^TestBrowserLanePageOnly$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "device-link-cost",
+      "title": "Stop linking the device runtime into test binaries whose tests execute no kernel so the device step builds only what it runs",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop linking the device runtime into test binaries whose tests execute no kernel so the device step builds only what it runs",
+          "status": "open",
+          "verify": "test -f internal/gate/device_link_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeviceGroupLinksOnlyKernelTests$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "timer-removal",
+      "title": "Replace every fixed wall-clock deadline and sleep with observation of the awaited operation under caller cancellation, production and tests alike",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace every fixed wall-clock deadline and sleep with observation of the awaited operation under caller cancellation, production and tests alike",
+          "status": "open",
+          "verify": "test -f internal/repoanalysis/timer_ratchet_test.go \u0026\u0026 go test ./internal/repoanalysis -run '^TestNoFixedTimers$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-progress-lines",
+      "title": "Make the preflight run the row acceptance, the changed owners short suites and the gate selection report before any gate, and print each package result as the test steps complete",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the preflight run the row acceptance, the changed owners short suites and the gate selection report before any gate, and print each package result as the test steps complete",
+          "status": "open",
+          "verify": "test -f internal/gate/progress_lines_test.go \u0026\u0026 go test ./internal/gate -run '^TestTestStepProgressLines$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "validation-gate-selection",
       "title": "Determine unnecessary testing and deliver one measured gate reduction",
       "owner": "master-lead",
@@ -964,7 +1034,13 @@
             "stale-source-rows/do",
             "device-lane-projector-reach/do",
             "gate-serial-floor/do",
-            "host-linear-kernel-reacquisition/do"
+            "host-linear-kernel-reacquisition/do",
+            "gate-progress-lines/do",
+            "timer-removal/do",
+            "device-link-cost/do",
+            "browser-lane-decomposition/do",
+            "deferred-lanes/do",
+            "gate-structure-replan/do"
           ]
         }
       ]

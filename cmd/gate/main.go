@@ -31,7 +31,7 @@ func run() error {
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from tmp/gate_lifecycle.json")
 	lanes := flag.Bool("lanes", false, "run the deferred lanes of the last landed commit and record their outcome; a successful gate starts this itself")
 	inspectPlan := flag.Bool("inspect-plan", false, "non-committing: construct and print the exact manifest-bound verification plan without executing checks; may write temporary Git object/index state")
-	preflight := flag.Bool("preflight", false, "diagnose working-tree changes without admission, repair or acceptance credit; -paths cmd,internal checks all Go sources")
+	preflight := flag.Bool("preflight", false, "apply the derived-file repairs to the working tree, then diagnose its changes without admission, store repair or acceptance credit; -paths cmd,internal checks all Go sources")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
 	flag.Parse()
 	return gate.Run(gate.Options{

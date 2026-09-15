@@ -339,7 +339,8 @@ func Run(options Options) (runErr error) {
 		return g.Preflight(os.Stdout)
 	}
 	// Derived files are repaired before the candidate freezes, so the
-	// verification binds to the repaired candidate; preflight never repairs.
+	// verification binds to the repaired candidate; the preflight applied
+	// the same registry to the working tree, less the store repairs.
 	if err := reportGateAdmissionPhase("stage mechanical repairs", g.stageMechanicalRepairs); err != nil {
 		return err
 	}

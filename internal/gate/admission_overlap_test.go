@@ -95,8 +95,8 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 	if err := g.stageMechanicalRepairs(); err != nil {
 		t.Fatal(err)
 	}
-	if !ran[rebindKey] || !ran[publishKey] || len(ran) != 2 {
-		t.Fatalf("repairs ran %v", ran)
+	if !ran[rebindKey] || !ran[publishKey] || !ran["-update"] || len(ran) != 3 {
+		t.Fatalf("repairs ran %v, want the rebind, the census and the API manifest update", ran)
 	}
 	staged := slices.IndexFunc(g.audit, func(line string) bool { return strings.HasPrefix(line, "staged repair: ") })
 	if staged < 0 || !strings.HasPrefix(g.audit[staged], "staged repair: gofmt") {

@@ -19,8 +19,15 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-// The reviewed harness surface ceiling the architecture ratchet reads.
-const harnessSurfaceBaselineFile = "docs/harness_surface_baseline.json"
+// The reviewed harness surface ceiling the architecture ratchet reads, the
+// API manifest the served routes and the browser lane census read, and the
+// compatibility manifest with the matrix generated from it.
+const (
+	harnessSurfaceBaselineFile = "docs/harness_surface_baseline.json"
+	apiManifestFile            = "docs/api_manifest.json"
+	compatibilityManifestFile  = "compatibility.json"
+	compatibilityMatrixFile    = "docs/COMPATIBILITY.md"
+)
 
 // mechanicalRepair is one derived-file repair the gate applies before the
 // candidate freezes: the phase that consumes its result, the repository
@@ -31,6 +38,12 @@ type mechanicalRepair struct {
 	phase string
 	files func(g *gateContext) []string
 	apply func(g *gateContext) error
+	// applies reports whether the planned paths reach the repair's inputs;
+	// nil means a changed Go source.
+	applies func(g *gateContext) bool
+	// store marks a repair that writes the OvergoDB store; the preflight,
+	// which diagnoses without store repair, leaves it to the gate.
+	store bool
 	// Retain outputs authored on every successful apply, including retries.
 	retainOutputs bool
 }
@@ -43,7 +56,7 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 	none := func(*gateContext) []string { return nil }
 	return []mechanicalRepair{
 		{name: "gofmt", phase: "fmt", files: (*gateContext).changedGoFiles, apply: (*gateContext).repairFormatting},
-		{name: "closure rebind", phase: "magics", files: none, apply: (*gateContext).remediateStaleClosureBindings},
+		{name: "closure rebind", phase: "magics", files: none, apply: (*gateContext).remediateStaleClosureBindings, store: true},
 		{
 			name: "modern-Go census", phase: "modern-go",
 			retainOutputs: true,
@@ -57,25 +70,99 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 			files: func(*gateContext) []string { return []string{harnessSurfaceBaselineFile} },
 			apply: (*gateContext).repairHarnessSurface,
 		},
+		{
+			name: "API manifest", phase: "test",
+			retainOutputs: true,
+			files:         func(*gateContext) []string { return []string{apiManifestFile} },
+			apply:         (*gateContext).repairAPIManifest,
+		},
+		{
+			name: "compatibility identities", phase: "claims",
+			files:   func(*gateContext) []string { return []string{compatibilityManifestFile, compatibilityMatrixFile} },
+			apply:   (*gateContext).repairCompatibilityIdentities,
+			applies: (*gateContext).compatibilityEvidenceChanged,
+		},
 	}
 }
 
-// stageMechanicalRepairs applies every registered repair before the
-// candidate freezes when the commit changes a Go input, records each as a
+// stageMechanicalRepairs applies every registered repair whose inputs the
+// planned paths reach before the candidate freezes, records each as a
 // staged repair in the audit with the files it rewrote, and binds every
 // rewritten file into the planned paths so verification runs over the
-// repaired candidate. A refused repair stops the gate with its reason.
+// repaired candidate. A refused repair stops the gate with its reason. The
+// preflight applies the same registry to the working tree, less the store
+// repairs.
 func (g *gateContext) stageMechanicalRepairs() error {
-	if len(g.changedGoFiles()) == 0 {
+	goChanged := len(g.changedGoFiles()) != 0
+	var repairs []mechanicalRepair
+	for _, repair := range g.mechanicalRepairs() {
+		applies := goChanged
+		if repair.applies != nil {
+			applies = repair.applies(g)
+		}
+		if applies && !(g.preflight && repair.store) {
+			repairs = append(repairs, repair)
+		}
+	}
+	if len(repairs) == 0 {
 		return nil
 	}
 	// The formatter rewrites the Go sources the other repairs read, so it
 	// runs first; the rest write disjoint files and run in one wave.
-	repairs := g.mechanicalRepairs()
-	if err := g.stageRepairs(repairs[:1]); err != nil {
-		return err
+	if repairs[0].name == "gofmt" {
+		if err := g.stageRepairs(repairs[:1]); err != nil {
+			return err
+		}
+		repairs = repairs[1:]
 	}
-	return g.stageRepairs(repairs[1:])
+	return g.stageRepairs(repairs)
+}
+
+// repairAPIManifest rewrites the API manifest from the candidate's sources.
+func (g *gateContext) repairAPIManifest() error {
+	if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/api-manifest", "-update"); err != nil {
+		return fmt.Errorf("API manifest update: %w: %s", err, strings.TrimSpace(out))
+	}
+	return nil
+}
+
+// repairCompatibilityIdentities refreshes the evidence identities the
+// compatibility manifest pins and the matrix generated from it.
+func (g *gateContext) repairCompatibilityIdentities() error {
+	if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/compatibility", "-refresh-identities"); err != nil {
+		return fmt.Errorf("compatibility identity refresh: %w: %s", err, strings.TrimSpace(out))
+	}
+	return nil
+}
+
+// compatibilityEvidenceChanged reports a planned path that is the
+// compatibility manifest or an evidence file one of its claims pins.
+func (g *gateContext) compatibilityEvidenceChanged() bool {
+	if slices.Contains(g.paths, compatibilityManifestFile) {
+		return true
+	}
+	raw, err := os.ReadFile(filepath.Join(g.repo, compatibilityManifestFile))
+	if err != nil {
+		return false
+	}
+	var manifest struct {
+		Claims []struct {
+			Evidence []struct {
+				Path string `json:"path"`
+			} `json:"evidence"`
+		} `json:"claims"`
+	}
+	if json.Unmarshal(raw, &manifest) != nil {
+		return false
+	}
+	for _, claim := range manifest.Claims {
+		for _, proof := range claim.Evidence {
+			if slices.Contains(g.paths, filepath.ToSlash(proof.Path)) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // stageRepairs applies one wave of repairs concurrently and records each

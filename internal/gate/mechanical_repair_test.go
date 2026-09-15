@@ -15,12 +15,12 @@ import (
 
 // TestGateStagesMechanicalRepairs pins the repair registry: before the
 // candidate freezes a Go change has its planned files formatted, the
-// closure ledger rebound, the modern-Go census and baseline republished
-// through their own command and bound into the planned paths, and the
-// harness surface baseline left alone when nothing tightened; each repair
-// is audited with the files it rewrote. A repair that would raise a reviewed
-// ceiling refuses with the delta, a census refusal stops the gate, and a
-// commit without Go input stages nothing.
+// closure ledger rebound, the modern-Go census and baseline and the API
+// manifest republished through their own commands and bound into the
+// planned paths, and the harness surface baseline left alone when nothing
+// tightened; each repair is audited with the files it rewrote. A repair
+// that would raise a reviewed ceiling refuses with the delta, a census
+// refusal stops the gate, and a commit without Go input stages nothing.
 func TestGateStagesMechanicalRepairs(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
@@ -78,10 +78,14 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 			write("docs/modern_go_census.json", "new census\n")
 			write("docs/modern_go_baseline.json", "new baseline\n")
 			return "lowered", nil
+		case strings.Contains(invocation, "api-manifest -update"):
+			write(apiManifestFile, "new manifest\n")
+			return "wrote", nil
 		}
 		t.Fatalf("unexpected command %q", invocation)
 		return "", nil
 	}
+	write(apiManifestFile, "old manifest\n")
 	g := &gateContext{repo: repo, storePath: gateStorePath, paths: []string{"internal/plan/a.go"}, runCommand: fake}
 	if err := g.stageMechanicalRepairs(); err != nil {
 		t.Fatal(err)
@@ -92,7 +96,10 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if read("docs/modern_go_census.json") != "new census\n" || read("docs/modern_go_baseline.json") != "new baseline\n" {
 		t.Fatal("the census repair did not republish through its command")
 	}
-	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoPublishedCensusFile, repoanalysis.ModernGoBaselineFile}
+	if read(apiManifestFile) != "new manifest\n" {
+		t.Fatal("the API manifest repair did not rewrite through its command")
+	}
+	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoPublishedCensusFile, repoanalysis.ModernGoBaselineFile, apiManifestFile}
 	if !slices.Equal(g.paths, wantPaths) {
 		t.Fatalf("planned paths = %v, want %v", g.paths, wantPaths)
 	}
@@ -111,11 +118,11 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 			t.Fatalf("gofmt repair audit = %q", line)
 		}
 	}
-	if staged != 4 {
-		t.Fatalf("staged repairs audited = %d, want 4: %q", staged, g.audit)
+	if staged != 5 {
+		t.Fatalf("staged repairs audited = %d, want 5: %q", staged, g.audit)
 	}
-	if len(recorded) != 2 {
-		t.Fatalf("commands = %v, want the rebind and one combined census invocation", recorded)
+	if len(recorded) != 3 {
+		t.Fatalf("commands = %v, want the rebind, one combined census invocation and the manifest update", recorded)
 	}
 	// A retry starts with the caller's original paths and already repaired files.
 	g.paths = g.paths[:1]

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,7 +28,7 @@ func (g *gateContext) preflightChecks() []automationcheck.Check {
 
 // Generated authority outputs reported by the existing scope inspection.
 var generatedAuthorityPaths = []string{
-	"docs/api_manifest.json", "compatibility.json", "docs/COMPATIBILITY.md",
+	apiManifestFile, compatibilityManifestFile, compatibilityMatrixFile,
 	"SBOM.cdx.json", "kernels/manifest.json",
 	"docs/modern_go_census.json", "docs/modern_go_baseline.json",
 }
@@ -165,7 +166,8 @@ func runPreflight(ctx context.Context, pipeline []automationcheck.Check, output 
 	return nil
 }
 
-// Preflight diagnoses the working tree without admission or store repair.
+// Preflight applies the derived-file repairs admission applies to the
+// working tree, then diagnoses it without admission or store repair.
 // Findings require correction before the normal commit gate.
 func (g *gateContext) Preflight(output io.Writer) error {
 	if g == nil || len(g.paths) == 0 {
@@ -175,9 +177,28 @@ func (g *gateContext) Preflight(output io.Writer) error {
 	if g.stepEvidence == nil {
 		g.stepEvidence = map[string]string{}
 	}
+	if err := g.preflightRepairs(output); err != nil {
+		return err
+	}
 	err := runPreflight(context.Background(), g.pipelineChecks(), output)
 	if g.pendingGenerated != nil {
 		fmt.Fprintf(output, "preflight: dirty-generated: ok (%d generated file(s) pending commit)\n", *g.pendingGenerated)
 	}
 	return err
+}
+
+// preflightRepairs stages the registry against the working tree and prints
+// each repair with the files it rewrote; a store repair is left to the gate.
+func (g *gateContext) preflightRepairs(output io.Writer) error {
+	if err := g.stageMechanicalRepairs(); err != nil {
+		return err
+	}
+	g.auditMutex.Lock()
+	defer g.auditMutex.Unlock()
+	for _, line := range g.audit {
+		if strings.HasPrefix(line, "staged repair: ") {
+			fmt.Fprintf(output, "preflight: %s\n", line)
+		}
+	}
+	return nil
 }

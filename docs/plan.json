@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "preflight-mechanical-repairs",
-      "title": "Register the API manifest and the compatibility identities as mechanical repairs and let the preflight apply the registry to the working tree, so no regeneration runs by hand",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Register the API manifest and the compatibility identities as mechanical repairs and let the preflight apply the registry to the working tree, so no regeneration runs by hand",
-          "status": "open",
-          "verify": "test -f internal/gate/preflight_repairs_test.go \u0026\u0026 go test ./internal/gate -run '^TestPreflightAppliesMechanicalRepairs$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "preflight-selection-report",
       "title": "Make the preflight run the row acceptance and print the gate's selection report: the packages of each test step and the lanes it would run or defer",
       "owner": "master-lead",

@@ -6,6 +6,7 @@
 package authoritylock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +15,20 @@ import (
 
 	"overgo/internal/processlock"
 )
+
+// Wait waits for the current mutation owner to finish without stealing its
+// lock or inferring abandonment from elapsed time.
+func Wait(ctx context.Context, repository string) error {
+	path := filepath.Join(repository, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(path), authorityDirectoryMode); err != nil {
+		return err
+	}
+	lock, err := processlock.AcquireContext(ctx, path, authorityFileMode)
+	if err != nil {
+		return err
+	}
+	return lock.Close()
+}
 
 const (
 	relativePath = "tmp/gate.lock"

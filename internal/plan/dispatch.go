@@ -17,6 +17,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/worklease"
 )
@@ -74,9 +75,19 @@ func dispatchWorker(explicit string) (string, error) {
 func DispatchOf(document Plan, role string, authority CompletionAuthority) Dispatch {
 	item, step, ok := Current(document, role, authority)
 	if !ok {
-		return Dispatch{Complete: true, Line: dispatchLine(Dispatch{Complete: true})}
+		return finishDispatch(Dispatch{Complete: true})
 	}
-	dispatch := Dispatch{Item: item.ID, Step: step.ID, ItemTitle: item.Title, StepTitle: step.Title, Verify: step.Verify}
+	return stepDispatch(item, step, nil)
+}
+
+func stepDispatch(item Item, step Step, claim *worklease.Lease) Dispatch {
+	return finishDispatch(Dispatch{Item: item.ID, Step: step.ID, ItemTitle: item.Title, StepTitle: step.Title, Verify: step.Verify, Claim: claim})
+}
+
+func finishDispatch(dispatch Dispatch) Dispatch {
+	if dispatch.Claim != nil {
+		dispatch.ClaimID = dispatch.Claim.ID
+	}
 	dispatch.Line = dispatchLine(dispatch)
 	return dispatch
 }
@@ -127,11 +138,12 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		return Dispatch{}, err
 	}
 	if request.Acquire {
+		if err := processcontrol.RequireCampaign(repository, worker); err != nil {
+			return Dispatch{}, err
+		}
 		lock, lockErr := authoritylock.Acquire(repository)
 		if errors.Is(lockErr, processlock.ErrBusy) {
-			waiting := Dispatch{Waiting: "another plan or gate mutation owns this worktree; resume after its release"}
-			waiting.Line = dispatchLine(waiting)
-			return waiting, nil
+			return finishDispatch(Dispatch{Waiting: "another plan or gate mutation owns this worktree; resume after its release"}), nil
 		}
 		if lockErr != nil {
 			return Dispatch{}, lockErr
@@ -165,10 +177,9 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	if stop.Blocked && request.Maintenance == "" && strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)) == "" {
-		stopped := Dispatch{Stop: &stop, Waiting: stop.String()}
-		stopped.Line = dispatchLine(stopped)
-		return stopped, nil
+	grant := cmp.Or(request.Maintenance, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)))
+	if stop.Blocked && grant == "" {
+		return finishDispatch(Dispatch{Stop: &stop, Waiting: stop.String()}), nil
 	}
 	planPath := filepath.Join(repository, filepath.FromSlash(Path))
 	raw, err := os.ReadFile(planPath)
@@ -185,10 +196,9 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		if stop.State != stopAbsent {
 			value.Stop = &stop
 		}
-		grant := cmp.Or(request.Maintenance, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment)))
 		if stopErr := stop.RequireExecution(ctx, store, role, worker, mode, value.Item+"/"+value.Step, grant); stopErr != nil {
 			value.Waiting = stopErr.Error()
-			value.Line = dispatchLine(value)
+			value = finishDispatch(value)
 		}
 		return value
 	}
@@ -221,9 +231,7 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 		item, step, _ := dispatchStep(document, key.Dispatch.Item+"/"+key.Dispatch.Step)
 		reference := item.ID + "/" + step.ID
 		if attempted[reference] {
-			waiting := Dispatch{Waiting: "ownership changed repeatedly; resume after claim release"}
-			waiting.Line = dispatchLine(waiting)
-			return waiting, nil
+			return finishDispatch(Dispatch{Waiting: "ownership changed repeatedly; resume after claim release"}), nil
 		}
 		attempted[reference] = true
 		contract, contractErr := dispatchContract(item, step)
@@ -464,6 +472,9 @@ func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan,
 	if err != nil {
 		return Item{}, Step{}, nil, err
 	}
+	if err := processcontrol.RequireCampaign(root, worker); err != nil {
+		return Item{}, Step{}, nil, err
+	}
 	if err := stop.RequireExecution(ctx, reader, role, worker, mode, reference, strings.TrimSpace(os.Getenv(AutomationMaintenanceEnvironment))); err != nil {
 		return Item{}, Step{}, nil, err
 	}
@@ -501,13 +512,6 @@ func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan,
 }
 
 func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, role, worktree, worker, reference string, authority CompletionAuthority) (Dispatch, error) {
-	finish := func(dispatch Dispatch) (Dispatch, error) {
-		if dispatch.Claim != nil {
-			dispatch.ClaimID = dispatch.Claim.ID
-		}
-		dispatch.Line = dispatchLine(dispatch)
-		return dispatch, nil
-	}
 	aliases := []string{worklease.WorktreeAlias(worktree)}
 	if worker != "" {
 		aliases = append(aliases, worklease.Alias(worklease.WorkerAliasRoot, worker))
@@ -521,19 +525,19 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 			continue
 		}
 		if reference != "" && lease.Task != reference {
-			return finish(Dispatch{Claim: lease, Waiting: "release the existing claim before requesting another row"})
+			return finishDispatch(Dispatch{Claim: lease, Waiting: "release the existing claim before requesting another row"}), nil
 		}
 		if worker == "" || lease.Worker != worker || !strings.EqualFold(lease.Worktree, worktree) {
-			return finish(Dispatch{Claim: lease, Waiting: fmt.Sprintf("%s owns %s in %s; inspect or use an isolated worktree", lease.Worker, lease.Task, lease.Worktree)})
+			return finishDispatch(Dispatch{Claim: lease, Waiting: fmt.Sprintf("%s owns %s in %s; inspect or use an isolated worktree", lease.Worker, lease.Task, lease.Worktree)}), nil
 		}
 		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
-			return finish(Dispatch{Claim: lease, Waiting: err.Error()})
+			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
 		}
 		if err := validateDispatchContract(document, *lease, role, authority); err != nil {
-			return finish(Dispatch{Claim: lease, Waiting: err.Error()})
+			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
 		}
 		item, step, _ := dispatchStep(document, lease.Task)
-		return finish(Dispatch{Item: item.ID, Step: step.ID, ItemTitle: item.Title, StepTitle: step.Title, Verify: step.Verify, Claim: lease})
+		return stepDispatch(item, step, lease), nil
 	}
 	ordered, err := dispatchPriority(document, role, authority)
 	if err != nil {
@@ -553,13 +557,13 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 			continue
 		}
 		item, step, _ := dispatchStep(document, ref.String())
-		return finish(Dispatch{Item: item.ID, Step: step.ID, ItemTitle: item.Title, StepTitle: step.Title, Verify: step.Verify})
+		return stepDispatch(item, step, nil), nil
 	}
 	if held != nil {
-		return finish(Dispatch{Claim: held, Waiting: "eligible rows are claimed; resume when an owner completes or hands off"})
+		return finishDispatch(Dispatch{Claim: held, Waiting: "eligible rows are claimed; resume when an owner completes or hands off"}), nil
 	}
 	if reference != "" {
-		return finish(Dispatch{Waiting: "requested row is not ready for this role"})
+		return finishDispatch(Dispatch{Waiting: "requested row is not ready for this role"}), nil
 	}
 	if _, _, open := Current(document, role, authority); open {
 		// Preserve the legacy empty-rung dispatch until it is given steps.
@@ -567,8 +571,8 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 	}
 	for _, item := range document.Items {
 		if item.Status == StatusOpen {
-			return finish(Dispatch{Waiting: "remaining rows require prerequisite evidence or an eligible role"})
+			return finishDispatch(Dispatch{Waiting: "remaining rows require prerequisite evidence or an eligible role"}), nil
 		}
 	}
-	return finish(Dispatch{Complete: true})
+	return finishDispatch(Dispatch{Complete: true}), nil
 }

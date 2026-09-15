@@ -173,6 +173,10 @@ func Run(world World, config Config) (Outcome, error) {
 			outcome.ObligationsDue = due
 		}
 		step, open, err := world.Current()
+		if world.Paused() {
+			outcome.Reason = ReasonPaused
+			return outcome, nil
+		}
 		if errors.Is(err, ErrWorkWaiting) {
 			outcome.Reason = ReasonWorkWaiting
 			return outcome, nil
@@ -268,6 +272,10 @@ func Run(world World, config Config) (Outcome, error) {
 			if _, ok := errors.AsType[*LaunchError](err); ok {
 				return outcome, fmt.Errorf("loop: worker launch: %w", err)
 			}
+		}
+		if world.Paused() {
+			outcome.Reason = ReasonPaused
+			return outcome, nil
 		}
 		after, open, err := world.Current()
 		if err != nil {

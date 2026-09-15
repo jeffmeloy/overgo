@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 	"overgo/internal/worklease"
 
@@ -380,6 +381,11 @@ func recordStopControl(ctx context.Context, repository artifact.Repository, even
 	}
 	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil {
 		return ControlEvent{}, err
+	}
+	if identified.Kind == ControlStop {
+		if err := processcontrol.NotifyCampaignStop(ctx, root); err != nil {
+			return identified, fmt.Errorf("stop recorded, but live supervisor notification failed: %w", err)
+		}
 	}
 	return identified, nil
 }

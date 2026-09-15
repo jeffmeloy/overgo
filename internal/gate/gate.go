@@ -64,6 +64,7 @@ const (
 	gatePlanScratchDir   = "tmp/gate_plan_scratch"
 	gateGitStateLockFile = "overgo-gate-git-state.lock"
 	gateProgressLine     = "gate: phase=%s heartbeat=%s\n"
+	gatePackageLine      = "gate: step=%s package=%s result=%s elapsed=%s\n"
 	// Recovery roots and transient Git authority must not be readable by
 	// other users. Directory traversal is likewise restricted to the owner.
 	gatePrivateFileMode      = clioptions.PrivateFileMode
@@ -160,6 +161,8 @@ type gateContext struct {
 	// testStep names the check whose package executions are being recorded;
 	// the test checks run one after another.
 	testStep string
+	// progress receives the package lines; nil means standard error.
+	progress io.Writer
 	// selectionCauses retains every requested package's selection
 	// attribution and observed execution for the final record.
 	selectionCauses []runrecord.SelectionPackage

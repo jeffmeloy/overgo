@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -1354,6 +1355,30 @@ func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short 
 	return report, nil
 }
 
+// goTestOptions binds the evidence observer and the progress line each
+// package prints as its step reports it.
+func (g *gateContext) goTestOptions(short bool, observe func(string, bool) error) testevidence.GoTestOptions {
+	return testevidence.GoTestOptions{Short: short, DiagnosticBytes: clioptions.DiagnosticTailBytes, Observe: observe, Progress: g.packageProgress}
+}
+
+// packageProgress prints one package's result under the step running it,
+// as the stream reports it, so a step's wall is attributed while it runs.
+func (g *gateContext) packageProgress(progress testevidence.PackageProgress) {
+	g.auditMutex.Lock()
+	step := g.testStep
+	g.auditMutex.Unlock()
+	fmt.Fprintf(g.progressWriter(), gatePackageLine, step, progress.Package, progress.Action, progress.Elapsed.Round(time.Millisecond))
+}
+
+// progressWriter is the gate's progress stream, the process's standard
+// error unless a test binds another.
+func (g *gateContext) progressWriter() io.Writer {
+	if g.progress != nil {
+		return g.progress
+	}
+	return os.Stderr
+}
+
 // runGoTestsAdmitted runs the packages under the gate's shared device lease
 // when leased, else with no lease, so a package claiming the device
 // exclusively is not refused by the gate's own lease.
@@ -1371,7 +1396,7 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	if err != nil {
 		return testevidence.GoTestReport{}, err
 	}
-	options := testevidence.GoTestOptions{Short: short, DiagnosticBytes: clioptions.DiagnosticTailBytes, Observe: observe}
+	options := g.goTestOptions(short, observe)
 	if !strings.Contains(flags, "-timeout") && !strings.Contains(flags, "-test.timeout") {
 		// Apply Go's default ten-minute bound to active tests, not accumulated
 		// suite time. Lifecycle silence remains bounded; output cannot renew it.

@@ -48,7 +48,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 		!slices.Equal(dependencies(rewired, testRestCheckName), []string{testOwnersCheckName}) {
 		t.Fatalf("rewired dependencies: commit=%v test=%v", dependencies(rewired, "commit"), dependencies(rewired, testRestCheckName))
 	}
-	if deferred := compiler.laneDeferral(); len(deferred) != 3 || !deferred[testDeviceCheckName] || !deferred["device"] || !deferred[automationcheck.WebUICheckName] {
+	if deferred := compiler.laneDeferral(); len(deferred) != 4 || !deferred[testDeviceCheckName] || !deferred["device"] || !deferred[automationcheck.WebUICheckName] || !deferred[automationcheck.ModelJourneyCheckName] {
 		t.Fatalf("lane deferral = %v", deferred)
 	}
 
@@ -62,11 +62,12 @@ func TestDeferredLaneObligations(t *testing.T) {
 		gateCheck(testRestCheckName, runrecord.PhaseTest, pass),
 		gateCheck("device", runrecord.PhaseTest, refuse),
 		gateCheck(automationcheck.WebUICheckName, runrecord.PhaseTest, refuse),
+		gateCheck(automationcheck.ModelJourneyCheckName, runrecord.PhaseTest, refuse),
 		gateCheck("commit", runrecord.PhasePackage, pass),
 	}
 	graph := map[string][]string{
 		testDeviceCheckName: {testOwnersCheckName}, testRestCheckName: {testDeviceCheckName}, "device": {testDeviceCheckName},
-		automationcheck.WebUICheckName: {testOwnersCheckName}, "commit": {testRestCheckName, "device", automationcheck.WebUICheckName},
+		automationcheck.WebUICheckName: {testOwnersCheckName}, automationcheck.ModelJourneyCheckName: {testOwnersCheckName}, "commit": {testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = graph[checks[index].Descriptor.Name]

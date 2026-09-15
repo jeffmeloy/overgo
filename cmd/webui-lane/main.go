@@ -38,6 +38,7 @@ func run() error {
 	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
 	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
 	run := flags.String("run", "^"+webuilane.BrowserTestPrefix, "the browser tests to run, as go test -run takes them; a named test that skips fails the lane")
+	journeys := flags.Bool("journeys", false, "run the model journeys ("+webuilane.ModelJourneyPrefix+"*), which build, serve or hash models, instead of the page acceptances")
 	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
 	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
 	var required []string
@@ -53,6 +54,12 @@ func run() error {
 	var captured bytes.Buffer
 	stdout := io.MultiWriter(os.Stdout, &captured)
 	var extra []string
+	if *journeys {
+		if *run == "^"+webuilane.BrowserTestPrefix {
+			*run = "^" + webuilane.ModelJourneyPrefix
+		}
+		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1")
+	}
 	if *screens != "" {
 		absolute, err := filepath.Abs(*screens)
 		if err != nil {
@@ -222,7 +229,7 @@ func browserPackages(run string, listing io.Reader) ([]string, error) {
 			return nil, fmt.Errorf("browser test discovery: %w", err)
 		}
 		name := strings.TrimSpace(event.Output)
-		if strings.HasPrefix(name, webuilane.BrowserTestPrefix) && pattern.MatchString(name) {
+		if (strings.HasPrefix(name, webuilane.BrowserTestPrefix) || strings.HasPrefix(name, webuilane.ModelJourneyPrefix)) && pattern.MatchString(name) {
 			if !slices.Contains(browserTestPackages, event.Package) {
 				return nil, fmt.Errorf("browser test discovery returned unknown owner %q", event.Package)
 			}

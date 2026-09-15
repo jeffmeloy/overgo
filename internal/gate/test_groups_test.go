@@ -42,7 +42,7 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 			t.Fatalf("%s depends on %v, want the device check of the remaining groups alone", lane, byName[lane].Dependencies)
 		}
 	}
-	if !slices.Equal(byName["commit"].Dependencies, []string{"test", "device", automationcheck.WebUICheckName}) {
+	if !slices.Equal(byName["commit"].Dependencies, []string{"test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}) {
 		t.Fatalf("commit depends on %v", byName["commit"].Dependencies)
 	}
 	if phaseReusesEvidence(testOwnersCheckName) || phaseReusesEvidence(testDeviceCheckName) || !phaseOwnsPath(testOwnersCheckName, "internal/gate/gate.go") {
@@ -74,7 +74,7 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	if _, err := automationcheck.ExecuteDAG(t.Context(), invocations, nil, automationcheck.Run); err != nil {
 		t.Fatal(err)
 	}
-	for _, follower := range []string{"test", "device", automationcheck.WebUICheckName} {
+	for _, follower := range []string{"test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 		prerequisite := "test-device"
 		if follower == automationcheck.WebUICheckName {
 			prerequisite = "test-owners"

@@ -18,19 +18,21 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
+	"overgo/internal/webuilane"
 )
 
-// TestFrontPageServedProjector proves that a model whose store declares a
+// TestModelJourneyServedProjector proves that a model whose store declares a
 // projector serves image input through the swap proxy with no -mmproj on
 // any command line (professional GUI campaign, gui-serve-projectors): the
 // server resolves the active projection recipe's bytes itself, and the
 // capability document the front page derives from reports the image
 // modality. The smallest servable model with a projection activation and
 // bytes on disk is served; without a store, a buildable server or such a
-// model the check reports UNAVAILABLE.
-func TestFrontPageServedProjector(t *testing.T) {
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": a served model is integration")
+// model the check reports UNAVAILABLE. It serves a model, so it runs in the
+// lane's journey mode with the serving owners, not with every server suite.
+func TestModelJourneyServedProjector(t *testing.T) {
+	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
+		t.Skip(testskip.ShortIntegration + ": a served model runs through cmd/webui-lane -journeys")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

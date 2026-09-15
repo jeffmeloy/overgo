@@ -31,7 +31,7 @@ import (
 	"overgo/internal/webuilane"
 )
 
-// TestWebUIBrowserFirstRun drives the front page end to end against a
+// TestModelJourneyFirstRun drives the front page end to end against a
 // served model through the real swap proxy (professional GUI campaign,
 // gui-quality/acceptance-lane). The test prepares its server
 // binary, store and smallest servable models; missing prerequisites fail
@@ -49,9 +49,9 @@ import (
 // (gui-journey-modalities). When the default model refuses images and the
 // lane names a model whose store declares a projector, that model serves
 // the image-in leg.
-func TestWebUIBrowserFirstRun(t *testing.T) {
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane")
+func TestModelJourneyFirstRun(t *testing.T) {
+	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
+		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane -journeys")
 	}
 	journey, err := prepareBrowserJourney(t)
 	if err != nil {

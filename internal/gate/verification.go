@@ -47,6 +47,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	device := automationcheck.DeviceCheck(g.sourceRoot(), g.paths, devicePackages, g.runLaneCommand)
 	published := automationcheck.PublishedCheck(g.sourceRoot(), g.runGateCommand)
 	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runLaneCommand)
+	journeys := automationcheck.ModelJourneyCheck(g.sourceRoot(), g.runLaneCommand)
 	// The store writer among the static checks (the magics phase may rebind
 	// the closure ledger) declares the store exclusively; the store readers
 	// declare it shared, so the writer never overlaps a reader's replay.
@@ -68,7 +69,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateTestCheck(testOwnersCheckName, g.stepTestOwners),
 		gateTestCheck(testDeviceCheckName, g.stepTestDevice),
 		gateTestCheck(testRestCheckName, g.stepTestRest),
-		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+		device, webui, journeys, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	// Protection and scope admit the candidate first
 	dependencies := map[string][]string{"scope": {"protection"}}
@@ -88,7 +89,8 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies[testRestCheckName] = []string{testDeviceCheckName}
 	dependencies["device"] = []string{testDeviceCheckName}
 	dependencies[automationcheck.WebUICheckName] = []string{testOwnersCheckName}
-	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName}
+	dependencies[automationcheck.ModelJourneyCheckName] = []string{testOwnersCheckName}
+	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
 		if requirements, declared := gateCheckRequirements[checks[index].Descriptor.Name]; declared {

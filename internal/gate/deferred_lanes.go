@@ -23,7 +23,7 @@ import (
 // device lane and the browser lane. Their reach is proven by the same
 // selection as before; only their place in the pipeline moves, and the
 // obligation they leave is recorded before the commit is visible.
-var deferredLaneChecks = []string{testDeviceCheckName, "device", automationcheck.WebUICheckName}
+var deferredLaneChecks = []string{testDeviceCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 
 const (
 	gateLanesLocatorFile = "tmp/gate_lanes.json"

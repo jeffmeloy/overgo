@@ -38,7 +38,7 @@ func TestSharedLanesCoSchedule(t *testing.T) {
 			}
 		}
 	}
-	if !slices.Equal(byName["commit"].Dependencies, []string{"test", "device", automationcheck.WebUICheckName}) {
+	if !slices.Equal(byName["commit"].Dependencies, []string{"test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}) {
 		t.Fatalf("commit depends on %v", byName["commit"].Dependencies)
 	}
 

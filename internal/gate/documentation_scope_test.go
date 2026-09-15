@@ -20,7 +20,7 @@ func TestDocumentationBoundaryAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, name := range []string{"device", automationcheck.WebUICheckName} {
+			for _, name := range []string{"device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 				if _, excluded := planned.impact.ExclusionReason(name); !excluded {
 					t.Fatalf("README selected %s: %+v", name, planned.surface)
 				}

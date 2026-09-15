@@ -64,14 +64,14 @@ func laneHubServer(t *testing.T, file string) *httptest.Server {
 	return server
 }
 
-// TestWebUIBrowserLibraryValidation: from a cold proxy over an empty store
+// TestModelJourneyLibraryValidation: from a cold proxy over an empty store
 // the Library downloads a real small GGUF from the hub, registers it,
 // validates it as an operation the workbench behind the shell runs, and
 // the picker then serves it; a model registered with its projector
 // validates its text path and keeps the projector as its projection.
-func TestWebUIBrowserLibraryValidation(t *testing.T) {
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane")
+func TestModelJourneyLibraryValidation(t *testing.T) {
+	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
+		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane -journeys")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

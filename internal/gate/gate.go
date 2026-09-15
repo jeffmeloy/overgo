@@ -71,12 +71,20 @@ const (
 )
 
 type gateContext struct {
-	repo                string
-	candidateRoot       string
-	candidateTree       string
-	paths               []string
-	planRef             string
-	checkpoint          string
+	repo          string
+	candidateRoot string
+	candidateTree string
+	paths         []string
+	planRef       string
+	checkpoint    string
+	// Lanes this gate runs after its commit, the obligation it records for
+	// them, the failed obligation that forces them inline, and the exact tree
+	// a lane runner plans instead of the worktree.
+	deferLanes          bool
+	deferredLanes       []string
+	laneDebt            *runrecord.GateLaneObligation
+	laneObligation      *runrecord.GateLaneObligation
+	fixedTree           string
 	messageFile         string
 	storePath           string
 	steps               []runrecord.GateStep

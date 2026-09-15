@@ -55,4 +55,16 @@ func (t processTree) terminate() error {
 
 func (t processTree) close() error { return nil }
 
+// ProcessAlive reports whether the process still runs: signal 0 performs
+// the existence and permission checks without delivering anything.
+func ProcessAlive(pid int) bool {
+	return pid > 0 && syscall.Kill(pid, 0) == nil
+}
+
+// DetachedSysProcAttr starts a child in its own session, so it outlives the
+// process that spawned it.
+func DetachedSysProcAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{Setsid: true}
+}
+
 func (t processTree) wait() error { return nil }

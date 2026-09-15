@@ -910,16 +910,18 @@
   // order, then every distinct module, then the shell wires. Same-origin scripts, so the strict CSP holds. ----
   const libraries = ["/viz.js", "/md.js", "/media_capture.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
+  // A loading script is work in flight like a request: the shell is not
+  // idle until its libraries and modules have executed.
   function loadScript(src) {
     if (loadedScripts.has(src)) return Promise.resolve(src);
-    return new Promise((resolve, reject) => {
+    return tracked(new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src = src;
       script.async = false; // insertion order is execution order
       script.onload = () => { loadedScripts.add(src); resolve(src); };
       script.onerror = () => reject(new Error("failed to load " + src));
       document.head.appendChild(script);
-    });
+    }));
   }
   async function loadWorkspaceModules(manifest) {
     for (const src of libraries) await loadScript(src);

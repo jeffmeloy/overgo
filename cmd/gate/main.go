@@ -29,6 +29,7 @@ func run() error {
 	recoverInterrupted := flag.Bool("recover-interrupted", false, "roll back an interrupted gate commit and cancel its prepared store lifecycle")
 	admitReview := flag.String("admit-review", "", "read-only: admit a OvergoDB review-verdict ID against the current HEAD")
 	watchdog := flag.Bool("watchdog", false, "print typed JSON liveness from tmp/gate_lifecycle.json")
+	lanes := flag.Bool("lanes", false, "run the deferred lanes of the last landed commit and record their outcome; a successful gate starts this itself")
 	inspectPlan := flag.Bool("inspect-plan", false, "non-committing: construct and print the exact manifest-bound verification plan without executing checks; may write temporary Git object/index state")
 	preflight := flag.Bool("preflight", false, "diagnose working-tree changes without admission, repair or acceptance credit; -paths cmd,internal checks all Go sources")
 	staleAfter := flag.Duration("stale-after", runrecord.DefaultHeartbeatStaleAfter, "heartbeat age classified stale by -watchdog")
@@ -39,6 +40,6 @@ func run() error {
 		PlanRef: *planRef, Checkpoint: *checkpoint, Reconcile: *reconcile, RecordFailure: *recordFailure,
 		RecoverPreparation: *recoverPreparation, RecoverInterrupted: *recoverInterrupted,
 		AdmitReview: *admitReview, Watchdog: *watchdog, InspectPlan: *inspectPlan, Preflight: *preflight,
-		StaleAfter: *staleAfter,
+		Lanes: *lanes, StaleAfter: *staleAfter,
 	})
 }

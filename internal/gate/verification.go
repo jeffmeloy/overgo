@@ -207,6 +207,12 @@ func (g *gateContext) pipeline() error {
 		if err != nil {
 			return err
 		}
+		if lanes := g.laneDeferral(); len(lanes) != 0 {
+			merged := make(map[string]bool, len(deferred)+len(lanes))
+			maps.Copy(merged, deferred)
+			maps.Copy(merged, lanes)
+			deferred = merged
+		}
 		results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift, deferred)
 		if err != nil {
 			return err
@@ -238,8 +244,16 @@ func (g *gateContext) pipeline() error {
 			name := definition.Descriptor.Name
 			result, ran := byName[name]
 			if !ran {
-				if deferred[name] {
+				if deferred[name] && !(g.deferLanes && slices.Contains(deferredLaneChecks, name)) {
 					g.note(name + " deferred: checkpoint " + g.checkpoint + " publication leaves it outstanding until the step's cumulative gate")
+					continue
+				}
+				if _, excluded := impact.ExclusionReason(name); !excluded && deferred[name] {
+					// A selected lane the commit does not wait for: its
+					// obligation is recorded with the result and run afterwards.
+					g.deferredLanes = append(g.deferredLanes, name)
+					g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepDeferred, DurationNS: uint64(time.Nanosecond)})
+					g.note(name + " deferred: runs after the commit under a recorded lane obligation")
 					continue
 				}
 				if exclusion, excluded := impact.ExclusionReason(name); excluded {

@@ -47,7 +47,7 @@ var agentHarnessOwnerRules = []HarnessOwnerRule{
 	{Kind: "type", Symbol: "InteractionTrace", Owner: "internal/runrecord"},
 	{Kind: "type", Symbol: "AttemptRecord", Owner: "internal/runrecord"},
 	{Kind: "type", Symbol: "AttemptDirection", Owner: "internal/runrecord"},
-	{Kind: "type", Symbol: "WorkspaceClaims", Owner: "internal/plan"},
+	{Kind: "type", Symbol: "WorkspaceClaims", Owner: "internal/worklease"},
 	{Kind: "type", Symbol: "WorkspaceClaimLifecycle", Owner: "internal/operation"},
 	{Kind: "type", Symbol: "ContractState", Owner: "internal/agentloop"},
 	{Kind: "type", Symbol: "MutationCheckpointRuntime", Owner: "internal/agentloop"},

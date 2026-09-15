@@ -117,7 +117,7 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 	producerRun.environment = lifecycleTestEnvironment(t)
 	bound := persistenceInvocations(t, producerRun, batch, tree)
 	attempt := producerRun.loadRetryCache()
-	results, err := producerRun.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil)
+	results, err := producerRun.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 	restart.environment = producerRun.environment
 	bound = persistenceInvocations(t, restart, batch, tree)
 	attempt = restart.loadRetryCache()
-	results, err = restart.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil)
+	results, err = restart.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

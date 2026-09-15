@@ -354,6 +354,13 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
   await new Promise(requestAnimationFrame);backgroundProbe.blocked_fallback_keeps_waiting=observed && !finished;
   overgo.runtimeEvents.restart();publishStream('operation.snapshot',[{id:'fallback-blocked',task:'fixture',state:'completed'}]);await blocked;
   let connectionError=false;const stop=overgo.runtimeEvents.subscribe(name=>{if(name==='stream.error')connectionError=true;});await new Promise(requestAnimationFrame);stop();backgroundProbe.reconnected_stream_clears_failure=!connectionError;
+  let receiptSignal;
+  overgo.api.get=async function(path,options){if(path.startsWith('/operations/wait?id=omitted-completion')){receiptSignal=options.signal;return {id:'omitted-completion',state:'completed'};}return backgroundGet.call(this,path,options);};
+  // Keep the activity connection open without publishing this completion.
+  window.backgroundOmittedCompletion=false;
+  overgo.waitOperation('omitted-completion').then(status=>{backgroundOmittedCompletion=status.state==='completed' && receiptSignal.aborted;});
+  await new Promise(requestAnimationFrame);
+  backgroundProbe.completion_without_activity_event=backgroundOmittedCompletion;
   overgo.api.events=backgroundEvents;overgo.api.get=backgroundGet;overgo.runtimeEvents.restart();return true;
 })()`)
 	// Exercise a real structured busy response through the browser API boundary.

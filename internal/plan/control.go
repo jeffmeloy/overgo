@@ -13,6 +13,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/strictjson"
+	"overgo/internal/worklease"
 
 	"overgo/internal/artifact"
 )
@@ -74,13 +75,13 @@ func RecordControlEvent(ctx context.Context, repository artifact.Repository, eve
 
 // ReadControlEvent returns false when id is not automation-control evidence.
 func ReadControlEvent(ctx context.Context, reader artifact.Reader, id artifact.ID) (ControlEvent, bool, error) {
-	return readTypedDocument(ctx, reader, id, controlCodec.Contract, controlCodec.Read, controlContract(ControlEvent{Version: artifact.SecondDocumentVersion}))
+	return worklease.ReadTypedDocument(ctx, reader, id, controlCodec.Contract, controlCodec.Read, controlContract(ControlEvent{Version: artifact.SecondDocumentVersion}))
 }
 
 func canonicalizeControl(event *ControlEvent) error {
-	if event == nil || event.Version != controlVersion && event.Version != artifact.SecondDocumentVersion || !validAutomationText(event.Lane) ||
-		!validAutomationText(event.ReasonCode) || !validAutomationDetail(event.Detail) ||
-		!validCommit(event.CodeCommit) {
+	if event == nil || event.Version != controlVersion && event.Version != artifact.SecondDocumentVersion || !worklease.ValidAutomationText(event.Lane) ||
+		!worklease.ValidAutomationText(event.ReasonCode) || !validAutomationDetail(event.Detail) ||
+		!worklease.ValidCommit(event.CodeCommit) {
 		return errors.New("plan: invalid automation control event")
 	}
 	if isStopControl(event.Kind) {
@@ -135,7 +136,7 @@ func controlContract(event ControlEvent) artifact.DocumentContract {
 }
 
 func validateStopControl(event ControlEvent) error {
-	if event.Version != artifact.SecondDocumentVersion || !filepath.IsAbs(event.Worktree) || strings.Contains(event.Worktree, nonCanonicalPathSeparator) || !validAutomationText(event.Worker) || event.Worker == UnassignedRole || !validStopMode(event.Mode) {
+	if event.Version != artifact.SecondDocumentVersion || !filepath.IsAbs(event.Worktree) || strings.Contains(event.Worktree, worklease.NonCanonicalPathSeparator) || !worklease.ValidAutomationText(event.Worker) || event.Worker == worklease.UnassignedRole || !validStopMode(event.Mode) {
 		return errors.New("plan: stop control requires exact worktree, owner, worker and execution scope")
 	}
 	if event.Previous.Valid() && event.Previous.Kind() != artifact.KindEvidence || event.Legacy.Valid() && event.Legacy.Kind() != artifact.KindEvidence {
@@ -153,7 +154,7 @@ func validateStopControl(event ControlEvent) error {
 			return errors.New("plan: resume requires an exact operator stop")
 		}
 	case ControlMaintenance:
-		if event.ReasonCode != "operator-maintenance" || !event.Previous.Valid() || !strings.Contains(event.Task, stepReferenceSeparator) || !validAutomationText(event.Task) {
+		if event.ReasonCode != "operator-maintenance" || !event.Previous.Valid() || !strings.Contains(event.Task, stepReferenceSeparator) || !worklease.ValidAutomationText(event.Task) {
 			return errors.New("plan: maintenance requires an exact stop and task")
 		}
 	}
@@ -186,7 +187,7 @@ type StopStatus struct {
 }
 
 func stopAlias(root string) string {
-	return leaseAlias(stopAliasRoot, strings.ToLower(filepath.ToSlash(root)))
+	return worklease.Alias(stopAliasRoot, strings.ToLower(filepath.ToSlash(root)))
 }
 
 // ReadStop uses an existing reader when available. Standalone hooks may pass nil.
@@ -255,7 +256,7 @@ func ReadStop(ctx context.Context, reader artifact.Reader, root, head, mode stri
 		status.State = stopLegacyActive
 		decodeErr := strictjson.DecodeBytes(raw, &marker)
 		reason, detail, reasonErr := ParseStopReason(marker.Reason)
-		if decodeErr != nil || reasonErr != nil || !validCommit(marker.Head) {
+		if decodeErr != nil || reasonErr != nil || !worklease.ValidCommit(marker.Head) {
 			status.State = stopInvalid
 			status.Problem = "legacy stop marker is malformed; explicitly review its exact identity before recovery"
 		}

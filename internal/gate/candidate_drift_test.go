@@ -261,6 +261,9 @@ func TestBuildAcceptedCompletionTreeIsolatesSharedIndexAndIgnoresLaterWorktreeEd
 }
 
 func TestInstallCompletionIndexRefusesWriterBeforeLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	wantConcurrent := []byte("concurrent install staging\n")
 	if err := os.WriteFile(filepath.Join(repo, "candidate.txt"), wantConcurrent, 0o644); err != nil {
@@ -285,6 +288,9 @@ func TestInstallCompletionIndexRefusesWriterBeforeLock(t *testing.T) {
 }
 
 func TestGateStartIndexRefusesAndPreservesLaterUnplannedStaging(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, _ := newIndexCASFixture(t)
 	unplanned := []byte("staged after gate start\n")
 	if err := os.WriteFile(filepath.Join(repo, "unplanned.txt"), unplanned, 0o644); err != nil {
@@ -308,6 +314,9 @@ func TestGateStartIndexRefusesAndPreservesLaterUnplannedStaging(t *testing.T) {
 }
 
 func TestRestoreCapturedIndexRefusesWriterBeforeLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	intent := exactIndexIntent(t, repo, before, after)
 	if err := installCompletionIndexForTest(repo, intent); err != nil {
@@ -336,6 +345,9 @@ func TestRestoreCapturedIndexRefusesWriterBeforeLock(t *testing.T) {
 }
 
 func TestExactIndexCASBlocksWriterWhileLocked(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	if err := os.WriteFile(filepath.Join(repo, "candidate.txt"), []byte("locked writer\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -472,6 +484,9 @@ func TestCaptureGateIndexRejectsResolveUndoMetadata(t *testing.T) {
 }
 
 func TestGateGitAuthorityIgnoresAmbientRepositoryOverrides(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	requested := t.TempDir()
 	foreign := t.TempDir()
 	for repository, content := range map[string]string{requested: "requested\n", foreign: "foreign\n"} {
@@ -678,6 +693,9 @@ func runGitFixture(t *testing.T, repo string, arguments ...string) {
 
 // TestGateStartIndexAdoptsStatRefreshUnderSameTree pins stat-only refresh recovery.
 func TestGateStartIndexAdoptsStatRefreshUnderSameTree(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, _, _ := newIndexCASFixture(t)
 	steady := filepath.Join(repo, "steady.txt")
 	if err := os.WriteFile(steady, []byte("steady\n"), 0o644); err != nil {

@@ -161,6 +161,48 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
 	}
+	// settle waits on progress, not on a clock: while the page has a request
+	// in flight the step is still working, however long the machine takes;
+	// a page that went idle without the expected state has failed the step.
+	settle := func(what, expression string) {
+		t.Helper()
+		fail := func(err error) {
+			t.Helper()
+			var page string
+			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), pending: window.overgo.api.pending(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
+			t.Fatalf("%s: %v; page: %s", what, err, page)
+		}
+		// Each observation evaluates the predicate once: row predicates click
+		// their control as a side effect, so a second evaluation would see
+		// the control it just disabled.
+		observe := `(() => { if (` + expression + `) return "ready"; return window.overgo.api.pending() === 0 ? "idle" : "busy"; })()`
+		settled := `new Promise((resolve) => requestAnimationFrame(() => resolve(` + observe + `)))`
+		ticker := time.Tick(time.Millisecond)
+		for {
+			var state string
+			if err := browser.Evaluate(ctx, observe, &state); err != nil {
+				fail(err)
+			}
+			if state == "idle" {
+				// The last response renders on the next frame; only a page
+				// still idle after it has failed the step.
+				if err := browser.Evaluate(ctx, settled, &state); err != nil {
+					fail(err)
+				}
+				if state == "idle" {
+					fail(errors.New("webui lane: the page went idle before the step settled"))
+				}
+			}
+			if state == "ready" {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				fail(ctx.Err())
+			case <-ticker:
+			}
+		}
+	}
 	const stepBound, workBound = 2 * time.Minute, 6 * time.Minute
 	// rowButton: the lifecycle control of the Library row that names the model.
 	rowButton := func(rowText, label string) string {
@@ -227,8 +269,8 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	settleWithin("hub search lists the lane repository", stepBound, `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "download")`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "download").click(); return true; })()`)
 	settleWithin("download succeeded", workBound, rowNote(laneHubRepository, "done"))
-	settleWithin("register control of the row", stepBound, rowButton(laneHubRepository, "register"))
-	settleWithin("downloaded model registered", stepBound, rowNote(laneHubRepository, "registered"))
+	settle("register control of the row", rowButton(laneHubRepository, "register"))
+	settle("downloaded model registered", rowNote(laneHubRepository, "registered"))
 	t.Log("download leg: the hub download registered through the cold proxy's workbench")
 
 	// 2. A model registered with its projector from disk keeps the projector as its projection candidate.
@@ -238,8 +280,8 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
   [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "register a local model").click();
   return true;
 })()`)
-	settleWithin("register control of the row", stepBound, rowButton(projectedLocation, "register"))
-	settleWithin("local model registered with its projector", stepBound, rowNote(projectedLocation, "with projector"))
+	settle("register control of the row", rowButton(projectedLocation, "register"))
+	settle("local model registered with its projector", rowNote(projectedLocation, "with projector"))
 
 	// 3. Both validate as operations the workbench behind the shell runs; the projector pair validates its text path.
 	settleWithin("validate control of the row", stepBound, rowButton(projectedLocation, "validate"))

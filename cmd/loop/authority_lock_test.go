@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"os"
 	"overgo/internal/overgodb"
+	"overgo/internal/worklease"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,7 +70,7 @@ func TestPersistentLoopStop(t *testing.T) {
 	if world.Paused() {
 		t.Fatal("absent stop paused loop")
 	}
-	event := plan.ControlEvent{Kind: "stop", Lane: plan.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "user-stop", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
+	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "loop-stop-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionInteractive, ReasonCode: "user-stop", Detail: "pause interactive session", CodeCommit: strings.Repeat("a", sha1.Size*2)}
 	stopped, err := plan.RecordControlEvent(t.Context(), writer, event)
 	if err != nil {
 		t.Fatal(err)

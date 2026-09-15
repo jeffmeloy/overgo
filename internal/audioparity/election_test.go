@@ -10,6 +10,7 @@ import (
 )
 
 func TestFirstASRArtifactElection(t *testing.T) {
+	t.Parallel()
 	encoded, err := os.ReadFile(filepath.Join("testdata", "granite_speech_5_election.json"))
 	if err != nil {
 		t.Fatal(err)

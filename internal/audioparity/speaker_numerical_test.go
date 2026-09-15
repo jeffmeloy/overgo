@@ -22,6 +22,7 @@ import (
 )
 
 func TestSpeakerDiarizationAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": pinned real speaker model, independent traces and continuous annotated speech")
 	}

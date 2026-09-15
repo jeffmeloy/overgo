@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 )
 
 // TestDispatchJSONMatchesProse pins the dispatch as data: the JSON the plan
@@ -18,7 +19,7 @@ func TestDispatchJSONMatchesProse(t *testing.T) {
 		}},
 	}}}
 	authority := mustTestCompletionAuthority(t, document)
-	dispatch := plan.DispatchOf(document, plan.UnassignedRole, authority)
+	dispatch := plan.DispatchOf(document, worklease.UnassignedRole, authority)
 	encoded, err := json.Marshal(dispatch)
 	if err != nil {
 		t.Fatal(err)
@@ -27,11 +28,11 @@ func TestDispatchJSONMatchesProse(t *testing.T) {
 	if err := json.Unmarshal(encoded, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	prose, open := nextAction(document, plan.UnassignedRole, authority)
+	prose, open := nextAction(document, worklease.UnassignedRole, authority)
 	if !open || decoded.Complete || decoded.Line != prose || decoded.Item != "item" || decoded.Step != "do" || decoded.Verify != "go test ./x -run '^TestX$'" {
 		t.Fatalf("dispatch %s does not match the prose %q", encoded, prose)
 	}
-	done := plan.DispatchOf(plan.Plan{}, plan.UnassignedRole, mustTestCompletionAuthority(t, plan.Plan{}))
+	done := plan.DispatchOf(plan.Plan{}, worklease.UnassignedRole, mustTestCompletionAuthority(t, plan.Plan{}))
 	if !done.Complete || done.Item != "" || done.Line != "plan complete: every item is done" {
 		t.Fatalf("complete dispatch = %+v", done)
 	}

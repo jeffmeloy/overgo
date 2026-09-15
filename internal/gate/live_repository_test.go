@@ -14,14 +14,15 @@ import (
 	"testing"
 
 	"overgo/internal/codemanifest"
+	"overgo/internal/repoanalysis"
 )
 
 // liveRepository is the package's one checkout of the live repository: a
-// detached worktree at HEAD whose package graph and manifest cache every
-// live-tree acceptance shares. A plan seeds its planned paths inside the
-// checkout and restores them, so an acceptance sees the same seeded
-// candidate on a clean tree as in a gate candidate and never scans the
-// live tree itself.
+// detached worktree at HEAD with the working tree's dirty paths committed
+// on top, whose package graph and manifest cache every live-tree acceptance
+// shares. A plan seeds its planned paths inside the checkout and restores
+// them, so an acceptance sees the same seeded candidate on a clean tree as
+// in a gate candidate and never scans the live tree itself.
 type liveRepository struct {
 	root      string
 	temporary string
@@ -61,6 +62,9 @@ func newLiveRepository() (*liveRepository, error) {
 	if _, err := gitWriterCommand(root, "worktree", "add", "--quiet", "--detach", repository.worktree, "HEAD"); err != nil {
 		return nil, errors.Join(err, os.RemoveAll(temporary))
 	}
+	if err := repository.adoptWorkingTree(); err != nil {
+		return nil, errors.Join(err, repository.teardown())
+	}
 	repository.graph, err = loadPackageInputGraph(repository.worktree)
 	if err != nil {
 		return nil, errors.Join(err, repository.teardown())
@@ -76,6 +80,54 @@ func newLiveRepository() (*liveRepository, error) {
 	return repository, nil
 }
 
+// adoptWorkingTree commits the live working tree's dirty paths into the
+// checkout, so the fixture measures the candidate the way a gate candidate
+// does: HEAD plus the uncommitted change, with seeds applied on top.
+func (r *liveRepository) adoptWorkingTree() error {
+	raw, err := command(r.root, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return err
+	}
+	dirty, err := repoanalysis.ParseDirtyStatus([]byte(raw))
+	if err != nil {
+		return err
+	}
+	changed := false
+	for _, entry := range dirty {
+		for _, path := range []string{entry.OriginalPath, entry.Path} {
+			if path == "" {
+				continue
+			}
+			target := filepath.Join(r.worktree, filepath.FromSlash(path))
+			data, err := os.ReadFile(filepath.Join(r.root, filepath.FromSlash(path)))
+			switch {
+			case errors.Is(err, os.ErrNotExist):
+				if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+					return err
+				}
+			case err != nil:
+				return err
+			default:
+				if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+					return err
+				}
+				if err := os.WriteFile(target, data, 0o644); err != nil {
+					return err
+				}
+			}
+			changed = true
+		}
+	}
+	if !changed {
+		return nil
+	}
+	if _, err := gitWriterCommand(r.worktree, "add", "-A"); err != nil {
+		return err
+	}
+	_, err = gitWriterCommand(r.worktree, "-c", "user.name=overgo gate fixture", "-c", "user.email=fixture@example.invalid", "commit", "-q", "-m", "live working tree")
+	return err
+}
+
 func (r *liveRepository) teardown() error {
 	if r == nil {
 		return nil
@@ -87,7 +139,7 @@ func (r *liveRepository) teardown() error {
 // context binds a gate context to the checkout as both repository and
 // candidate, with the shared graph and manifest cache.
 func (r *liveRepository) context(paths ...string) *gateContext {
-	graph := r.graph
+	graph := r.graph.clone()
 	return &gateContext{repo: r.worktree, paths: paths, candidateRoot: r.worktree, packageGraph: &graph, manifestCache: r.manifests}
 }
 

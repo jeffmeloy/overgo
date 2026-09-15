@@ -218,11 +218,13 @@ func (f *segmentedFixture) run(t *testing.T) (recipecontract.Transcription, runr
 }
 
 func TestSegmentedTranscriptionAcceptance(t *testing.T) {
+	t.Parallel()
 	f := newSegmentedFixture(t)
 	f.run(t)
 }
 
 func TestValidatedTranscriptionConsumers(t *testing.T) {
+	t.Parallel()
 	f := newSegmentedFixture(t)
 	silence, err := media.EncodeWAVPCM16(make([]float32, f.clip.record.Samples), int(f.clip.record.SampleRate))
 	if err != nil {

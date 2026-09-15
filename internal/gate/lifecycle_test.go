@@ -129,6 +129,9 @@ func TestGateDebtReconciliationRefusesLaterUnaliasedFinalization(t *testing.T) {
 }
 
 func TestPreparedLifecycleLocatorBlocksAndRecovers(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, storePath := newLifecycleRepo(t), "store"
 	t.Setenv("OVERGO_STRATEGY_ID", "")
 	if err := os.WriteFile(filepath.Join(repo, "candidate.go"), []byte("package candidate\n"), 0o644); err != nil {
@@ -415,6 +418,9 @@ func TestRecordFailureClosesUniqueStalePreparationBehindFinalizedAuthority(t *te
 }
 
 func TestRecordFailureWithFinalizedAliasRefusesPostCensusUnaliasedPreparation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newStaleLifecycleRecoveryFixture(t, 1, true)
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })
@@ -452,6 +458,9 @@ func TestRecordFailureWithFinalizedAliasRefusesPostCensusUnaliasedPreparation(t 
 }
 
 func TestRecordFailureWithPreparedAliasAndNoHeartbeatRefusesPostCensusPreparation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, storePath := newLifecycleRepo(t), "store"
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "prepared-alias-race@example.invalid")
@@ -674,6 +683,9 @@ func TestRecordFailureBootstrapsLegacyAliasToNewestTerminalAuthority(t *testing.
 }
 
 func TestRecordFailureRetryRepairsHeartbeatAfterLegacyStoreCommit(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	heartbeat := runrecord.GateHeartbeat{
 		Version: artifact.InitialDocumentVersion, State: runrecord.HeartbeatRunning,
@@ -1091,6 +1103,9 @@ func TestRecordFailureLegacyBootstrapRefusesDuplicateFinalizationPerPreparation(
 }
 
 func TestRecordFailureLegacyBootstrapRefusesHeadMovementWithoutAlias(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })
@@ -1108,6 +1123,9 @@ func TestRecordFailureLegacyBootstrapRefusesHeadMovementWithoutAlias(t *testing.
 }
 
 func TestRecordFailureLegacyBootstrapRefusesAliasRace(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })

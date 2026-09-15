@@ -16,6 +16,9 @@ import (
 const strategyAttemptTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

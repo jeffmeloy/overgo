@@ -56,6 +56,9 @@ func TestEnvironmentBoundRetry(t *testing.T) {
 }
 
 func TestGateDataRootCacheIdentity(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo := t.TempDir()
 	t.Setenv(dataroot.Env, "")
 	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", "")

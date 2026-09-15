@@ -14,6 +14,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
+	"overgo/internal/worklease"
 )
 
 func gateWritesGit(
@@ -79,7 +80,7 @@ func gateMergeSourceStore(value string, merge bool, projection plan.MergeProject
 
 // Resolve the claimed ready row, or the legacy current row when unclaimed.
 // Admission and commit share the plan owner's contract and ownership checks.
-func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, *plan.WorkLease, error) {
+func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, *worklease.Lease, error) {
 	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
 	if err != nil {
 		return plan.CompletionAuthority{}, "", nil, err
@@ -96,7 +97,7 @@ func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, 
 func resolvePlanBindingWithStore(
 	repo, ref string,
 	store *overgodb.Store,
-) (plan.CompletionAuthority, string, *plan.WorkLease, error) {
+) (plan.CompletionAuthority, string, *worklease.Lease, error) {
 	if ref == "" {
 		return plan.CompletionAuthority{}, "", nil, fmt.Errorf("gate: -plan <item>/<step> is required (the plan's current open step; run `go run ./cmd/plan -next`)")
 	}

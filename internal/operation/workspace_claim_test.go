@@ -9,9 +9,9 @@ import (
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 func TestWorkspaceClaimLifecycle(t *testing.T) {
@@ -21,10 +21,10 @@ func TestWorkspaceClaimLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	leaseJSON, _ := json.Marshal(plan.WorkLease{Version: 1, Task: "claim/test", Worktree: "C:/repo/claim", Branch: "codex/claim", Role: "developer",
-		TargetHead: "0123456789abcdef0123456789abcdef01234567", ConflictsWith: []string{}, Resources: plan.Resources{CPUThreads: 1, HostRAMGiB: 1},
-		Claims: plan.WorkspaceClaims{Write: []string{"C:/repo/claim/internal"}}, ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano)})
-	lease, err := plan.RecordWorkLease(ctx, store, leaseJSON)
+	leaseJSON, _ := json.Marshal(worklease.Lease{Version: 1, Task: "claim/test", Worktree: "C:/repo/claim", Branch: "codex/claim", Role: "developer",
+		TargetHead: "0123456789abcdef0123456789abcdef01234567", ConflictsWith: []string{}, Resources: worklease.Resources{CPUThreads: 1, HostRAMGiB: 1},
+		Claims: worklease.WorkspaceClaims{Write: []string{"C:/repo/claim/internal"}}, ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano)})
+	lease, err := worklease.Record(ctx, store, leaseJSON)
 	if err != nil {
 		t.Fatal(err)
 	}

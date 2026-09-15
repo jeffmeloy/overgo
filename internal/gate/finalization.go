@@ -66,6 +66,8 @@ func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
 }
 
 func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
+	// A checkpoint publication records at the plan head it verified: it
+	// commits nothing and completes no step.
 	codeCommit := g.planHead
 	if outcome == runrecord.OutcomeSucceeded {
 		codeCommit = g.committedHead

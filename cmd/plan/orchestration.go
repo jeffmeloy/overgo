@@ -17,6 +17,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
+	"overgo/internal/worklease"
 )
 
 // recordExplorationGrant commits an externally-issued GPU-minute budget
@@ -131,7 +132,7 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read work lease: %w", err)
 	}
-	var leaseInput plan.WorkLease
+	var leaseInput worklease.Lease
 	if err := json.Unmarshal(data, &leaseInput); err != nil {
 		return err
 	}
@@ -143,7 +144,7 @@ func recordWorkLease(root, inputPath string, output io.Writer) error {
 		return err
 	}
 	defer store.Close()
-	lease, err := plan.RecordWorkLease(context.Background(), store, data)
+	lease, err := worklease.Record(context.Background(), store, data)
 	if err != nil {
 		return fmt.Errorf("record work lease: %w", err)
 	}
@@ -187,10 +188,10 @@ func recordWorkLeaseOutcome(root, inputPath string, output io.Writer) error {
 }
 
 type leaseReport struct {
-	GeneratedAt string                `json:"generated_at"`
-	Leases      []plan.WorkLease      `json:"leases"`
-	Advisory    plan.ResourceAdvisory `json:"advisory"`
-	Exploration []explorationBalance  `json:"exploration,omitempty"`
+	GeneratedAt string                     `json:"generated_at"`
+	Leases      []worklease.Lease          `json:"leases"`
+	Advisory    worklease.ResourceAdvisory `json:"advisory"`
+	Exploration []explorationBalance       `json:"exploration,omitempty"`
 	// Reconciliation is recommendation-only: abandoned-lease retries and
 	// measurement error, never an action the report takes itself.
 	Reconciliation []plan.LeaseRecommendation `json:"reconciliation,omitempty"`
@@ -262,12 +263,12 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if err != nil {
 		return err
 	}
-	leases := make([]plan.WorkLease, 0)
+	leases := make([]worklease.Lease, 0)
 	legacyUnreadable := 0
 	_, err = store.VisitDocuments(ctx, overgodb.DocumentQuery{
-		Contracts: plan.WorkLeaseContracts(), AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
+		Contracts: worklease.Contracts(), AliasPrefixes: []string{worklease.AliasRoot}, Order: overgodb.DocumentOldestFirst,
 	}, func(view overgodb.DocumentView) error {
-		lease, parseErr := plan.ParseWorkLease(view.Content.Data)
+		lease, parseErr := worklease.Parse(view.Content.Data)
 		if parseErr != nil {
 			// A pre-contract lease cannot hold frontier authority; it is
 			// counted so its retirement stays visible, never silently valid.
@@ -301,17 +302,17 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	return nil
 }
 
-func printLeaseReport(root string, capacity plan.Resources, output io.Writer) error {
+func printLeaseReport(root string, capacity worklease.Resources, output io.Writer) error {
 	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return err
 	}
 	defer store.Close()
 	ctx := context.Background()
-	leases := make([]plan.WorkLease, 0)
+	leases := make([]worklease.Lease, 0)
 	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: plan.WorkLeaseContracts(), AliasPrefixes: []string{plan.WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
-	}, plan.ParseWorkLease, func(_ overgodb.DocumentView, lease plan.WorkLease) error {
+		Contracts: worklease.Contracts(), AliasPrefixes: []string{worklease.AliasRoot}, Order: overgodb.DocumentOldestFirst,
+	}, worklease.Parse, func(_ overgodb.DocumentView, lease worklease.Lease) error {
 		leases = append(leases, lease)
 		return nil
 	})
@@ -373,7 +374,7 @@ func printLeaseReport(root string, capacity plan.Resources, output io.Writer) er
 	now := time.Now().UTC()
 	payload := leaseReport{
 		GeneratedAt: now.Format(time.RFC3339Nano), Leases: leases,
-		Advisory: plan.AssessResources(now, capacity, leases), Exploration: exploration,
+		Advisory: worklease.AssessResources(now, capacity, leases), Exploration: exploration,
 		Reconciliation: plan.ReconcileExperimentLeases(leases, outcomes, now),
 	}
 	encoder := json.NewEncoder(output)

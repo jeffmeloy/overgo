@@ -56,6 +56,9 @@ func TestGitMetadataPathsMatchGitInLinkedWorktree(t *testing.T) {
 }
 
 func TestClearCommittedMergeStateRefusesConcurrentMetadataBeforeLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newMergeMetadataTransactionFixture(t)
 	writeMergeMetadataFixture(t, repo, intent.Merge)
 	concurrent := []byte("concurrent merge message\n")
@@ -76,6 +79,9 @@ func TestClearCommittedMergeStateRefusesConcurrentMetadataBeforeLock(t *testing.
 }
 
 func TestRestoreInterruptedMergeRefusesConcurrentMetadataBeforeLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newMergeMetadataTransactionFixture(t)
 	concurrent := []byte("concurrent recovery message\n")
 	gateMergeCASBeforeLockHook = func(repository string) {
@@ -95,6 +101,9 @@ func TestRestoreInterruptedMergeRefusesConcurrentMetadataBeforeLock(t *testing.T
 }
 
 func TestMergeMetadataTransactionHoldsActualIndexLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newMergeMetadataTransactionFixture(t)
 	writeMergeMetadataFixture(t, repo, intent.Merge)
 	if err := os.WriteFile(filepath.Join(repo, "candidate.txt"), []byte("competing index writer\n"), 0o644); err != nil {
@@ -121,6 +130,9 @@ func TestMergeMetadataTransactionHoldsActualIndexLock(t *testing.T) {
 }
 
 func TestMergeMetadataTransactionHoldsAutoMergeRefLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newRealConflictMergeTransactionFixture(t)
 	var competingErr error
 	var competingOutput []byte
@@ -141,6 +153,9 @@ func TestMergeMetadataTransactionHoldsAutoMergeRefLock(t *testing.T) {
 }
 
 func TestMergeMetadataTransactionBlocksConcurrentMergeQuit(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newMergeMetadataTransactionFixture(t)
 	writeMergeMetadataFixture(t, repo, intent.Merge)
 	var competingErr error
@@ -162,6 +177,9 @@ func TestMergeMetadataTransactionBlocksConcurrentMergeQuit(t *testing.T) {
 }
 
 func TestMergeMetadataPresenceMarkerIsLast(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newMergeMetadataTransactionFixture(t)
 	writeMergeMetadataFixture(t, repo, intent.Merge)
 	var cleanup, restore []string
@@ -274,6 +292,9 @@ func TestConflictAutoMergeIsCleanedWithMergeMetadata(t *testing.T) {
 }
 
 func TestConflictAutoMergeIsRestoredBeforeMergeHead(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, intent := newRealConflictMergeTransactionFixture(t)
 	wantAutoMerge := bytes.Clone(intent.Merge.AutoMerge)
 	if err := clearCommittedMergeState(repo, intent); err != nil {
@@ -377,6 +398,9 @@ func TestCapturePendingMergeRejectsAndPreservesOrphanAutoMerge(t *testing.T) {
 }
 
 func TestNonMergeFinalStateRefusesConcurrentAutoMerge(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, index, _ := newIndexCASFixture(t)
 	intent := bindGateIntentKeepaliveForTest(t, repo, gateCommitIntent{
 		IndexTree: index.Tree, Tree: index.Tree,

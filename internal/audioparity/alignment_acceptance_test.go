@@ -23,6 +23,7 @@ import (
 )
 
 func TestSpeechAlignmentAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": real CTC alignment and independent corpus annotations run as exact acceptance")
 	}

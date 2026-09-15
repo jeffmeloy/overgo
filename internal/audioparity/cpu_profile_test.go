@@ -166,6 +166,7 @@ func (f *audioMeasurementFixture) profile(t *testing.T, baseline audioMeasuredPr
 }
 
 func TestASRCPUSimplificationAcceptance(t *testing.T) {
+	t.Parallel()
 	if path := os.Getenv("OVERGO_AUDIO_PROFILE_REQUEST"); path != "" {
 		runAudioProfile(t, path)
 		return

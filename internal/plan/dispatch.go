@@ -18,22 +18,23 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
+	"overgo/internal/worklease"
 )
 
 // Dispatch is the current row as data: the harness reads its fields and
 // Line is the one-line prose rendered from the same fields.
 type Dispatch struct {
-	Stop      *StopStatus `json:"stop,omitempty"`
-	Complete  bool        `json:"complete"`
-	Item      string      `json:"item,omitzero"`
-	Step      string      `json:"step,omitzero"`
-	ItemTitle string      `json:"item_title,omitzero"`
-	StepTitle string      `json:"step_title,omitzero"`
-	Verify    string      `json:"verify,omitzero"`
-	Line      string      `json:"line"`
-	Claim     *WorkLease  `json:"claim,omitempty"`
-	ClaimID   artifact.ID `json:"claim_id,omitzero"`
-	Waiting   string      `json:"waiting,omitzero"`
+	Stop      *StopStatus      `json:"stop,omitempty"`
+	Complete  bool             `json:"complete"`
+	Item      string           `json:"item,omitzero"`
+	Step      string           `json:"step,omitzero"`
+	ItemTitle string           `json:"item_title,omitzero"`
+	StepTitle string           `json:"step_title,omitzero"`
+	Verify    string           `json:"verify,omitzero"`
+	Line      string           `json:"line"`
+	Claim     *worklease.Lease `json:"claim,omitempty"`
+	ClaimID   artifact.ID      `json:"claim_id,omitzero"`
+	Waiting   string           `json:"waiting,omitzero"`
 }
 
 // DispatchCachePath keeps the last resolved dispatch beside the inputs it
@@ -63,7 +64,7 @@ const AutomationWorkerEnvironment = "OVERGO_AUTOMATION_WORKER"
 
 func dispatchWorker(explicit string) (string, error) {
 	worker := cmp.Or(strings.TrimSpace(explicit), strings.TrimSpace(os.Getenv(AutomationWorkerEnvironment)))
-	if worker != "" && (!validAutomationText(worker) || worker == UnassignedRole) {
+	if worker != "" && (!worklease.ValidAutomationText(worker) || worker == worklease.UnassignedRole) {
 		return "", errors.New("plan: worker must be a stable distinct session identity")
 	}
 	return worker, nil
@@ -234,15 +235,15 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 			return Dispatch{}, branchErr
 		}
 		acquisition, _ := store.Head()
-		lease, leaseErr := NewWorkLease(WorkLease{Task: reference, Worktree: filepath.ToSlash(repository), Branch: strings.TrimSpace(string(branch)), Role: role, Worker: worker, TargetHead: head, Contract: contract, Acquisition: acquisition.String(), ConflictsWith: []string{}, Claims: WorkspaceClaims{WholeWorktree: true}})
+		lease, leaseErr := worklease.New(worklease.Lease{Task: reference, Worktree: filepath.ToSlash(repository), Branch: strings.TrimSpace(string(branch)), Role: role, Worker: worker, TargetHead: head, Contract: contract, Acquisition: acquisition.String(), ConflictsWith: []string{}, Claims: worklease.WorkspaceClaims{WholeWorktree: true}})
 		if leaseErr != nil {
 			return Dispatch{}, leaseErr
 		}
-		content, contentErr := workLeaseCodec.Content(lease)
+		content, contentErr := worklease.Codec.Content(lease)
 		if contentErr != nil {
 			return Dispatch{}, contentErr
 		}
-		claimed, claimErr := RecordWorkLease(ctx, store, content.Data)
+		claimed, claimErr := worklease.Record(ctx, store, content.Data)
 		if claimErr != nil {
 			if !errors.Is(claimErr, overgodb.ErrAliasConflict) {
 				return Dispatch{}, claimErr
@@ -274,7 +275,7 @@ func cachedDispatch(path string, key dispatchCache) (Dispatch, bool) {
 		return Dispatch{}, false
 	}
 	if cached.Dispatch.Claim != nil {
-		claim, err := NewWorkLease(*cached.Dispatch.Claim)
+		claim, err := worklease.New(*cached.Dispatch.Claim)
 		if err != nil || claim.ID != cached.Dispatch.ClaimID {
 			return Dispatch{}, false
 		}
@@ -320,10 +321,12 @@ func dispatchPriority(document Plan, role string, authority CompletionAuthority)
 		ready[ref.String()] = true
 	}
 	role = normalizedRole(role)
-	if role == UnassignedRole && document.Lane != "" {
+	if role == worklease.UnassignedRole && document.Lane != "" {
 		role = document.Lane
 	}
-	eligible := func(item Item) bool { return item.Owner == "" || role != UnassignedRole && item.Owner == role }
+	eligible := func(item Item) bool {
+		return item.Owner == "" || role != worklease.UnassignedRole && item.Owner == role
+	}
 	visited := map[string]bool{}
 	var ordered []Ref
 	var visit func(Item, Step)
@@ -346,7 +349,7 @@ func dispatchPriority(document Plan, role string, authority CompletionAuthority)
 		}
 	}
 	owners := []string{""}
-	if role != UnassignedRole {
+	if role != worklease.UnassignedRole {
 		owners = []string{role, ""}
 	}
 	for _, owner := range owners {
@@ -361,12 +364,12 @@ func dispatchPriority(document Plan, role string, authority CompletionAuthority)
 	return ordered, nil
 }
 
-func readDispatchAlias(ctx context.Context, reader artifact.Reader, alias string) (*WorkLease, error) {
+func readDispatchAlias(ctx context.Context, reader artifact.Reader, alias string) (*worklease.Lease, error) {
 	id, found, err := reader.ResolveAlias(ctx, alias)
 	if err != nil || !found {
 		return nil, err
 	}
-	lease, found, err := ReadWorkLease(ctx, reader, id)
+	lease, found, err := worklease.Read(ctx, reader, id)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +407,7 @@ func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, before, af
 				if oldFound == newFound && oldContract == newContract {
 					continue
 				}
-				lease, err := readDispatchAlias(ctx, reader, leaseAlias(workTaskAliasRoot, ref))
+				lease, err := readDispatchAlias(ctx, reader, worklease.Alias(worklease.TaskAliasRoot, ref))
 				if err != nil {
 					return err
 				}
@@ -417,7 +420,7 @@ func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, before, af
 	return nil
 }
 
-func validateDispatchContract(document Plan, lease WorkLease, role string, authority CompletionAuthority) error {
+func validateDispatchContract(document Plan, lease worklease.Lease, role string, authority CompletionAuthority) error {
 	if normalizedRole(role) != lease.Role {
 		return errors.New("plan: claim belongs to a different dispatch role")
 	}
@@ -447,7 +450,7 @@ func validateDispatchContract(document Plan, lease WorkLease, role string, autho
 // RequireDispatch rechecks the exact executable claim at admission and commit.
 // Legacy callers retain current-row admission only while no dispatch claim owns
 // that worktree or row; they cannot overwrite an active worker's authority.
-func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan, authority CompletionAuthority, root, role, reference string) (Item, Step, *WorkLease, error) {
+func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan, authority CompletionAuthority, root, role, reference string) (Item, Step, *worklease.Lease, error) {
 	mode, modeErr := ExecutionMode("")
 	if modeErr != nil {
 		return Item{}, Step{}, nil, modeErr
@@ -469,11 +472,11 @@ func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan,
 		return Item{}, Step{}, nil, err
 	}
 	worktree = filepath.ToSlash(worktree)
-	lease, err := readDispatchAlias(ctx, reader, workLeaseAlias(worktree))
+	lease, err := readDispatchAlias(ctx, reader, worklease.WorktreeAlias(worktree))
 	if err != nil {
 		return Item{}, Step{}, nil, err
 	}
-	rowLease, err := readDispatchAlias(ctx, reader, leaseAlias(workTaskAliasRoot, reference))
+	rowLease, err := readDispatchAlias(ctx, reader, worklease.Alias(worklease.TaskAliasRoot, reference))
 	if err != nil {
 		return Item{}, Step{}, nil, err
 	}
@@ -481,7 +484,7 @@ func RequireDispatch(ctx context.Context, reader artifact.Reader, document Plan,
 		if lease == nil || rowLease == nil || worker == "" || lease.ID != rowLease.ID || lease.Worker != worker || lease.Task != reference {
 			return Item{}, Step{}, nil, errors.New("plan: executable admission requires the exact worker's current worktree and row claim")
 		}
-		if err := ResolveWorkLeaseOwner(ctx, reader, *lease); err != nil {
+		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
 			return Item{}, Step{}, nil, err
 		}
 		if err := validateDispatchContract(document, *lease, role, authority); err != nil {
@@ -505,9 +508,9 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 		dispatch.Line = dispatchLine(dispatch)
 		return dispatch, nil
 	}
-	aliases := []string{workLeaseAlias(worktree)}
+	aliases := []string{worklease.WorktreeAlias(worktree)}
 	if worker != "" {
-		aliases = append(aliases, leaseAlias(workWorkerAliasRoot, worker))
+		aliases = append(aliases, worklease.Alias(worklease.WorkerAliasRoot, worker))
 	}
 	for _, alias := range aliases {
 		lease, err := readDispatchAlias(ctx, reader, alias)
@@ -523,7 +526,7 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 		if worker == "" || lease.Worker != worker || !strings.EqualFold(lease.Worktree, worktree) {
 			return finish(Dispatch{Claim: lease, Waiting: fmt.Sprintf("%s owns %s in %s; inspect or use an isolated worktree", lease.Worker, lease.Task, lease.Worktree)})
 		}
-		if err := ResolveWorkLeaseOwner(ctx, reader, *lease); err != nil {
+		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
 			return finish(Dispatch{Claim: lease, Waiting: err.Error()})
 		}
 		if err := validateDispatchContract(document, *lease, role, authority); err != nil {
@@ -536,12 +539,12 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 	if err != nil {
 		return Dispatch{}, err
 	}
-	var held *WorkLease
+	var held *worklease.Lease
 	for _, ref := range ordered {
 		if reference != "" && ref.String() != reference {
 			continue
 		}
-		lease, err := readDispatchAlias(ctx, reader, leaseAlias(workTaskAliasRoot, ref.String()))
+		lease, err := readDispatchAlias(ctx, reader, worklease.Alias(worklease.TaskAliasRoot, ref.String()))
 		if err != nil {
 			return Dispatch{}, err
 		}

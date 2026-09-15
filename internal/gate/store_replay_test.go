@@ -10,6 +10,9 @@ import (
 )
 
 func TestGateAdmissionStoreReuse(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, storePath := newLifecycleRepo(t), "store"
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate-admission@example.invalid")

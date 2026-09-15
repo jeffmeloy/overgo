@@ -32,6 +32,7 @@ type vadNumericalCase struct {
 }
 
 func TestVADWaveformStreamParity(t *testing.T) {
+	t.Parallel()
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
 	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)
@@ -264,6 +265,7 @@ func loadVADArtifacts(t *testing.T, store *overgodb.Store, model vadNumericalMod
 }
 
 func TestVADNumericalParity(t *testing.T) {
+	t.Parallel()
 	reference, store, audio := loadVADReference(t)
 	var config audiodsp.FrontendConfig
 	readAudioFixtureJSON(t, "recipes/vad_frontend.json", &config)

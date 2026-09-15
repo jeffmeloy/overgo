@@ -54,6 +54,7 @@ func (tensor frontendTensor) values(t *testing.T, shape ...int) []float32 {
 }
 
 func TestFrontendIntermediateParity(t *testing.T) {
+	t.Parallel()
 	var fixture struct {
 		Version               int            `json:"version"`
 		ResampleFixtureSHA256 string         `json:"resample_fixture_sha256"`

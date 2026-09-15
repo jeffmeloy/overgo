@@ -269,7 +269,7 @@ func runModernMemo(t *testing.T, g *gateContext, generation string, cache *autom
 		invocations[index] = bound
 		inputs[bound.ID] = input.ID
 	}
-	results, err := g.executeChecks(invocations, nil, inputs, cache, nil)
+	results, err := g.executeChecks(invocations, nil, inputs, cache, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

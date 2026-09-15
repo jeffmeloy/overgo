@@ -43,7 +43,7 @@ func TestReusedCheckpointCompletionAuthorityAcceptance(t *testing.T) {
 	first.environment = lifecycleTestEnvironment(t)
 	invocations := persistenceInvocations(t, first, batch, tree)
 	cache := first.loadRetryCache()
-	results, err := first.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil)
+	results, err := first.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestReusedCheckpointCompletionAuthorityAcceptance(t *testing.T) {
 	second.environment = first.environment
 	invocations = persistenceInvocations(t, second, batch, tree)
 	cache = second.loadRetryCache()
-	results, err = second.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil)
+	results, err = second.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

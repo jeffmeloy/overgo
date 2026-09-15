@@ -18,6 +18,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 type completionFixture struct {
@@ -397,12 +398,12 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		if parentAuthority.ProtectsRevision() || (CompletionAuthority{}).ProtectsRevision() {
 			t.Fatal("pre-activation or zero authority reported a protected revision")
 		}
-		if item, step, open := Current(fixture.child, UnassignedRole, authority); !open || item.ID != "dependent" || step.ID != "do" {
+		if item, step, open := Current(fixture.child, worklease.UnassignedRole, authority); !open || item.ID != "dependent" || step.ID != "do" {
 			t.Fatalf("dispatch = %s/%s open=%v", item.ID, step.ID, open)
 		}
 		replayed := fixture.child
 		replayed.Doctrine = "different plan"
-		if _, _, open := Current(replayed, UnassignedRole, authority); open {
+		if _, _, open := Current(replayed, worklease.UnassignedRole, authority); open {
 			t.Fatal("resolved completion authority replayed onto a different plan")
 		}
 	})
@@ -465,7 +466,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if item, _, open := Current(fixture.child, UnassignedRole, authority); !open || item.ID != "dependent" {
+		if item, _, open := Current(fixture.child, worklease.UnassignedRole, authority); !open || item.ID != "dependent" {
 			t.Fatalf("added completion row did not release dependency: item=%s open=%v", item.ID, open)
 		}
 		reused := fixture.child

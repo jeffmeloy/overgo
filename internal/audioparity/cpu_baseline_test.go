@@ -30,6 +30,7 @@ import (
 // The optional store is restricted to this worktree's catalog; normal test runs
 // use temporary storage. This same acceptance can retain a measured baseline.
 func TestASRCPUBaselineAcceptance(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	referenceRoot := resolveReferenceRoots(t).store
 	dataRoot := filepath.Dir(referenceRoot)

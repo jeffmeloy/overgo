@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -260,7 +261,7 @@ func testRetainedGateResultIntegrity(t *testing.T) {
 }
 
 func TestPlanEditCommand(t *testing.T) {
-	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "")
 	document := mutationPlan(t, "Existing work")
 	root := initializePlanTestRepository(t, document)

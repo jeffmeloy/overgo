@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/worklease"
 )
 
 // LeaseRecommendation is one abandoned-lease reconciliation verdict:
@@ -30,7 +31,7 @@ type LeaseRecommendation struct {
 // carries the measured recovery cost when an outcome recorded one. Measured
 // leases report prediction error so estimates improve from evidence.
 func ReconcileExperimentLeases(
-	leases []WorkLease,
+	leases []worklease.Lease,
 	outcomes []LeaseOutcome,
 	now time.Time,
 ) []LeaseRecommendation {

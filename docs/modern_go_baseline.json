@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "4647eb9531f65a4ea09bd63e15ddbc9110a1b0e07bd44ca7452a109c0fec0364",
+  "source_identity": "5f7d25b467aa6817238227bcbd022b6a6793292e5004d94324bf45922092ec31",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3439,
-    "typed_files": 3375
+    "inspected_files": 3443,
+    "typed_files": 3379
   },
   "guidelines": [
     {
@@ -3633,33 +3633,22 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/plan/orchestration.go",
+      "path": "internal/worklease/worklease.go",
       "symbol": "AssessResources",
-      "owner": "overgo/internal/plan",
+      "owner": "overgo/internal/worklease",
       "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/plan -count=1",
+      "oracle": "go test ./internal/worklease -count=1",
       "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/plan/orchestration.go",
-      "symbol": "WorkspaceClaimOrder",
-      "owner": "overgo/internal/plan",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/plan -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/plan/orchestration.go",
+      "path": "internal/worklease/worklease.go",
       "symbol": "canonicalizeClaims",
-      "owner": "overgo/internal/plan",
+      "owner": "overgo/internal/worklease",
       "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/plan -count=1",
+      "oracle": "go test ./internal/worklease -count=1",
       "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -5073,5 +5062,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "bfdb96f419e70e0da059d4649e04599b701a9850c75b1d6a0a385786ca96de46"
+  "exceptions_sha256": "53d336937f5b6b6c14ef338d13b72acace40ba5ca448d81114daf9a0f5bac218"
 }

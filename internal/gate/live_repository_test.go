@@ -139,7 +139,7 @@ func (r *liveRepository) teardown() error {
 // context binds a gate context to the checkout as both repository and
 // candidate, with the shared graph and manifest cache.
 func (r *liveRepository) context(paths ...string) *gateContext {
-	graph := r.graph
+	graph := r.graph.clone()
 	return &gateContext{repo: r.worktree, paths: paths, candidateRoot: r.worktree, packageGraph: &graph, manifestCache: r.manifests}
 }
 

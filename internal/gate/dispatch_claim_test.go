@@ -11,13 +11,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 )
 
 func TestClaimedGateAdmission(t *testing.T) {
 	if isolatedProcess(t) {
 		return
 	}
-	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "claim-worker")
 	document := plan.Plan{Items: []plan.Item{{ID: "row", Status: plan.StatusOpen, Steps: []plan.Step{
 		{ID: "first", Status: plan.StatusOpen, Verify: "go test ./internal/plan"},
@@ -91,7 +92,7 @@ func TestClaimedGateAdmission(t *testing.T) {
 	if _, found, err := store.Artifact(t.Context(), marker); err != nil || found {
 		t.Fatalf("partial completion escaped rejected release: %v", err)
 	}
-	if err := plan.ResolveWorkLeaseOwner(t.Context(), store, *claimed.Claim); err != nil {
+	if err := worklease.ResolveOwner(t.Context(), store, *claimed.Claim); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := artifact.CommitBatch(t.Context(), store, release); err != nil {
@@ -100,7 +101,7 @@ func TestClaimedGateAdmission(t *testing.T) {
 	if _, found, err := store.Artifact(t.Context(), marker); err != nil || !found {
 		t.Fatalf("completion marker missing: %v", err)
 	}
-	if err := plan.ResolveWorkLeaseOwner(t.Context(), store, *claimed.Claim); err == nil {
+	if err := worklease.ResolveOwner(t.Context(), store, *claimed.Claim); err == nil {
 		t.Fatal("successful completion retained claim")
 	}
 	if err := checkPlanBindingForTest(root, "row/independent"); err == nil {
@@ -125,7 +126,7 @@ func TestPersistentGateStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	initializePlanBindingRepo(t, root)
-	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "stop-gate-worker")
 	t.Setenv(plan.AutomationModeEnvironment, plan.ExecutionInteractive)
 	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
@@ -139,7 +140,7 @@ func TestPersistentGateStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	event := plan.ControlEvent{Kind: "stop", Lane: plan.UnassignedRole, Worker: "stop-gate-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped autonomous work", CodeCommit: head}
+	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-gate-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped autonomous work", CodeCommit: head}
 	stopped, err := plan.RecordControlEvent(t.Context(), store, event)
 	if err != nil {
 		t.Fatal(err)

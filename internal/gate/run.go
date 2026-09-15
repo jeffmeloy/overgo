@@ -16,6 +16,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
+	"overgo/internal/worklease"
 )
 
 // Options binds command flags to the gate transaction.
@@ -167,7 +168,7 @@ func Run(options Options) (runErr error) {
 	// task (inject it with `plan -add`, then finalize with -plan <item>/do).
 	var completionAuthority plan.CompletionAuthority
 	var planHead string
-	var dispatchClaim *plan.WorkLease
+	var dispatchClaim *worklease.Lease
 	var indexBefore gateIndexSnapshot
 	var mergeBefore *gateMergeIntent
 	var admissionStore *overgodb.Store

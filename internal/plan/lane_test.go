@@ -1,6 +1,9 @@
 package plan
 
-import "testing"
+import (
+	"overgo/internal/worklease"
+	"testing"
+)
 
 // TestLaneOwnedDispatch pins the lane boundary: a plan naming its lane
 // dispatches the lane's rows, then unowned rows, and never another
@@ -12,7 +15,7 @@ func TestLaneOwnedDispatch(t *testing.T) {
 		{ID: "gui-own", Owner: "gui", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}},
 	}}
 	authority := testCompletionAuthority(t, document)
-	if item, _, ok := Current(document, UnassignedRole, authority); !ok || item.ID != "gui-own" {
+	if item, _, ok := Current(document, worklease.UnassignedRole, authority); !ok || item.ID != "gui-own" {
 		t.Fatalf("lane dispatch = %s, ok=%v", item.ID, ok)
 	}
 	if item, _, ok := Current(document, "master", authority); !ok || item.ID != "master-only" {
@@ -21,7 +24,7 @@ func TestLaneOwnedDispatch(t *testing.T) {
 	retained := Plan{Lane: "gui", Items: []Item{
 		{ID: "master-only", Owner: "master", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}},
 	}}
-	if item, _, ok := Current(retained, UnassignedRole, testCompletionAuthority(t, retained)); ok {
+	if item, _, ok := Current(retained, worklease.UnassignedRole, testCompletionAuthority(t, retained)); ok {
 		t.Fatalf("another lane's retained row dispatched: %s", item.ID)
 	}
 	if err := Validate(Plan{Lane: "bad\nlane", Items: retained.Items}); err == nil {

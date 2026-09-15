@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"overgo/internal/authoritylock"
+	"overgo/internal/worklease"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,12 +17,28 @@ import (
 	"overgo/internal/overgodb"
 )
 
-func dispatchLeaseFixture(t *testing.T, task, worktree, worker, acquisition string) WorkLease {
+const orchestrationHead = "0123456789abcdef0123456789abcdef01234567"
+
+// workLeaseFixture is an advisory v1 lease; the dispatch tests below need one
+// beside their claims.
+func workLeaseFixture(t *testing.T, task, worktree string) worklease.Lease {
 	t.Helper()
-	lease, err := NewWorkLease(WorkLease{
-		Task: task, Worktree: worktree, Worker: worker, Role: UnassignedRole,
+	lease, err := worklease.Codec.New(worklease.Lease{
+		Version: worklease.Version, Task: task, Worktree: worktree, Branch: "codex/" + task, Role: "developer", TargetHead: orchestrationHead,
+		ConflictsWith: []string{}, Resources: worklease.Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 12}, ExpiresAt: "2026-08-15T00:00:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return lease
+}
+
+func dispatchLeaseFixture(t *testing.T, task, worktree, worker, acquisition string) worklease.Lease {
+	t.Helper()
+	lease, err := worklease.New(worklease.Lease{
+		Task: task, Worktree: worktree, Worker: worker, Role: worklease.UnassignedRole,
 		Branch: "codex/dispatch", TargetHead: orchestrationHead,
-		ConflictsWith: []string{}, Claims: WorkspaceClaims{WholeWorktree: true},
+		ConflictsWith: []string{}, Claims: worklease.WorkspaceClaims{WholeWorktree: true},
 		Contract:    fmt.Sprintf("%x", sha256.Sum256([]byte(task))),
 		Acquisition: fmt.Sprintf("%x", sha256.Sum256([]byte(acquisition))),
 	})
@@ -31,13 +48,13 @@ func dispatchLeaseFixture(t *testing.T, task, worktree, worker, acquisition stri
 	return lease
 }
 
-func recordClaim(t *testing.T, store *overgodb.Store, lease WorkLease) (WorkLease, error) {
+func recordClaim(t *testing.T, store *overgodb.Store, lease worklease.Lease) (worklease.Lease, error) {
 	t.Helper()
-	content, err := workLeaseCodec.Content(lease)
+	content, err := worklease.Codec.Content(lease)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return RecordWorkLease(t.Context(), store, content.Data)
+	return worklease.Record(t.Context(), store, content.Data)
 }
 
 func TestAtomicDispatchClaim(t *testing.T) {
@@ -51,26 +68,26 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if _, err := recordClaim(t, store, claim); err != nil {
 			t.Fatal(err)
 		}
-		content, err := workLeaseCodec.Content(claim)
+		content, err := worklease.Codec.Content(claim)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if content.Descriptor.Schema == WorkLeaseSchema {
+		if content.Descriptor.Schema == worklease.Schema {
 			t.Fatal("dispatch claim reused the legacy wire schema")
 		}
 		if retired, err := RetireLegacyLeases(t.Context(), store, 0); err != nil || len(retired) != 0 {
 			t.Fatalf("legacy retirement consumed new claim: %v %v", retired, err)
 		}
-		if err := ResolveWorkLeaseOwner(t.Context(), store, claim); err != nil {
+		if err := worklease.ResolveOwner(t.Context(), store, claim); err != nil {
 			t.Fatal(err)
 		}
-		claim.Version = workLeaseVersion
-		if _, err := workLeaseCodec.New(claim); err == nil {
+		claim.Version = worklease.Version
+		if _, err := worklease.Codec.New(claim); err == nil {
 			t.Fatal("legacy schema accepted worker-owned dispatch semantics")
 		}
 		legacy := workLeaseFixture(t, "beta/one", "C:/repo/advisory")
-		legacyContent, err := workLeaseCodec.Content(legacy)
-		if err != nil || legacyContent.Descriptor.Schema != WorkLeaseSchema {
+		legacyContent, err := worklease.Codec.Content(legacy)
+		if err != nil || legacyContent.Descriptor.Schema != worklease.Schema {
 			t.Fatalf("legacy contract changed: %v", err)
 		}
 	})
@@ -87,7 +104,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ordered, err := dispatchPriority(document, UnassignedRole, testCompletionAuthority(t, document))
+		ordered, err := dispatchPriority(document, worklease.UnassignedRole, testCompletionAuthority(t, document))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +126,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		document := frontierTestPlan()
 		authority := testCompletionAuthority(t, document)
 		head, sequence := store.Head()
-		view, err := selectDispatch(t.Context(), store, document, UnassignedRole, "C:/repo/first", "worker-one", "", authority)
+		view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/first", "worker-one", "", authority)
 		if err != nil || view.Item != "alpha" || view.Step != "one" || view.Claim != nil {
 			t.Fatalf("inspection=%+v %v", view, err)
 		}
@@ -121,7 +138,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		lease, err = NewWorkLease(lease)
+		lease, err = worklease.New(lease)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,25 +146,25 @@ func TestAtomicDispatchClaim(t *testing.T) {
 			t.Fatal(err)
 		}
 		for _, worker := range []string{"worker-two", ""} {
-			view, err := selectDispatch(t.Context(), store, document, UnassignedRole, lease.Worktree, worker, "", authority)
+			view, err := selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, worker, "", authority)
 			if err != nil || view.Waiting == "" || view.Claim == nil || view.Complete {
 				t.Fatalf("same-tree inspection=%+v %v", view, err)
 			}
 		}
-		view, err = selectDispatch(t.Context(), store, document, UnassignedRole, "C:/repo/second", "worker-two", "", authority)
+		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, "C:/repo/second", "worker-two", "", authority)
 		if err != nil || view.Item != "beta" || view.Step != "solo" || view.Waiting != "" {
 			t.Fatalf("independent selection=%+v %v", view, err)
 		}
-		view, err = selectDispatch(t.Context(), store, document, UnassignedRole, lease.Worktree, lease.Worker, "", authority)
+		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "", authority)
 		if err != nil || view.Claim == nil || view.Claim.ID != lease.ID || view.Waiting != "" {
 			t.Fatalf("resume=%+v %v", view, err)
 		}
 		document.Items[0].Steps[1].Title = "unrelated sibling edit"
-		if err := validateDispatchContract(document, lease, UnassignedRole, testCompletionAuthority(t, document)); err != nil {
+		if err := validateDispatchContract(document, lease, worklease.UnassignedRole, testCompletionAuthority(t, document)); err != nil {
 			t.Fatalf("sibling invalidated claim: %v", err)
 		}
 		document.Items[0].Steps[0].Verify = "go test ./internal/artifact"
-		view, err = selectDispatch(t.Context(), store, document, UnassignedRole, lease.Worktree, lease.Worker, "", testCompletionAuthority(t, document))
+		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "", testCompletionAuthority(t, document))
 		if err != nil || view.Waiting == "" || view.Complete {
 			t.Fatalf("changed contract silently resumed: %+v %v", view, err)
 		}
@@ -164,31 +181,31 @@ func TestAtomicDispatchClaim(t *testing.T) {
 				second := dispatchLeaseFixture(t, "alpha/one", "C:/repo/second", "worker-two", "head")
 				if sharedTree {
 					second.Worktree = first.Worktree
-					second, err = NewWorkLease(second)
+					second, err = worklease.New(second)
 					if err != nil {
 						t.Fatal(err)
 					}
 				}
 				start := make(chan struct{})
 				type result struct {
-					lease WorkLease
+					lease worklease.Lease
 					err   error
 				}
 				results := make(chan result, 2)
-				for _, lease := range []WorkLease{first, second} {
-					content, err := workLeaseCodec.Content(lease)
+				for _, lease := range []worklease.Lease{first, second} {
+					content, err := worklease.Codec.Content(lease)
 					if err != nil {
 						t.Fatal(err)
 					}
 					go func() {
 						<-start
-						actual, err := RecordWorkLease(t.Context(), store, content.Data)
+						actual, err := worklease.Record(t.Context(), store, content.Data)
 						results <- result{actual, err}
 					}()
 				}
 				close(start)
-				var winners []WorkLease
-				for range []WorkLease{first, second} {
+				var winners []worklease.Lease
+				for range []worklease.Lease{first, second} {
 					result := <-results
 					if result.err == nil {
 						winners = append(winners, result.lease)
@@ -197,14 +214,14 @@ func TestAtomicDispatchClaim(t *testing.T) {
 				if len(winners) != 1 {
 					t.Fatalf("atomic winner count = %d", len(winners))
 				}
-				if err := ResolveWorkLeaseOwner(t.Context(), store, winners[0]); err != nil {
+				if err := worklease.ResolveOwner(t.Context(), store, winners[0]); err != nil {
 					t.Fatal(err)
 				}
 				loser := first
 				if winners[0].ID == first.ID {
 					loser = second
 				}
-				for _, alias := range workLeaseAliases(loser)[1:] {
+				for _, alias := range worklease.Aliases(loser)[1:] {
 					id, found, err := artifact.ResolveAlias(t.Context(), store, alias)
 					if err != nil || found && id == loser.ID {
 						t.Fatalf("loser published partial ownership: %s %v", alias, err)
@@ -250,7 +267,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if _, err := recordClaim(t, store, lease); err == nil {
 			t.Fatal("released acquisition replay pretended to own work")
 		}
-		if _, found, err := ReadWorkLease(t.Context(), store, lease.ID); err != nil || !found {
+		if _, found, err := worklease.Read(t.Context(), store, lease.ID); err != nil || !found {
 			t.Fatalf("released evidence lost: %v", err)
 		}
 		next := dispatchLeaseFixture(t, lease.Task, lease.Worktree, lease.Worker, "after-release")
@@ -260,7 +277,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if err := releaseClaim(t, store, lease.ID, lease.Worker, "cancelled"); err != nil {
 			t.Fatal(err)
 		}
-		if err := ResolveWorkLeaseOwner(t.Context(), store, next); err != nil {
+		if err := worklease.ResolveOwner(t.Context(), store, next); err != nil {
 			t.Fatalf("old release displaced successor: %v", err)
 		}
 	})
@@ -281,7 +298,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		next := lease
 		next.Previous = lease.ID
 		next.Contract = fmt.Sprintf("%x", sha256.Sum256([]byte("reviewed amendment")))
-		next, err = NewWorkLease(next)
+		next, err = worklease.New(next)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -294,7 +311,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if err := releaseClaim(t, store, lease.ID, lease.Worker, "handoff"); err == nil {
 			t.Fatal("old owner released renewal")
 		}
-		if err := ResolveWorkLeaseOwner(t.Context(), store, next); err != nil {
+		if err := worklease.ResolveOwner(t.Context(), store, next); err != nil {
 			t.Fatal(err)
 		}
 		otherTask := dispatchLeaseFixture(t, "beta/one", lease.Worktree, "worker-two", "head")
@@ -305,7 +322,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		if _, err := recordClaim(t, store, otherTree); err != nil {
 			t.Fatalf("independent claim refused: %v", err)
 		}
-		if err := ValidateFrontierLeases([]Ref{{Item: "alpha", Step: "one"}, {Item: "beta", Step: "one"}}, []WorkLease{next, otherTree}); err != nil {
+		if err := ValidateFrontierLeases([]Ref{{Item: "alpha", Step: "one"}, {Item: "beta", Step: "one"}}, []worklease.Lease{next, otherTree}); err != nil {
 			t.Fatalf("distinct workers sharing unassigned role were serialized: %v", err)
 		}
 	})
@@ -313,7 +330,7 @@ func TestAtomicDispatchClaim(t *testing.T) {
 
 func releaseClaim(t *testing.T, store *overgodb.Store, id artifact.ID, worker, reason string) error {
 	t.Helper()
-	lease, found, err := ReadWorkLease(t.Context(), store, id)
+	lease, found, err := worklease.Read(t.Context(), store, id)
 	if err != nil {
 		return err
 	}
@@ -337,7 +354,7 @@ func TestStopStateContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { store.Close() })
-		return root, store, ControlEvent{Kind: "stop", Lane: UnassignedRole, Worker: "stop-worker", Worktree: filepath.ToSlash(root), Mode: ExecutionAll, ReasonCode: "user-stop", Detail: "operator asked to stop", CodeCommit: orchestrationHead}
+		return root, store, ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "stop-worker", Worktree: filepath.ToSlash(root), Mode: ExecutionAll, ReasonCode: "user-stop", Detail: "operator asked to stop", CodeCommit: orchestrationHead}
 	}
 	record := func(t *testing.T, store *overgodb.Store, event ControlEvent) ControlEvent {
 		t.Helper()

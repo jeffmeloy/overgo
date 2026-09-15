@@ -15,9 +15,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/operatoraction"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/worklease"
 )
 
 type State string
@@ -65,7 +65,7 @@ type Status struct {
 type Request struct {
 	Task   recipe.Task
 	Recipe artifact.ID
-	Lease  *plan.WorkLease
+	Lease  *worklease.Lease
 	Effect *agenttool.InvocationEffect
 }
 
@@ -211,7 +211,7 @@ func (manager *Manager) start(parent context.Context, id artifact.ID, request Re
 	if claim != nil {
 		for _, active := range manager.entries {
 			if active.status.WorkspaceClaim != nil && active.status.WorkspaceClaim.State != WorkspaceClaimReleased &&
-				active.request.Lease != nil && plan.WorkspaceClaimsConflict(*request.Lease, *active.request.Lease) {
+				active.request.Lease != nil && worklease.WorkspaceClaimsConflict(*request.Lease, *active.request.Lease) {
 				manager.mu.Unlock()
 				cancel()
 				return artifact.ID{}, errors.New("operation: workspace claim conflicts with active mutation")
@@ -310,7 +310,7 @@ func (manager *Manager) admitWorkspaceClaim(ctx context.Context, request Request
 	if request.Lease == nil || manager.repository == nil || !request.Effect.ID.Valid() {
 		return nil, errors.New("operation: mutation requires exact effect, work lease, and claim repository")
 	}
-	if err := plan.ResolveWorkLeaseOwner(ctx, manager.repository, *request.Lease); err != nil {
+	if err := worklease.ResolveOwner(ctx, manager.repository, *request.Lease); err != nil {
 		return nil, err
 	}
 	if request.Effect.OpaqueMutation || !request.Effect.Known {

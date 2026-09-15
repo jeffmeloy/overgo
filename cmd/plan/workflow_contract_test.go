@@ -10,10 +10,11 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 )
 
 func TestDispatchClaimProjection(t *testing.T) {
-	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "")
 	document := mutationPlan(t, "claimed task")
 	root := initializePlanTestRepository(t, document)
@@ -121,7 +122,7 @@ func TestDispatchClaimProjection(t *testing.T) {
 }
 
 func TestStopStatusProjection(t *testing.T) {
-	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "stop-command-worker")
 	t.Setenv(plan.AutomationModeEnvironment, plan.ExecutionInteractive)
 	t.Setenv(plan.AutomationMaintenanceEnvironment, "")

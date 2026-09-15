@@ -25,6 +25,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/worklease"
 )
 
 const (
@@ -147,7 +148,7 @@ func CompletionCommitMessageWithMergeAuthority(
 }
 
 func completionSnapshot(document Plan, itemID, stepID string) (Item, int, Step, error) {
-	if !validPlanID(itemID) || !validPlanID(stepID) {
+	if !worklease.ValidPlanID(itemID) || !worklease.ValidPlanID(stepID) {
 		return Item{}, 0, Step{}, errors.New("plan: invalid completion plan reference")
 	}
 	for itemIndex, item := range document.Items {
@@ -1054,7 +1055,7 @@ func gitCompletionMessages(ctx context.Context, repository, revision string) ([]
 	}
 	var input strings.Builder
 	for _, hash := range hashes {
-		if !validCommit(hash) {
+		if !worklease.ValidCommit(hash) {
 			return nil, fmt.Errorf("plan: Git completion history contains invalid commit %q", hash)
 		}
 		input.WriteString(hash)
@@ -1147,7 +1148,7 @@ func parseRawCompletionCommit(hash string, object []byte) ([]string, string, err
 			continue
 		}
 		parent := string(bytes.TrimPrefix(line, []byte("parent ")))
-		if !validCommit(parent) {
+		if !worklease.ValidCommit(parent) {
 			return nil, "", fmt.Errorf("plan: raw Git completion commit %.12s has invalid parent", hash)
 		}
 		parents = append(parents, parent)
@@ -1248,7 +1249,7 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 	trailers.item = known[completionItemTrailer][0]
 	trailers.step = known[completionStepTrailer][0]
 	trailers.verify = known[completionVerifyTrailer][0]
-	if !validPlanID(trailers.item) || !validPlanID(trailers.step) ||
+	if !worklease.ValidPlanID(trailers.item) || !worklease.ValidPlanID(trailers.step) ||
 		trailers.verify != strings.TrimSpace(trailers.verify) || !validAutomationDetail(trailers.verify) {
 		return trailers, true, errors.New("plan item, step, or verify trailer is invalid")
 	}
@@ -1473,7 +1474,7 @@ func VerifyPreparedStepAcceptance(
 	step Step,
 ) error {
 	itemID, stepID, found := strings.Cut(reference, "/")
-	if ctx == nil || store == nil || !found || !validPlanID(itemID) || !validPlanID(stepID) ||
+	if ctx == nil || store == nil || !found || !worklease.ValidPlanID(itemID) || !worklease.ValidPlanID(stepID) ||
 		step.ID != stepID || step.Status != StatusOpen || !validAutomationDetail(step.Verify) {
 		return errors.New("completion acceptance requires a store, context and exact open plan step")
 	}
@@ -1759,7 +1760,7 @@ func readGitCompletionObject(reader *bufio.Reader, requested, objectType string)
 	}
 	fields := strings.Fields(header)
 	if len(fields) != gitBatchObjectFieldCount ||
-		!validCommit(fields[gitBatchObjectIdentityField]) || fields[gitBatchObjectTypeField] != objectType {
+		!worklease.ValidCommit(fields[gitBatchObjectIdentityField]) || fields[gitBatchObjectTypeField] != objectType {
 		return nil, fmt.Errorf("plan: Git %s for %.12s is absent or invalid", objectType, requested)
 	}
 	size, err := strconv.Atoi(fields[gitBatchObjectSizeField])

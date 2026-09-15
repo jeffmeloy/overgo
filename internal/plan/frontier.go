@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"overgo/internal/worklease"
 	"slices"
 	"strings"
 )
@@ -46,7 +47,7 @@ func ReadyFrontier(d Plan, authority CompletionAuthority) ([]Ref, error) {
 // ValidateFrontierLeases requires distinct ready rows and isolated ownership.
 // Worker claims allow shared roles across worktrees. Legacy advisory leases
 // retain their conservative role and repository-relative overlap checks.
-func ValidateFrontierLeases(frontier []Ref, leases []WorkLease) error {
+func ValidateFrontierLeases(frontier []Ref, leases []worklease.Lease) error {
 	ready := make(map[string]bool, len(frontier))
 	for _, ref := range frontier {
 		ready[ref.String()] = true
@@ -77,7 +78,7 @@ func ValidateFrontierLeases(frontier []Ref, leases []WorkLease) error {
 		for _, other := range leases[:index] {
 			overlap := frontierClaimsOverlap(lease.Claims, other.Claims)
 			if lease.Worker != "" && other.Worker != "" {
-				overlap = WorkspaceClaimsConflict(lease, other)
+				overlap = worklease.WorkspaceClaimsConflict(lease, other)
 			}
 			if overlap {
 				return fmt.Errorf(
@@ -92,20 +93,20 @@ func ValidateFrontierLeases(frontier []Ref, leases []WorkLease) error {
 // frontierClaimsOverlap compares repo-relative claims across lanes: distinct
 // worktrees still collide when they claim the same relative surface, because
 // their gated commits meet again at merge time.
-func frontierClaimsOverlap(left, right WorkspaceClaims) bool {
+func frontierClaimsOverlap(left, right worklease.WorkspaceClaims) bool {
 	if left.WholeWorktree || right.WholeWorktree {
 		return true
 	}
 	for _, write := range left.Write {
 		for _, path := range slices.Concat(right.Read, right.Write) {
-			if claimPathsOverlap(write, path) {
+			if worklease.ClaimPathsOverlap(write, path) {
 				return true
 			}
 		}
 	}
 	for _, write := range right.Write {
 		for _, read := range left.Read {
-			if claimPathsOverlap(write, read) {
+			if worklease.ClaimPathsOverlap(write, read) {
 				return true
 			}
 		}

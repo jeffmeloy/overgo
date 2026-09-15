@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 // TestExperimentLeaseLifecycleAndMeasurement pins the runtime-resource
@@ -19,11 +20,11 @@ func TestExperimentLeaseLifecycleAndMeasurement(t *testing.T) {
 	now := time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)
 	experiment := testutil.ArtifactID(t, artifact.KindEvidence, "scheduled-experiment")
 	checkpoint := testutil.ArtifactID(t, artifact.KindCheckpoint, "scheduled-checkpoint")
-	lease := func(name string, expires time.Time, retry uint32) WorkLease {
-		return WorkLease{
-			Version: workLeaseVersion, Task: name, Worktree: "worktrees/" + name,
+	lease := func(name string, expires time.Time, retry uint32) worklease.Lease {
+		return worklease.Lease{
+			Version: worklease.Version, Task: name, Worktree: "worktrees/" + name,
 			Branch: "lane/" + name, Role: "experiment", TargetHead: "0123456789abcdef0123456789abcdef01234567",
-			ConflictsWith: []string{}, Resources: Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 8},
+			ConflictsWith: []string{}, Resources: worklease.Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 8},
 			ExpiresAt: expires.Format(time.RFC3339Nano), Experiment: experiment,
 			Checkpoint: checkpoint, Retry: retry, PredictedWallNS: uint64(30 * time.Minute),
 			ID: testutil.ArtifactID(t, artifact.KindEvidence, "lease-"+name),
@@ -36,7 +37,7 @@ func TestExperimentLeaseLifecycleAndMeasurement(t *testing.T) {
 	outcomes := []LeaseOutcome{
 		{
 			Lease: measuredLease.ID, Predicted: measuredLease.Resources,
-			Actual:          Resources{CPUThreads: 6, HostRAMGiB: 12, VRAMGiB: 7},
+			Actual:          worklease.Resources{CPUThreads: 6, HostRAMGiB: 12, VRAMGiB: 7},
 			PredictedWallNS: measuredLease.PredictedWallNS, ActualWallNS: uint64(45 * time.Minute),
 		},
 		{
@@ -45,7 +46,7 @@ func TestExperimentLeaseLifecycleAndMeasurement(t *testing.T) {
 		},
 	}
 	recommendations := ReconcileExperimentLeases(
-		[]WorkLease{live, expired, measuredLease, abandonedLease}, outcomes, now)
+		[]worklease.Lease{live, expired, measuredLease, abandonedLease}, outcomes, now)
 	if len(recommendations) != 4 {
 		t.Fatalf("recommendations = %d, want one per lease", len(recommendations))
 	}
@@ -77,7 +78,7 @@ func TestExperimentLeaseLifecycleAndMeasurement(t *testing.T) {
 	// roundtrip, and reject a checkpoint of the wrong kind.
 	specification := live
 	specification.ID = artifact.ID{}
-	identified, _, err := workLeaseCodec.Normalize(mustJSON(t, specification))
+	identified, _, err := worklease.Codec.Normalize(mustJSON(t, specification))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +88,7 @@ func TestExperimentLeaseLifecycleAndMeasurement(t *testing.T) {
 	}
 }
 
-func mustJSON(t *testing.T, value WorkLease) []byte {
+func mustJSON(t *testing.T, value worklease.Lease) []byte {
 	t.Helper()
 	data, err := json.Marshal(value)
 	if err != nil {

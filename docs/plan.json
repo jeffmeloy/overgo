@@ -10,50 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "call-reach",
-          "title": "Prove one real exclusion and preserve relevant failure detection",
-          "status": "open",
-          "verify": "test -f internal/gate/first_reduction_test.go \u0026\u0026 go test ./internal/gate -run '^TestFirstReductionAcceptance$' -count=1",
-          "rationale": "Implement the frozen reduction-contract through existing runtime_inputs, dependency_attribution, package_cache, test_scope and automationcheck owners. The row name is retained history; the chosen mechanism may be dependency simplification instead of call analysis. For analysis, resolve one bounded consumer with typed caller targets, control-flow joins and resource provenance; unsupported effects remain explicit. Use one graph result for selection, reuse and explanation. Record independent/reusable/affected/unresolved decisions and the supported boundary assumptions. An exclusion certificate binds check identity, graph/input roots, analyzer/toolchain/build/platform, policy and the absence of a relevant path in a complete boundary. Verify the certificate cheaply and invalidate it when any relevant premise changes; do not let an annotation or observed trace stand in for completeness. Cache changed graph fragments and affected summaries; cap deeper analysis by measured expected savings and use existing conservative selection when exceeded. Retain the checkpoint lower bounds and the independent relevant/unrelated mutation matrix. One full transition integration consumes completed subordinate receipts once. TestFirstReductionAcceptance must demonstrate the actual expensive-check exclusion and retained relevant failure detection, not only a synthetic graph or smaller reported package count. measured-adoption alone decides promotion from retained results; do not add duplicate acceptance audits.",
-          "depends_on": [
-            "validation-gate-selection/test-input-ownership",
-            "validation-gate-selection/runtime-binding-hardening",
-            "validation-gate-selection/closure-diagnostic",
-            "validation-gate-selection/expensive-boundary",
-            "validation-gate-selection/package-execution-cost",
-            "validation-gate-selection/audio-source-binding",
-            "validation-gate-selection/edge-provenance",
-            "validation-gate-selection/reduction-contract",
-            "validation-gate-selection/repair-iteration"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/gate",
-              "internal/repoanalysis",
-              "internal/automationcheck",
-              "internal/plan",
-              "docs/plan.json"
-            ],
-            "rationale": "One implementation and integration boundary after reduction-contract and repair-iteration. Each obligation has one executable owner: runtime regression and isolation checks are subordinate checkpoints; the parent asserts the first real reduction. The prerequisite contract is consumed by identity, not rerun as a checkpoint. The parent commit runs the pre-existing integration scope once. measured-adoption alone owns payback review and the promotion decision using those retained records. Checkpoints remain unpromoted and retain outstanding obligations; bind additional owners before editing.",
-            "reopen_when": "Changed cumulative source, resolved inputs, analyzer/toolchain/build/environment, policy, acceptance, provenance or scope reopen only affected obligations. Restart and successor recipe identity alone do not erase valid independent passes. Current admission is always rechecked.",
-            "checkpoints": [
-              {
-                "id": "runtime-regressions",
-                "title": "Retain required runtime-input and selection regressions",
-                "verify": "go test ./internal/gate -run '^(TestRuntimeInputsUnsafeClassifications|TestRuntimeInputsPropagateThroughCallers|TestChangeSelectionRequiredMatrix|TestRuntimeInputsIndirectAndConditional|TestRuntimeOpaqueCallerSourceInput|TestDeclaredExecutionEdgesBoundSelection|TestRuntimeReachBindingsAcceptance)$' -count=1"
-              },
-              {
-                "id": "runtime-isolation",
-                "title": "Prove the real isolated consumer and reachable-reader counterexample",
-                "verify": "test -f internal/gate/runtime_call_isolation_test.go \u0026\u0026 go test ./internal/gate -run '^TestRuntimeCallIsolationAcceptance$' -count=1",
-                "depends_on": [
-                  "runtime-regressions"
-                ]
-              }
-            ]
-          }
-        },
-        {
           "id": "measured-adoption",
           "title": "Review retained integration evidence and decide first-reduction adoption",
           "status": "open",

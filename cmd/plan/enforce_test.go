@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 )
 
 // TestEnforceAddInsertsTask pins the mechanical task-injection: -add creates a
@@ -24,7 +25,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 		t.Fatalf("insert-at-top produced %+v", top.Items[0])
 	}
 	authority := mustTestCompletionAuthority(t, top)
-	if it, st, ok := plan.Current(top, plan.UnassignedRole, authority); !ok || it.ID != "new" || st.ID != "do" {
+	if it, st, ok := plan.Current(top, worklease.UnassignedRole, authority); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
 	mid, err := insertItem(base, "x", "t", "b", "")
@@ -109,7 +110,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 	if _, err := testCompletionAuthority(t, document); err == nil {
 		t.Fatal("unknown pruned dependency produced completion authority")
 	}
-	if action, open := nextAction(document, plan.UnassignedRole, plan.CompletionAuthority{}); open {
+	if action, open := nextAction(document, worklease.UnassignedRole, plan.CompletionAuthority{}); open {
 		t.Fatalf("unknown pruned dependency dispatched as %q", action)
 	}
 }
@@ -165,7 +166,7 @@ func TestSetVerifyResolvesUpdatedAuthorityBeforeSaving(t *testing.T) {
 			t.Errorf("restore working directory: %v", err)
 		}
 	})
-	if err := setStepVerify(root, "item", "do", "new verifier", plan.UnassignedRole); err == nil {
+	if err := setStepVerify(root, "item", "do", "new verifier", worklease.UnassignedRole); err == nil {
 		t.Fatal("setverify saved without resolving the updated plan authority")
 	}
 	stored, err := plan.Load(path)

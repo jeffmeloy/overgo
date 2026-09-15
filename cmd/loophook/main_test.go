@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -116,7 +117,7 @@ func TestStopIgnoresPreexistingDirt(t *testing.T) {
 func TestPersistentStopHook(t *testing.T) {
 	root := t.TempDir()
 	t.Chdir(root)
-	t.Setenv(plan.AutomationRoleEnvironment, plan.UnassignedRole)
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "")
 	t.Setenv(plan.AutomationMaintenanceEnvironment, "")
 	git := func(args ...string) {
@@ -136,7 +137,7 @@ func TestPersistentStopHook(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	event := plan.ControlEvent{Kind: "stop", Lane: plan.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped", CodeCommit: gitHead()}
+	event := plan.ControlEvent{Kind: "stop", Lane: worklease.UnassignedRole, Worker: "hook-worker", Worktree: filepath.ToSlash(root), Mode: plan.ExecutionAll, ReasonCode: "user-stop", Detail: "operator stopped", CodeCommit: gitHead()}
 	stopped, err := plan.RecordControlEvent(t.Context(), store, event)
 	if err != nil {
 		t.Fatal(err)

@@ -48,6 +48,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
+	"overgo/internal/worklease"
 )
 
 const (
@@ -109,7 +110,7 @@ type gateContext struct {
 	strategy            *loop.Strategy
 	diff                runrecord.AttemptDiff
 	completionAuthority plan.CompletionAuthority
-	dispatchClaim       *plan.WorkLease
+	dispatchClaim       *worklease.Lease
 	store               *overgodb.Store
 	indexBefore         gateIndexSnapshot
 	mergeBefore         *gateMergeIntent

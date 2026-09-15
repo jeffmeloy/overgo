@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/worklease"
 )
 
 // RetireLegacyLeases removes the alias binding of every work-lease document
@@ -21,10 +22,10 @@ func RetireLegacyLeases(ctx context.Context, store *overgodb.Store, expected int
 	var retired []string
 	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindEvidence, MediaType: WorkLeaseMediaType, Schema: WorkLeaseSchema,
-		}}, AliasPrefixes: []string{WorkLeaseAliasRoot}, Order: overgodb.DocumentOldestFirst,
+			Kind: artifact.KindEvidence, MediaType: worklease.MediaType, Schema: worklease.Schema,
+		}}, AliasPrefixes: []string{worklease.AliasRoot}, Order: overgodb.DocumentOldestFirst,
 	}, func(view overgodb.DocumentView) error {
-		if _, parseErr := ParseWorkLease(view.Content.Data); parseErr == nil {
+		if _, parseErr := worklease.Parse(view.Content.Data); parseErr == nil {
 			return nil
 		}
 		target := view.Content.Descriptor.ID

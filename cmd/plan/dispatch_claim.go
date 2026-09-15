@@ -17,6 +17,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 )
 
 // Called only inside withPlanMutation's process-owned critical section.
@@ -55,7 +56,7 @@ func releaseDispatchClaim(root, rawID, worker, reason string, output io.Writer) 
 		return err
 	}
 	defer func() { err = errors.Join(err, store.Close()) }()
-	lease, found, err := plan.ReadWorkLease(context.Background(), store, id)
+	lease, found, err := worklease.Read(context.Background(), store, id)
 	if err != nil {
 		return err
 	}

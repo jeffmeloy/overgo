@@ -155,7 +155,30 @@ func (p *Proxy) ServeHTTP(response http.ResponseWriter, request *http.Request) {
 	proxy := httputil.NewSingleHostReverseProxy(upstream)
 	proxy.FlushInterval = -1
 	proxy.ErrorHandler = writeProxyError
+	proxy.ModifyResponse = func(upstream *http.Response) error {
+		if upstream.StatusCode != http.StatusSwitchingProtocols {
+			upstream.Body = &proxyResponseBody{ReadCloser: upstream.Body, ctx: request.Context()}
+		}
+		return nil
+	}
 	proxy.ServeHTTP(response, request)
+}
+
+// Closing a cancelled duplex request may surface a socket-close error from
+// the response transport. Preserve cancellation through the body copy as well
+// as the initial RoundTrip, while retaining errors for live requests.
+type proxyResponseBody struct {
+	io.ReadCloser
+	ctx context.Context
+}
+
+// Read retains request cancellation when the transport closes its socket.
+func (body *proxyResponseBody) Read(data []byte) (int, error) {
+	n, err := body.ReadCloser.Read(data)
+	if err != nil && errors.Is(body.ctx.Err(), context.Canceled) {
+		return n, context.Canceled
+	}
+	return n, err
 }
 
 // A cancelled client no longer receives a gateway response. Preserve normal

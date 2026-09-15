@@ -349,7 +349,7 @@
     const send = el("button", { class: "btn" }, options.sendLabel || "send");
     const stop = el("button", { class: "btn alt", hidden: true }, "stop");
     // openPicker: the dialog filters to the served model's types unless the surface takes any file (options.takesAny).
-    function openPicker() { if (disposed || readOnly || paused) return; picker.multiple = selectedMode() !== 'transcription' && options.multiple !== false; picker.accept = options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
+    function openPicker() { if (disposed || readOnly || paused) return; picker.multiple = selectedMode() !== 'transcription' && options.multiple !== false; picker.accept = selectedMode() === 'speech' ? '.txt,text/plain' : options.takesAny && options.takesAny() ? "" : accept.join(","); picker.click(); }
     const capture = overgo.mediaCapture({ media, audio: () => options.captureAudio?.(), accept: () => options.captureAccept ? options.captureAccept() : accept, files: openPicker, addFile });
     const attach = accept.length || options.takesAny ? el("button", { class: "btn alt attach-button", onclick: () => { if (!disposed && !readOnly && !paused) capture.open(); } }, options.attachLabel || "attach") : null;
     const modeSelect = options.modes && options.modes.length > 1 ? el("select", { class: "text w-auto", "aria-label": "mode" }, ...options.modes.map((mode) => el("option", { value: mode.id, text: mode.label }))) : null;
@@ -452,6 +452,7 @@
       renderAttachments();
     });
     function clearTranscript(item, note = '') {
+      if (item.textPending) { item.textPending = false; stage(item, 'cancelled', 'Text import stopped. Retry or remove the file.'); note = ''; }
       if (item.transcription) item.transcription.abort();
       item.transcription = null; item.transcribing = false; item.transcriptOffer = null;
       item.transcriptNote = note; item.transcriptAlert = false;
@@ -500,20 +501,22 @@
         renderAttachments();
       });
     }
-    function offerTranscript(item, text) {
+    function offerTranscript(item, text, document = false) {
       const offer = {}; item.transcriptOffer = offer;
       const current = () => !disposed && !readOnly && !paused && attachments.includes(item) && item.transcriptOffer === offer;
       const apply = (replace) => {
         if (!current()) return;
         input.value = replace || !input.value ? text : input.value + '\n' + text;
-        clearTranscript(item, replace ? 'Draft replaced by the transcript.' : 'Transcript inserted into the draft.');
+        if (document) { item.textPending = false; item.textApplied = true; }
+        clearTranscript(item, document ? '' : replace ? 'Draft replaced by the transcript.' : 'Transcript inserted into the draft.');
         input.dispatchEvent(new Event('input')); renderAttachments(); input.focus();
       };
-      item.transcriptNote = 'Transcript ready. Insert it after the draft, replace the draft, or discard it.';
-      item.offer.replaceChildren(el('span', { class: 'note transcript-text', text: text }),
-        el('button', { class: 'link-button', text: 'Insert', 'aria-label': 'Insert the transcript after the draft', onclick: () => apply(false) }),
-        el('button', { class: 'link-button', text: 'Replace', 'aria-label': 'Replace the draft with the transcript', onclick: () => apply(true) }),
-        el('button', { class: 'link-button', text: 'Discard', 'aria-label': 'Discard the transcript', onclick: () => { if (current()) { clearTranscript(item); renderAttachments(); } } }));
+      item.transcriptNote = document ? '' : 'Transcript ready. Insert it after the draft, replace the draft, or discard it.';
+      item.offer.replaceChildren(document ? el('details', {}, el('summary', { text: 'Preview text' }), el('div', { class: 'transcript-text', text })) : el('span', { class: 'note transcript-text', text: text }),
+        el('button', { class: 'link-button', text: 'Insert', 'aria-label': document ? 'Insert file text after the draft' : 'Insert the transcript after the draft', onclick: () => apply(false) }),
+        el('button', { class: 'link-button', text: 'Replace', 'aria-label': document ? 'Replace the draft with file text' : 'Replace the draft with the transcript', onclick: () => apply(true) }),
+        el('button', { class: 'link-button', text: 'Discard', 'aria-label': 'Discard the transcript', onclick: () => { if (current()) { if (document) removeFile(item); else { clearTranscript(item); renderAttachments(); } } } }));
+      if (document) { const preview = item.offer.firstElementChild; preview.classList.add('transcript-text'); item.offer.append(preview); }
       item.offer.hidden = false;
       renderAttachments();
       item.offer.scrollIntoView({ block: 'nearest' });
@@ -559,6 +562,7 @@
         item.retry.textContent = item.file ? 'Retry' : 'Reload stored file';
         item.stop.hidden = !item.pending && !item.storing && !item.transcribing;
         item.transcribe.hidden = item.kind !== 'audio' || !item.file || item.phase !== 'ready' || item.transcribing || !transcribable();
+        item.remove.hidden = item.document && item.textPending;
         item.remove.disabled = item.retry.disabled = item.stop.disabled = readOnly || paused;
         item.transcribe.disabled = readOnly || paused || !!transcriptionLoading || !transcriptionRecipe();
         if (focused === item.retry && item.retry.hidden) (item.stop.hidden ? item.remove : item.stop).focus();
@@ -568,7 +572,7 @@
         if (item.artifact && !item.link) { item.link = overgo.artifactLink(item.artifact, 'Stored file'); item.infoLink = el('span', {}, item.link); item.row.querySelector('.attachment-info').appendChild(item.infoLink); }
         if (item.sourceLink && item.sourceArtifact === item.artifact) { item.sourceLink.remove(); item.sourceLink = null; }
         if (item.sourceArtifact && item.sourceArtifact !== item.artifact && !item.sourceLink) { item.sourceLink = overgo.artifactLink(item.sourceArtifact, 'Source file'); item.row.querySelector('.attachment-info').appendChild(item.sourceLink); }
-        const standalone = selectedMode() === 'transcription';
+        const standalone = selectedMode() === 'transcription' || selectedMode() === 'speech' && item.document;
         const info = item.row.querySelector('.attachment-info');
         const facts = standalone ? item.metadata : info;
         for (const node of [item.sizeInfo, item.infoLink, item.sourceLink].filter(Boolean)) if (node.parentNode !== facts) facts.appendChild(node);
@@ -634,6 +638,7 @@
           item.artifact = result.id; item.release = result.remove; item.target = result.target;
           if (!item.sourceArtifact) item.sourceArtifact = result.id;
           stage(item, 'ready'); renderAttachments();
+          if (typeof result.text === 'string') { item.document = true; item.textPending = true; item.textApplied = false; offerTranscript(item, result.text, true); }
         }, fail);
         return;
       }
@@ -683,7 +688,7 @@
       input.readOnly = readOnly || paused;
       if (attach) attach.disabled = readOnly || paused;
       if (modeSelect) modeSelect.disabled = readOnly || paused;
-      send.disabled = readOnly || paused || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing);
+      send.disabled = readOnly || paused || sendBlocked || busy || attachments.some((item) => item.needsReattach || item.pending || item.refusal || item.storing || item.textPending);
       send.hidden = busy; stop.hidden = !busy;
       if (focused === send && busy) stop.focus();
       else if (focused === stop && !busy) send.focus();

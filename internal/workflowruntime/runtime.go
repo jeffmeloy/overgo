@@ -96,11 +96,12 @@ type Result struct {
 
 // Runtime: registered module adapters plus run repository.
 type Runtime struct {
-	mu         sync.RWMutex
-	store      artifact.Repository
-	catalog    *recipe.Catalog
-	definition recipe.Definition
-	adapters   map[recipe.ModuleID]Adapter
+	mu            sync.RWMutex
+	store         artifact.Repository
+	catalog       *recipe.Catalog
+	definition    recipe.Definition
+	adapters      map[recipe.ModuleID]Adapter
+	stageObserver func(runrecord.StageReceipt)
 	// entries serializes Execute per adapter: the Adapter contract does
 	// not require concurrency safety, so two stages of one module never
 	// enter their shared adapter at once.
@@ -359,6 +360,23 @@ type stageResult struct {
 	err     error
 }
 
+// ObserveStages receives completed receipts after their outputs are durable.
+// Callbacks run on the execution coordinator, not on adapter goroutines.
+func (r *Runtime) ObserveStages(observer func(runrecord.StageReceipt)) {
+	r.mu.Lock()
+	r.stageObserver = observer
+	r.mu.Unlock()
+}
+
+func (r *Runtime) observeStage(receipt runrecord.StageReceipt) {
+	r.mu.RLock()
+	observer := r.stageObserver
+	r.mu.RUnlock()
+	if observer != nil {
+		observer(receipt)
+	}
+}
+
 func (r *Runtime) executeReadySet(
 	ctx context.Context,
 	definition recipe.Definition,
@@ -412,10 +430,16 @@ func (r *Runtime) executeReadySet(
 		}
 		for range active {
 			result := <-results
-			stages[result.index].outputs, stages[result.index].err = result.outputs, result.err
-			stages[result.index].wallNS = result.wallNS
-			if result.err != nil {
-				cancel(result.err)
+			stage := &stages[result.index]
+			stage.outputs, stage.err, stage.wallNS = result.outputs, result.err, result.wallNS
+			if stage.err == nil {
+				stage.outputs, stage.err = validateOutputs(stage.stage.Module, stage.outputs)
+			}
+			if err := r.finishStage(ctx, stage.base, stage.outputs, stage.err); err != nil {
+				stage.err = errors.Join(stage.err, err)
+			}
+			if stage.err != nil {
+				cancel(stage.err)
 			}
 		}
 	}
@@ -424,12 +448,6 @@ func (r *Runtime) executeReadySet(
 		stage := &stages[index]
 		if stage.recovered {
 			continue
-		}
-		if stage.err == nil {
-			stage.outputs, stage.err = validateOutputs(stage.stage.Module, stage.outputs)
-		}
-		if err := r.finishStage(ctx, stage.base, stage.outputs, stage.err); err != nil {
-			stage.err = errors.Join(stage.err, err)
 		}
 		if stage.err != nil && executeErr == nil {
 			executeErr = fmt.Errorf("workflow runtime: step %q: %w", stage.stage.Node.ID, stage.err)
@@ -590,6 +608,7 @@ func (r *Runtime) recoverStage(
 		// evidence to serve from; the stage executes again.
 		return nil, false, nil
 	}
+	r.observeStage(receipt)
 	return validated, true, nil
 }
 
@@ -663,7 +682,10 @@ func (r *Runtime) finishStage(
 		return err
 	}
 	base.Outputs = outputs
-	_, err = runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
+	completed, err := runrecord.PublishStageReceipt(publishContext, r.store, withStageState(base, runrecord.StageCompleted, ""), outputFacts.contents, outputFacts.descriptors)
+	if err == nil {
+		r.observeStage(completed)
+	}
 	return err
 }
 

@@ -25,13 +25,15 @@ const (
 	ModuleForecastSeries recipe.ModuleID = "model.forecast-series"
 	// ModuleTabularPredict: host forward for tabular ICL capability
 	// packages; input table tensor, output per-row predictions tensor.
-	ModuleTabularPredict           recipe.ModuleID = "model.tabular-predict"
-	ModuleSeq2SeqEncode            recipe.ModuleID = "model.seq2seq-encode"
-	ModuleSeq2SeqPrepare           recipe.ModuleID = "model.seq2seq-prepare"
-	ModuleSeq2SeqSelect            recipe.ModuleID = "model.seq2seq-select"
-	ModuleSpeechTokenize           recipe.ModuleID = "model.speech-tokenize"
-	ModuleSpeechGenerate           recipe.ModuleID = "model.speech-generate"
-	ModuleSpeechDecode             recipe.ModuleID = "model.speech-decode"
+	ModuleTabularPredict recipe.ModuleID = "model.tabular-predict"
+	ModuleSeq2SeqEncode  recipe.ModuleID = "model.seq2seq-encode"
+	ModuleSeq2SeqPrepare recipe.ModuleID = "model.seq2seq-prepare"
+	ModuleSeq2SeqSelect  recipe.ModuleID = "model.seq2seq-select"
+	ModuleSpeechTokenize recipe.ModuleID = "model.speech-tokenize"
+	ModuleSpeechGenerate recipe.ModuleID = "model.speech-generate"
+	ModuleSpeechDecode   recipe.ModuleID = "model.speech-decode"
+	// ModuleSpeechAssemble joins completed document segments in source order.
+	ModuleSpeechAssemble           recipe.ModuleID = "model.speech-assemble"
 	ModuleLatentImagePrepare       recipe.ModuleID = "model.latent-image-prepare"
 	ModuleLatentImageIntegrate     recipe.ModuleID = "model.latent-image-integrate"
 	ModuleLatentImageDecode        recipe.ModuleID = "model.latent-image-decode"
@@ -752,6 +754,15 @@ func mustCatalog() *recipe.Catalog {
 		},
 	)
 	modules = append(modules,
+		recipe.Module{
+			ID: ModuleSpeechAssemble, Tasks: []recipe.Task{recipe.TaskSpeech},
+			Placements: []recipe.Placement{recipe.PlacementHost},
+			Inputs: []recipe.Port{
+				{Name: "document", Data: recipe.DataText, Cardinality: recipe.CardinalityOne},
+				{Name: "segments", Data: recipe.DataAudio, Cardinality: recipe.CardinalityMany},
+			},
+			Outputs: []recipe.Port{{Name: "audio", Data: recipe.DataAudio, Cardinality: recipe.CardinalityOne}},
+		},
 		recipe.Module{
 			ID: ModuleVQAPrepare, Tasks: []recipe.Task{recipe.TaskVQA},
 			Placements: []recipe.Placement{recipe.PlacementHost},

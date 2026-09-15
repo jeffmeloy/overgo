@@ -4,12 +4,50 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestProxyResponseCancellation(t *testing.T) {
+	for _, cancelled := range []bool{false, true} {
+		ctx, cancel := context.WithCancelCause(t.Context())
+		reader, writer := io.Pipe()
+		body := &proxyResponseBody{ReadCloser: reader, ctx: ctx}
+		done := make(chan error, 1)
+		go func() {
+			buffer := make([]byte, len("chunk"))
+			n, err := body.Read(buffer)
+			if err != nil || string(buffer[:n]) != "chunk" {
+				done <- errors.New("streamed payload changed")
+				return
+			}
+			_, err = body.Read(buffer)
+			done <- err
+		}()
+		if _, err := writer.Write([]byte("chunk")); err != nil {
+			t.Fatal(err)
+		}
+		if cancelled {
+			cancel(context.Canceled)
+		}
+		_ = writer.CloseWithError(net.ErrClosed)
+		err := <-done
+		want := net.ErrClosed
+		if cancelled {
+			want = context.Canceled
+		}
+		if !errors.Is(err, want) {
+			t.Fatalf("cancelled=%v: got %v, want %v", cancelled, err, want)
+		}
+		_ = body.Close()
+		cancel(context.Canceled)
+	}
+}
 
 func TestProxyClientCancellation(t *testing.T) {
 	previous := log.Writer()

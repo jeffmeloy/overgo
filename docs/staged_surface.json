@@ -145,6 +145,18 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:017c8eb4a3d54e453680f7f072a8cf2b815d16649729785a7837a77db5f60a93"
       }
+    },
+    {
+      "package": "overgo/internal/speechsynth",
+      "name": "DocumentProgram",
+      "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
+      "retire_with": "gui-text-to-speech/do"
+    },
+    {
+      "package": "overgo/internal/speechsynth",
+      "name": "RegisterDocumentRuntime",
+      "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
+      "retire_with": "gui-text-to-speech/do"
     }
   ]
 }

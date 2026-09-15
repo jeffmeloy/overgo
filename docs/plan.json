@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "preflight-selection-report",
-      "title": "Make the preflight run the row acceptance and print the gate's selection report: the packages of each test step and the lanes it would run or defer",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the preflight run the row acceptance and print the gate's selection report: the packages of each test step and the lanes it would run or defer",
-          "status": "open",
-          "verify": "test -f internal/gate/preflight_selection_test.go \u0026\u0026 go test ./internal/gate -run '^TestPreflightRunsAcceptanceAndReportsSelection$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "closure-proposals-one-pass",
       "title": "Report every uncatalogued closure site of the changed paths with its proposal row in one preflight pass, so the closure triage needs one edit",
       "owner": "master-lead",

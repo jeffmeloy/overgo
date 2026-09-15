@@ -3,11 +3,11 @@ package evaluation
 import (
 	"context"
 	"errors"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	runrecord "overgo/internal/runrecord"
 )
 
@@ -109,9 +109,18 @@ func (campaign *Campaign) Evaluate(ctx context.Context, suite CompiledSuite) (Ca
 	if err := campaign.publishEnvironment(ctx); err != nil {
 		return CampaignResult{}, err
 	}
-	started := time.Now()
+	// The performance counter resolves a run that reacquires its completed
+	// generation inside one tick of the runtime's clock.
+	started, err := processmeasure.Counter()
+	if err != nil {
+		return CampaignResult{}, err
+	}
 	result, evaluateErr := ExecuteSuite(ctx, campaign.repository, campaign.runtime, suite)
-	elapsedNS := time.Since(started).Nanoseconds()
+	finished, err := processmeasure.Counter()
+	if err != nil {
+		return CampaignResult{}, errors.Join(evaluateErr, err)
+	}
+	elapsedNS := (finished - started).Nanoseconds()
 	if elapsedNS <= 0 {
 		return CampaignResult{}, errors.Join(evaluateErr, errors.New("evaluation: wall measurement is not positive"))
 	}

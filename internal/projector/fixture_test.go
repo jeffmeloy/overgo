@@ -1,11 +1,13 @@
 package projector
 
 import (
+	"strings"
 	"testing"
 
 	"overgo/internal/gguf"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
+	"overgo/internal/tokenizer"
 )
 
 func classifyProjectorIntegration(t *testing.T) {
@@ -33,4 +35,24 @@ func rewriteProjectorFixture(
 ) {
 	t.Helper()
 	testutil.WriteGGUF(t, path, metadata, tensors)
+}
+
+// imagePromptTokenizer preserves each fixture's image marker and token ID.
+type imagePromptTokenizer struct {
+	marker string
+	token  tokenizer.TokenID
+}
+
+func (fixture imagePromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
+	const placeholder = "\x00"
+	text = strings.ReplaceAll(text, fixture.marker, placeholder)
+	ids := make([]tokenizer.TokenID, 0, len(text))
+	for _, value := range text {
+		if value == 0 {
+			ids = append(ids, fixture.token)
+		} else {
+			ids = append(ids, tokenizer.TokenID(value))
+		}
+	}
+	return ids, nil
 }

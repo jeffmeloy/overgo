@@ -9,24 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
-	"overgo/internal/tokenizer"
 )
-
-type granite4VisionPromptTokenizer struct{}
-
-func (granite4VisionPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	const placeholder = "\x00"
-	text = strings.ReplaceAll(text, Granite4VisionImageToken, placeholder)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for _, value := range text {
-		if value == 0 {
-			ids = append(ids, 9352)
-		} else {
-			ids = append(ids, tokenizer.TokenID(value))
-		}
-	}
-	return ids, nil
-}
 
 func TestGranite4VisionRunnerTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*Granite4VisionRunner](writeTinyGranite4Vision(t, tinyGranite4VisionTensors()), OpenOptions{})
@@ -91,7 +74,7 @@ func TestGranite4VisionPromptCarriesDeepstack(t *testing.T) {
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagePrompt(
-		t.Context(), granite4VisionPromptTokenizer{}, image.NewRGBA(image.Rect(0, 0, 4, 4)), "", "describe", false,
+		t.Context(), imagePromptTokenizer{marker: Granite4VisionImageToken, token: 9352}, image.NewRGBA(image.Rect(0, 0, 4, 4)), "", "describe", false,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +101,7 @@ func TestGranite4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGranite4Vision(t, nonzeroGranite4VisionTensors(true))
 	rewriteGranite4VisionMetadata(t, path, granite4VisionMultiwindowMetadata(), nonzeroGranite4VisionTensors(true))
-	cpu, cuda := parityRunners[*Granite4VisionRunner](t, path)
+	cpu, cuda := parityRunners[*Granite4VisionRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 8))
 	for y := range 8 {
 		for x := range 8 {

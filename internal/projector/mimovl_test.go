@@ -95,7 +95,7 @@ func TestMiMoVLColumnOrderRoundTrip(t *testing.T) {
 func TestMiMoVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyMiMoVL(t, tinyMiMoVLTensors(true))
-	cpu, cuda := parityRunners[*MiMoVLRunner](t, path)
+	cpu, cuda := parityRunners[*MiMoVLRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := range 4 {
 		for x := range 4 {

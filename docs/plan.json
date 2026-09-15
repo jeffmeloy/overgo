@@ -5,21 +5,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-clone-followup",
-      "title": "Reduce remaining clone groups from measured cost and ownership",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "qwen-parity",
-          "title": "Share Qwen image/video parity orchestration with distinct fixtures",
-          "status": "open",
-          "verify": "env OVERGO_CUDA_TEST=1 go test ./internal/projector -run '^(TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU|TestQwen3VLRunnerTinyFixtureCUDAMatchesCPU|TestQwen3VLDeepstackCUDAMatchesCPU)$' -count=1",
-          "rationale": "The Qwen2/3 image-video pair remains a284-node clone with duplicated CPU/CUDA acquisition, image construction, encoding and comparison. Use the existing paritykit owner only after checking different preprocessing option and output types, close ordering and deepstack assertions. Keep both registered fixture families, image/video denominators, original2e-3 bounds, CUDA execution and independent model tensors. No shared numerical oracle or removed model case. Deepstack remains a distinct obligation. Rank maintenance reduction separately from measured runtime savings; perform the smallest safe common-owner migration, net of helper/caller code."
-        }
-      ]
-    },
-    {
       "id": "validation-gate-selection",
       "title": "Determine unnecessary testing and deliver one measured gate reduction",
       "owner": "codex-validation",

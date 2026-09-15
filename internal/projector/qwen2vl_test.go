@@ -166,42 +166,7 @@ func TestSpatialPositionsGrid3D(t *testing.T) {
 func TestQwen2VLRunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyQwen2VLMetadata(), nonzeroTinyQwen2VLTensors())
-	cpu, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Qwen2VLRunner](path, fixtureMediaPreprocessOptions(t, OpenOptions{CUDA: true}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	input := image.NewRGBA(image.Rect(0, 0, 4, 4))
-	for y := range 4 {
-		for x := range 4 {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 40), G: uint8(y * 40), B: 80, A: fixtureOpaqueAlpha})
-		}
-	}
-	options := Qwen2VLPreprocessOptions{MinPixels: fixtureSmallPixelBudget, MaxPixels: fixtureSmallPixelBudget}
-	wantImage, err := cpu.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotImage, err := cuda.EncodeImage(t.Context(), input, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compareFloat32Tolerance(t, "Qwen2-VL image", gotImage.Embeddings.Data, wantImage.Embeddings.Data, 2e-3)
-	frames := []image.Image{input, input, input, input}
-	wantVideo, err := cpu.EncodeFrames(t.Context(), frames, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotVideo, err := cuda.EncodeFrames(t.Context(), frames, options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compareFloat32Tolerance(t, "Qwen2-VL video", gotVideo.Embeddings.Data, wantVideo.Embeddings.Data, 2e-3)
+	qwenImageVideoParityCase[*Qwen2VLRunner](t, "Qwen2-VL", path)
 }
 
 func tinyQwen2VLMetadata() []gguf.Metadata {

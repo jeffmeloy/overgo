@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "device-link-cost",
-      "title": "Stop linking the device runtime into test binaries whose tests execute no kernel so the device step builds only what it runs",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop linking the device runtime into test binaries whose tests execute no kernel so the device step builds only what it runs",
-          "status": "open",
-          "verify": "test -f internal/gate/device_link_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeviceGroupLinksOnlyKernelTests$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gate-progress-lines",
       "title": "Make the preflight run the row acceptance, the changed owners short suites and the gate selection report, apply the mechanical repairs admission applies, and report every uncatalogued closure site with proposal rows in one pass; print each package result as the test steps complete",
       "owner": "master-lead",

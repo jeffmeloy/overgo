@@ -190,21 +190,6 @@
       ]
     },
     {
-      "id": "gui-capture-facing",
-      "title": "Apply the front or rear camera choice to video capture",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Apply the front or rear camera choice to video capture",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(CaptureFacing|LayoutAudit)$' -require 'capture facing leg'",
-          "rationale": "Owner review 2026-09-13 (P2): the capture device selector offers Front camera and Rear camera for every camera kind, but constraints() in media_capture.js applies facingMode only to photographs; a video capture with Rear camera selected requests true and the browser picks its default camera, while explicit device ids work for both. Build one constraint from the selection for image and video capture alike (facingMode ideal for the two named choices, exact deviceId for a listed device) and keep the recorder's MIME negotiation unchanged. Acceptance: the journey records a fake getUserMedia and asserts the video constraint carries the selected facing mode and the deviceId for a listed camera; the video capture journey still passes. Master 99c142ee now applies facingMode to video and verifies rear-camera requests in TestWebUIBrowserVideoCapture. Retain physical-phone checks separately; reconcile this row against the merged proof."
-        }
-      ]
-    },
-    {
       "id": "gui-video-source-edit",
       "title": "Edit a captured or attached clip through the reference-video recipe's source port",
       "owner": "professional_overgo_gui",

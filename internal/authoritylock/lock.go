@@ -6,6 +6,7 @@
 package authoritylock
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -26,6 +27,17 @@ const (
 
 // Acquire takes the repository-local plan/gate mutation lock without waiting.
 func Acquire(repository string) (*processlock.Lock, error) {
+	return acquire(repository, processlock.Acquire)
+}
+
+// AcquireContext takes the lock, waiting for its holder until ctx ends.
+func AcquireContext(ctx context.Context, repository string) (*processlock.Lock, error) {
+	return acquire(repository, func(path string, mode os.FileMode) (*processlock.Lock, error) {
+		return processlock.AcquireContext(ctx, path, mode)
+	})
+}
+
+func acquire(repository string, take func(string, os.FileMode) (*processlock.Lock, error)) (*processlock.Lock, error) {
 	rawRepository := strings.TrimSpace(repository)
 	if rawRepository == "" {
 		return nil, errors.New("authority lock: repository is required")
@@ -35,7 +47,7 @@ func Acquire(repository string) (*processlock.Lock, error) {
 	if err := os.MkdirAll(directory, authorityDirectoryMode); err != nil {
 		return nil, fmt.Errorf("authority lock: create directory: %w", err)
 	}
-	lock, err := processlock.Acquire(filepath.Join(repository, filepath.FromSlash(relativePath)), authorityFileMode)
+	lock, err := take(filepath.Join(repository, filepath.FromSlash(relativePath)), authorityFileMode)
 	if err != nil {
 		if errors.Is(err, processlock.ErrBusy) {
 			return nil, fmt.Errorf("authority lock: another plan or gate mutation is active: %w", err)

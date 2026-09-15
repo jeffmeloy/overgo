@@ -133,7 +133,7 @@ func TestLaneServerEndsWithRun(t *testing.T) {
 			}
 			// The server's claim is gone once the runner has returned.
 			admitted, done := context.WithTimeoutCause(t.Context(), 10*time.Second, errors.New("the lane's server still holds its resource"))
-			err = processcontrol.AwaitResource(admitted, func() error { return processcontrol.ClaimResource(resource) })
+			err = processcontrol.AwaitResource(admitted, resource, func() error { return processcontrol.ClaimResource(resource) })
 			done()
 			if err != nil {
 				t.Fatalf("%s: %v", tc.name, err)

@@ -74,7 +74,11 @@ func MeasurementProcess(t *testing.T, ordinal int) bool {
 		t.Fatal(err)
 	}
 	defer library.Close()
-	if err := processcontrol.AwaitResource(ctx, func() error {
+	device, err := library.DeviceInfo(ordinal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := processcontrol.AwaitResource(ctx, device.UUID, func() error {
 		_, err := library.ReserveDevice(ordinal)
 		return err
 	}); err != nil {

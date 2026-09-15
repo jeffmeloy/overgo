@@ -4,8 +4,6 @@
 package testprocess
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -26,19 +24,15 @@ func BuildTestBinary(t testing.TB, directory, output, tags, pkg string) {
 	}
 }
 
-// errProbeDeadline is the cause a probe run carries when its bound elapses.
-var errProbeDeadline = errors.New("test process probe exceeded its deadline")
-
-// MeasureTestProcesses runs identical isolated probes.
+// MeasureTestProcesses runs identical isolated probes; each probe runs
+// under the calling test's context, so the test's own end bounds it.
 func MeasureTestProcesses(t testing.TB, runs int, directory, binary, testName, marker string) []processmeasure.Result {
 	t.Helper()
 	results := make([]processmeasure.Result, runs)
 	for index := range results {
-		ctx, cancel := context.WithTimeoutCause(context.Background(), 60*time.Second, errProbeDeadline)
-		command := exec.CommandContext(ctx, binary, "-test.run=^"+testName+"$", "-test.v")
+		command := exec.CommandContext(t.Context(), binary, "-test.run=^"+testName+"$", "-test.v")
 		command.Dir = directory
 		result, err := processmeasure.Measure(command)
-		cancel()
 		if err != nil {
 			t.Fatalf("%s run %d: %v: %s", testName, index, err, result.Output)
 		}

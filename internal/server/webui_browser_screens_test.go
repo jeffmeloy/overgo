@@ -14,9 +14,6 @@ import (
 	"overgo/internal/webuilane"
 )
 
-// tabSettle bounds the wait for a tab's own request before its capture.
-const tabSettle = 8 * time.Second
-
 // TestWebUIBrowserScreens captures every workbench tab and the model
 // picker at desktop and phone sizes over the fixture page and audits each
 // state's layout; with OVERGO_WEBUI_LANE_SCREENS set the captures are
@@ -52,7 +49,7 @@ func TestWebUIBrowserScreens(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer browser.Close()
-	states, findings, err := webuilane.CaptureStates(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), tabSettle)
+	states, findings, err := webuilane.CaptureStates(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"))
 	if err != nil {
 		t.Fatal(err)
 	}

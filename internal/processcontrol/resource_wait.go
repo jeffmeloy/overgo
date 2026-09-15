@@ -3,19 +3,30 @@ package processcontrol
 import (
 	"context"
 	"errors"
-	"time"
 )
 
-// Poll admission at most twenty times per second; no work starts before success.
-// The caller's context bounds admission and preserves its cancellation cause.
-const resourceAdmissionPoll = time.Second / 20
-
-// AwaitResource retries typed contention until admission or context cancellation.
-// Other failures return immediately; callers retain and release their own claim.
-func AwaitResource(ctx context.Context, claim func() error) error {
+// AwaitResource claims the named physical resource, and while another
+// process holds it waits on that holder: the wait ends when a holder exits
+// or releases the resource, or when ctx ends, and the claim is then made
+// again. Failures other than contention return at once; callers retain and
+// release their own claim.
+func AwaitResource(ctx context.Context, name string, claim func() error) error {
+	if !validResourceName(name) {
+		return errors.New("processcontrol: invalid physical resource name")
+	}
+	waiter, err := openReleaseWaiter(name)
+	if err != nil {
+		return err
+	}
+	defer waiter.close()
 	var busy error
 	for {
 		if err := context.Cause(ctx); err != nil {
+			return errors.Join(busy, err)
+		}
+		// Armed before the claim: a release between the claim and the wait
+		// is then observed by the wait rather than lost.
+		if err := waiter.arm(); err != nil {
 			return errors.Join(busy, err)
 		}
 		err := claim()
@@ -23,12 +34,8 @@ func AwaitResource(ctx context.Context, claim func() error) error {
 			return err
 		}
 		busy = err
-		timer := time.NewTimer(resourceAdmissionPoll)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return errors.Join(err, context.Cause(ctx))
-		case <-timer.C:
+		if err := waiter.wait(ctx); err != nil {
+			return errors.Join(busy, err)
 		}
 	}
 }

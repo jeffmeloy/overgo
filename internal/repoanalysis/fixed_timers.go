@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"maps"
+	"path"
 	"slices"
 	"strings"
 )
@@ -39,12 +40,17 @@ var timerCalls = map[string]map[string]bool{
 // A duration that arrives through a parameter, a field, a flag or another
 // computed value is the caller's declaration and is not counted.
 func FixedTimerCensus(snapshot SourceSnapshot) ([]FixedTimer, error) {
+	packages, err := packageValues(snapshot)
+	if err != nil {
+		return nil, err
+	}
 	counts := map[[2]string]int{}
 	for _, file := range snapshot.Files {
 		parsed, err := file.Syntax()
 		if err != nil {
 			return nil, fmt.Errorf("fixed timers: parse %s: %w", file.Path, err)
 		}
+		scope := packages[path.Dir(file.Path)]
 		for _, declaration := range parsed.Decls {
 			function, _ := declaration.(*ast.FuncDecl)
 			name := authorityFunctionName(function)
@@ -53,7 +59,7 @@ func FixedTimerCensus(snapshot SourceSnapshot) ([]FixedTimer, error) {
 				if !ok {
 					return true
 				}
-				if duration, timer := timerDuration(call); timer && fixedDuration(duration, 0) {
+				if duration, timer := timerDuration(call); timer && fixedDuration(duration, scope, 0) {
 					counts[[2]string{file.Path, name}]++
 				}
 				return true
@@ -116,9 +122,58 @@ func timerDuration(call *ast.CallExpr) (ast.Expr, bool) {
 
 const fixedDurationDepth = 8
 
+// packageValue is one package-level constant or initialised variable; a
+// constant is fixed by definition, a variable by its initialiser.
+type packageValue struct {
+	constant bool
+	value    ast.Expr
+}
+
+// packageScope holds a package's file-level constants and variables by name.
+type packageScope map[string]packageValue
+
+// packageValues indexes every package's top-level constants and variables
+// by directory, so a name declared in one file resolves in its siblings.
+func packageValues(snapshot SourceSnapshot) (map[string]packageScope, error) {
+	packages := map[string]packageScope{}
+	for _, file := range snapshot.Files {
+		parsed, err := file.Syntax()
+		if err != nil {
+			return nil, fmt.Errorf("fixed timers: parse %s: %w", file.Path, err)
+		}
+		dir := path.Dir(file.Path)
+		scope := packages[dir]
+		if scope == nil {
+			scope = packageScope{}
+			packages[dir] = scope
+		}
+		for _, declaration := range parsed.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || (general.Tok != token.CONST && general.Tok != token.VAR) {
+				continue
+			}
+			for _, spec := range general.Specs {
+				values, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for index, name := range values.Names {
+					entry := packageValue{constant: general.Tok == token.CONST}
+					if index < len(values.Values) {
+						entry.value = values.Values[index]
+					}
+					scope[name.Name] = entry
+				}
+			}
+		}
+	}
+	return packages, nil
+}
+
 // fixedDuration reports an expression built only from literals, time units,
-// constants and variables initialised from those.
-func fixedDuration(expression ast.Expr, depth int) bool {
+// constants and variables initialised from those; a name the file does not
+// declare resolves through the package scope.
+func fixedDuration(expression ast.Expr, scope packageScope, depth int) bool {
 	if depth > fixedDurationDepth {
 		return false
 	}
@@ -126,20 +181,24 @@ func fixedDuration(expression ast.Expr, depth int) bool {
 	case *ast.BasicLit:
 		return typed.Kind == token.INT || typed.Kind == token.FLOAT
 	case *ast.ParenExpr:
-		return fixedDuration(typed.X, depth+1)
+		return fixedDuration(typed.X, scope, depth+1)
 	case *ast.UnaryExpr:
-		return fixedDuration(typed.X, depth+1)
+		return fixedDuration(typed.X, scope, depth+1)
 	case *ast.BinaryExpr:
-		return fixedDuration(typed.X, depth+1) && fixedDuration(typed.Y, depth+1)
+		return fixedDuration(typed.X, scope, depth+1) && fixedDuration(typed.Y, scope, depth+1)
 	case *ast.CallExpr:
 		// A conversion such as time.Duration(n) keeps the operand's nature.
-		return len(typed.Args) == 1 && fixedDuration(typed.Args[0], depth+1)
+		return len(typed.Args) == 1 && fixedDuration(typed.Args[0], scope, depth+1)
 	case *ast.SelectorExpr:
 		pkg, ok := typed.X.(*ast.Ident)
 		return ok && pkg.Name == "time" && pkg.Obj == nil
 	case *ast.Ident:
 		if typed.Obj == nil {
-			return false
+			entry, declared := scope[typed.Name]
+			if !declared {
+				return false
+			}
+			return entry.constant || (entry.value != nil && fixedDuration(entry.value, scope, depth+1))
 		}
 		switch typed.Obj.Kind {
 		case ast.Con:
@@ -150,7 +209,7 @@ func fixedDuration(expression ast.Expr, depth int) bool {
 				return false
 			}
 			index := slices.IndexFunc(spec.Names, func(name *ast.Ident) bool { return name.Name == typed.Name })
-			return index >= 0 && index < len(spec.Values) && fixedDuration(spec.Values[index], depth+1)
+			return index >= 0 && index < len(spec.Values) && fixedDuration(spec.Values[index], scope, depth+1)
 		}
 	}
 	return false

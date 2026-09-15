@@ -357,11 +357,12 @@ func Run(options Options) (runErr error) {
 	}
 	g.store = admissionStore
 	admissionStore = nil
-	stopHeartbeat, err := g.startHeartbeat()
-	if err != nil {
+	// The lifecycle locator carries the running state and this process's
+	// pid; its readers judge liveness by the pid, so one write per state
+	// change is the whole heartbeat.
+	if err := g.writeHeartbeat(runrecord.HeartbeatRunning); err != nil {
 		return err
 	}
-	defer stopHeartbeat()
 
 	// The candidate's change size is observed before the pipeline can
 	// commit it; after a successful commit the worktree diff is gone.
@@ -379,10 +380,6 @@ func Run(options Options) (runErr error) {
 			failureCode = g.steps[len(g.steps)-1].Name
 		}
 	}
-	// No running heartbeat writer may outlive the gate execution and race a
-	// terminal store/heartbeat publication. A crash after this point leaves the
-	// last running locator for the explicit recovery path.
-	stopHeartbeat()
 	if g.commitInterrupted {
 		closeErr := g.closeStore()
 		_, recoveryErr := recoverInterruptedCommit(repo, cleanStore)

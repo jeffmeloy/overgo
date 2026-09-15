@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
-	"overgo/internal/processcontrol"
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
@@ -129,7 +128,7 @@ func TestWebUIBrowserReliability(t *testing.T) {
 		t.Fatal(err)
 	}
 	downloadDirectory := t.TempDir()
-	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloadDirectory}, nil); err != nil {
+	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{"behavior": "allow", "downloadPath": downloadDirectory, "eventsEnabled": true}, nil); err != nil {
 		t.Fatal(err)
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => {const link=overgo.el('a',{href:'/artifacts/content?id=gui-test-image',download:'preview.png',text:'download'});document.body.append(link);link.click();return true;})()`)
@@ -142,26 +141,21 @@ func TestWebUIBrowserReliability(t *testing.T) {
 		t.Fatal("authenticated download did not request its bytes")
 	case <-downloaded:
 	}
-	// A requested payload is not a completed download. Wait for the final
-	// file before ending the browser and verify the authenticated bytes.
+	// A requested payload is not a completed download. The browser reports
+	// the download's completion; the final file then carries the bytes.
 	var expected bytes.Buffer
 	if err := png.Encode(&expected, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
 	}
-	if err := processcontrol.AwaitResource(ctx, func() error {
-		data, err := os.ReadFile(filepath.Join(downloadDirectory, "preview.png"))
-		if errors.Is(err, os.ErrNotExist) {
-			return processcontrol.ErrResourceBusy
-		}
-		if err != nil {
-			return err
-		}
-		if !bytes.Equal(data, expected.Bytes()) {
-			return errors.New("authenticated download bytes differ")
-		}
-		return nil
-	}); err != nil {
+	if err := browser.AwaitDownload(ctx, "preview.png"); err != nil {
 		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(downloadDirectory, "preview.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(data, expected.Bytes()) {
+		t.Fatal("authenticated download bytes differ")
 	}
 	say(t, ctx, browser, "First conversation")
 	if err := browser.Eventually(ctx, `overgo.conversation() && overgo.conversation().root==='resp_gui_1'`); err != nil {

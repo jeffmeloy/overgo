@@ -96,7 +96,7 @@ func holdSharedLease(ctx context.Context, output io.Writer, name string, budget 
 	began := time.Now()
 	fmt.Fprintf(output, "[device] resource=%s mode=shared state=waiting budget=%s\n", name, budget)
 	var release func() error
-	err := processcontrol.AwaitResource(ctx, func() error {
+	err := processcontrol.AwaitResource(ctx, name, func() error {
 		var err error
 		release, err = share()
 		return err

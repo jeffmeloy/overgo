@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "73758637475be97e4a3b6a479d48cf1ee7a952429d7460b27c5e769c1778861e",
+  "source_identity": "f485c98a7624f374dbdc2c71b76d9288d4328d2ec627c8a4a906bca485e445f9",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3451,
-    "typed_files": 3387
+    "inspected_files": 3454,
+    "typed_files": 3390
   },
   "guidelines": [
     {
@@ -4700,55 +4700,11 @@
     },
     {
       "guideline": "context_timeout_deadline_cause",
-      "path": "internal/agenttool/stream.go",
-      "symbol": "OpenStream",
-      "owner": "overgo/internal/agenttool",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./internal/agenttool -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_timeout_deadline_cause",
-      "path": "internal/agenttool/transport.go",
-      "symbol": "InvokeWithEffect",
-      "owner": "overgo/internal/agenttool",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./internal/agenttool -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_timeout_deadline_cause",
       "path": "internal/processcontrol/supervisor_test.go",
       "symbol": "TestSupervisorProcessTreeContract",
       "owner": "overgo/internal/processcontrol",
       "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
       "oracle": "go test ./internal/processcontrol -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_timeout_deadline_cause",
-      "path": "internal/processmeasure/measure_test.go",
-      "symbol": "TestMeasureTracksChildPeakWorkingSet",
-      "owner": "overgo/internal/processmeasure",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./internal/processmeasure -count=1",
-      "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "context_timeout_deadline_cause",
-      "path": "internal/server/server.go",
-      "symbol": "Close",
-      "owner": "overgo/internal/server",
-      "reason": "The owner preserves the established cancellation error identity or CancelFunc type and has no stable cause to publish.",
-      "oracle": "go test ./internal/server -count=1",
       "retirement": "Retire when the API can expose a stable cancellation cause without changing its cancel function or observed error contract.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -5062,5 +5018,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "53d336937f5b6b6c14ef338d13b72acace40ba5ca448d81114daf9a0f5bac218"
+  "exceptions_sha256": "a890e6d3d7c02f883779b44b32b69d6d919f63b2ba6e91496c9a59f376529790"
 }

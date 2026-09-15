@@ -1027,7 +1027,8 @@
             "browser-lane-decomposition/do",
             "deferred-lanes/do",
             "gate-structure-replan/do",
-            "timer-sweep/do"
+            "timer-sweep/do",
+            "timer-sweep-production/do"
           ]
         }
       ]

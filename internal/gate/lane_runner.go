@@ -44,7 +44,6 @@ func superviseLane(ctx context.Context, environment []string, root, name string,
 		if err != nil || receipt.ExitCode != windowsProcessStartFailure {
 			break
 		}
-		time.Sleep(processStartRetryDelay)
 	}
 	command := name + " " + strings.Join(args, " ")
 	if cause := context.Cause(ctx); cause != nil {

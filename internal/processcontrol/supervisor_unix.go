@@ -3,6 +3,7 @@
 package processcontrol
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"syscall"
@@ -68,3 +69,16 @@ func DetachedSysProcAttr() *syscall.SysProcAttr {
 }
 
 func (t processTree) wait() error { return nil }
+
+// releaseWaiter would observe a resource's holders; contention itself is Windows-only.
+type releaseWaiter struct{}
+
+func openReleaseWaiter(string) (*releaseWaiter, error) { return &releaseWaiter{}, nil }
+
+func (*releaseWaiter) arm() error { return nil }
+
+func (*releaseWaiter) wait(context.Context) error {
+	return errors.New("processcontrol: waiting on a physical resource holder requires Windows")
+}
+
+func (*releaseWaiter) close() error { return nil }

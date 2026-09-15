@@ -80,7 +80,12 @@ func shareResource(name string) (func() error, error) {
 			return nil, fmt.Errorf("processcontrol: inspect exclusive resource %q: %w", name, callErr)
 		}
 		retained = true
-		return sync.OnceValue(func() error { return syscall.CloseHandle(handle) }), nil
+		// The release wakes the processes waiting on this resource.
+		return sync.OnceValue(func() error {
+			err := syscall.CloseHandle(handle)
+			signalResourceRelease(name)
+			return err
+		}), nil
 	}
 	defer syscall.CloseHandle(syscall.Handle(job))
 	process, _, _ := procGetCurrentProcess.Call()

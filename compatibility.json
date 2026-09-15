@@ -1600,7 +1600,7 @@
      "path": "cmd/server/transcription.go",
      "contains": "func serveTranscription(",
      "role": "source",
-     "identity": "file:sha256:41d69c4b448b49fbf34ed76dfd977649aa679a629d3190c97fff4689862df718"
+     "identity": "file:sha256:4b13cf3fc2d958dae4f68d00dab5925ee33c7dae95b9e27c82108036c914c918"
     },
     {
      "path": "internal/audioparity/live_service_test.go",

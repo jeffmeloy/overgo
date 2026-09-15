@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -17,7 +16,6 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
-	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 )
 
@@ -180,19 +178,8 @@ func (g *gateContext) spawnLaneRunner(storePath string) error {
 // and records the outcome on the obligation chain.
 func runDeferredLanes(repo, storePath string) (runErr error) {
 	// The gate that spawned this runner still holds the authority lock for a
-	// moment; the runner queues on it under the process's own lifetime.
-	var lock *processlock.Lock
-	err := processcontrol.AwaitResource(context.Background(), func() error {
-		acquired, err := authoritylock.Acquire(repo)
-		if errors.Is(err, processlock.ErrBusy) {
-			return errors.Join(processcontrol.ErrResourceBusy, err)
-		}
-		if err != nil {
-			return err
-		}
-		lock = acquired
-		return nil
-	})
+	// moment; the runner waits on the lock itself under its own lifetime.
+	lock, err := authoritylock.AcquireContext(context.Background(), repo)
 	if err != nil {
 		return err
 	}
@@ -231,8 +218,10 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	if err := g.publishLaneState(running, current.ID); err != nil {
 		return err
 	}
-	stopLocator := g.startLaneLocator(running)
-	defer stopLocator()
+	// The locator names this runner's pid; admission judges liveness by it.
+	if err := g.writeLaneLocator(running); err != nil {
+		return err
+	}
 	g.paths = slices.Clone(running.Paths)
 	tree, err := command(repo, "git", "rev-parse", running.CodeCommit+"^{tree}")
 	if err != nil {
@@ -280,7 +269,6 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	if _, err := store.Commit(context.Background(), batch); err != nil {
 		return fmt.Errorf("gate: record the lane outcome: %w", err)
 	}
-	stopLocator()
 	_ = g.writeLaneLocator(resolved)
 	fmt.Printf("LANES %s %.1fs commit=%.12s checks=%s result=%s\n", strings.ToUpper(string(state)),
 		time.Since(g.start).Seconds(), running.CodeCommit, strings.Join(running.Checks, ","), record.Result.ID)
@@ -380,23 +368,4 @@ func (g *gateContext) writeLaneLocator(obligation runrecord.GateLaneObligation) 
 		Version: artifact.InitialDocumentVersion, State: obligation.State, Obligation: obligation.ID,
 		CodeCommit: obligation.CodeCommit, PID: os.Getpid(), Updated: time.Now().UTC(),
 	}, clioptions.OutputFileMode)
-}
-
-// startLaneLocator keeps the runner's locator fresh while it works.
-func (g *gateContext) startLaneLocator(obligation runrecord.GateLaneObligation) func() {
-	_ = g.writeLaneLocator(obligation)
-	stop, done := make(chan struct{}), make(chan struct{})
-	go func() {
-		defer close(done)
-		ticker := time.Tick(5 * time.Second)
-		for {
-			select {
-			case <-ticker:
-				_ = g.writeLaneLocator(obligation)
-			case <-stop:
-				return
-			}
-		}
-	}()
-	return sync.OnceFunc(func() { close(stop); <-done })
 }

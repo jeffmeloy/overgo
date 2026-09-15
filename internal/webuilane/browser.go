@@ -123,6 +123,9 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 		return nil, errors.Join(err, removeProfile(profile))
 	}
 	output := &bytes.Buffer{}
+	// The browser announces its debugging endpoint on its own output; the
+	// announcement, not a poll of the profile directory, is the signal.
+	announced := processcontrol.WatchLine(output, devToolsAnnouncement)
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path: executable,
 		Args: []string{
@@ -130,14 +133,14 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 			"--disable-background-networking", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0",
 			"--user-data-dir=" + profile, "about:blank",
 		},
-		Stdout: output,
-		Stderr: output,
+		Stdout: announced,
+		Stderr: announced,
 	})
 	if err != nil {
 		return nil, errors.Join(err, removeProfile(profile))
 	}
 	browser := &Browser{supervised: supervised, wait: ctx, profile: profile, output: output}
-	port, err := waitDevToolsPort(ctx, profile, supervised)
+	port, err := waitDevToolsPort(ctx, announced, supervised)
 	if err != nil {
 		closeErr := browser.Close()
 		return nil, errors.Join(fmt.Errorf("webui lane: browser debugging endpoint: %w: %s", err, output.String()), closeErr)
@@ -153,9 +156,10 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	if err := browser.Call(ctx, "Runtime.enable", nil, nil); err != nil {
 		return nil, errors.Join(err, browser.Close())
 	}
-	// Downloads belong to this run and leave with its temporary profile.
+	// Downloads belong to this run and leave with its temporary profile;
+	// the browser reports each download's progress as events.
 	if err := browser.Call(ctx, "Browser.setDownloadBehavior", map[string]any{
-		"behavior": "allow", "downloadPath": downloads,
+		"behavior": "allow", "downloadPath": downloads, "eventsEnabled": true,
 	}, nil); err != nil {
 		return nil, errors.Join(err, browser.Close())
 	}
@@ -219,20 +223,78 @@ func (browser *Browser) Evaluate(ctx context.Context, expression string, result 
 	return json.Unmarshal(response.Result.Value, result)
 }
 
-// Eventually waits for a JavaScript predicate while the enclosing context owns the deadline.
+// Eventually waits for a JavaScript predicate: the page re-checks it on each
+// of its own animation frames and answers once it holds, so the wait follows
+// the page's clock under the caller's context; a check a navigation
+// interrupts is asked again of the new document.
 func (browser *Browser) Eventually(ctx context.Context, expression string) error {
-	ticker := time.Tick(time.Millisecond)
 	for {
 		var ready bool
-		if err := browser.Evaluate(ctx, expression, &ready); err == nil && ready {
+		err := browser.Evaluate(ctx, predicateWait(expression), &ready)
+		if err == nil && ready {
 			return nil
 		}
-		select {
-		case <-ctx.Done():
-			return errors.Join(errors.New("webui lane: browser predicate did not become true"), ctx.Err())
-		case <-ticker:
+		if cause := context.Cause(ctx); cause != nil {
+			return errors.Join(errors.New("webui lane: browser predicate did not become true"), cause)
+		}
+		if err == nil {
+			return errors.New("webui lane: browser predicate wait answered without holding")
+		}
+		if !navigationInterrupted(err) {
+			return err
 		}
 	}
+}
+
+// predicateWait wraps a predicate in a promise the page resolves once it
+// holds; a throwing predicate reads as not yet holding, and a hidden page
+// checks on its task queue where animation frames stop.
+func predicateWait(expression string) string {
+	return `new Promise((resolve) => {
+	const check = () => {
+		let ready = false;
+		try { ready = !!(` + expression + `); } catch (_) { ready = false; }
+		if (ready) { resolve(true); return; }
+		if (document.visibilityState === "visible") requestAnimationFrame(check); else setTimeout(check);
+	};
+	check();
+})`
+}
+
+// navigationInterrupted recognises the DevTools errors a navigation raises
+// against an evaluation in the document it replaced.
+func navigationInterrupted(err error) bool {
+	text := err.Error()
+	return strings.Contains(text, "Execution context was destroyed") ||
+		strings.Contains(text, "Cannot find context with specified id") ||
+		strings.Contains(text, "Inspected target navigated or closed")
+}
+
+// AwaitDownload waits until the browser reports the named download complete.
+func (browser *Browser) AwaitDownload(ctx context.Context, filename string) error {
+	if browser == nil || browser.socket == nil {
+		return errors.New("webui lane: browser socket is unavailable")
+	}
+	var guid string
+	return browser.socket.awaitEvent(ctx, func(method string, params json.RawMessage) bool {
+		var event struct {
+			GUID              string `json:"guid"`
+			SuggestedFilename string `json:"suggestedFilename"`
+			State             string `json:"state"`
+		}
+		if json.Unmarshal(params, &event) != nil {
+			return false
+		}
+		switch method {
+		case "Browser.downloadWillBegin":
+			if event.SuggestedFilename == filename {
+				guid = event.GUID
+			}
+		case "Browser.downloadProgress":
+			return guid != "" && event.GUID == guid && event.State == "completed"
+		}
+		return false
+	})
 }
 
 // SetViewport drives the responsive layout through the browser's emulation owner.
@@ -245,26 +307,26 @@ func (browser *Browser) SetViewport(ctx context.Context, width, height int) erro
 	}, nil)
 }
 
-func waitDevToolsPort(ctx context.Context, profile string, supervised *processcontrol.Supervised) (int, error) {
-	ticker := time.Tick(time.Millisecond)
-	path := filepath.Join(profile, "DevToolsActivePort")
-	for {
-		data, err := os.ReadFile(path)
-		if err == nil {
-			line, _, _ := strings.Cut(string(data), "\n")
-			port, parseErr := strconv.Atoi(strings.TrimSpace(line))
-			if parseErr == nil && port > 0 {
-				return port, nil
-			}
+// devToolsAnnouncement prefixes the line a Chromium browser writes once
+// its debugging endpoint listens; the address follows it.
+const devToolsAnnouncement = "DevTools listening on ws://"
+
+// waitDevToolsPort reads the port from the browser's announcement, or
+// reports the browser's exit or the caller's cancellation.
+func waitDevToolsPort(ctx context.Context, announced *processcontrol.LineWatch, supervised *processcontrol.Supervised) (int, error) {
+	select {
+	case line := <-announced.Line():
+		address, _, _ := strings.Cut(line, "/")
+		_, portText, _ := strings.Cut(address, ":")
+		port, err := strconv.Atoi(strings.TrimSpace(portText))
+		if err != nil || port <= 0 {
+			return 0, fmt.Errorf("browser announced an unusable DevTools address %q", line)
 		}
-		if supervised.Exited() {
-			return 0, errors.New("browser exited before publishing DevTools port")
-		}
-		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case <-ticker:
-		}
+		return port, nil
+	case <-supervised.Done():
+		return 0, errors.New("browser exited before publishing DevTools port")
+	case <-ctx.Done():
+		return 0, ctx.Err()
 	}
 }
 
@@ -309,7 +371,19 @@ type webSocket struct {
 	reader     *bufio.Reader
 	mu         sync.Mutex
 	nextID     uint64
+	// events retains the download events read while answering calls, so a
+	// download that completes during another call is still observed.
+	events []cdpEvent
 }
+
+// cdpEvent is one unsolicited DevTools message.
+type cdpEvent struct {
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params"`
+}
+
+// retainedEventPrefix selects the events the socket keeps between calls.
+const retainedEventPrefix = "Browser.download"
 
 func dialWebSocket(ctx context.Context, rawURL string) (*webSocket, error) {
 	parsed, err := url.Parse(rawURL)
@@ -372,16 +446,15 @@ func (socket *webSocket) call(ctx context.Context, method string, parameters any
 	if err != nil {
 		return err
 	}
-	if deadline, found := ctx.Deadline(); found {
-		_ = socket.connection.SetDeadline(deadline)
-	}
+	release := socket.cancelReads(ctx)
+	defer release()
 	if err := socket.writeText(payload); err != nil {
 		return err
 	}
 	for {
 		message, err := socket.readText()
 		if err != nil {
-			return err
+			return errors.Join(err, context.Cause(ctx))
 		}
 		var envelope struct {
 			ID     uint64          `json:"id"`
@@ -390,8 +463,13 @@ func (socket *webSocket) call(ctx context.Context, method string, parameters any
 				Code    int    `json:"code"`
 				Message string `json:"message"`
 			} `json:"error"`
+			cdpEvent
 		}
-		if err := json.Unmarshal(message, &envelope); err != nil || envelope.ID != id {
+		if err := json.Unmarshal(message, &envelope); err != nil {
+			continue
+		}
+		if envelope.ID != id {
+			socket.retainEvent(envelope.cdpEvent)
 			continue
 		}
 		if envelope.Error != nil {
@@ -401,6 +479,63 @@ func (socket *webSocket) call(ctx context.Context, method string, parameters any
 			return nil
 		}
 		return json.Unmarshal(envelope.Result, result)
+	}
+}
+
+// cancelReads ends a blocked read when the context ends, and clears the
+// connection's deadline again once the call is over.
+func (socket *webSocket) cancelReads(ctx context.Context) func() {
+	_ = socket.connection.SetDeadline(time.Time{})
+	done := make(chan struct{})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		select {
+		case <-ctx.Done():
+			_ = socket.connection.SetReadDeadline(time.Unix(0, 0))
+		case <-done:
+		}
+	}()
+	return func() {
+		close(done)
+		<-finished
+		_ = socket.connection.SetDeadline(time.Time{})
+	}
+}
+
+// retainEvent keeps an event the waits observe later.
+func (socket *webSocket) retainEvent(event cdpEvent) {
+	if strings.HasPrefix(event.Method, retainedEventPrefix) {
+		socket.events = append(socket.events, event)
+	}
+}
+
+// awaitEvent feeds every retained and arriving event to the observer until
+// one satisfies it or the context ends; the events fed are consumed.
+func (socket *webSocket) awaitEvent(ctx context.Context, observe func(method string, params json.RawMessage) bool) error {
+	socket.mu.Lock()
+	defer socket.mu.Unlock()
+	retained := socket.events
+	socket.events = nil
+	for _, event := range retained {
+		if observe(event.Method, event.Params) {
+			return nil
+		}
+	}
+	release := socket.cancelReads(ctx)
+	defer release()
+	for {
+		message, err := socket.readText()
+		if err != nil {
+			return errors.Join(err, context.Cause(ctx))
+		}
+		var event cdpEvent
+		if json.Unmarshal(message, &event) != nil || event.Method == "" {
+			continue
+		}
+		if observe(event.Method, event.Params) {
+			return nil
+		}
 	}
 }
 

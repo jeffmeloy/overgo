@@ -23,24 +23,9 @@
    "count": 1
   },
   {
-   "file": "cmd/server/main.go",
-   "function": "serve",
-   "count": 1
-  },
-  {
    "file": "cmd/test-lane/failure_diagnostics_test.go",
    "function": "TestFailureDiagnostics",
    "count": 3
-  },
-  {
-   "file": "cmd/webui-lane/main.go",
-   "function": "captureLive",
-   "count": 1
-  },
-  {
-   "file": "cmd/webui-lane/main.go",
-   "function": "runLane",
-   "count": 1
   },
   {
    "file": "internal/adaptiveparity/pocket_tts_test.go",
@@ -71,11 +56,6 @@
    "file": "internal/agenttool/output_limit_test.go",
    "function": "TestArgvOutputProcess",
    "count": 3
-  },
-  {
-   "file": "internal/agenttool/transport.go",
-   "function": "Executor.InvokeWithEffect",
-   "count": 1
   },
   {
    "file": "internal/audioparity/live_service_test.go",
@@ -113,18 +93,8 @@
    "count": 1
   },
   {
-   "file": "internal/gate/deferred_lanes.go",
-   "function": "gateContext.startLaneLocator",
-   "count": 1
-  },
-  {
    "file": "internal/gate/evidence_commit_recovery_test.go",
    "function": "TestEvidenceCommitRecoveryAcceptance",
-   "count": 1
-  },
-  {
-   "file": "internal/gate/gate.go",
-   "function": "commandEnvironment",
    "count": 1
   },
   {
@@ -148,11 +118,6 @@
    "count": 1
   },
   {
-   "file": "internal/gate/recovery.go",
-   "function": "gateContext.startHeartbeat",
-   "count": 1
-  },
-  {
    "file": "internal/gate/shared_browser_overlap_test.go",
    "function": "TestSharedBrowserDependencyOverlap",
    "count": 1
@@ -171,11 +136,6 @@
    "file": "internal/gate/test_groups_test.go",
    "function": "TestTestGroupsOverlapUnderLedger",
    "count": 2
-  },
-  {
-   "file": "internal/gate/test_resource.go",
-   "function": "admitSharedTestResource",
-   "count": 1
   },
   {
    "file": "internal/gate/test_resource_windows_test.go",
@@ -200,11 +160,6 @@
   {
    "file": "internal/modelswap/catalog_test.go",
    "function": "TestCatalogProgressNamesStagesAndKeepsSlowest",
-   "count": 1
-  },
-  {
-   "file": "internal/modelswap/launcher.go",
-   "function": "serverProcess.Ready",
    "count": 1
   },
   {
@@ -238,16 +193,6 @@
    "count": 1
   },
   {
-   "file": "internal/processcontrol/resource_wait.go",
-   "function": "AwaitResource",
-   "count": 1
-  },
-  {
-   "file": "internal/processcontrol/resource_wait_test.go",
-   "function": "TestResourceAdmissionCancellationAndFailure",
-   "count": 1
-  },
-  {
    "file": "internal/processcontrol/resource_windows_test.go",
    "function": "TestResourceContention",
    "count": 1
@@ -270,21 +215,6 @@
   {
    "file": "internal/processlock/lock_test.go",
    "function": "TestAcquireReleasedAfterProcessDeath",
-   "count": 2
-  },
-  {
-   "file": "internal/processlock/lock_unix.go",
-   "function": "AcquireContext",
-   "count": 1
-  },
-  {
-   "file": "internal/processmeasure/measure.go",
-   "function": "samplePeak",
-   "count": 1
-  },
-  {
-   "file": "internal/processmeasure/measure_test.go",
-   "function": "TestMeasureTracksChildPeakWorkingSet",
    "count": 2
   },
   {
@@ -325,11 +255,6 @@
   {
    "file": "internal/server/idle_shell_test.go",
    "function": "TestIdleShellWriterLifetime",
-   "count": 1
-  },
-  {
-   "file": "internal/server/server.go",
-   "function": "Handler.Close",
    "count": 1
   },
   {
@@ -516,21 +441,6 @@
    "file": "internal/testevidence/package_updates_test.go",
    "function": "TestTerminalPublicationDoesNotBlockOutput",
    "count": 2
-  },
-  {
-   "file": "internal/testprocess/process.go",
-   "function": "MeasureTestProcesses",
-   "count": 1
-  },
-  {
-   "file": "internal/webuilane/browser.go",
-   "function": "Browser.Eventually",
-   "count": 1
-  },
-  {
-   "file": "internal/webuilane/browser.go",
-   "function": "waitDevToolsPort",
-   "count": 1
   },
   {
    "file": "internal/webuilane/screens_test.go",

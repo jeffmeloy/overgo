@@ -1316,29 +1316,24 @@ func (g *gateContext) runGoTests(ctx context.Context, packages []string, short b
 // takes it so a test can stand in for go test.
 type testRunner func(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error)
 
-// errContentionBudget names the exhausted wait for a refused exclusive claim.
-var errContentionBudget = errors.New("device contention budget exhausted")
-
 // runDeviceBatch runs one device batch under the shared lease and, when its
 // only failures were refused exclusive claims, runs each refused package
 // again alone and outside the lease: a package whose code claims the device
 // exclusively is refused beneath any holder's lease, its siblings' and the
 // gate's own, and admits once no other process holds the device. The wait
-// for a foreign holder is bounded by the admission budget, which bounds only
-// the wait; each run itself is bounded by the caller's context.
+// for a foreign holder ends when that holder releases the device or exits;
+// the caller's context bounds the wait and each run alike.
 func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short bool, observe func(string, bool) error, run testRunner) (testevidence.GoTestReport, error) {
 	report, err := run(ctx, batch, short, observe, true)
 	if err == nil || !report.ContentionOnly() {
 		return report, err
 	}
 	contended := report.Contended
-	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive claim under the shared lease [%s]; each runs again alone outside it under the %s admission budget",
-		len(contended), strings.Join(contended, ","), testAdmissionBudget))
-	wait, cancel := context.WithTimeoutCause(ctx, testAdmissionBudget, errContentionBudget)
-	defer cancel()
+	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive claim under the shared lease [%s]; each runs again alone outside it once the device's holder releases",
+		len(contended), strings.Join(contended, ",")))
 	for _, pkg := range contended {
 		attempts := 0
-		err := processcontrol.AwaitResource(wait, func() error {
+		err := processcontrol.AwaitResource(ctx, g.deviceResource, func() error {
 			attempts++
 			report, err = run(ctx, []string{pkg}, short, observe, false)
 			if err != nil && report.ContentionOnly() {
@@ -1347,8 +1342,8 @@ func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short 
 			return err
 		})
 		if err != nil {
-			if errors.Is(err, processcontrol.ErrResourceBusy) || wait.Err() != nil {
-				return report, fmt.Errorf("device contention: %s refused its exclusive claim %d time(s): %w", pkg, attempts, errors.Join(processcontrol.ErrResourceBusy, err, context.Cause(wait)))
+			if errors.Is(err, processcontrol.ErrResourceBusy) || ctx.Err() != nil {
+				return report, fmt.Errorf("device contention: %s refused its exclusive claim %d time(s): %w", pkg, attempts, errors.Join(processcontrol.ErrResourceBusy, err, context.Cause(ctx)))
 			}
 			return report, err
 		}

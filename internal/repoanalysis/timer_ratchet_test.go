@@ -11,7 +11,8 @@ import (
 
 // TestNoFixedTimers holds the owner's rule that no wait is bound to a
 // duration the source fixes: the census classifies literal, unit, constant
-// and constant-initialised durations as fixed and parameters, fields and
+// and constant-initialised durations as fixed, a constant a sibling file
+// declares included, and parameters, fields and
 // flags as the caller's declaration; over the live tree the census never
 // exceeds the reviewed baseline and the baseline never lists a timer the
 // source has already lost, so the count only falls.
@@ -36,7 +37,14 @@ func Fixed(ctx context.Context) {
 	time.Sleep(grace)
 	<-time.After(time.Duration(3) * time.Millisecond)
 	_ = time.Tick(time.Millisecond)
+	time.Sleep(sharedBudget)
+	_ = time.NewTimer(sharedRetry)
 }
+`)
+	write("shared.go", `package probe
+import "time"
+const sharedBudget = 10 * time.Minute
+var sharedRetry = sharedBudget / 100
 `)
 	write("declared.go", `package probe
 import ("context"; "flag"; "time")
@@ -61,10 +69,10 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(census, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 5}}) {
+	if !slices.Equal(census, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 7}}) {
 		t.Fatalf("fixture census = %+v", census)
 	}
-	baseline := FixedTimerBaseline{Version: 1, Timers: []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 5}}}
+	baseline := FixedTimerBaseline{Version: 1, Timers: []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 7}}}
 	if err := AdmitFixedTimers(baseline, census); err != nil {
 		t.Fatalf("exact baseline refused: %v", err)
 	}
@@ -74,7 +82,7 @@ func Declared(ctx context.Context, budget time.Duration, o options) {
 	if err := AdmitFixedTimers(baseline, nil); err == nil {
 		t.Fatal("a stale baseline entry was admitted")
 	}
-	if err := AdmitFixedTimers(baseline, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 4}}); err == nil {
+	if err := AdmitFixedTimers(baseline, []FixedTimer{{File: "fixed.go", Function: "Fixed", Count: 6}}); err == nil {
 		t.Fatal("a removal without lowering the baseline was admitted")
 	}
 

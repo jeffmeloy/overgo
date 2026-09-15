@@ -132,6 +132,15 @@ func TestDeviceLaneTestStepsHoldSharedLease(t *testing.T) {
 	share := func() (func() error, error) {
 		if refusals < 2 {
 			refusals++
+			// The foreign holder releases as it refuses; its release is the
+			// signal the next claim waits on.
+			hold, err := processcontrol.ShareResource("GPU-test")
+			if err != nil {
+				return nil, err
+			}
+			if err := hold(); err != nil {
+				return nil, err
+			}
 			return nil, processcontrol.ErrResourceBusy
 		}
 		return func() error { released++; return nil }, nil

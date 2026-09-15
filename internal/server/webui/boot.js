@@ -63,6 +63,7 @@
   }
   const api = {
     pending() { return inFlight + activePollers; },
+    inFlight() { return inFlight; },
     async get(path, opts) {
       const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
       if (opts && opts.onHeaders) opts.onHeaders(response.headers);

@@ -176,17 +176,15 @@ func assertScopeInputEvidence(t *testing.T, g *gateContext) {
 }
 
 func assertScopeMeasuredIncident(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := liveGateContext(t)
+	root := g.repo
 	// This actual gated slice took 973.8s and selected 2 direct plus 124
 	// downstream packages because its plan change included one test-only edit.
 	changed, err := command(root, "git", "diff-tree", "--no-commit-id", "--name-only", "-r", "1939094b")
 	if err != nil {
 		t.Fatal(err)
 	}
-	g := gateContext{repo: root, paths: strings.Fields(changed)}
+	g.paths = strings.Fields(changed)
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)

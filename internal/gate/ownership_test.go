@@ -27,11 +27,8 @@ func TestGateScopeSnapshot(t *testing.T) {
 }
 
 func TestNonGoOwnershipGateScope(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := gateContext{repo: repo, paths: []string{"internal/model/architecture_profiles.json"}}
+	g := liveGateContext(t, "internal/model/architecture_profiles.json")
+	repo := g.repo
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)

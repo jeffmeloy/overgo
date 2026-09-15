@@ -70,8 +70,8 @@ func TestMultimodalTrainingMatrix(t *testing.T) {
 	paragraph := realParagraph(t, textPath)
 	textInput, textTarget := paragraph[:len(paragraph)/2], paragraph[len(paragraph)/2:]
 	textDataset := identifyPath(t, artifact.KindDataset, textPath)
-	imageDataset := identifyBytes(t, artifact.KindDataset, matrixImageSHA+"/class/2")
-	audioDataset := identifyBytes(t, artifact.KindDataset, matrixAudioSHA+"/"+matrixAudioLabelSHA)
+	imageDataset := testutil.ArtifactID(t, artifact.KindDataset, matrixImageSHA+"/class/2")
+	audioDataset := testutil.ArtifactID(t, artifact.KindDataset, matrixAudioSHA+"/"+matrixAudioLabelSHA)
 	processedText := processTextPair(t, textDataset, textInput, textTarget)
 	pairedInput, pairedTarget, err := trainingdata.TextPair(processedText)
 	if err != nil {
@@ -462,15 +462,6 @@ func identifyPath(t *testing.T, kind artifact.Kind, path string) artifact.ID {
 	closeErr := file.Close()
 	if err != nil || closeErr != nil {
 		t.Fatalf("identify %s: %v / close: %v", path, err, closeErr)
-	}
-	return id
-}
-
-func identifyBytes(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
 	}
 	return id
 }

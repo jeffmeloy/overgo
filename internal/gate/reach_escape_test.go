@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -15,11 +14,7 @@ import (
 // the fixture-level detection of a seeded data regression lives in
 // TestRuntimeOpaqueCallerSourceInput and the lane cases in the matrix.
 func TestReachEscapeAcceptance(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := &gateContext{repo: root, paths: []string{"internal/gate/preflight.go"}}
+	g := liveGateContext(t, "internal/gate/preflight.go")
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

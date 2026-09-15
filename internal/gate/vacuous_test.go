@@ -10,34 +10,25 @@ import (
 )
 
 func TestGateRejectsSkippedCapabilityTest(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, true, nil); err == nil {
+	g := liveGateContext(t)
+	if _, err := g.runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, true, nil); err == nil {
 		t.Fatal("skipped capability test passed gate evidence")
 	}
 }
 
 func TestGateAcceptsPassingCapabilityTest(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
+	g := liveGateContext(t)
+	if _, err := os.Stat(filepath.Join(g.repo, "go.mod")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(repo, "go.mod")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./internal/testevidence"}, true, nil); err != nil {
+	if _, err := g.runGoTests(t.Context(), []string{"./internal/testevidence"}, true, nil); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestGateReportsUnchangedImporterSkipWithoutCreditingIt(t *testing.T) {
-	repo, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	report, err := (&gateContext{repo: repo}).runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, false, nil)
+	g := liveGateContext(t)
+	report, err := g.runGoTests(t.Context(), []string{"./internal/testevidence/testdata/skipfixture"}, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

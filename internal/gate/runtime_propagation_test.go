@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -61,6 +62,15 @@ func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	shared := graph
+	snapshot := fmt.Sprintf("%#v", shared)
+	graph = shared.clone()
+	graph.bindResourceFiles([]string{"internal/reader/deleted.json", "internal/newowner/deleted.go"})
+	if fmt.Sprintf("%#v", shared) != snapshot {
+		t.Fatal("candidate path binding mutated shared discovery")
+	}
+	graph.fileInputs = map[string][]byte{}
+	g.packageGraph = &graph
 	before := map[string]string{}
 	for _, pkg := range []string{"overgo/internal/readerclient", "overgo/internal/isolated"} {
 		identity, err := graph.identity(pkg)
@@ -82,6 +92,8 @@ func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 	if slices.Contains(scope.selected(), "overgo/internal/isolated") || scope.excluded == 0 {
 		t.Fatalf("a package reading nothing was selected: direct=%v uncertain=%v dependent=%v excluded=%d", scope.direct, scope.uncertain, scope.dependent, scope.excluded)
 	}
+	// A new consumer reuses discovery but must read current file bytes.
+	graph = graph.clone()
 	if err := os.WriteFile(filepath.Join(g.repo, "docs", "config.txt"), []byte("2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

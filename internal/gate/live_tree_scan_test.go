@@ -22,10 +22,8 @@ var liveTreeScanOwners = []string{
 // live tree from a test, and a change to one gate file selects no direct
 // owner beyond the gate and the remaining ratchet host.
 func TestLiveTreeScanRatchet(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	g := liveGateContext(t, "internal/gate/preflight.go")
+	root := g.repo
 	var scanners []string
 	for _, tree := range []string{"internal", "cmd"} {
 		err := filepath.WalkDir(filepath.Join(root, tree), func(path string, entry os.DirEntry, err error) error {
@@ -58,7 +56,6 @@ func TestLiveTreeScanRatchet(t *testing.T) {
 			t.Errorf("%s scans the live tree from a test; the gate architecture phase already validates every entry authority on each commit", owner)
 		}
 	}
-	g := &gateContext{repo: root, paths: []string{"internal/gate/preflight.go"}}
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)

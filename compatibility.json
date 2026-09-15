@@ -575,7 +575,7 @@
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ada2b086d779301688d607807192ac3ecee2ea0c35ac617e611dde1ec4de7566"
+     "identity": "evidence:sha256:1b584ea136140870085554022c34997ae498175211f8a2faf3dbe507f9332bfb"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",

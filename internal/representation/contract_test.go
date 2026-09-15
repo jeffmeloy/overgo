@@ -8,13 +8,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/tensor/dtype"
+	"overgo/internal/testutil"
 )
 
 func TestRepresentationContract(t *testing.T) {
-	model := contractTestID(t, artifact.KindModel, "encoder")
-	definition := contractTestID(t, artifact.KindModelDefinition, "encoder-definition")
-	tokenizer := contractTestID(t, artifact.KindTokenizer, "encoder-tokenizer")
-	processor := contractTestID(t, artifact.KindProfile, "audio-processor")
+	model := testutil.ArtifactID(t, artifact.KindModel, "encoder")
+	definition := testutil.ArtifactID(t, artifact.KindModelDefinition, "encoder-definition")
+	tokenizer := testutil.ArtifactID(t, artifact.KindTokenizer, "encoder-tokenizer")
+	processor := testutil.ArtifactID(t, artifact.KindProfile, "audio-processor")
 	base := func() (Producer, TensorContract, SequenceContract, NormalizationContract, []Authority) {
 		layer := uint32(7)
 		return Producer{Model: model, Definition: definition, Tap: TapLayerOutput, Layer: &layer},
@@ -165,13 +166,4 @@ func TestRepresentationContract(t *testing.T) {
 			t.Fatal("unknown field accepted")
 		}
 	})
-}
-
-func contractTestID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

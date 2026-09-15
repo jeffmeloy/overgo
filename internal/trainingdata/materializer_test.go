@@ -14,6 +14,7 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/testutil"
 )
 
 func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
@@ -126,8 +127,8 @@ func TestMaterializeIndexesMembershipAndDeduplicates(t *testing.T) {
 func TestWeightedStreamResumeAndPacking(t *testing.T) {
 	t.Parallel()
 	processor := profileID(t, "processor")
-	datasetID := profileKindID(t, artifact.KindDataset, "dataset")
-	splitID := profileKindID(t, artifact.KindDatasetShard, "split")
+	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "dataset")
+	splitID := testutil.ArtifactID(t, artifact.KindDatasetShard, "split")
 	authority := Authority{Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processor}, Seed: 5, Signature: textSignature()}
 	identity, err := identifyAuthority(authority)
 	if err != nil {
@@ -190,8 +191,8 @@ func TestProcessorBindingsCoverTypedRunSignature(t *testing.T) {
 	image := profileID(t, "image-processor")
 	text := profileID(t, "text-processor")
 	authority := Authority{
-		Dataset:    profileKindID(t, artifact.KindDataset, "multimodal"),
-		Split:      profileKindID(t, artifact.KindDatasetShard, "multimodal-split"),
+		Dataset:    testutil.ArtifactID(t, artifact.KindDataset, "multimodal"),
+		Split:      testutil.ArtifactID(t, artifact.KindDatasetShard, "multimodal-split"),
 		Processors: []artifact.ID{image, text},
 		Signature: recipecontract.ModalitySignature{
 			Inputs: []recipecontract.Modality{recipecontract.ModalityImage}, Outputs: []recipecontract.Modality{recipecontract.ModalityText},
@@ -214,8 +215,8 @@ func TestBatcherRestoresStreamAfterDecodeFailure(t *testing.T) {
 	t.Parallel()
 	processor := profileID(t, "failing-processor")
 	authority := Authority{
-		Dataset:    profileKindID(t, artifact.KindDataset, "failing-dataset"),
-		Split:      profileKindID(t, artifact.KindDatasetShard, "failing-split"),
+		Dataset:    testutil.ArtifactID(t, artifact.KindDataset, "failing-dataset"),
+		Split:      testutil.ArtifactID(t, artifact.KindDatasetShard, "failing-split"),
 		Processors: []artifact.ID{processor},
 		Signature:  textSignature(),
 	}
@@ -262,16 +263,7 @@ func identifyFile(t *testing.T, path string) (artifact.ID, artifact.Descriptor) 
 
 func profileID(t *testing.T, value string) artifact.ID {
 	t.Helper()
-	return profileKindID(t, artifact.KindProfile, value)
-}
-
-func profileKindID(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
+	return testutil.ArtifactID(t, artifact.KindProfile, value)
 }
 
 func recordID(datasetID artifact.ID, asset string, index int) string {

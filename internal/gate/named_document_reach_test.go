@@ -15,13 +15,10 @@ import (
 // add no package to a gate-only working set.
 func TestNamedDocumentReach(t *testing.T) {
 	t.Run("fixture", namedDocumentFixture)
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	root := liveGateContext(t).repo
 	complete := map[string][]string{}
 	scope := func(paths ...string) []string {
-		g := &gateContext{repo: root, paths: paths}
+		g := liveGateContext(t, paths...)
 		derived, err := g.deriveTestScope()
 		if err != nil {
 			t.Fatal(err)
@@ -33,7 +30,7 @@ func TestNamedDocumentReach(t *testing.T) {
 		return selected
 	}
 	const manifest = "docs/api_manifest.json"
-	g := &gateContext{repo: root, paths: []string{manifest}}
+	g := liveGateContext(t, manifest)
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

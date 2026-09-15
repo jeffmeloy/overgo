@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -54,11 +53,7 @@ func devicePackages(graph packageInputGraph) []string {
 // packages that reach the device only through them leave the group, and the
 // group cannot regrow past the measured ceiling.
 func TestDeviceGroupRatchet(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := &gateContext{repo: root}
+	g := liveGateContext(t)
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

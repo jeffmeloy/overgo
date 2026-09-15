@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -120,16 +119,9 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 		}
 	})
 	t.Run("live device math binding", func(t *testing.T) {
-		_, file, _, ok := runtime.Caller(0)
-		if !ok {
-			t.Fatal("source path unavailable")
-		}
-		root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 		began := time.Now()
-		graph, err := loadPackageInputGraph(root)
-		if err != nil {
-			t.Fatal(err)
-		}
+		g := liveGateContext(t)
+		graph := *g.packageGraph
 		const target = "overgo/internal/devicemath"
 		changes := []string{"internal/evaluation/qwen_retained_text_test.go", "internal/testutil/numeric.go"}
 		attribution, err := graph.attributeInputs(target, changes)

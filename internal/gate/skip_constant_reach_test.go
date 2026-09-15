@@ -15,11 +15,7 @@ import (
 // measured witness.
 func TestSkipConstantReach(t *testing.T) {
 	t.Run("fixture", callerNamedProgramFixture)
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	g := &gateContext{repo: root, paths: []string{"internal/gate/preflight.go"}}
+	g := liveGateContext(t, "internal/gate/preflight.go")
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

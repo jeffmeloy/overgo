@@ -112,54 +112,28 @@ func RewriteModernGoManualIdioms(root string) (ModernGoManualRewrite, error) {
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return result, err
-		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return result, fmt.Errorf("modern-Go manual idiom source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return result, fmt.Errorf("modern-Go manual idiom edit overlaps in %s", file.source.Path)
+		if _, err := rewriteModernGoFile(root, file.source, edits, "manual idiom", func(name string, updated []byte) ([]byte, error) {
+			var err error
+			if fallbacks != 0 && !cmpImported {
+				updated, err = ensureNamedImport(name, updated, "cmp")
+				if err != nil {
+					return nil, err
+				}
 			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		updated := rewritten.Bytes()
-		if fallbacks != 0 && !cmpImported {
-			updated, err = ensureNamedImport(name, updated, "cmp")
-			if err != nil {
-				return result, err
+			if clones+sorts != 0 && !slicesImported {
+				updated, err = ensureNamedImport(name, updated, "slices")
+				if err != nil {
+					return nil, err
+				}
 			}
-		}
-		if clones+sorts != 0 && !slicesImported {
-			updated, err = ensureNamedImport(name, updated, "slices")
-			if err != nil {
-				return result, err
+			if sorts != 0 {
+				updated, err = removeUnusedNamedImport(name, updated, "sort")
+				if err != nil {
+					return nil, err
+				}
 			}
-		}
-		if sorts != 0 {
-			updated, err = removeUnusedNamedImport(name, updated, "sort")
-			if err != nil {
-				return result, err
-			}
-		}
-		formatted, err := format.Source(updated)
-		if err != nil {
-			return result, fmt.Errorf("format modern-Go manual idiom rewrite "+file.source.Path+": %w", err)
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return result, err
-		}
-		if err := os.WriteFile(name, formatted, info.Mode()); err != nil {
+			return format.Source(updated)
+		}); err != nil {
 			return result, err
 		}
 		result.Fallbacks += fallbacks
@@ -368,46 +342,20 @@ func RewriteModernGoExtrema(root string) (int, []string, error) {
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go extrema source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go extrema edit overlaps in %s", file.source.Path)
+		if _, err := rewriteModernGoFile(root, file.source, edits, "extrema", func(name string, updated []byte) ([]byte, error) {
+			var err error
+			if needsSlices {
+				updated, err = ensureNamedImport(name, updated, "slices")
+				if err != nil {
+					return nil, err
+				}
 			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		updated := rewritten.Bytes()
-		if needsSlices {
-			updated, err = ensureNamedImport(name, updated, "slices")
+			updated, err = removeUnusedNamedImport(name, updated, "math")
 			if err != nil {
-				return total, changed, err
+				return nil, err
 			}
-		}
-		updated, err = removeUnusedNamedImport(name, updated, "math")
-		if err != nil {
-			return total, changed, err
-		}
-		formatted, err := format.Source(updated)
-		if err != nil {
-			return total, changed, fmt.Errorf("format modern-Go extrema rewrite "+file.source.Path+": %w", err)
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, formatted, info.Mode()); err != nil {
+			return format.Source(updated)
+		}); err != nil {
 			return total, changed, err
 		}
 		total += len(edits)
@@ -494,35 +442,7 @@ func RewriteModernGoNumericIntegerRanges(root string) (int, []string, error) {
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go numeric range source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go numeric range edit overlaps in %s", file.source.Path)
-			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		formatted, err := format.Source(rewritten.Bytes())
-		if err != nil {
-			return total, changed, fmt.Errorf("format modern-Go numeric range rewrite "+file.source.Path+": %w", err)
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, formatted, info.Mode()); err != nil {
+		if _, err := rewriteModernGoFile(root, file.source, edits, "numeric range", nil); err != nil {
 			return total, changed, err
 		}
 		total += len(edits)
@@ -587,35 +507,7 @@ func rewriteUnusedNumericRangeVariables(root string, snapshot SourceSnapshot) (i
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if !bytes.Equal(current, source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go numeric range source changed during bootstrap rewrite: %s", source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go numeric range bootstrap edit overlaps in %s", source.Path)
-			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		formatted, err := format.Source(rewritten.Bytes())
-		if err != nil {
-			return total, changed, fmt.Errorf("format modern-Go numeric range bootstrap rewrite "+source.Path+": %w", err)
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, formatted, info.Mode()); err != nil {
+		if _, err := rewriteModernGoFile(root, source, edits, "numeric range bootstrap", nil); err != nil {
 			return total, changed, err
 		}
 		total += len(edits)
@@ -793,35 +685,7 @@ func RewriteModernGoOmitZeroEquivalent(root string) (int, []string, error) {
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go omitzero source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go omitzero edit overlaps in %s", file.source.Path)
-			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		formatted, err := format.Source(rewritten.Bytes())
-		if err != nil {
-			return total, changed, fmt.Errorf("format modern-Go omitzero rewrite "+file.source.Path+": %w", err)
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, formatted, info.Mode()); err != nil {
+		if _, err := rewriteModernGoFile(root, file.source, edits, "omitzero", nil); err != nil {
 			return total, changed, err
 		}
 		total += len(edits)
@@ -910,35 +774,7 @@ func RewriteModernGoErrorIdentityComparisons(root string) (int, []string, error)
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go error identity source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go error identity edit overlaps in %s", file.source.Path)
-			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		updated, err := ensureNamedImport(name, rewritten.Bytes(), "errors")
-		if err != nil {
-			return total, changed, err
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, updated, info.Mode()); err != nil {
+		if _, err := rewriteModernGoFile(root, file.source, edits, "error identity", func(name string, updated []byte) ([]byte, error) { return ensureNamedImport(name, updated, "errors") }); err != nil {
 			return total, changed, err
 		}
 		total += len(edits)
@@ -994,35 +830,7 @@ func RewriteModernGoBenchmarkLoops(root string) (int, []string, error) {
 		if len(edits) == 0 {
 			continue
 		}
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go benchmark source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go benchmark edit overlaps in %s", file.source.Path)
-			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		formatted, err := format.Source(rewritten.Bytes())
-		if err != nil {
-			return total, changed, fmt.Errorf("format modern-Go benchmark rewrite "+file.source.Path+": %w", err)
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, formatted, info.Mode()); err != nil {
+		if _, err := rewriteModernGoFile(root, file.source, edits, "benchmark", nil); err != nil {
 			return total, changed, err
 		}
 		total += len(edits)
@@ -1094,46 +902,21 @@ func RewriteModernGoTestingContexts(root string) (int, []string, error) {
 			})
 			return true
 		})
-		slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
-		name := filepath.Join(root, filepath.FromSlash(file.source.Path))
-		current, err := os.ReadFile(name)
+		rewritten, err := rewriteModernGoFile(root, file.source, edits, "testing context", func(name string, updated []byte) ([]byte, error) {
+			var err error
+			if needsContextImport {
+				updated, err = ensureNamedImport(name, updated, "context")
+				if err != nil {
+					return nil, err
+				}
+			}
+			return removeUnusedNamedImport(name, updated, "context")
+		})
 		if err != nil {
 			return total, changed, err
 		}
-		if !bytes.Equal(current, file.source.blob.data) {
-			return total, changed, fmt.Errorf("modern-Go testing context source changed during rewrite: %s", file.source.Path)
-		}
-		var rewritten bytes.Buffer
-		prior := 0
-		for _, edit := range edits {
-			if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
-				return total, changed, fmt.Errorf("modern-Go testing context edit overlaps in %s", file.source.Path)
-			}
-			rewritten.Write(current[prior:edit.start])
-			rewritten.WriteString(edit.replacement)
-			prior = edit.end
-		}
-		rewritten.Write(current[prior:])
-		updated := rewritten.Bytes()
-		if needsContextImport {
-			updated, err = ensureContextImport(name, updated)
-			if err != nil {
-				return total, changed, err
-			}
-		}
-		cleaned, err := removeUnusedContextImport(name, updated)
-		if err != nil {
-			return total, changed, err
-		}
-		if bytes.Equal(current, cleaned) {
+		if !rewritten {
 			continue
-		}
-		info, err := os.Stat(name)
-		if err != nil {
-			return total, changed, err
-		}
-		if err := os.WriteFile(name, cleaned, info.Mode()); err != nil {
-			return total, changed, err
 		}
 		total += len(edits)
 		changed = append(changed, file.source.Path)
@@ -1184,10 +967,6 @@ func modernGoContextInCleanup(node ast.Node, parents map[ast.Node]ast.Node) bool
 	return false
 }
 
-func ensureContextImport(name string, source []byte) ([]byte, error) {
-	return ensureNamedImport(name, source, "context")
-}
-
 func ensureNamedImport(name string, source []byte, importPath string) ([]byte, error) {
 	fileSet := token.NewFileSet()
 	file, err := parser.ParseFile(fileSet, name, source, parser.ParseComments)
@@ -1219,10 +998,6 @@ func ensureNamedImport(name string, source []byte, importPath string) ([]byte, e
 	offset := fileSet.Position(file.Name.End()).Offset
 	withImport := append(slices.Clone(source[:offset]), append([]byte("\n\nimport "+strconv.Quote(importPath)), source[offset:]...)...)
 	return format.Source(withImport)
-}
-
-func removeUnusedContextImport(name string, source []byte) ([]byte, error) {
-	return removeUnusedNamedImport(name, source, "context")
 }
 
 func removeUnusedNamedImport(name string, source []byte, wantedPath string) ([]byte, error) {
@@ -1314,4 +1089,48 @@ func modernGoUsesContextWithoutCancel(file *ast.File) bool {
 		return !found
 	})
 	return found
+}
+
+// Apply one snapshot's edits before publishing; callers own import semantics.
+func rewriteModernGoFile(root string, source GoFile, edits []modernGoSourceEdit, kind string, finish func(string, []byte) ([]byte, error)) (bool, error) {
+	name := filepath.Join(root, filepath.FromSlash(source.Path))
+	current, err := os.ReadFile(name)
+	if err != nil {
+		return false, err
+	}
+	if !bytes.Equal(current, source.blob.data) {
+		return false, fmt.Errorf("modern-Go %s source changed during rewrite: %s", kind, source.Path)
+	}
+	slices.SortFunc(edits, func(left, right modernGoSourceEdit) int { return left.start - right.start })
+	var rewritten bytes.Buffer
+	prior := 0
+	for _, edit := range edits {
+		if edit.start < prior || edit.end < edit.start || edit.end > len(current) {
+			return false, fmt.Errorf("modern-Go %s edit overlaps or exceeds source in %s", kind, source.Path)
+		}
+		rewritten.Write(current[prior:edit.start])
+		rewritten.WriteString(edit.replacement)
+		prior = edit.end
+	}
+	rewritten.Write(current[prior:])
+	var updated []byte
+	if finish == nil {
+		updated, err = format.Source(rewritten.Bytes())
+	} else {
+		updated, err = finish(name, rewritten.Bytes())
+	}
+	if err != nil {
+		return false, fmt.Errorf("finish modern-Go %s rewrite %s: %w", kind, source.Path, err)
+	}
+	if bytes.Equal(current, updated) {
+		return false, nil
+	}
+	info, err := os.Stat(name)
+	if err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(name, updated, info.Mode()); err != nil {
+		return false, err
+	}
+	return true, nil
 }

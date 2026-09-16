@@ -22,6 +22,7 @@ func (graph packageInputGraph) clone() packageInputGraph {
 	graph.testResourceFiles = cloneSliceMap(graph.testResourceFiles)
 	graph.runtimeResourceFiles = cloneSliceMap(graph.runtimeResourceFiles)
 	graph.sourceDirectories = maps.Clone(graph.sourceDirectories)
+	graph.boundPaths = maps.Clone(graph.boundPaths)
 	// Share discovery; each candidate reads its own current file bytes.
 	graph.fileInputs = nil
 	return graph

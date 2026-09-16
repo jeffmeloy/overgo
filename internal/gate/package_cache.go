@@ -79,6 +79,8 @@ type packageInputGraph struct {
 	nodes         []goPackageInput
 	byID          map[string][]int
 	resourceFiles map[string][]string
+	// Resource discovery belongs to this candidate, like compiler imports.
+	boundPaths map[string]bool
 	// Includes tracked Go files omitted by the host build selection.
 	sourceDirectories map[string]bool
 	// testResourceFiles are repository paths a package's tests name at run
@@ -132,6 +134,22 @@ func loadPackageInputGraph(root string) (packageInputGraph, error) {
 // This same ownership feeds selection and cache identity; ignored external data
 // is outside the immutable source candidate and is not treated as source evidence.
 func (graph *packageInputGraph) bindResourceFiles(paths []string) {
+	var unbound []string
+	for _, path := range paths {
+		if !graph.boundPaths[path] {
+			unbound = append(unbound, path)
+		}
+	}
+	if len(unbound) == 0 && graph.boundPaths != nil {
+		return
+	}
+	if graph.boundPaths == nil {
+		graph.boundPaths = map[string]bool{}
+	}
+	for _, path := range unbound {
+		graph.boundPaths[path] = true
+	}
+	paths = unbound
 	if graph.resourceFiles == nil {
 		graph.resourceFiles = map[string][]string{}
 	}

@@ -25,6 +25,7 @@ import (
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/worklease"
 )
 
 const (
@@ -147,7 +148,7 @@ func CompletionCommitMessageWithMergeAuthority(
 }
 
 func completionSnapshot(document Plan, itemID, stepID string) (Item, int, Step, error) {
-	if !validPlanID(itemID) || !validPlanID(stepID) {
+	if !worklease.ValidPlanID(itemID) || !worklease.ValidPlanID(stepID) {
 		return Item{}, 0, Step{}, errors.New("plan: invalid completion plan reference")
 	}
 	for itemIndex, item := range document.Items {
@@ -388,8 +389,7 @@ func verifyProspectiveMergeAuthority(
 	if requireCommonProtection && !commonProtection {
 		return errors.New("plan: prospective merge parents do not share a protected completion epoch")
 	}
-	if !preservesPlanIdentities(local, merged, false) ||
-		projection == MergeProjectionSemanticUnion && !preservesPlanIdentities(incoming, merged, false) {
+	if !preservesPlanIdentities(local, merged, false) {
 		return errors.New("plan: prospective merge deleted a parent item or step")
 	}
 
@@ -416,9 +416,42 @@ func verifyProspectiveMergeAuthority(
 			}
 			retired[item] = evidence
 		}
+		// A source that still lists rows the target landed drops them
+		// only on the same proof a gate needs to remove them.
+		if reference, unproven := unprovenIncomingDeletion(incoming, merged, completed, retired); unproven {
+			return fmt.Errorf("plan: prospective merge deleted incoming %s without gated completion evidence", reference)
+		}
 	}
 
 	return verifyCompletionAuthorityConstraints(merged, completed, retired)
+}
+
+// unprovenIncomingDeletion names the first incoming step absent from the
+// candidate that neither completion nor item retirement proves.
+func unprovenIncomingDeletion(
+	incoming, candidate Plan,
+	completed, retired map[string]completionEvidence,
+) (string, bool) {
+	for _, incomingItem := range incoming.Items {
+		if _, wasRetired := retired[incomingItem.ID]; wasRetired {
+			continue
+		}
+		candidateIndex := slices.IndexFunc(candidate.Items, func(item Item) bool {
+			return item.ID == incomingItem.ID
+		})
+		for _, incomingStep := range incomingItem.Steps {
+			if candidateIndex >= 0 && slices.ContainsFunc(candidate.Items[candidateIndex].Steps, func(step Step) bool {
+				return step.ID == incomingStep.ID
+			}) {
+				continue
+			}
+			reference := incomingItem.ID + "/" + incomingStep.ID
+			if _, proven := completed[reference]; !proven {
+				return reference, true
+			}
+		}
+	}
+	return "", false
 }
 
 func verifyCompletionAuthorityConstraints(
@@ -1012,7 +1045,7 @@ func gitCompletionMessages(ctx context.Context, repository, revision string) ([]
 	}
 	var input strings.Builder
 	for _, hash := range hashes {
-		if !validCommit(hash) {
+		if !worklease.ValidCommit(hash) {
 			return nil, fmt.Errorf("plan: Git completion history contains invalid commit %q", hash)
 		}
 		input.WriteString(hash)
@@ -1105,7 +1138,7 @@ func parseRawCompletionCommit(hash string, object []byte) ([]string, string, err
 			continue
 		}
 		parent := string(bytes.TrimPrefix(line, []byte("parent ")))
-		if !validCommit(parent) {
+		if !worklease.ValidCommit(parent) {
 			return nil, "", fmt.Errorf("plan: raw Git completion commit %.12s has invalid parent", hash)
 		}
 		parents = append(parents, parent)
@@ -1206,7 +1239,7 @@ func parseCompletionTrailers(message string) (completionTrailers, bool, error) {
 	trailers.item = known[completionItemTrailer][0]
 	trailers.step = known[completionStepTrailer][0]
 	trailers.verify = known[completionVerifyTrailer][0]
-	if !validPlanID(trailers.item) || !validPlanID(trailers.step) ||
+	if !worklease.ValidPlanID(trailers.item) || !worklease.ValidPlanID(trailers.step) ||
 		trailers.verify != strings.TrimSpace(trailers.verify) || !validAutomationDetail(trailers.verify) {
 		return trailers, true, errors.New("plan item, step, or verify trailer is invalid")
 	}
@@ -1432,7 +1465,7 @@ func VerifyPreparedStepAcceptance(
 	step Step,
 ) error {
 	itemID, stepID, found := strings.Cut(reference, "/")
-	if ctx == nil || store == nil || !found || !validPlanID(itemID) || !validPlanID(stepID) ||
+	if ctx == nil || store == nil || !found || !worklease.ValidPlanID(itemID) || !worklease.ValidPlanID(stepID) ||
 		step.ID != stepID || step.Status != StatusOpen || !validAutomationDetail(step.Verify) {
 		return errors.New("completion acceptance requires a store, context and exact open plan step")
 	}
@@ -1543,11 +1576,11 @@ func reconstructCompletionPrePlan(child Plan, trailers completionTrailers) (Plan
 // credit. Raw history and merge unions still require every identity.
 func preservesPlanIdentities(baseline, candidate Plan, laneProjection bool) bool {
 	laneProjection = laneProjection && candidate.Scope == ScopeLane && candidate.Lane == baseline.Lane &&
-		normalizedRole(candidate.Lane) != UnassignedRole
+		normalizedRole(candidate.Lane) != worklease.UnassignedRole
 	for _, baselineItem := range baseline.Items {
 		candidateItem, found := exactPlanItem(candidate, baselineItem.ID)
 		if !found {
-			if laneProjection && normalizedRole(baselineItem.Owner) != UnassignedRole && baselineItem.Owner != candidate.Lane {
+			if laneProjection && normalizedRole(baselineItem.Owner) != worklease.UnassignedRole && baselineItem.Owner != candidate.Lane {
 				continue
 			}
 			return false
@@ -1722,7 +1755,7 @@ func readGitCompletionObject(reader *bufio.Reader, requested, objectType string)
 	}
 	fields := strings.Fields(header)
 	if len(fields) != gitBatchObjectFieldCount ||
-		!validCommit(fields[gitBatchObjectIdentityField]) || fields[gitBatchObjectTypeField] != objectType {
+		!worklease.ValidCommit(fields[gitBatchObjectIdentityField]) || fields[gitBatchObjectTypeField] != objectType {
 		return nil, fmt.Errorf("plan: Git %s for %.12s is absent or invalid", objectType, requested)
 	}
 	size, err := strconv.Atoi(fields[gitBatchObjectSizeField])

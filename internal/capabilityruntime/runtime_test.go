@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
@@ -82,13 +81,10 @@ func TestModelSessionDirectorConcurrentKeys(t *testing.T) {
 	}
 	go run(firstStore, firstID, firstProgram, `{"value":2}`)
 	go run(secondStore, secondID, secondProgram, `{"value":3}`)
-	deadline := time.After(5 * time.Second)
+	// Both executions enter before either is released; a serial executor
+	// never delivers the second entry and the test binary reports the hang.
 	for range 2 {
-		select {
-		case <-entered:
-		case <-deadline:
-			t.Fatal("distinct session keys executed serially")
-		}
+		<-entered
 	}
 	close(release)
 	values := map[int]bool{}

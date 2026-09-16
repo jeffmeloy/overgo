@@ -22,6 +22,7 @@ import (
 // survives the retry projection and the batch ledger: after a sibling
 // failure and a restart the producer is reused with zero new execution.
 func TestCheckpointReuseCommitAuthority(t *testing.T) {
+	t.Parallel()
 	runner := func(context.Context, automationcheck.Invocation) (bool, string, error) { return false, "", nil }
 	checks := []automationcheck.Check{
 		{Descriptor: automationcheck.Descriptor{Name: "verify", Phase: runrecord.PhaseTest, Always: true}, Run: runner},
@@ -72,18 +73,18 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 		reused.Authority.Plan != secondPlan.ID || reused.Source.Authority.Plan != firstPlan.ID {
 		t.Fatalf("reloaded reuse = %+v found=%t", reused, found)
 	}
-	if err := validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": reused}); err != nil {
+	if err := validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": reused}, nil); err != nil {
 		t.Fatal(err)
 	}
 	restamped := original
 	restamped.Authority = second.Authority
 	restamped.Reused = true
-	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": restamped}) == nil {
+	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": restamped}, nil) == nil {
 		t.Fatal("restamped original admitted under the successor plan")
 	}
 	unproven := reused
 	unproven.Source = nil
-	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": unproven}) == nil {
+	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": unproven}, nil) == nil {
 		t.Fatal("reuse without its original admitted")
 	}
 	selfCiting := reused
@@ -93,7 +94,7 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 	if selfCiting.ID, err = selfCiting.Identity(); err != nil {
 		t.Fatal(err)
 	}
-	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": selfCiting}) == nil {
+	if validateManifestCommitAdmission(secondPlan, map[string]automationcheck.Evidence{"verify": selfCiting}, nil) == nil {
 		t.Fatal("self-citing reuse admitted")
 	}
 
@@ -116,7 +117,7 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 	producerRun.environment = lifecycleTestEnvironment(t)
 	bound := persistenceInvocations(t, producerRun, batch, tree)
 	attempt := producerRun.loadRetryCache()
-	results, err := producerRun.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil)
+	results, err := producerRun.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +142,7 @@ func TestCheckpointReuseCommitAuthority(t *testing.T) {
 	restart.environment = producerRun.environment
 	bound = persistenceInvocations(t, restart, batch, tree)
 	attempt = restart.loadRetryCache()
-	results, err = restart.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil)
+	results, err = restart.executeChecks(bound, nil, map[artifact.ID]artifact.ID{}, &attempt, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

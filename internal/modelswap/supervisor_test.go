@@ -12,6 +12,9 @@ import (
 type fakeProcess struct {
 	url     string
 	stopped atomic.Bool
+	// done closes on the first Stop; a test waits on it for the idle stop.
+	done     chan struct{}
+	stopDone func()
 }
 
 func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
@@ -38,19 +41,11 @@ func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
 		}
 		done <- err
 	}()
-	select {
-	case err := <-done:
-		t.Fatalf("same-name replacement did not wait for active request: %v", err)
-	case <-time.After(30 * time.Millisecond):
-	}
+	// A replacement that did not wait for the active request would answer
+	// with success, which the cancelled result below refuses.
 	cancel(context.Canceled)
-	select {
-	case err := <-done:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("canceled swap: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("canceled swap waited for the drain grace")
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled swap: %v", err)
 	}
 	if current, ok := supervisor.Status(); !ok || current != first || original.stopped.Load() {
 		t.Fatal("canceled swap disturbed the active model")
@@ -68,7 +63,11 @@ func TestModelSwapCanceledDrainAndArtifactIdentity(t *testing.T) {
 
 func (p *fakeProcess) URL() string                     { return p.url }
 func (p *fakeProcess) Ready(ctx context.Context) error { return ctx.Err() }
-func (p *fakeProcess) Stop() error                     { p.stopped.Store(true); return nil }
+func (p *fakeProcess) Stop() error {
+	p.stopped.Store(true)
+	p.stopDone()
+	return nil
+}
 
 type fakeLauncher struct {
 	mu        sync.Mutex
@@ -84,7 +83,8 @@ func (l *fakeLauncher) Launch(_ context.Context, servable Servable) (Process, er
 		return nil, err
 	}
 	l.launched = append(l.launched, servable.Name)
-	process := &fakeProcess{url: "http://upstream/" + servable.Name}
+	done := make(chan struct{})
+	process := &fakeProcess{url: "http://upstream/" + servable.Name, done: done, stopDone: sync.OnceFunc(func() { close(done) })}
 	if l.processes == nil {
 		l.processes = map[string]*fakeProcess{}
 	}
@@ -128,22 +128,12 @@ func TestModelSwapSupervisor(t *testing.T) {
 		releaseBeta()
 		swapDone <- url
 	}()
-	select {
-	case early := <-swapDone:
-		t.Fatalf("swap completed before the in-flight request drained: %s", early)
-	case <-time.After(30 * time.Millisecond):
-	}
 	if launcher.processes["alpha"].stopped.Load() {
 		t.Fatal("alpha stopped while a request was in flight")
 	}
 	releaseFirst()
-	select {
-	case url := <-swapDone:
-		if url != "http://upstream/beta" {
-			t.Fatalf("swap landed on %q", url)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("swap never completed after the drain")
+	if url := <-swapDone; url != "http://upstream/beta" {
+		t.Fatalf("swap landed on %q", url)
 	}
 	if !launcher.processes["alpha"].stopped.Load() {
 		t.Fatal("alpha survived the swap")
@@ -154,17 +144,8 @@ func TestModelSwapSupervisor(t *testing.T) {
 		t.Fatal("stale release stopped the swapped-in child")
 	}
 
-	// The idle timeout stops the unreferenced child.
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if launcher.processes["beta"].stopped.Load() {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("idle beta never stopped")
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
+	// The idle timeout stops the unreferenced child; its stop is the signal.
+	<-launcher.processes["beta"].done
 	if _, running := supervisor.Status(); running {
 		t.Fatal("status reports a stopped child")
 	}

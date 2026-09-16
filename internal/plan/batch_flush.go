@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/textcheck"
+	"overgo/internal/worklease"
 )
 
 // BatchFlush bounds one keyed batch; flush when any bound is met; every bound
@@ -46,7 +47,7 @@ const (
 // Interval validates the declaration and returns its elapsed-time bound.
 func (f BatchFlush) Interval() (time.Duration, error) {
 	interval, err := time.ParseDuration(f.MaxInterval)
-	if err != nil || min(int64(interval), int64(f.MaxSize), f.MaxBytes) <= 0 || !textcheck.LowerIdentifier(f.Key, automationRoleMaxBytes) {
+	if err != nil || min(int64(interval), int64(f.MaxSize), f.MaxBytes) <= 0 || !textcheck.LowerIdentifier(f.Key, worklease.AutomationTextMaxBytes) {
 		return 0, fmt.Errorf("plan: batch flush requires a valid key and positive bounds: %+v", f)
 	}
 	return interval, nil

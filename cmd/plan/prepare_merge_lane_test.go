@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/plan"
+	"overgo/internal/worklease"
 )
 
 // TestPrepareMergeLaneProjection pins the lane case of prepare-merge: a
@@ -31,7 +32,7 @@ func TestPrepareMergeLaneProjection(t *testing.T) {
 		t.Fatalf("lane merge row = %+v", row)
 	}
 	authority := mustTestCompletionAuthority(t, merged)
-	if dispatch := plan.DispatchOf(merged, plan.UnassignedRole, authority); dispatch.Item != "merge-0123456789ab" || dispatch.Step != "do" {
+	if dispatch := plan.DispatchOf(merged, worklease.UnassignedRole, authority); dispatch.Item != "merge-0123456789ab" || dispatch.Step != "do" {
 		t.Fatalf("the lane dispatches %+v, want its merge row", dispatch)
 	}
 	merged, err = insertMergeRow(target, "merge-0123456789ab", "Merge branch at 0123456789ab", "", false)

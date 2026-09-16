@@ -54,6 +54,7 @@ func (r *vadFaultRepository) Manifest(ctx context.Context, id artifact.ID) (arti
 }
 
 func TestVADStreamRecovery(t *testing.T) {
+	t.Parallel()
 	reference, store, audio := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[1], true)
 	fault := &vadFaultRepository{Repository: l.store}

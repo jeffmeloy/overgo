@@ -8,6 +8,9 @@ import (
 )
 
 func TestGateActiveTestBudget(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	for _, tc := range []struct {
 		name, environment, persisted, want string
 	}{

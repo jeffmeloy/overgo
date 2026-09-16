@@ -32,7 +32,7 @@ func privateAddress(ip net.IP) bool {
 // policy admits, pinning the connection to the checked address so a
 // rebinding name cannot swap targets after the check.
 func guardedDialContext(allowPrivate bool) func(context.Context, string, string) (net.Conn, error) {
-	dialer := &net.Dialer{Timeout: invokeTimeout}
+	dialer := &net.Dialer{}
 	return func(ctx context.Context, network, address string) (net.Conn, error) {
 		host, port, err := net.SplitHostPort(address)
 		if err != nil {
@@ -63,6 +63,5 @@ func newTransportClient(allowPrivate bool) *http.Client {
 	return &http.Client{
 		CheckRedirect: refuseRedirect,
 		Transport:     &http.Transport{DialContext: guardedDialContext(allowPrivate)},
-		Timeout:       invokeTimeout,
 	}
 }

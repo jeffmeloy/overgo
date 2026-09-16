@@ -1,21 +1,15 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"overgo/internal/overgodb"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
 )
-
-// tabSettle bounds the wait for a tab's own request before its capture.
-const tabSettle = 8 * time.Second
 
 // TestWebUIBrowserScreens captures every workbench tab and the model
 // picker at desktop and phone sizes over the fixture page and audits each
@@ -45,14 +39,13 @@ func TestWebUIBrowserScreens(t *testing.T) {
 	defer handler.Close()
 	httpServer := httptest.NewServer(handler)
 	defer httpServer.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 4*time.Minute, errors.New("webui lane: the screens did not capture"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, httpServer.URL+"/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer browser.Close()
-	states, findings, err := webuilane.CaptureStates(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), tabSettle)
+	states, findings, err := webuilane.CaptureStates(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,7 @@ import (
 )
 
 func TestVADArtifactRefusals(t *testing.T) {
+	t.Parallel()
 	reference, store, _ := loadVADReference(t)
 	l := newVADLifecycle(t, store, reference.Models[0], false)
 	for _, name := range []string{"missing-license", "tensor-identity", "numeric-budget"} {

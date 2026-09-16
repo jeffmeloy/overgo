@@ -116,7 +116,7 @@ func canonicalizeGateLifecycle(lifecycle *GateLifecycle) error {
 	case GateFinalized:
 		if lifecycle.Preparation == nil || lifecycle.Preparation.Kind() != artifact.KindEvidence || !validCodeCommit(lifecycle.CodeCommit) ||
 			lifecycle.Result == nil || lifecycle.Result.Kind() != artifact.KindEvidence ||
-			lifecycle.Outcome != OutcomeSucceeded && lifecycle.Outcome != OutcomeFailed && lifecycle.Outcome != OutcomeCancelled {
+			lifecycle.Outcome != OutcomeSucceeded && lifecycle.Outcome != OutcomeFailed && lifecycle.Outcome != OutcomeCancelled && lifecycle.Outcome != OutcomeCheckpoint {
 			return errors.New("run record: finalized gate lacks final facts")
 		}
 	default:

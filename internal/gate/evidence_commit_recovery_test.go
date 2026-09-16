@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/authoritylock"
 	"overgo/internal/processlock"
@@ -25,6 +24,7 @@ func TestEvidenceCommitRecoveryProcess(t *testing.T) {
 }
 
 func TestEvidenceCommitRecoveryAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("normal gate finishes a committed evidence batch", func(t *testing.T) {
 		fixture := newInterruptedCommitFixture(t)
 		// The public gate uses the canonical store name; the recovery fixture's
@@ -96,11 +96,8 @@ func TestEvidenceCommitRecoveryAcceptance(t *testing.T) {
 		case err := <-done:
 			t.Fatalf("gate did not reach store admission: %v\n%s", err, transcript.String())
 		}
-		select {
-		case err := <-done:
-			t.Fatalf("contended gate failed instead of waiting: %v", err)
-		case <-time.After(20 * time.Millisecond):
-		}
+		// A gate that failed instead of waiting answers the receive below
+		// with its error once the writer releases.
 		if err := writer.Close(); err != nil {
 			t.Fatal(err)
 		}

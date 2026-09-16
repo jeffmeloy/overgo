@@ -12,9 +12,6 @@ import (
 	"overgo/internal/processcontrol"
 )
 
-// Match go test's default package timeout; admission cannot wait indefinitely.
-const testAdmissionBudget = 10 * time.Minute
-
 func (g *gateContext) admitTestResources(ctx context.Context, packages, environment []string) (func() error, error) {
 	noop := func() error { return nil }
 	if runtime.GOOS != "windows" {
@@ -50,15 +47,16 @@ func (g *gateContext) admitTestResources(ctx context.Context, packages, environm
 	if err != nil {
 		return nil, err
 	}
+	g.deviceResource = info.UUID
 	return admitSharedTestResource(ctx, info.UUID)
 }
 
+// admitSharedTestResource takes the shared lease, waiting on an exclusive
+// holder until it releases or exits; the caller's context ends the wait.
 func admitSharedTestResource(ctx context.Context, name string) (func() error, error) {
-	ctx, cancel := context.WithTimeoutCause(ctx, testAdmissionBudget, context.DeadlineExceeded)
-	defer cancel()
 	var release func() error
 	began := time.Now()
-	fmt.Fprintf(os.Stderr, "gate: resource=%s mode=shared state=waiting budget=%s\n", name, testAdmissionBudget)
+	fmt.Fprintf(os.Stderr, "gate: resource=%s mode=shared state=waiting\n", name)
 	err := processcontrol.AwaitResource(ctx, func() error {
 		var err error
 		release, err = processcontrol.ShareResource(name)

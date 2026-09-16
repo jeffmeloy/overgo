@@ -17,6 +17,7 @@ import (
 // owned package reaches the changed package runs, and a symbol-owned check
 // is never excluded by dependency alone.
 func TestOwnershipClosureExcludesUntouchedLanes(t *testing.T) {
+	t.Parallel()
 	symbolOnly := codemanifest.Impact{Uncertainty: []codemanifest.Uncertainty{
 		{Kind: codemanifest.UncertaintyInterface}, {Kind: codemanifest.UncertaintyReflection}, {Kind: codemanifest.UncertaintyCgo},
 	}}

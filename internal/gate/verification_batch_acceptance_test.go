@@ -79,18 +79,18 @@ func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
 				if ran != len(acceptances) || g.acceptedTree != tree {
 					t.Fatalf("full batch acceptance: ran=%d/%d accepted=%s", ran, len(acceptances), g.acceptedTree)
 				}
-				if err := validateManifestCommitAdmission(manifest, g.terminal); err != nil {
+				if err := validateManifestCommitAdmission(manifest, g.terminal, nil); err != nil {
 					t.Fatal(err)
 				}
 				delete(g.terminal, batch.Checkpoints[0].GateCheckName())
-				if err := validateManifestCommitAdmission(manifest, g.terminal); err == nil {
+				if err := validateManifestCommitAdmission(manifest, g.terminal, nil); err == nil {
 					t.Fatal("commit admitted without the first member's terminal evidence")
 				}
 			} else {
 				if ran != len(batch.Checkpoints) || results[1].Err == nil || g.acceptedTree != "" || g.stepEvidence["acceptance"] != "" {
 					t.Fatalf("rejected member escaped barrier: ran=%d, result=%+v accepted=%q", ran, results[1], g.acceptedTree)
 				}
-				if err := validateManifestCommitAdmission(manifest, g.terminal); err == nil {
+				if err := validateManifestCommitAdmission(manifest, g.terminal, nil); err == nil {
 					t.Fatal("commit admitted despite a rejected subordinate verifier")
 				}
 			}

@@ -12,6 +12,7 @@ import (
 )
 
 func TestCommitAdmissionUsesManifestPlan(t *testing.T) {
+	t.Parallel()
 	runner := func(context.Context, automationcheck.Invocation) (bool, string, error) { return false, "", nil }
 	checks := []automationcheck.Check{
 		{Descriptor: automationcheck.Descriptor{Name: "verify", Phase: runrecord.PhaseTest, Always: true}, Run: runner},
@@ -42,22 +43,23 @@ func TestCommitAdmissionUsesManifestPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	terminal := map[string]automationcheck.Evidence{"verify": evidence}
-	if err := validateManifestCommitAdmission(manifest, terminal); err != nil {
+	if err := validateManifestCommitAdmission(manifest, terminal, nil); err != nil {
 		t.Fatal(err)
 	}
 	foreign := evidence
 	foreign.Authority = &automationcheck.ExecutionAuthority{
 		Plan: manifest.ID, Definition: invocations[1].ID, Inputs: []artifact.ID{input},
 	}
-	if err := validateManifestCommitAdmission(manifest, map[string]automationcheck.Evidence{"verify": foreign}); err == nil {
+	if err := validateManifestCommitAdmission(manifest, map[string]automationcheck.Evidence{"verify": foreign}, nil); err == nil {
 		t.Fatal("foreign definition evidence admitted")
 	}
-	if err := validateManifestCommitAdmission(manifest, nil); err == nil {
+	if err := validateManifestCommitAdmission(manifest, nil, nil); err == nil {
 		t.Fatal("missing terminal evidence admitted")
 	}
 }
 
 func TestOutcomeDistinctions(t *testing.T) {
+	t.Parallel()
 	passed := automationcheck.Evidence{DurationNS: 1}
 	inapplicable := passed
 	inapplicable.Inapplicable = true

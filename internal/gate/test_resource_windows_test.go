@@ -5,33 +5,30 @@ package gate
 import (
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/processcontrol"
 )
 
 func TestHostTestResourceAdmission(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	name := "test-batch:" + root
-	owner := resourceProcessCommand(t, resourceProcessSpec{Name: name, Role: "holder", Root: root})
-	if err := owner.Start(); err != nil {
-		t.Fatal(err)
-	}
+	processes := listenResourceProcesses(t)
+	owner := startResourceProcess(t, processes, resourceProcessSpec{Name: name, Role: "holder", Root: root}, nil)
 	t.Cleanup(func() { _ = owner.Process.Kill() })
-	waitResourceFile(t, filepath.Join(root, "holder-ready"))
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 100*time.Millisecond, context.DeadlineExceeded)
-	defer cancel()
+	processes.ready("holder")
+	// An admission whose caller has left waits for no holder and carries
+	// the caller's cause; the holder's claim stands beside it.
+	left := errors.New("the admission's caller left")
+	ctx, leave := context.WithCancelCause(t.Context())
+	leave(left)
 	release, err := admitSharedTestResource(ctx, name)
-	if release != nil || !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("exclusive owner was not respected within deadline: %v", err)
+	if release != nil || !errors.Is(err, left) {
+		t.Fatalf("exclusive owner was not respected: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "holder-stop"), nil, 0600); err != nil {
-		t.Fatal(err)
-	}
+	processes.release("holder")
 	if err := owner.Wait(); err != nil {
 		t.Fatal(err)
 	}

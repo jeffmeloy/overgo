@@ -61,6 +61,7 @@ func commitGateAttempt(t *testing.T, store *overgodb.Store, item, step string, s
 // median prior executed duration and name never-executed checkpoints; prior
 // costs come from attempts of the same row; the audit line records both.
 func TestBatchedGateCostEvidence(t *testing.T) {
+	t.Parallel()
 	executed := batchCostOf(costSteps(runrecord.StepSucceeded, runrecord.StepSucceeded, 5*uint64(time.Second), 3*uint64(time.Second)))
 	if executed.Accepted != 3 || executed.Reused != 0 || executed.ExecutedNS != 8*uint64(time.Second)+7 || len(executed.Checkpoints) != 3 {
 		t.Fatalf("executed cost = %+v", executed)

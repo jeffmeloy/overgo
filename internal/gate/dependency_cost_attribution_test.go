@@ -120,7 +120,7 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 	})
 	t.Run("live device math binding", func(t *testing.T) {
 		began := time.Now()
-		g := liveGateContext(t)
+		g := liveRepositoryFixture(t).context()
 		graph := *g.packageGraph
 		const target = "overgo/internal/devicemath"
 		changes := []string{"internal/evaluation/qwen_retained_text_test.go", "internal/testutil/numeric.go"}

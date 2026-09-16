@@ -114,5 +114,5 @@ func serveRemote(ctx context.Context, remote *remoteServing, options serveOption
 	}
 	defer handler.Close()
 	log.Printf("serving remote model %q at %s on http://%s", options.modelID, remote.provider.Name, options.address)
-	return serve(ctx, options.address, handler)
+	return serve(ctx, options.address, handler, options.requestTimeout)
 }

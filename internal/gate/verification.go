@@ -4,8 +4,10 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"os"
@@ -47,6 +49,22 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	device := automationcheck.DeviceCheck(g.sourceRoot(), g.paths, devicePackages, g.runLaneCommand)
 	published := automationcheck.PublishedCheck(g.sourceRoot(), g.runGateCommand)
 	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runLaneCommand)
+	journeys := automationcheck.ModelJourneyCheck(g.sourceRoot(), g.runLaneCommand)
+	runJourney := journeys.Run
+	journeys.Run = func(ctx context.Context, invocation automationcheck.Invocation) (bool, string, error) {
+		environment, err := g.sourceEnvironment()
+		if err != nil {
+			return false, "", err
+		}
+		// Keep shared admission across model swaps; an exclusive measurement
+		// must not enter the gap between the journey's serving children.
+		release, err := g.admitTestResources(ctx, []string{"overgo/internal/server"}, environment)
+		if err != nil {
+			return false, "", err
+		}
+		defer release()
+		return runJourney(ctx, invocation)
+	}
 	// The store writer among the static checks (the magics phase may rebind
 	// the closure ledger) declares the store exclusively; the store readers
 	// declare it shared, so the writer never overlaps a reader's replay.
@@ -68,7 +86,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateTestCheck(testOwnersCheckName, g.stepTestOwners),
 		gateTestCheck(testDeviceCheckName, g.stepTestDevice),
 		gateTestCheck(testRestCheckName, g.stepTestRest),
-		device, webui, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
+		device, webui, journeys, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
 	// Protection and scope admit the candidate first
 	dependencies := map[string][]string{"scope": {"protection"}}
@@ -88,7 +106,8 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies[testRestCheckName] = []string{testDeviceCheckName}
 	dependencies["device"] = []string{testDeviceCheckName}
 	dependencies[automationcheck.WebUICheckName] = []string{testOwnersCheckName}
-	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName}
+	dependencies[automationcheck.ModelJourneyCheckName] = []string{testOwnersCheckName}
+	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
 		if requirements, declared := gateCheckRequirements[checks[index].Descriptor.Name]; declared {
@@ -203,7 +222,17 @@ func (g *gateContext) pipeline() error {
 			tree := planned.manifest.CandidateTree
 			drift = func() error { return g.requireCandidateTree(tree) }
 		}
-		results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift)
+		deferred, err := g.checkpointDeferrals(definitions)
+		if err != nil {
+			return err
+		}
+		if lanes := g.laneDeferral(); len(lanes) != 0 {
+			merged := make(map[string]bool, len(deferred)+len(lanes))
+			maps.Copy(merged, deferred)
+			maps.Copy(merged, lanes)
+			deferred = merged
+		}
+		results, err := g.executeChecks(checks, satisfied, inputs, &cache, drift, deferred)
 		if err != nil {
 			return err
 		}
@@ -234,6 +263,18 @@ func (g *gateContext) pipeline() error {
 			name := definition.Descriptor.Name
 			result, ran := byName[name]
 			if !ran {
+				if deferred[name] && !(g.deferLanes && slices.Contains(deferredLaneChecks, name)) {
+					g.note(name + " deferred: checkpoint " + g.checkpoint + " publication leaves it outstanding until the step's cumulative gate")
+					continue
+				}
+				if _, excluded := impact.ExclusionReason(name); !excluded && deferred[name] {
+					// A selected lane the commit does not wait for: its
+					// obligation is recorded with the result and run afterwards.
+					g.deferredLanes = append(g.deferredLanes, name)
+					g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepDeferred, DurationNS: uint64(time.Nanosecond)})
+					g.note(name + " deferred: runs after the commit under a recorded lane obligation")
+					continue
+				}
 				if exclusion, excluded := impact.ExclusionReason(name); excluded {
 					g.steps = append(g.steps, runrecord.GateStep{Name: name, Phase: definition.Descriptor.Phase, Outcome: runrecord.StepSkipped, DurationNS: uint64(time.Nanosecond)})
 					g.note(name + " skipped: " + exclusion)
@@ -1294,45 +1335,64 @@ func (g *gateContext) runGoTests(ctx context.Context, packages []string, short b
 // takes it so a test can stand in for go test.
 type testRunner func(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error)
 
-// errContentionBudget names the exhausted wait for a refused exclusive claim.
-var errContentionBudget = errors.New("device contention budget exhausted")
-
 // runDeviceBatch runs one device batch under the shared lease and, when its
 // only failures were refused exclusive claims, runs each refused package
 // again alone and outside the lease: a package whose code claims the device
 // exclusively is refused beneath any holder's lease, its siblings' and the
 // gate's own, and admits once no other process holds the device. The wait
-// for a foreign holder is bounded by the admission budget, which bounds only
-// the wait; each run itself is bounded by the caller's context.
+// for a foreign holder ends when that holder releases the device or exits;
+// the caller's context bounds the wait and each run alike.
 func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short bool, observe func(string, bool) error, run testRunner) (testevidence.GoTestReport, error) {
 	report, err := run(ctx, batch, short, observe, true)
 	if err == nil || !report.ContentionOnly() {
 		return report, err
 	}
 	contended := report.Contended
-	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive claim under the shared lease [%s]; each runs again alone outside it under the %s admission budget",
-		len(contended), strings.Join(contended, ","), testAdmissionBudget))
-	wait, cancel := context.WithTimeoutCause(ctx, testAdmissionBudget, errContentionBudget)
-	defer cancel()
+	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive claim under the shared lease [%s]; each runs again alone outside it once the device's holder releases",
+		len(contended), strings.Join(contended, ",")))
 	for _, pkg := range contended {
 		attempts := 0
-		err := processcontrol.AwaitResource(wait, func() error {
+		err := processcontrol.AwaitResource(ctx, func() error {
 			attempts++
 			report, err = run(ctx, []string{pkg}, short, observe, false)
 			if err != nil && report.ContentionOnly() {
-				return processcontrol.ErrResourceBusy
+				return &processcontrol.ResourceBusyError{Name: g.deviceResource}
 			}
 			return err
 		})
 		if err != nil {
-			if errors.Is(err, processcontrol.ErrResourceBusy) || wait.Err() != nil {
-				return report, fmt.Errorf("device contention: %s refused its exclusive claim %d time(s): %w", pkg, attempts, errors.Join(processcontrol.ErrResourceBusy, err, context.Cause(wait)))
+			if errors.Is(err, processcontrol.ErrResourceBusy) || ctx.Err() != nil {
+				return report, fmt.Errorf("device contention: %s refused its exclusive claim %d time(s): %w", pkg, attempts, errors.Join(processcontrol.ErrResourceBusy, err, context.Cause(ctx)))
 			}
 			return report, err
 		}
 		g.note(fmt.Sprintf("device contention: %s admitted alone after %d attempt(s)", pkg, attempts))
 	}
 	return report, nil
+}
+
+// goTestOptions binds the evidence observer and the progress line each
+// package prints as its step reports it.
+func (g *gateContext) goTestOptions(short bool, observe func(string, bool) error) testevidence.GoTestOptions {
+	return testevidence.GoTestOptions{Short: short, DiagnosticBytes: clioptions.DiagnosticTailBytes, Observe: observe, Progress: g.packageProgress}
+}
+
+// packageProgress prints one package's result under the step running it,
+// as the stream reports it, so a step's wall is attributed while it runs.
+func (g *gateContext) packageProgress(progress testevidence.PackageProgress) {
+	g.auditMutex.Lock()
+	step := g.testStep
+	g.auditMutex.Unlock()
+	fmt.Fprintf(g.progressWriter(), gatePackageLine, step, progress.Package, progress.Action, progress.Elapsed.Round(time.Millisecond))
+}
+
+// progressWriter is the gate's progress stream, the process's standard
+// error unless a test binds another.
+func (g *gateContext) progressWriter() io.Writer {
+	if g.progress != nil {
+		return g.progress
+	}
+	return os.Stderr
 }
 
 // runGoTestsAdmitted runs the packages under the gate's shared device lease
@@ -1352,7 +1412,7 @@ func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string,
 	if err != nil {
 		return testevidence.GoTestReport{}, err
 	}
-	options := testevidence.GoTestOptions{Short: short, DiagnosticBytes: clioptions.DiagnosticTailBytes, Observe: observe}
+	options := g.goTestOptions(short, observe)
 	if !strings.Contains(flags, "-timeout") && !strings.Contains(flags, "-test.timeout") {
 		// Apply Go's default ten-minute bound to active tests, not accumulated
 		// suite time. Lifecycle silence remains bounded; output cannot renew it.
@@ -1406,7 +1466,11 @@ func (g *gateContext) stepMagics() (bool, error) {
 		return false, err
 	}
 	report, err := closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
-	if err != nil && staleClosureAuthorityFailure(err) {
+	uncatalogued, isUncatalogued := errors.AsType[*closurescan.UncataloguedPolicyError](err)
+	// The preflight writes no store: uncatalogued sites go straight to
+	// their proposal rows, whose history matches carry what a rebind
+	// would have covered.
+	if err != nil && staleClosureAuthorityFailure(err) && !(g.preflight && isUncatalogued) {
 		// The safe deterministic remediation: rebind unambiguous history to
 		// current offsets in the same store, then revalidate exactly once.
 		// Admitted content never changes; only stale alias offsets move.
@@ -1418,8 +1482,29 @@ func (g *gateContext) stepMagics() (bool, error) {
 			return false, err
 		}
 		report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+		uncatalogued, isUncatalogued = errors.AsType[*closurescan.UncataloguedPolicyError](err)
 	}
 	if err != nil {
+		if isUncatalogued {
+			proposed, drifted, proposalErr := g.proposeClosureRows(uncatalogued.Sites)
+			if proposalErr != nil {
+				return false, errors.Join(err, proposalErr)
+			}
+			var remedies []string
+			if len(proposed) != 0 {
+				remedies = append(remedies, fmt.Sprintf(
+					"%d new site(s) have proposal rows in %s: fill tier, status, understanding, closure_path and rerank_trigger, then run `go run ./cmd/closure-scan -store %s -triage %s`",
+					len(proposed), gateClosureProposalsFile, gateStorePath, gateClosureProposalsFile,
+				))
+			}
+			if len(drifted) != 0 {
+				remedies = append(remedies, fmt.Sprintf(
+					"%d site(s) drifted from catalogued offsets [%s]: run `go run ./cmd/closure-scan -store %s -import-store %s`",
+					len(drifted), strings.Join(drifted, ","), gateStorePath, gateStorePath,
+				))
+			}
+			return false, fmt.Errorf("%w; %s", err, strings.Join(remedies, "; "))
+		}
 		return false, fmt.Errorf(
 			"%w; remediate with `go run ./cmd/closure-scan -import-store %s` and catalog what remains, then re-run the gate",
 			err, gateStorePath,
@@ -1430,6 +1515,54 @@ func (g *gateContext) stepMagics() (bool, error) {
 		report.ProductionSites, report.ClassifiedSites, report.TestSites,
 	))
 	return false, nil
+}
+
+// proposeClosureRows separates the uncatalogued sites by the scanner's
+// projection: the sites it still lists are new and get ready-to-fill triage
+// rows in one propose run; the rest drifted from catalogued offsets and
+// want the rebind. The rows carry the working tree's coordinates, where the
+// author triages them, and the scanner resolves the store against that tree.
+func (g *gateContext) proposeClosureRows(sites []closurescan.Candidate) (proposed []string, drifted []string, err error) {
+	out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/closure-scan", "-store", g.storePath, "-inventory-unclassified-policy", "-format", "json")
+	if err != nil {
+		return nil, nil, fmt.Errorf("closure inventory: %w: %s", err, strings.TrimSpace(out))
+	}
+	var inventory struct {
+		Candidates []struct {
+			Current struct {
+				Name string `json:"name"`
+			} `json:"current"`
+		} `json:"candidates"`
+	}
+	if start := strings.Index(out, "{"); start < 0 {
+		return nil, nil, errors.New("closure inventory: no report in the scanner's output")
+	} else if err := json.Unmarshal([]byte(out[start:]), &inventory); err != nil {
+		return nil, nil, fmt.Errorf("closure inventory: %w", err)
+	}
+	current := map[string]bool{}
+	for _, candidate := range inventory.Candidates {
+		current[candidate.Current.Name] = true
+	}
+	for _, site := range sites {
+		switch {
+		case current[site.Name] && !slices.Contains(proposed, site.Name):
+			proposed = append(proposed, site.Name)
+		case !current[site.Name] && !slices.Contains(drifted, site.Name):
+			drifted = append(drifted, site.Name)
+		}
+	}
+	if len(proposed) == 0 {
+		return nil, drifted, nil
+	}
+	out, err = g.runGateCommand(g.repo, "go", "run", "./cmd/closure-scan", "-store", g.storePath, "-propose", strings.Join(proposed, ","))
+	if err != nil {
+		return nil, nil, fmt.Errorf("closure proposals: %w: %s", err, strings.TrimSpace(out))
+	}
+	path := filepath.Join(g.repo, filepath.FromSlash(gateClosureProposalsFile))
+	if err := os.MkdirAll(filepath.Dir(path), gatePrivateDirectoryMode); err != nil {
+		return nil, nil, err
+	}
+	return proposed, drifted, os.WriteFile(path, []byte(out), gatePrivateFileMode)
 }
 
 // staleClosureAuthorityFailure classifies magic-authority refusals whose fix
@@ -1707,6 +1840,9 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 		return err
 	}
 	added = true
+	if gateCandidateWorktreeAddedHook != nil {
+		gateCandidateWorktreeAddedHook(g.repo)
+	}
 	if _, err := gitWriterCommand(worktree, "read-tree", tree); err != nil {
 		return err
 	}

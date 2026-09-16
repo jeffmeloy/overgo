@@ -13,6 +13,7 @@ import (
 )
 
 func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
+	t.Parallel()
 	election := qualificationElection(t)
 	recipe, _, err := graniteRecipe()
 	if err != nil {
@@ -57,6 +58,7 @@ func TestAudioArtifactQualificationMakesExactGraniteLoadable(t *testing.T) {
 }
 
 func TestAudioArtifactQualificationRejectsTensorShape(t *testing.T) {
+	t.Parallel()
 	election := qualificationElection(t)
 	recipe, _, err := graniteRecipe()
 	if err != nil {
@@ -79,6 +81,7 @@ func TestAudioArtifactQualificationRejectsTensorShape(t *testing.T) {
 }
 
 func TestIncompatibleAudioGGUFQualification(t *testing.T) {
+	t.Parallel()
 	election := qualificationElection(t)
 	recipe, _, err := graniteRecipe()
 	if err != nil {

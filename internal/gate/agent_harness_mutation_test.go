@@ -9,13 +9,14 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 func TestAgentHarnessMutations(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, check, invariant string
 		caught                 func(*testing.T) bool
@@ -79,9 +80,9 @@ func mutationGrantWidening(t *testing.T) bool {
 	return err != nil
 }
 func mutationClaimOverlap(t *testing.T) bool {
-	left := plan.WorkLease{Worktree: "C:/repo", Claims: plan.WorkspaceClaims{Write: []string{"C:/repo/internal"}}}
-	right := plan.WorkLease{Worktree: "C:/repo", Claims: plan.WorkspaceClaims{Read: []string{"C:/repo/internal/agentloop"}}}
-	return plan.WorkspaceClaimsConflict(left, right)
+	left := worklease.Lease{Worktree: "C:/repo", Claims: worklease.WorkspaceClaims{Write: []string{"C:/repo/internal"}}}
+	right := worklease.Lease{Worktree: "C:/repo", Claims: worklease.WorkspaceClaims{Read: []string{"C:/repo/internal/agentloop"}}}
+	return worklease.WorkspaceClaimsConflict(left, right)
 }
 func mutationCheckpointGap(t *testing.T) bool {
 	checkpoint, err := runrecord.NewAgentMutationCheckpoint(runrecord.AgentMutationCheckpoint{Operation: testutil.ArtifactID(t, artifact.KindEvidence, "operation"), Entries: []runrecord.AgentCheckpointEntry{{Target: "missing", Mode: "unknown", Encoding: "none", Gap: "unreadable"}}})

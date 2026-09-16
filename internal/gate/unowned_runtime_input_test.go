@@ -11,6 +11,7 @@ import (
 )
 
 func TestChangeSelectionUnownedRuntimeInputs(t *testing.T) {
+	t.Parallel()
 	for _, inputPath := range []string{"protocol.txt", "internal/other/protocol.txt", "internal/other/catalog.txt", "internal/other/other.go", "internal/other/reader_test.go"} {
 		t.Run(inputPath, func(t *testing.T) {
 			g := scopeCompilerFixture(t)

@@ -1,14 +1,12 @@
 package processmeasure
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 const helperEnvironment = "OVERGO_PROCESS_MEASURE_HELPER"
@@ -20,13 +18,10 @@ func TestMeasureTracksChildPeakWorkingSet(t *testing.T) {
 			memory[index] = byte(index)
 		}
 		fmt.Printf("resident=%d\n", len(memory))
-		time.Sleep(30 * time.Millisecond)
 		runtime.KeepAlive(memory)
 		return
 	}
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMeasureTracksChildPeakWorkingSet$")
+	command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestMeasureTracksChildPeakWorkingSet$")
 	command.Env = append(os.Environ(), helperEnvironment+"=1")
 	result, err := Measure(command)
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 // not name keeps the broad binding and is reported, and a repository path
 // literal binds the file it names.
 func TestDeclaredExecutionEdgesBoundSelection(t *testing.T) {
+	t.Parallel()
 	g := scopeCompilerFixture(t)
 	write := func(name, content string) {
 		path := filepath.Join(g.repo, filepath.FromSlash(name))

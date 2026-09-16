@@ -58,6 +58,7 @@ func ownedCheck(name string, fact automationcheck.Fact, packagePath string) auto
 // per injected defect: the owning check stays selected and the
 // untouched package's check is provably excluded.
 func TestMutationCorpusSelectsCatchingChecks(t *testing.T) {
+	t.Parallel()
 	mutations := []struct{ name, mutated string }{
 		{"flipped comparison", mutationMutate(t, "value > limit", "value >= limit")},
 		{"changed boundary return", mutationMutate(t, "return limit", "return limit - 1")},
@@ -93,6 +94,7 @@ func TestMutationCorpusSelectsCatchingChecks(t *testing.T) {
 // into beta selects beta's check and excludes alpha's, so the corpus
 // exercises both directions of ownership rather than one lucky order.
 func TestMutationCorpusInverseDirection(t *testing.T) {
+	t.Parallel()
 	impact := mutationImpact(t, map[string]string{
 		"internal/alpha/alpha.go": mutationAlphaBase,
 		"internal/beta/beta.go":   mutationMutate(t, "return value", "return value + 1"),

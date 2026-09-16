@@ -8,6 +8,7 @@ import (
 )
 
 func TestGoStyleChangedFileGate(t *testing.T) {
+	t.Parallel()
 	baseline := styleSnapshot(t, "// Package sample owns a fixture.\npackage sample\n\nfunc local() error { return nil }\n")
 	legacy := styleSnapshot(t, "package sample\n\nfunc local() error { return nil }\n")
 	if err := repoanalysis.ValidateGoStyleDelta(legacy, baseline); err == nil {

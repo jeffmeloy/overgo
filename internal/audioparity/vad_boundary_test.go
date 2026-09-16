@@ -32,6 +32,7 @@ func vadBoundaryCases(t *testing.T) []vadBoundaryCase {
 }
 
 func TestVADStreamBoundaryParity(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range vadBoundaryCases(t) {
 		t.Run(fixture.Name, func(t *testing.T) {
 			policy, err := speechactivity.NewBoundaryPolicy(fixture.Config, vadReferenceBytes)
@@ -81,6 +82,7 @@ func TestVADStreamBoundaryParity(t *testing.T) {
 }
 
 func TestVADOfflineBoundaryParity(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range vadBoundaryCases(t) {
 		t.Run(fixture.Name, func(t *testing.T) {
 			c := fixture.Config

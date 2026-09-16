@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/worklease"
 )
 
 const (
@@ -372,7 +373,7 @@ func VerifyFirstParentTargetMergeAuthorityTransition(
 	if err := firstParentTargetMergeAuthorityCodec.ValidateIdentity(receipt); err != nil {
 		return err
 	}
-	if !validCommit(mergeBaseRevision) || receipt.LocalParent != strings.TrimSpace(localRevision) ||
+	if !worklease.ValidCommit(mergeBaseRevision) || receipt.LocalParent != strings.TrimSpace(localRevision) ||
 		receipt.IncomingParent != strings.TrimSpace(incomingRevision) || receipt.MergeBase != strings.TrimSpace(mergeBaseRevision) {
 		return errors.New("plan: projected merge receipt differs from the exact Git parents or merge base")
 	}
@@ -551,13 +552,13 @@ func requireHistoricalFirstParentTargetMergeAuthority(
 func canonicalizeFirstParentTargetMergeAuthority(value *FirstParentTargetMergeAuthority) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion ||
 		value.Projection != MergeProjectionFirstParentTarget ||
-		!validCommit(value.LocalParent) || !validCommit(value.IncomingParent) ||
-		!validCommit(value.MergeBase) || value.LocalParent == value.IncomingParent ||
+		!worklease.ValidCommit(value.LocalParent) || !worklease.ValidCommit(value.IncomingParent) ||
+		!worklease.ValidCommit(value.MergeBase) || value.LocalParent == value.IncomingParent ||
 		!validDigestText(value.LocalPlanDigest) || !validDigestText(value.IncomingPlanDigest) ||
 		!validDigestText(value.MergeBasePlanDigest) || !validDigestText(value.PreAdvancePlanDigest) ||
 		!validDigestText(value.ChildPlanDigest) || !validDigestText(value.LocalAuthorityDigest) ||
-		!validDigestText(value.IncomingAuthorityDigest) || !validPlanID(value.PlanItem) ||
-		!validPlanID(value.PlanStep) || value.Preparation.Kind() != artifact.KindEvidence ||
+		!validDigestText(value.IncomingAuthorityDigest) || !worklease.ValidPlanID(value.PlanItem) ||
+		!worklease.ValidPlanID(value.PlanStep) || value.Preparation.Kind() != artifact.KindEvidence ||
 		!value.PreparationCommit.Valid() || !validStoreCoordinate(value.TargetStore) ||
 		!validStoreCoordinate(value.SourceStore) || !value.SharedStorePrefix.Commit.Valid() ||
 		value.SharedStorePrefix.Sequence == 0 || value.SharedStorePrefix.Sequence > value.TargetStore.Sequence ||
@@ -620,7 +621,7 @@ func canonicalProtectionSeeds(seeds []string) error {
 		return errors.New("protection seeds are absent")
 	}
 	for index, seed := range seeds {
-		if !validCommit(seed) || index != 0 && seeds[index-1] >= seed {
+		if !worklease.ValidCommit(seed) || index != 0 && seeds[index-1] >= seed {
 			return errors.New("protection seeds are not uniquely sorted")
 		}
 	}
@@ -676,8 +677,8 @@ func exportProjectedCompletion(reference string, evidence completionEvidence) Pr
 
 func validateProjectedCompletionEvidence(value ProjectedCompletionEvidence) error {
 	item, step, found := strings.Cut(value.Reference, "/")
-	if !found || !validPlanID(item) || !validPlanID(step) || strings.Contains(step, "/") ||
-		!validCommit(value.Commit) || value.Verify != strings.TrimSpace(value.Verify) ||
+	if !found || !worklease.ValidPlanID(item) || !worklease.ValidPlanID(step) || strings.Contains(step, "/") ||
+		!worklease.ValidCommit(value.Commit) || value.Verify != strings.TrimSpace(value.Verify) ||
 		!validAutomationDetail(value.Verify) || !validDigestText(value.ContractDigest) ||
 		value.ContractDigest == strings.Repeat("0", hex.EncodedLen(sha256.Size)) ||
 		value.Manifest.Kind() != artifact.KindRecipe ||
@@ -781,7 +782,7 @@ func validateProjectedAuthoritySnapshot(
 	}
 	retirementIndex := make(map[string]ProjectedRetirementEvidence, len(retired))
 	for index, retirement := range retired {
-		if !validPlanID(retirement.Item) ||
+		if !worklease.ValidPlanID(retirement.Item) ||
 			!strings.HasPrefix(retirement.Evidence.Reference, retirement.Item+"/") ||
 			!retirement.Evidence.RetiredItem {
 			return errors.New("invalid retirement evidence")

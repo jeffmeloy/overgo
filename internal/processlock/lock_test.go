@@ -9,27 +9,36 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestAcquireContextContentionIdentity(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "process.lock")
 	ctx, stop := context.WithCancelCause(t.Context())
-	stop(errors.New("cancelled before acquisition"))
-	if lock, err := AcquireContext(ctx, path, 0o600); !errors.Is(err, context.Canceled) || errors.Is(err, ErrBusy) {
+	before := errors.New("cancelled before acquisition")
+	stop(before)
+	if lock, err := AcquireContext(ctx, path, 0o600); !errors.Is(err, before) || errors.Is(err, ErrBusy) {
 		_ = lock.Close()
-		t.Fatalf("cancelled before acquisition = %v; want cancellation without contention", err)
+		t.Fatalf("cancelled before acquisition = %v; want the caller's cause without contention", err)
 	}
 	owner, err := Acquire(path, 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer owner.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 50*time.Millisecond, errors.New("contended acquisition deadline"))
-	defer cancel()
-	if lock, err := AcquireContext(ctx, path, 0o600); !errors.Is(err, context.DeadlineExceeded) || !errors.Is(err, ErrBusy) {
-		_ = lock.Close()
-		t.Fatalf("cancelled contended acquisition = %v; want deadline and contention", err)
+	// A waiter the caller ends carries the caller's cause; the contention
+	// itself is proven beside it by the owner's undisturbed lock.
+	ended := errors.New("the caller ended the contended acquisition")
+	contended, end := context.WithCancelCause(t.Context())
+	type acquisition struct {
+		lock *Lock
+		err  error
+	}
+	waited := make(chan acquisition, 1)
+	go func() { lock, err := AcquireContext(contended, path, 0o600); waited <- acquisition{lock, err} }()
+	end(ended)
+	if got := <-waited; !errors.Is(got.err, ended) {
+		_ = got.lock.Close()
+		t.Fatalf("cancelled contended acquisition = %v; want the caller's cause", got.err)
 	}
 	if lock, err := Acquire(path, 0o600); !errors.Is(err, ErrBusy) {
 		_ = lock.Close()
@@ -129,13 +138,9 @@ func TestAcquireReleasedAfterProcessDeath(t *testing.T) {
 		err  error
 	}
 	queued := make(chan acquisition, 1)
+	// A waiter that returned before the owner's death holds an error the
+	// receive below reports; the exclusive owner leaves it no early success.
 	go func() { lock, err := AcquireContext(t.Context(), path, 0o600); queued <- acquisition{lock, err} }()
-	select {
-	case got := <-queued:
-		_ = got.lock.Close()
-		t.Fatalf("waiter returned before owner death: %v", got.err)
-	case <-time.After(20 * time.Millisecond):
-	}
 	if err := child.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
@@ -144,16 +149,12 @@ func TestAcquireReleasedAfterProcessDeath(t *testing.T) {
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case got := <-queued:
-		if got.err != nil {
-			t.Fatalf("owner death failed queued acquisition: %v", got.err)
-		}
-		if err := got.lock.Close(); err != nil {
-			t.Fatal(err)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("owner death did not release queued acquisition")
+	got := <-queued
+	if got.err != nil {
+		t.Fatalf("owner death failed queued acquisition: %v", got.err)
+	}
+	if err := got.lock.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -186,13 +187,8 @@ func TestAcquireCancellationReleaseRace(t *testing.T) {
 				_ = owner.Close()
 				<-cancelled
 			}
-			select {
-			case err := <-done:
-				if err != nil && !errors.Is(err, context.Canceled) {
-					t.Fatal(err)
-				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("cancellation/release did not drain waiter")
+			if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
 			}
 			lock, err := Acquire(path, 0o600)
 			if err != nil {

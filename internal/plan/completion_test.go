@@ -18,6 +18,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 type completionFixture struct {
@@ -397,12 +398,12 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		if parentAuthority.ProtectsRevision() || (CompletionAuthority{}).ProtectsRevision() {
 			t.Fatal("pre-activation or zero authority reported a protected revision")
 		}
-		if item, step, open := Current(fixture.child, UnassignedRole, authority); !open || item.ID != "dependent" || step.ID != "do" {
+		if item, step, open := Current(fixture.child, worklease.UnassignedRole, authority); !open || item.ID != "dependent" || step.ID != "do" {
 			t.Fatalf("dispatch = %s/%s open=%v", item.ID, step.ID, open)
 		}
 		replayed := fixture.child
 		replayed.Doctrine = "different plan"
-		if _, _, open := Current(replayed, UnassignedRole, authority); open {
+		if _, _, open := Current(replayed, worklease.UnassignedRole, authority); open {
 			t.Fatal("resolved completion authority replayed onto a different plan")
 		}
 	})
@@ -465,7 +466,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if item, _, open := Current(fixture.child, UnassignedRole, authority); !open || item.ID != "dependent" {
+		if item, _, open := Current(fixture.child, worklease.UnassignedRole, authority); !open || item.ID != "dependent" {
 			t.Fatalf("added completion row did not release dependency: item=%s open=%v", item.ID, open)
 		}
 		reused := fixture.child
@@ -935,7 +936,7 @@ func TestLanePlanScope(t *testing.T) {
 		"changed lane":    func(_, c *Plan) { c.Lane = "other" },
 		"unowned work":    func(b, _ *Plan) { b.Items[2].Owner = "" },
 		"blank owner":     func(b, _ *Plan) { b.Items[2].Owner = " " },
-		"unassigned work": func(b, _ *Plan) { b.Items[2].Owner = UnassignedRole },
+		"unassigned work": func(b, _ *Plan) { b.Items[2].Owner = worklease.UnassignedRole },
 		"local item":      func(_, c *Plan) { c.Items = c.Items[1:] },
 		"local step":      func(_, c *Plan) { c.Items[0].Steps = nil },
 		"partial foreign item": func(_, c *Plan) {
@@ -954,7 +955,7 @@ func TestLanePlanScope(t *testing.T) {
 		})
 	}
 	t.Run("strict load", func(t *testing.T) {
-		for _, invalid := range []Plan{{Scope: "unknown", Lane: "local"}, {Scope: ScopeLane}, {Scope: ScopeLane, Lane: UnassignedRole}, {Scope: ScopeLane, Lane: "local", Items: []Item{foreign}}} {
+		for _, invalid := range []Plan{{Scope: "unknown", Lane: "local"}, {Scope: ScopeLane}, {Scope: ScopeLane, Lane: worklease.UnassignedRole}, {Scope: ScopeLane, Lane: "local", Items: []Item{foreign}}} {
 			if err := Validate(invalid); err == nil {
 				t.Fatalf("invalid scope accepted: %+v", invalid)
 			}

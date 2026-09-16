@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -106,8 +105,7 @@ func TestE4BHTTPModalities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Minute, errors.New("E4B protocol fixture budget exhausted"))
-	defer cancel()
+	ctx := t.Context()
 	store, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		t.Fatal(err)

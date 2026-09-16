@@ -16,6 +16,7 @@ import (
 )
 
 func TestCanonicalAudioModelRegistration(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile("testdata/registered_models.json")
 	if err != nil {
 		t.Fatal(err)

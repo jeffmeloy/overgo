@@ -102,6 +102,7 @@ func (l *vadLifecycle) audio(t *testing.T, samples []float32, rate int) artifact
 }
 
 func TestVADOfflineAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("artifact-refusals", TestVADArtifactRefusals)
 	t.Run("numerical-reference", TestVADNumericalParity)
 	t.Run("boundary-reference", TestVADOfflineBoundaryParity)
@@ -147,6 +148,7 @@ func residentAudioAdmission(director *capabilityruntime.ModelSessionDirector[str
 }
 
 func TestVADStreamingAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("recovery-and-discontinuity", TestVADStreamRecovery)
 	t.Run("waveform-and-cache-reference", TestVADWaveformStreamParity)
 	t.Run("boundary-reference", TestVADStreamBoundaryParity)

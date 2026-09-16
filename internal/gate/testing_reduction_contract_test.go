@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -59,6 +58,7 @@ func testingReductionContract() reductionContract {
 // the check-definition owner still forces every lane back into the plan.
 // The two lanes' own exclusion is measured and recorded, not yet held.
 func TestTestingReductionContract(t *testing.T) {
+	t.Parallel()
 	contract := testingReductionContract()
 	if len(contract.Consumer) != 2 || len(contract.Invalidators) < 7 || len(contract.Baseline) != 2 || contract.Mechanism == "" || contract.Rollback == "" {
 		t.Fatalf("incomplete contract: %+v", contract)
@@ -73,47 +73,49 @@ func TestTestingReductionContract(t *testing.T) {
 			t.Fatalf("invalidator %s no longer forces the bootstrap", name)
 		}
 	}
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
+	// The shared checkout seeds every planned path, so each plan holds a
+	// structural seed on a clean tree exactly as in a gate candidate.
+	live := liveRepositoryFixture(t)
 	plan := func(paths []string) (plannedPipeline, time.Duration) {
 		t.Helper()
-		g := &gateContext{repo: root, paths: paths}
-		tree, err := g.plannedTree()
-		if err != nil {
-			t.Fatal(err)
-		}
 		var planned plannedPipeline
-		started := time.Now()
-		if err := g.withCandidateWorktree(tree, func(string) error {
+		var wall time.Duration
+		live.plan(t, paths, func(g *gateContext) {
+			started := time.Now()
 			var err error
 			planned, err = g.planPipeline()
-			return err
-		}); err != nil {
-			t.Fatal(err)
-		}
-		return planned, time.Since(started)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wall = time.Since(started)
+			for _, note := range compactAudit(g.audit) {
+				t.Log(note)
+			}
+		})
+		return planned, wall
 	}
 	unrelated, unrelatedWall := plan([]string{"internal/gate/preflight.go"})
-	// With no seed (the candidate equals its base) every check is excluded
-	// trivially; the gate evaluates the real candidate. Measured 2026-09-14
-	// on a real gate seed: the two lanes are not excluded because an owned
-	// package's tests import a Go-parsing helper whose unnamed reach binds
-	// every root (internal/testutil for internal/cuda/cublas), while a lane
-	// with no such helper in its closure is excluded by the closure proof.
-	// Cutting the test-helper reach is the open row gate-lane-closure.
-	if len(unrelated.structural.Seeds) != 0 {
-		for _, name := range contract.Consumer {
-			reason, excluded := unrelated.impact.ExclusionReason(name)
-			t.Logf("gate-only change: %s excluded=%v reason=%s", name, excluded, reason)
-			if excluded && !strings.Contains(reason, "closure") {
-				t.Fatalf("%s excluded without a closure proof: %s", name, reason)
-			}
+	if len(unrelated.structural.Seeds) == 0 {
+		t.Fatal("seeded gate-only plan holds no structural seed")
+	}
+	// Measured 2026-09-14 on the seeded checkout: the device lane reached
+	// the gate only because a projector test parsed Go, which made every
+	// projector test run a source reader of all roots; that rule now lives
+	// in this package and the device lane is excluded by closure. The
+	// browser lane stays triggered through production source readers; its
+	// exclusion is recorded, not held.
+	for _, name := range contract.Consumer {
+		reason, excluded := unrelated.impact.ExclusionReason(name)
+		t.Logf("gate-only change: %s excluded=%v reason=%s unknown=%v seeds=%v", name, excluded, reason, unrelated.surface.Unknown, unrelated.structural.Seeds)
+		if excluded && !strings.Contains(reason, "closure") {
+			t.Fatalf("%s excluded without a closure proof: %s", name, reason)
 		}
-		if reason, excluded := unrelated.impact.ExclusionReason("sbom"); !excluded || !strings.Contains(reason, "closure") {
-			t.Fatalf("gate-only change did not exclude sbom by closure: excluded=%v reason=%s", excluded, reason)
+		if name == "device" && !excluded {
+			t.Fatalf("gate-only change reached the device lane: unknown=%v", unrelated.surface.Unknown)
 		}
+	}
+	if reason, excluded := unrelated.impact.ExclusionReason("sbom"); !excluded || !strings.Contains(reason, "closure") {
+		t.Fatalf("gate-only change did not exclude sbom by closure: excluded=%v reason=%s", excluded, reason)
 	}
 	for _, name := range []string{"acceptance", testPlanCheckName, testOwnersCheckName, "commit"} {
 		if !hasInvocation(unrelated, name) {
@@ -125,11 +127,8 @@ func TestTestingReductionContract(t *testing.T) {
 	// compiles a reader, so the device lane stays excluded, while the
 	// browser census names the API manifest, so the browser lane runs.
 	documented, documentedWall := plan([]string{"internal/gate/preflight.go", "docs/plan.json", "docs/api_manifest.json", "docs/modern_go_census.json"})
-	if reason, excluded := documented.impact.ExclusionReason("device"); len(documented.structural.Seeds) == 0 && !excluded {
-		t.Fatalf("gate change with regenerated documents selected the device lane: unknown=%v", documented.surface.Unknown)
-	} else {
-		t.Logf("gate change with documents: device excluded=%v reason=%s", excluded, reason)
-	}
+	reason, excluded := documented.impact.ExclusionReason("device")
+	t.Logf("gate change with documents: device excluded=%v reason=%s unknown=%v", excluded, reason, documented.surface.Unknown)
 	if _, excluded := documented.impact.ExclusionReason(automationcheck.WebUICheckName); excluded || !hasInvocation(documented, automationcheck.WebUICheckName) {
 		t.Fatal("the browser lane, whose census names the API manifest, was excluded for a manifest change")
 	}
@@ -164,6 +163,7 @@ func hasInvocation(planned plannedPipeline, name string) bool {
 // that name it and leaves an unnamed document uncertain: the opaque reader
 // beside the named reader does not own it.
 func TestNamedDocumentAttribution(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	graph, err := g.inputGraph()
 	if err != nil {

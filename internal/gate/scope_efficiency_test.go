@@ -13,6 +13,7 @@ import (
 )
 
 func TestGateScopePreservesAffectedCoverage(t *testing.T) {
+	t.Parallel()
 	g := scopeCompilerFixture(t)
 	imports := func(names ...string) []string {
 		var result []string
@@ -176,15 +177,18 @@ func assertScopeInputEvidence(t *testing.T, g *gateContext) {
 }
 
 func assertScopeMeasuredIncident(t *testing.T) {
-	g := liveGateContext(t)
-	root := g.repo
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
 	// This actual gated slice took 973.8s and selected 2 direct plus 124
 	// downstream packages because its plan change included one test-only edit.
 	changed, err := command(root, "git", "diff-tree", "--no-commit-id", "--name-only", "-r", "1939094b")
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.paths = strings.Fields(changed)
+	live := liveRepositoryFixture(t)
+	g := live.context(strings.Fields(changed)...)
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)

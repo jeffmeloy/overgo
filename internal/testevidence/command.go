@@ -15,10 +15,40 @@ type GoTestOptions struct {
 	Short           bool
 	DiagnosticBytes int
 	Observe         func(string, bool) error
+	// Progress receives each package's terminal event as the stream reports
+	// it, in stream order, before the report is complete.
+	Progress func(PackageProgress)
 	// ActiveTimeout bounds each top-level test's unpaused time and event silence.
 	// Zero leaves timing to the command and parent context. Callers disabling
 	// Go's aggregate timeout must supply this budget or an explicit parent limit.
 	ActiveTimeout time.Duration
+}
+
+// PackageProgress is one package's terminal event: the action go test
+// reported (pass, fail or skip) and the elapsed time it measured.
+type PackageProgress struct {
+	Package string
+	Action  string
+	Elapsed time.Duration
+}
+
+// packageProgressObserver forwards every event to next and each package
+// terminal event to progress.
+func packageProgressObserver(progress func(PackageProgress), next func(goTestEvent)) func(goTestEvent) {
+	if progress == nil {
+		return next
+	}
+	return func(event goTestEvent) {
+		next(event)
+		if event.Test != "" || event.Action != "pass" && event.Action != "fail" && event.Action != "skip" {
+			return
+		}
+		report := PackageProgress{Package: event.Package, Action: event.Action}
+		if event.Elapsed != nil && *event.Elapsed > 0 {
+			report.Elapsed = time.Duration(*event.Elapsed * float64(time.Second))
+		}
+		progress(report)
+	}
 }
 
 // RunGoTestCommand drains a test process through the bounded evidence parser.
@@ -44,7 +74,7 @@ func RunGoTestCommand(ctx context.Context, command processcontrol.Command, optio
 		writer.Close()
 		finished <- err
 	}()
-	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, deadline.observe)
+	report, parseErr := readGoTestJSON(reader, options.Short, false, options.DiagnosticBytes, observe, packageProgressObserver(options.Progress, deadline.observe))
 	if parseErr != nil {
 		cancel(parseErr)
 	}

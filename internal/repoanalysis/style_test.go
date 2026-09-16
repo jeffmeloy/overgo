@@ -54,6 +54,10 @@ func requireNoRepositoryStyleFindings(t *testing.T, selected map[goStyleKind]boo
 }
 
 func repositoryGoStyleReport(t *testing.T) goStyleReport {
+	return liveRepositoryCensus(t, goStyleCensus)
+}
+
+func liveRepositoryCensus[T any](t *testing.T, census func(SourceSnapshot) (T, error)) T {
 	t.Helper()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -63,7 +67,7 @@ func repositoryGoStyleReport(t *testing.T) goStyleReport {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := goStyleCensus(snapshot)
+	report, err := census(snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

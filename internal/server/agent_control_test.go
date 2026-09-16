@@ -59,7 +59,7 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	definition := publishAgentFromAPI(t, fixture, nil, nil)
-	activateAgentFromAPI(t, fixture.handler, definition)
+	activateDefinitionFromAPI(t, fixture.handler, definition, "/agents/activate")
 
 	inventory := serveTestRequest(fixture.handler, http.MethodGet, "/agents", "")
 	if inventory.Code != http.StatusOK || !strings.Contains(inventory.Body.String(), "research-agent") ||
@@ -86,7 +86,7 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 func TestAgentWorkspaceSSE(t *testing.T) {
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil))
+	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
 	ctx, cancel := context.WithCancel(t.Context())
 	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, agentWorkspaceCandidates)}
 	done := make(chan struct{})
@@ -140,7 +140,7 @@ func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := newAgentWorkspaceFixture(t, store, embedder, reranker)
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}, nil))
+	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, []artifact.ID{datasetID}, nil), "/agents/activate")
 	request := marshalAutomationJSON(t, map[string]any{
 		"agent": "research-agent", "projection": projection.ID, "query": "evidence", "limit": 1, "rerank_policy": policy,
 	})
@@ -210,7 +210,7 @@ func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
 		AutomationWorkspace:      automation.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace,
 	}
 	fixture := newAgentWorkspaceFixtureWithGenerator(t, automation.store, generator, nil, nil)
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, []artifact.ID{automationID}))
+	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, []artifact.ID{automationID}), "/agents/activate")
 	run := serveTestRequest(fixture.handler, http.MethodPost, "/agents/automation", marshalAutomationJSON(t, map[string]any{
 		"agent": "research-agent", "automation": automationID, "key": "attached", "inputs": map[string]any{"tokens": "hello"},
 	}))
@@ -230,7 +230,7 @@ func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
 func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
-	activateAgentFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil))
+	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
 	javascript := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
 	for _, expected := range []string{
 		"schemaForm", "/agents/chat", "overgo.toolStep(", "/agents/retrieval", "/agents/automation", "/agents/evidence",
@@ -347,14 +347,4 @@ func publishAgentFromAPI(
 		t.Fatalf("agent definition=(%s, %v)", result.ID, err)
 	}
 	return result.ID
-}
-
-func activateAgentFromAPI(t *testing.T, handler *Handler, definition artifact.ID) {
-	t.Helper()
-	response := serveTestRequest(handler, http.MethodPost, "/agents/activate", marshalAutomationJSON(t, map[string]any{
-		"definition": definition,
-	}))
-	if response.Code != http.StatusOK {
-		t.Fatalf("agent activation status=%d body=%s", response.Code, response.Body.String())
-	}
 }

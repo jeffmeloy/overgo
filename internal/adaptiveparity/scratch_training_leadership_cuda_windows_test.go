@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -153,13 +152,11 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// All interval allocations bound incremental live heap from above.
+	// TotalAlloc is monotonic; HeapSys can fall as stack ownership changes.
 	runtime.GC()
 	var baseline runtime.MemStats
 	runtime.ReadMemStats(&baseline)
-	var peak atomic.Uint64
-	peak.Store(baseline.HeapAlloc)
-	done := make(chan struct{})
-	go sampleHeap(done, &peak)
 	losses := make([]float64, oracle.Steps)
 	walls := make([]time.Duration, oracle.Steps)
 	for step := range oracle.Steps {
@@ -174,7 +171,6 @@ func TestScratchTrainingLeadership(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	close(done)
 	var finalHeap runtime.MemStats
 	runtime.ReadMemStats(&finalHeap)
 	validationTokens, err := construction.Tokens(oracle.Validation[0])
@@ -193,7 +189,7 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostPeak := peak.Load() - baseline.HeapAlloc
+	hostPeak := finalHeap.TotalAlloc - baseline.TotalAlloc
 	candidatePeak := memory.PeakBytes + hostPeak
 	stepWall := walls[0] + walls[1] + walls[2]
 	worst := math.Abs(validation - oracle.FinalValLoss)
@@ -316,19 +312,4 @@ func f64AsF32Bound(reference []float64) float64 {
 		scale = max(scale, math.Abs(value))
 	}
 	return math.Sqrt(float64(math.Nextafter32(1, 2)-1)) * scale
-}
-
-func sampleHeap(done <-chan struct{}, peak *atomic.Uint64) {
-	ticker := time.Tick(time.Millisecond)
-	for {
-		select {
-		case <-done:
-			return
-		case <-ticker:
-			var sample runtime.MemStats
-			runtime.ReadMemStats(&sample)
-			for prior := peak.Load(); sample.HeapAlloc > prior && !peak.CompareAndSwap(prior, sample.HeapAlloc); prior = peak.Load() {
-			}
-		}
-	}
 }

@@ -1,0 +1,5 @@
+{
+ "version": 1,
+ "doc": "Reviewed census of waits bound to a duration the source fixes at writing time (owner rule 2026-09-14: no arbitrary timers). Each removal replaces the bound with observation of the awaited operation under caller cancellation and lowers this census; a new fixed timer is refused.",
+ "timers": []
+}

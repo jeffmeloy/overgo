@@ -102,6 +102,9 @@ const (
 	OutcomeFailed Outcome = "failed"
 	// OutcomeCancelled reports an authority stopping the execution before a verdict.
 	OutcomeCancelled Outcome = "cancelled"
+	// OutcomeCheckpoint reports a gate that published one checkpoint's
+	// evidence and stopped before its commit; the step stays open.
+	OutcomeCheckpoint Outcome = "checkpoint"
 	// OutcomeRefused reports admission declining to run the execution at all.
 	OutcomeRefused Outcome = "refused"
 	// OutcomeSkipped reports scheduling passing over the execution without a verdict.
@@ -420,10 +423,10 @@ func canonicalizeRun(run *Run) error {
 		run.MeasuredNS == 0 || run.MeasuredNS > math.MaxInt64 {
 		return errors.New("run record: invalid bound run facts")
 	}
-	if run.Outcome != OutcomeSucceeded && run.Outcome != OutcomeFailed && run.Outcome != OutcomeCancelled {
+	if run.Outcome != OutcomeSucceeded && run.Outcome != OutcomeFailed && run.Outcome != OutcomeCancelled && run.Outcome != OutcomeCheckpoint {
 		return errors.New("run record: invalid outcome")
 	}
-	if run.Outcome == OutcomeSucceeded && (len(run.Outputs) == 0 || run.Failure != "") {
+	if (run.Outcome == OutcomeSucceeded || run.Outcome == OutcomeCheckpoint) && (len(run.Outputs) == 0 || run.Failure != "") {
 		return errors.New("run record: invalid successful outcome")
 	}
 	if run.Outcome == OutcomeFailed && !validLabel(run.Failure) {

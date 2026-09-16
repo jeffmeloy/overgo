@@ -662,9 +662,9 @@ func (h *Handler) Close() error {
 	}
 	var closeErrors []error
 	if h.sessions != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		closeErrors = append(closeErrors, h.sessions.Close(ctx))
-		cancel()
+		// Every request has ended above, so the director's wait for its
+		// resident users is a wait for their release, not a bounded grace.
+		closeErrors = append(closeErrors, h.sessions.Close(context.Background()))
 	}
 	if h.browseRepository != nil {
 		closeErrors = append(closeErrors, h.browseRepository.Close())

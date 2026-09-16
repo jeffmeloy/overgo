@@ -24,6 +24,7 @@ func requireNoPendingGateState(repo, storePath string) error {
 }
 
 func TestGateDebtReconciliation(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "cgo=0", Runtime: "go-test",
@@ -78,6 +79,7 @@ func TestGateDebtReconciliation(t *testing.T) {
 }
 
 func TestGateDebtReconciliationRefusesLaterUnaliasedFinalization(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	environment := lifecycleTestEnvironment(t)
 	preparation, err := runrecord.NewGatePreparation(
@@ -127,6 +129,9 @@ func TestGateDebtReconciliationRefusesLaterUnaliasedFinalization(t *testing.T) {
 }
 
 func TestPreparedLifecycleLocatorBlocksAndRecovers(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, storePath := newLifecycleRepo(t), "store"
 	t.Setenv("OVERGO_STRATEGY_ID", "")
 	if err := os.WriteFile(filepath.Join(repo, "candidate.go"), []byte("package candidate\n"), 0o644); err != nil {
@@ -208,6 +213,7 @@ func TestPreparedLifecycleLocatorBlocksAndRecovers(t *testing.T) {
 }
 
 func TestUncommittedLifecycleLocatorIsRemoved(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host", Backend: "go", Driver: "none", Runtime: "go-test",
@@ -236,6 +242,7 @@ func TestUncommittedLifecycleLocatorIsRemoved(t *testing.T) {
 }
 
 func TestUncommittedLifecycleLocatorIsRemovedAfterPriorFinalization(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
@@ -330,6 +337,7 @@ func TestUncommittedLifecycleLocatorIsRemovedAfterPriorFinalization(t *testing.T
 }
 
 func TestFinalizedLifecycleAliasDoesNotHideUnaliasedPreparation(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, environment := newCompleteLifecycleAliasFixture(t)
 	later, err := runrecord.NewGatePreparation(
@@ -365,6 +373,7 @@ func TestFinalizedLifecycleAliasDoesNotHideUnaliasedPreparation(t *testing.T) {
 }
 
 func TestRecordFailureClosesUniqueStalePreparationBehindFinalizedAuthority(t *testing.T) {
+	t.Parallel()
 	fixture := newStaleLifecycleRecoveryFixture(t, 1, true)
 	heartbeatBefore, err := os.ReadFile(filepath.Join(fixture.repo, filepath.FromSlash(gateHeartbeatFile)))
 	if err != nil {
@@ -409,6 +418,9 @@ func TestRecordFailureClosesUniqueStalePreparationBehindFinalizedAuthority(t *te
 }
 
 func TestRecordFailureWithFinalizedAliasRefusesPostCensusUnaliasedPreparation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newStaleLifecycleRecoveryFixture(t, 1, true)
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })
@@ -446,6 +458,9 @@ func TestRecordFailureWithFinalizedAliasRefusesPostCensusUnaliasedPreparation(t 
 }
 
 func TestRecordFailureWithPreparedAliasAndNoHeartbeatRefusesPostCensusPreparation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, storePath := newLifecycleRepo(t), "store"
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "prepared-alias-race@example.invalid")
@@ -495,6 +510,7 @@ func TestRecordFailureWithPreparedAliasAndNoHeartbeatRefusesPostCensusPreparatio
 }
 
 func TestRecordFailureRefusesAmbiguousStalePreparationsBehindFinalizedAuthority(t *testing.T) {
+	t.Parallel()
 	fixture := newStaleLifecycleRecoveryFixture(t, 2, true)
 	if _, err := recordSelectedUnbatchableFailure(fixture.repo, fixture.storePath, ""); err == nil ||
 		!strings.Contains(err.Error(), "found 2 unresolved preparations") {
@@ -523,6 +539,7 @@ func TestRecordFailureRefusesAmbiguousStalePreparationsBehindFinalizedAuthority(
 }
 
 func TestRecordFailureClosesSelectedStalePreparation(t *testing.T) {
+	t.Parallel()
 	fixture := newStaleLifecycleRecoveryFixture(t, 2, true)
 	if _, err := recordSelectedUnbatchableFailure(fixture.repo, fixture.storePath, "not-an-id"); err == nil ||
 		!strings.Contains(err.Error(), "not an exact evidence artifact ID") {
@@ -586,6 +603,7 @@ func TestRecordFailureClosesSelectedStalePreparation(t *testing.T) {
 }
 
 func TestRecordFailureValidatesNewerFinalizedAuthorityBeforeClosingStaleDebt(t *testing.T) {
+	t.Parallel()
 	fixture := newStaleLifecycleRecoveryFixture(t, 1, false)
 	if _, err := recordSelectedUnbatchableFailure(fixture.repo, fixture.storePath, ""); err == nil ||
 		!strings.Contains(err.Error(), "typed gate result") {
@@ -606,6 +624,7 @@ func TestRecordFailureValidatesNewerFinalizedAuthorityBeforeClosingStaleDebt(t *
 }
 
 func TestRecordFailureBootstrapsLegacyAliasToNewestTerminalAuthority(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	heartbeatBefore, err := os.ReadFile(filepath.Join(fixture.repo, filepath.FromSlash(gateHeartbeatFile)))
 	if err != nil {
@@ -664,6 +683,9 @@ func TestRecordFailureBootstrapsLegacyAliasToNewestTerminalAuthority(t *testing.
 }
 
 func TestRecordFailureRetryRepairsHeartbeatAfterLegacyStoreCommit(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	heartbeat := runrecord.GateHeartbeat{
 		Version: artifact.InitialDocumentVersion, State: runrecord.HeartbeatRunning,
@@ -744,6 +766,7 @@ func TestRecordFailureRetryRepairsHeartbeatAfterLegacyStoreCommit(t *testing.T) 
 }
 
 func TestRecordFailureBootstrapsLegacyAliasWhenHeartbeatIsAbsent(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	if err := os.Remove(filepath.Join(fixture.repo, filepath.FromSlash(gateHeartbeatFile))); err != nil {
 		t.Fatal(err)
@@ -779,6 +802,7 @@ func TestRecordFailureBootstrapsLegacyAliasWhenHeartbeatIsAbsent(t *testing.T) {
 }
 
 func TestRecordFailurePrefersCanonicalLegacyDebtToUncommittedRunningLocator(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	uncommitted, err := runrecord.NewGatePreparation(
 		strings.Repeat("a", 64), fixture.environment.ID, time.Unix(625, 0),
@@ -827,6 +851,7 @@ func TestRecordFailurePrefersCanonicalLegacyDebtToUncommittedRunningLocator(t *t
 }
 
 func TestRecordFailureRemovesUncommittedRunningLocatorWhenLegacyDebtIsZero(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	store, err := overgodb.Open(filepath.Join(fixture.repo, fixture.storePath))
 	if err != nil {
@@ -877,6 +902,7 @@ func TestRecordFailureRemovesUncommittedRunningLocatorWhenLegacyDebtIsZero(t *te
 }
 
 func TestRecordFailureBootstrapsLegacyAliasToCancellationWithoutPriorTerminal(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "legacy-cancellation@example.invalid")
@@ -949,6 +975,7 @@ func TestRecordFailureBootstrapsLegacyAliasToCancellationWithoutPriorTerminal(t 
 }
 
 func TestRecordFailureRefusesLegacyFinalizedHeartbeatWithoutExactFinalization(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	heartbeat := runrecord.GateHeartbeat{
 		Version: artifact.InitialDocumentVersion, State: runrecord.HeartbeatFinalized,
@@ -966,6 +993,7 @@ func TestRecordFailureRefusesLegacyFinalizedHeartbeatWithoutExactFinalization(t 
 }
 
 func TestRecordFailureRefusesMalformedLegacyFinalizationHistory(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	store, err := overgodb.Open(filepath.Join(fixture.repo, fixture.storePath))
 	if err != nil {
@@ -1010,6 +1038,7 @@ func TestRecordFailureRefusesMalformedLegacyFinalizationHistory(t *testing.T) {
 }
 
 func TestRecordFailureRefusesAmbiguousLegacyOutstandingPreparations(t *testing.T) {
+	t.Parallel()
 	fixture := newLegacyLifecycleRecoveryFixture(t, 2)
 	if _, err := recordSelectedUnbatchableFailure(fixture.repo, fixture.storePath, ""); err == nil ||
 		!strings.Contains(err.Error(), "found 2 unresolved preparations") {
@@ -1019,6 +1048,7 @@ func TestRecordFailureRefusesAmbiguousLegacyOutstandingPreparations(t *testing.T
 }
 
 func TestRecordFailureLegacyBootstrapUsesDocumentOrderForCoIntroducedFinalizations(t *testing.T) {
+	t.Parallel()
 	fixture, first, second := newCoIntroducedLegacyRecoveryFixture(t, false)
 	store, err := overgodb.Open(filepath.Join(fixture.repo, fixture.storePath))
 	if err != nil {
@@ -1063,6 +1093,7 @@ func TestRecordFailureLegacyBootstrapUsesDocumentOrderForCoIntroducedFinalizatio
 }
 
 func TestRecordFailureLegacyBootstrapRefusesDuplicateFinalizationPerPreparation(t *testing.T) {
+	t.Parallel()
 	fixture, _, _ := newCoIntroducedLegacyRecoveryFixture(t, true)
 	if _, err := recordSelectedUnbatchableFailure(fixture.repo, fixture.storePath, ""); err == nil ||
 		!strings.Contains(err.Error(), "has 2 canonical finalizations") {
@@ -1072,6 +1103,9 @@ func TestRecordFailureLegacyBootstrapRefusesDuplicateFinalizationPerPreparation(
 }
 
 func TestRecordFailureLegacyBootstrapRefusesHeadMovementWithoutAlias(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })
@@ -1089,6 +1123,9 @@ func TestRecordFailureLegacyBootstrapRefusesHeadMovementWithoutAlias(t *testing.
 }
 
 func TestRecordFailureLegacyBootstrapRefusesAliasRace(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newLegacyLifecycleRecoveryFixture(t, 1)
 	previousHook := gateRecordFailureBeforeStoreCommitHook
 	t.Cleanup(func() { gateRecordFailureBeforeStoreCommitHook = previousHook })
@@ -1129,6 +1166,7 @@ func TestRecordFailureLegacyBootstrapRefusesAliasRace(t *testing.T) {
 }
 
 func TestSoleCurrentPreparationRejectsExistingUnaliasedFinalization(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	environment := lifecycleTestEnvironment(t)
 	preparation, err := runrecord.NewGatePreparation(
@@ -1159,6 +1197,7 @@ func TestSoleCurrentPreparationRejectsExistingUnaliasedFinalization(t *testing.T
 }
 
 func TestFinalRecordRefusesSecondFinalization(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	environment := lifecycleTestEnvironment(t)
 	preparation, err := runrecord.NewGatePreparation(
@@ -1213,6 +1252,7 @@ func TestFinalRecordRefusesSecondFinalization(t *testing.T) {
 }
 
 func TestRecordFailureBindsExistingUnaliasedFinalization(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	environment := lifecycleTestEnvironment(t)
 	preparation, err := runrecord.NewGatePreparation(
@@ -1256,6 +1296,7 @@ func TestRecordFailureBindsExistingUnaliasedFinalization(t *testing.T) {
 }
 
 func TestFinalizedLifecycleAliasDoesNotHideForgedUnaliasedFinalization(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, environment := newCompleteLifecycleAliasFixture(t)
 	preparation, err := runrecord.NewGatePreparation(
@@ -1914,6 +1955,7 @@ func newCompleteLifecycleAliasFixture(t *testing.T) (*overgodb.Store, runrecord.
 }
 
 func TestTerminalLifecycleAliasRequiresTypedGateResult(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	ctx := t.Context()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
@@ -1976,6 +2018,7 @@ func TestTerminalLifecycleAliasRequiresTypedGateResult(t *testing.T) {
 }
 
 func TestTerminalLifecycleRejectsGateResultPublishedLater(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newTemporalLifecycleFixture(t, true)
 	resultContent, err := fixture.record.Result.Content()
@@ -2018,6 +2061,7 @@ func TestTerminalLifecycleRejectsGateResultPublishedLater(t *testing.T) {
 }
 
 func TestTerminalLifecycleRejectsEnvironmentPublishedLater(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newTemporalLifecycleFixture(t, false)
 	resultContent, err := fixture.record.Result.Content()

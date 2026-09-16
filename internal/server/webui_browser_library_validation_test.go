@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,7 +12,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
@@ -66,14 +64,14 @@ func laneHubServer(t *testing.T, file string) *httptest.Server {
 	return server
 }
 
-// TestWebUIBrowserLibraryValidation: from a cold proxy over an empty store
+// TestModelJourneyLibraryValidation: from a cold proxy over an empty store
 // the Library downloads a real small GGUF from the hub, registers it,
 // validates it as an operation the workbench behind the shell runs, and
 // the picker then serves it; a model registered with its projector
 // validates its text path and keeps the projector as its projection.
-func TestWebUIBrowserLibraryValidation(t *testing.T) {
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane")
+func TestModelJourneyLibraryValidation(t *testing.T) {
+	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
+		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane -journeys")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
@@ -84,8 +82,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	if _, err := os.Stat(small); err != nil {
 		t.Fatalf("library validation unavailable: the small text model is absent: %v", err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 12*time.Minute, errors.New("webui lane: the library validation journey did not complete"))
-	defer cancel()
+	ctx := t.Context()
 	projectedName, projectedLocation, projectorPath := smallestDeclaredProjector(t, ctx, roots.Store)
 	if projectedLocation == "" {
 		t.Fatal("library validation unavailable: no model with a declared projector has bytes on disk")
@@ -151,17 +148,56 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
 		t.Fatal(err)
 	}
-	settleWithin := func(what string, bound time.Duration, expression string) {
+	// settle waits on progress, not on a clock: while the page has a request
+	// in flight the step is still working, however long the machine takes;
+	// a page that went idle without the expected state has failed the step.
+	settle := func(what, expression string) {
 		t.Helper()
-		step, done := context.WithTimeoutCause(ctx, bound, errors.New("webui lane: the step did not settle"))
-		defer done()
-		if err := browser.Eventually(step, expression); err != nil {
+		fail := func(err error) {
+			t.Helper()
 			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), rows: [...document.querySelectorAll('#panel-library tr')].filter((row) => row.textContent.includes('validated')).map((row) => row.outerHTML.slice(0, 700)), notes: [...document.querySelectorAll('#panel-library .note')].map((node) => node.textContent).filter(Boolean).slice(0, 8)})`, &page)
+			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), pending: window.overgo.api.pending(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
+		// Each observation evaluates the predicate once: row predicates click
+		// their control as a side effect, so a second evaluation would see
+		// the control it just disabled.
+		// A page still loading, or a shell not yet booted, is busy: the boot
+		// script itself and the libraries and modules it loads are progress
+		// the pending count only sees once the shell exists.
+		observe := `(() => { if (` + expression + `) return "ready"; if (document.readyState !== "complete" || !window.overgo) return "busy"; return window.overgo.api.pending() === 0 ? "idle" : "busy"; })()`
+		// The page observes itself once per animation frame while busy and
+		// answers the first state that is not; the wait follows the page's
+		// clock under the journey's context.
+		notBusy := `new Promise((resolve) => {
+	const check = () => {
+		const state = ` + observe + `;
+		if (state !== "busy") { resolve(state); return; }
+		(document.visibilityState === "visible" ? requestAnimationFrame : setTimeout)(check);
+	};
+	check();
+})`
+		settled := `new Promise((resolve) => requestAnimationFrame(() => resolve(` + observe + `)))`
+		for {
+			var state string
+			if err := browser.Evaluate(ctx, notBusy, &state); err != nil {
+				fail(err)
+			}
+			if state == "idle" {
+				// The last response renders on the next frame; only a page
+				// still idle after it has failed the step.
+				if err := browser.Evaluate(ctx, settled, &state); err != nil {
+					fail(err)
+				}
+				if state == "idle" {
+					fail(errors.New("webui lane: the page went idle before the step settled"))
+				}
+			}
+			if state == "ready" {
+				return
+			}
+		}
 	}
-	const stepBound, workBound = 2 * time.Minute, 6 * time.Minute
 	// rowButton: the lifecycle control of the Library row that names the model.
 	rowButton := func(rowText, label string) string {
 		return `(() => {
@@ -183,7 +219,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	const sourceRule = "a verification requires committed Go source"
 	validated := func(rowText, what string) bool {
 		t.Helper()
-		settleWithin(what+" admitted or refused by the source rule", stepBound,
+		settle(what+" admitted or refused by the source rule",
 			`(typeof window.laneValidation === 'string' && window.laneValidation.length > 0) || `+rowNote(rowText, sourceRule))
 		var admitted string
 		if err := browser.Evaluate(ctx, `window.laneValidation`, &admitted); err != nil {
@@ -203,7 +239,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 	}
 
 	// 0. The cold page: no child, the Library is the way in, and the workbench's validation answers are captured.
-	settleWithin("cold page", stepBound, `document.querySelector("#model-pill").textContent === "Choose a model" && !!document.querySelector("#cold-start") && window.overgo.errors.length === 0`)
+	settle("cold page", `document.querySelector("#model-pill").textContent === "Choose a model" && !!document.querySelector("#cold-start") && window.overgo.errors.length === 0`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   window.laneValidation = '';
   const post = overgo.api.post;
@@ -215,7 +251,7 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
   [...document.querySelectorAll("#cold-start button")].find((button) => button.textContent === "Open the Library").click();
   return true;
 })()`)
-	settleWithin("library on the cold page", stepBound, `!!document.querySelector("#panel-library.active input[placeholder='search the Hugging Face hub']")`)
+	settle("library on the cold page", `!!document.querySelector("#panel-library.active input[placeholder='search the Hugging Face hub']")`)
 
 	// 1. The hub download: search, download and register against the store behind the cold proxy.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
@@ -224,11 +260,11 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
   [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "search").click();
   return true;
 })()`)
-	settleWithin("hub search lists the lane repository", stepBound, `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "download")`)
+	settle("hub search lists the lane repository", `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "download")`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "download").click(); return true; })()`)
-	settleWithin("download succeeded", workBound, rowNote(laneHubRepository, "done"))
-	settleWithin("register control of the row", stepBound, rowButton(laneHubRepository, "register"))
-	settleWithin("downloaded model registered", stepBound, rowNote(laneHubRepository, "registered"))
+	settle("download succeeded", rowNote(laneHubRepository, "done"))
+	settle("register control of the row", rowButton(laneHubRepository, "register"))
+	settle("downloaded model registered", rowNote(laneHubRepository, "registered"))
 	t.Log("download leg: the hub download registered through the cold proxy's workbench")
 
 	// 2. A model registered with its projector from disk keeps the projector as its projection candidate.
@@ -238,17 +274,17 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
   [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "register a local model").click();
   return true;
 })()`)
-	settleWithin("register control of the row", stepBound, rowButton(projectedLocation, "register"))
-	settleWithin("local model registered with its projector", stepBound, rowNote(projectedLocation, "with projector"))
+	settle("register control of the row", rowButton(projectedLocation, "register"))
+	settle("local model registered with its projector", rowNote(projectedLocation, "with projector"))
 
 	// 3. Both validate as operations the workbench behind the shell runs; the projector pair validates its text path.
-	settleWithin("validate control of the row", stepBound, rowButton(projectedLocation, "validate"))
+	settle("validate control of the row", rowButton(projectedLocation, "validate"))
 	projectorValidated := validated(projectedLocation, "projector validation")
 	if projectorValidated {
 		assertBrowserPredicate(t, ctx, browser, rowNote(projectedLocation, "projector"))
 	}
 	t.Logf("projector leg: %s admitted its text validation with projector %s registered (completed=%v)", projectedName, filepath.Base(projectorPath), projectorValidated)
-	settleWithin("validate control of the row", stepBound, rowButton(laneHubRepository, "validate"))
+	settle("validate control of the row", rowButton(laneHubRepository, "validate"))
 	downloadValidated := validated(laneHubRepository, "downloaded model validation")
 	t.Logf("validation leg: the downloaded model's validation admitted through the cold proxy's workbench (completed=%v)", downloadValidated)
 
@@ -261,13 +297,13 @@ func TestWebUIBrowserLibraryValidation(t *testing.T) {
 		name = projectedName
 	}
 	assertBrowserPredicate(t, ctx, browser, `(() => { history.replaceState(null, "", location.pathname); document.querySelector("#model-pill").click(); return true; })()`)
-	settleWithin("picker lists the validated model", stepBound, `[...document.querySelectorAll(".topbar .card .row .mono")].some((node) => node.textContent === `+strconv.Quote(name)+`)`)
+	settle("picker lists the validated model", `[...document.querySelectorAll(".topbar .card .row .mono")].some((node) => node.textContent === `+strconv.Quote(name)+`)`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(name)+`);
   if (!row) return false;
   [...row.querySelectorAll("button")].find((button) => button.textContent === "serve").click();
   return true;
 })()`)
-	settleWithin("the chosen model serves", workBound, `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` && !!document.querySelector("#panel-chat.active .composer textarea") && !window.overgo.modelSwitching()`)
+	settle("the chosen model serves", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` && !!document.querySelector("#panel-chat.active .composer textarea") && !window.overgo.modelSwitching()`)
 	t.Logf("library validation leg: downloaded, registered with a projector, validation admitted and %s served from the cold proxy", name)
 }

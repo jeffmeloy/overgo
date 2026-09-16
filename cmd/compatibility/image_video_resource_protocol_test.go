@@ -23,6 +23,7 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 // The resource criteria remain fixed while later steps collect measurements.
@@ -166,9 +167,9 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	// Exercise the existing admission and metric owners with boundary fixtures.
 	// OS-level exclusion and process-death checks run as separate named owners.
 	now := time.Now()
-	capacity := plan.Resources{CPUThreads: 2, HostRAMGiB: 2, VRAMGiB: 2}
-	lease := plan.WorkLease{Task: "media/resource-fixture", Worktree: "media-fixture", ExpiresAt: now.Add(time.Hour).Format(time.RFC3339Nano), Resources: capacity}
-	if !plan.AssessResources(now, capacity, []plan.WorkLease{lease}).Fits {
+	capacity := worklease.Resources{CPUThreads: 2, HostRAMGiB: 2, VRAMGiB: 2}
+	lease := worklease.Lease{Task: "media/resource-fixture", Worktree: "media-fixture", ExpiresAt: now.Add(time.Hour).Format(time.RFC3339Nano), Resources: capacity}
+	if !worklease.AssessResources(now, capacity, []worklease.Lease{lease}).Fits {
 		t.Fatal("exact capacity refused")
 	}
 	for _, name := range []string{"cpu", "host", "device"} {
@@ -181,7 +182,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		case "device":
 			reduced.VRAMGiB--
 		}
-		if plan.AssessResources(now, reduced, []plan.WorkLease{lease}).Fits {
+		if worklease.AssessResources(now, reduced, []worklease.Lease{lease}).Fits {
 			t.Fatalf("unsupported reduced %s capacity admitted", name)
 		}
 	}

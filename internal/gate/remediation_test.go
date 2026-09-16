@@ -15,6 +15,7 @@ import (
 // ambiguous lifecycle debt enumerates one argument-bound recovery command per
 // stale preparation; an unformatted file names its exact gofmt invocation.
 func TestGateRefusalsCarryDeterministicRemediation(t *testing.T) {
+	t.Parallel()
 	for message, remediable := range map[string]bool{
 		"permanent authority: 3 stale active binding(s), first=orphan/literal.1":         true,
 		"permanent authority: uncatalogued production policy literal.5 at cmd/x/y.go:12": true,

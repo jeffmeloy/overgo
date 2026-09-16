@@ -59,8 +59,7 @@ func TestE4BMediaResourceRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 11*time.Minute, errors.New("E4B media resource budget exhausted"))
-	defer cancel()
+	ctx := t.Context()
 	store, err := overgodb.OpenReadOnly(roots.Store)
 	if err != nil {
 		t.Fatal(err)

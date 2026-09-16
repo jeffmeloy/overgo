@@ -46,6 +46,7 @@ func (ctx *cancelDecodeContext) Err() error {
 }
 
 func TestAudioCancellationAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": real audio cancellation runs as its exact mandatory batch acceptance")
 	}
@@ -213,6 +214,7 @@ func TestAudioCancellationAcceptance(t *testing.T) {
 }
 
 func TestAudioPublicationRecoveryAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": real audio publication recovery runs as its exact mandatory batch acceptance")
 	}

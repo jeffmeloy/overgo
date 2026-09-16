@@ -1,12 +1,9 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"overgo/internal/overgodb"
 	"overgo/internal/testskip"
@@ -30,8 +27,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 45*time.Second, errors.New("draft lifecycle journey did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

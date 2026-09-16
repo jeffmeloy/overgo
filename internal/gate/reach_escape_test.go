@@ -14,7 +14,9 @@ import (
 // the fixture-level detection of a seeded data regression lives in
 // TestRuntimeOpaqueCallerSourceInput and the lane cases in the matrix.
 func TestReachEscapeAcceptance(t *testing.T) {
-	g := liveGateContext(t, "internal/gate/preflight.go")
+	t.Parallel()
+	live := liveRepositoryFixture(t)
+	g := live.context("internal/gate/preflight.go")
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)

@@ -66,6 +66,8 @@ func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
 }
 
 func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
+	// A checkpoint publication records at the plan head it verified: it
+	// commits nothing and completes no step.
 	codeCommit := g.planHead
 	if outcome == runrecord.OutcomeSucceeded {
 		codeCommit = g.committedHead
@@ -109,6 +111,11 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	}
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Contents = append(batch.Contents, environmentContent, finalizedContent)
+	if outcome == runrecord.OutcomeSucceeded {
+		if err := g.appendLaneObligation(&batch, codeCommit, record.Result.ID); err != nil {
+			return err
+		}
+	}
 	if outcome == runrecord.OutcomeSucceeded && g.dispatchClaim != nil {
 		release, err := g.dispatchClaim.ReleaseBatch(g.dispatchClaim.Worker, "completed")
 		if err != nil {

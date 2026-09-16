@@ -1,14 +1,11 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	cudatest "overgo/internal/cuda/testutil"
@@ -33,8 +30,7 @@ import (
 // become canonical model verification or isolated performance evidence.
 func TestE4BProjectedTranscription(t *testing.T) {
 	cudatest.Require(t)
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Minute, errors.New("E4B transcription fixture budget exhausted"))
-	defer cancel()
+	ctx := t.Context()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/testevidence"
 	"overgo/internal/textcheck"
+	"overgo/internal/worklease"
 )
 
 // VerificationBatch bounds implementation subdivisions of one plan step.
@@ -64,8 +65,8 @@ func validateVerificationBatch(batch *VerificationBatch) error {
 	}
 	seen := map[string]bool{}
 	for _, checkpoint := range batch.Checkpoints {
-		if !validPlanID(checkpoint.ID) || !textcheck.LowerIdentifier(checkpoint.ID, len(checkpoint.ID)) || seen[checkpoint.ID] ||
-			!validAutomationText(checkpoint.Title) || !validAutomationDetail(checkpoint.Verify) {
+		if !worklease.ValidPlanID(checkpoint.ID) || !textcheck.LowerIdentifier(checkpoint.ID, len(checkpoint.ID)) || seen[checkpoint.ID] ||
+			!worklease.ValidAutomationText(checkpoint.Title) || !validAutomationDetail(checkpoint.Verify) {
 			return fmt.Errorf("verification batch checkpoint %q is invalid or duplicated", checkpoint.ID)
 		}
 		if err := testevidence.ValidateGoTestCommand(checkpoint.Verify); err != nil {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"overgo/internal/overgodb"
+	"overgo/internal/worklease"
 )
 
 func TestLeaseOutcomeMetrics(t *testing.T) {
@@ -14,18 +15,18 @@ func TestLeaseOutcomeMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	leaseData, _ := json.Marshal(WorkLease{
-		Version: workLeaseVersion, Task: "task", Worktree: "C:/worktree", Branch: "codex/task", Role: "developer",
+	leaseData, _ := json.Marshal(worklease.Lease{
+		Version: worklease.Version, Task: "task", Worktree: "C:/worktree", Branch: "codex/task", Role: "developer",
 		TargetHead: "0123456789abcdef0123456789abcdef01234567", ConflictsWith: []string{},
-		Resources: Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 8}, ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano),
+		Resources: worklease.Resources{CPUThreads: 8, HostRAMGiB: 16, VRAMGiB: 8}, ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano),
 	})
-	lease, err := RecordWorkLease(t.Context(), store, leaseData)
+	lease, err := worklease.Record(t.Context(), store, leaseData)
 	if err != nil {
 		t.Fatal(err)
 	}
 	outcomeData, _ := json.Marshal(LeaseOutcome{
 		Version: leaseOutcomeVersion, Lease: lease.ID, Predicted: lease.Resources,
-		Actual:          Resources{CPUThreads: 7, HostRAMGiB: 14, VRAMGiB: 7},
+		Actual:          worklease.Resources{CPUThreads: 7, HostRAMGiB: 14, VRAMGiB: 7},
 		PredictedWallNS: 100, ActualWallNS: 120, PredictedInterferenceNS: 10, ActualInterferenceNS: 20,
 		Collision: true, RecoveryNS: 5,
 	})

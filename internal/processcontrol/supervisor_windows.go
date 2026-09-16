@@ -29,6 +29,7 @@ var (
 	procResumeThread         = kernel32.NewProc("ResumeThread")
 	procCreateCompletionPort = kernel32.NewProc("CreateIoCompletionPort")
 	procGetCompletionStatus  = kernel32.NewProc("GetQueuedCompletionStatus")
+	procGetExitCodeProcess   = kernel32.NewProc("GetExitCodeProcess")
 )
 
 const (
@@ -55,7 +56,37 @@ const (
 	// JobObjectAssociateCompletionPortInformation and JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO.
 	jobCompletionPortClass = 7
 	jobActiveProcessZero   = 4
+	// detachedProcess is DETACHED_PROCESS: the child gets no console, so it
+	// outlives the console session of the process that started it.
+	detachedProcess = 0x00000008
+	// processQueryLimitedInformation is PROCESS_QUERY_LIMITED_INFORMATION,
+	// the least OpenProcess right that still admits GetExitCodeProcess.
+	processQueryLimitedInformation = 0x1000
+	// stillActive is STILL_ACTIVE, the exit code GetExitCodeProcess reports
+	// for a process that has not exited.
+	stillActive = 259
 )
+
+// ProcessAlive reports whether the process still runs.
+func ProcessAlive(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	handle, _, _ := procOpenProcess.Call(processQueryLimitedInformation, windowsFalse, uintptr(pid))
+	if handle == 0 {
+		return false
+	}
+	defer procCloseHandle.Call(handle)
+	var code uint32
+	ok, _, _ := procGetExitCodeProcess.Call(handle, uintptr(unsafe.Pointer(&code)))
+	return ok != 0 && code == stillActive
+}
+
+// DetachedSysProcAttr starts a child in its own process group without a
+// console, so it outlives the process that spawned it.
+func DetachedSysProcAttr() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP | detachedProcess}
+}
 
 type jobBasicLimits struct {
 	PerProcessUserTimeLimit int64

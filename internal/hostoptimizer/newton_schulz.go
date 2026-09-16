@@ -3,6 +3,7 @@ package hostoptimizer
 import (
 	"math"
 
+	"overgo/internal/hostmath"
 	"overgo/internal/scratch"
 )
 
@@ -26,14 +27,16 @@ var (
 )
 
 type newtonSchulzScratch struct {
-	input  []float64
-	gram   []float64
-	square []float64
-	output []float64
+	input      []float64
+	transposed []float64
+	gram       []float64
+	square     []float64
+	output     []float64
 }
 
 func (s *newtonSchulzScratch) ensure(maxMatrix, maxSquare int) {
 	s.input = scratch.Resize(s.input, maxMatrix)
+	s.transposed = scratch.Resize(s.transposed, maxMatrix)
 	s.gram = scratch.Resize(s.gram, maxSquare)
 	s.square = scratch.Resize(s.square, maxSquare)
 	s.output = scratch.Resize(s.output, maxMatrix)
@@ -48,6 +51,9 @@ func NewtonSchulz(input []float64, rows, cols int) {
 	newtonSchulz(input, rows, cols, &scratch)
 }
 
+// Every output element sums its products in one fixed order on one worker,
+// so the fan-out and the contiguous read orders are bit-identical to the
+// serial loops.
 func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch) {
 	var normSquared float64
 	for _, value := range input {
@@ -60,22 +66,23 @@ func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch)
 	for index := range input {
 		input[index] /= norm
 	}
-
 	tall := rows >= cols
 	dimension := min(rows, cols)
 	gram := scratch.gram[:dimension*dimension]
 	square := scratch.square[:dimension*dimension]
 	output := scratch.output[:rows*cols]
+	transposed := scratch.transposed[:rows*cols]
 	for iteration := range NewtonSchulzStage1Iterations + NewtonSchulzStage2Iterations {
 		coefficients := NewtonSchulzStage1
 		if iteration >= NewtonSchulzStage1Iterations {
 			coefficients = NewtonSchulzStage2
 		}
 		if tall {
-			gramColumns(gram, input, rows, cols)
+			transpose(transposed, input, rows, cols)
+			gramRows(gram, transposed, cols, rows)
 			symmetricSquare(square, gram, cols)
 			polynomial(square, gram, cols, coefficients)
-			matrixMultiply(output, input, rows, cols, square, cols)
+			matrixMultiplySymmetric(output, input, rows, cols, square)
 		} else {
 			gramRows(gram, input, rows, cols)
 			symmetricSquare(square, gram, rows)
@@ -86,43 +93,52 @@ func newtonSchulz(input []float64, rows, cols int, scratch *newtonSchulzScratch)
 	}
 }
 
-func gramColumns(dst, matrix []float64, rows, cols int) {
-	for left := range cols {
-		for right := left; right < cols; right++ {
-			var sum float64
+func transpose(dst, matrix []float64, rows, cols int) {
+	hostmath.ParallelRangeF64(cols, rows, func(start, end int) {
+		for col := start; col < end; col++ {
 			for row := range rows {
-				sum += matrix[row*cols+left] * matrix[row*cols+right]
+				dst[col*rows+row] = matrix[row*cols+col]
 			}
-			dst[left*cols+right] = sum
-			dst[right*cols+left] = sum
 		}
-	}
+	})
 }
 
+// gramRows fills the symmetric rows by rows Gram of a row-major matrix; a
+// tall matrix passes its transpose so both operands read contiguously.
 func gramRows(dst, matrix []float64, rows, cols int) {
-	for upper := range rows {
-		for lower := upper; lower < rows; lower++ {
-			var sum float64
-			for col := range cols {
-				sum += matrix[upper*cols+col] * matrix[lower*cols+col]
+	hostmath.ParallelRangeF64(rows, rows*cols/2, func(start, end int) {
+		for upper := start; upper < end; upper++ {
+			left := matrix[upper*cols : (upper+1)*cols]
+			for lower := upper; lower < rows; lower++ {
+				right := matrix[lower*cols : (lower+1)*cols]
+				var sum float64
+				for col := range cols {
+					sum += left[col] * right[col]
+				}
+				dst[upper*rows+lower] = sum
+				dst[lower*rows+upper] = sum
 			}
-			dst[upper*rows+lower] = sum
-			dst[lower*rows+upper] = sum
 		}
-	}
+	})
 }
 
+// symmetricSquare squares a symmetric matrix; the column operand is read as
+// its equal row.
 func symmetricSquare(dst, matrix []float64, dimension int) {
-	for row := range dimension {
-		for col := row; col < dimension; col++ {
-			var sum float64
-			for inner := range dimension {
-				sum += matrix[row*dimension+inner] * matrix[inner*dimension+col]
+	hostmath.ParallelRangeF64(dimension, dimension*dimension/2, func(start, end int) {
+		for row := start; row < end; row++ {
+			left := matrix[row*dimension : (row+1)*dimension]
+			for col := row; col < dimension; col++ {
+				right := matrix[col*dimension : (col+1)*dimension]
+				var sum float64
+				for inner := range dimension {
+					sum += left[inner] * right[inner]
+				}
+				dst[row*dimension+col] = sum
+				dst[col*dimension+row] = sum
 			}
-			dst[row*dimension+col] = sum
-			dst[col*dimension+row] = sum
 		}
-	}
+	})
 }
 
 func polynomial(dst, gram []float64, dimension int, coefficients [3]float64) {
@@ -138,14 +154,34 @@ func polynomial(dst, gram []float64, dimension int, coefficients [3]float64) {
 	}
 }
 
-func matrixMultiply(dst, left []float64, leftRows, shared int, right []float64, rightCols int) {
-	for row := range leftRows {
-		for col := range rightCols {
-			var sum float64
-			for inner := range shared {
-				sum += left[row*shared+inner] * right[inner*rightCols+col]
+// matrixMultiplySymmetric multiplies a rows by cols matrix by a symmetric
+// cols by cols matrix, reading the symmetric operand's column as its row.
+func matrixMultiplySymmetric(dst, left []float64, rows, cols int, symmetric []float64) {
+	hostmath.ParallelRangeF64(rows, cols*cols, func(start, end int) {
+		for row := start; row < end; row++ {
+			source := left[row*cols : (row+1)*cols]
+			for col := range cols {
+				column := symmetric[col*cols : (col+1)*cols]
+				var sum float64
+				for inner := range cols {
+					sum += source[inner] * column[inner]
+				}
+				dst[row*cols+col] = sum
 			}
-			dst[row*rightCols+col] = sum
 		}
-	}
+	})
+}
+
+func matrixMultiply(dst, left []float64, leftRows, shared int, right []float64, rightCols int) {
+	hostmath.ParallelRangeF64(leftRows, shared*rightCols, func(start, end int) {
+		for row := start; row < end; row++ {
+			for col := range rightCols {
+				var sum float64
+				for inner := range shared {
+					sum += left[row*shared+inner] * right[inner*rightCols+col]
+				}
+				dst[row*rightCols+col] = sum
+			}
+		}
+	})
 }

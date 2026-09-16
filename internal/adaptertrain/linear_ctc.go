@@ -9,6 +9,7 @@ import (
 	"overgo/internal/binaryschema"
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
+	"overgo/internal/hostoptimizer"
 	"overgo/internal/optimizer"
 	"overgo/internal/trainingprogram"
 )
@@ -170,7 +171,7 @@ func (m *LinearCTC) Bind(ctx context.Context) (trainingprogram.Execution[LinearC
 			m.sequence, m.frames = next, example.Frames
 			example.owner, example.sequence = m, next
 			logits := m.logits[:example.Frames*m.vocabulary]
-			hostmath.LinearInputProjection(logits, m.projected[:len(example.Hidden)], example.Hidden, m.weights, m.outputWeight, m.outputBias, example.Frames, m.width, m.vocabulary)
+			hostoptimizer.LinearOutputProjection(logits, m.projected[:len(example.Hidden)], example.Hidden, m.weights, m.outputWeight, m.outputBias, example.Frames, m.width, m.vocabulary)
 			loss, err := trainingprogram.CTCLossF32(ctx, m.dLogits[:len(logits)], logits, example.Targets, example.Frames, m.vocabulary, m.blank, m.scratch)
 			if err != nil {
 				return err

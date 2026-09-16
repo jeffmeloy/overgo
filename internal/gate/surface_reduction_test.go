@@ -19,6 +19,7 @@ import (
 )
 
 func TestSurfacePreflightComposition(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs("../..")
 	if err != nil {
 		t.Fatal(err)
@@ -113,6 +114,7 @@ func TestSurfaceProfileReuse(t *testing.T) {
 }
 
 func TestSurfaceSelectionWitness(t *testing.T) {
+	t.Parallel()
 	g := runtimeReaderFixture(t)
 	g.storePath, g.environment = StorePath, lifecycleTestEnvironment(t)
 	t.Cleanup(func() { _ = g.closeStore() })

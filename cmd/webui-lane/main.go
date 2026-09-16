@@ -14,11 +14,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
-	"time"
+	"syscall"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
@@ -37,6 +38,7 @@ func run() error {
 	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
 	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
 	run := flags.String("run", "^"+webuilane.BrowserTestPrefix, "the browser tests to run, as go test -run takes them; a named test that skips fails the lane")
+	journeys := flags.Bool("journeys", false, "run the model journeys ("+webuilane.ModelJourneyPrefix+"*), which build, serve or hash models, instead of the page acceptances")
 	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
 	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
 	var required []string
@@ -44,12 +46,20 @@ func run() error {
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 || (*report != "") != (*fork != "") {
 		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>] [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	if *pageURL != "" {
-		return captureLive(os.Stdout, *pageURL, *screens)
+		return captureLive(ctx, os.Stdout, *pageURL, *screens)
 	}
 	var captured bytes.Buffer
 	stdout := io.MultiWriter(os.Stdout, &captured)
 	var extra []string
+	if *journeys {
+		if *run == "^"+webuilane.BrowserTestPrefix {
+			*run = "^" + webuilane.ModelJourneyPrefix
+		}
+		extra = append(extra, webuilane.ModelJourneyEnvironment+"=1")
+	}
 	if *screens != "" {
 		absolute, err := filepath.Abs(*screens)
 		if err != nil {
@@ -57,7 +67,7 @@ func run() error {
 		}
 		extra = append(extra, "OVERGO_WEBUI_LANE_SCREENS="+absolute)
 	}
-	ran, err := runLane(stdout, *run, extra)
+	ran, err := runLane(ctx, stdout, *run, extra)
 	if err != nil {
 		// The failed tests' own lines end the error, where a caller's
 		// bounded tail keeps them; the whole run is kept in a file the
@@ -99,28 +109,20 @@ func run() error {
 	return nil
 }
 
-// names the exhausted settle bound of the transport probe as its cause
-var errProbeSettle = errors.New("webui lane: browser transport probe did not settle")
-
-// liveSettle bounds a live server's tab request before its capture.
-const liveSettle = 8 * time.Second
-
 // captureLive captures and audits a running server's page: every tab and
 // the picker at each viewport, the captures written when dir is set, the
 // findings listed; a finding is the error.
-func captureLive(stdout io.Writer, pageURL, dir string) error {
+func captureLive(ctx context.Context, stdout io.Writer, pageURL, dir string) error {
 	browser, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeoutCause(context.Background(), 5*time.Minute, errors.New("webui lane: the live capture did not complete"))
-	defer cancel()
 	page, err := webuilane.Open(ctx, browser, pageURL)
 	if err != nil {
 		return err
 	}
 	defer page.Close()
-	states, findings, err := webuilane.CaptureStates(ctx, page, dir, liveSettle)
+	states, findings, err := webuilane.CaptureStates(ctx, page, dir)
 	if err != nil {
 		return err
 	}
@@ -138,13 +140,13 @@ func captureLive(stdout io.Writer, pageURL, dir string) error {
 // writing the lane's observations to stdout; ran reports whether the
 // tests ran at all (no browser leaves the lane UNAVAILABLE, not failed).
 // extra carries the screens test's capture directory and page address.
-func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error) {
+func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) (ran bool, err error) {
 	var listing bytes.Buffer
 	if !strings.Contains(run, "/") {
 		// Empty -list executes tests instead of listing them.
 		listingPattern := cmp.Or(run, ".")
 		args := append([]string{"test", "-list", listingPattern, "-json"}, browserTestPackages...)
-		receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{Path: "go", Args: args, Stdout: &listing, Stderr: os.Stderr})
+		receipt, err := processcontrol.Run(ctx, processcontrol.Command{Path: "go", Args: args, Stdout: &listing, Stderr: os.Stderr})
 		if err != nil {
 			return false, err
 		}
@@ -161,20 +163,18 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 		fmt.Fprintf(stdout, "webui lane: UNAVAILABLE no browser: %v\n", err)
 		return false, nil
 	}
-	probe, err := webuilane.Open(context.Background(), browser, "data:text/html,<title>overgo-webui-lane</title>")
+	probe, err := webuilane.Open(ctx, browser, "data:text/html,<title>overgo-webui-lane</title>")
 	if err != nil {
 		return false, err
 	}
-	// The probe page settles under the same bound as a live tab: the lane
-	// starts beside the test groups now, and a loaded host may hand back an
-	// empty title before the data page has rendered.
+	// The probe page renders on its own clock: the lane starts beside the
+	// test groups, and a loaded host may hand back an empty title before
+	// the data page has rendered, so the title is awaited, not read once.
 	var title string
-	if err := probe.SetViewport(context.Background(), len(browser), len(browser)); err == nil {
-		settle, cancel := context.WithTimeoutCause(context.Background(), liveSettle, errProbeSettle)
-		if err = probe.Eventually(settle, `document.title === "overgo-webui-lane"`); err == nil {
-			err = probe.Evaluate(settle, "document.title", &title)
+	if err := probe.SetViewport(ctx, len(browser), len(browser)); err == nil {
+		if err = probe.Eventually(ctx, `document.title === "overgo-webui-lane"`); err == nil {
+			err = probe.Evaluate(ctx, "document.title", &title)
 		}
-		cancel()
 	}
 	_ = probe.Close()
 	if err != nil {
@@ -187,7 +187,7 @@ func runLane(stdout io.Writer, run string, extra []string) (ran bool, err error)
 	env = append(env, extra...)
 	args := append([]string{"test"}, packages...)
 	args = append(args, "-run", run, "-count=1", "-timeout=20m", "-v")
-	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
+	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path:   "go",
 		Args:   args,
 		Env:    env,
@@ -229,7 +229,7 @@ func browserPackages(run string, listing io.Reader) ([]string, error) {
 			return nil, fmt.Errorf("browser test discovery: %w", err)
 		}
 		name := strings.TrimSpace(event.Output)
-		if strings.HasPrefix(name, webuilane.BrowserTestPrefix) && pattern.MatchString(name) {
+		if (strings.HasPrefix(name, webuilane.BrowserTestPrefix) || strings.HasPrefix(name, webuilane.ModelJourneyPrefix)) && pattern.MatchString(name) {
 			if !slices.Contains(browserTestPackages, event.Package) {
 				return nil, fmt.Errorf("browser test discovery returned unknown owner %q", event.Package)
 			}

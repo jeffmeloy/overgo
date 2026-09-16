@@ -7,6 +7,7 @@ import (
 )
 
 func TestPreparedGateReferenceRefusesDifferentBranchAtSameParent(t *testing.T) {
+	t.Parallel()
 	repository, intent := newReferenceUpdateFixture(t)
 	reference := intent.HeadReference
 	runGitFixture(t, repository, "branch", "other", intent.Parent)
@@ -25,6 +26,7 @@ func TestPreparedGateReferenceRefusesDifferentBranchAtSameParent(t *testing.T) {
 }
 
 func TestPreparedGateReferenceRefusesDetachedHead(t *testing.T) {
+	t.Parallel()
 	repository, intent := newReferenceUpdateFixture(t)
 	runGitFixture(t, repository, "checkout", "-q", "--detach", intent.Parent)
 
@@ -38,6 +40,7 @@ func TestPreparedGateReferenceRefusesDetachedHead(t *testing.T) {
 }
 
 func TestExactGateHeadDetectsAdvanceAfterAcceptedCommit(t *testing.T) {
+	t.Parallel()
 	repository, intent := newReferenceUpdateFixture(t)
 	if err := installCompletionIndexAndAdvanceGateReference(repository, intent); err != nil {
 		t.Fatal(err)

@@ -3,9 +3,9 @@ package agenttool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestTransportEntryWaitHonorsDeadline pins the reopened finding: a
@@ -34,16 +34,14 @@ func TestTransportEntryWaitHonorsDeadline(t *testing.T) {
 		firstDone <- err
 	}()
 	<-entered
-	bounded, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
-	defer cancel()
-	started := time.Now()
+	// The first call holds the entry throughout, so the second call's wait
+	// ends only with its caller: a cancelled caller is answered at once.
+	ended := errors.New("the caller left the entry wait")
+	bounded, cancel := context.WithCancelCause(t.Context())
+	cancel(ended)
 	_, err := executor.Invoke(bounded, manual, json.RawMessage(`{"pattern":"x"}`))
-	waited := time.Since(started)
-	if err == nil || !strings.Contains(err.Error(), "waiting for entry") {
-		t.Fatalf("second call = %v, want a typed entry-wait timeout", err)
-	}
-	if waited > 5*time.Second {
-		t.Fatalf("second call waited %s; the deadline did not bound the entry wait", waited)
+	if err == nil || !strings.Contains(err.Error(), "waiting for entry") || !errors.Is(err, ended) {
+		t.Fatalf("second call = %v, want a typed entry-wait end with the caller's cause", err)
 	}
 	close(release)
 	if err := <-firstDone; err != nil {

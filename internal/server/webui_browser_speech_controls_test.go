@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
@@ -95,8 +94,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 60*time.Second, errors.New("speech surface probe did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

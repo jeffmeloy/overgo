@@ -18,12 +18,16 @@ import (
 var retainedPublicationCost = flag.Bool("retained-publication-cost", false, "verify frozen publication attempts in the canonical data-root store")
 
 func TestPlanOnlyPublicationReusesUnchangedPhases(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	t.Run("restart and live admission", testModernCensusRestartAndLiveAdmission)
 	t.Run("missing and unproven results", testModernCensusMissingAndUnprovenResults)
 	t.Run("source and build invalidation", testModernCensusSourceAndBuildInvalidation)
 }
 
 func TestPlanPublicationCostBreakdown(t *testing.T) {
+	t.Parallel()
 	t.Run("overlapping work is not elapsed wall", func(t *testing.T) {
 		steps := costSteps(runrecord.StepSucceeded, runrecord.StepSucceeded, 5*uint64(time.Second), 3*uint64(time.Second))
 		g := &gateContext{planRef: "publication/cost"}

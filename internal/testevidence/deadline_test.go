@@ -120,6 +120,5 @@ func TestActiveDeadlineProcess(t *testing.T) {
 	// Continuous output exercises cancellation while the supervised pipes drain.
 	for {
 		_, _ = io.WriteString(os.Stdout, packageEvent("output", "blocked", "TestBlocked", strings.Repeat("x", 4096)))
-		time.Sleep(time.Millisecond)
 	}
 }

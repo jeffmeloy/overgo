@@ -8,6 +8,9 @@ import (
 )
 
 func TestCandidateGoPhasesExcludeIgnoredSource(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	t.Setenv("OVERGO_DATA_ROOT", "")
 	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", "")
 	repo := t.TempDir()

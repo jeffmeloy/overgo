@@ -18,6 +18,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/servingtest"
+	"overgo/internal/testprocess"
 	"overgo/internal/testutil"
 )
 
@@ -57,17 +58,17 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 	temporary := t.TempDir()
 	candidateBinary := filepath.Join(temporary, "overgo-carbon.test.exe")
 	referenceBinary := filepath.Join(temporary, "adaptive-carbon.test.exe")
-	testutil.BuildTestBinary(t, root, candidateBinary, "modeltest", "./internal/inference")
-	testutil.BuildTestBinary(t, adaptiveGo, referenceBinary, "cuda", "./cmd/adaptive-gpt-server")
+	testprocess.BuildTestBinary(t, root, candidateBinary, "modeltest", "./internal/inference")
+	testprocess.BuildTestBinary(t, adaptiveGo, referenceBinary, "cuda", "./cmd/adaptive-gpt-server")
 
 	candidate := make([]processmeasure.Result, 0, carbonProcessRuns)
 	reference := make([]processmeasure.Result, 0, carbonProcessRuns)
 	measureCandidate := func() {
-		candidate = append(candidate, testutil.MeasureTestProcesses(t, 1, root, candidateBinary,
+		candidate = append(candidate, testprocess.MeasureTestProcesses(t, 1, root, candidateBinary,
 			"TestCarbonServingProcessProbe", "CARBON_PROCESS_PROBE")[0])
 	}
 	measureReference := func() {
-		reference = append(reference, testutil.MeasureTestProcesses(t, 1,
+		reference = append(reference, testprocess.MeasureTestProcesses(t, 1,
 			filepath.Join(adaptiveGo, "cmd", "adaptive-gpt-server"), referenceBinary,
 			"TestCarbonServingProcessProbe", "CARBON_PROCESS_PROBE")[0])
 	}
@@ -83,21 +84,21 @@ func TestCarbonColdLifecyclePhases(t *testing.T) {
 	candidateWall, candidateWarm, candidateDevice := carbonProbeMedians(t, candidate)
 	referenceWall, referenceWarm, referenceDevice := carbonProbeMedians(t, reference)
 	resolveWall, openWall, generationWall := carbonCandidatePhaseMedians(t, candidate)
-	candidateHost, referenceHost := testutil.MedianProcessPeak(candidate), testutil.MedianProcessPeak(reference)
+	candidateHost, referenceHost := testprocess.MedianProcessPeak(candidate), testprocess.MedianProcessPeak(reference)
 	logCarbonProbeSamples(t, "candidate", candidate)
 	logCarbonProbeSamples(t, "reference", reference)
-	t.Logf("Carbon candidate=%s reference=%s", testutil.FormatProcessMeasurements(candidate), testutil.FormatProcessMeasurements(reference))
+	t.Logf("Carbon candidate=%s reference=%s", testprocess.FormatProcessMeasurements(candidate), testprocess.FormatProcessMeasurements(reference))
 	t.Logf("Carbon lifecycle candidate=%s/%0.3fMiB reference=%s/%0.3fMiB",
-		candidateWall, testutil.MiB(candidateDevice), referenceWall, testutil.MiB(referenceDevice))
+		candidateWall, testprocess.MiB(candidateDevice), referenceWall, testprocess.MiB(referenceDevice))
 	t.Logf("Carbon warm generation candidate=%s reference=%s", candidateWarm, referenceWarm)
 	t.Logf("Carbon candidate cold phases resolve=%s open=%s generation=%s", resolveWall, openWall, generationWall)
 	if candidateDevice >= referenceDevice {
 		t.Fatalf("Carbon device peak %.3f MiB does not beat adaptive %.3f MiB",
-			testutil.MiB(candidateDevice), testutil.MiB(referenceDevice))
+			testprocess.MiB(candidateDevice), testprocess.MiB(referenceDevice))
 	}
 	if candidateHost >= referenceHost {
 		t.Fatalf("Carbon process peak %.3f MiB does not beat adaptive %.3f MiB",
-			testutil.MiB(candidateHost), testutil.MiB(referenceHost))
+			testprocess.MiB(candidateHost), testprocess.MiB(referenceHost))
 	}
 	if 2*candidateWall >= 3*referenceWall {
 		t.Fatalf("Carbon lifecycle wall %s exceeds 1.5x adaptive %s", candidateWall, referenceWall)

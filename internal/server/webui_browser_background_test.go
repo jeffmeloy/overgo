@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
@@ -45,8 +44,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 15*time.Second, errors.New("cold activity did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, front.URL)
 	if err != nil {
 		t.Fatal(err)
@@ -110,8 +108,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("background work did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

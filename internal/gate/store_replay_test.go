@@ -10,6 +10,9 @@ import (
 )
 
 func TestGateAdmissionStoreReuse(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, storePath := newLifecycleRepo(t), "store"
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate-admission@example.invalid")
@@ -38,6 +41,7 @@ func TestGateAdmissionStoreReuse(t *testing.T) {
 }
 
 func TestGateStoreAcceleration(t *testing.T) {
+	t.Parallel()
 	repo, storePath := newLifecycleRepo(t), "store"
 	store, err := overgodb.Open(filepath.Join(repo, storePath))
 	if err != nil {

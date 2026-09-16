@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
+	"overgo/internal/worklease"
 )
 
 func batchPlanFixture() Plan {
@@ -83,12 +84,12 @@ func TestVerificationBatchDeclaration(t *testing.T) {
 		ID: "train", Status: StatusOpen, Verify: "go test ./x -run '^TestTrain$'", DependsOn: []string{"audio/dataset"},
 	})
 	authority := testCompletionAuthority(t, document)
-	_, step, open := Current(document, UnassignedRole, authority)
+	_, step, open := Current(document, worklease.UnassignedRole, authority)
 	if !open || step.ID != "dataset" {
 		t.Fatalf("batch declaration advanced parent: %+v, %t", step, open)
 	}
 	document.Items[0].Steps[0].VerificationBatch.Checkpoints[0].Verify += " -race"
-	if _, _, open := Current(document, UnassignedRole, authority); open {
+	if _, _, open := Current(document, worklease.UnassignedRole, authority); open {
 		t.Fatal("changed batch reused prior completion authority")
 	}
 }

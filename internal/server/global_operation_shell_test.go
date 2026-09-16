@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operation"
@@ -75,13 +74,7 @@ func TestGlobalOperationShellSSE(t *testing.T) {
 		<-done
 		t.Fatal(err)
 	}
-	select {
-	case <-recorder.flushes:
-	case <-time.After(time.Second):
-		cancel()
-		<-done
-		t.Fatal("operation event was not flushed")
-	}
+	<-recorder.flushes
 	cancel()
 	<-done
 	if !strings.Contains(recorder.Body.String(), "event: operation") ||

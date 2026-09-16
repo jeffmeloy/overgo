@@ -1,12 +1,9 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"overgo/internal/overgodb"
 	"overgo/internal/testskip"
@@ -34,8 +31,7 @@ func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 60*time.Second, errors.New("workspace reachability did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#training-jobs")
 	if err != nil {
 		t.Fatal(err)

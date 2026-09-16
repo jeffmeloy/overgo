@@ -183,6 +183,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if err != nil {
 		return plannedPipeline{}, err
 	}
+	definitions = g.rewireDeferredLanes(definitions)
 	surface := automationcheck.Surface{}
 	if structuralErr == nil {
 		surface = automationcheck.ManifestSurface(structural)
@@ -238,8 +239,25 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if automationcheck.WebUIPaths(g.paths) {
 		impact = impact.Trigger(automationcheck.WebUIImpact, automationcheck.WebUICheckName)
 	}
+	// A journey source or the server command is likewise no symbol the
+	// closure sees; its change triggers the model journeys.
+	if automationcheck.ModelJourneyPaths(g.paths) {
+		impact = impact.Trigger(automationcheck.ModelJourneyImpact, automationcheck.ModelJourneyCheckName)
+	}
 	g.selection = automationcheck.MeasureSelection(definitions, impact)
 	g.selectionID = surface.Identity
+	// Every owned check's decision is on the record: the closure proof that
+	// excluded it, or the fact that triggered it.
+	for _, check := range definitions {
+		if check.Descriptor.Ownership.Fact == "" {
+			continue
+		}
+		if reason, excluded := impact.ExclusionReason(check.Descriptor.Name); excluded {
+			g.note(fmt.Sprintf("impact selection: %s excluded: %s", check.Descriptor.Name, reason))
+		} else {
+			g.note(fmt.Sprintf("impact selection: %s triggered: %s", check.Descriptor.Name, check.Descriptor.Ownership.Fact))
+		}
+	}
 	checks, err := automationcheck.Plan(definitions, impact)
 	if err != nil {
 		return plannedPipeline{}, err
@@ -343,9 +361,16 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	manifestCache, err := codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
-	if err != nil {
-		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+	// A context that already holds a cache keeps it: every derivation of
+	// the same base and candidate authority reuses the generated manifests.
+	g.sourceMutex.Lock()
+	manifestCache := g.manifestCache
+	g.sourceMutex.Unlock()
+	if manifestCache == nil {
+		manifestCache, err = codemanifest.NewCache(len([]repoanalysis.SourceSnapshot{base, candidate}))
+		if err != nil {
+			return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
+		}
 	}
 	baseManifest, _, err := manifestCache.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
 	if err != nil {
@@ -462,6 +487,9 @@ func (g *gateContext) requirePreparedCandidate(candidateKey string) error {
 // verification check reads the files instead of rebuilding the index, and
 // any change to a planned path or to HEAD rebuilds it.
 func (g *gateContext) plannedTree() (string, error) {
+	if g.fixedTree != "" {
+		return g.fixedTree, nil
+	}
 	fingerprint, err := g.plannedFingerprint()
 	if err != nil {
 		return "", err

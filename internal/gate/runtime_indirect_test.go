@@ -7,6 +7,7 @@ import (
 )
 
 func TestRuntimeInputsIndirectAndConditional(t *testing.T) {
+	t.Parallel()
 	for name, source := range map[string]string{
 		"function_alias": `package probe
  import "os"

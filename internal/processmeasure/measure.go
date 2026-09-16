@@ -9,21 +9,15 @@ import (
 	"time"
 )
 
-const sampleInterval = 2 * time.Millisecond
-
 type Result struct {
 	Wall               time.Duration
 	PeakWorkingSetByte uint64
 	Output             []byte
 }
 
-type peakSample struct {
-	bytes   uint64
-	sampled bool
-	err     error
-}
-
-// Measure runs one configured child and samples its process peak.
+// Measure runs one configured child and reads its peak working set from the
+// kernel's own high-water mark once it has exited: a handle retained across
+// the exit keeps the counters readable, and nothing samples the child.
 func Measure(command *exec.Cmd) (Result, error) {
 	if command == nil || command.Process != nil {
 		return Result{}, errors.New("process measure: command is nil or already started")
@@ -37,39 +31,17 @@ func Measure(command *exec.Cmd) (Result, error) {
 	if err := command.Start(); err != nil {
 		return Result{}, err
 	}
-	stop := make(chan struct{})
-	finished := make(chan peakSample, 1)
-	go samplePeak(command, stop, finished)
+	peak, peakErr := retainPeak(command.Process)
 	waitErr := command.Wait()
 	ended, clockErr := Counter()
-	close(stop)
-	sample := <-finished
-	result := Result{
-		Wall: ended - started, PeakWorkingSetByte: sample.bytes,
-		Output: bytes.Clone(output.Bytes()),
+	result := Result{Wall: ended - started, Output: bytes.Clone(output.Bytes())}
+	if peakErr != nil {
+		return result, errors.Join(waitErr, clockErr, fmt.Errorf("process measure: peak unavailable: %w", peakErr))
 	}
-	if !sample.sampled {
-		return result, errors.Join(waitErr, clockErr, fmt.Errorf("process measure: peak unavailable: %w", sample.err))
+	result.PeakWorkingSetByte, peakErr = peak.read()
+	closeErr := peak.close()
+	if peakErr != nil {
+		return result, errors.Join(waitErr, clockErr, closeErr, fmt.Errorf("process measure: peak unavailable: %w", peakErr))
 	}
-	return result, errors.Join(waitErr, clockErr)
-}
-
-func samplePeak(command *exec.Cmd, stop <-chan struct{}, finished chan<- peakSample) {
-	ticker := time.Tick(sampleInterval)
-	var result peakSample
-	for {
-		peak, err := peakWorkingSet(command.Process)
-		if err == nil {
-			result.sampled = true
-			result.bytes = max(result.bytes, peak)
-		} else {
-			result.err = err
-		}
-		select {
-		case <-stop:
-			finished <- result
-			return
-		case <-ticker:
-		}
-	}
+	return result, errors.Join(waitErr, clockErr, closeErr)
 }

@@ -26,10 +26,10 @@ func TestEvaluationSessionWriterCancellation(t *testing.T) {
 	defer lock.Close()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
-	// Cancellation must reach store admission before model resolution. The
-	// old nonblocking open returned ErrBusy and discarded the caller's cause.
+	// Cancellation must reach store admission before model resolution: the
+	// caller's cause is kept, beside the contention the admission found.
 	session, err := openEvaluationSession(ctx, manifest{Repository: root}, modelRequest{Path: "not-loaded.gguf"})
-	if session != nil || !errors.Is(err, context.Canceled) || errors.Is(err, processlock.ErrBusy) {
+	if session != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled writer admission: session=%v error=%v", session, err)
 	}
 }

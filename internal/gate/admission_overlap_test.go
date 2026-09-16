@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"overgo/internal/plan"
 )
@@ -18,6 +17,7 @@ import (
 // for the gate's readers, and the staged repairs run in one wave after the
 // formatter, so the chain's wall is the longest repair, not their sum.
 func TestAdmissionStepsOverlap(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@test")
@@ -78,31 +78,25 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 
 	write("docs/modern_go_census.json", "old\n")
 	write("docs/modern_go_baseline.json", "old\n")
+	// The closure rebind and the census run in one wave: they prove it by
+	// meeting inside the command runner.
+	rebindKey, publishKey := filepath.Join(repo, gateStorePath), "-lower-baseline"
+	wave := newRendezvous(rebindKey, publishKey)
 	var mutex sync.Mutex
-	spans := map[string][2]time.Time{}
+	ran := map[string]bool{}
 	g.runCommand = func(root, name string, args ...string) (string, error) {
 		key := args[len(args)-1]
-		began := time.Now()
-		time.Sleep(120 * time.Millisecond)
+		wave.meet(key)
 		mutex.Lock()
-		spans[key] = [2]time.Time{began, time.Now()}
+		ran[key] = true
 		mutex.Unlock()
 		return "done", nil
 	}
-	began := time.Now()
 	if err := g.stageMechanicalRepairs(); err != nil {
 		t.Fatal(err)
 	}
-	total := time.Since(began)
-	rebind, publish := spans[filepath.Join(repo, gateStorePath)], spans["-lower-baseline"]
-	if rebind[0].IsZero() || publish[0].IsZero() || len(spans) != 2 {
-		t.Fatalf("repairs ran %v", spans)
-	}
-	if !rebind[0].Before(publish[1]) || !publish[0].Before(rebind[1]) {
-		t.Fatalf("the closure rebind and the census did not overlap: rebind=%v publish=%v", rebind, publish)
-	}
-	if total > 3*120*time.Millisecond+2*time.Second {
-		t.Fatalf("staged repairs took %s, longer than their wave allows", total)
+	if !ran[rebindKey] || !ran[publishKey] || !ran["-update"] || len(ran) != 3 {
+		t.Fatalf("repairs ran %v, want the rebind, the census and the API manifest update", ran)
 	}
 	staged := slices.IndexFunc(g.audit, func(line string) bool { return strings.HasPrefix(line, "staged repair: ") })
 	if staged < 0 || !strings.HasPrefix(g.audit[staged], "staged repair: gofmt") {

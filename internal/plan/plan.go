@@ -18,15 +18,11 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/strictjson"
 	"overgo/internal/textcheck"
+	"overgo/internal/worklease"
 )
 
-const (
-	automationRoleMaxBytes = 2048
-	// AutomationRoleEnvironment is the shared lane-role input for dispatchers.
-	AutomationRoleEnvironment = "OVERGO_AUTOMATION_ROLE"
-	// UnassignedRole selects work without an explicit owner.
-	UnassignedRole = "unassigned"
-)
+// AutomationRoleEnvironment is the shared lane-role input for dispatchers.
+const AutomationRoleEnvironment = "OVERGO_AUTOMATION_ROLE"
 
 // Path is the campaign plan, relative to the repo root.
 const Path = "docs/plan.json"
@@ -144,13 +140,13 @@ func Validate(d Plan) error {
 }
 
 func validatePlanGraph(d Plan) error {
-	if d.Scope != "" && (d.Scope != ScopeLane || normalizedRole(d.Lane) == UnassignedRole) {
+	if d.Scope != "" && (d.Scope != ScopeLane || normalizedRole(d.Lane) == worklease.UnassignedRole) {
 		return errors.New("plan: lane scope requires an explicit lane")
 	}
 	if d.Census != nil && (!d.Census.Valid() || d.Census.Kind() != artifact.KindEvidence) {
 		return errors.New("plan: census authority is not evidence")
 	}
-	if d.Lane != "" && !validAutomationText(d.Lane) {
+	if d.Lane != "" && !worklease.ValidAutomationText(d.Lane) {
 		return errors.New("plan: invalid lane")
 	}
 	items := map[string]bool{}
@@ -158,11 +154,11 @@ func validatePlanGraph(d Plan) error {
 		if d.Scope == ScopeLane && item.Owner != d.Lane {
 			return fmt.Errorf("plan: lane-scoped item %s must be owned by %s", item.ID, d.Lane)
 		}
-		if !validPlanID(item.ID) || items[item.ID] {
+		if !worklease.ValidPlanID(item.ID) || items[item.ID] {
 			return fmt.Errorf("plan item id %q is invalid or duplicated", item.ID)
 		}
 		items[item.ID] = true
-		if item.Owner != "" && !validAutomationText(item.Owner) {
+		if item.Owner != "" && !worklease.ValidAutomationText(item.Owner) {
 			return fmt.Errorf("plan item %s has invalid owner", item.ID)
 		}
 		if !validStatus(item.Status) {
@@ -170,7 +166,7 @@ func validatePlanGraph(d Plan) error {
 		}
 		steps := map[string]bool{}
 		for _, step := range item.Steps {
-			if !validPlanID(step.ID) || steps[step.ID] {
+			if !worklease.ValidPlanID(step.ID) || steps[step.ID] {
 				return fmt.Errorf("plan step %s/%s is invalid or duplicated", item.ID, step.ID)
 			}
 			steps[step.ID] = true
@@ -209,7 +205,7 @@ func validateDependencies(d Plan) error {
 			source := item.ID + "/" + step.ID
 			for _, reference := range step.DependsOn {
 				target, targetStep, hasStep := strings.Cut(reference, "/")
-				if !hasStep || !validPlanID(target) || !validPlanID(targetStep) {
+				if !hasStep || !worklease.ValidPlanID(target) || !worklease.ValidPlanID(targetStep) {
 					return fmt.Errorf("plan step %s: depends_on %q must name one exact item/step", source, reference)
 				}
 				// Only present targets join the retained cycle graph. An
@@ -309,10 +305,10 @@ func currentResolved(d Plan, role string, authority CompletionAuthority) (Item, 
 	role = normalizedRole(role)
 	// The plan's lane is the role nobody named: the rule reads the plan, so a
 	// worktree and the gate's candidate tree dispatch the same rows.
-	if role == UnassignedRole && d.Lane != "" {
+	if role == worklease.UnassignedRole && d.Lane != "" {
 		role = d.Lane
 	}
-	if role != UnassignedRole {
+	if role != worklease.UnassignedRole {
 		if item, step, ok := currentOwned(d, role, authority); ok {
 			return item, step, true
 		}
@@ -354,27 +350,19 @@ func AutomationRole(explicit string) (string, error) {
 		role = strings.TrimSpace(os.Getenv(AutomationRoleEnvironment))
 	}
 	role = normalizedRole(role)
-	if !validAutomationText(role) {
+	if !worklease.ValidAutomationText(role) {
 		return "", errors.New("plan: invalid automation role")
 	}
 	return role, nil
 }
 
-func validAutomationText(value string) bool {
-	return textcheck.Bounded(value, automationRoleMaxBytes, "\x00\r\n")
-}
-
-func validPlanID(value string) bool {
-	return textcheck.BoundedToken(value, automationRoleMaxBytes, "/\\\x00\r\n")
-}
-
 func validAutomationDetail(value string) bool {
-	return textcheck.Bounded(value, 2*automationRoleMaxBytes, "\x00\r\n")
+	return textcheck.Bounded(value, 2*worklease.AutomationTextMaxBytes, "\x00\r\n")
 }
 
 func normalizedRole(role string) string {
 	if role = strings.TrimSpace(role); role == "" {
-		return UnassignedRole
+		return worklease.UnassignedRole
 	}
 	return role
 }
@@ -466,7 +454,7 @@ func (document Plan) EditStep(edit StepEdit) (Plan, error) {
 	if edit.Create == exists {
 		return Plan{}, errors.New("plan: create requires an absent step; replace requires an existing step")
 	}
-	if edit.Step.Status != StatusOpen || !validAutomationText(edit.Step.Title) {
+	if edit.Step.Status != StatusOpen || !worklease.ValidAutomationText(edit.Step.Title) {
 		return Plan{}, errors.New("plan: edit requires an open step with a nonempty one-line title")
 	}
 	var outcome json.RawMessage

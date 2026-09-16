@@ -51,7 +51,7 @@ func TestExternalProcessLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := waitDevToolsPort(t.Context(), t.TempDir(), supervised); err == nil {
+	if _, err := waitDevToolsPort(t.Context(), processcontrol.WatchLine(nil, devToolsAnnouncement), supervised); err == nil {
 		t.Fatal("exited browser reported a DevTools port")
 	}
 }

@@ -121,6 +121,9 @@ func loadPackageInputGraph(root string) (packageInputGraph, error) {
 		return packageInputGraph{}, fmt.Errorf("derive repository inputs: %w", err)
 	}
 	graph.bindResourceFiles(paths)
+	if gatePackageGraphLoadedHook != nil {
+		gatePackageGraphLoadedHook(root, len(graph.nodes))
+	}
 	return graph, nil
 }
 
@@ -379,6 +382,15 @@ func (graph packageInputGraph) dependentDirectories(roots ...string) ([]string, 
 // inputNodes follows the identity owner's edges. Compiler-only traversal is a
 // diagnostic view; it cannot authorize test exclusion or evidence reuse.
 func (graph packageInputGraph) inputNodes(target string, runtimeInputs bool) (map[int]bool, error) {
+	return graph.closureNodes(target, runtimeInputs, true)
+}
+
+// closureNodes walks the target's imports, its own test imports, and the
+// runtime edges of every node reached. With testRuntime false the runtime
+// edges of a node reached only through the target's test imports are not
+// followed: a Go-parsing or program-running helper that only the tests
+// import is the uncertain reach the scope runs short, not a lane's reach.
+func (graph packageInputGraph) closureNodes(target string, runtimeInputs, testRuntime bool) (map[int]bool, error) {
 	queue := append([]int(nil), graph.byID[target]...)
 	for index, node := range graph.nodes {
 		if node.ForTest == target {
@@ -389,41 +401,65 @@ func (graph packageInputGraph) inputNodes(target string, runtimeInputs bool) (ma
 		return nil, fmt.Errorf("package input identity: package %q is absent", target)
 	}
 	withTests := map[int]bool{}
-	var visit func(int, bool)
-	visit = func(index int, tests bool) {
+	compiled := map[int]bool{}
+	var visit func(int, bool, bool)
+	visit = func(index int, tests, viaTest bool) {
 		prior, seen := withTests[index]
-		if seen && (!tests || prior) {
+		if seen && (!tests || prior) && (viaTest || compiled[index]) {
 			return
 		}
 		withTests[index] = prior || tests
-		imports := slices.Clone(graph.nodes[index].Imports)
-		if tests {
-			imports = append(imports, graph.nodes[index].TestImports...)
-			imports = append(imports, graph.nodes[index].XTestImports...)
+		if !viaTest {
+			compiled[index] = true
 		}
-		for _, imported := range imports {
+		for _, imported := range graph.nodes[index].Imports {
 			for _, dependency := range graph.byID[imported] {
-				visit(dependency, false)
+				visit(dependency, false, viaTest)
+			}
+		}
+		if tests {
+			for _, imported := range slices.Concat(graph.nodes[index].TestImports, graph.nodes[index].XTestImports) {
+				for _, dependency := range graph.byID[imported] {
+					visit(dependency, false, true)
+				}
 			}
 		}
 		if !runtimeInputs {
 			return
 		}
-		runtime := slices.Clone(graph.nodes[index].inputDependencies)
-		if tests {
+		// A named command a test helper runs is a real reach; the unnamed
+		// Go-source binding of a test-only parser or runner is not.
+		var runtime []string
+		if !(viaTest && !testRuntime && graph.nodes[index].sourceReader) {
+			runtime = slices.Clone(graph.nodes[index].inputDependencies)
+		}
+		if tests && !(viaTest && !testRuntime && graph.nodes[index].testSourceReader) {
 			runtime = append(runtime, graph.nodes[index].testInputDependencies...)
 		}
 		for _, imported := range runtime {
 			for _, dependency := range graph.byID[imported] {
 				// Runtime commands may run tests; opaque readers may read test source.
-				visit(dependency, true)
+				visit(dependency, true, viaTest)
 			}
 		}
 	}
 	for _, index := range queue {
-		visit(index, true)
+		// A compiler-generated test variant imports the test's imports as
+		// its own; they are test imports for the reach.
+		visit(index, true, graph.nodes[index].ForTest != "")
 	}
 	return withTests, nil
+}
+
+// laneInputFiles lists the files a lane's owned package reaches: what it
+// compiles, what its tests compile, and the runtime reach of its compiled
+// closure. A test-only helper's unnamed reach is not among them.
+func (graph packageInputGraph) laneInputFiles(target string) (map[string]bool, error) {
+	withTests, err := graph.closureNodes(target, true, false)
+	if err != nil {
+		return nil, err
+	}
+	return graph.closureFiles(withTests)
 }
 
 func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error) {
@@ -431,6 +467,13 @@ func (graph packageInputGraph) inputFiles(target string) (map[string]bool, error
 	if err != nil {
 		return nil, err
 	}
+	return graph.closureFiles(withTests)
+}
+
+// closureFiles lists the files of a walked closure: each node's compiled
+// sources (its tests too where the walk reached them with tests), the
+// resources bound to its directory, and the module files.
+func (graph packageInputGraph) closureFiles(withTests map[int]bool) (map[string]bool, error) {
 	files := map[string]bool{}
 	for index := range withTests {
 		node := graph.nodes[index]
@@ -551,24 +594,40 @@ func packageInputIdentities(graph packageInputGraph, packages []string) (map[str
 	return identities, nil
 }
 
+// deviceRuntimeRoot holds the device runtime; deviceWorkerPackage creates
+// every device context; deviceTestPackages are what a test imports to reach
+// the device: the driver, the worker, or the kernel test gate that skips it
+// outside the device lane.
+const (
+	deviceRuntimeRoot   = "overgo/internal/cuda"
+	deviceWorkerPackage = deviceRuntimeRoot + "/device"
+)
+
+var deviceTestPackages = []string{deviceRuntimeRoot + "/driver", deviceWorkerPackage, deviceRuntimeRoot + "/testutil"}
+
 // devicePackages names, among the packages given and in their order, the
-// ones whose tests need the device: every package that is or transitively
-// depends on internal/cuda. It is the one fact the batch admission and the
-// batch order read.
+// ones whose tests execute on the device: a runtime package, a package whose
+// tests import the driver, the worker or the kernel test gate, or one whose
+// tests run a command that creates device contexts. Linking the runtime is
+// no need of its own: a test reaches a kernel only through the gate it
+// declares. It is the one fact the batch admission and the batch order read.
 func (graph packageInputGraph) devicePackages(packages []string) ([]string, error) {
-	directories, err := graph.dependentDirectories("internal/cuda")
-	if err != nil {
-		return nil, err
-	}
+	workers := graph.productionDependents(deviceWorkerPackage)
 	needing := map[string]bool{}
 	for _, node := range graph.nodes {
-		relative, err := filepath.Rel(graph.root, node.Dir)
-		if err != nil {
-			return nil, err
+		if node.ForTest != "" || strings.HasSuffix(node.ImportPath, ".test") {
+			continue
 		}
-		if slices.Contains(directories, filepath.ToSlash(relative)) {
-			needing[node.ImportPath] = true
+		switch {
+		case node.ImportPath == deviceRuntimeRoot || strings.HasPrefix(node.ImportPath, deviceRuntimeRoot+"/"):
+		case slices.ContainsFunc(slices.Concat(node.TestImports, node.XTestImports), func(imported string) bool {
+			return slices.Contains(deviceTestPackages, imported)
+		}):
+		case slices.ContainsFunc(node.executionDependencies, func(command string) bool { return workers[command] }):
+		default:
+			continue
 		}
+		needing[node.ImportPath] = true
 	}
 	var devices []string
 	for _, pkg := range packages {
@@ -577,6 +636,25 @@ func (graph packageInputGraph) devicePackages(packages []string) ([]string, erro
 		}
 	}
 	return devices, nil
+}
+
+// productionDependents reports the packages that are or through compiled
+// imports alone depend on the package named.
+func (graph packageInputGraph) productionDependents(root string) map[string]bool {
+	owned := map[string]bool{root: true}
+	for changed := true; changed; {
+		changed = false
+		for _, node := range graph.nodes {
+			if owned[node.ImportPath] || node.ForTest != "" {
+				continue
+			}
+			if slices.ContainsFunc(node.Imports, func(imported string) bool { return owned[imported] }) {
+				owned[node.ImportPath] = true
+				changed = true
+			}
+		}
+	}
+	return owned
 }
 
 // namedDocument reports a path some package names in production or test source.

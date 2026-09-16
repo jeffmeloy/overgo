@@ -13,6 +13,7 @@ import (
 )
 
 func TestChangeSelectionExternalConsumers(t *testing.T) {
+	t.Parallel()
 	t.Run("identity batch reuse stays fresh", func(t *testing.T) {
 		g := scopeCompilerFixture(t)
 		graph, err := g.inputGraph()

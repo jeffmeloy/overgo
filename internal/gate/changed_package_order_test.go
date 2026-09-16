@@ -13,6 +13,7 @@ import (
 )
 
 func TestChangedPackageFailurePreventsBroadSweep(t *testing.T) {
+	t.Parallel()
 	root, _ := packageIdentityFixture(t)
 	marker := filepath.Join(t.TempDir(), "consumer-ran")
 	files := map[string]string{

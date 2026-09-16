@@ -285,6 +285,7 @@ func transducerObserver(t *testing.T, f *transducerFixture, oracle *safetensors.
 }
 
 func TestSecondASROfflineAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires registered native traces")
 	}
@@ -337,6 +338,7 @@ func requireTransducerResult(t *testing.T, f *transducerFixture, oracle *safeten
 }
 
 func TestSecondASRStreamingAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact second-ASR acceptance requires cache-aware streaming traces")
 	}

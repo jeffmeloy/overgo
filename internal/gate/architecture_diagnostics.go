@@ -42,5 +42,13 @@ func (g *gateContext) architectureDiagnostics(snapshot repoanalysis.SourceSnapsh
 			return fmt.Errorf("family-named branch exceeds reviewed count: %s %q %d -> %d; consult a declared profile policy", branch.File, branch.Literal, limit, branch.Count)
 		}
 	}
-	return nil
+	var timers repoanalysis.FixedTimerBaseline
+	if err := jsonfile.DecodeStrict(filepath.Join(g.repo, filepath.FromSlash(repoanalysis.FixedTimerBaselineFile)), &timers); err != nil {
+		return err
+	}
+	fixed, err := repoanalysis.FixedTimerCensus(snapshot)
+	if err != nil {
+		return err
+	}
+	return repoanalysis.AdmitFixedTimers(timers, fixed)
 }

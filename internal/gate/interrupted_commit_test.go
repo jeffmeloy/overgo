@@ -88,6 +88,7 @@ func TestRecoverInterruptedCommitRestoresParentAndFinalizesCancellation(t *testi
 }
 
 func TestRecoverInterruptedStateCrashRetryBoundaries(t *testing.T) {
+	t.Parallel()
 	for _, step := range []string{"publication", "parent", "plan"} {
 		t.Run(step, func(t *testing.T) {
 			fixture := newInterruptedCommitFixture(t)
@@ -217,6 +218,16 @@ func assertGateGitLockPathsAbsent(t *testing.T, locks []gateGitLockPath) {
 	}
 }
 
+// treeWatcher delivers a directory tree's name-change notifications.
+type treeWatcher interface {
+	next() error
+	close()
+}
+
+// treeChangeWatch is the platform's tree notification; the Windows test
+// file binds it, and no other platform runs these fixtures.
+var treeChangeWatch func(directory string) (treeWatcher, error)
+
 func assertGitReferenceTransactionLocksReleased(t *testing.T, repo string, intent gateCommitIntent) {
 	t.Helper()
 	var paths []string
@@ -227,7 +238,20 @@ func assertGitReferenceTransactionLocksReleased(t *testing.T, repo string, inten
 		}
 		paths = append(paths, path+".lock")
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	// The orphaned Git child releases its locks as it finishes; the file
+	// system's own change notification for the metadata tree is the signal.
+	if treeChangeWatch == nil {
+		t.Fatal("tree change notification is bound on Windows only")
+	}
+	metadata, err := gitMetadataPath(repo, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch, err := treeChangeWatch(filepath.Dir(metadata))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watch.close()
 	for {
 		var present []string
 		for _, path := range paths {
@@ -240,14 +264,14 @@ func assertGitReferenceTransactionLocksReleased(t *testing.T, repo string, inten
 		if len(present) == 0 {
 			return
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("Git update-ref child left transaction locks after parent death: %v", present)
+		if err := watch.next(); err != nil {
+			t.Fatalf("Git update-ref child left transaction locks after parent death: %v: %v", present, err)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 
 func TestGateGitLockRecoveryReclaimsEveryExactMarkerPrefix(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -268,6 +292,7 @@ func TestGateGitLockRecoveryReclaimsEveryExactMarkerPrefix(t *testing.T) {
 }
 
 func TestGateGitLockRecoveryRefusesMixedExactAndForeignMarkers(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name   string
 		marker func([]byte) []byte
@@ -314,6 +339,9 @@ func TestGateGitLockRecoveryRefusesMixedExactAndForeignMarkers(t *testing.T) {
 }
 
 func TestGateGitStateProcessGuardRefusesNestedTransaction(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -655,6 +683,9 @@ func TestRecoverInterruptedCommitRefusesUnboundPreCASIndex(t *testing.T) {
 }
 
 func TestRecoveryPreLockMergeRaceRefusesBeforeMutation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	side := prepareRecoveryMergeRaceBranch(t, fixture)
 	var mergeErr error
@@ -686,6 +717,7 @@ func TestRecoveryPreLockMergeRaceRefusesBeforeMutation(t *testing.T) {
 }
 
 func TestRecoveryIndexModeRaceRefusesBeforeHeadMutation(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	indexPath, err := gateIndexPath(fixture.repo)
 	if err != nil {
@@ -725,6 +757,9 @@ func TestRecoveryIndexModeRaceRefusesBeforeHeadMutation(t *testing.T) {
 }
 
 func TestRecoveryLockBlocksMidTransactionMerge(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	side := prepareRecoveryMergeRaceBranch(t, fixture)
 	var mergeErr error
@@ -759,6 +794,9 @@ func TestRecoveryLockBlocksMidTransactionMerge(t *testing.T) {
 }
 
 func TestRecoveryParentPublicationHandoffRefusesWinningBranchWriter(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -815,6 +853,7 @@ func TestRecoveryParentPublicationHandoffRefusesWinningBranchWriter(t *testing.T
 }
 
 func TestRecoverInterruptedCommitRecognizesExactPriorCancellation(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -834,6 +873,7 @@ func TestRecoverInterruptedCommitRecognizesExactPriorCancellation(t *testing.T) 
 }
 
 func TestRecoverInterruptedMergeRestoresExactPendingMerge(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repo, "tmp"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1045,6 +1085,7 @@ func TestRecoverInterruptedMergeRestoresExactPendingMerge(t *testing.T) {
 }
 
 func TestCapturePendingMergeRejectsAutostash(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "autostash@example.invalid")
@@ -1089,6 +1130,7 @@ func TestCapturePendingMergeRejectsAutostash(t *testing.T) {
 }
 
 func TestRecoverInitialWriteAheadIntentWithAdvancedPlan(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(repo, "tmp"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1218,6 +1260,7 @@ func TestRecoverInitialWriteAheadIntentWithAdvancedPlan(t *testing.T) {
 }
 
 func TestRecoverRefAdvancedBeforePlanPublication(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	var intent gateCommitIntent
 	if err := readJSON(fixture.repo, gateCommitIntentFile, &intent); err != nil {
@@ -1246,6 +1289,7 @@ func TestRecoverRefAdvancedBeforePlanPublication(t *testing.T) {
 }
 
 func TestRecoverRefAdvancedDuringPlanPublicationDetach(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	detachPlanPublicationForTest(t, fixture)
 
@@ -1262,6 +1306,9 @@ func TestRecoverRefAdvancedDuringPlanPublicationDetach(t *testing.T) {
 }
 
 func TestRecoverPlanPublicationDetachPreservesConcurrentCreation(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	planPath := filepath.Join(fixture.repo, filepath.FromSlash(plan.Path))
 	detachPlanPublicationForTest(t, fixture)
@@ -1292,6 +1339,7 @@ func TestRecoverPlanPublicationDetachPreservesConcurrentCreation(t *testing.T) {
 }
 
 func TestRecoverBareMissingPlanRefusesWithoutDetachEvidence(t *testing.T) {
+	t.Parallel()
 	fixture := newInterruptedCommitFixture(t)
 	planPath := filepath.Join(fixture.repo, filepath.FromSlash(plan.Path))
 	if err := os.Remove(planPath); err != nil {
@@ -1335,6 +1383,9 @@ func detachPlanPublicationForTest(t *testing.T, fixture interruptedCommitFixture
 }
 
 func TestRecoverInterruptedCommitPreservesPlanChangedBeforeRestore(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	fixture := newInterruptedCommitFixture(t)
 	concurrent := append([]byte(nil), fixture.planAfter...)
 	concurrent = bytes.Replace(concurrent, []byte("test recovery"), []byte("concurrent recovery edit"), 1)
@@ -1529,6 +1580,7 @@ func TestRecoverInterruptedCommitRejectsLegacyGrafts(t *testing.T) {
 }
 
 func TestGateMergeIntentRejectsOctopusParents(t *testing.T) {
+	t.Parallel()
 	parent := strings.Repeat("1", 40)
 	merge := gateMergeIntent{
 		IndexTree: strings.Repeat("2", 40),

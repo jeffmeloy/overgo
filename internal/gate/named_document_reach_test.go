@@ -14,11 +14,12 @@ import (
 // the live graph the regenerated documents every source commit carries then
 // add no package to a gate-only working set.
 func TestNamedDocumentReach(t *testing.T) {
+	t.Parallel()
 	t.Run("fixture", namedDocumentFixture)
-	root := liveGateContext(t).repo
+	live := liveRepositoryFixture(t)
 	complete := map[string][]string{}
 	scope := func(paths ...string) []string {
-		g := liveGateContext(t, paths...)
+		g := live.context(paths...)
 		derived, err := g.deriveTestScope()
 		if err != nil {
 			t.Fatal(err)
@@ -30,7 +31,7 @@ func TestNamedDocumentReach(t *testing.T) {
 		return selected
 	}
 	const manifest = "docs/api_manifest.json"
-	g := liveGateContext(t, manifest)
+	g := live.context(manifest)
 	graph, err := g.inputGraph()
 	if err != nil {
 		t.Fatal(err)
@@ -51,7 +52,7 @@ func TestNamedDocumentReach(t *testing.T) {
 		}
 		reaches := false
 		for index := range compiled {
-			if dir, err := filepath.Rel(root, graph.nodes[index].Dir); err == nil && slices.Contains(readers, filepath.ToSlash(dir)) {
+			if dir, err := filepath.Rel(live.worktree, graph.nodes[index].Dir); err == nil && slices.Contains(readers, filepath.ToSlash(dir)) {
 				reaches = true
 				break
 			}

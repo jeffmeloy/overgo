@@ -25,6 +25,7 @@ import (
 )
 
 func TestModernCensusExistingContent(t *testing.T) {
+	t.Parallel()
 	root := modernMemoFixture(t)
 	path := filepath.Join(root, "internal/example/value.go")
 	if err := os.WriteFile(path, []byte("package example\nfunc Value() int { return 2 }\n"), 0o644); err != nil {
@@ -78,6 +79,7 @@ func TestModernCensusExistingContent(t *testing.T) {
 }
 
 func TestSurfaceImpactExclusion(t *testing.T) {
+	t.Parallel()
 	root := modernMemoFixture(t)
 	testutil.WriteTextFile(t, root, "internal/example/value.go", "package example\nfunc Value() int { return 2 }\n")
 	modernMemoPublish(t, root)
@@ -267,7 +269,7 @@ func runModernMemo(t *testing.T, g *gateContext, generation string, cache *autom
 		invocations[index] = bound
 		inputs[bound.ID] = input.ID
 	}
-	results, err := g.executeChecks(invocations, nil, inputs, cache, nil)
+	results, err := g.executeChecks(invocations, nil, inputs, cache, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

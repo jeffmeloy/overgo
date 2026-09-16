@@ -15,6 +15,7 @@ import (
 )
 
 func TestEncoderCapturePublication(t *testing.T) {
+	t.Parallel()
 	election := qualificationElection(t)
 	encoded, err := os.ReadFile("testdata/encoder_capture.json")
 	if err != nil {
@@ -127,6 +128,7 @@ func TestEncoderCapturePublication(t *testing.T) {
 }
 
 func TestEncoderCaptureRefusesChangedBindings(t *testing.T) {
+	t.Parallel()
 	election := qualificationElection(t)
 	encoded, err := os.ReadFile("testdata/encoder_capture.json")
 	if err != nil {

@@ -11,16 +11,11 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/processcontrol"
 	"overgo/internal/strictjson"
 )
-
-// invokeTimeout bounds one tool invocation end to end; a tool that
-// cannot answer within it is a failed call, never a hung agent step.
-const invokeTimeout = 60 * time.Second
 
 // Builtin is one in-process tool implementation: strict JSON in,
 // strict JSON out.
@@ -128,23 +123,21 @@ func (e *Executor) InvokeWithEffect(ctx context.Context, manual Manual, argument
 	if _, err := DeriveInvocationEffect(manual, arguments, nil); err != nil {
 		return nil, InvocationEffect{}, err
 	}
-	// One deadline bounds the whole invocation -- including any wait for
-	// the manual's entry lock -- so a wedged tool fails the call instead
-	// of hanging the step, whatever transport it rides.
-	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
-	defer cancel()
+	// The caller's context bounds the whole invocation, the wait for the
+	// manual's entry lock included; the wait ends with the tool or with
+	// the caller, whatever transport it rides.
 	entry := e.manualEntry(manual.Name)
 	select {
 	case entry <- struct{}{}:
 		defer func() { <-entry }()
-	case <-bounded.Done():
-		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, bounded.Err())
+	case <-ctx.Done():
+		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q timed out waiting for entry: %w", manual.Name, context.Cause(ctx))
 	}
 	adapter, registered := e.adapters[manual.Transport.Kind]
 	if !registered {
 		return nil, InvocationEffect{}, fmt.Errorf("agent tool: transport %q has no registered adapter", manual.Transport.Kind)
 	}
-	result, err := adapter.invoke(bounded, manual, arguments)
+	result, err := adapter.invoke(ctx, manual, arguments)
 	if err != nil {
 		return nil, InvocationEffect{}, fmt.Errorf("agent tool: %q failed: %w", manual.Name, err)
 	}

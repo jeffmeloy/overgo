@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"overgo/internal/artifact"
+	"overgo/internal/worklease"
 )
 
 const (
@@ -17,18 +18,18 @@ const (
 
 // LeaseOutcome: predicted and measured lease resources.
 type LeaseOutcome struct {
-	Version                 uint16      `json:"version"`
-	Lease                   artifact.ID `json:"lease"`
-	Predicted               Resources   `json:"predicted"`
-	Actual                  Resources   `json:"actual"`
-	PredictedWallNS         uint64      `json:"predicted_wall_ns"`
-	ActualWallNS            uint64      `json:"actual_wall_ns"`
-	PredictedInterferenceNS uint64      `json:"predicted_interference_ns"`
-	ActualInterferenceNS    uint64      `json:"actual_interference_ns"`
-	Collision               bool        `json:"collision"`
-	Abandoned               bool        `json:"abandoned"`
-	RecoveryNS              uint64      `json:"recovery_ns"`
-	ID                      artifact.ID `json:"-"`
+	Version                 uint16              `json:"version"`
+	Lease                   artifact.ID         `json:"lease"`
+	Predicted               worklease.Resources `json:"predicted"`
+	Actual                  worklease.Resources `json:"actual"`
+	PredictedWallNS         uint64              `json:"predicted_wall_ns"`
+	ActualWallNS            uint64              `json:"actual_wall_ns"`
+	PredictedInterferenceNS uint64              `json:"predicted_interference_ns"`
+	ActualInterferenceNS    uint64              `json:"actual_interference_ns"`
+	Collision               bool                `json:"collision"`
+	Abandoned               bool                `json:"abandoned"`
+	RecoveryNS              uint64              `json:"recovery_ns"`
+	ID                      artifact.ID         `json:"-"`
 }
 
 var leaseOutcomeCodec = artifact.JSONDocumentCodec("lease outcome", artifact.KindEvidence, LeaseOutcomeMediaType, LeaseOutcomeSchema,
@@ -41,7 +42,7 @@ func RecordLeaseOutcome(ctx context.Context, repository artifact.Repository, dat
 	if err != nil {
 		return LeaseOutcome{}, err
 	}
-	_, ok, err := ReadWorkLease(ctx, repository, value.Lease)
+	_, ok, err := worklease.Read(ctx, repository, value.Lease)
 	if err != nil || !ok {
 		return LeaseOutcome{}, errors.New("plan: lease outcome references no work lease")
 	}
@@ -60,12 +61,12 @@ func ParseLeaseOutcome(content []byte) (LeaseOutcome, error) {
 }
 
 func ReadLeaseOutcome(ctx context.Context, reader artifact.Reader, id artifact.ID) (LeaseOutcome, bool, error) {
-	return readTypedDocument(ctx, reader, id, leaseOutcomeCodec.Contract, leaseOutcomeCodec.Read)
+	return worklease.ReadTypedDocument(ctx, reader, id, leaseOutcomeCodec.Contract, leaseOutcomeCodec.Read)
 }
 
 func canonicalizeLeaseOutcome(value *LeaseOutcome) error {
 	if value == nil || value.Version != leaseOutcomeVersion || value.Lease.Kind() != artifact.KindEvidence ||
-		!validLeaseResources(value.Predicted) || !validLeaseResources(value.Actual) ||
+		!worklease.ValidResources(value.Predicted) || !worklease.ValidResources(value.Actual) ||
 		value.PredictedWallNS == 0 || value.ActualWallNS == 0 ||
 		value.PredictedInterferenceNS > value.PredictedWallNS || value.ActualInterferenceNS > value.ActualWallNS ||
 		(value.Collision || value.Abandoned) && value.RecoveryNS == 0 {

@@ -8,9 +8,9 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/worklease"
 )
 
 // SessionRecoveryAuthority binds every mutable and immutable fact that may
@@ -21,7 +21,7 @@ type SessionRecoveryAuthority struct {
 	Model         artifact.ID
 	Catalog       artifact.ID
 	Policies      []artifact.ID
-	Lease         *plan.WorkLease
+	Lease         *worklease.Lease
 	MutationEpoch uint64
 	Obligations   []runrecord.AgentObligation
 	Resolutions   []runrecord.AgentObligationResolution
@@ -65,7 +65,7 @@ func (c *Coordinator) RecoverAgentSession(ctx context.Context, sessionID string,
 	if authority.Lease == nil {
 		return SessionRecovery{}, errors.New("agent loop: recovery work lease is absent")
 	}
-	if err := plan.ResolveWorkLeaseOwner(ctx, c.store, *authority.Lease); err != nil {
+	if err := worklease.ResolveOwner(ctx, c.store, *authority.Lease); err != nil {
 		return SessionRecovery{}, err
 	}
 	for _, obligation := range authority.Obligations {

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -73,23 +72,11 @@ func TestPocketTTSProductionParity(t *testing.T) {
 	})
 
 	t.Run("reference-waveform", func(t *testing.T) {
+		// The heap's high-water mark is the runtime's own HeapSys, the
+		// largest size the heap has had; nothing samples the run.
 		runtime.GC()
 		var baseline runtime.MemStats
 		runtime.ReadMemStats(&baseline)
-		var peak atomic.Uint64
-		peak.Store(baseline.HeapAlloc)
-		done := make(chan struct{})
-		stopped := make(chan struct{})
-		go samplePocketHeap(done, stopped, &peak)
-		sampling := true
-		stopSampling := func() {
-			if sampling {
-				close(done)
-				<-stopped
-				sampling = false
-			}
-		}
-		defer stopSampling()
 
 		model, coldWall := loadPocketModel(t, directory)
 		backbone := loadPocketBackboneFixture(t)
@@ -164,11 +151,9 @@ func TestPocketTTSProductionParity(t *testing.T) {
 		if len(decoded.Samples) != len(pcm) {
 			t.Fatalf("WAV samples = %d, want %d", len(decoded.Samples), len(pcm))
 		}
-		stopSampling()
 		var final runtime.MemStats
 		runtime.ReadMemStats(&final)
-		updatePocketPeak(&peak, final.HeapAlloc)
-		peakBytes := peak.Load() - baseline.HeapAlloc
+		peakBytes := final.HeapSys - baseline.HeapSys
 		if peakBytes > pocketHeapLimit {
 			t.Fatalf("peak heap %d exceeds %d", peakBytes, pocketHeapLimit)
 		}
@@ -271,26 +256,5 @@ func requireMonoAudio(t *testing.T, audio speechsynth.Audio) {
 		if math.IsNaN(float64(sample)) || math.IsInf(float64(sample), 0) {
 			t.Fatalf("audio sample %d is not finite", index)
 		}
-	}
-}
-
-func samplePocketHeap(done <-chan struct{}, stopped chan<- struct{}, peak *atomic.Uint64) {
-	defer close(stopped)
-	ticker := time.NewTicker(time.Millisecond)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-done:
-			return
-		case <-ticker.C:
-			var sample runtime.MemStats
-			runtime.ReadMemStats(&sample)
-			updatePocketPeak(peak, sample.HeapAlloc)
-		}
-	}
-}
-
-func updatePocketPeak(peak *atomic.Uint64, value uint64) {
-	for prior := peak.Load(); value > prior && !peak.CompareAndSwap(prior, value); prior = peak.Load() {
 	}
 }

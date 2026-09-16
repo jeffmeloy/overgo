@@ -146,13 +146,14 @@ func (e *Executor) OpenStream(
 	if err != nil {
 		return nil, err
 	}
-	bounded, cancel := context.WithTimeout(ctx, invokeTimeout)
+	bounded, cancelCause := context.WithCancelCause(ctx)
+	cancel := func() { cancelCause(context.Canceled) }
 	entry := e.manualEntry(manual.Name)
 	select {
 	case entry <- struct{}{}:
 	case <-bounded.Done():
 		cancel()
-		return nil, fmt.Errorf("agent tool: %q timed out waiting for stream entry: %w", manual.Name, bounded.Err())
+		return nil, fmt.Errorf("agent tool: %q timed out waiting for stream entry: %w", manual.Name, context.Cause(bounded))
 	}
 	release := func() { <-entry }
 	body, err := streamAdapter.open(bounded, manual, arguments)

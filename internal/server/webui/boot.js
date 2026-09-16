@@ -51,14 +51,26 @@
     return body;
   }
 
+  // inFlight counts the shell's requests still awaiting a response and
+  // activePollers the pollers with a tick scheduled; a page with either is
+  // still working, whatever the work behind it costs, and a page with
+  // neither has settled.
+  let inFlight = 0;
+  let activePollers = 0;
+  async function tracked(request) {
+    inFlight++;
+    try { return await request; } finally { inFlight--; }
+  }
   const api = {
+    pending() { return inFlight + activePollers; },
+    inFlight() { return inFlight; },
     async get(path, opts) {
-      const response = await fetch(path, { headers: authHeaders(), signal: opts && opts.signal });
+      const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
       if (opts && opts.onHeaders) opts.onHeaders(response.headers);
       return readJSON(response);
     },
     async post(path, body, opts) {
-      return readJSON(await fetch(path, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body), signal: opts && opts.signal }));
+      return readJSON(await tracked(fetch(path, { method: "POST", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(body), signal: opts && opts.signal })));
     },
     // upload: a file's bytes under their own media type (opts.mediaType sends the body raw); the server answers the stored artifact.
     async upload(path, file, opts) { return readJSON(await this.stream(path, file, Object.assign({ mediaType: file.type || 'application/octet-stream' }, opts))); },
@@ -68,12 +80,12 @@
     async stream(path, body, opts) {
       const method = (opts && opts.method) || "POST", raw = opts && opts.mediaType, form = body instanceof FormData;
       const contentType = raw ? { "Content-Type": raw } : form ? {} : { "Content-Type": "application/json" };
-      const response = await fetch(path, { method, headers: authHeaders(method === "POST" ? contentType : {}), body: method !== "POST" ? undefined : raw || form ? body : JSON.stringify(body), signal: opts && opts.signal });
+      const response = await tracked(fetch(path, { method, headers: authHeaders(method === "POST" ? contentType : {}), body: method !== "POST" ? undefined : raw || form ? body : JSON.stringify(body), signal: opts && opts.signal }));
       if (!response.ok) await readJSON(response);
       return response;
     },
     async events(path, handler, opts) {
-      const response = await fetch(path, { headers: authHeaders(), signal: opts && opts.signal });
+      const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
       if (!response.ok) await readJSON(response);
       for await (const { event, data } of sseEvents(response)) handler(event, data);
     },
@@ -264,8 +276,8 @@
       try { await task(current.signal); }
       catch (err) { if (!err || err.name !== "AbortError") throw err; } finally { if (controller === current) controller = null; schedule(); }
     }
-    function start() { if (active) return; active = true; if (!document.hidden) tick(); }
-    function stop() { active = false; cancel(); }
+    function start() { if (active) return; active = true; activePollers++; if (!document.hidden) tick(); }
+    function stop() { if (active) activePollers--; active = false; cancel(); }
     document.addEventListener("visibilitychange", () => { cancel(); if (active && !document.hidden) tick(); });
     return { start, stop };
   }
@@ -899,16 +911,18 @@
   // order, then every distinct module, then the shell wires. Same-origin scripts, so the strict CSP holds. ----
   const libraries = ["/viz.js", "/md.js", "/media_capture.js", "/composer.js", "/workflow.js", "/operations_shell.js", "/schema_form.js"];
   const loadedScripts = new Set();
+  // A loading script is work in flight like a request: the shell is not
+  // idle until its libraries and modules have executed.
   function loadScript(src) {
     if (loadedScripts.has(src)) return Promise.resolve(src);
-    return new Promise((resolve, reject) => {
+    return tracked(new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src = src;
       script.async = false; // insertion order is execution order
       script.onload = () => { loadedScripts.add(src); resolve(src); };
       script.onerror = () => reject(new Error("failed to load " + src));
       document.head.appendChild(script);
-    });
+    }));
   }
   async function loadWorkspaceModules(manifest) {
     for (const src of libraries) await loadScript(src);

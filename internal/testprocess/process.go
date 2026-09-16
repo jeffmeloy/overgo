@@ -1,7 +1,9 @@
-package testutil
+// Package testprocess builds and measures isolated test processes; it
+// lives apart from testutil so the packages that only compare numbers
+// inherit no program-running reach from their test helpers.
+package testprocess
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -22,16 +24,15 @@ func BuildTestBinary(t testing.TB, directory, output, tags, pkg string) {
 	}
 }
 
-// MeasureTestProcesses runs identical isolated probes.
+// MeasureTestProcesses runs identical isolated probes; each probe runs
+// under the calling test's context, so the test's own end bounds it.
 func MeasureTestProcesses(t testing.TB, runs int, directory, binary, testName, marker string) []processmeasure.Result {
 	t.Helper()
 	results := make([]processmeasure.Result, runs)
 	for index := range results {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		command := exec.CommandContext(ctx, binary, "-test.run=^"+testName+"$", "-test.v")
+		command := exec.CommandContext(t.Context(), binary, "-test.run=^"+testName+"$", "-test.v")
 		command.Dir = directory
 		result, err := processmeasure.Measure(command)
-		cancel()
 		if err != nil {
 			t.Fatalf("%s run %d: %v: %s", testName, index, err, result.Output)
 		}
@@ -43,6 +44,7 @@ func MeasureTestProcesses(t testing.TB, runs int, directory, binary, testName, m
 	return results
 }
 
+// MedianProcessWall is the median wall time of the measured runs.
 func MedianProcessWall(results []processmeasure.Result) time.Duration {
 	values := make([]time.Duration, len(results))
 	for index, result := range results {
@@ -52,6 +54,7 @@ func MedianProcessWall(results []processmeasure.Result) time.Duration {
 	return values[len(values)/2]
 }
 
+// MedianProcessPeak is the median peak working set of the measured runs.
 func MedianProcessPeak(results []processmeasure.Result) uint64 {
 	values := make([]uint64, len(results))
 	for index, result := range results {
@@ -61,6 +64,7 @@ func MedianProcessPeak(results []processmeasure.Result) uint64 {
 	return values[len(values)/2]
 }
 
+// FormatProcessMeasurements renders each run as peak and wall.
 func FormatProcessMeasurements(results []processmeasure.Result) string {
 	values := make([]string, len(results))
 	for index, result := range results {
@@ -69,4 +73,5 @@ func FormatProcessMeasurements(results []processmeasure.Result) string {
 	return strings.Join(values, ",")
 }
 
+// MiB converts bytes to mebibytes.
 func MiB(value uint64) float64 { return float64(value) / (1 << 20) }

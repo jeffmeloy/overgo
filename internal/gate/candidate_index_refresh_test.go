@@ -8,6 +8,7 @@ import (
 )
 
 func TestCandidateCheckoutOwnsIndexRefresh(t *testing.T) {
+	t.Parallel()
 	for _, refresh := range []string{"true", "false"} {
 		t.Run(refresh, func(t *testing.T) {
 			repo := t.TempDir()

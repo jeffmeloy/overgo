@@ -7,9 +7,9 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/worklease"
 )
 
 // StrategyExperimentCandidate names only stored comparison authorities. The
@@ -58,7 +58,7 @@ type StrategyComparison struct {
 
 type resolvedStrategyCandidate struct {
 	strategy   Strategy
-	lease      plan.WorkLease
+	lease      worklease.Lease
 	attempt    runrecord.AttemptRecord
 	trajectory runrecord.InteractionTrace
 	evaluation evaluation.EvaluationEvidence
@@ -123,8 +123,8 @@ func CompareStrategyExperiment(
 		if resolveErr != nil {
 			return StrategyExperiment{}, StrategyComparison{}, resolveErr
 		}
-		worktree, _ := plan.ResolveWorkspaceClaims(candidate.lease.Worktree, nil, nil)
-		worktreeIdentity := plan.WorkLeaseAlias(worktree)
+		worktree, _ := worklease.ResolveWorkspaceClaims(candidate.lease.Worktree, nil, nil)
+		worktreeIdentity := worklease.WorktreeAlias(worktree)
 		_, duplicateStrategy := resolved[candidate.strategy.ID]
 		_, duplicateWorktree := worktrees[worktreeIdentity]
 		_, duplicateLease := leaseIDs[candidate.lease.ID]
@@ -252,7 +252,7 @@ func resolveStrategyCandidate(
 	if err != nil {
 		return resolvedStrategyCandidate{}, err
 	}
-	lease, found, err := plan.ReadWorkLease(ctx, reader, request.Lease)
+	lease, found, err := worklease.Read(ctx, reader, request.Lease)
 	if err != nil || !found || lease.ID != request.Lease {
 		return resolvedStrategyCandidate{}, errors.Join(err, errors.New("loop: strategy candidate lease is absent or incompatible"))
 	}

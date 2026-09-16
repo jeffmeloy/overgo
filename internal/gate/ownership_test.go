@@ -16,6 +16,7 @@ import (
 )
 
 func TestGateScopeSnapshot(t *testing.T) {
+	t.Parallel()
 	dirty := []repoanalysis.DirtyPath{{Path: "new.go", OriginalPath: "old.go", IndexStatus: "R"}, {Path: "other.go", WorktreeStatus: "M"}}
 	visible, unplanned := scopeDirty([]string{"new.go"}, dirty)
 	if !visible["new.go"] || !visible["old.go"] || !visible["other.go"] {
@@ -27,8 +28,8 @@ func TestGateScopeSnapshot(t *testing.T) {
 }
 
 func TestNonGoOwnershipGateScope(t *testing.T) {
-	g := liveGateContext(t, "internal/model/architecture_profiles.json")
-	repo := g.repo
+	t.Parallel()
+	g := liveRepositoryFixture(t).context("internal/model/architecture_profiles.json")
 	scope, err := g.deriveTestScope()
 	if err != nil {
 		t.Fatal(err)
@@ -36,12 +37,13 @@ func TestNonGoOwnershipGateScope(t *testing.T) {
 	if !slices.Contains(scope.direct, "overgo/internal/model") {
 		t.Fatalf("embedded architecture catalog owner missing: %v", scope.direct)
 	}
-	if _, err := os.Stat(filepath.Join(repo, "internal", "model", "architecture_profiles.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(g.repo, "internal", "model", "architecture_profiles.json")); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestEnvironmentBoundRetry(t *testing.T) {
+	t.Parallel()
 	environment, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("env-a"))
 	other, _ := artifact.IdentifyBytes(artifact.KindProfile, []byte("env-b"))
 	cache := automationcheck.NewEvidenceCache(environment)
@@ -54,6 +56,9 @@ func TestEnvironmentBoundRetry(t *testing.T) {
 }
 
 func TestGateDataRootCacheIdentity(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo := t.TempDir()
 	t.Setenv(dataroot.Env, "")
 	t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", "")
@@ -126,6 +131,7 @@ func TestGateDataRootCacheIdentity(t *testing.T) {
 }
 
 func TestPhaseCacheIgnoresUnownedPlanChanges(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	files := map[string]string{
 		"internal/feature.go":       "package internal\nfunc Feature() {}\n",

@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelswap"
@@ -168,8 +167,7 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 	defer handler.Close()
 	front := httptest.NewServer(handler)
 	defer front.Close()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 30*time.Second, errors.New("workbench publisher did not finish"))
-	defer cancel()
+	ctx := t.Context()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestWorkbenchEvidenceProcess$", "-test.timeout=45s")
 	child.Env = append(os.Environ(), "OVERGO_TEST_WORKBENCH_REPOSITORY="+root)
 	input, err := child.StdinPipe()
@@ -213,8 +211,9 @@ func testWorkbenchEvidencePublication(t *testing.T) {
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("health under live writer = %d", response.StatusCode)
 	}
-	cancelled, stop := context.WithTimeoutCause(t.Context(), 20*time.Millisecond, errors.New("live writer request deadline"))
-	defer stop()
+	// A request whose caller has already left waits for no live writer.
+	cancelled, stop := context.WithCancelCause(t.Context())
+	stop(errors.New("the request's caller left"))
 	blocked := httptest.NewRecorder()
 	handler.ServeHTTP(blocked, httptest.NewRequestWithContext(cancelled, http.MethodPost, "/library/register", strings.NewReader(`{"kind":"model","path":"fixture"}`)))
 	if blocked.Code != http.StatusServiceUnavailable || !strings.Contains(blocked.Body.String(), "store_busy") || registered != 0 {

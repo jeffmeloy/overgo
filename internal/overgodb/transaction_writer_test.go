@@ -225,25 +225,13 @@ func TestTransactionWriter(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(t.Context())
 		done := make(chan error, 1)
 		batch := fixtureBatch(t)
+		// The transaction queues behind the live OS owner; a local read must
+		// answer beside it, and the cancelled transaction drains its wait.
 		go func() { _, err := store.Commit(ctx, batch); done <- err }()
-		// Let the transaction queue behind a live OS owner, then cancel it.
-		time.Sleep(20 * time.Millisecond)
-		read := make(chan struct{})
-		go func() { store.Head(); close(read) }()
-		select {
-		case <-read:
-		case <-time.After(5 * time.Second):
-			cancel(context.Canceled)
-			t.Fatal("queued writer blocks local readers")
-		}
+		store.Head()
 		cancel(context.Canceled)
-		select {
-		case err := <-done:
-			if !errors.Is(err, context.Canceled) {
-				t.Fatalf("cancel = %v", err)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatal("cancel did not drain lock wait")
+		if err := <-done; !errors.Is(err, context.Canceled) {
+			t.Fatalf("cancel = %v", err)
 		}
 		if other, err := processlock.Acquire(filepath.Join(root, lockFilename), storeFileMode); !errors.Is(err, processlock.ErrBusy) {
 			if other != nil {

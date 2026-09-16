@@ -1,15 +1,12 @@
 package server
 
 import (
-	"context"
 	"encoding/base64"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"slices"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
@@ -28,8 +25,7 @@ func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("transcription cleanup did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

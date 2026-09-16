@@ -16,11 +16,11 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
+	"overgo/internal/worklease"
 )
 
 type strategyExperimentTestFixture struct {
@@ -215,14 +215,14 @@ func TestStrategyComparisonRequiresIdentity(t *testing.T) {
 		}
 	}
 
-	firstLease, found, err := plan.ReadWorkLease(fixture.ctx, fixture.store, fixture.candidates[0].Lease)
+	firstLease, found, err := worklease.Read(fixture.ctx, fixture.store, fixture.candidates[0].Lease)
 	if err != nil || !found {
 		t.Fatalf("read first work lease: found=%v err=%v", found, err)
 	}
-	aliasLease, err := plan.NewWorkLease(plan.WorkLease{
+	aliasLease, err := worklease.New(worklease.Lease{
 		Task: "strategy-worktree-alias", Worktree: strings.TrimSuffix(firstLease.Worktree, "/") + "/.",
 		Branch: "codex/strategy-worktree-alias", Role: "experiment", TargetHead: fixture.baseline,
-		ConflictsWith: []string{}, Resources: plan.Resources{CPUThreads: 1, HostRAMGiB: 1},
+		ConflictsWith: []string{}, Resources: worklease.Resources{CPUThreads: 1, HostRAMGiB: 1},
 		ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil {
@@ -232,7 +232,7 @@ func TestStrategyComparisonRequiresIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	aliasLease, err = plan.RecordWorkLease(fixture.ctx, fixture.store, encodedAliasLease)
+	aliasLease, err = worklease.Record(fixture.ctx, fixture.store, encodedAliasLease)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +399,7 @@ func newStrategyExperimentTestFixtureWithOptions(
 		ctx: ctx, store: store, task: task, baseline: strings.Repeat("a", 40),
 		strategies: []Strategy{strategyA, strategyB},
 	}
-	leases := make([]plan.WorkLease, len(fixture.strategies))
+	leases := make([]worklease.Lease, len(fixture.strategies))
 	worktreeRoot := t.TempDir()
 	for index := range fixture.strategies {
 		name := string(rune('a' + index))
@@ -407,10 +407,10 @@ func newStrategyExperimentTestFixtureWithOptions(
 		if err := os.MkdirAll(worktree, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		lease, err := plan.NewWorkLease(plan.WorkLease{
+		lease, err := worklease.New(worklease.Lease{
 			Task: "strategy-" + name, Worktree: filepath.ToSlash(worktree), Branch: "codex/strategy-" + name,
 			Role: "experiment", TargetHead: fixture.baseline, ConflictsWith: []string{},
-			Resources: plan.Resources{CPUThreads: 1, HostRAMGiB: 1},
+			Resources: worklease.Resources{CPUThreads: 1, HostRAMGiB: 1},
 			ExpiresAt: time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano),
 		})
 		if err != nil {
@@ -420,7 +420,7 @@ func newStrategyExperimentTestFixtureWithOptions(
 		if err != nil {
 			t.Fatal(err)
 		}
-		leases[index], err = plan.RecordWorkLease(ctx, store, encoded)
+		leases[index], err = worklease.Record(ctx, store, encoded)
 		if err != nil || leases[index].ID != lease.ID {
 			t.Fatalf("record lease = %s, want %s: %v", leases[index].ID, lease.ID, err)
 		}

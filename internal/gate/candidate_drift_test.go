@@ -16,6 +16,7 @@ import (
 )
 
 func TestCandidateDriftRefused(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -43,6 +44,7 @@ func TestCandidateDriftRefused(t *testing.T) {
 }
 
 func TestPreparedCandidateCannotMoveBeforePlanning(t *testing.T) {
+	t.Parallel()
 	gate := gateContext{}
 	gate.preparation.TreeKey = strings.Repeat("a", 64)
 	if err := gate.requirePreparedCandidate(strings.Repeat("a", 64)); err != nil {
@@ -55,6 +57,7 @@ func TestPreparedCandidateCannotMoveBeforePlanning(t *testing.T) {
 }
 
 func TestPlannedPathsRejectGitPathspecMagic(t *testing.T) {
+	t.Parallel()
 	for _, candidate := range []string{":(glob)**/*.md", ":!docs/rogue.md", "docs/*.md", "docs/[ab].md"} {
 		if err := validatePlannedPaths([]string{candidate}); err == nil ||
 			!strings.Contains(err.Error(), "canonical literal repository path") {
@@ -67,6 +70,7 @@ func TestPlannedPathsRejectGitPathspecMagic(t *testing.T) {
 }
 
 func TestCandidateTreeKeyFramesUntrackedPathsAndContent(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -103,6 +107,7 @@ func TestCandidateTreeKeyFramesUntrackedPathsAndContent(t *testing.T) {
 }
 
 func TestCandidateVerifierExcludesAmbientWorktreeInputs(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -142,6 +147,7 @@ func TestCandidateVerifierExcludesAmbientWorktreeInputs(t *testing.T) {
 }
 
 func TestCandidateVerifierCannotMutateAcceptedTree(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -163,6 +169,7 @@ func TestCandidateVerifierCannotMutateAcceptedTree(t *testing.T) {
 }
 
 func TestBuildAcceptedCompletionTreeIsolatesSharedIndexAndIgnoresLaterWorktreeEdit(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -254,6 +261,9 @@ func TestBuildAcceptedCompletionTreeIsolatesSharedIndexAndIgnoresLaterWorktreeEd
 }
 
 func TestInstallCompletionIndexRefusesWriterBeforeLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	wantConcurrent := []byte("concurrent install staging\n")
 	if err := os.WriteFile(filepath.Join(repo, "candidate.txt"), wantConcurrent, 0o644); err != nil {
@@ -278,6 +288,9 @@ func TestInstallCompletionIndexRefusesWriterBeforeLock(t *testing.T) {
 }
 
 func TestGateStartIndexRefusesAndPreservesLaterUnplannedStaging(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, _ := newIndexCASFixture(t)
 	unplanned := []byte("staged after gate start\n")
 	if err := os.WriteFile(filepath.Join(repo, "unplanned.txt"), unplanned, 0o644); err != nil {
@@ -301,6 +314,9 @@ func TestGateStartIndexRefusesAndPreservesLaterUnplannedStaging(t *testing.T) {
 }
 
 func TestRestoreCapturedIndexRefusesWriterBeforeLock(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	intent := exactIndexIntent(t, repo, before, after)
 	if err := installCompletionIndexForTest(repo, intent); err != nil {
@@ -329,6 +345,9 @@ func TestRestoreCapturedIndexRefusesWriterBeforeLock(t *testing.T) {
 }
 
 func TestExactIndexCASBlocksWriterWhileLocked(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, before, after := newIndexCASFixture(t)
 	if err := os.WriteFile(filepath.Join(repo, "candidate.txt"), []byte("locked writer\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -362,6 +381,7 @@ func TestExactIndexCASBlocksWriterWhileLocked(t *testing.T) {
 }
 
 func TestCaptureGateIndexRejectsSemanticEntryFlags(t *testing.T) {
+	t.Parallel()
 	repo, _, _ := newIndexCASFixture(t)
 	runGitFixture(t, repo, "update-index", "--assume-unchanged", "--", "candidate.txt")
 	indexPath, err := gateIndexPath(repo)
@@ -385,6 +405,7 @@ func TestCaptureGateIndexRejectsSemanticEntryFlags(t *testing.T) {
 }
 
 func TestCaptureGateIndexRejectsIntentToAddMetadata(t *testing.T) {
+	t.Parallel()
 	repo, _, _ := newIndexCASFixture(t)
 	intentPath := filepath.Join(repo, "intent.txt")
 	if err := os.WriteFile(intentPath, []byte("intent\n"), 0o644); err != nil {
@@ -412,6 +433,7 @@ func TestCaptureGateIndexRejectsIntentToAddMetadata(t *testing.T) {
 }
 
 func TestCaptureGateIndexRejectsResolveUndoMetadata(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q", "-b", "main")
 	runGitFixture(t, repo, "config", "user.email", "resolve-undo@example.invalid")
@@ -462,6 +484,9 @@ func TestCaptureGateIndexRejectsResolveUndoMetadata(t *testing.T) {
 }
 
 func TestGateGitAuthorityIgnoresAmbientRepositoryOverrides(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	requested := t.TempDir()
 	foreign := t.TempDir()
 	for repository, content := range map[string]string{requested: "requested\n", foreign: "foreign\n"} {
@@ -584,6 +609,7 @@ func installCompletionIndexForTest(repo string, intent gateCommitIntent) error {
 }
 
 func TestPlannedTreeHandlesRenameWithUnstagedEdit(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -621,6 +647,7 @@ func TestPlannedTreeHandlesRenameWithUnstagedEdit(t *testing.T) {
 }
 
 func TestScopeRefusesUnplannedVerificationInputButAllowsResearchDocument(t *testing.T) {
+	t.Parallel()
 	repo := t.TempDir()
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@example.invalid")
@@ -666,6 +693,9 @@ func runGitFixture(t *testing.T, repo string, arguments ...string) {
 
 // TestGateStartIndexAdoptsStatRefreshUnderSameTree pins stat-only refresh recovery.
 func TestGateStartIndexAdoptsStatRefreshUnderSameTree(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
 	repo, _, _ := newIndexCASFixture(t)
 	steady := filepath.Join(repo, "steady.txt")
 	if err := os.WriteFile(steady, []byte("steady\n"), 0o644); err != nil {

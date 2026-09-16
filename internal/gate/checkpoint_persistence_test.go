@@ -73,7 +73,7 @@ func TestCheckpointPersistenceCrashProcess(t *testing.T) {
 		}
 	}
 	cache := g.loadRetryCache()
-	if _, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil); err != nil {
+	if _, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	t.Fatal("checks returned without reaching the persisted checkpoint boundary")
@@ -84,6 +84,7 @@ func TestCheckpointPersistenceCrashProcess(t *testing.T) {
 // entry reusable, a never-run checkpoint stays absent, and a fresh run reuses
 // the persisted checkpoint while executing the rest.
 func TestCheckpointPersistenceSurvivesKill(t *testing.T) {
+	t.Parallel()
 	g, batch, tree := verificationBatchFixture(t, "pass")
 	batch.Flush = &plan.BatchFlush{Key: "persist", MaxSize: 2, MaxInterval: "1m", MaxBytes: 1 << 20}
 	// The lifecycle test environment is deterministic, so the helper and the
@@ -134,7 +135,7 @@ func TestCheckpointPersistenceSurvivesKill(t *testing.T) {
 		t.Fatal("retry projection unexpectedly survived deletion")
 	}
 
-	results, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil)
+	results, err := g.executeChecks(invocations, nil, map[artifact.ID]artifact.ID{}, &cache, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

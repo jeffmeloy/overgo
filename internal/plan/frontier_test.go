@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"overgo/internal/worklease"
 	"strings"
 	"testing"
 )
@@ -20,12 +21,12 @@ func frontierTestPlan() Plan {
 	}}
 }
 
-func frontierLease(t *testing.T, task, worktree, role string, claims WorkspaceClaims) WorkLease {
+func frontierLease(t *testing.T, task, worktree, role string, claims worklease.WorkspaceClaims) worklease.Lease {
 	t.Helper()
-	lease, err := NewWorkLease(WorkLease{
+	lease, err := worklease.New(worklease.Lease{
 		Task: task, Worktree: worktree, Branch: "lane/" + role, Role: role,
 		TargetHead: strings.Repeat("a", 40), ConflictsWith: []string{},
-		Resources: Resources{CPUThreads: 2, HostRAMGiB: 4},
+		Resources: worklease.Resources{CPUThreads: 2, HostRAMGiB: 4},
 		Claims:    claims, ExpiresAt: "2026-09-01T00:00:00Z",
 	})
 	if err != nil {
@@ -66,38 +67,38 @@ func TestReadyFrontierLeaseIsolation(t *testing.T) {
 	}
 
 	alphaLease := frontierLease(t, "alpha/one", "lane-alpha", "builder",
-		WorkspaceClaims{Write: []string{"internal/plan"}})
+		worklease.WorkspaceClaims{Write: []string{"internal/plan"}})
 	betaLease := frontierLease(t, "beta/solo", "lane-beta", "verifier",
-		WorkspaceClaims{Write: []string{"internal/overgodb"}})
-	if err := ValidateFrontierLeases(frontier, []WorkLease{alphaLease, betaLease}); err != nil {
+		worklease.WorkspaceClaims{Write: []string{"internal/overgodb"}})
+	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, betaLease}); err != nil {
 		t.Fatalf("isolated leases refused: %v", err)
 	}
 	offFrontier := frontierLease(t, "alpha/two", "lane-early", "eager",
-		WorkspaceClaims{Write: []string{"cmd/plan"}})
-	if err := ValidateFrontierLeases(frontier[:2], []WorkLease{offFrontier}); err == nil ||
+		worklease.WorkspaceClaims{Write: []string{"cmd/plan"}})
+	if err := ValidateFrontierLeases(frontier[:2], []worklease.Lease{offFrontier}); err == nil ||
 		!strings.Contains(err.Error(), "outside the ready frontier") {
 		t.Fatalf("off-frontier lease admitted: %v", err)
 	}
 	duplicate := frontierLease(t, "alpha/one", "lane-dup", "shadow",
-		WorkspaceClaims{Write: []string{"cmd/gate"}})
-	if err := ValidateFrontierLeases(frontier, []WorkLease{alphaLease, duplicate}); err == nil ||
+		worklease.WorkspaceClaims{Write: []string{"cmd/gate"}})
+	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, duplicate}); err == nil ||
 		!strings.Contains(err.Error(), "both own frontier row") {
 		t.Fatalf("duplicate row ownership admitted: %v", err)
 	}
 	sameRole := frontierLease(t, "beta/solo", "lane-role", "builder",
-		WorkspaceClaims{Write: []string{"internal/loop"}})
-	if err := ValidateFrontierLeases(frontier, []WorkLease{alphaLease, sameRole}); err == nil ||
+		worklease.WorkspaceClaims{Write: []string{"internal/loop"}})
+	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, sameRole}); err == nil ||
 		!strings.Contains(err.Error(), "one role owns one row at a time") {
 		t.Fatalf("duplicate role admitted: %v", err)
 	}
 	overlapping := frontierLease(t, "beta/solo", "lane-clash", "verifier",
-		WorkspaceClaims{Write: []string{"internal/plan/sync.go"}})
-	if err := ValidateFrontierLeases(frontier, []WorkLease{alphaLease, overlapping}); err == nil ||
+		worklease.WorkspaceClaims{Write: []string{"internal/plan/sync.go"}})
+	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, overlapping}); err == nil ||
 		!strings.Contains(err.Error(), "overlapping workspace claims") {
 		t.Fatalf("cross-worktree claim overlap admitted: %v", err)
 	}
-	whole := frontierLease(t, "beta/solo", "lane-whole", "verifier", WorkspaceClaims{WholeWorktree: true})
-	if err := ValidateFrontierLeases(frontier, []WorkLease{alphaLease, whole}); err == nil ||
+	whole := frontierLease(t, "beta/solo", "lane-whole", "verifier", worklease.WorkspaceClaims{WholeWorktree: true})
+	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, whole}); err == nil ||
 		!strings.Contains(err.Error(), "overlapping workspace claims") {
 		t.Fatalf("whole-worktree overlap admitted: %v", err)
 	}

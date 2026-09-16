@@ -1,19 +1,22 @@
 package agenttool
 
 import (
+	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/processcontrol"
 )
 
 func TestArgvOutputLimit(t *testing.T) {
@@ -29,8 +32,7 @@ func TestArgvOutputLimit(t *testing.T) {
 				Kind: TransportArgv, Program: filepath.Base(executable),
 				Args: []string{"-test.run=^TestArgvOutputProcess$", "--", mode, marker},
 			})
-			ctx, cancel := context.WithTimeoutCause(t.Context(), 8*time.Second, errors.New("argv overflow fixture deadline"))
-			defer cancel()
+			ctx := t.Context()
 			result, effect, err := NewExecutor().InvokeWithEffect(ctx, manual, json.RawMessage(`{"pattern":"x"}`))
 			if mode == "valid" {
 				var actual string
@@ -53,14 +55,18 @@ func TestArgvOutputLimit(t *testing.T) {
 				if !limit.Receipt.TreeTerminated {
 					t.Fatalf("continuing tree not terminated: %+v", limit.Receipt)
 				}
-				before, err := os.Stat(marker)
-				if err != nil || before.Size() == 0 {
+				// The fixture recorded its descendant's pid before overflowing;
+				// the terminated tree leaves that process dead.
+				recorded, err := os.ReadFile(marker)
+				if err != nil {
 					t.Fatalf("descendant did not start: %v", err)
 				}
-				time.Sleep(200 * time.Millisecond)
-				after, err := os.Stat(marker)
-				if err != nil || after.Size() != before.Size() {
-					t.Fatalf("descendant survived overflow: before=%v after=%v err=%v", before, after, err)
+				descendant, err := strconv.Atoi(strings.TrimSpace(string(recorded)))
+				if err != nil || descendant <= 0 {
+					t.Fatalf("descendant pid %q: %v", recorded, err)
+				}
+				if processcontrol.ProcessAlive(descendant) {
+					t.Fatalf("descendant %d survived overflow", descendant)
 				}
 			}
 		})
@@ -106,37 +112,28 @@ func TestArgvOutputProcess(t *testing.T) {
 		_, _ = io.WriteString(os.Stdout, "hello 世界\t\"quoted\"\r\n")
 		os.Exit(0)
 	}
-	if mode == "heartbeat" {
-		file, err := os.OpenFile(marker, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-		if err != nil {
-			os.Exit(2)
-		}
-		for {
-			if _, err := file.Write([]byte(".")); err != nil {
-				os.Exit(2)
-			}
-			time.Sleep(20 * time.Millisecond)
-		}
+	if mode == "descendant" {
+		// The descendant announces itself, then lives until the tree ends.
+		fmt.Println("descendant ready")
+		select {}
 	}
 	if mode == "continuing-tree" {
 		executable, err := os.Executable()
 		if err != nil {
 			os.Exit(2)
 		}
-		child := exec.Command(executable, "-test.run=^TestArgvOutputProcess$", "--", "heartbeat", marker)
-		child.Stdout, child.Stderr = os.Stdout, os.Stderr
-		if child.Start() != nil {
+		child := exec.Command(executable, "-test.run=^TestArgvOutputProcess$", "--", "descendant", marker)
+		child.Stderr = os.Stderr
+		ready, err := child.StdoutPipe()
+		if err != nil || child.Start() != nil {
 			os.Exit(2)
 		}
-		deadline := time.Now().Add(3 * time.Second)
-		for {
-			if info, err := os.Stat(marker); err == nil && info.Size() != 0 {
-				break
-			}
-			if time.Now().After(deadline) {
-				os.Exit(2)
-			}
-			time.Sleep(20 * time.Millisecond)
+		if _, err := bufio.NewReader(ready).ReadString('\n'); err != nil {
+			os.Exit(2)
+		}
+		// The parent test reads the descendant's pid from the marker.
+		if err := os.WriteFile(marker, []byte(strconv.Itoa(child.Process.Pid)), 0o600); err != nil {
+			os.Exit(2)
 		}
 	}
 	chunk := bytes.Repeat([]byte("x"), 64<<10)
@@ -148,11 +145,12 @@ func TestArgvOutputProcess(t *testing.T) {
 		written += count
 	}
 	if mode == "continuing-tree" {
+		// Output continues until the tree is terminated; a stopped reader
+		// blocks the write itself.
 		for {
 			if _, err := os.Stdout.Write(chunk); err != nil {
 				os.Exit(2)
 			}
-			time.Sleep(10 * time.Millisecond)
 		}
 	}
 	os.Exit(0)

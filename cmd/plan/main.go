@@ -25,6 +25,7 @@ import (
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/webuilane"
+	"overgo/internal/worklease"
 )
 
 // Zero is a reviewed lease count; only this sentinel leaves retirement unrequested.
@@ -87,7 +88,7 @@ func main() {
 	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	flag.Parse()
-	if err := run(cli{edit: *edit, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: plan.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{edit: *edit, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
@@ -117,7 +118,7 @@ type cli struct {
 	retireLegacyLeases                                                               int
 	history                                                                          string
 	admitProposal                                                                    string
-	capacity                                                                         plan.Resources
+	capacity                                                                         worklease.Resources
 }
 
 func run(c cli, args []string) error {
@@ -479,7 +480,7 @@ func addItem(root, id, title, before, verifyCmd, role string) error {
 		if err != nil {
 			return err
 		}
-		if role != plan.UnassignedRole {
+		if role != worklease.UnassignedRole {
 			for index := range updated.Items {
 				if updated.Items[index].ID == id {
 					updated.Items[index].Owner = role
@@ -773,7 +774,7 @@ RULES skill.md; only this task; port-first; park off-scope findings with cmd/fin
 
 // browserVerifyOutsideLane: a verify naming a browser acceptance test without the lane runner that makes it run.
 func browserVerifyOutsideLane(command string) bool {
-	return strings.Contains(command, webuilane.BrowserTestPrefix) && !strings.Contains(command, "cmd/webui-lane")
+	return (strings.Contains(command, webuilane.BrowserTestPrefix) || strings.Contains(command, webuilane.ModelJourneyPrefix)) && !strings.Contains(command, "cmd/webui-lane")
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.

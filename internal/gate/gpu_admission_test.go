@@ -1,18 +1,19 @@
 package gate
 
 import (
+	"bufio"
 	"bytes"
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/processcontrol"
 )
@@ -21,6 +22,9 @@ const resourceProcessEnvironment = "OVERGO_TEST_RESOURCE_PROCESS"
 
 type resourceProcessSpec struct {
 	Name, Role, Root string
+	// Announce is the address the process reports its claim to and holds
+	// its claim against: the connection's close ends the process.
+	Announce string
 }
 
 func resourceProcessCommand(t *testing.T, spec resourceProcessSpec) *exec.Cmd {
@@ -53,41 +57,119 @@ func TestGPUAdmissionProcess(t *testing.T) {
 		return
 	}
 	if spec.Role == "owner" {
+		// The owner's children announce themselves to the test, which holds
+		// their claims apart from the owner's life.
 		for _, role := range []string{"child", "sibling"} {
-			child := resourceProcessCommand(t, resourceProcessSpec{Name: spec.Name, Role: role, Root: spec.Root})
+			child := resourceProcessCommand(t, resourceProcessSpec{Name: spec.Name, Role: role, Root: spec.Root, Announce: spec.Announce})
+			child.Dir = spec.Root
 			if err := child.Start(); err != nil {
 				t.Fatal(err)
 			}
 			defer func() { _ = child.Process.Kill(); _ = child.Wait() }()
-			waitResourceFile(t, filepath.Join(spec.Root, role+"-ready"))
 		}
 	}
-	if err := os.WriteFile(filepath.Join(spec.Root, spec.Role+"-ready"), []byte(fmt.Sprint(os.Getpid())), 0600); err != nil {
+	// The process announces its claim over the connection and holds it
+	// until the test closes that connection.
+	connection, err := net.Dial("tcp", spec.Announce)
+	if err != nil {
 		t.Fatal(err)
 	}
-	waitResourceFile(t, filepath.Join(spec.Root, spec.Role+"-stop"))
+	fmt.Fprintf(connection, "%s %d\n", spec.Role, os.Getpid())
+	_, _ = io.Copy(io.Discard, connection)
 }
 
-func waitResourceFile(t *testing.T, path string) {
+// resourceProcesses accepts the announcements of resource processes and
+// holds each claim open until the test releases it.
+type resourceProcesses struct {
+	t        *testing.T
+	listener net.Listener
+	held     map[string]heldResource
+}
+
+type heldResource struct {
+	pid        int
+	connection net.Conn
+}
+
+func listenResourceProcesses(t *testing.T) *resourceProcesses {
 	t.Helper()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 20*time.Second, errors.New("resource process did not publish its state"))
-	defer cancel()
-	ticker := time.Tick(10 * time.Millisecond)
-	for {
-		if _, err := os.Stat(path); err == nil {
-			return
-		} else if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-		select {
-		case <-ctx.Done():
-			t.Fatalf("resource process did not publish %s: %v", path, ctx.Err())
-		case <-ticker:
-		}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = listener.Close() })
+	return &resourceProcesses{t: t, listener: listener, held: map[string]heldResource{}}
+}
+
+func (r *resourceProcesses) address() string { return r.listener.Addr().String() }
+
+// ready accepts announcements until the role's arrives, then reports its pid.
+func (r *resourceProcesses) ready(role string) int {
+	r.t.Helper()
+	for {
+		if held, announced := r.held[role]; announced {
+			return held.pid
+		}
+		connection, err := r.listener.Accept()
+		if err != nil {
+			r.t.Fatal(err)
+		}
+		line, err := bufio.NewReader(connection).ReadString('\n')
+		if err != nil {
+			r.t.Fatal(err)
+		}
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			r.t.Fatalf("resource announcement %q", line)
+		}
+		pid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			r.t.Fatal(err)
+		}
+		r.held[fields[0]] = heldResource{pid: pid, connection: connection}
+		r.t.Cleanup(func() { _ = connection.Close() })
+	}
+}
+
+// release closes the role's connection, ending its process.
+func (r *resourceProcesses) release(role string) {
+	r.t.Helper()
+	held, announced := r.held[role]
+	if !announced {
+		r.t.Fatalf("release of %s before its announcement", role)
+	}
+	if err := held.connection.Close(); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+// waitProcessExit returns once the process has exited, through its own
+// process object.
+func waitProcessExit(pid int) error {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return nil
+	}
+	_, err = process.Wait()
+	return err
+}
+
+// startResourceProcess starts one resource process announcing to the test's
+// listener, with its output copied to output when set.
+func startResourceProcess(t *testing.T, processes *resourceProcesses, spec resourceProcessSpec, output io.Writer) *exec.Cmd {
+	t.Helper()
+	spec.Announce = processes.address()
+	command := resourceProcessCommand(t, spec)
+	command.Dir = spec.Root
+	command.Stdout, command.Stderr = output, output
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	return command
 }
 
 func TestCrossWorktreeGPUAdmission(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	name := "gpu-test:" + root
 	probe := func(resource, directory string) error {
@@ -107,19 +189,13 @@ func TestCrossWorktreeGPUAdmission(t *testing.T) {
 		return
 	}
 	other := t.TempDir()
-	owner := resourceProcessCommand(t, resourceProcessSpec{Name: name, Role: "owner", Root: root})
-	owner.Dir = root
 	var output bytes.Buffer
-	owner.Stdout, owner.Stderr = &output, &output
-	if err := owner.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = owner.Process.Kill()
-		_ = os.WriteFile(filepath.Join(root, "child-stop"), nil, 0600)
-		_ = os.WriteFile(filepath.Join(root, "sibling-stop"), nil, 0600)
-	})
-	waitResourceFile(t, filepath.Join(root, "owner-ready"))
+	processes := listenResourceProcesses(t)
+	owner := startResourceProcess(t, processes, resourceProcessSpec{Name: name, Role: "owner", Root: root}, &output)
+	t.Cleanup(func() { _ = owner.Process.Kill() })
+	processes.ready("owner")
+	processes.ready("child")
+	sibling := processes.ready("sibling")
 	if err := os.WriteFile(filepath.Join(root, "expired-heartbeat"), []byte("1970-01-01"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -144,20 +220,16 @@ func TestCrossWorktreeGPUAdmission(t *testing.T) {
 		t.Fatal("launcher death was not injected")
 	}
 	assertBlocked()
-	if err := os.WriteFile(filepath.Join(root, "child-stop"), nil, 0600); err != nil {
-		t.Fatal(err)
-	}
+	processes.release("child")
 	assertBlocked()
-	if err := os.WriteFile(filepath.Join(root, "sibling-stop"), nil, 0600); err != nil {
+	// The last consumer's exit releases the reservation; its process object
+	// signals the exit.
+	processes.release("sibling")
+	if err := waitProcessExit(sibling); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(10 * time.Second)
-	for {
-		if err := probe(name, other); err == nil {
-			break
-		} else if time.Now().After(deadline) {
-			t.Fatalf("reservation survived the last consumer: %v; owner: %s", err, output.String())
-		}
+	if err := probe(name, other); err != nil {
+		t.Fatalf("reservation survived the last consumer: %v; owner: %s", err, output.String())
 	}
 	t.Log("OS admission: separate worktrees, stale heartbeat, reentry, launcher death with live consumer, final release, independent device and CPU")
 }

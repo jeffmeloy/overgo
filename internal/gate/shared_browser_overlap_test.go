@@ -7,21 +7,20 @@ import (
 	"slices"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"overgo/internal/automationcheck"
 )
 
 // A channel handshake proves overlap without relying on sleep durations.
 func TestSharedBrowserDependencyOverlap(t *testing.T) {
+	t.Parallel()
 	checks := (&gateContext{repo: t.TempDir()}).pipelineChecks()
 	for _, check := range checks {
 		if check.Descriptor.Name == automationcheck.WebUICheckName && !slices.Equal(check.Descriptor.Dependencies, []string{"test-owners"}) {
 			t.Fatalf("browser unnecessarily serialized: %v", check.Descriptor.Dependencies)
 		}
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("shared check handshake did not complete"))
-	defer cancel()
+	ctx := t.Context()
 	deviceStarted, browserStarted := make(chan struct{}), make(chan struct{})
 	var ownersDone, deviceDone, browserDone atomic.Bool
 	for i := range checks {

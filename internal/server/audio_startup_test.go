@@ -1,9 +1,7 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +12,6 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 	"testing"
-	"time"
 )
 
 // Expose only workflows: this fixture has no loaded text model or model properties.
@@ -88,8 +85,7 @@ func TestWebUIBrowserAudioStartup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 45*time.Second, errors.New("cold speech browser did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

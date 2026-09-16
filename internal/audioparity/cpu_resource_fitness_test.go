@@ -69,6 +69,7 @@ func (f *audioMeasurementFixture) compareRepeats(t *testing.T, baseline audioMea
 }
 
 func TestAudioResourceEnvelopeAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact CPU resource batch acceptance executes measured child processes")
 	}
@@ -77,6 +78,7 @@ func TestAudioResourceEnvelopeAcceptance(t *testing.T) {
 }
 
 func TestAudioResourceFitnessAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact CPU fitness acceptance executes held-out, profile and repeated processes")
 	}

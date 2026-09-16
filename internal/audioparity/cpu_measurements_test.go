@@ -229,6 +229,7 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 }
 
 func TestAudioBenchmarkCoverageAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": held-out measurement runs as its exact mandatory batch acceptance")
 	}

@@ -22,8 +22,12 @@ import (
 )
 
 func TestSpeakerDiarizationAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": pinned real speaker model, independent traces and continuous annotated speech")
+	}
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
 	}
 	root := cmp.Or(os.Getenv("OVERGO_AUDIO_SPEAKER_REFERENCE"), filepath.Join(testutil.RepoRoot(t), "tmp", "speaker-reference"))
 	t.Run("numerical", func(t *testing.T) { verifySpeakerNumerical(t, root) })

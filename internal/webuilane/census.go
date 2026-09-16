@@ -206,6 +206,15 @@ func MeasureTree(root, label string) (Census, error) {
 // by this prefix, and a plan verify naming one without the lane is refused.
 const BrowserTestPrefix = "TestWebUIBrowser"
 
+// ModelJourneyPrefix names the browser journeys that build, serve or hash a
+// model: the lane runs them only in its -journeys mode, so the page
+// acceptances run against retained receipts alone.
+const ModelJourneyPrefix = "TestModelJourney"
+
+// ModelJourneyEnvironment is set by the lane's -journeys mode; a journey
+// skips without it, since outside the lane it proves nothing.
+const ModelJourneyEnvironment = "OVERGO_MODEL_JOURNEY"
+
 // LaneVerdict judges one lane run from its output: a test the run skipped
 // or a run in which no test passed is no evidence, and every required
 // line (a journey leg's log) must have been written; nil is the pass.

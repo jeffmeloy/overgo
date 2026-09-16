@@ -16,7 +16,6 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/strictjson"
-	"overgo/internal/testskip"
 )
 
 // Only target-free inputs cross this child boundary. Profiling measurements
@@ -111,8 +110,8 @@ func (f *audioMeasurementFixture) profile(t *testing.T, baseline audioMeasuredPr
 	if err != nil {
 		t.Fatal(err)
 	}
-	command := exec.CommandContext(t.Context(), executable, "-test.run=^TestASRCPUSimplificationAcceptance$", "-test.v")
-	command.Env = append(os.Environ(), "OVERGO_AUDIO_PROFILE_REQUEST="+requestPath)
+	command := exec.CommandContext(t.Context(), executable, "-test.run=^"+audioProfileOwner+"$", "-test.v")
+	command.Env = append(os.Environ(), audioProfileRequestEnvironment+"="+requestPath)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("profile child: %v\n%s", err, output)
@@ -165,15 +164,10 @@ func (f *audioMeasurementFixture) profile(t *testing.T, baseline audioMeasuredPr
 	t.Logf("separate CPU profile; exact transcript/outcome parity; no timed evidence credited:\n%s", top)
 }
 
-func TestASRCPUSimplificationAcceptance(t *testing.T) {
-	t.Parallel()
-	if path := os.Getenv("OVERGO_AUDIO_PROFILE_REQUEST"); path != "" {
-		runAudioProfile(t, path)
-		return
-	}
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": exact CPU simplification acceptance profiles a separate real-model child")
-	}
-	f := newAudioMeasurementFixture(t)
-	f.profile(t, f.measure(t))
-}
+// audioProfileRequestEnvironment carries the profile request to the child
+// process the fitness acceptance re-executes as itself.
+const audioProfileRequestEnvironment = "OVERGO_AUDIO_PROFILE_REQUEST"
+
+// audioProfileOwner is the test the profile child runs as; the fitness
+// acceptance owns every measured child run.
+const audioProfileOwner = "TestAudioResourceFitnessAcceptance"

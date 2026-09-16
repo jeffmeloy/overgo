@@ -19,7 +19,6 @@ import (
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
-	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -226,13 +225,4 @@ func (f *audioMeasurementFixture) measure(t *testing.T) audioMeasuredProcess {
 	}
 	t.Logf("held-out=%s speakers=%d utterances=%d WER=%.6f CER=%.6f cold_load_ns=%d warm_timed_seconds=%.6f process_wall=%s process_peak_bytes=%d; corrupt admission=%s outside decoded-duration denominator; no GPU, training, full-corpus or promotion claim", reportID, len(speakers), quality.Overall.Utterances, quality.Overall.WordErrorRate, quality.Overall.CharacterErrorRate, report.Load.WallNS, report.Summary.WallSeconds, measured.Wall, measured.PeakWorkingSetByte, f.controls[len(f.controls)-1].DecisionID)
 	return result
-}
-
-func TestAudioBenchmarkCoverageAcceptance(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": held-out measurement runs as its exact mandatory batch acceptance")
-	}
-	f := newAudioMeasurementFixture(t)
-	f.measure(t)
 }

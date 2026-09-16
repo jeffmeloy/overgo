@@ -179,7 +179,7 @@
      "path": "internal/audioparity/cpu_resource_fitness_test.go",
      "contains": "func TestAudioResourceFitnessAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:712f0afd853b6c20360ae8a09ef5b56eb226cf6673b0307018868d3b3d02bbe2"
+     "identity": "evidence:sha256:621184d2b2eb48321f788dddc2ae307b458de52727680102e58ff09d125f05bd"
     }
    ]
   },

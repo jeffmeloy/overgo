@@ -1,6 +1,7 @@
 package audioparity
 
 import (
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -68,17 +69,16 @@ func (f *audioMeasurementFixture) compareRepeats(t *testing.T, baseline audioMea
 	}
 }
 
-func TestAudioResourceEnvelopeAcceptance(t *testing.T) {
-	t.Parallel()
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration + ": exact CPU resource batch acceptance executes measured child processes")
-	}
-	f := newAudioMeasurementFixture(t)
-	f.compareRepeats(t, f.measure(t))
-}
-
+// TestAudioResourceFitnessAcceptance is the one owner of the measured and
+// profiled CPU speech child runs: the held-out measurement, its profiled
+// repeat with exact output parity, the repeated-execution envelope and the
+// shared fitness policy. It is also the profile child's entry point.
 func TestAudioResourceFitnessAcceptance(t *testing.T) {
 	t.Parallel()
+	if path := os.Getenv(audioProfileRequestEnvironment); path != "" {
+		runAudioProfile(t, path)
+		return
+	}
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact CPU fitness acceptance executes held-out, profile and repeated processes")
 	}

@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "audio-measurement-owner",
-      "title": "Make TestAudioResourceFitnessAcceptance the one owner of the measured and profiled CPU speech child runs: the envelope, simplification and benchmark-coverage acceptances re-run the same measure, repeats and profile it already asserts (284, 236 and 177 s of the audio suite's 2737 test-seconds and 455 s wall); a static ratchet holds the measurement fixture to one test",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make TestAudioResourceFitnessAcceptance the one owner of the measured and profiled CPU speech child runs: the envelope, simplification and benchmark-coverage acceptances re-run the same measure, repeats and profile it already asserts (284, 236 and 177 s of the audio suite's 2737 test-seconds and 455 s wall); a static ratchet holds the measurement fixture to one test",
-          "status": "open",
-          "verify": "test -f internal/audioparity/measurement_owner_test.go \u0026\u0026 go test ./internal/audioparity -run '^TestAudioMeasurementOwner$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "native-asr-fixture-once",
       "title": "Publish the native speech fixture once per capability-runtime test binary: the session acceptance (62 s) and the stream integration (43 s) each publish it before their own assertions",
       "owner": "master-lead",

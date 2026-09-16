@@ -4,16 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "host-suite-walls",
-      "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change, and internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their 100 s suites run on any change; host the rules in internal/gate and re-rank the remaining host walls from the package lines",
+      "id": "source-reader-test-rules",
+      "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change; internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their suites run on any change",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change, and internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their 100 s suites run on any change; host the rules in internal/gate and re-rank the remaining host walls from the package lines",
+          "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change; internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their suites run on any change",
           "status": "open",
-          "verify": "test -f internal/gate/host_suite_walls_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostSuiteWallsRatchet$' -count=1"
+          "verify": "test -f internal/gate/source_reader_suites_test.go \u0026\u0026 go test ./internal/gate -run '^TestMeasuredSuitesParseNoGo$' -count=1"
         }
       ]
     },
@@ -1023,7 +1023,8 @@
             "speech-document-admission/do",
             "audio-measurement-owner/do",
             "native-asr-fixture-once/do",
-            "host-walls-replan/do"
+            "host-walls-replan/do",
+            "source-reader-test-rules/do"
           ]
         }
       ]

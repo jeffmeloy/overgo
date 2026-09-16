@@ -60,7 +60,7 @@ var fileOwners = []string{"os", "filepath", "ioutil", "fs"}
 // discoveryCall names a callee that reads a directory tree or a file by a
 // path it is handed, outside the file owners: repository discovery, walks,
 // globs, loads and reads.
-var discoveryCall = regexp.MustCompile(`(?i)(discover|walk|glob|read|load|open|scan|stat|list)`)
+var discoveryCall = regexp.MustCompile(`(?i)(discover|walk|glob|read|load|open|scan|stat|list|output)`)
 
 // repositoryRoots are the top-level entries a literal path may name to
 // reach repository inputs outside its package.
@@ -79,6 +79,12 @@ type sourceClassifier struct {
 	// safeNames are identifiers that hold the running binary's own path or
 	// a temporary path, which reach nothing in the repository.
 	safeNames map[string]bool
+	// rootFiles are the regular files at the repository root: a bare literal
+	// naming one is a named document, not a tree.
+	rootFiles map[string]bool
+	// constants are the package's string constants by name, literals under
+	// another name in a path call.
+	constants map[string]string
 	escapes   *bool
 	execFlag  *bool
 }
@@ -112,6 +118,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 	}
 	// Package-level constants are literals by another name in every file.
 	constants := map[string]bool{}
+	constantValues := map[string]string{}
 	for _, parsed := range parsedFiles {
 		for _, declaration := range parsed.Decls {
 			generic, ok := declaration.(*ast.GenDecl)
@@ -120,12 +127,25 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 			}
 			for _, spec := range generic.Specs {
 				if value, ok := spec.(*ast.ValueSpec); ok {
-					for _, name := range value.Names {
+					for index, name := range value.Names {
 						constants[name.Name] = true
+						// A string constant is the literal it holds wherever a
+						// path call names it.
+						if index < len(value.Values) {
+							if literal, ok := value.Values[index].(*ast.BasicLit); ok && literal.Kind == token.STRING {
+								if text, err := strconv.Unquote(literal.Value); err == nil {
+									constantValues[name.Name] = text
+								}
+							}
+						}
 					}
 				}
 			}
 		}
+	}
+	rootFiles, err := repositoryRootFiles(root)
+	if err != nil {
+		return runtimeInputs{}, err
 	}
 	for index, name := range files {
 		parsed := parsedFiles[index]
@@ -135,6 +155,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 			inputs: &inputs, relativeDir: relativeDir, file: name, commands: commands,
 			named: paths, pending: trees, reasons: &inputs.dynamic, execFlag: &inputs.dynamicExec,
 			safeNames: safeNames(parsed, constants, temporary), temporary: temporary, escapes: &escapes,
+			rootFiles: rootFiles, constants: constantValues,
 		}
 		if strings.HasSuffix(name, "_test.go") {
 			classifier.commands = testCommands
@@ -235,7 +256,7 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 	case *ast.CallExpr:
 		if program, isExec := execProgram(typed); isExec {
 			classifier.classifyProgram(program, execArguments(typed, program))
-			for _, value := range literalArguments(typed) {
+			for _, value := range literalArguments(typed, classifier.constants) {
 				*classifier.escapes = *classifier.escapes || value == "rev-parse"
 			}
 			return true
@@ -247,7 +268,7 @@ func (classifier *sourceClassifier) visit(node ast.Node) bool {
 			// Literals joined under a temporary root name nothing in the
 			// repository: a fixture tree under t.TempDir() is not the tree.
 			if len(typed.Args) == 0 || !classifier.temporaryRooted(typed.Args[0]) {
-				for _, value := range literalArguments(typed) {
+				for _, value := range literalArguments(typed, classifier.constants) {
 					// A parent path handed to a path call reaches the
 					// repository root; the same literal in a comparison
 					// or a message reaches nothing.
@@ -596,11 +617,12 @@ func pathCall(call *ast.CallExpr) bool {
 	return false
 }
 
-// literalArguments lists the string literals among a call's arguments,
-// looking through nested path joins. Adjacent literals of one join name
-// the joined path, not each segment: a root followed by "docs" and a file
-// name reads that file, not the docs tree.
-func literalArguments(call *ast.CallExpr) []string {
+// literalArguments lists the string literals among a call's arguments, a
+// package string constant standing for its literal, looking through nested
+// path joins. Adjacent literals of one join name the joined path, not each
+// segment: a root followed by "docs" and a file name reads that file, not
+// the docs tree.
+func literalArguments(call *ast.CallExpr, constants map[string]string) []string {
 	var values []string
 	joined := false
 	if selector, ok := call.Fun.(*ast.SelectorExpr); ok && (selectorIs(selector, "filepath", "Join") || selectorIs(selector, "path", "Join")) {
@@ -613,24 +635,33 @@ func literalArguments(call *ast.CallExpr) []string {
 			run = nil
 		}
 	}
+	literal := func(value string) {
+		if joined {
+			run = append(run, value)
+		} else {
+			values = append(values, value)
+		}
+	}
 	for _, argument := range call.Args {
 		switch typed := argument.(type) {
 		case *ast.BasicLit:
 			if typed.Kind == token.STRING {
 				if value, err := strconv.Unquote(typed.Value); err == nil {
-					if joined {
-						run = append(run, value)
-					} else {
-						values = append(values, value)
-					}
+					literal(value)
 					continue
 				}
+			}
+			flush()
+		case *ast.Ident:
+			if value, ok := constants[typed.Name]; ok && typed.Obj == nil || ok && typed.Obj != nil && typed.Obj.Kind == ast.Con {
+				literal(value)
+				continue
 			}
 			flush()
 		case *ast.CallExpr:
 			flush()
 			if selector, ok := typed.Fun.(*ast.SelectorExpr); ok && selectorIs(selector, "filepath", "Join") || ok && selectorIs(selector, "path", "Join") {
-				values = append(values, literalArguments(typed)...)
+				values = append(values, literalArguments(typed, constants)...)
 			}
 		default:
 			flush()
@@ -758,6 +789,14 @@ func (classifier *sourceClassifier) classifyPath(value string, literalOnly bool)
 	if literalOnly && (!strings.Contains(cleaned, "/") || path.Ext(cleaned) == "") {
 		return
 	}
+	// A bare name of a repository-root data file (compatibility.json,
+	// SBOM.cdx.json) is that document: the reader names it, so the document
+	// binds to its namers instead of to every reader whose reach is unnamed.
+	// Root Markdown stays documentation, whoever reads it.
+	if !strings.Contains(cleaned, "/") && classifier.rootFiles[cleaned] && !strings.EqualFold(path.Ext(cleaned), ".md") {
+		classifier.named[cleaned] = true
+		return
+	}
 	resolved, ok := repositoryPath(cleaned, classifier.relativeDir)
 	if !ok {
 		return
@@ -767,6 +806,21 @@ func (classifier *sourceClassifier) classifyPath(value string, literalOnly bool)
 		return
 	}
 	classifier.named[resolved] = true
+}
+
+// repositoryRootFiles lists the regular files at the repository root.
+func repositoryRootFiles(root string) (map[string]bool, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, err
+	}
+	files := make(map[string]bool, len(entries))
+	for _, entry := range entries {
+		if entry.Type().IsRegular() {
+			files[entry.Name()] = true
+		}
+	}
+	return files, nil
 }
 
 // escapesPackage reports a literal that walks out of the package directory

@@ -1520,7 +1520,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:2eb5f7a29be1768d3d10f3a16150f360e2274c6742d5c0d6fa9235e0d319d6d6"
+     "identity": "evidence:sha256:0e63713eed1813cb9ee92609455c678ebb039fcc90b4acdfd5de475f561906a9"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1565,7 +1565,7 @@
    "evidence_tier": "pinned-oracle",
    "source_commit": "1c8deaecc64b91f034d73e08dd8b64625eb3395d",
    "artifact_identity": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
-   "verify": "go test ./internal/capabilityruntime -run '^TestNativeAudioStreamIntegration$' -count=1 -v",
+   "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 -v",
    "summary": "A separate Go process reloads the registered recurrent model and a persisted waveform-stream cursor after the first of 15 chunks. All 14 continuation output and numerical-state identities match uninterrupted execution, including bounded attention-cache rollover and finalization. A mismatched source is refused before residency admission. The complete text matches the pinned native streaming capture. No offline/streaming text equivalence beyond declared oracle semantics, recurrent training, GPU or word-timestamp claim.",
    "evidence": [
     {
@@ -1575,10 +1575,10 @@
      "identity": "file:sha256:26ffd46da2a44f7457ade8723a12a5fae6346f347e0f785bc0d884a9b832aa24"
     },
     {
-     "path": "internal/capabilityruntime/audio_stream_integration_test.go",
-     "contains": "func TestNativeAudioStreamIntegration(",
+     "path": "internal/capabilityruntime/native_asr_session_test.go",
+     "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:c4de2acfb2904f57847152e340210411e86d9359994435fe871fb2c70faa49bd"
+     "identity": "evidence:sha256:0e63713eed1813cb9ee92609455c678ebb039fcc90b4acdfd5de475f561906a9"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",

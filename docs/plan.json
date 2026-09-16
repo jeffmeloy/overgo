@@ -4,28 +4,14 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "native-asr-fixture-once",
-      "title": "Publish the native speech fixture once per capability-runtime test binary: the session acceptance (62 s) and the stream integration (43 s) each publish it before their own assertions",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish the native speech fixture once per capability-runtime test binary: the session acceptance (62 s) and the stream integration (43 s) each publish it before their own assertions",
-          "status": "open",
-          "verify": "test -f internal/capabilityruntime/native_fixture_once_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestNativeFixturePublishedOnce$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "host-suite-walls",
-      "title": "Rank the host group's remaining suite walls from the gate's package lines after the audio and native speech owners land, and cut the next measured work that buys nothing: evaluation's 131 acceptances at 4 s each, plan's TestPrunedDependencyRequiresGatedCompletion at 21 s, overgodb's corpus and migration drills",
+      "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change, and internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their 100 s suites run on any change; host the rules in internal/gate and re-rank the remaining host walls from the package lines",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Rank the host group's remaining suite walls from the gate's package lines after the audio and native speech owners land, and cut the next measured work that buys nothing: evaluation's 131 acceptances at 4 s each, plan's TestPrunedDependencyRequiresGatedCompletion at 21 s, overgodb's corpus and migration drills",
+          "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change, and internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their 100 s suites run on any change; host the rules in internal/gate and re-rank the remaining host walls from the package lines",
           "status": "open",
           "verify": "test -f internal/gate/host_suite_walls_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostSuiteWallsRatchet$' -count=1"
         }

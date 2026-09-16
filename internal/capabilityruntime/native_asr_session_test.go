@@ -2,7 +2,11 @@ package capabilityruntime_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -17,21 +21,70 @@ import (
 	"overgo/internal/workflowruntime"
 )
 
+// TestNativeASRSessionAcceptance publishes the native fixture once and runs
+// every native stream acceptance against it: each capture streamed plain and
+// through an in-process checkpoint restart, the stream boundary cases, and a
+// fresh-process restart that continues the longest capture from the
+// checkpoint its restart pass committed, against the results its plain pass
+// produced. It is also that child process's entry point.
 func TestNativeASRSessionAcceptance(t *testing.T) {
+	if path := os.Getenv(nativeRestartChildEnvironment); path != "" {
+		verifyNativeRestartChild(t, path)
+		return
+	}
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": native recurrent sessions require registered model and corpus captures")
 	}
-	store, err := overgodb.Open(t.TempDir())
+	directory := t.TempDir()
+	storePath := filepath.Join(directory, "store")
+	store, err := overgodb.Open(storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
 	fixture := speechrecognitiontest.PublishNative(t, store)
+	// The longest capture crosses the bounded attention-history rollover.
+	longest := slices.MaxFunc(fixture.Clips, func(a, b speechrecognitiontest.NativeClip) int { return len(a.PCM) - len(b.PCM) })
+	var restart *nativeStreamRestart
 	for _, clip := range fixture.Clips {
-		t.Run(clip.Name, func(t *testing.T) { verifyNativeSession(t, store, fixture, clip) })
+		t.Run(clip.Name, func(t *testing.T) {
+			request := verifyNativeSession(t, store, fixture, clip)
+			if clip.Capture == longest.Capture {
+				restart = request
+			}
+		})
 	}
 	t.Run("reset-overlap-empty-final", func(t *testing.T) {
 		verifyNativeStreamBoundaries(t, store, fixture, fixture.Clips[0])
+	})
+	t.Run("fresh-process", func(t *testing.T) {
+		if restart == nil {
+			t.Fatal("the longest capture's restart pass retained no checkpoint")
+		}
+		restart.Store = storePath
+		data, err := json.Marshal(restart)
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(directory, "restart.json")
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		// The child owns the store while it runs; the parent reopens it for its cleanup.
+		if err := store.Close(); err != nil {
+			t.Fatal(err)
+		}
+		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestNativeASRSessionAcceptance$", "-test.count=1", "-test.v")
+		command.Env = append(os.Environ(), nativeRestartChildEnvironment+"="+path)
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("fresh-process recurrent restart: %v\n%s", err, output)
+		}
+		if store, err = overgodb.Open(storePath); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("%s", output)
+		t.Logf("fresh-process continuation of %s after chunk 1: %d output and state identities match the plain pass through finalization", longest.Name, len(restart.Chunks))
 	})
 }
 
@@ -114,8 +167,13 @@ func verifyNativeStreamBoundaries(t *testing.T, store *overgodb.Store, fixture s
 	}
 }
 
-func verifyNativeSession(t *testing.T, store *overgodb.Store, fixture speechrecognitiontest.NativeFixture, clip speechrecognitiontest.NativeClip) {
+// verifyNativeSession streams the capture plain and through an in-process
+// checkpoint restart, and returns the continuation a fresh process can
+// reproduce: the checkpoint the restart pass committed after the first
+// chunk and the plain pass's outputs for the chunks after it.
+func verifyNativeSession(t *testing.T, store *overgodb.Store, fixture speechrecognitiontest.NativeFixture, clip speechrecognitiontest.NativeClip) *nativeStreamRestart {
 	t.Helper()
+	var resume artifact.ID
 	commit := func(batch artifact.Batch, err error) {
 		t.Helper()
 		if err == nil {
@@ -144,6 +202,7 @@ func verifyNativeSession(t *testing.T, store *overgodb.Store, fixture speechreco
 			if index == 1 && restart {
 				batch, err := stream.CheckpointBatch("native-stream/restart/" + clip.Name)
 				commit(batch, err)
+				resume = batch.Contents[0].Descriptor.ID
 				if err := stream.Close(t.Context()); err != nil {
 					t.Fatal(err)
 				}
@@ -199,4 +258,5 @@ func verifyNativeSession(t *testing.T, store *overgodb.Store, fixture speechreco
 		}
 		t.Logf("restart=%v waveform chunks=%d first-text=%s completed=%s source-seconds=%.3f; includes store publication and reload, not isolated inference timing; CPU only", restart, len(chunks), firstPartial, time.Since(started), float64(len(clip.PCM))/float64(fixture.Profile.Frontend.SampleRate))
 	}
+	return &nativeStreamRestart{Recipe: fixture.Definition.ID, Source: source, Resume: resume, Chunks: chunks[1:], Expected: reference[1:]}
 }

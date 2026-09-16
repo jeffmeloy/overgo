@@ -448,11 +448,16 @@ func (g *gateContext) sourceProfile(snapshot repoanalysis.SourceSnapshot) (codep
 // the manifest already binds this check to the candidate tree, and a second
 // test process would only repeat source discovery while weakening ordering.
 func (g *gateContext) stepArchitectureRatchet() (bool, error) {
-	if _, err := g.stepArchitecture(); err != nil {
-		return false, err
-	}
 	staged, err := codeprofile.LoadStagedSurface(filepath.Join(g.repo, "docs", "staged_surface.json"))
 	if err != nil {
+		return false, err
+	}
+	for _, entry := range staged.Staged {
+		if g.checkpoint == "" && g.planRef != "" && entry.RetireWith == g.planRef {
+			return false, fmt.Errorf("architecture: reconcile staged retirement %s.%s before completing %s", entry.Package, entry.Name, g.planRef)
+		}
+	}
+	if _, err := g.stepArchitecture(); err != nil {
 		return false, err
 	}
 	snapshot, err := g.sourceSnapshot()
@@ -1188,7 +1193,7 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 		reused: directReused + dependentReused, pending: len(directPending) + len(dependentPending),
 	}
 	if g.testPlan.pending == 0 {
-		g.packageCacheAudit(g.testPlan.reused, g.testPlan.executed)
+		g.packageExecutionAudit()
 	}
 	return g.testPlan.pending == 0, nil
 }
@@ -1198,7 +1203,7 @@ type testGroups struct {
 	ledger                        *packageEvidenceLedger
 	directInputs, dependentInputs map[string]artifact.ID
 	edited, remaining, dependent  []string
-	reused, pending, executed     int
+	reused, pending               int
 }
 
 // stepTestDevice runs prepared device packages under shared admission.
@@ -1248,7 +1253,7 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 		return err
 	}
 	if len(dependent) == 0 {
-		g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
+		g.packageExecutionAudit()
 		return nil
 	}
 	observe := g.packagePassObserver(ctx, g.testPlan.ledger, "complete", g.testPlan.dependentInputs)
@@ -1264,7 +1269,7 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
 	}
-	g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
+	g.packageExecutionAudit()
 	return err
 }
 
@@ -1283,14 +1288,13 @@ func (g *gateContext) runTestGroup(ctx context.Context, group []string, short bo
 		if len(batch.packages) == 0 {
 			continue
 		}
-		g.testPlan.executed += len(batch.packages)
 		if batch.device {
 			_, err = g.runDeviceBatch(ctx, batch.packages, short, observe, g.runGoTestsAdmitted)
 		} else {
 			_, err = g.runGoTests(ctx, batch.packages, short, observe)
 		}
 		if err != nil {
-			g.packageCacheAudit(g.testPlan.reused, g.testPlan.executed)
+			g.packageExecutionAudit()
 			return err
 		}
 	}
@@ -1317,12 +1321,6 @@ func (g *gateContext) packageCachePartition(packages []string, mode string, inpu
 		}
 	}
 	return pending, reused, nil
-}
-
-func (g *gateContext) packageCacheAudit(reused, executed int) {
-	if reused+executed > 0 {
-		g.note(fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
-	}
 }
 
 func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {

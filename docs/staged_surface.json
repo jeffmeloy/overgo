@@ -149,14 +149,20 @@
     {
       "package": "overgo/internal/testskip",
       "name": "StoreAcceptance",
-      "reason": "Two audio acceptance tests retain this opt-in until the local fixture row binds their required assets and retires the redundant control.",
-      "retire_with": "surface-audio-fixtures/do"
+      "reason": "Shared skip reason for seven producer-store test call sites in longform and compatibility. Audio acceptances no longer use the opt-in; the remaining command checks retain their separate store-lineage obligations.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:46c66f617960f595fbfa6f27603d0584d430f9cf0e57190f1dbe0cc30611fd74"
+      }
     },
     {
       "package": "overgo/internal/testskip",
       "name": "StoreAcceptanceEnv",
-      "reason": "Two audio acceptance tests retain this opt-in until the local fixture row binds their required assets and retires the redundant control.",
-      "retire_with": "surface-audio-fixtures/do"
+      "reason": "Shared opt-in name for seven producer-store test call sites in longform and compatibility. Retention preserves their existing control without duplicating literals or claiming those model obligations complete.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:46c66f617960f595fbfa6f27603d0584d430f9cf0e57190f1dbe0cc30611fd74"
+      }
     }
   ]
 }

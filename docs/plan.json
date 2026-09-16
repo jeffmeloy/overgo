@@ -4,25 +4,5 @@
   "lane": "surface-area-reduction",
   "scope": "lane",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
-  "items": [
-    {
-      "id": "surface-measured-outcome",
-      "title": "Prove reduced surface and repeated verification cost",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prove reduced surface and repeated verification cost",
-          "status": "open",
-          "verify": "go run ./cmd/compatibility -check",
-          "rationale": "Compare source-bound package selection and actual executed/reused/failed/unstarted work against9565ed5c using retained results. Explain each exclusion and remaining invalidator; do not sum overlapping phase times or attribute unrelated host contention to this code. Publish net SLOC/AST, clone excess, exports, binaries and measured gate/acquisition changes through existing structured evidence owners. Bind a deterministic assertion of the chosen reduction and counterexamples before closure. Preserve unresolved process-exit finding evidence:sha256:d48c972c45ee19bd89d2f96db2437198c5688e4db2fe02759c7ede8ffe3f5da2 until explained; successful later runs do not prove it fixed. Propose the next high-value local slice from remaining measured costs; do not restore foreign rows or equate no current assignment with no useful work. Correct packageCacheAudit's pending-as-executed label using retained execution records before interpreting counts; distinguish observed, failed, unstarted and deferred packages without a second mutable execution counter. The a7a81b14 publication passed in 12m25s with 4m25s acceptance and 4m0s owner tests, and its four deferred lanes passed in 344.1s. The identical nine-census test subset improved from 92.688s to 17.612s; do not present that subset result as whole-gate acceleration. The 8f6d7884 successful publication took331.4s and its four deferred lanes572.1s; report both plus failed attempts. Separate changes merged from master from local reductions when comparing9565ed5c: b6e39250 is the latest merge boundary, not an interchangeable performance baseline.",
-          "depends_on": [
-            "surface-command-owners/do",
-            "surface-audio-fixtures/do"
-          ]
-        }
-      ]
-    }
-  ]
+  "items": []
 }

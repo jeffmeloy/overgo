@@ -74,8 +74,32 @@ func TestGatePackageExecutionCostAcceptance(t *testing.T) {
 	if len(batch[0].Unobserved) != 0 || !slices.Equal(batch[0].Requested, []string{target}) {
 		t.Fatalf("selector resolution: %+v", batch)
 	}
+	g.packageExecutionAudit()
 	after, err := graph.identity(target)
 	if err != nil || before != after {
 		t.Fatalf("cost reporting invalidated receipt: %v", err)
+	}
+}
+
+func TestPackageExecutionAuditUsesObservedWork(t *testing.T) {
+	t.Parallel()
+	g := &gateContext{testPlan: &testGroups{reused: 1, edited: []string{"changed", "build-failed"}, remaining: []string{"host", "device"}, dependent: []string{"changed"}}, deferLanes: true,
+		packageGraph: &packageInputGraph{nodes: []goPackageInput{{ImportPath: "device", TestImports: []string{deviceTestPackages[0]}}}},
+	}
+	g.recordPackageExecution([]string{"changed", "build-failed"}, true, time.Second, testevidence.GoTestReport{Executions: []testevidence.PackageExecution{
+		{Package: "changed", Started: true, Action: "fail"}, {Package: "build-failed", Action: "fail"},
+	}}, errors.New("failure"))
+	g.recordPackageExecution([]string{"changed"}, true, time.Second, testevidence.GoTestReport{Executions: []testevidence.PackageExecution{{Package: "changed", Started: true, Action: "pass"}}}, nil)
+	g.packageExecutionAudit()
+	if !slices.Contains(g.audit, "package test work: 1 reused profiles; 2 started attempts") || !slices.Contains(g.audit, "package observations: passed=1 failed=2 skipped=0 interrupted=0 unstarted=1; awaiting=3 deferred=1; observations grant no evidence credit") {
+		t.Fatalf("planned work, profiles or failed retry collapsed: %v", g.audit)
+	}
+	g.recordPackageExecution([]string{"host", "device"}, true, time.Second, testevidence.GoTestReport{Executions: []testevidence.PackageExecution{{Package: "host", Started: true, Action: "skip"}, {Package: "device", Started: true}}}, errors.New("interrupted"))
+	g.packageExecutionAudit()
+	if !slices.Contains(g.audit, "package observations: passed=1 failed=2 skipped=1 interrupted=1 unstarted=1; awaiting=1 deferred=0; observations grant no evidence credit") {
+		t.Fatalf("skip, interruption or unobserved full profile lost: %v", g.audit)
+	}
+	if len(g.testExecutions) != 3 || g.testPlan.reused != 1 {
+		t.Fatal("diagnostic changed retained execution or reuse authority")
 	}
 }

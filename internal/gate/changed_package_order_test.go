@@ -55,7 +55,7 @@ func TestChangedPackageFailurePreventsBroadSweep(t *testing.T) {
 	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("broad consumer ran before changed-package acceptance: %v", err)
 	}
-	if !slices.Contains(g.audit, "package test evidence: 0 reused + 1 executed") {
+	if !slices.Contains(g.audit, "package test work: 0 reused profiles; 1 started attempts") {
 		t.Fatalf("unstarted packages counted as executed: %v", g.audit)
 	}
 	if err := os.WriteFile(filepath.Join(root, "app/app_test.go"), []byte("package app\nimport \"testing\"\nfunc TestRequired(t *testing.T) {}\n"), 0o644); err != nil {

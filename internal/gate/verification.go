@@ -842,7 +842,15 @@ func (g *gateContext) phaseInputFingerprint(phase string) (artifact.ID, error) {
 		}
 		g.cachePaths = paths
 	}
-	return fingerprintPhaseInputs(g.repo, phase, paths)
+	input, err := fingerprintPhaseInputs(g.repo, phase, paths)
+	if err != nil || phase != "architecture" {
+		return input, err
+	}
+	return artifact.JSONID(artifact.KindEvidence, struct {
+		Source     artifact.ID `json:"source"`
+		Plan       string      `json:"plan"`
+		Checkpoint bool        `json:"checkpoint"`
+	}{input, g.planRef, g.checkpoint != ""})
 }
 
 func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, error) {
@@ -879,7 +887,9 @@ func phaseOwnsPath(phase, path string) bool {
 	documentation := strings.HasSuffix(path, ".md") || strings.HasPrefix(path, "docs/") ||
 		path == "compatibility.json" || path == "SBOM.cdx.json"
 	switch phase {
-	case "vet", "build", "fmt", "style", "profile", "architecture", modernCensusCheckName:
+	case "architecture":
+		return goInput || path == plan.Path || path == "docs/staged_surface.json" || path == repoanalysis.StructureBudgetsFile
+	case "vet", "build", "fmt", "style", "profile", modernCensusCheckName:
 		return goInput
 	case "scope", "protection":
 		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)

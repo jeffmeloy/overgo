@@ -1,7 +1,7 @@
 // Command webui-lane runs selected real-browser acceptance tests.
 // Compiler discovery binds ordinary selectors to their test owners.
 // The first-run test prepares its own served models; layout and transport
-// tests need only a browser. -report explicitly renders a comparison report.
+// tests need only a browser.
 package main
 
 import (
@@ -33,18 +33,14 @@ func main() {
 func run() error {
 	flags := flag.NewFlagSet("webui-lane", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
-	report := flags.String("report", "", "write the simplification report (fork census beside head census, behaviours proven) to this path")
-	fork := flags.String("fork", "", "tree measured as the campaign's fork for -report: a checkout or extracted slice holding internal/server/webui and docs/api_manifest.json")
-	forkLabel := flags.String("fork-label", "", "the fork tree's commit, naming it in the report")
-	headLabel := flags.String("head-label", "", "this tree's commit, naming it in the report")
 	run := flags.String("run", "^"+webuilane.BrowserTestPrefix, "the browser tests to run, as go test -run takes them; a named test that skips fails the lane")
 	journeys := flags.Bool("journeys", false, "run the model journeys ("+webuilane.ModelJourneyPrefix+"*), which build, serve or hash models, instead of the page acceptances")
 	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
 	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
 	var required []string
 	flags.Func("require", "a journey line the run must write (repeatable); its absence fails the lane", func(text string) error { required = append(required, text); return nil })
-	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 || (*report != "") != (*fork != "") {
-		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>] [-report <path> -fork <tree> -fork-label <commit> -head-label <commit>]")
+	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 {
+		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>]")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -89,23 +85,6 @@ func run() error {
 			return err
 		}
 	}
-	if *report == "" {
-		return nil
-	}
-	before, err := measureTree(*fork, *forkLabel)
-	if err != nil {
-		return err
-	}
-	after, err := measureTree(".", *headLabel)
-	if err != nil {
-		return err
-	}
-	proven, unobserved := webuilane.LaneObservations(captured.String())
-	text := webuilane.SimplificationReport(before, after, proven, unobserved)
-	if err := clioptions.WriteOutputFile(*report, []byte(text)); err != nil {
-		return err
-	}
-	fmt.Fprintf(stdout, "webui lane: report written to %s\n", *report)
 	return nil
 }
 
@@ -205,19 +184,6 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 }
 
 var browserTestPackages = []string{"overgo/internal/server", "overgo/internal/webuilane", "overgo/internal/audioparity"}
-
-// The API manifest of the tree the census measures; the lane reads it so the
-// browser package names no repository document for its importers.
-const manifestPath = "docs/api_manifest.json"
-
-// measureTree reads the tree's manifest and measures its client.
-func measureTree(root, label string) (webuilane.Census, error) {
-	manifest, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(manifestPath)))
-	if err != nil {
-		return webuilane.Census{}, err
-	}
-	return webuilane.MeasureTree(root, label, manifest)
-}
 
 // Compiler discovery selects owners, not acceptance evidence. Subtest filters
 // retain the existing complete owner set until their reach is resolved.

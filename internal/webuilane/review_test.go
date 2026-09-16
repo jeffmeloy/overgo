@@ -38,6 +38,12 @@ setTimeout(tick, 1000); setInterval(poll, interval);
 	if review != want {
 		t.Fatalf("review = %+v, want %+v", review, want)
 	}
+	var combined Review
+	combined.Add(review)
+	combined.Add(review)
+	if combined != ReviewMeasures(source+source) {
+		t.Fatal("shared aggregation differs from measuring both sources")
+	}
 	if (ReviewMeasures("const x = el(\"input\", { \"aria-label\": \"name\" });") != Review{}) {
 		t.Fatal("a named input counted")
 	}

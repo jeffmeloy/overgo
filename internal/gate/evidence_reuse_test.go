@@ -79,4 +79,25 @@ func TestGateReusesUnchangedCheckEvidence(t *testing.T) {
 	if styleAfterSource == styleBefore {
 		t.Fatal("a source edit left the style check's input fingerprint unchanged")
 	}
+	for _, name := range []string{"docs/plan.json", "docs/staged_surface.json", "docs/structure_budgets.json"} {
+		path := filepath.Join(repo, filepath.FromSlash(name))
+		if err := os.WriteFile(path, []byte("before"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		g := gateContext{repo: repo, cachePaths: append(paths, name)}
+		before, err := g.phaseInputFingerprint("architecture")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("after"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		after, err := g.phaseInputFingerprint("architecture")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before == after {
+			t.Fatalf("architecture reused changed authority %s", name)
+		}
+	}
 }

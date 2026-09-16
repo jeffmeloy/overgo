@@ -103,7 +103,7 @@ func TestTestingReductionContract(t *testing.T) {
 			t.Fatalf("gate-only change dropped %s", name)
 		}
 	}
-	// Regenerated manifests retain their named readers, including browser census.
+	// Optional reporting belongs to compatibility, outside browser execution.
 	documented, documentedWall := plan([]string{"internal/gate/preflight.go", "docs/plan.json", "docs/api_manifest.json", "docs/modern_go_census.json"})
 	reason, excluded := documented.impact.ExclusionReason("device")
 	t.Logf("gate change with documents: device excluded=%v reason=%s unknown=%d", excluded, reason, len(documented.surface.Unknown))
@@ -111,15 +111,21 @@ func TestTestingReductionContract(t *testing.T) {
 		reason, excluded := documented.impact.ExclusionReason(name)
 		t.Logf("gate change with documents: %s excluded=%v reason=%s", name, excluded, reason)
 	}
-	if _, excluded := documented.impact.ExclusionReason(automationcheck.WebUICheckName); excluded || !hasInvocation(documented, automationcheck.WebUICheckName) {
-		t.Fatal("the browser lane, whose census names the API manifest, was excluded for a manifest change")
+	for _, name := range contract.Consumer[1:] {
+		if reason, excluded := documented.impact.ExclusionReason(name); !excluded || !strings.Contains(reason, "closure") || hasInvocation(documented, name) {
+			t.Fatalf("generated documents still select %s: reason=%s unknown=%v", name, reason, documented.surface.Unknown)
+		}
 	}
 	for _, unknown := range documented.surface.Unknown {
 		if strings.HasPrefix(unknown, "non-go:") {
 			t.Fatalf("a named document kept its non-Go uncertainty: %s", unknown)
 		}
 	}
-	t.Logf("gate change with documents: browser retained, in %s", documentedWall)
+	t.Logf("gate change with documents: browser and model journeys excluded by closure, in %s", documentedWall)
+	ui, _ := plan([]string{"internal/server/webui/workflow.js"})
+	if _, excluded := ui.impact.ExclusionReason(automationcheck.WebUICheckName); excluded || !hasInvocation(ui, automationcheck.WebUICheckName) {
+		t.Fatal("UI source change excluded the browser lane")
+	}
 	admission, _ := plan([]string{"internal/apimanifest/admission.go"})
 	for _, name := range contract.Consumer[1:] {
 		if _, excluded := admission.impact.ExclusionReason(name); excluded || !hasInvocation(admission, name) {

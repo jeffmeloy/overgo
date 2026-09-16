@@ -179,6 +179,7 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 
 func TestStagedRetirementPrecedesCompletion(t *testing.T) {
 	t.Parallel()
+	inputs := map[string]bool{}
 	for _, test := range []struct {
 		name, ref, checkpoint string
 		refuse                bool
@@ -192,7 +193,16 @@ func TestStagedRetirementPrecedesCompletion(t *testing.T) {
 			testutil.WriteTextFile(t, root, "internal/example/example.go", "package example\n", 0600)
 			testutil.WriteTextFile(t, root, "cmd/example/main.go", "package main\nfunc main() {}\n", 0600)
 			g := gateContext{repo: root, planRef: test.ref, checkpoint: test.checkpoint}
-			_, err := g.stepArchitectureRatchet()
+			g.cachePaths = []string{"docs/plan.json", "docs/staged_surface.json", "internal/example/example.go", "cmd/example/main.go"}
+			input, err := g.phaseInputFingerprint("architecture")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inputs[input.String()] {
+				t.Fatal("retirement context reused another mode's input")
+			}
+			inputs[input.String()] = true
+			_, err = g.stepArchitectureRatchet()
 			refused := err != nil && strings.Contains(err.Error(), "reconcile staged retirement example/support.Value before completing retire/do")
 			if refused != test.refuse || (g.source == nil) != test.refuse {
 				t.Fatalf("retirement refusal=%v source_loaded=%v error=%v", refused, g.source != nil, err)

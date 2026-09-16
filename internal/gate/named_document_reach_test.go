@@ -41,6 +41,14 @@ func TestNamedDocumentReach(t *testing.T) {
 		t.Fatalf("%s has no named reader", manifest)
 	}
 	document := scope(manifest)
+	if !slices.Contains(document, "overgo/cmd/compatibility") {
+		t.Fatal("manifest change dropped the source census report owner")
+	}
+	for _, owner := range []string{"overgo/internal/webuilane", "overgo/cmd/webui-lane", "overgo/internal/server"} {
+		if slices.Contains(document, owner) {
+			t.Errorf("manifest change still selects browser owner %s", owner)
+		}
+	}
 	// Every package the document selects names it or compiles a namer.
 	for _, selected := range document {
 		if slices.ContainsFunc(graph.byID[selected], func(index int) bool { return namesPath(graph.nodes[index].declaredFiles, manifest) }) {

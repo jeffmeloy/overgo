@@ -118,12 +118,7 @@ func TestWebUIReviewRatchet(t *testing.T) {
 		if measured.SilentFallbacks+measured.WindowDialogs+measured.UnnamedControls+measured.UnnamedButtons > 0 {
 			t.Logf("%s: %+v", name, measured)
 		}
-		review = webuilane.Review{
-			SilentFallbacks: review.SilentFallbacks + measured.SilentFallbacks, WindowDialogs: review.WindowDialogs + measured.WindowDialogs,
-			UnnamedControls: review.UnnamedControls + measured.UnnamedControls, UnnamedButtons: review.UnnamedButtons + measured.UnnamedButtons,
-			InlineStyles: review.InlineStyles + measured.InlineStyles, NestedTernaries: review.NestedTernaries + measured.NestedTernaries,
-			TimerLiterals: review.TimerLiterals + measured.TimerLiterals, DebtMarkers: review.DebtMarkers + measured.DebtMarkers,
-		}
+		review.Add(measured)
 		largest = max(largest, strings.Count(source, "\n"))
 	}
 	for _, check := range []struct {

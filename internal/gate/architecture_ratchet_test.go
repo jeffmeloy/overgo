@@ -10,6 +10,7 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 func TestArchitectureRatchetAlwaysRequired(t *testing.T) {
@@ -171,6 +172,30 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 				return finding.Family == test.family
 			}) {
 				t.Fatalf("%s bypass produced findings for the wrong family: %+v", test.family, report.Findings)
+			}
+		})
+	}
+}
+
+func TestStagedRetirementPrecedesCompletion(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, ref, checkpoint string
+		refuse                bool
+	}{
+		{"completion", "retire/do", "", true}, {"checkpoint", "retire/do", "batch", false}, {"other step", "other/do", "", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			testutil.WriteTextFile(t, root, "docs/plan.json", `{"items":[{"id":"retire","status":"open","steps":[{"id":"do","status":"open"}]}]}`, 0600)
+			testutil.WriteTextFile(t, root, "docs/staged_surface.json", `{"version":2,"staged":[{"package":"example/support","name":"Value","reason":"fixture","retire_with":"retire/do"}]}`, 0600)
+			testutil.WriteTextFile(t, root, "internal/example/example.go", "package example\n", 0600)
+			testutil.WriteTextFile(t, root, "cmd/example/main.go", "package main\nfunc main() {}\n", 0600)
+			g := gateContext{repo: root, planRef: test.ref, checkpoint: test.checkpoint}
+			_, err := g.stepArchitectureRatchet()
+			refused := err != nil && strings.Contains(err.Error(), "reconcile staged retirement example/support.Value before completing retire/do")
+			if refused != test.refuse || (g.source == nil) != test.refuse {
+				t.Fatalf("retirement refusal=%v source_loaded=%v error=%v", refused, g.source != nil, err)
 			}
 		})
 	}

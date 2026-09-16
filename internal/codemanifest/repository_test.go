@@ -3,6 +3,7 @@ package codemanifest
 import (
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
 )
@@ -15,7 +16,7 @@ func TestPublishAndLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := Generate(snapshot, []repoanalysis.BuildSelection{{
+	manifest, err := Generate(snapshot, []gosource.BuildSelection{{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"},
 	}}, nil)
 	if err != nil {
@@ -46,7 +47,7 @@ func TestDigestPublicationKeepsClaimNotCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := Generate(snapshot, []repoanalysis.BuildSelection{{
+	manifest, err := Generate(snapshot, []gosource.BuildSelection{{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"},
 	}}, nil)
 	if err != nil {

@@ -98,6 +98,30 @@ func TestCombinedCensusPublication(t *testing.T) {
 	if len(baseline.Exceptions) == 0 {
 		t.Fatal("expiry fixture has no exception")
 	}
+	// A resolved scope must retire through publication, without editing authority.
+	retained := read(repoanalysis.ModernGoBaselineFile)
+	retainedSource := read(source)
+	write(source, cleanSource)
+	if err := run(args, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	resolved, err := repoanalysis.LoadModernGoBaseline(baselinePath)
+	if err != nil || len(resolved.Exceptions) != 0 {
+		t.Fatalf("resolved authority retained exceptions: %+v (%v)", resolved.Exceptions, err)
+	}
+	resolvedBaseline, resolvedCensus := read(repoanalysis.ModernGoBaselineFile), read(repoanalysis.ModernGoPublishedCensusFile)
+	if err := run(args, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(resolvedBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(resolvedCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+		t.Fatal("resolved publication is not idempotent")
+	}
+	if err := run([]string{"-check", "-root", root}, io.Discard); err != nil {
+		t.Fatalf("resolved publication has inconsistent identities: %v", err)
+	}
+	write(source, retainedSource)
+	write(repoanalysis.ModernGoBaselineFile, retained)
+	write(repoanalysis.ModernGoPublishedCensusFile, wantCensus)
 	for index := range baseline.Exceptions {
 		baseline.Exceptions[index].Expires = time.Now().UTC().AddDate(0, 0, -1).Format(time.DateOnly)
 	}
@@ -109,8 +133,11 @@ func TestCombinedCensusPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	expired := read(repoanalysis.ModernGoBaselineFile)
-	if err := run(args, io.Discard); err == nil || !strings.Contains(err.Error(), "expired") {
-		t.Fatalf("expired exception admitted: %v", err)
+	write(source, cleanSource)
+	for _, mode := range [][]string{args, {"-lower-baseline", "-root", root}} {
+		if err := run(mode, io.Discard); err == nil || !strings.Contains(err.Error(), "expired") {
+			t.Fatalf("expired resolved exception admitted by %v: %v", mode, err)
+		}
 	}
 	if !bytes.Equal(expired, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
 		t.Fatal("expiry refusal changed publication outputs")

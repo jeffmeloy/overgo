@@ -131,7 +131,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 				size, branches := NodeCount(value.Body), branchCount(value.Body)
 				ref := source.Path + ":" + value.Name.Name
 				class := advisoryClass(source.Test, value)
-				fingerprint, err := functionFingerprint(value)
+				fingerprint, err := exactNodeFingerprint(value)
 				if err != nil {
 					return Profile{}, err
 				}
@@ -261,29 +261,21 @@ func receiverTypeName(expression ast.Expr) string {
 // NodeCount measures the AST surface rooted at node.
 func NodeCount(root ast.Node) int {
 	count := 0
-	ast.Inspect(root, func(node ast.Node) bool {
-		if node != nil {
-			count++
-		}
-		return true
-	})
+	for range ast.Preorder(root) {
+		count++
+	}
 	return count
 }
 
 func branchCount(root ast.Node) int {
 	count := 0
-	ast.Inspect(root, func(node ast.Node) bool {
+	for node := range ast.Preorder(root) {
 		switch node.(type) {
 		case *ast.IfStmt, *ast.ForStmt, *ast.RangeStmt, *ast.CaseClause, *ast.CommClause:
 			count++
 		}
-		return true
-	})
+	}
 	return count
-}
-
-func functionFingerprint(function *ast.FuncDecl) (string, error) {
-	return exactNodeFingerprint(function)
 }
 
 func exactNodeFingerprint(node ast.Node) (string, error) {

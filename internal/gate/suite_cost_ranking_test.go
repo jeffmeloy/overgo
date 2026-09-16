@@ -80,6 +80,8 @@ func TestSuiteCostRanking(t *testing.T) {
 		g := &gateContext{}
 		g.recordPackageExecution([]string{"slow", "fast", "unstarted"}, true, time.Minute, report, fmt.Errorf("observed failure"))
 		g.recordPackageExecution([]string{"slow", "fast"}, false, time.Minute, report, nil)
+		g.recordPackageExecution([]string{"unstarted-only"}, false, time.Second, testevidence.GoTestReport{}, fmt.Errorf("interrupted before execution"))
+		g.testExecutions[2].Unobserved = []string{"unstarted-only"}
 		if err := g.appendSuiteCost(&batch, result); err != nil {
 			t.Fatal(err)
 		}
@@ -100,17 +102,22 @@ func TestSuiteCostRanking(t *testing.T) {
 		var decoded struct {
 			Result      artifact.ID `json:"result"`
 			Invocations []struct {
-				StreamDigest string          `json:"stream_digest"`
-				Short        bool            `json:"short"`
-				Failed       bool            `json:"failed"`
-				Suites       []suiteTestCost `json:"suites"`
+				packageExecutionBatch
+				Suites []suiteTestCost `json:"suites"`
 			} `json:"invocations"`
 		}
 		if err := json.Unmarshal(retained.Data, &decoded); err != nil {
 			t.Fatal(err)
 		}
-		if decoded.Result != result || len(decoded.Invocations) != 2 || !decoded.Invocations[0].Short || decoded.Invocations[1].Short || !decoded.Invocations[0].Failed || decoded.Invocations[1].Failed {
+		if decoded.Result != result || len(decoded.Invocations) != 3 || !decoded.Invocations[0].Short || decoded.Invocations[1].Short || !decoded.Invocations[0].Failed || decoded.Invocations[1].Failed {
 			t.Fatalf("result/profile/retry identity lost: %+v", decoded)
+		}
+		if !slices.Equal(decoded.Invocations[0].Requested, []string{"slow", "fast", "unstarted"}) || len(decoded.Invocations[0].Executions) != len(report.Executions) || decoded.Invocations[0].WallNS != uint64(time.Minute) {
+			t.Fatal("observed invocation lost its scope, executions or wall")
+		}
+		interrupted := decoded.Invocations[2]
+		if !interrupted.Failed || interrupted.Short || !slices.Equal(interrupted.Requested, []string{"unstarted-only"}) || !slices.Equal(interrupted.Unobserved, interrupted.Requested) || len(interrupted.Executions) != 0 || len(interrupted.Suites) != 0 || interrupted.WallNS != uint64(time.Second) {
+			t.Fatalf("unstarted invocation lost or assigned measured work: %+v", interrupted)
 		}
 		if decoded.Invocations[0].StreamDigest != report.StreamDigest || decoded.Invocations[0].Suites[0].SummedTopLevelSeconds != 6 {
 			t.Fatal("retained ranking changed")

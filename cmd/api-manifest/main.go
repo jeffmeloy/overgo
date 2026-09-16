@@ -9,12 +9,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"overgo/internal/apimanifest"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/server"
 )
@@ -86,18 +88,15 @@ func compile(root string) (apimanifest.Manifest, error) {
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
-	declarations, err := codemanifest.DocumentDeclarations(snapshot, []repoanalysis.BuildSelection{selection})
+	declarations, err := codemanifest.DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
-	documents, err := apimanifest.CompileDocuments(declarations)
-	if err != nil {
-		return apimanifest.Manifest{}, err
-	}
+	documents := compileDocuments(declarations)
 	binaries, err := commandBinaries(root, selection.Context)
 	if err != nil {
 		return apimanifest.Manifest{}, err
@@ -128,6 +127,20 @@ func compile(root string) (apimanifest.Manifest, error) {
 		Protocols:   protocols,
 		Authorities: authorities,
 	})
+}
+
+// Project source declarations here; the manifest owner validates every contract.
+func compileDocuments(declarations []codemanifest.DocumentDeclaration) []apimanifest.Document {
+	documents := make([]apimanifest.Document, 0, len(declarations))
+	for _, declaration := range declarations {
+		documents = append(documents, apimanifest.Document{
+			Name: declaration.Name, Owner: declaration.Owner, VersionOwner: declaration.VersionOwner,
+			Source: declaration.Source, SourceIdentity: declaration.SourceIdentity,
+			Kind: declaration.Kind, MediaType: declaration.MediaType, Schema: declaration.Schema,
+			BuildContexts: slices.Clone(declaration.BuildContexts),
+		})
+	}
+	return documents
 }
 
 func hostPart(context string, index int) string {

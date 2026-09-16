@@ -56,7 +56,7 @@ func TestGateScopePreservesAffectedCoverage(t *testing.T) {
 			if !slices.Equal(scope.direct, tc.direct) || !slices.Equal(scope.dependent, tc.dependent) {
 				t.Errorf("scope direct=%v dependent=%v; want %v / %v", scope.direct, scope.dependent, tc.direct, tc.dependent)
 			}
-			coverage, err := automationcheck.AgentHarnessBoundaryCoverage(*g.source, scope.productionPaths)
+			coverage, err := agentHarnessBoundaryCoverage(*g.source, scope.productionPaths)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -64,10 +64,10 @@ func TestGateScopePreservesAffectedCoverage(t *testing.T) {
 				t.Errorf("production assembly scope = %+v", coverage)
 			}
 			selected := scope.selected()
-			if err := automationcheck.RequireAgentHarnessBoundaries(coverage, selected); err != nil {
+			if err := requireAgentHarnessBoundaries(coverage, selected); err != nil {
 				t.Fatal(err)
 			}
-			if tc.assembly && automationcheck.RequireAgentHarnessBoundaries(coverage, scope.direct) == nil {
+			if tc.assembly && requireAgentHarnessBoundaries(coverage, scope.direct) == nil {
 				t.Fatal("missing assembled consumers accepted")
 			}
 		})

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -124,7 +125,7 @@ func TestFunctionImpactBoundaryNonExclusion(t *testing.T) {
 	}
 }
 
-func impactSnapshots(t *testing.T, baseSource, candidateSource string) (repoanalysis.SourceSnapshot, repoanalysis.SourceSnapshot, repoanalysis.BuildSelection) {
+func impactSnapshots(t *testing.T, baseSource, candidateSource string) (repoanalysis.SourceSnapshot, repoanalysis.SourceSnapshot, gosource.BuildSelection) {
 	t.Helper()
 	root := t.TempDir()
 	const sourcePath = "p/p.go"
@@ -143,7 +144,7 @@ func impactSnapshots(t *testing.T, baseSource, candidateSource string) (repoanal
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Root: root, Files: map[string]bool{sourcePath: true},
 		Packages: map[string]string{sourcePath: "example/p"},
 	}

@@ -125,7 +125,6 @@ func (review *Review) add(other Review) {
 
 const (
 	webuiDirectory = "internal/server/webui"
-	manifestPath   = "docs/api_manifest.json"
 	// everyMatch asks the regexp package for all matches (a negative count).
 	everyMatch = -1
 )
@@ -138,9 +137,10 @@ var (
 )
 
 // MeasureTree measures the client under root: a repository checkout or an
-// extracted slice of one holding internal/server/webui and the API
-// manifest. label names the tree in the report (its commit).
-func MeasureTree(root, label string) (Census, error) {
+// extracted slice of one holding internal/server/webui; manifest is that
+// tree's API manifest, read by the caller so this package names no
+// repository document. label names the tree in the report (its commit).
+func MeasureTree(root, label string, manifest []byte) (Census, error) {
 	census := Census{Tree: label}
 	webui := filepath.Join(root, filepath.FromSlash(webuiDirectory))
 	named := map[string]bool{}
@@ -177,17 +177,13 @@ func MeasureTree(root, label string) (Census, error) {
 	if err != nil {
 		return Census{}, fmt.Errorf("measure %s: %w", webui, err)
 	}
-	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(manifestPath)))
-	if err != nil {
-		return Census{}, err
-	}
-	manifest, err := apimanifest.Parse(data)
+	routes, err := apimanifest.Parse(manifest)
 	if err != nil {
 		return Census{}, fmt.Errorf("measure %s: %w", root, err)
 	}
 	distinct := map[string]bool{}
 	bearer := map[string]bool{}
-	for _, route := range manifest.Routes {
+	for _, route := range routes.Routes {
 		distinct[route.Path] = true
 		if route.Authentication == "bearer" {
 			bearer[route.Path] = true

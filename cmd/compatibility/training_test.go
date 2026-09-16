@@ -62,14 +62,14 @@ func trainingFixture(t *testing.T) string {
 	git("commit", "-m", "fixture")
 	commit := git("rev-parse", "HEAD")
 
-	model := trainingID(t, artifact.KindModel, "model")
+	model := testutil.ArtifactID(t, artifact.KindModel, "model")
 	datasetData := []byte("dataset\n")
-	dataset := trainingID(t, artifact.KindDatasetShard, string(datasetData))
+	dataset := testutil.ArtifactID(t, artifact.KindDatasetShard, string(datasetData))
 	testutil.WriteTextFile(t, root, "docs/verification/dataset.txt", string(datasetData))
 	baseEvidenceData := []byte("base training evidence\n")
 	fullEvidenceData := []byte("full training evidence\n")
-	baseEvidence := trainingID(t, artifact.KindEvidence, string(baseEvidenceData))
-	fullEvidence := trainingID(t, artifact.KindEvidence, string(fullEvidenceData))
+	baseEvidence := testutil.ArtifactID(t, artifact.KindEvidence, string(baseEvidenceData))
+	fullEvidence := testutil.ArtifactID(t, artifact.KindEvidence, string(fullEvidenceData))
 	testutil.WriteTextFile(t, root, "docs/verification/base-training-run.txt", string(baseEvidenceData))
 	testutil.WriteTextFile(t, root, "docs/verification/full-training-run.txt", string(fullEvidenceData))
 	specification := trainingSpecification{
@@ -98,13 +98,4 @@ func trainingFixture(t *testing.T) string {
 	}
 	testutil.WriteTextFile(t, root, filepath.FromSlash("docs/verification/fixture-training.json"), string(data)+"\n")
 	return root
-}
-
-func trainingID(t *testing.T, kind artifact.Kind, data string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

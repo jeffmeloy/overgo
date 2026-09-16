@@ -210,7 +210,7 @@ func Parse(data []byte) (Manifest, error) {
 
 // Validate verifies canonical ordering and content identity.
 func (m Manifest) Validate() error {
-	identified, err := identifyManifest(m)
+	identified, err := identifyManifest(clone(m))
 	if err != nil {
 		return err
 	}
@@ -291,16 +291,14 @@ func canonicalize(value *Manifest) error {
 	}
 	slices.SortFunc(value.BuildContexts, func(left, right BuildContext) int { return cmp.Compare(left.ID, right.ID) })
 	slices.SortFunc(value.Files, func(left, right File) int { return cmp.Compare(left.Path, right.Path) })
-	slices.SortFunc(value.Symbols, func(left, right Symbol) int { return cmp.Compare(symbolKey(left.ID), symbolKey(right.ID)) })
+	slices.SortFunc(value.Symbols, func(left, right Symbol) int { return compareSymbolID(left.ID, right.ID) })
 	slices.SortFunc(value.References, func(left, right Reference) int {
-		return cmp.Or(cmp.Compare(symbolKey(left.From), symbolKey(right.From)), cmp.Compare(symbolKey(left.To), symbolKey(right.To)), cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Line, right.Line), cmp.Compare(left.Offset, right.Offset))
+		return cmp.Or(compareSymbolID(left.From, right.From), compareSymbolID(left.To, right.To), cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Line, right.Line), cmp.Compare(left.Offset, right.Offset))
 	})
 	slices.SortFunc(value.ExternalInputs, func(left, right ExternalInput) int {
 		return cmp.Or(cmp.Compare(left.Path, right.Path), cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Owner, right.Owner))
 	})
-	slices.SortFunc(value.Uncertainty, func(left, right Uncertainty) int {
-		return cmp.Or(cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Path, right.Path), cmp.Compare(left.Context, right.Context), cmp.Compare(optionalSymbolKey(left.Symbol), optionalSymbolKey(right.Symbol)), cmp.Compare(left.Reason, right.Reason))
-	})
+	slices.SortFunc(value.Uncertainty, compareUncertainty)
 	return validate(*value)
 }
 
@@ -338,9 +336,9 @@ func validate(value Manifest) error {
 			}
 		}
 	}
-	symbols := make(map[string]bool, len(value.Symbols))
+	symbols := make(map[SymbolID]bool, len(value.Symbols))
 	for _, symbol := range value.Symbols {
-		key := symbolKey(symbol.ID)
+		key := symbol.ID
 		if err := validateSymbolID(symbol.ID); err != nil || !files[symbol.File] || !validDigest(symbol.SignatureSHA256) || symbol.BodySHA256 != "" && !validDigest(symbol.BodySHA256) || symbols[key] {
 			return errors.New("code manifest: invalid or duplicate symbol")
 		}
@@ -348,7 +346,7 @@ func validate(value Manifest) error {
 	}
 	references := map[Reference]bool{}
 	for _, reference := range value.References {
-		if !symbols[symbolKey(reference.From)] || !symbols[symbolKey(reference.To)] || !validReferenceKind(reference.Kind) || references[reference] || reference.Line < 0 || reference.Offset < 0 || reference.Line == 0 && reference.Offset != 0 {
+		if !symbols[reference.From] || !symbols[reference.To] || !validReferenceKind(reference.Kind) || references[reference] || reference.Line < 0 || reference.Offset < 0 || reference.Line == 0 && reference.Offset != 0 {
 			return errors.New("code manifest: invalid or duplicate reference")
 		}
 		references[reference] = true
@@ -361,16 +359,22 @@ func validate(value Manifest) error {
 		}
 		inputs[key] = true
 	}
-	uncertainty := map[string]bool{}
+	type uncertaintyKey struct {
+		kind                  UncertaintyKind
+		path, context, reason string
+		symbol                SymbolID
+	}
+	uncertainty := map[uncertaintyKey]bool{}
 	for _, item := range value.Uncertainty {
-		key := string(item.Kind) + "\x00" + item.Path + "\x00" + item.Context + "\x00" + optionalSymbolKey(item.Symbol) + "\x00" + item.Reason
-		if !validUncertaintyKind(item.Kind) || item.Path != "" && !validPath(item.Path) || item.Context != "" && !contexts[item.Context] || !validText(item.Reason, maxPathBytes) || uncertainty[key] {
-			return errors.New("code manifest: invalid or duplicate uncertainty")
-		}
+		key := uncertaintyKey{kind: item.Kind, path: item.Path, context: item.Context, reason: item.Reason}
 		if item.Symbol != nil {
 			if err := validateSymbolID(*item.Symbol); err != nil {
 				return errors.New("code manifest: invalid uncertainty symbol")
 			}
+			key.symbol = *item.Symbol
+		}
+		if !validUncertaintyKind(item.Kind) || item.Path != "" && !validPath(item.Path) || item.Context != "" && !contexts[item.Context] || !validText(item.Reason, maxPathBytes) || uncertainty[key] {
+			return errors.New("code manifest: invalid or duplicate uncertainty")
 		}
 		uncertainty[key] = true
 	}
@@ -407,17 +411,6 @@ func validUncertaintyKind(kind UncertaintyKind) bool {
 	default:
 		return false
 	}
-}
-
-func symbolKey(id SymbolID) string {
-	return id.Package + "\x00" + id.Context + "\x00" + id.Receiver + "\x00" + id.Name + "\x00" + string(id.Kind)
-}
-
-func optionalSymbolKey(id *SymbolID) string {
-	if id == nil {
-		return ""
-	}
-	return symbolKey(*id)
 }
 
 func validText(value string, limit int) bool {

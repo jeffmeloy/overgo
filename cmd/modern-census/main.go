@@ -274,16 +274,15 @@ func publishModernGoCensus(root, target string, lower bool, output io.Writer) er
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, census, time.Now().UTC()); err != nil {
 		return err
 	}
-	published, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline)
-	if err != nil {
-		return err
-	}
-	var lowered repoanalysis.ModernGoBaseline
 	if lower {
-		lowered, err = repoanalysis.LowerModernGoBaseline(baseline, census)
+		baseline, err = repoanalysis.LowerModernGoBaseline(baseline, census)
 		if err != nil {
 			return err
 		}
+	}
+	published, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline)
+	if err != nil {
+		return err
 	}
 	name := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile))
 	if err := jsonfile.Write(name, published, clioptions.OutputFileMode); err != nil {
@@ -295,7 +294,7 @@ func publishModernGoCensus(root, target string, lower bool, output io.Writer) er
 		published.Candidates, published.ExceptedCandidates, published.Unresolved, len(published.Excluded),
 		published.ExceptionSHA256, published.SourceIdentity)
 	if lower {
-		if err := jsonfile.Write(baselineName, lowered, clioptions.OutputFileMode); err != nil {
+		if err := jsonfile.Write(baselineName, baseline, clioptions.OutputFileMode); err != nil {
 			return err
 		}
 		fmt.Fprintf(output, "modern-census: lowered baseline=%s candidates=%d source=%s catalog=%s\n", repoanalysis.ModernGoBaselineFile, census.CandidateCount(), census.SourceIdentity, census.CatalogCommit)
@@ -355,6 +354,9 @@ func lowerModernGoBaseline(root, target string, output io.Writer) error {
 	name := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoBaselineFile))
 	baseline, err := repoanalysis.LoadModernGoBaseline(name)
 	if err != nil {
+		return err
+	}
+	if err := repoanalysis.AdmitModernGoRatchet(baseline, census, time.Now().UTC()); err != nil {
 		return err
 	}
 	lowered, err := repoanalysis.LowerModernGoBaseline(baseline, census)

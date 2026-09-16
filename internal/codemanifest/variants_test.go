@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -17,7 +18,7 @@ func TestBuildContextsDistinguishVariantSymbols(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selections := []repoanalysis.BuildSelection{
+	selections := []gosource.BuildSelection{
 		variantSelection(root, "linux/amd64", linuxFile, windowsFile),
 		variantSelection(root, "windows/amd64", windowsFile, linuxFile),
 	}
@@ -49,12 +50,12 @@ func TestGeneratedAndCgoBecomeUncertainty(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root,
 		Files:    map[string]bool{generated: true, cgo: true},
 		Packages: map[string]string{generated: "overgo/internal/example", cgo: "overgo/internal/example"},
 	}
-	manifest, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	manifest, err := Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,18 +79,18 @@ func TestExternalInputsAffectManifestIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true},
 		Packages: map[string]string{name: "overgo/internal/example"},
 	}
-	first, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, []ExternalInput{{
+	first, err := Generate(snapshot, []gosource.BuildSelection{selection}, []ExternalInput{{
 		Path: "kernels/manifest.json", ContentID: fixtureDigest, Kind: "kernel-manifest", Owner: "internal/cuda/kernel",
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	changedDigest := "1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	second, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, []ExternalInput{{
+	second, err := Generate(snapshot, []gosource.BuildSelection{selection}, []ExternalInput{{
 		Path: "kernels/manifest.json", ContentID: changedDigest, Kind: "kernel-manifest", Owner: "internal/cuda/kernel",
 	}})
 	if err != nil {
@@ -100,8 +101,8 @@ func TestExternalInputsAffectManifestIdentity(t *testing.T) {
 	}
 }
 
-func variantSelection(root, context, selected, excluded string) repoanalysis.BuildSelection {
-	return repoanalysis.BuildSelection{
+func variantSelection(root, context, selected, excluded string) gosource.BuildSelection {
+	return gosource.BuildSelection{
 		Context: context, Root: root,
 		Files:    map[string]bool{selected: true, excluded: false},
 		Packages: map[string]string{selected: "overgo/internal/example", excluded: "overgo/internal/example"},

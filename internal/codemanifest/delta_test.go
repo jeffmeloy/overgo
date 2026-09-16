@@ -3,6 +3,7 @@ package codemanifest
 import (
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -28,7 +29,7 @@ func TestDeltaDetectsAddedAndRemovedSymbols(t *testing.T) {
 func TestSignatureAndBodyChangesRemainDistinct(t *testing.T) {
 	root := t.TempDir()
 	name := "internal/example/run.go"
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true},
 		Packages: map[string]string{name: "overgo/internal/example"},
 	}
@@ -90,13 +91,13 @@ func completeFixtureManifest(t *testing.T) Manifest {
 	return manifest
 }
 
-func generateForDelta(t *testing.T, root string, selection repoanalysis.BuildSelection) Manifest {
+func generateForDelta(t *testing.T, root string, selection gosource.BuildSelection) Manifest {
 	t.Helper()
 	snapshot, err := repoanalysis.DiscoverGo(root, "internal")
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	manifest, err := Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

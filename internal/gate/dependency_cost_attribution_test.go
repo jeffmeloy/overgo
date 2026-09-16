@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 func TestDependencyCostAttributionAcceptance(t *testing.T) {
@@ -46,17 +46,8 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 		if g.packageGraph != nil || g.candidateRoot != "" {
 			t.Fatal("candidate lifetime leaked")
 		}
-		var report struct {
-			Packages []packageCostAttribution `json:"packages"`
-		}
-		if len(g.audit) != 1 {
-			t.Fatalf("attribution lost at candidate teardown: %v", g.audit)
-		}
-		if err := json.Unmarshal([]byte(strings.TrimPrefix(g.audit[0], "test input attribution: ")), &report); err != nil {
-			t.Fatal(err)
-		}
-		if len(report.Packages) != 1 || report.Packages[0].Input != frozen || !slices.Equal(report.Packages[0].RuntimeInputs, g.paths) {
-			t.Fatalf("teardown lost frozen attribution: %+v", report)
+		if len(g.selectionCauses) != 1 || g.selectionCauses[0].Input != frozen || !slices.Equal(g.selectionCauses[0].RuntimeInputs, g.paths) {
+			t.Fatalf("teardown lost frozen attribution: %+v", g.selectionCauses)
 		}
 	})
 	t.Run("reachable reader and pure sibling", func(t *testing.T) {
@@ -67,16 +58,8 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 			t.Fatal(err)
 		}
 		source = append(source, []byte("\nfunc Pure() int { return 1 }\nfunc Scan(path string) ([]byte,error) { return os.ReadFile(path) }\n")...)
-		if err := os.WriteFile(reader, source, 0o644); err != nil {
-			t.Fatal(err)
-		}
-		pure := filepath.Join(g.repo, "internal", "pure")
-		if err := os.MkdirAll(pure, 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(filepath.Join(pure, "pure_test.go"), []byte("package pure\nimport (\"testing\";\"overgo/internal/reader\")\nfunc TestPure(t *testing.T) { if reader.Pure()!=1 { t.Fatal(reader.Pure()) } }\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testutil.WriteTextFile(t, g.repo, "internal/reader/reader.go", string(source))
+		testutil.WriteTextFile(t, g.repo, "internal/pure/pure_test.go", "package pure\nimport (\"testing\";\"overgo/internal/reader\")\nfunc TestPure(t *testing.T) { if reader.Pure()!=1 { t.Fatal(reader.Pure()) } }\n")
 		runGitFixture(t, g.repo, "add", ".")
 		graph, err := g.inputGraph()
 		if err != nil {
@@ -110,9 +93,7 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 		if err != nil || !slices.Contains(scope.selected(), pureTarget) {
 			t.Fatalf("diagnosis changed conservative selection: %+v, %v", scope, err)
 		}
-		if err := os.WriteFile(filepath.Join(g.repo, "docs", "config.txt"), []byte("2\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testutil.WriteTextFile(t, g.repo, "docs/config.txt", "2\n")
 		after, err := graph.identity(pureTarget)
 		if err != nil || after == before {
 			t.Fatalf("diagnosis changed conservative invalidation: %v", err)
@@ -123,42 +104,24 @@ func TestDependencyCostAttributionAcceptance(t *testing.T) {
 		if out, err := command(g.repo, "go", "test", "./internal/readerclient", "-count=1"); err == nil {
 			t.Fatalf("reachable reader failed to detect fixture mutation: %s", out)
 		}
-		if err := os.WriteFile(reader, []byte(strings.Replace(string(source), "func Pure() int { return 1 }", "func Pure() int { return 2 }", 1)), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		testutil.WriteTextFile(t, g.repo, "internal/reader/reader.go", strings.Replace(string(source), "func Pure() int { return 1 }", "func Pure() int { return 2 }", 1))
 		if out, err := command(g.repo, "go", "test", "./internal/pure", "-count=1"); err == nil {
 			t.Fatalf("pure implementation mutation escaped its caller: %s", out)
 		}
 		g.testPlan = &testGroups{edited: []string{pureTarget}}
 		g.testExecutions = []packageExecutionBatch{{Step: testOwnersCheckName, Requested: []string{pureTarget}}}
-		g.dependencyCostAudit([]runrecord.GateStep{
-			{Name: "test-owners", Outcome: runrecord.StepSucceeded, DurationNS: uint64(time.Second)},
-			{Name: "test", Outcome: runrecord.StepReused, DurationNS: uint64(2 * time.Second)},
-			{Name: "build", Outcome: runrecord.StepSucceeded, DurationNS: uint64(3 * time.Second)},
-		})
-		if len(g.audit) != 1 || !strings.HasPrefix(g.audit[0], "test input attribution: ") {
-			t.Fatalf("missing bounded cost audit: %v", g.audit)
+		g.captureSelectionCauses()
+		if len(g.selectionCauses) != 1 || g.selectionCauses[0].Step != testOwnersCheckName || g.selectionCauses[0].Package != pureTarget {
+			t.Fatalf("attribution includes unrelated work: %+v", g.selectionCauses)
 		}
-		var audit struct {
-			Step       string                   `json:"step"`
-			DurationNS uint64                   `json:"duration_ns"`
-			Packages   []packageCostAttribution `json:"packages"`
-		}
-		if err := json.Unmarshal([]byte(strings.TrimPrefix(g.audit[0], "test input attribution: ")), &audit); err != nil {
-			t.Fatal(err)
-		}
-		if audit.Step != "test-owners" || audit.DurationNS != uint64(time.Second) || len(audit.Packages) != 1 || audit.Packages[0].Package != pureTarget {
-			t.Fatalf("cost scope includes reused checks or unrelated phases: %+v", audit)
-		}
-		printed := compactAudit(g.audit)
-		if len(printed) != 1 || printed[0] != "advisory: dependency: "+g.audit[0] {
-			t.Fatalf("typed explanation was dropped or truncated: %v", printed)
+		if len(g.audit) != 0 {
+			t.Fatalf("attribution copied into advisories: %v", g.audit)
 		}
 	})
 	t.Run("live device math binding", func(t *testing.T) {
-		live := liveRepositoryFixture(t)
 		began := time.Now()
-		graph := live.graph
+		g := liveRepositoryFixture(t).context()
+		graph := *g.packageGraph
 		const target = "overgo/internal/devicemath"
 		changes := []string{"internal/evaluation/qwen_retained_text_test.go", "internal/testutil/numeric.go"}
 		attribution, err := graph.attributeInputs(target, changes)

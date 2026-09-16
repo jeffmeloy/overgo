@@ -92,11 +92,11 @@ func run() error {
 	if *report == "" {
 		return nil
 	}
-	before, err := webuilane.MeasureTree(*fork, *forkLabel)
+	before, err := measureTree(*fork, *forkLabel)
 	if err != nil {
 		return err
 	}
-	after, err := webuilane.MeasureTree(".", *headLabel)
+	after, err := measureTree(".", *headLabel)
 	if err != nil {
 		return err
 	}
@@ -205,6 +205,19 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 }
 
 var browserTestPackages = []string{"overgo/internal/server", "overgo/internal/webuilane", "overgo/internal/audioparity"}
+
+// The API manifest of the tree the census measures; the lane reads it so the
+// browser package names no repository document for its importers.
+const manifestPath = "docs/api_manifest.json"
+
+// measureTree reads the tree's manifest and measures its client.
+func measureTree(root, label string) (webuilane.Census, error) {
+	manifest, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(manifestPath)))
+	if err != nil {
+		return webuilane.Census{}, err
+	}
+	return webuilane.MeasureTree(root, label, manifest)
+}
 
 // Compiler discovery selects owners, not acceptance evidence. Subtest filters
 // retain the existing complete owner set until their reach is resolved.

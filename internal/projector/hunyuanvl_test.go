@@ -9,24 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
-	"overgo/internal/tokenizer"
 )
-
-type hunyuanVLPromptTokenizer struct{}
-
-func (hunyuanVLPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	const placeholder = "\x00"
-	text = strings.ReplaceAll(text, HunyuanVLImagePad, placeholder)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for _, value := range text {
-		if value == 0 {
-			ids = append(ids, 9002)
-		} else {
-			ids = append(ids, tokenizer.TokenID(value))
-		}
-	}
-	return ids, nil
-}
 
 func TestHunyuanVLRunnerTinyFixture(t *testing.T) {
 	path := writeTinyHunyuanVL(t, tinyHunyuanVLTensors())
@@ -70,7 +53,7 @@ func TestHunyuanVLMultipleImagePromptAndPositions(t *testing.T) {
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		t.Context(), hunyuanVLPromptTokenizer{},
+		t.Context(), imagePromptTokenizer{marker: HunyuanVLImagePad, token: 9002},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
@@ -169,16 +152,7 @@ func TestHunyuanVLCatalogKeepsHostReorderedWeightOffDevice(t *testing.T) {
 func TestHunyuanVLCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyHunyuanVL(t, nonzeroTinyHunyuanVLTensors())
-	cpu, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*HunyuanVLRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*HunyuanVLRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {

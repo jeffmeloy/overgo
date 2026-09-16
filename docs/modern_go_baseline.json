@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "1a9bacb697b778bb1266f5a1e136c57f7c07ba75dc1d56a8a949cfe33207cbd8",
+  "source_identity": "f4d9d140f135b49a1cd299fb1d374114112022d028bfcdadb0facb76d87401e4",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3483,
-    "typed_files": 3419
+    "inspected_files": 3479,
+    "typed_files": 3415
   },
   "guidelines": [
     {
@@ -520,39 +520,6 @@
     },
     {
       "guideline": "maps_keys_values_iter",
-      "path": "internal/automationcheck/boundary.go",
-      "symbol": "sortedKeys",
-      "owner": "overgo/internal/automationcheck",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/automationcheck -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
-      "path": "internal/codemanifest/delta.go",
-      "symbol": "unionKeys",
-      "owner": "overgo/internal/codemanifest",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/codemanifest -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
-      "path": "internal/codemanifest/impact.go",
-      "symbol": "symbolValues",
-      "owner": "overgo/internal/codemanifest",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/codemanifest -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
       "path": "internal/codeprofile/impact.go",
       "symbol": "changedPackageDirectories",
       "owner": "overgo/internal/codeprofile",
@@ -1053,28 +1020,6 @@
       "owner": "overgo/internal/agenttool",
       "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
       "oracle": "go test ./internal/agenttool -count=1",
-      "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sorted",
-      "path": "internal/automationcheck/boundary.go",
-      "symbol": "sortedKeys",
-      "owner": "overgo/internal/automationcheck",
-      "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
-      "oracle": "go test ./internal/automationcheck -count=1",
-      "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sorted",
-      "path": "internal/codemanifest/delta.go",
-      "symbol": "unionKeys",
-      "owner": "overgo/internal/codemanifest",
-      "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
-      "oracle": "go test ./internal/codemanifest -count=1",
       "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -4963,5 +4908,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "6d71a1f3103ce28601f996b5dfd5e1eb40b57394013977ad87db14f5313cc421"
+  "exceptions_sha256": "eddaf4460d118c235e0601d3eca9e5f752f242253959c02901e57ecbc121f2e2"
 }

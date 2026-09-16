@@ -152,8 +152,8 @@ func TestScratchTrainingLeadership(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The heap's high-water mark is the runtime's own HeapSys, the largest
-	// size the heap has had; nothing samples the run.
+	// All interval allocations bound incremental live heap from above.
+	// TotalAlloc is monotonic; HeapSys can fall as stack ownership changes.
 	runtime.GC()
 	var baseline runtime.MemStats
 	runtime.ReadMemStats(&baseline)
@@ -189,7 +189,7 @@ func TestScratchTrainingLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hostPeak := finalHeap.HeapSys - baseline.HeapSys
+	hostPeak := finalHeap.TotalAlloc - baseline.TotalAlloc
 	candidatePeak := memory.PeakBytes + hostPeak
 	stepWall := walls[0] + walls[1] + walls[2]
 	worst := math.Abs(validation - oracle.FinalValLoss)

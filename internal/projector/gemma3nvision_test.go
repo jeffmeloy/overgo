@@ -79,31 +79,10 @@ func TestOpenImageProjectorDispatchesGemma3nVision(t *testing.T) {
 func TestGemma3nVisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyGemma3nVision(t, true)
-	cpu, err := openImageProjectorAs[*Gemma3nVisionRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Gemma3nVisionRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
-	input := image.NewRGBA(image.Rect(0, 0, 32, 32))
-	for y := range 32 {
-		for x := range 32 {
-			input.SetRGBA(x, y, color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha})
-		}
-	}
-	want, err := cpu.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := cuda.EncodeImage(t.Context(), input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	compareFloat32Tolerance(t, "Gemma 3n", got.Data, want.Data, 3e-3)
+	input := patternedRGBA(32, 32, func(x, y int) color.RGBA {
+		return color.RGBA{R: uint8(x * 7), G: uint8(y * 5), B: uint8((x + y) * 3), A: fixtureOpaqueAlpha}
+	})
+	referenceParityCase[*Gemma3nVisionRunner](t, "Gemma 3n", path, input, 3e-3)
 }
 
 func TestGemma3nAveragePool(t *testing.T) {

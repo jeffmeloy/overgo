@@ -1,4 +1,4 @@
-package repoanalysis
+package gosource
 
 import (
 	"os"

@@ -63,6 +63,9 @@ type guardCatalog struct {
 
 func readGuardCatalog(t *testing.T) guardCatalog {
 	t.Helper()
+	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
+		t.Skip(testskip.StoreAcceptance)
+	}
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}

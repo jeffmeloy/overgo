@@ -33,9 +33,9 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 			t.Fatalf("%s depends on %v, want %v", name, byName[name].Dependencies, prerequisites)
 		}
 	}
-	for _, lane := range []string{"device", automationcheck.WebUICheckName} {
+	for _, lane := range []string{"device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 		prerequisite := "test-device"
-		if lane == automationcheck.WebUICheckName {
+		if lane != "device" {
 			prerequisite = "test-owners"
 		}
 		if !slices.Equal(byName[lane].Dependencies, []string{prerequisite}) {
@@ -76,7 +76,7 @@ func TestTestGroupsOverlapUnderLedger(t *testing.T) {
 	}
 	for _, follower := range []string{"test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 		prerequisite := "test-device"
-		if follower == automationcheck.WebUICheckName {
+		if follower == automationcheck.WebUICheckName || follower == automationcheck.ModelJourneyCheckName {
 			prerequisite = "test-owners"
 		}
 		if spans[follower].start.Before(spans[prerequisite].end) {

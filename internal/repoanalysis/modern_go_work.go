@@ -1,15 +1,12 @@
 package repoanalysis
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
+
+	"overgo/internal/gosource"
 )
 
 // ModernGoWorkRequest is the plan-owned rule slice and maximum number of
@@ -59,12 +56,6 @@ type ModernGoWorkSelection struct {
 	Verification   ModernGoVerification  `json:"verification"`
 }
 
-type modernGoPackage struct {
-	ImportPath string
-	Dir        string
-	Deps       []string
-}
-
 // BuildModernGoWorkSelection measures the repository and derives a bounded,
 // deterministic selection plus the exact repository package test closure.
 func BuildModernGoWorkSelection(root, targetVersion string, request ModernGoWorkRequest) (ModernGoWorkSelection, error) {
@@ -79,14 +70,14 @@ func BuildModernGoWorkSelection(root, targetVersion string, request ModernGoWork
 	if err != nil {
 		return ModernGoWorkSelection{}, err
 	}
-	packages, err := loadModernGoPackages(root)
+	packages, err := gosource.HostBuildSelection(root, "./...")
 	if err != nil {
 		return ModernGoWorkSelection{}, err
 	}
-	return modernGoSelectWork(census, packages, request)
+	return modernGoSelectWork(census, packages.Dependencies, request)
 }
 
-func modernGoSelectWork(census ModernGoCensus, packages []modernGoPackage, request ModernGoWorkRequest) (ModernGoWorkSelection, error) {
+func modernGoSelectWork(census ModernGoCensus, packages map[string][]string, request ModernGoWorkRequest) (ModernGoWorkSelection, error) {
 	requested := make(map[string]bool, len(request.Guidelines))
 	for _, id := range request.Guidelines {
 		requested[id] = true
@@ -167,50 +158,15 @@ func validateModernGoSite(id string, site ModernGoSite) error {
 	return nil
 }
 
-func loadModernGoPackages(root string) ([]modernGoPackage, error) {
-	absoluteRoot, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	output, err := goListJSON(absoluteRoot, "./...")
-	if err != nil {
-		return nil, err
-	}
-	decoder := json.NewDecoder(bytes.NewReader(output))
-	var packages []modernGoPackage
-	for {
-		var pkg modernGoPackage
-		if err := decoder.Decode(&pkg); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return nil, fmt.Errorf("decode modern-Go package graph: %w", err)
-		}
-		if !repositoryOwnsDirectory(absoluteRoot, pkg.Dir) {
-			continue
-		}
-		slices.Sort(pkg.Deps)
-		packages = append(packages, pkg)
-	}
-	slices.SortFunc(packages, func(left, right modernGoPackage) int {
-		return strings.Compare(left.ImportPath, right.ImportPath)
-	})
-	return packages, nil
-}
-
-func repositoryOwnsDirectory(root, name string) bool {
-	relative, err := filepath.Rel(root, name)
-	return err == nil && relative != ".." && !filepath.IsAbs(relative) && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
-}
-
-func deriveModernGoVerification(packages []modernGoPackage, directSet map[string]bool) ModernGoVerification {
+func deriveModernGoVerification(packages map[string][]string, directSet map[string]bool) ModernGoVerification {
 	direct := slices.Sorted(maps.Keys(directSet))
 	dependentSet := map[string]bool{}
-	for _, pkg := range packages {
-		if directSet[pkg.ImportPath] {
+	for path, dependencies := range packages {
+		if directSet[path] {
 			continue
 		}
-		if slices.ContainsFunc(pkg.Deps, func(dependency string) bool { return directSet[dependency] }) {
-			dependentSet[pkg.ImportPath] = true
+		if slices.ContainsFunc(dependencies, func(dependency string) bool { return directSet[dependency] }) {
+			dependentSet[path] = true
 		}
 	}
 	dependent := slices.Sorted(maps.Keys(dependentSet))

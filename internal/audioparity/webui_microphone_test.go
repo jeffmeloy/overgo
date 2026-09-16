@@ -15,10 +15,11 @@ import (
 )
 
 // Controlled microphone streams exercise the real browser recorder and native
-// transcription. Isolated fixture activations do not promote production models.
-func TestWebUIBrowserNativeASRMicrophone(t *testing.T) {
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": native microphone acceptance runs through cmd/webui-lane")
+// transcription: a model journey the serving owners run through the lane's
+// journey mode. Isolated fixture activations do not promote production models.
+func TestModelJourneyNativeASRMicrophone(t *testing.T) {
+	if os.Getenv(webuilane.ModelJourneyEnvironment) == "" {
+		t.Skip(testskip.ShortIntegration + ": native microphone journey runs through cmd/webui-lane -journeys")
 	}
 	f := newLiveASRFixture(t)
 	// Leave room for browser setup/stop silence, bounded to twice the longest

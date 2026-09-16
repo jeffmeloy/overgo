@@ -6,13 +6,14 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/testutil"
 )
 
 func TestSnapshotImportRoundTrip(t *testing.T) {
-	model := identify(t, artifact.KindModel, "fixture-model")
-	dataset := identify(t, artifact.KindDataset, "fixture-corpus")
-	golden := identify(t, artifact.KindEvidence, "fixture-golden")
-	measurement := identify(t, artifact.KindEvidence, "fixture-measurement")
+	model := testutil.ArtifactID(t, artifact.KindModel, "fixture-model")
+	dataset := testutil.ArtifactID(t, artifact.KindDataset, "fixture-corpus")
+	golden := testutil.ArtifactID(t, artifact.KindEvidence, "fixture-golden")
+	measurement := testutil.ArtifactID(t, artifact.KindEvidence, "fixture-measurement")
 
 	snapshot, err := New(
 		[]Source{{Name: "adaptive", Repository: "local/adaptive_new", Commit: "214950b3b0316bcdcab38a3b95127a927c0ab5be"}},
@@ -66,10 +67,10 @@ func TestSnapshotImportRoundTrip(t *testing.T) {
 }
 
 func TestSnapshotRejectsUnprovedPromotionVerdicts(t *testing.T) {
-	model := identify(t, artifact.KindModel, "fixture-model")
-	dataset := identify(t, artifact.KindDataset, "fixture-corpus")
-	golden := identify(t, artifact.KindEvidence, "fixture-golden")
-	measurement := identify(t, artifact.KindEvidence, "fixture-measurement")
+	model := testutil.ArtifactID(t, artifact.KindModel, "fixture-model")
+	dataset := testutil.ArtifactID(t, artifact.KindDataset, "fixture-corpus")
+	golden := testutil.ArtifactID(t, artifact.KindEvidence, "fixture-golden")
+	measurement := testutil.ArtifactID(t, artifact.KindEvidence, "fixture-measurement")
 	base := Capability{
 		ID: "text", Source: "adaptive", EntryPoint: "inference.Run",
 		Signature: Signature{Inputs: []Modality{ModalityText}, Outputs: []Modality{ModalityText}},
@@ -112,13 +113,4 @@ func TestSnapshotRejectsUnprovedPromotionVerdicts(t *testing.T) {
 			}
 		})
 	}
-}
-
-func identify(t *testing.T, kind artifact.Kind, value string) artifact.ID {
-	t.Helper()
-	id, err := artifact.IdentifyBytes(kind, []byte(value))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return id
 }

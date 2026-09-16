@@ -64,23 +64,22 @@ func DocumentProgram(parent recipe.Program, plan DocumentPlan) (recipe.Program, 
 			return zero, artifact.Content{}, nil, errors.New("speech document: incomplete source coverage")
 		}
 		prior = part.End
-		prefix := documentPrefix(i)
 		for _, stage := range stages {
 			node := stage.Node
-			node.ID = recipe.NodeID(prefix + string(node.ID))
+			node.ID = documentNode(i, node.ID)
 			nodes = append(nodes, node)
 		}
 		for _, edge := range base.Edges {
-			edge.From.Node = recipe.NodeID(prefix + string(edge.From.Node))
-			edge.To.Node = recipe.NodeID(prefix + string(edge.To.Node))
+			edge.From.Node = documentNode(i, edge.From.Node)
+			edge.To.Node = documentNode(i, edge.To.Node)
 			edges = append(edges, edge)
 		}
 		input := base.Inputs[0]
-		input.Name = recipe.PortName(prefix + "text")
-		input.Target.Node = recipe.NodeID(prefix + string(input.Target.Node))
+		input.Name = recipe.PortName(documentNode(i, "text"))
+		input.Target.Node = documentNode(i, input.Target.Node)
 		inputs = append(inputs, input)
 		output := base.Outputs[0].Source
-		output.Node = recipe.NodeID(prefix + string(output.Node))
+		output.Node = documentNode(i, output.Node)
 		edges = append(edges, recipe.Edge{From: output, To: recipe.Endpoint{Node: "assemble", Port: "segments"}})
 		request := documentSegmentRequest(plan, part)
 		segmentContent, err := artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.speech-input.v1"), request)
@@ -102,7 +101,11 @@ func DocumentProgram(parent recipe.Program, plan DocumentPlan) (recipe.Program, 
 	return program, content, values, err
 }
 
-func documentPrefix(index int) string { return fmt.Sprintf("part%d-", index) }
+// documentNode names one segment's stage node: the segment's ordinal ahead
+// of the stage name, so every segment's stages resolve apart.
+func documentNode(index int, stage recipe.NodeID) recipe.NodeID {
+	return recipe.NodeID(fmt.Sprintf("part%d-%s", index, stage))
+}
 
 func documentSegmentRequest(plan DocumentPlan, part DocumentSegment) SynthesisRequest {
 	return SynthesisRequest{Text: plan.Request.Text[part.Start:part.End], Voice: plan.Request.Voice, Seed: plan.Request.Seed, Temperature: plan.Request.Temperature, MaxFrames: part.MaxFrames}
@@ -143,14 +146,14 @@ func RegisterDocumentRuntime(runtime *workflowruntime.Runtime, store artifact.Re
 			if err != nil {
 				return DocumentWAV{}, err
 			}
-			inputReceipt, found, err := runrecord.ResolveStageReceipt(ctx, store, request.Operation, recipe.NodeID(documentPrefix(i)+"tokenize"))
+			inputReceipt, found, err := runrecord.ResolveStageReceipt(ctx, store, request.Operation, documentNode(i, "tokenize"))
 			if err != nil {
 				return DocumentWAV{}, err
 			}
 			if !found || len(inputReceipt.Inputs) != 1 || !slices.Equal(inputReceipt.Inputs[0].Artifacts, []artifact.ID{expected.Descriptor.ID}) {
 				return DocumentWAV{}, errors.New("speech document: segment request differs from source plan")
 			}
-			receipt, found, err := runrecord.ResolveStageReceipt(ctx, store, request.Operation, recipe.NodeID(documentPrefix(i)+"decode"))
+			receipt, found, err := runrecord.ResolveStageReceipt(ctx, store, request.Operation, documentNode(i, "decode"))
 			if err != nil {
 				return DocumentWAV{}, err
 			}

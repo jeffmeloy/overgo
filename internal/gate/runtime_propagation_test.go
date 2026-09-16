@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -62,6 +63,15 @@ func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	shared := graph
+	snapshot := fmt.Sprintf("%#v", shared)
+	graph = shared.clone()
+	graph.bindResourceFiles([]string{"internal/reader/deleted.json", "internal/newowner/deleted.go"})
+	if fmt.Sprintf("%#v", shared) != snapshot {
+		t.Fatal("candidate path binding mutated shared discovery")
+	}
+	graph.fileInputs = map[string][]byte{}
+	g.packageGraph = &graph
 	before := map[string]string{}
 	for _, pkg := range []string{"overgo/internal/readerclient", "overgo/internal/isolated"} {
 		identity, err := graph.identity(pkg)
@@ -83,6 +93,8 @@ func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 	if slices.Contains(scope.selected(), "overgo/internal/isolated") || scope.excluded == 0 {
 		t.Fatalf("a package reading nothing was selected: direct=%v uncertain=%v dependent=%v excluded=%d", scope.direct, scope.uncertain, scope.dependent, scope.excluded)
 	}
+	// A new consumer reuses discovery but must read current file bytes.
+	graph = graph.clone()
 	if err := os.WriteFile(filepath.Join(g.repo, "docs", "config.txt"), []byte("2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -98,5 +110,71 @@ func TestRuntimeInputsPropagateThroughCallers(t *testing.T) {
 		if changed := identity.String() != before[pkg]; changed != want {
 			t.Fatalf("%s identity changed=%t after the library's runtime input changed, want %t", pkg, changed, want)
 		}
+	}
+}
+
+// Candidate bindings reuse discovery, not file contents or another candidate.
+func TestResourceBindingUsesCandidateSnapshot(t *testing.T) {
+	g := runtimeReaderFixture(t)
+	graph, err := g.inputGraph()
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty := packageInputGraph{root: g.repo, nodes: []goPackageInput{{ImportPath: "overgo/internal/reader", Dir: filepath.Join(g.repo, "internal/reader"), Match: []string{"./..."}, GoFiles: []string{"reader.go"}, Imports: []string{"os"}}}}
+	empty.bindResourceFiles(nil)
+	if !slices.Contains(empty.nodes[0].declaredFiles, "docs/config.txt") {
+		t.Fatal("empty resource list suppressed initial reader discovery")
+	}
+	paths := []string{"docs/config.txt", "internal/reader/reader.go"}
+	if got := testing.AllocsPerRun(1, func() { graph.bindResourceFiles(paths) }); got != 0 {
+		t.Fatalf("already-bound paths repeated discovery: %g allocations", got)
+	}
+	const target = "overgo/internal/readerclient"
+	before, err := graph.identity(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied := graph.clone()
+	deleted := "internal/reader/deleted.json"
+	copied.bindResourceFiles([]string{deleted, "internal/newowner/deleted.go"})
+	inputs, err := copied.inputFiles(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !inputs[filepath.Join(g.repo, filepath.FromSlash(deleted))] {
+		t.Fatal("deleted resource lost its owner")
+	}
+	untouched, err := graph.identity(target)
+	if err != nil || untouched != before {
+		t.Fatalf("clone changed original identity: %v", err)
+	}
+	graph.bindResourceFiles([]string{deleted})
+	inputs, err = graph.inputFiles(target)
+	if err != nil || !inputs[filepath.Join(g.repo, filepath.FromSlash(deleted))] {
+		t.Fatalf("clone consumed original's outstanding binding: %v", err)
+	}
+	missing, err := copied.identity(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(g.repo, filepath.FromSlash(deleted)), []byte("restored"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := copied.identity(target)
+	if err != nil || restored == missing {
+		t.Fatalf("binding cached resource contents: %v", err)
+	}
+	// Changed sources require new discovery, just like changed compiler imports.
+	source := "package reader\nimport \"os\"\nfunc Value() int { _, _ = os.ReadFile(\"../../docs/alternate.txt\"); return 1 }\n"
+	if err := os.WriteFile(filepath.Join(g.repo, "internal/reader/reader.go"), []byte(source), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(g.repo, "docs/alternate.txt"), []byte("alternate"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fresh := &gateContext{repo: g.repo, paths: []string{"docs/alternate.txt"}}
+	scope, err := fresh.deriveTestScope()
+	if err != nil || !slices.Contains(scope.uncertain, target) {
+		t.Fatalf("new candidate lost new reader: %+v, %v", scope, err)
 	}
 }

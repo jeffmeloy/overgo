@@ -16,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"overgo/internal/gosource"
 )
 
 func TestModernGoCensusCoversApplicableCatalog(t *testing.T) {
@@ -45,11 +47,7 @@ func identity(value any) any { return value }
 }
 
 func TestEveryApplicableModernGoGuidelineMeasured(t *testing.T) {
-	root, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	census, err := BuildModernGoCensus(root, ModernGoTargetVersion)
+	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +231,7 @@ func TestModernGoCensusDiscoveryOrderInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,10 +443,8 @@ func pointer(value int) *int { return new(value) }
 }
 
 func TestNoLegacyUnitStepIntegerRangeOutsideNumericRuntime(t *testing.T) {
-	census, err := BuildModernGoCensus(filepath.Join("..", ".."), ModernGoTargetVersion)
-	switch err {
-	case nil:
-	default:
+	census, err := modernGoRepositoryCensus()
+	if err != nil {
 		t.Fatal(err)
 	}
 	finding := modernGoTestFinding(t, census, "range_over_int")
@@ -460,7 +456,7 @@ func TestNoLegacyUnitStepIntegerRangeOutsideNumericRuntime(t *testing.T) {
 }
 
 func TestModernGoNumericRangeResolution(t *testing.T) {
-	census, err := BuildModernGoCensus(filepath.Join("..", ".."), ModernGoTargetVersion)
+	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,7 +513,7 @@ func changing() int { return 1 }
 }
 
 func TestNoRedundantLoopVariableCapture(t *testing.T) {
-	census, err := BuildModernGoCensus(filepath.Join("..", ".."), ModernGoTargetVersion)
+	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
 	}

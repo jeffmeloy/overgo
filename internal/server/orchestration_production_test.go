@@ -23,7 +23,7 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	manualDefinition := publishAutomationFromAPI(t, fixture)
-	activateAutomationFromAPI(t, fixture.handler, manualDefinition)
+	activateDefinitionFromAPI(t, fixture.handler, manualDefinition, "/automations/activate")
 	manual := runAutomationFromAPI(t, fixture.handler, "/automations/run", map[string]any{
 		"name": "daily-report", "key": "production-manual", "inputs": map[string]any{"tokens": "manual"},
 	})
@@ -44,7 +44,7 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 	if err := json.Unmarshal(publish.Body.Bytes(), &scheduledDefinition); err != nil || publish.Code != http.StatusCreated {
 		t.Fatalf("scheduled definition status=%d body=%s err=%v", publish.Code, publish.Body.String(), err)
 	}
-	activateAutomationFromAPI(t, fixture.handler, scheduledDefinition.ID)
+	activateDefinitionFromAPI(t, fixture.handler, scheduledDefinition.ID, "/automations/activate")
 	fixture.handler.generator.(*automationWorkspaceGenerator).clock = orchestrationValidationClock{
 		now: orchestrationValidationAnchor.Add(time.Hour),
 	}
@@ -79,13 +79,13 @@ func TestOrchestrationProductionVerticals(t *testing.T) {
 	}
 }
 
-func activateAutomationFromAPI(t *testing.T, handler *Handler, definition artifact.ID) {
+func activateDefinitionFromAPI(t *testing.T, handler *Handler, definition artifact.ID, route string) {
 	t.Helper()
-	response := serveTestRequest(handler, http.MethodPost, "/automations/activate", marshalAutomationJSON(t, map[string]any{
+	response := serveTestRequest(handler, http.MethodPost, route, marshalAutomationJSON(t, map[string]any{
 		"definition": definition,
 	}))
 	if response.Code != http.StatusOK {
-		t.Fatalf("automation activation status=%d body=%s", response.Code, response.Body.String())
+		t.Fatalf("activation %s status=%d body=%s", route, response.Code, response.Body.String())
 	}
 }
 

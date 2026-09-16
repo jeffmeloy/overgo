@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -52,7 +53,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{}, Packages: map[string]string{},
 	}
 	for _, name := range paths {
@@ -60,7 +61,7 @@ var directCodec = artifact.DocumentCodec[struct{}]{Contract: outputContract}
 		selection.Packages[name] = "overgo/" + name[:len(name)-len("/artifact.go")]
 	}
 	selection.Packages["internal/example/contracts.go"] = "overgo/internal/example"
-	declarations, err := DocumentDeclarations(snapshot, []repoanalysis.BuildSelection{selection})
+	declarations, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,11 +85,11 @@ func TestRepositoryDocumentDeclarationsResolveKnownAuthorities(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := repoanalysis.HostBuildSelection(root, "./internal/...", "./cmd/...")
+	selection, err := gosource.HostBuildSelection(root, "./internal/...", "./cmd/...")
 	if err != nil {
 		t.Fatal(err)
 	}
-	declarations, err := DocumentDeclarations(snapshot, []repoanalysis.BuildSelection{selection})
+	declarations, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,11 +127,11 @@ var codec = artifact.JSONDocumentCodec[struct{}]("result", artifact.KindOutput, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Files: map[string]bool{name: true},
 		Packages: map[string]string{name: "overgo/internal/example"},
 	}
-	if _, err := DocumentDeclarations(snapshot, []repoanalysis.BuildSelection{selection}); err == nil {
+	if _, err := DocumentDeclarations(snapshot, []gosource.BuildSelection{selection}); err == nil {
 		t.Fatal("dynamic codec contract accepted")
 	}
 }

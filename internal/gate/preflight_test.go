@@ -77,27 +77,6 @@ func TestPreflightStructureBudget(t *testing.T) {
 
 // TestPreflightReportsValidateFindings pins order, findings and path admission.
 func TestPreflightReportsValidateFindings(t *testing.T) {
-	t.Parallel()
-	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/preflight.go"}}
-	var names []string
-	for _, check := range g.preflightChecks() {
-		if !check.Descriptor.Requirements.Static() {
-			t.Fatalf("preflight selected %s with requirements %+v", check.Descriptor.Name, check.Descriptor.Requirements)
-		}
-		names = append(names, check.Descriptor.Name)
-	}
-	want := append([]string{"protection", "scope"}, validateWave...)
-	want = slices.DeleteFunc(want, func(name string) bool { return name == modernCensusCheckName })
-	want = append(want, "vet", "build")
-	if !slices.Equal(names, want) {
-		t.Fatalf("preflight checks = %v, want %v", names, want)
-	}
-	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName, "commit"} {
-		if slices.Contains(names, excluded) {
-			t.Fatalf("preflight selected the %s check", excluded)
-		}
-	}
-
 	var callsMutex sync.Mutex
 	fake := func(name string, err error, calls *[]string) automationcheck.Check {
 		return automationcheck.Check{

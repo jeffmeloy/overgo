@@ -9,24 +9,7 @@ import (
 
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
-	"overgo/internal/tokenizer"
 )
-
-type paddleOCRPromptTokenizer struct{}
-
-func (paddleOCRPromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	const placeholder = "\x00"
-	text = strings.ReplaceAll(text, PaddleOCRImagePad, placeholder)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for _, value := range text {
-		if value == 0 {
-			ids = append(ids, 9001)
-		} else {
-			ids = append(ids, tokenizer.TokenID(value))
-		}
-	}
-	return ids, nil
-}
 
 func TestPaddleOCRRunnerTinyFixture(t *testing.T) {
 	path := writeTinyPaddleOCR(t, tinyPaddleOCRTensors())
@@ -74,7 +57,7 @@ func TestPaddleOCRMultipleImagePromptAndPositions(t *testing.T) {
 	first := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	second := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		t.Context(), paddleOCRPromptTokenizer{}, []image.Image{first, second},
+		t.Context(), imagePromptTokenizer{marker: PaddleOCRImagePad, token: 9001}, []image.Image{first, second},
 		[]string{"OCR:", " and ", "Table Recognition:"}, PromptOptions{},
 	)
 	if err != nil {
@@ -116,16 +99,7 @@ func TestPaddleOCRCatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestPaddleOCRCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyPaddleOCR(t, nonzeroTinyPaddleOCRTensors())
-	cpu, err := openImageProjectorAs[*PaddleOCRRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*PaddleOCRRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*PaddleOCRRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {

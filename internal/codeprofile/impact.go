@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -48,7 +49,7 @@ type FunctionImpact struct {
 // removed functions as well as callers introduced in the candidate.
 func DeriveFunctionImpact(
 	base, candidate repoanalysis.SourceSnapshot,
-	baseSelection, candidateSelection repoanalysis.BuildSelection,
+	baseSelection, candidateSelection gosource.BuildSelection,
 	changedPaths []string,
 ) (FunctionImpact, error) {
 	baseProfile, err := Build(base)
@@ -124,7 +125,7 @@ func changedPackageDirectories(base, candidate repoanalysis.SourceSnapshot, chan
 
 func impactBoundaries(
 	base, candidate repoanalysis.SourceSnapshot,
-	baseSelection, candidateSelection repoanalysis.BuildSelection,
+	baseSelection, candidateSelection gosource.BuildSelection,
 	changedPaths []string,
 	baseIndex, candidateIndex consumerIndex,
 	baseIndices, candidateIndices map[string]int,
@@ -238,7 +239,7 @@ func snapshotFiles(snapshot repoanalysis.SourceSnapshot) map[string]repoanalysis
 	return files
 }
 
-func buildSelectionUnknown(sourcePath string, selection repoanalysis.BuildSelection) bool {
+func buildSelectionUnknown(sourcePath string, selection gosource.BuildSelection) bool {
 	selected, known := selection.Files[sourcePath]
 	return !known || !selected
 }

@@ -26,6 +26,7 @@ import (
 	"overgo/internal/codeprofile"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
+	"overgo/internal/gosource"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -50,6 +51,21 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	published := automationcheck.PublishedCheck(g.sourceRoot(), g.runGateCommand)
 	webui := automationcheck.WebUICheck(g.sourceRoot(), g.runLaneCommand)
 	journeys := automationcheck.ModelJourneyCheck(g.sourceRoot(), g.runLaneCommand)
+	runJourney := journeys.Run
+	journeys.Run = func(ctx context.Context, invocation automationcheck.Invocation) (bool, string, error) {
+		environment, err := g.sourceEnvironment()
+		if err != nil {
+			return false, "", err
+		}
+		// Keep shared admission across model swaps; an exclusive measurement
+		// must not enter the gap between the journey's serving children.
+		release, err := g.admitTestResources(ctx, []string{"overgo/internal/server"}, environment)
+		if err != nil {
+			return false, "", err
+		}
+		defer release()
+		return runJourney(ctx, invocation)
+	}
 	// The store writer among the static checks (the magics phase may rebind
 	// the closure ledger) declares the store exclusively; the store readers
 	// declare it shared, so the writer never overlaps a reader's replay.
@@ -432,11 +448,16 @@ func (g *gateContext) sourceProfile(snapshot repoanalysis.SourceSnapshot) (codep
 // the manifest already binds this check to the candidate tree, and a second
 // test process would only repeat source discovery while weakening ordering.
 func (g *gateContext) stepArchitectureRatchet() (bool, error) {
-	if _, err := g.stepArchitecture(); err != nil {
-		return false, err
-	}
 	staged, err := codeprofile.LoadStagedSurface(filepath.Join(g.repo, "docs", "staged_surface.json"))
 	if err != nil {
+		return false, err
+	}
+	for _, entry := range staged.Staged {
+		if g.checkpoint == "" && g.planRef != "" && entry.RetireWith == g.planRef {
+			return false, fmt.Errorf("architecture: reconcile staged retirement %s.%s before completing %s", entry.Package, entry.Name, g.planRef)
+		}
+	}
+	if _, err := g.stepArchitecture(); err != nil {
 		return false, err
 	}
 	snapshot, err := g.sourceSnapshot()
@@ -542,7 +563,7 @@ func (g *gateContext) stepProfile() (bool, error) {
 }
 
 func (g *gateContext) appendConsumerCensus(candidate, head repoanalysis.SourceSnapshot, changed []string, profile *codeprofile.Profile) error {
-	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return err
 	}
@@ -993,9 +1014,6 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
 		return false, err
 	}
-	if err := admitModernGoExactExceptions(baseline, candidate); err != nil {
-		return false, err
-	}
 	expected, err := repoanalysis.BuildModernGoPublishedCensus(candidate, baseline)
 	if err != nil {
 		return false, err
@@ -1106,12 +1124,12 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, scope.productionPaths)
+	boundaryCoverage, err := agentHarnessBoundaryCoverage(snapshot, scope.productionPaths)
 	if err != nil {
 		return false, err
 	}
 	selectedTests := append(slices.Clone(direct), dependent...)
-	if err := automationcheck.RequireAgentHarnessBoundaries(boundaryCoverage, selectedTests); err != nil {
+	if err := requireAgentHarnessBoundaries(boundaryCoverage, selectedTests); err != nil {
 		return false, err
 	}
 	if len(boundaryCoverage.Boundaries) != 0 {
@@ -1175,7 +1193,7 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 		reused: directReused + dependentReused, pending: len(directPending) + len(dependentPending),
 	}
 	if g.testPlan.pending == 0 {
-		g.packageCacheAudit(g.testPlan.reused, g.testPlan.executed)
+		g.packageExecutionAudit()
 	}
 	return g.testPlan.pending == 0, nil
 }
@@ -1185,7 +1203,7 @@ type testGroups struct {
 	ledger                        *packageEvidenceLedger
 	directInputs, dependentInputs map[string]artifact.ID
 	edited, remaining, dependent  []string
-	reused, pending, executed     int
+	reused, pending               int
 }
 
 // stepTestDevice runs prepared device packages under shared admission.
@@ -1235,7 +1253,7 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 		return err
 	}
 	if len(dependent) == 0 {
-		g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
+		g.packageExecutionAudit()
 		return nil
 	}
 	observe := g.packagePassObserver(ctx, g.testPlan.ledger, "complete", g.testPlan.dependentInputs)
@@ -1251,7 +1269,7 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 			len(report.Skipped), strings.Join(report.Skipped, "; "), len(report.Unavailable), strings.Join(report.Unavailable, "; "),
 		))
 	}
-	g.packageCacheAudit(g.testPlan.reused, g.testPlan.pending)
+	g.packageExecutionAudit()
 	return err
 }
 
@@ -1270,14 +1288,13 @@ func (g *gateContext) runTestGroup(ctx context.Context, group []string, short bo
 		if len(batch.packages) == 0 {
 			continue
 		}
-		g.testPlan.executed += len(batch.packages)
 		if batch.device {
 			_, err = g.runDeviceBatch(ctx, batch.packages, short, observe, g.runGoTestsAdmitted)
 		} else {
 			_, err = g.runGoTests(ctx, batch.packages, short, observe)
 		}
 		if err != nil {
-			g.packageCacheAudit(g.testPlan.reused, g.testPlan.executed)
+			g.packageExecutionAudit()
 			return err
 		}
 	}
@@ -1304,12 +1321,6 @@ func (g *gateContext) packageCachePartition(packages []string, mode string, inpu
 		}
 	}
 	return pending, reused, nil
-}
-
-func (g *gateContext) packageCacheAudit(reused, executed int) {
-	if reused+executed > 0 {
-		g.note(fmt.Sprintf("package test evidence: %d reused + %d executed", reused, executed))
-	}
 }
 
 func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
@@ -1837,7 +1848,7 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	g.candidateRoot, g.candidateTree = worktree, tree
 	g.packageGraph = nil
 	defer func() {
-		g.dependencyCostAudit(g.steps)
+		g.captureSelectionCauses()
 		g.candidateRoot, g.candidateTree = "", ""
 		g.packageGraph = nil
 	}()

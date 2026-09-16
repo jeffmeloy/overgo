@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -17,7 +18,7 @@ func TestOwnedPackagesHaveNoUnusedExports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := repoanalysis.HostBuildSelection(root, "./...")
+	selection, err := gosource.HostBuildSelection(root, "./...")
 	if err != nil {
 		t.Fatal(err)
 	}

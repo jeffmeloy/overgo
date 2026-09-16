@@ -6,24 +6,12 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/codemanifest"
 )
 
 const fixtureDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 var fixtureContract = ContractRef{
 	Kind: artifact.KindOutput, MediaType: artifact.JSONMediaType, Schema: "overgo/fixture/v1",
-}
-
-func TestCompileDocumentsPreservesSourceAuthority(t *testing.T) {
-	documents, err := CompileDocuments([]codemanifest.DocumentDeclaration{{
-		Name: "fixture", Owner: "overgo/internal/fixture.contract", VersionOwner: "overgo/internal/fixture.version",
-		Kind: fixtureContract.Kind, MediaType: fixtureContract.MediaType, Schema: fixtureContract.Schema,
-		BuildContexts: []string{"windows-amd64"}, Source: "internal/fixture/document.go", SourceIdentity: fixtureDigest,
-	}})
-	if err != nil || len(documents) != 1 || documents[0].SourceIdentity != fixtureDigest || documents[0].VersionOwner == "" {
-		t.Fatalf("compiled documents = %+v/%v", documents, err)
-	}
 }
 
 func fixtureManifest(t *testing.T) Manifest {
@@ -67,6 +55,15 @@ func TestManifestRejectsUnknownContract(t *testing.T) {
 	manifest.Routes[0].Responses[0].Schema = "overgo/absent/v1"
 	if _, err := New(manifest); err == nil || !strings.Contains(err.Error(), "route") {
 		t.Fatalf("unknown contract error = %v", err)
+	}
+}
+
+func TestManifestRejectsDuplicateDocument(t *testing.T) {
+	manifest := fixtureManifest(t)
+	manifest.ID = artifact.ID{}
+	manifest.Documents = append(manifest.Documents, manifest.Documents[0])
+	if _, err := New(manifest); err == nil || !strings.Contains(err.Error(), "document contract") {
+		t.Fatalf("duplicate document error = %v", err)
 	}
 }
 

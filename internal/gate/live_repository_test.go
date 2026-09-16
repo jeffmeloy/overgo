@@ -73,10 +73,6 @@ func newLiveRepository() (*liveRepository, error) {
 	if err != nil {
 		return nil, errors.Join(err, repository.teardown())
 	}
-	// The unseeded checkout generates the base manifest every plan reuses.
-	if _, _, _, err := repository.context().deriveManifestImpact(); err != nil {
-		return nil, errors.Join(err, repository.teardown())
-	}
 	return repository, nil
 }
 
@@ -158,22 +154,19 @@ func (r *liveRepository) plan(t testing.TB, paths []string, use func(g *gateCont
 	t.Helper()
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	defer r.seed(t, paths)()
-	g := r.context(paths...)
-	tree, err := g.plannedTree()
-	if err != nil {
-		t.Fatal(err)
-	}
-	g.candidateTree = tree
-	r.plans.Add(1)
-	use(g)
-}
-
-func (r *liveRepository) seed(t testing.TB, paths []string) func() {
-	t.Helper()
 	originals := map[string][]byte{}
+	defer func() {
+		for full, data := range originals {
+			if err := os.WriteFile(full, data, 0o644); err != nil {
+				t.Error(err)
+			}
+		}
+	}()
 	for _, path := range paths {
 		full := filepath.Join(r.worktree, filepath.FromSlash(path))
+		if _, saved := originals[full]; saved {
+			continue
+		}
 		data, err := os.ReadFile(full)
 		if err != nil {
 			t.Fatal(err)
@@ -187,13 +180,14 @@ func (r *liveRepository) seed(t testing.TB, paths []string) func() {
 			t.Fatal(err)
 		}
 	}
-	return func() {
-		for full, data := range originals {
-			if err := os.WriteFile(full, data, 0o644); err != nil {
-				t.Fatal(err)
-			}
-		}
+	g := r.context(paths...)
+	tree, err := g.plannedTree()
+	if err != nil {
+		t.Fatal(err)
 	}
+	g.candidateTree = tree
+	r.plans.Add(1)
+	use(g)
 }
 
 // seedFunctionBody changes the body of the file's first function, the shape

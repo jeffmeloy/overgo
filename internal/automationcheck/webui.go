@@ -59,6 +59,7 @@ const (
 var modelJourneyPathPrefixes = []string{
 	"cmd/server/", "internal/server/webui_browser_firstrun", "internal/server/webui_browser_library_validation",
 	"internal/server/webui_browser_preparation", "internal/server/webui_browser_store_test.go", "internal/server/webui_served_projector",
+	"internal/audioparity/webui_microphone",
 }
 
 // ModelJourneyCheck returns the model journeys as a gate check: the lane's
@@ -83,17 +84,18 @@ func ModelJourneyCheck(root string, command LaneCommand) Check {
 
 // ModelJourneyPaths reports whether any changed path belongs to the journeys.
 func ModelJourneyPaths(paths []string) bool {
-	return slices.ContainsFunc(paths, func(changed string) bool {
-		normalized := strings.ReplaceAll(changed, "\\", "/")
-		return slices.ContainsFunc(modelJourneyPathPrefixes, func(prefix string) bool { return strings.HasPrefix(normalized, prefix) })
-	})
+	return pathsHavePrefix(paths, modelJourneyPathPrefixes)
 }
 
 // WebUIPaths reports whether any changed path belongs to the web UI.
 func WebUIPaths(paths []string) bool {
+	return pathsHavePrefix(paths, webuiPathPrefixes)
+}
+
+func pathsHavePrefix(paths, prefixes []string) bool {
 	return slices.ContainsFunc(paths, func(changed string) bool {
 		normalized := strings.ReplaceAll(changed, "\\", "/")
-		return slices.ContainsFunc(webuiPathPrefixes, func(prefix string) bool { return strings.HasPrefix(normalized, prefix) })
+		return slices.ContainsFunc(prefixes, func(prefix string) bool { return strings.HasPrefix(normalized, prefix) })
 	})
 }
 

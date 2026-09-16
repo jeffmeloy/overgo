@@ -120,17 +120,18 @@ func (g *gateContext) stageMechanicalRepairs() error {
 
 // repairAPIManifest rewrites the API manifest from the candidate's sources.
 func (g *gateContext) repairAPIManifest() error {
-	if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/api-manifest", "-update"); err != nil {
-		return fmt.Errorf("API manifest update: %w: %s", err, strings.TrimSpace(out))
-	}
-	return nil
+	return g.repairCommand("API manifest update", "./cmd/api-manifest", "-update")
 }
 
 // repairCompatibilityIdentities refreshes the evidence identities the
 // compatibility manifest pins and the matrix generated from it.
 func (g *gateContext) repairCompatibilityIdentities() error {
-	if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/compatibility", "-refresh-identities"); err != nil {
-		return fmt.Errorf("compatibility identity refresh: %w: %s", err, strings.TrimSpace(out))
+	return g.repairCommand("compatibility identity refresh", "./cmd/compatibility", "-refresh-identities")
+}
+
+func (g *gateContext) repairCommand(label, commandPath, argument string) error {
+	if out, err := g.runGateCommand(g.repo, "go", "run", commandPath, argument); err != nil {
+		return fmt.Errorf("%s: %w: %s", label, err, strings.TrimSpace(out))
 	}
 	return nil
 }

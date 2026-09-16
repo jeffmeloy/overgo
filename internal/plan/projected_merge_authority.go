@@ -335,7 +335,7 @@ func VerifyFirstParentTargetLocalAuthority(
 	if err := verifyFirstParentTargetPlanOwnership(local, preAdvance, child); err != nil {
 		return err
 	}
-	if !preservesPlanIdentities(local, preAdvance) {
+	if !preservesPlanIdentities(local, preAdvance, false) {
 		return errors.New("plan: first-parent target pre-advance plan deleted a local item or step")
 	}
 	return verifyCompletionAuthorityConstraints(

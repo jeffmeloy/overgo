@@ -106,12 +106,10 @@ func TestEvidenceDriverHasSingleDecisionOwner(t *testing.T) {
 }
 
 func TestTrainingEvidenceSinglePublicationAuthority(t *testing.T) {
-	t.Parallel()
 	requireReservedArchitectureOwner(t, "training-evidence-publication")
 }
 
 func TestSequentialControlHasSingleOwner(t *testing.T) {
-	t.Parallel()
 	requireReservedArchitectureOwner(t, "sequential-control")
 }
 
@@ -134,6 +132,7 @@ var reservedArchitectureOwnerCases = map[string]reservedArchitectureOwnerCase{
 }
 
 func requireReservedArchitectureOwner(t *testing.T, family string) {
+	t.Parallel()
 	t.Helper()
 	test, found := reservedArchitectureOwnerCases[family]
 	if !found {

@@ -14,7 +14,7 @@ import (
 // the browser tests; a page acceptance may reach none of them.
 var modelWork = map[string]bool{
 	"prepareBrowserJourney": true, "prepareBrowserJourneyStore": true, "smallestDeclaredProjector": true,
-	"laneHubServer": true, "modelswap.ServerLauncher": true,
+	"laneHubServer": true, "modelswap.ServerLauncher": true, "newLiveASRFixture": true,
 }
 
 // TestBrowserLanePageOnly holds the browser lane to page work: every test
@@ -30,7 +30,7 @@ func TestBrowserLanePageOnly(t *testing.T) {
 	}
 	fileSet := token.NewFileSet()
 	functions := map[string]*ast.FuncDecl{}
-	for _, dir := range []string{"internal/server", "internal/webuilane"} {
+	for _, dir := range []string{"internal/server", "internal/webuilane", "internal/audioparity"} {
 		entries, err := os.ReadDir(filepath.Join(root, dir))
 		if err != nil {
 			t.Fatal(err)

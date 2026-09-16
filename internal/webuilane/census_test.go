@@ -1,6 +1,7 @@
 package webuilane
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,7 +15,11 @@ func TestMeasureTreeReadsThisRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	census, err := MeasureTree(root, "head")
+	manifest, err := os.ReadFile(filepath.Join(root, "docs", "api_manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	census, err := MeasureTree(root, "head", manifest)
 	if err != nil {
 		t.Fatal(err)
 	}

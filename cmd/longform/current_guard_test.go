@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"io"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -13,7 +12,6 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
-	"overgo/internal/testskip"
 )
 
 type guardCohort struct {
@@ -28,9 +26,6 @@ type guardCohort struct {
 
 // TestCurrentGuardControls checks retained controls without measuring models.
 func TestCurrentGuardControls(t *testing.T) {
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
 	selected := readGuardCatalog(t)
 	fixtures := []guardCohort{
 		{
@@ -58,12 +53,6 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 	t.Helper()
 	if len(fixtures) == 0 {
 		t.Fatal("empty guard cohort")
-	}
-	if testing.Short() {
-		t.Skip(testskip.ShortIntegration)
-	}
-	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT to check exact guard cohorts; no models execute")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {

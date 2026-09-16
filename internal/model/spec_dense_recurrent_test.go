@@ -443,17 +443,11 @@ func TestReadOrionSpec(t *testing.T) {
 }
 
 func TestReadStarCoder2Spec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "starcoder2"),
-		metadata("starcoder2.block_count", gguf.ValueTypeUint32, uint32(30)),
-		metadata("starcoder2.context_length", gguf.ValueTypeUint32, uint32(16384)),
-		metadata("starcoder2.embedding_length", gguf.ValueTypeUint32, uint32(3072)),
-		metadata("starcoder2.feed_forward_length", gguf.ValueTypeUint32, uint32(12288)),
-		metadata("starcoder2.attention.head_count", gguf.ValueTypeUint32, uint32(24)),
-		metadata("starcoder2.attention.head_count_kv", gguf.ValueTypeUint32, uint32(2)),
-		metadata("starcoder2.rope.freq_base", gguf.ValueTypeFloat32, float32(100000)),
+	file := denseSpecFixture(
+		CommonSpec{Architecture: "starcoder2", BlockCount: 30, ContextLength: 16384, EmbeddingLength: 3072, FeedForwardLength: 12288},
+		AttentionSpec{HeadCount: 24, HeadCountKV: 2, RopeFrequencyBase: 100000},
 		metadata("starcoder2.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	}}
+	)
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
@@ -467,17 +461,11 @@ func TestReadStarCoder2Spec(t *testing.T) {
 }
 
 func TestReadCodeShellSpec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "codeshell"),
-		metadata("codeshell.block_count", gguf.ValueTypeUint32, uint32(42)),
-		metadata("codeshell.context_length", gguf.ValueTypeUint32, uint32(8192)),
-		metadata("codeshell.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("codeshell.feed_forward_length", gguf.ValueTypeUint32, uint32(16384)),
-		metadata("codeshell.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
-		metadata("codeshell.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
-		metadata("codeshell.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+	file := denseSpecFixture(
+		CommonSpec{Architecture: "codeshell", BlockCount: 42, ContextLength: 8192, EmbeddingLength: 4096, FeedForwardLength: 16384},
+		AttentionSpec{HeadCount: 32, HeadCountKV: 8, RopeFrequencyBase: 10000},
 		metadata("codeshell.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	}}
+	)
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
@@ -531,18 +519,12 @@ func TestReadBaichuanVariantsSpec(t *testing.T) {
 }
 
 func TestReadArceeSpec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "arcee"),
-		metadata("arcee.block_count", gguf.ValueTypeUint32, uint32(36)),
-		metadata("arcee.context_length", gguf.ValueTypeUint32, uint32(32768)),
-		metadata("arcee.embedding_length", gguf.ValueTypeUint32, uint32(3072)),
-		metadata("arcee.feed_forward_length", gguf.ValueTypeUint32, uint32(8192)),
-		metadata("arcee.attention.head_count", gguf.ValueTypeUint32, uint32(24)),
-		metadata("arcee.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
-		metadata("arcee.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+	file := denseSpecFixture(
+		CommonSpec{Architecture: "arcee", BlockCount: 36, ContextLength: 32768, EmbeddingLength: 3072, FeedForwardLength: 8192},
+		AttentionSpec{HeadCount: 24, HeadCountKV: 8, RopeFrequencyBase: 10000},
 		metadata("arcee.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 		metadata("arcee.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
-	}}
+	)
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
@@ -555,17 +537,11 @@ func TestReadArceeSpec(t *testing.T) {
 }
 
 func TestReadNemotronSpec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "nemotron"),
-		metadata("nemotron.block_count", gguf.ValueTypeUint32, uint32(32)),
-		metadata("nemotron.context_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("nemotron.embedding_length", gguf.ValueTypeUint32, uint32(4096)),
-		metadata("nemotron.feed_forward_length", gguf.ValueTypeUint32, uint32(11008)),
-		metadata("nemotron.attention.head_count", gguf.ValueTypeUint32, uint32(32)),
-		metadata("nemotron.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
-		metadata("nemotron.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+	file := denseSpecFixture(
+		CommonSpec{Architecture: "nemotron", BlockCount: 32, ContextLength: 4096, EmbeddingLength: 4096, FeedForwardLength: 11008},
+		AttentionSpec{HeadCount: 32, HeadCountKV: 8, RopeFrequencyBase: 10000},
 		metadata("nemotron.attention.layer_norm_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
-	}}
+	)
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
@@ -652,18 +628,12 @@ func TestReadMPTAndOLMoRejectInvalidClamp(t *testing.T) {
 }
 
 func TestReadSeedOSSSpec(t *testing.T) {
-	file := &gguf.File{Metadata: []gguf.Metadata{
-		metadata("general.architecture", gguf.ValueTypeString, "seed_oss"),
-		metadata("seed_oss.block_count", gguf.ValueTypeUint32, uint32(64)),
-		metadata("seed_oss.context_length", gguf.ValueTypeUint32, uint32(32768)),
-		metadata("seed_oss.embedding_length", gguf.ValueTypeUint32, uint32(5120)),
-		metadata("seed_oss.feed_forward_length", gguf.ValueTypeUint32, uint32(13824)),
-		metadata("seed_oss.attention.head_count", gguf.ValueTypeUint32, uint32(40)),
-		metadata("seed_oss.attention.head_count_kv", gguf.ValueTypeUint32, uint32(8)),
-		metadata("seed_oss.rope.freq_base", gguf.ValueTypeFloat32, float32(10000)),
+	file := denseSpecFixture(
+		CommonSpec{Architecture: "seed_oss", BlockCount: 64, ContextLength: 32768, EmbeddingLength: 5120, FeedForwardLength: 13824},
+		AttentionSpec{HeadCount: 40, HeadCountKV: 8, RopeFrequencyBase: 10000},
 		metadata("seed_oss.attention.layer_norm_rms_epsilon", gguf.ValueTypeFloat32, float32(1e-5)),
 		metadata("seed_oss.attention.scale", gguf.ValueTypeFloat32, float32(0.125)),
-	}}
+	)
 	spec, err := ReadSpec(file)
 	if err != nil {
 		t.Fatal(err)
@@ -1343,4 +1313,19 @@ func TestReadT5Spec(t *testing.T) {
 		spec.HeadCountKV != 2 || spec.RopeFrequencyBase != 0 {
 		t.Fatalf("unexpected T5 spec: %+v", spec)
 	}
+}
+
+// denseSpecFixture preserves declared metadata; assertions stay with each case.
+func denseSpecFixture(common CommonSpec, attention AttentionSpec, extra ...gguf.Metadata) *gguf.File {
+	prefix := common.Architecture + "."
+	return &gguf.File{Metadata: append([]gguf.Metadata{
+		metadata("general.architecture", gguf.ValueTypeString, common.Architecture),
+		metadata(prefix+"block_count", gguf.ValueTypeUint32, common.BlockCount),
+		metadata(prefix+"context_length", gguf.ValueTypeUint32, common.ContextLength),
+		metadata(prefix+"embedding_length", gguf.ValueTypeUint32, common.EmbeddingLength),
+		metadata(prefix+"feed_forward_length", gguf.ValueTypeUint32, common.FeedForwardLength),
+		metadata(prefix+"attention.head_count", gguf.ValueTypeUint32, attention.HeadCount),
+		metadata(prefix+"attention.head_count_kv", gguf.ValueTypeUint32, attention.HeadCountKV),
+		metadata(prefix+"rope.freq_base", gguf.ValueTypeFloat32, attention.RopeFrequencyBase),
+	}, extra...)}
 }

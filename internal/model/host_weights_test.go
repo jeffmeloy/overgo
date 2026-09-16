@@ -12,7 +12,7 @@ import (
 )
 
 func TestLoadHostTensor(t *testing.T) {
-	data := hostTensorFixture(t)
+	data := hostTensorFixture(t, "weight", 4)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +32,7 @@ func TestLoadHostTensor(t *testing.T) {
 }
 
 func TestLoadHostRowsAndDotRows(t *testing.T) {
-	data := hostTableFixture(t)
+	data := hostTensorFixture(t, "table", 2, 3)
 	file, err := gguf.Parse(bytes.NewReader(data), uint64(len(data)), gguf.DefaultOptions())
 	if err != nil {
 		t.Fatal(err)
@@ -494,7 +494,7 @@ func TestHostLayerGraphInputsPermitSequentialFFN(t *testing.T) {
 	}
 }
 
-func hostTensorFixture(t *testing.T) []byte {
+func hostTensorFixture(t *testing.T, name string, dimensions ...uint64) []byte {
 	t.Helper()
 	var buffer bytes.Buffer
 	write := func(value any) {
@@ -510,49 +510,23 @@ func hostTensorFixture(t *testing.T) []byte {
 	write(uint32(gguf.CurrentVersion))
 	write(uint64(1))
 	write(uint64(0))
-	writeString("weight")
-	write(uint32(1))
-	write(uint64(4))
+	writeString(name)
+	write(uint32(len(dimensions)))
+	elements := uint64(1)
+	for _, dimension := range dimensions {
+		write(dimension)
+		elements *= dimension
+	}
 	write(uint32(dtype.F32))
 	write(uint64(0))
 	for buffer.Len()%gguf.DefaultAlignment != 0 {
 		_ = buffer.WriteByte(0)
 	}
-	for value := float32(1); value <= 4; value++ {
-		write(value)
+	for index := range elements {
+		write(float32(index + 1))
 	}
-	_, _ = buffer.Write(make([]byte, 16))
-	return buffer.Bytes()
-}
-
-func hostTableFixture(t *testing.T) []byte {
-	t.Helper()
-	var buffer bytes.Buffer
-	write := func(value any) {
-		if err := binary.Write(&buffer, binary.LittleEndian, value); err != nil {
-			t.Fatal(err)
-		}
-	}
-	writeString := func(value string) {
-		write(uint64(len(value)))
-		_, _ = buffer.WriteString(value)
-	}
-	_, _ = buffer.WriteString(gguf.Magic)
-	write(uint32(gguf.CurrentVersion))
-	write(uint64(1))
-	write(uint64(0))
-	writeString("table")
-	write(uint32(2))
-	write(uint64(2))
-	write(uint64(3))
-	write(uint32(dtype.F32))
-	write(uint64(0))
 	for buffer.Len()%gguf.DefaultAlignment != 0 {
 		_ = buffer.WriteByte(0)
 	}
-	for value := float32(1); value <= 6; value++ {
-		write(value)
-	}
-	_, _ = buffer.Write(make([]byte, 8))
 	return buffer.Bytes()
 }

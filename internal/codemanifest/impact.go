@@ -1,11 +1,11 @@
 package codemanifest
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 )
 
 // Impact is the deterministic transitive surface capable of observing a
@@ -32,33 +32,33 @@ func Close(base, candidate Manifest, delta Delta) (Impact, error) {
 	if delta.Base != base.ID || delta.Candidate != candidate.ID {
 		return Impact{}, errors.New("code manifest impact: delta identity mismatch")
 	}
-	seeds := map[string]SymbolID{}
+	seeds := map[SymbolID]bool{}
 	for _, change := range delta.Symbols {
-		seeds[symbolKey(change.ID)] = change.ID
+		seeds[change.ID] = true
 	}
-	reverse := map[string]map[string]SymbolID{}
+	reverse := map[SymbolID]map[SymbolID]bool{}
 	addReverseReferences(reverse, base.References)
 	addReverseReferences(reverse, candidate.References)
-	reachable := map[string]SymbolID{}
+	reachable := map[SymbolID]bool{}
 	queue := make([]SymbolID, 0, len(seeds))
-	for _, seed := range seeds {
-		reachable[symbolKey(seed)] = seed
+	for seed := range seeds {
+		reachable[seed] = true
 		queue = append(queue, seed)
 	}
 	for len(queue) != 0 {
 		current := queue[0]
 		queue = queue[1:]
-		for key, caller := range reverse[symbolKey(current)] {
-			if _, seen := reachable[key]; seen {
+		for caller := range reverse[current] {
+			if reachable[caller] {
 				continue
 			}
-			reachable[key] = caller
+			reachable[caller] = true
 			queue = append(queue, caller)
 		}
 	}
 	impact := Impact{
 		Base: base.ID.String(), Candidate: candidate.ID.String(),
-		Seeds: symbolValues(seeds), Reachable: symbolValues(reachable),
+		Seeds: slices.SortedFunc(maps.Keys(seeds), compareSymbolID), Reachable: slices.SortedFunc(maps.Keys(reachable), compareSymbolID),
 		ExternalInputs: slices.Clone(delta.ExternalInputs),
 		Uncertainty:    slices.Clone(delta.Uncertainty),
 	}
@@ -104,46 +104,33 @@ func (i Impact) ExclusionAuthority() error {
 	return nil
 }
 
-func addReverseReferences(reverse map[string]map[string]SymbolID, references []Reference) {
+func addReverseReferences(reverse map[SymbolID]map[SymbolID]bool, references []Reference) {
 	for _, reference := range references {
-		target := symbolKey(reference.To)
+		target := reference.To
 		if reverse[target] == nil {
-			reverse[target] = map[string]SymbolID{}
+			reverse[target] = map[SymbolID]bool{}
 		}
-		reverse[target][symbolKey(reference.From)] = reference.From
+		reverse[target][reference.From] = true
 	}
 }
 
-func symbolValues(values map[string]SymbolID) []SymbolID {
-	result := make([]SymbolID, 0, len(values))
-	for _, value := range values {
-		result = append(result, value)
-	}
-	slices.SortFunc(result, func(left, right SymbolID) int { return compareSymbolID(left, right) })
-	return result
-}
-
+// Valid symbol fields exclude NUL, preserving the legacy separator-key order.
 func compareSymbolID(left, right SymbolID) int {
-	return strings.Compare(symbolKey(left), symbolKey(right))
+	return cmp.Or(cmp.Compare(left.Package, right.Package), cmp.Compare(left.Context, right.Context), cmp.Compare(left.Receiver, right.Receiver), cmp.Compare(left.Name, right.Name), cmp.Compare(left.Kind, right.Kind))
 }
 
-func appendReachableUncertainty(result []Uncertainty, reachable map[string]SymbolID, changes []FileChange, groups ...[]Uncertainty) []Uncertainty {
+func appendReachableUncertainty(result []Uncertainty, reachable map[SymbolID]bool, changes []FileChange, groups ...[]Uncertainty) []Uncertainty {
 	paths := make(map[string]bool, len(changes))
 	for _, change := range changes {
 		paths[change.Path] = true
 	}
 	for _, group := range groups {
 		for _, item := range group {
-			if item.Path == "" || paths[item.Path] || item.Symbol != nil && containsSymbol(reachable, *item.Symbol) {
+			if item.Path == "" || paths[item.Path] || item.Symbol != nil && reachable[*item.Symbol] {
 				result = append(result, item)
 			}
 		}
 	}
 	slices.SortFunc(result, compareUncertainty)
 	return slices.CompactFunc(result, func(left, right Uncertainty) bool { return compareUncertainty(left, right) == 0 })
-}
-
-func containsSymbol(values map[string]SymbolID, symbol SymbolID) bool {
-	_, found := values[symbolKey(symbol)]
-	return found
 }

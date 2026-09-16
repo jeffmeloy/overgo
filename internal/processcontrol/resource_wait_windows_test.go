@@ -3,12 +3,8 @@
 package processcontrol
 
 import (
-	"bufio"
 	"context"
 	"errors"
-	"os"
-	"os/exec"
-	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -45,41 +41,29 @@ func TestResourceAdmissionWaitsForRelease(t *testing.T) {
 // exclusive holder that exits without releasing wakes the waiter through
 // its process handle, and the claim then succeeds.
 func TestResourceAdmissionWakesOnHolderExit(t *testing.T) {
-	name := "overgo-test-await-exit-" + t.Name()
-	owner := exec.Command(os.Args[0], "-test.run=^TestResourceContention$")
-	owner.Env = append(os.Environ(), "OVERGO_TEST_RESOURCE_CLAIM="+name, "OVERGO_TEST_RESOURCE_OWNER=1")
-	stdin, err := owner.StdinPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	stdout, err := owner.StdoutPipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := owner.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer owner.Wait()
-	reader := bufio.NewReader(stdout)
-	if line, err := reader.ReadString('\n'); err != nil || !strings.HasPrefix(line, "reserved") {
-		t.Fatalf("owner did not reserve: %q %v", line, err)
-	}
+	name := sharedAdmissionName(t)
+	owner := holdSharedAdmission(t, sharedAdmissionProbe{Name: name, Exclusive: true})
 	attempts := 0
+	contended := make(chan struct{})
 	done := make(chan error, 1)
 	go func() {
 		done <- AwaitResource(t.Context(), func() error {
 			attempts++
+			if attempts == 1 {
+				defer close(contended)
+			}
 			return ClaimResource(name)
 		})
 	}()
-	// The owner exits when its stdin closes; nothing else signals the waiter.
-	if err := stdin.Close(); err != nil {
+	<-contended
+	// Close stdin only after the first claim observes the live holder.
+	if err := owner.input.Close(); err != nil {
 		t.Fatal(err)
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if attempts < 1 {
+	if attempts < 2 {
 		t.Fatalf("attempts = %d", attempts)
 	}
 }

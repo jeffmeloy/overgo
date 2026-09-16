@@ -60,6 +60,9 @@ func BuildModernGoPublishedCensus(census ModernGoCensus, baseline ModernGoBaseli
 	if err := AdmitModernGoRatchet(baseline, census, time.Time{}); err != nil {
 		return ModernGoPublishedCensus{}, err
 	}
+	if err := admitModernGoExactExceptions(baseline, census); err != nil {
+		return ModernGoPublishedCensus{}, err
+	}
 	published := ModernGoPublishedCensus{
 		Schema:   modernGoPublishedSchema,
 		Doc:      "Source-bound Go 1.26 guideline closure. Exact sites and owned exception oracles remain in the ratchet authority.",
@@ -112,6 +115,34 @@ func BuildModernGoPublishedCensus(census ModernGoCensus, baseline ModernGoBaseli
 func ValidateModernGoPublishedCensus(published, expected ModernGoPublishedCensus) error {
 	if !reflect.DeepEqual(published, expected) {
 		return fmt.Errorf("published modern-Go census differs from current source, catalog, or exception authority")
+	}
+	return nil
+}
+
+// Closed census publication requires exact exceptions and zero aggregate debt.
+func admitModernGoExactExceptions(baseline ModernGoBaseline, census ModernGoCensus) error {
+	type siteKey struct{ guideline, path, symbol string }
+	counts := map[siteKey]int{}
+	for _, finding := range census.Findings {
+		for _, site := range finding.Candidates {
+			counts[siteKey{finding.ID, site.Path, site.Symbol}]++
+		}
+	}
+	for _, exception := range baseline.Exceptions {
+		key := siteKey{exception.Guideline, exception.Path, exception.Symbol}
+		if counts[key] == 0 || exception.CandidateCeiling != counts[key] {
+			return fmt.Errorf("broad or stale exception %s %s:%s covers %d, exact candidates %d",
+				exception.Guideline, exception.Path, exception.Symbol, exception.CandidateCeiling, counts[key])
+		}
+		delete(counts, key)
+	}
+	if len(counts) != 0 {
+		return fmt.Errorf("modern-Go exceptions leave %d candidate sites uncovered", len(counts))
+	}
+	for _, guideline := range baseline.Guidelines {
+		if guideline.CandidateCeiling != 0 {
+			return fmt.Errorf("guideline %s retains broad aggregate ceiling %d", guideline.ID, guideline.CandidateCeiling)
+		}
 	}
 	return nil
 }

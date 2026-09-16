@@ -73,18 +73,15 @@ func suiteCostRanking(report testevidence.GoTestReport) []suiteTestCost {
 var suiteCostContract = artifact.DocumentContract{
 	Kind:      artifact.KindEvidence,
 	MediaType: "application/vnd.overgo.gate-suite-cost+json",
-	Schema:    "overgo/gate-suite-cost/v1",
+	Schema:    "overgo/gate-suite-cost/v2",
 }
 
 // Retain compact costs in the gate's final atomic batch, including recovery debt.
 // No child spans exist in this stream: subprocess/assertion attribution stays null.
 func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID) error {
 	type invocation struct {
-		StreamDigest string          `json:"stream_digest"`
-		Short        bool            `json:"short"`
-		Failed       bool            `json:"failed"`
-		WallNS       uint64          `json:"wall_ns"`
-		Suites       []suiteTestCost `json:"suites"`
+		packageExecutionBatch
+		Suites []suiteTestCost `json:"suites"`
 	}
 	record := struct {
 		Result      artifact.ID  `json:"result"`
@@ -92,9 +89,7 @@ func (g *gateContext) appendSuiteCost(batch *artifact.Batch, result artifact.ID)
 		Limitations string       `json:"limitations"`
 	}{Result: result, Limitations: "Parent and child elapsed may overlap. Top-level sums are neither package wall nor complete work: parallel children need not appear in parent elapsed. Child-execution and assertion costs are unknown without child spans. Diagnostic observations grant no test or reuse credit."}
 	for _, batch := range g.testExecutions {
-		if len(batch.TestCosts) != 0 {
-			record.Invocations = append(record.Invocations, invocation{batch.StreamDigest, batch.Short, batch.Failed, batch.WallNS, batch.TestCosts})
-		}
+		record.Invocations = append(record.Invocations, invocation{batch, batch.TestCosts})
 	}
 	if len(record.Invocations) == 0 {
 		return nil
@@ -158,4 +153,63 @@ func (graph packageInputGraph) normalizePackageExecutions(batches []packageExecu
 		result[index] = batch
 	}
 	return result
+}
+
+// Project the retained observations; selection and package-pass receipts stay separate.
+func (g *gateContext) packageExecutionAudit() {
+	if g.testPlan == nil {
+		return
+	}
+	type profile struct {
+		name  string
+		short bool
+	}
+	awaiting := map[profile]bool{}
+	for _, group := range []struct {
+		packages        []string
+		short, mayDefer bool
+	}{
+		{g.testPlan.edited, true, false}, {g.testPlan.remaining, true, true}, {g.testPlan.dependent, false, true},
+	} {
+		for _, name := range group.packages {
+			awaiting[profile{name, group.short}] = group.mayDefer
+		}
+	}
+	g.auditMutex.Lock()
+	batches := slices.Clone(g.testExecutions)
+	g.auditMutex.Unlock()
+	started, unstarted := 0, 0
+	outcomes := map[string]int{}
+	for _, batch := range batches {
+		for _, execution := range batch.Executions {
+			if execution.Started {
+				started++
+			} else {
+				unstarted++
+			}
+			outcomes[execution.Action]++
+			delete(awaiting, profile{execution.Package, batch.Short})
+		}
+	}
+	var deferred []string
+	if g.deferLanes && len(awaiting) != 0 {
+		if g.packageGraph == nil {
+			g.note("package execution accounting: deferred classification requires the input graph")
+			return
+		}
+		var candidates []string
+		for profile, mayDefer := range awaiting {
+			if mayDefer {
+				candidates = append(candidates, profile.name)
+			}
+		}
+		var err error
+		deferred, err = g.packageGraph.devicePackages(candidates)
+		if err != nil {
+			g.note("package execution accounting: " + err.Error())
+			return
+		}
+	}
+	g.note(fmt.Sprintf("package test work: %d reused profiles; %d started attempts", g.testPlan.reused, started))
+	g.note(fmt.Sprintf("package observations: passed=%d failed=%d skipped=%d interrupted=%d unstarted=%d; awaiting=%d deferred=%d; observations grant no evidence credit", outcomes["pass"], outcomes["fail"], outcomes["skip"], outcomes[""], unstarted, len(awaiting), len(deferred)))
 }

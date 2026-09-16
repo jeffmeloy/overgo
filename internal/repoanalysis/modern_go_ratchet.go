@@ -97,7 +97,7 @@ func BuildModernGoBaseline(census ModernGoCensus) (ModernGoBaseline, error) {
 }
 
 // LowerModernGoBaseline refreshes census provenance while permitting only
-// lower guideline ceilings. It is the repeatable sweep operation; a caller
+// lower guideline ceilings and exact exception scopes. A caller
 // cannot use it to normalize newly introduced debt into the authority.
 func LowerModernGoBaseline(baseline ModernGoBaseline, census ModernGoCensus) (ModernGoBaseline, error) {
 	if err := AdmitModernGoRatchet(baseline, census, time.Time{}); err != nil {
@@ -108,8 +108,21 @@ func LowerModernGoBaseline(baseline ModernGoBaseline, census ModernGoCensus) (Mo
 		return ModernGoBaseline{}, err
 	}
 	measured.Doc = baseline.Doc
-	measured.Exceptions = slices.Clone(baseline.Exceptions)
-	measured.ExceptionSHA256 = baseline.ExceptionSHA256
+	counts := make(map[string]map[string]int, len(census.Findings))
+	for _, finding := range census.Findings {
+		counts[finding.ID] = modernGoSiteCounts(finding.Candidates)
+	}
+	for _, exception := range baseline.Exceptions {
+		matched := counts[exception.Guideline][exception.Path+"\x00"+exception.Symbol]
+		if matched != 0 {
+			exception.CandidateCeiling = matched
+			measured.Exceptions = append(measured.Exceptions, exception)
+		}
+	}
+	measured.ExceptionSHA256, err = ModernGoExceptionIdentity(measured.Exceptions)
+	if err != nil {
+		return ModernGoBaseline{}, err
+	}
 	for index := range measured.Guidelines {
 		excepted, err := modernGoExceptionCount(baseline.Exceptions, census.Findings[index])
 		if err != nil {

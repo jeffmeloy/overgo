@@ -10,9 +10,7 @@ import (
 	"overgo/internal/codemanifest"
 )
 
-// reductionContract freezes the first expensive-work reduction: the
-// consumer, the assertions it keeps, every invalidator that returns the
-// consumer to the plan, the retained baseline, and the mechanism.
+// reductionContract binds consumers, invalidators, evidence and rollback.
 type reductionContract struct {
 	Consumer     []string
 	Assertions   []string
@@ -22,14 +20,10 @@ type reductionContract struct {
 	Rollback     string
 }
 
-// testingReductionContract is the frozen contract for the device and browser
-// lanes on a change that touches only gate implementation. The retained gate
-// results named under Baseline show both lanes executing for such changes
-// with every owned check unresolved; the shadow matrix and the gate's own
-// selected tests remain the failure detectors for the gate itself.
+// Gate-only edits retain their tests; dependency proofs decide the model lanes.
 func testingReductionContract() reductionContract {
 	return reductionContract{
-		Consumer: []string{"device", automationcheck.WebUICheckName},
+		Consumer: []string{"device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName},
 		Assertions: []string{
 			"a change reaching an owned package of either lane still selects it through the ownership or dependency closure",
 			"a change under a web UI asset path still triggers the browser lane",
@@ -45,22 +39,16 @@ func testingReductionContract() reductionContract {
 			"11b13e106ca8307d4d49ffc2bbf2e242dfed56d4 result evidence:sha256:7d88611f5f9eb94d135fd11a22279c76704529ba39cef7294d990c355350f296: gate-only change, test-device 10m0s and webui-lane 6m38s executed, six owned checks unresolved",
 			"3f1c6750f37a4365bc44ad0d2bd943c1bd24aa49 result evidence:sha256:135665fd8edcbf01700a01085e81e977f38164794e7f391e8a5b62b524e26175: gate and run-record change, test-device and webui-lane executed, six owned checks unresolved",
 		},
-		Mechanism: "the analyzer bootstrap no longer names internal/gate or cmd/gate; a changed document some package names belongs to its named readers instead of raising a non-Go uncertainty, a path join of adjacent literals names the joined path, and the ownership closure decides the lanes",
+		Mechanism: "the analyzer bootstrap excludes gate-only edits; named documents retain their readers; source declaration conversion belongs to cmd/api-manifest so runtime API consumers no longer import the source compiler; dependency closure decides each lane",
 		Rollback:  "restore the two owners to requiresManifestBootstrap and drop the document attribution; every owned check runs again on a gate change",
 	}
 }
 
-// TestTestingReductionContract proves the frozen reduction on the live
-// repository: a change that touches only gate implementation no longer
-// forces the analyzer bootstrap, a lane whose closure holds no Go-parsing
-// reach is excluded through the ownership closure, the gate's own tests
-// stay selected, a named document belongs to its readers, and a change to
-// the check-definition owner still forces every lane back into the plan.
-// The two lanes' own exclusion is measured and recorded, not yet held.
+// All three lanes exclude unrelated gate source; affected contracts stay selected.
 func TestTestingReductionContract(t *testing.T) {
 	t.Parallel()
 	contract := testingReductionContract()
-	if len(contract.Consumer) != 2 || len(contract.Invalidators) < 7 || len(contract.Baseline) != 2 || contract.Mechanism == "" || contract.Rollback == "" {
+	if len(contract.Consumer) != 3 || len(contract.Invalidators) < 7 || len(contract.Baseline) != 2 || contract.Mechanism == "" || contract.Rollback == "" {
 		t.Fatalf("incomplete contract: %+v", contract)
 	}
 	for _, name := range []string{"internal/gate/preflight.go", "cmd/gate/main.go"} {
@@ -88,9 +76,7 @@ func TestTestingReductionContract(t *testing.T) {
 				t.Fatal(err)
 			}
 			wall = time.Since(started)
-			for _, note := range compactAudit(g.audit) {
-				t.Log(note)
-			}
+			t.Logf("planned %d checks with %d exclusions and %d uncertainties", len(planned.invocations), len(planned.impact.Exclusions), len(planned.surface.Unknown))
 		})
 		return planned, wall
 	}
@@ -98,20 +84,15 @@ func TestTestingReductionContract(t *testing.T) {
 	if len(unrelated.structural.Seeds) == 0 {
 		t.Fatal("seeded gate-only plan holds no structural seed")
 	}
-	// Measured 2026-09-14 on the seeded checkout: the device lane reached
-	// the gate only because a projector test parsed Go, which made every
-	// projector test run a source reader of all roots; that rule now lives
-	// in this package and the device lane is excluded by closure. The
-	// browser lane stays triggered through production source readers; its
-	// exclusion is recorded, not held.
+	// Runtime API consumers no longer import the source compiler.
 	for _, name := range contract.Consumer {
 		reason, excluded := unrelated.impact.ExclusionReason(name)
-		t.Logf("gate-only change: %s excluded=%v reason=%s unknown=%v seeds=%v", name, excluded, reason, unrelated.surface.Unknown, unrelated.structural.Seeds)
+		t.Logf("gate-only change: %s excluded=%v reason=%s unknown=%d seeds=%d", name, excluded, reason, len(unrelated.surface.Unknown), len(unrelated.structural.Seeds))
 		if excluded && !strings.Contains(reason, "closure") {
 			t.Fatalf("%s excluded without a closure proof: %s", name, reason)
 		}
-		if name == "device" && !excluded {
-			t.Fatalf("gate-only change reached the device lane: unknown=%v", unrelated.surface.Unknown)
+		if !excluded {
+			t.Fatalf("gate-only change reached %s: unknown=%v", name, unrelated.surface.Unknown)
 		}
 	}
 	if reason, excluded := unrelated.impact.ExclusionReason("sbom"); !excluded || !strings.Contains(reason, "closure") {
@@ -122,13 +103,14 @@ func TestTestingReductionContract(t *testing.T) {
 			t.Fatalf("gate-only change dropped %s", name)
 		}
 	}
-	// Every real commit carries the regenerated gate-owned documents. Their
-	// named readers own the change: no device package names them or
-	// compiles a reader, so the device lane stays excluded, while the
-	// browser census names the API manifest, so the browser lane runs.
+	// Regenerated manifests retain their named readers, including browser census.
 	documented, documentedWall := plan([]string{"internal/gate/preflight.go", "docs/plan.json", "docs/api_manifest.json", "docs/modern_go_census.json"})
 	reason, excluded := documented.impact.ExclusionReason("device")
-	t.Logf("gate change with documents: device excluded=%v reason=%s unknown=%v", excluded, reason, documented.surface.Unknown)
+	t.Logf("gate change with documents: device excluded=%v reason=%s unknown=%d", excluded, reason, len(documented.surface.Unknown))
+	for _, name := range []string{automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
+		reason, excluded := documented.impact.ExclusionReason(name)
+		t.Logf("gate change with documents: %s excluded=%v reason=%s", name, excluded, reason)
+	}
 	if _, excluded := documented.impact.ExclusionReason(automationcheck.WebUICheckName); excluded || !hasInvocation(documented, automationcheck.WebUICheckName) {
 		t.Fatal("the browser lane, whose census names the API manifest, was excluded for a manifest change")
 	}
@@ -138,6 +120,12 @@ func TestTestingReductionContract(t *testing.T) {
 		}
 	}
 	t.Logf("gate change with documents: browser retained, in %s", documentedWall)
+	admission, _ := plan([]string{"internal/apimanifest/admission.go"})
+	for _, name := range contract.Consumer[1:] {
+		if _, excluded := admission.impact.ExclusionReason(name); excluded || !hasInvocation(admission, name) {
+			t.Fatalf("API admission change excluded %s", name)
+		}
+	}
 	relevant, relevantWall := plan([]string{"internal/automationcheck/check.go"})
 	for _, name := range contract.Consumer {
 		if _, excluded := relevant.impact.ExclusionReason(name); excluded || !hasInvocation(relevant, name) {

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -28,7 +29,7 @@ func Convert() Number { return Number(2) }
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{Context: "windows/amd64", Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
+	selection := gosource.BuildSelection{Context: "windows/amd64", Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
 	_, edges, _, err := ProductionConsumerGraph(snapshot, selection)
 	if err != nil {
 		t.Fatal(err)

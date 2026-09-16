@@ -3,6 +3,7 @@ package codeprofile
 import (
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -32,7 +33,7 @@ func UseVariant() { Variant() }
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64",
 		Files: map[string]bool{
 			"cmd/tool/main.go": true, "internal/api/api.go": true, "internal/api/generated.go": true,

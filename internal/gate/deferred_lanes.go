@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/atomicfile"
 	"overgo/internal/authoritylock"
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
@@ -51,6 +52,22 @@ func (g *gateContext) laneDeferral() map[string]bool {
 		deferred[name] = true
 	}
 	return deferred
+}
+
+// Owed checks survive a new diff, both in the runner and in an inline retry.
+func (g *gateContext) retainLaneObligations(impact automationcheck.Impact, definitions []automationcheck.Check) (automationcheck.Impact, error) {
+	if g.laneDebt == nil {
+		return impact, nil
+	}
+	for _, name := range g.laneDebt.Checks {
+		if !slices.Contains(deferredLaneChecks, name) || !slices.ContainsFunc(definitions, func(check automationcheck.Check) bool { return check.Descriptor.Name == name }) {
+			return automationcheck.Impact{}, fmt.Errorf("gate: required lane %q has no current implementation", name)
+		}
+	}
+	impact.Exclusions = slices.DeleteFunc(slices.Clone(impact.Exclusions), func(exclusion automationcheck.Exclusion) bool {
+		return slices.Contains(g.laneDebt.Checks, exclusion.Check)
+	})
+	return impact, nil
 }
 
 // rewireDeferredLanes lets the commit follow the host tests alone when the
@@ -150,6 +167,10 @@ func (g *gateContext) spawnLaneRunner(storePath string) error {
 	if err != nil {
 		return err
 	}
+	executable, err = laneExecutable(g.repo, executable)
+	if err != nil {
+		return fmt.Errorf("gate: retain lane executable: %w", err)
+	}
 	log, err := os.OpenFile(filepath.Join(g.repo, filepath.FromSlash(gateLanesLogFile)), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, clioptions.OutputFileMode)
 	if err != nil {
 		return err
@@ -171,6 +192,34 @@ func (g *gateContext) spawnLaneRunner(storePath string) error {
 	fmt.Printf("gate: lanes deferred: %s run on %.12s as pid %d; log %s; the next gate waits for them\n",
 		strings.Join(g.laneObligation.Checks, ","), g.laneObligation.CodeCommit, pid, gateLanesLogFile)
 	return nil
+}
+
+// laneExecutable retains the running image outside go run's temporary tree.
+// Admission serializes lane obligations; one file replaces per-run snapshots.
+func laneExecutable(repo, executable string) (string, error) {
+	source, err := os.Stat(executable)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(repo, "bin", "gate-lanes"+filepath.Ext(executable))
+	if target, err := os.Stat(path); err == nil {
+		if os.SameFile(source, target) {
+			return path, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	data, err := os.ReadFile(executable)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), clioptions.OutputDirectoryMode); err != nil {
+		return "", err
+	}
+	if err := atomicfile.Write(path, data, source.Mode().Perm()); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // runDeferredLanes is `gate -lanes`: it takes the store's open obligation,
@@ -226,9 +275,6 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	}
 	g.fixedTree = strings.TrimSpace(tree)
 	outcome, failure, steps, runErr := g.executeDeferredLanes(running)
-	if runErr != nil && len(steps) == 0 {
-		return runErr
-	}
 	recipeID, err := g.gateRecipeID()
 	if err != nil {
 		return err
@@ -292,6 +338,8 @@ func (g *gateContext) resumeLaneObligation(current runrecord.GateLaneObligation)
 // obligation's lanes with every other check satisfied by the gate that
 // deferred them.
 func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligation) (runrecord.Outcome, string, []runrecord.GateStep, error) {
+	started := time.Now()
+	g.laneDebt = &obligation
 	var steps []runrecord.GateStep
 	outcome, failure := runrecord.OutcomeSucceeded, ""
 	err := g.withCandidateWorktree(g.fixedTree, func(string) error {
@@ -300,11 +348,12 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 			return err
 		}
 		g.manifestPlan = planned.manifest
+		if planned.manifest == nil {
+			return errors.New("gate: deferred lanes lack source-bound verification authority")
+		}
 		wanted := map[string]bool{testPlanCheckName: true}
 		for _, name := range obligation.Checks {
-			if _, excluded := planned.impact.ExclusionReason(name); !excluded {
-				wanted[name] = true
-			}
+			wanted[name] = true
 		}
 		satisfied := map[string]bool{}
 		var checks []automationcheck.Invocation
@@ -319,10 +368,8 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 			if err != nil {
 				return err
 			}
-			if planned.manifest != nil {
-				if check, err = g.bindCheckExecution(*planned.manifest, check, input); err != nil {
-					return err
-				}
+			if check, err = g.bindCheckExecution(*planned.manifest, check, input); err != nil {
+				return err
 			}
 			inputs[check.ID] = input
 			checks = append(checks, check)
@@ -343,8 +390,16 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 				outcome, failure = runrecord.OutcomeFailed, name
 			}
 		}
-		return checkFailures(results)
+		if err := checkFailures(results); err != nil {
+			return err
+		}
+		return validateManifestCommitAdmission(*planned.manifest, g.terminal, satisfied)
 	})
+	if err != nil && failure == "" {
+		outcome, failure = runrecord.OutcomeFailed, "lane-resolution"
+		steps = append(steps, gateEvidenceRecord(failure, runrecord.PhaseValidate,
+			automationcheck.Evidence{DurationNS: uint64(time.Since(started))}, err, ""))
+	}
 	return outcome, failure, steps, err
 }
 

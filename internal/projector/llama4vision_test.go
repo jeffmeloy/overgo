@@ -10,24 +10,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/gguf"
 	"overgo/internal/tensor"
-	"overgo/internal/tokenizer"
 )
-
-type llama4PromptTokenizer struct{}
-
-func (llama4PromptTokenizer) TokenizeText(text string, _, _ bool) ([]tokenizer.TokenID, error) {
-	const placeholder = "\x00"
-	text = strings.ReplaceAll(text, Llama4ImagePad, placeholder)
-	ids := make([]tokenizer.TokenID, 0, len(text))
-	for _, value := range text {
-		if value == 0 {
-			ids = append(ids, 9090)
-		} else {
-			ids = append(ids, tokenizer.TokenID(value))
-		}
-	}
-	return ids, nil
-}
 
 func TestLlama4VisionRunnerTinyFixture(t *testing.T) {
 	runner, err := openImageProjectorAs[*Llama4VisionRunner](writeTinyLlama4Vision(t, tinyLlama4VisionTensors()), OpenOptions{})
@@ -90,7 +73,7 @@ func TestLlama4MultipleImagePrompt(t *testing.T) {
 	}
 	defer runner.Close()
 	prompt, err := testSession(t, runner).BuildImagesPrompt(
-		t.Context(), llama4PromptTokenizer{},
+		t.Context(), imagePromptTokenizer{marker: Llama4ImagePad, token: 9090},
 		[]image.Image{image.NewRGBA(image.Rect(0, 0, 4, 4)), image.NewRGBA(image.Rect(0, 0, 8, 4))},
 		[]string{"first ", " then ", " question"}, PromptOptions{},
 	)
@@ -129,16 +112,7 @@ func TestLlama4CatalogRejectsIncompletePreNorm(t *testing.T) {
 func TestLlama4VisionCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := writeTinyLlama4Vision(t, nonzeroTinyLlama4VisionTensors())
-	cpu, err := openImageProjectorAs[*Llama4VisionRunner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Llama4VisionRunner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*Llama4VisionRunner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 8, 4))
 	for y := range 4 {
 		for x := range 8 {

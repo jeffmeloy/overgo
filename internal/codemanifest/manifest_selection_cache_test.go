@@ -1,8 +1,10 @@
 package codemanifest
 
 import (
-	"overgo/internal/repoanalysis"
 	"testing"
+
+	"overgo/internal/gosource"
+	"overgo/internal/repoanalysis"
 )
 
 func TestChangedCompilerSelectionInvalidatesCache(t *testing.T) {
@@ -13,21 +15,21 @@ func TestChangedCompilerSelectionInvalidatesCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
+	selection := gosource.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
 	cache, err := NewCache(2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	before, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil || reused || len(before.Symbols) != 1 {
 		t.Fatalf("baseline: %v reused=%t symbols=%d", err, reused, len(before.Symbols))
 	}
 	selection.Files[name] = false
-	want, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	want, err := Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	after, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,23 +38,23 @@ func TestChangedCompilerSelectionInvalidatesCache(t *testing.T) {
 	}
 	selection.Files[name] = true
 	inputs := []ExternalInput{{Path: "README.md", ContentID: fixtureDigest, Kind: "repository-file", Owner: "."}}
-	first, _, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, inputs)
+	first, _, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, inputs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	inputs[0].ContentID = "1123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	rebound, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, inputs)
+	rebound, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, inputs)
 	if err != nil || reused || first.ID == rebound.ID {
 		t.Fatalf("external rebind: %v reused=%t identity=%s", err, reused, rebound.ID)
 	}
-	fresh, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, inputs)
+	fresh, err := Generate(snapshot, []gosource.BuildSelection{selection}, inputs)
 	if err != nil || fresh.ID != rebound.ID {
 		t.Fatalf("rebound manifest differs from fresh analysis: %v", err)
 	}
 	if first.ExternalInputs[0].ContentID != fixtureDigest {
 		t.Fatal("rebind mutated the retained manifest")
 	}
-	again, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, inputs)
+	again, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, inputs)
 	if err != nil || !reused || again.ID != rebound.ID {
 		t.Fatalf("exact reuse: %v reused=%t", err, reused)
 	}
@@ -69,11 +71,11 @@ func TestChangedCompilerSelectionInvalidatesCache(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil); err != nil || reused {
+		if _, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil); err != nil || reused {
 			t.Fatalf("first dependency: %v reused=%t", err, reused)
 		}
 		writeGeneratorFixture(t, root, "dependency/value.go", "package renamed\nfunc Value() int { return 1 }\n")
-		if _, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil); err != nil || reused {
+		if _, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil); err != nil || reused {
 			t.Fatalf("changed dependency name: %v reused=%t", err, reused)
 		}
 	})

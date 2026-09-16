@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -95,7 +96,7 @@ type referenceCaller struct {
 // ProductionConsumerCensus classifies declarations in changed production
 // files using the repository's parsed syntax and go-list build selection.
 // A nil changed set includes every production declaration.
-func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
+func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, changed map[string]bool) ([]ConsumerDeclaration, ConsumerSummary, error) {
 	index, err := productionConsumerIndex(snapshot, selection, changed)
 	if err != nil {
 		return nil, ConsumerSummary{}, err
@@ -105,7 +106,7 @@ func ProductionConsumerCensus(snapshot repoanalysis.SourceSnapshot, selection re
 
 // ProductionConsumerGraph returns the complete declarations and resolved
 // edges from the existing production consumer index.
-func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection) ([]ConsumerDeclaration, []ConsumerReference, ConsumerSummary, error) {
+func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection) ([]ConsumerDeclaration, []ConsumerReference, ConsumerSummary, error) {
 	index, err := productionConsumerIndex(snapshot, selection, nil)
 	if err != nil {
 		return nil, nil, ConsumerSummary{}, err
@@ -138,7 +139,7 @@ func ProductionConsumerGraph(snapshot repoanalysis.SourceSnapshot, selection rep
 	return index.declarations, references, summarizeConsumers(index.declarations), nil
 }
 
-func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection repoanalysis.BuildSelection, changed map[string]bool) (consumerIndex, error) {
+func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, changed map[string]bool) (consumerIndex, error) {
 	index := consumerIndex{
 		keys: map[string][]int{}, methods: map[string][]int{}, objects: map[*ast.Object]int{},
 		definitions: map[*ast.Ident]int{}, reverse: map[int]map[int]map[referenceSite]bool{},
@@ -152,7 +153,7 @@ func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection rep
 	testImports := map[string]bool{}
 	for _, source := range snapshot.Files {
 		file, _ := source.Syntax()
-		ast.Inspect(file, func(node ast.Node) bool {
+		for node := range ast.Preorder(file) {
 			if value, ok := node.(*ast.InterfaceType); ok && value.Methods != nil {
 				for _, field := range value.Methods.List {
 					for _, name := range field.Names {
@@ -160,8 +161,7 @@ func productionConsumerIndex(snapshot repoanalysis.SourceSnapshot, selection rep
 					}
 				}
 			}
-			return true
-		})
+		}
 		importer := packagePath(source, file, selection)
 		for _, imported := range file.Imports {
 			importPath, err := strconv.Unquote(imported.Path.Value)
@@ -360,13 +360,7 @@ func (c *consumerIndex) references(source repoanalysis.GoFile, file *ast.File, p
 func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node, packagePath string, aliases map[string]string, active bool, caller referenceCaller) {
 	selectorNames := map[*ast.Ident]bool{}
 	invocations := map[ast.Node]bool{}
-	var ancestors []ast.Node
-	ast.Inspect(root, func(node ast.Node) bool {
-		if node == nil {
-			ancestors = ancestors[:len(ancestors)-1]
-			return true
-		}
-		ancestors = append(ancestors, node)
+	ast.PreorderStack(root, nil, func(node ast.Node, ancestors []ast.Node) bool {
 		if selector, ok := node.(*ast.SelectorExpr); ok {
 			selectorNames[selector.Sel] = true
 		}
@@ -383,13 +377,11 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 		}
 		return true
 	})
-	ast.Inspect(root, func(node ast.Node) bool {
+	for node := range ast.Preorder(root) {
 		site := referenceSite{kind: "use"}
-		if node != nil {
-			site.line, site.offset = source.Line(node.Pos()), int(node.Pos())-1
-			if invocations[node] {
-				site.kind = "call"
-			}
+		site.line, site.offset = source.Line(node.Pos()), int(node.Pos())-1
+		if invocations[node] {
+			site.kind = "call"
 		}
 		switch value := node.(type) {
 		case *ast.CallExpr:
@@ -399,7 +391,7 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 			if qualifier, ok := value.X.(*ast.Ident); ok && qualifier.Obj == nil {
 				if imported := aliases[qualifier.Name]; imported != "" {
 					c.count(c.resolve(c.keys[symbolKey(imported, value.Sel.Name)], active), source.Test, true, caller, site)
-					return true
+					continue
 				}
 			}
 			// A selector use is a reference, credited to every same-named
@@ -413,23 +405,22 @@ func (c *consumerIndex) referenceNode(source repoanalysis.GoFile, root ast.Node,
 			c.count(c.resolve(c.methods[value.Sel.Name], active), source.Test, false, caller, site)
 		case *ast.Ident:
 			if _, defined := c.definitions[value]; defined {
-				return true
+				continue
 			}
 			if selectorNames[value] {
-				return true
+				continue
 			}
 			if value.Obj != nil {
 				if index, ok := c.objects[value.Obj]; ok {
 					c.count([]int{index}, source.Test, false, caller, site)
 				}
-				return true
+				continue
 			}
 			if candidates := c.resolve(c.keys[symbolKey(packagePath, value.Name)], active); len(candidates) == 1 {
 				c.count(candidates, source.Test, false, caller, site)
 			}
 		}
-		return true
-	})
+	}
 }
 
 func referenceCallee(expression ast.Expr) ast.Expr {
@@ -528,14 +519,14 @@ func summarizeConsumers(declarations []ConsumerDeclaration) (summary ConsumerSum
 	return summary
 }
 
-func packagePath(source repoanalysis.GoFile, file *ast.File, selection repoanalysis.BuildSelection) string {
+func packagePath(source repoanalysis.GoFile, file *ast.File, selection gosource.BuildSelection) string {
 	if value := selection.Packages[source.Path]; value != "" {
 		return value
 	}
 	return path.Dir(source.Path) + "#" + file.Name.Name
 }
 
-func selected(file string, selection repoanalysis.BuildSelection) bool {
+func selected(file string, selection gosource.BuildSelection) bool {
 	value, known := selection.Files[file]
 	return !known || value
 }

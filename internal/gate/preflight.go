@@ -16,19 +16,6 @@ import (
 	"overgo/internal/planverify"
 )
 
-// preflightChecks selects the pipeline's static checks in pipeline order: the
-// declared requirements admit a check, never its phase. Descriptors are the
-// gate's own, so the planned identities are the gate's.
-func (g *gateContext) preflightChecks() []automationcheck.Check {
-	var checks []automationcheck.Check
-	for _, check := range g.pipelineChecks() {
-		if check.Descriptor.Requirements.Static() {
-			checks = append(checks, check)
-		}
-	}
-	return checks
-}
-
 // Generated authority outputs reported by the existing scope inspection.
 var generatedAuthorityPaths = []string{
 	apiManifestFile, compatibilityManifestFile, compatibilityMatrixFile,

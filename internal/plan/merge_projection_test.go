@@ -575,7 +575,7 @@ func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T
 	if retained.commit != localCompletion || retained.commit == incomingCompletion {
 		t.Fatalf("reconciled authority retained commit %s, want local %s", retained.commit, localCompletion)
 	}
-	if !planHasItem(child, "duplicate") {
+	if _, found := exactPlanItem(child, "duplicate"); !found {
 		t.Fatal("local duplicate item did not remain open")
 	}
 	if _, retired := resolved.retiredItems["duplicate"]; retired {

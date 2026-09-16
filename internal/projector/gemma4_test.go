@@ -122,16 +122,7 @@ func TestGemma4MultipleImagePrompt(t *testing.T) {
 func TestGemma4RunnerTinyFixtureCUDAMatchesCPU(t *testing.T) {
 	cudatest.Require(t)
 	path := testutil.TempGGUF(t, "mmproj.gguf", tinyGemma4Metadata(), tinyGemma4Tensors())
-	cpu, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cpu.Close()
-	cuda, err := openImageProjectorAs[*Gemma4Runner](path, OpenOptions{CUDA: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cuda.Close()
+	cpu, cuda := parityRunners[*Gemma4Runner](t, path, OpenOptions{})
 	input := image.NewRGBA(image.Rect(0, 0, 3, 3))
 	for y := range 3 {
 		for x := range 3 {

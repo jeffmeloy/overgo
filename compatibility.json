@@ -67,9 +67,9 @@
    "summary": "A declared CPU acoustic encoder, post-normalized attention stack and speaker-activity head use shared operations and SpeechLease, with no model-family dispatch. Four waveform cases verify all 156 independently pinned capture files and 148 intermediate traces under the predeclared absolute float32 bound; valid-frame masking is explicit. Three preselected continuous AMI EN2002b windows match C++ turns exactly and retain zero-collar overlap-inclusive speaker-time error, bidirectional nearest-boundary distances and unmatched counts. The partial-window control clips one C++ endpoint to actual audio. Native evaluate repeats fresh inference with exact library scores, retains all failed/scored attempts and preserves annotation-conditioned words with ambiguous/unassigned labels. Cancellation, admission, task, release and reuse refusals execute. Weights are CC-BY-NC-4.0; the model card lists AMI training and manual segment boundaries include pauses. Recorded errors are not a quality gain. No held-out generalization, commercial readiness, cross-recording identity, streaming diarization, HTTP analysis, encoder training, RSS/performance or GPU claim.",
    "evidence": [
     {"path": "internal/speechrecognition/activity.go", "contains": "func LoadSpeakerActivity(", "role": "source", "identity": "file:sha256:334679b6892d0e67cc02454e9b953ee6b7c9d391485818f529081c9a07bd4f30"},
-    {"path": "internal/audioparity/speaker_numerical_test.go", "contains": "func TestSpeakerDiarizationAcceptance(", "role": "artifact", "identity": "evidence:sha256:9571db6d64db94d15c4ebe229c0966a07460cdb3b1ac31e66a3907530c8e90e5"},
+    {"path": "internal/audioparity/speaker_numerical_test.go", "contains": "func TestSpeakerDiarizationAcceptance(", "role": "artifact", "identity": "evidence:sha256:d3408483ee83a8415b290d6407b7a800d1aa65849b9d969a2ae0a4d8c263315a"},
     {"path": "internal/audioparity/testdata/speaker_reference.json", "contains": "CC-BY-NC-4.0", "role": "source", "identity": "file:sha256:53d981c8788cffcc2282b53f6a261809500dc3ce249acd35ce40732283f42284"},
-    {"path": "internal/audioparity/speaker_session_test.go", "contains": "verifySpeakerCommand(", "role": "source", "identity": "file:sha256:f2a1d1a5be5208a0358012a24c214d94d98787e1cd2821d44c049642777aa3ec"},
+    {"path": "internal/audioparity/speaker_session_test.go", "contains": "verifySpeakerCommand(", "role": "source", "identity": "file:sha256:7d3576d4b996a37202dc9778055ec9d8494537835ac6563f199e18151db38f8e"},
     {"path": "internal/speechrecognition/speaker_boundary_test.go", "contains": "func TestSpeakerBoundaryIndependentOracle(", "role": "source", "identity": "file:sha256:5cab97b61d546c721ff0032f4a27ce7c25aead54d162bc4e5a0838bb081211cb"},
     {"path": "internal/speechrecognition/attribution_test.go", "contains": "func TestSpeakerWordAttributionPreservesAlignment(", "role": "source", "identity": "file:sha256:3556be5c475a8fbcda893bcb48f66c3a2aaddb743fa3156c217bfe63a65b9cc3"}
    ]
@@ -93,7 +93,7 @@
      "path": "internal/audioparity/alignment_acceptance_test.go",
      "contains": "func TestSpeechAlignmentAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:416fd41d304c5105078953f5c4a1b7b0b12921e2f642254ccf47209b83d2ae54"
+     "identity": "evidence:sha256:7a2e10dc425a91b3c61401a76fe7b366efde505098ce8ac4250e812984bde12f"
     },
     {
      "path": "internal/audioparity/testdata/ami_alignment.json",
@@ -575,7 +575,7 @@
      "contains": "func TestMultimodalTrainingMatrix(",
      "path": "internal/adaptiveparity/multimodal_training_cuda_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ada2b086d779301688d607807192ac3ecee2ea0c35ac617e611dde1ec4de7566"
+     "identity": "evidence:sha256:1b584ea136140870085554022c34997ae498175211f8a2faf3dbe507f9332bfb"
     }
    ],
    "id": "repodb-multimodal-training-objective-matrix",

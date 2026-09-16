@@ -1,27 +1,13 @@
 package repoanalysis
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 // liveFixedTimerCensus takes the census over the repository's own tree.
 func liveFixedTimerCensus(t *testing.T) []FixedTimer {
-	t.Helper()
-	repository, err := filepath.Abs(filepath.Join("..", ".."))
-	if err != nil {
-		t.Fatal(err)
-	}
-	live, err := DiscoverGo(repository, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	census, err := FixedTimerCensus(live)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return census
+	return liveRepositoryCensus(t, FixedTimerCensus)
 }
 
 // TestFixedTimersRetiredFromProduction holds the production tree free of

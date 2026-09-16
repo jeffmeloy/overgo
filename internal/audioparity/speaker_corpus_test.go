@@ -1,7 +1,6 @@
 package audioparity
 
 import (
-	"archive/zip"
 	"cmp"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/media"
 	"overgo/internal/recipecontract"
-	"overgo/internal/testutil"
 )
 
 type speakerSegment struct {
@@ -26,19 +24,21 @@ type speakerClip struct {
 	Segments     []speakerSegment
 }
 type speakerCorpus struct {
+	Source struct {
+		SHA256 string
+		Bytes  uint64
+	}
+	path              string
 	SourceSamples     uint64
 	Scanned, Selected int
 	Clips             []speakerClip
 }
 
-func verifySpeakerCorpus(t *testing.T, root string, publication *audioPublication) (speakerCorpus, alignmentFixture) {
+func verifySpeakerCorpus(t *testing.T, corpus speakerCorpus, publication *audioPublication) (speakerCorpus, alignmentFixture) {
 	t.Helper()
-	var corpus speakerCorpus
-	readAudioFixtureJSON(t, "testdata/speaker_corpus.json", &corpus)
-	waveID := alignmentFileID(t, "50e2c8e4737850c4bf3cc24e7087c755e1c733cd91822106afd0df485ba64893")
-	path := filepath.Join(root, "EN2002b.Mix-Headset.wav")
-	verifyASRFile(t, path, waveID, 57179180)
-	data, err := os.ReadFile(path)
+	root := filepath.Dir(corpus.path)
+	waveID := alignmentFileID(t, corpus.Source.SHA256)
+	data, err := os.ReadFile(corpus.path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,16 +49,9 @@ func verifySpeakerCorpus(t *testing.T, root string, publication *audioPublicatio
 	if audio.Format.SampleRate != 16000 || audio.Format.Channels != 1 || uint64(len(audio.Samples)) != corpus.SourceSamples {
 		t.Fatal("continuous source geometry differs")
 	}
-	archivePath := cmp.Or(os.Getenv("OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS"), filepath.Join(testutil.RepoRoot(t), "tmp", "ami_public_manual_1.6.2.zip"))
-	archiveID := alignmentFileID(t, "b56e5babb2496b8795deeeda7e71178d7fbc9963f94276cf2a3f4b56ebbc9f9d")
-	verifyASRFile(t, archivePath, archiveID, 22887865)
-	archive, err := zip.OpenReader(archivePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { archive.Close() })
-	annotations := alignmentFixture{archive: archive, AnnotationBytes: 22887865}
-	publication.commit(t, artifact.Batch{Key: "speaker/corpus-authorities", Artifacts: []artifact.Descriptor{{ID: waveID, Size: 57179180}, {ID: archiveID, Size: annotations.AnnotationBytes}}}, nil)
+	annotations := loadAlignmentAnnotations(t)
+	archiveID := alignmentFileID(t, annotations.AnnotationSHA256)
+	publication.commit(t, artifact.Batch{Key: "speaker/corpus-authorities", Artifacts: []artifact.Descriptor{{ID: waveID, Size: corpus.Source.Bytes}, {ID: archiveID, Size: annotations.AnnotationBytes}}}, nil)
 	var segments []speakerSegment
 	for i, hash := range []string{
 		"a7a3a786c0fa1f3d0f68eddfb84d3b1d9058b0a4d22d181085f62ef0ac094902",
@@ -162,4 +155,12 @@ func speakerConditioningWords(t *testing.T, annotations alignmentFixture, clip s
 		t.Fatal("conditioning word denominator absent")
 	}
 	return words
+}
+
+func loadSpeakerCorpus(t *testing.T) speakerCorpus {
+	t.Helper()
+	var corpus speakerCorpus
+	readAudioFixtureJSON(t, "testdata/speaker_corpus.json", &corpus)
+	corpus.path = retainedAudioFile(t, corpus.Source.SHA256, corpus.Source.Bytes)
+	return corpus
 }

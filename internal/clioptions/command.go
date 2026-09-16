@@ -61,11 +61,6 @@ func Tail(text string, limit int) string {
 	return "..." + text[len(text)-limit:]
 }
 
-// CombinedOutput runs one command with an explicit environment.
-func CombinedOutput(env []string, name string, args ...string) (string, error) {
-	return CombinedOutputIn("", env, name, args...)
-}
-
 // CombinedOutputIn runs one command from an explicit working directory.
 func CombinedOutputIn(directory string, env []string, name string, args ...string) (string, error) {
 	command := exec.Command(name, args...)

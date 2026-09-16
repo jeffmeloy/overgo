@@ -244,6 +244,10 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	if automationcheck.ModelJourneyPaths(g.paths) {
 		impact = impact.Trigger(automationcheck.ModelJourneyImpact, automationcheck.ModelJourneyCheckName)
 	}
+	impact, err = g.retainLaneObligations(impact, definitions)
+	if err != nil {
+		return plannedPipeline{}, err
+	}
 	g.selection = automationcheck.MeasureSelection(definitions, impact)
 	g.selectionID = surface.Identity
 	// Every owned check's decision is on the record: the closure proof that

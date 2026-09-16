@@ -16,6 +16,45 @@ import (
 	"overgo/internal/testutil"
 )
 
+// Publication leaves no source delta, but cannot retire admitted work.
+func TestDeferredLaneSelectionSurvivesPublication(t *testing.T) {
+	liveRepositoryFixture(t).plan(t, nil, func(g *gateContext) {
+		initial, err := g.planPipeline()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, excluded := initial.impact.ExclusionReason(automationcheck.WebUICheckName); !excluded {
+			t.Fatal("unchanged candidate did not reproduce the post-publication exclusion")
+		}
+		g.laneDebt = &runrecord.GateLaneObligation{Checks: slices.Clone(deferredLaneChecks)}
+		resumed, err := g.planPipeline()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range g.laneDebt.Checks {
+			if !slices.ContainsFunc(resumed.invocations, func(check automationcheck.Invocation) bool { return check.Check.Name == name }) {
+				t.Errorf("publication discarded required check %s", name)
+			}
+		}
+	})
+}
+
+func TestDeferredLaneResolutionFailurePersists(t *testing.T) {
+	t.Parallel()
+	g := &gateContext{}
+	outcome, failure, steps, err := g.executeDeferredLanes(runrecord.GateLaneObligation{Checks: deferredLaneChecks})
+	if err == nil || outcome != runrecord.OutcomeFailed || failure == "" || len(steps) != 1 || steps[0].Outcome != runrecord.StepFailed {
+		t.Fatalf("resolution failure lost: outcome=%s failure=%q steps=%v err=%v", outcome, failure, steps, err)
+	}
+	if _, err := runrecord.NewGateRecord(
+		testutil.ArtifactID(t, artifact.KindRecipe, "lane failure recipe"),
+		testutil.ArtifactID(t, artifact.KindEvidence, "lane failure environment"),
+		strings.Repeat("c", 40), outcome, failure, steps[0].DurationNS, steps,
+	); err != nil {
+		t.Fatalf("failure cannot be retained: %v", err)
+	}
+}
+
 // TestDeferredLaneObligations holds the mechanism that lets a commit land
 // before its lanes: the rewired graph makes the commit follow the host tests
 // alone and lists the three lanes as deferred; a DAG run with refusing lane
@@ -36,6 +75,20 @@ func TestDeferredLaneObligations(t *testing.T) {
 	}
 	compiler := scopeCompilerFixture(t)
 	declared := compiler.pipelineChecks()
+	original := automationcheck.Impact{Exclusions: []automationcheck.Exclusion{
+		{Check: automationcheck.WebUICheckName, Reason: "current diff has no browser changes"},
+		{Check: "device", Reason: "current diff has no device changes"},
+	}}
+	compiler.laneDebt = &runrecord.GateLaneObligation{Checks: []string{automationcheck.WebUICheckName}}
+	retained, err := compiler.retainLaneObligations(original, declared)
+	if err != nil || len(retained.Exclusions) != 1 || retained.Exclusions[0].Check != "device" || len(original.Exclusions) != 2 {
+		t.Fatalf("owed browser or independent exclusion lost: retained=%v original=%v err=%v", retained, original, err)
+	}
+	compiler.laneDebt.Checks = []string{"retired-lane"}
+	if _, err := compiler.retainLaneObligations(original, declared); err == nil {
+		t.Fatal("unknown owed lane admitted")
+	}
+	compiler.laneDebt = nil
 	if !slices.Contains(dependencies(declared, "commit"), "device") || !slices.Contains(dependencies(declared, "commit"), automationcheck.WebUICheckName) {
 		t.Fatalf("declared commit dependencies = %v", dependencies(declared, "commit"))
 	}

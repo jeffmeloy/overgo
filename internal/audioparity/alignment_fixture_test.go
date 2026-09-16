@@ -3,13 +3,10 @@ package audioparity
 import (
 	"archive/zip"
 	"bytes"
-	"cmp"
-	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"io"
 	"math/big"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -53,16 +50,9 @@ type alignmentFixture struct {
 	archive *zip.ReadCloser
 }
 
-func loadAlignmentFixture(t *testing.T, root, storeRoot string) alignmentFixture {
+func loadAlignmentFixture(t *testing.T, storeRoot string) alignmentFixture {
 	t.Helper()
-	data, err := os.ReadFile("testdata/ami_alignment.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var f alignmentFixture
-	if err := json.Unmarshal(data, &f); err != nil {
-		t.Fatal(err)
-	}
+	f := loadAlignmentAnnotations(t)
 	reference, err := overgodb.OpenReadOnly(storeRoot)
 	if err != nil {
 		t.Fatal(err)
@@ -74,13 +64,6 @@ func loadAlignmentFixture(t *testing.T, root, storeRoot string) alignmentFixture
 	}
 	f.path = filepath.Join(directory, filepath.FromSlash(f.Shard))
 	verifyASRFile(t, f.path, alignmentFileID(t, f.ShardSHA256), f.ShardBytes)
-	archive := cmp.Or(os.Getenv("OVERGO_AUDIO_ALIGNMENT_ANNOTATIONS"), filepath.Join(root, "tmp", f.AnnotationArchive))
-	verifyASRFile(t, archive, alignmentFileID(t, f.AnnotationSHA256), f.AnnotationBytes)
-	f.archive, err = zip.OpenReader(archive)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { f.archive.Close() })
 	// Metadata and audio use the existing bounded physical-row reader.
 	metadata, err := dataset.OpenParquetRows(t.Context(), f.path, []string{"meeting_id", "audio_id", "text", "speaker_id"}, adapterAcceptanceMemory)
 	if err != nil {
@@ -280,4 +263,18 @@ func (f alignmentFixture) referenceWords(t *testing.T, test alignmentCase, rate 
 		t.Fatalf("annotation text differs: %q != %q", strings.Join(text, " "), want)
 	}
 	return words
+}
+
+func loadAlignmentAnnotations(t *testing.T) alignmentFixture {
+	t.Helper()
+	var fixture alignmentFixture
+	readAudioFixtureJSON(t, "testdata/ami_alignment.json", &fixture)
+	path := retainedAudioFile(t, fixture.AnnotationSHA256, fixture.AnnotationBytes)
+	archive, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { archive.Close() })
+	fixture.archive = archive
+	return fixture
 }

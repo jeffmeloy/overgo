@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-audio-fixtures",
-      "title": "Resolve retained audio fixtures and retire duplicate skip controls",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bind existing audio fixtures through their declared authority",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestSkipConstantReach$' -short -count=1",
-          "rationale": "Retained from surface-test-inputs/do, not completed by moving source-policy tests. Only two current callers remain: TestSpeechAlignmentAcceptance and TestSpeakerDiarizationAcceptance. Both short-mode exclusions and StoreAcceptanceEnv currently suppress them; the latter still names a removed foreign row. Resolve fixture locations through existing artifact/data-root owners, bind effective inputs into evidence identity, then remove redundant opt-in controls. C:/Users/jeffm/overgo_audiocpp/tmp contains the annotation archive and speaker-reference assets:156 captures exist with declared sizes, but hashes and execution still need validation. Reuse originals without bulk copies or foreign code/store mutation. Candidate worktrees must resolve the same inputs without ignored tmp snapshots or unbound environment overrides. Find or construct every required missing asset. Bind actual owning-package numerical, corpus, command and relocation assertions before closure; TestSkipConstantReach is a retained lower bound only. All 156 retained capture files have now matched the committed SHA-256 and byte-count declarations (53,980,528 bytes); model/archive identities and acceptance execution remain outstanding. Model weights/config/processor/license, the continuous WAV and the annotation archive now also match committed hashes and byte counts; location binding and real acceptance remain outstanding."
-        }
-      ]
-    },
-    {
       "id": "surface-measured-outcome",
       "title": "Prove reduced surface and repeated verification cost",
       "owner": "surface-area-reduction",

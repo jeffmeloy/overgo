@@ -35,7 +35,8 @@ func verifySpeakerModel(t *testing.T, modelRoot string) {
 	}
 }
 
-func verifySpeakerStoredSession(t *testing.T, root string) {
+func verifySpeakerStoredSession(t *testing.T, corpus speakerCorpus) {
+	root := filepath.Dir(corpus.path)
 	modelRoot := filepath.Join(root, "model")
 	verifySpeakerModel(t, modelRoot)
 	sourceDirectory, commit := snapshotAudioSource(t)
@@ -96,7 +97,7 @@ func verifySpeakerStoredSession(t *testing.T, root string) {
 		t.Fatal(err)
 	}
 	defer session.Close(t.Context())
-	corpus, annotations := verifySpeakerCorpus(t, root, &publication)
+	corpus, annotations := verifySpeakerCorpus(t, corpus, &publication)
 	var oracle []struct {
 		File  string
 		Turns []recipecontract.SpeechTurn

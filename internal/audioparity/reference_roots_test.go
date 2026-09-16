@@ -8,8 +8,10 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/gosource"
+	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
 
@@ -63,4 +65,25 @@ func resolveReferenceRoots(t *testing.T) referenceRoots {
 func librispeechPath(t *testing.T, elements ...string) string {
 	t.Helper()
 	return filepath.Join(append([]string{resolveReferenceRoots(t).datasets, "librispeech_asr-clean-xet"}, elements...)...)
+}
+
+// Resolve retained content independently of the checkout and verify its identity.
+func retainedAudioFile(t *testing.T, digest string, size uint64) string {
+	t.Helper()
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(roots.Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id := alignmentFileID(t, digest)
+	path, err := artifact.AvailablePath(t.Context(), store, id, artifact.LocationFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifyASRFile(t, path, id, size)
+	return path
 }

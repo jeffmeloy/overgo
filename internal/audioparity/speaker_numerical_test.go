@@ -1,7 +1,6 @@
 package audioparity
 
 import (
-	"cmp"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -18,7 +17,6 @@ import (
 	"overgo/internal/safetensors"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/testskip"
-	"overgo/internal/testutil"
 )
 
 func TestSpeakerDiarizationAcceptance(t *testing.T) {
@@ -26,12 +24,10 @@ func TestSpeakerDiarizationAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": pinned real speaker model, independent traces and continuous annotated speech")
 	}
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
-	root := cmp.Or(os.Getenv("OVERGO_AUDIO_SPEAKER_REFERENCE"), filepath.Join(testutil.RepoRoot(t), "tmp", "speaker-reference"))
+	corpus := loadSpeakerCorpus(t)
+	root := filepath.Dir(corpus.path)
 	t.Run("numerical", func(t *testing.T) { verifySpeakerNumerical(t, root) })
-	t.Run("stored_and_command", func(t *testing.T) { verifySpeakerStoredSession(t, root) })
+	t.Run("stored_and_command", func(t *testing.T) { verifySpeakerStoredSession(t, corpus) })
 }
 
 type speakerCaptureFile struct {

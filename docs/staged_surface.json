@@ -149,14 +149,14 @@
     {
       "package": "overgo/internal/testskip",
       "name": "StoreAcceptance",
-      "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
-      "retire_with": "surface-test-inputs/do"
+      "reason": "Two audio acceptance tests retain this opt-in until the local fixture row binds their required assets and retires the redundant control.",
+      "retire_with": "surface-audio-fixtures/do"
     },
     {
       "package": "overgo/internal/testskip",
       "name": "StoreAcceptanceEnv",
-      "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
-      "retire_with": "surface-test-inputs/do"
+      "reason": "Two audio acceptance tests retain this opt-in until the local fixture row binds their required assets and retires the redundant control.",
+      "retire_with": "surface-audio-fixtures/do"
     }
   ]
 }

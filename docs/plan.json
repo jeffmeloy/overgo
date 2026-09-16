@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-gate-fixtures",
-      "title": "Consolidate expensive candidate-repository setup",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Consolidate expensive candidate-repository setup",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestTestingReductionContract|TestDocumentationBoundaryAcceptance|TestLiveTreeScanRatchet|TestRuntimeInputsPropagateThroughCallers)$' -short -count=1",
-          "rationale": "Reconcile the landed shared discovery and lazy manifest population before further setup work. Preserve cache keys and fixture isolation. Remaining defect: seed currently installs its restoration callback only after all writes succeed; a later seed error can leave earlier writes behind. The existing outer defer releases the lock, so do not claim an unreleased-lock bug. Register restoration before the first mutation, attempt every restoration, and keep restoration inside the lock. Preserve failure, contamination and skipped-test evidence. Consolidate only measured residual setup costs; delete displaced wrappers and report net harness changes. Retained099fa112 costs also show repeated live-repository modern-Go census construction in repoanalysis: the same census is rebuilt for five exception/closure assertions, about9-30s each. Trace mutations and independent-oracle requirements before sharing immutable setup. Keep time-sensitive admission fresh and deterministic/reordered/mutated census comparisons independent. Rank this measurable repeated analysis against speculative new caches; prefer one existing test fixture and delete redundant setup. Gate package wall remained200s atffc8f9f4; parallel test elapsed includes mutex wait, so do not add individual elapsed values as wall savings.",
-          "depends_on": [
-            "surface-test-inputs/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "surface-common-implementations",
       "title": "Consolidate the highest-cost equivalent implementation paths",
       "owner": "surface-area-reduction",

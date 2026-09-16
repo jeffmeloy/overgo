@@ -8,6 +8,7 @@ import (
 
 // Source provenance must retain producers without importing every analyzer's reads.
 func TestAudioProducerInputBoundary(t *testing.T) {
+	t.Parallel()
 	liveRepositoryFixture(t).use(t, func(g *gateContext) {
 		graph, err := g.inputGraph()
 		if err != nil {

@@ -2,6 +2,7 @@ package repoanalysis
 
 import (
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -73,10 +74,15 @@ func TestModernGoExceptionsHaveRetirementTriggers(t *testing.T) {
 	}
 }
 
+// Each caller reads this census; policy and time-sensitive admission stay fresh.
+var modernGoRepositoryCensus = sync.OnceValues(func() (ModernGoCensus, error) {
+	return BuildModernGoCensus(filepath.Join("..", ".."), ModernGoTargetVersion)
+})
+
 func modernGoRepositoryExceptionAuthority(t *testing.T) (ModernGoCensus, ModernGoBaseline) {
 	t.Helper()
 	root := filepath.Join("..", "..")
-	census, err := BuildModernGoCensus(root, ModernGoTargetVersion)
+	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
 	}

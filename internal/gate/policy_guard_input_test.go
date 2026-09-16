@@ -8,6 +8,7 @@ import (
 
 // Static policy fixtures belong to their analyzer, not runtime consumer suites.
 func TestPolicyGuardInputBoundary(t *testing.T) {
+	t.Parallel()
 	liveRepositoryFixture(t).use(t, func(g *gateContext) {
 		graph, err := g.inputGraph()
 		if err != nil {

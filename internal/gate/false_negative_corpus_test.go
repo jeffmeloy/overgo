@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -89,7 +90,7 @@ func deriveBoundaryImpact(t *testing.T, baseSource, candidateSource string, sele
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root,
 		Files: map[string]bool{sourcePath: selected}, Packages: map[string]string{sourcePath: "overgo/internal/example"},
 	}
@@ -98,11 +99,11 @@ func deriveBoundaryImpact(t *testing.T, baseSource, candidateSource string, sele
 		baseInputs = []codemanifest.ExternalInput{{Path: "kernels/example.cu", ContentID: boundaryDigest("a"), Kind: "cuda-source", Owner: "internal/cuda"}}
 		candidateInputs = []codemanifest.ExternalInput{{Path: "kernels/example.cu", ContentID: boundaryDigest("b"), Kind: "cuda-source", Owner: "internal/cuda"}}
 	}
-	baseManifest, err := codemanifest.Generate(baseSnapshot, []repoanalysis.BuildSelection{selection}, baseInputs)
+	baseManifest, err := codemanifest.Generate(baseSnapshot, []gosource.BuildSelection{selection}, baseInputs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidateManifest, err := codemanifest.Generate(candidateSnapshot, []repoanalysis.BuildSelection{selection}, candidateInputs)
+	candidateManifest, err := codemanifest.Generate(candidateSnapshot, []gosource.BuildSelection{selection}, candidateInputs)
 	if err != nil {
 		t.Fatal(err)
 	}

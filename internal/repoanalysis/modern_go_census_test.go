@@ -16,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"overgo/internal/gosource"
 )
 
 func TestModernGoCensusCoversApplicableCatalog(t *testing.T) {
@@ -233,7 +235,7 @@ func TestModernGoCensusDiscoveryOrderInvariant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		t.Fatal(err)
 	}

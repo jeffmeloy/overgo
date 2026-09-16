@@ -3,6 +3,7 @@ package codeprofile
 import (
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -37,7 +38,7 @@ func Unknown(dep interface{ Open(string) error }, path string) error { return de
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context:  "windows/amd64",
 		Files:    map[string]bool{dependency: true, consumer: true},
 		Packages: map[string]string{dependency: "example/internal/dependency", consumer: "example/internal/consumer"},

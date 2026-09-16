@@ -1,15 +1,18 @@
-package repoanalysis
+// Package gosource selects and fingerprints producer inputs without AST policy.
+package gosource
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"overgo/internal/processcontrol"
 )
 
 // BuildSelection is the go command's host-context decision for repository Go
@@ -23,6 +26,8 @@ type BuildSelection struct {
 	// It lets AST consumers resolve import aliases without rediscovering module
 	// layout or maintaining package-path tables.
 	Packages map[string]string
+	// Dependencies is the toolchain's transitive import closure per package.
+	Dependencies map[string][]string
 }
 
 // HostBuildSelection derives file membership through the Go toolchain so build
@@ -35,18 +40,19 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	if err != nil {
 		return BuildSelection{}, err
 	}
-	output, err := goListJSON(root, patterns...)
+	output, err := goOutput(root, append([]string{"list", "-e", "-json"}, patterns...)...)
 	if err != nil {
 		return BuildSelection{}, err
 	}
-	selection := BuildSelection{Root: root, Files: map[string]bool{}, Packages: map[string]string{}}
+	selection := BuildSelection{Root: root, Files: map[string]bool{}, Packages: map[string]string{}, Dependencies: map[string][]string{}}
 	if context, err := goOutput(root, "env", "GOOS", "GOARCH"); err == nil {
-		selection.Context = strings.Join(strings.Fields(context), "/")
+		selection.Context = strings.Join(strings.Fields(string(context)), "/")
 	}
 	decoder := json.NewDecoder(bytes.NewReader(output))
 	dependencies := slices.Contains(patterns, "-deps")
 	for {
 		var pkg struct {
+			Deps                                                         []string
 			ImportPath                                                   string
 			Dir                                                          string
 			GoFiles, CgoFiles, TestGoFiles, XTestGoFiles, IgnoredGoFiles []string
@@ -72,6 +78,9 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 			}
 		}
 		groups := [][]string{pkg.GoFiles, pkg.CgoFiles}
+		if relative, err := filepath.Rel(root, pkg.Dir); err == nil && filepath.IsLocal(relative) {
+			selection.Dependencies[pkg.ImportPath] = pkg.Deps
+		}
 		if !dependencies {
 			groups = append(groups, pkg.TestGoFiles, pkg.XTestGoFiles)
 		}
@@ -106,13 +115,6 @@ func HostBuildSelection(root string, patterns ...string) (BuildSelection, error)
 	return selection, nil
 }
 
-func goListJSON(root string, patterns ...string) ([]byte, error) {
-	args := append([]string{"list", "-e", "-json"}, patterns...)
-	command := exec.Command("go", args...)
-	command.Dir = root
-	return command.Output()
-}
-
 func recordBuildFile(root, directory, packagePath, name string, selected bool, selection BuildSelection) error {
 	relative, err := filepath.Rel(root, filepath.Join(directory, name))
 	if err != nil {
@@ -127,9 +129,13 @@ func recordBuildFile(root, directory, packagePath, name string, selected bool, s
 	return nil
 }
 
-func goOutput(root string, args ...string) (string, error) {
-	command := exec.Command("go", args...)
-	command.Dir = root
-	output, err := command.Output()
-	return string(bytes.TrimSpace(output)), err
+func goOutput(root string, args ...string) ([]byte, error) {
+	var output, diagnostic bytes.Buffer
+	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
+		Path: "go", Args: args, Dir: root, Stdout: &output, Stderr: &diagnostic,
+	})
+	if err == nil && receipt.ExitCode != 0 {
+		err = fmt.Errorf("go %s: exit %d: %s", strings.Join(args, " "), receipt.ExitCode, strings.TrimSpace(diagnostic.String()))
+	}
+	return output.Bytes(), err
 }

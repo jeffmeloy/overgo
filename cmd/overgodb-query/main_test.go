@@ -15,6 +15,7 @@ import (
 	"overgo/internal/closurescan"
 	"overgo/internal/codemanifest"
 	"overgo/internal/dataset"
+	"overgo/internal/gosource"
 	"overgo/internal/model"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -35,7 +36,7 @@ func TestManifestSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	name := "internal/example/example.go"
-	manifest, err := codemanifest.Generate(snapshot, []repoanalysis.BuildSelection{{
+	manifest, err := codemanifest.Generate(snapshot, []gosource.BuildSelection{{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"},
 	}}, nil)
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
 	"overgo/internal/dataroot"
+	"overgo/internal/gosource"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
@@ -333,7 +334,7 @@ func (g *gateContext) deriveStructuralImpact() (codeprofile.FunctionImpact, erro
 	if err != nil {
 		return codeprofile.FunctionImpact{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return codeprofile.FunctionImpact{}, err
 	}
@@ -353,7 +354,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
@@ -376,11 +377,11 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 			return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 		}
 	}
-	baseManifest, _, err := manifestCache.Generate(base, []repoanalysis.BuildSelection{selection}, baseInputs)
+	baseManifest, _, err := manifestCache.Generate(base, []gosource.BuildSelection{selection}, baseInputs)
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}
-	candidateManifest, reused, err := manifestCache.Generate(candidate, []repoanalysis.BuildSelection{selection}, candidateInputs)
+	candidateManifest, reused, err := manifestCache.Generate(candidate, []gosource.BuildSelection{selection}, candidateInputs)
 	if err != nil {
 		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
 	}

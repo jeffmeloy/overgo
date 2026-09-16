@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -19,7 +20,7 @@ func TestDeclaredInternalOperationConsumer(t *testing.T) {
 	if len(base.Files) != len(paths) {
 		t.Fatal("native training dispatch source is missing")
 	}
-	selection, err := repoanalysis.HostBuildSelection(root, "./cmd/train", "./internal/trainingworkflow")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/train", "./internal/trainingworkflow")
 	if err != nil {
 		t.Fatal(err)
 	}

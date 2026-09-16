@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-gate-control",
-      "title": "Simplify gate control to increase commit pace",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "reuse-and-pace",
-          "title": "Prove cheaper retries and faster verified commits",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestPackageSelectiveReuse|TestGateReusesUnchangedCheckEvidence|TestOwnerReuseRetainsDependentChecks|TestPlanOnlyPublicationReusesUnchangedPhases)$' -short -count=1",
-          "rationale": "Use one source-bound result owner for per-package and lane reuse; preserve successful independent work after another check fails. Invalidate on actual code/read/effect, toolchain, protocol, evaluator, fixture, environment and required policy changes; unknown reach remains covered. Exercise unchanged input, documentation-only edit, gate-only edit, affected runtime change, renamed test, tampered evidence, interrupted publication and concurrent shared/exclusive users. Deferred batch checks remain durable cumulative obligations; checkpoints never masquerade as completion. Prove at least one expensive real exclusion or exact reuse and a seeded regression still detected. Compare complete commit and retry cycles against retained baselines, separating execution, contention and operator interventions; no repeated runs to seek a favorable time. Record actual executed/reused/failed/unstarted work, net surface change and remaining dominant costs. Lower-bound tests alone do not close the row: bind the specific reduction and recovery assertions, then use one required integration gate and its retained outcome. Retained merge reference: b6e39250 took 29m18.293s with 114 packages reused and 122 executed; result evidence:sha256:b788274c08aad9896477391ac0745379dac20af74cd5c746c6f1312a619de9e9 and cost evidence:sha256:bee9c4239c80c98ae8f5b2f23030c9d759cbe146ec7882ef86ece34d8015a815. Compare matched change classes, not unrelated merge and ordinary commit durations. Include ee9830aa's deferred lane outcome in total verification cost; faster publication alone does not establish less processing. Prioritize the remaining causal-cost investigation from single-sequence: explain expensive dependent execution and zero reuse, evaluate removed-input selection against base/candidate readers, and compare repeated acceptance/setup with existing receipt reuse. Select one lowest-total-cost sufficient reduction; do not implement all alternatives. Deferred correctness is a prerequisite, not a claimed speedup. New concrete hypothesis from source review: executeDeferredLanes loads a local retry cache for executeChecks while stepTestPlan/packageCachePartition can independently load g.retryCache; both save the same retry file. Reproduce whether completed package evidence is overwritten, compare phase/package synchronization, then consolidate one cache owner and durable write path if confirmed. Test phase/package interleavings, interruption, restart, negative invalidation and independent successes after failure; avoid merely sharing an unsynchronized map. Audit the previous two skipped audioparity cases as explicit OVERGO_STORE_ACCEPTANCE exclusions, not missing files: their reference paths were supplied, but the opt-in store-lineage condition was unset. Resolve applicable retained-store authority in surface-test-inputs; do not enable unrelated model runs to make a generic package receipt look complete.",
-          "depends_on": [
-            "surface-gate-control/single-sequence"
-          ]
-        }
-      ]
-    },
-    {
       "id": "surface-test-inputs",
       "title": "Remove broad source and process reach from common test fixtures",
       "owner": "surface-area-reduction",
@@ -49,7 +31,7 @@
           "title": "Consolidate expensive candidate-repository setup",
           "status": "open",
           "verify": "go test ./internal/gate -run '^(TestTestingReductionContract|TestDocumentationBoundaryAcceptance|TestLiveTreeScanRatchet|TestRuntimeInputsPropagateThroughCallers)$' -short -count=1",
-          "rationale": "Merged-state reconciliation: b6e39250 adopted shared gate discovery, removed the duplicate live graph helper, and cleared cloned candidate byte caches. Retain those changes; remaining work is safe partial-seed restoration and measured residual setup consolidation. Review12a021ad and a344bb47 against the local live graph helper and retained17-minute package cost. Share immutable discovery and compatible repository setup through one existing test owner. Do not duplicate livePackageGraph or packageInputGraph.clone. Fix partial-seed restoration before sharing mutable state: restore earlier writes when a later seed fails, attempt all restorations, release the lock on fatal/error/cancellation, and preserve skipped-test evidence through any child-process boundary. Retain negative recovery and contamination cases. Use one matched focused comparison followed by required gate evidence; do not repeatedly benchmark until favorable. Prefer deleting per-case setup and wrappers; quantify and justify any net harness growth.",
+          "rationale": "Reconcile the landed shared discovery and lazy manifest population before further setup work. Preserve cache keys and fixture isolation. Remaining defect: seed currently installs its restoration callback only after all writes succeed; a later seed error can leave earlier writes behind. The existing outer defer releases the lock, so do not claim an unreleased-lock bug. Register restoration before the first mutation, attempt every restoration, and keep restoration inside the lock. Preserve failure, contamination and skipped-test evidence. Consolidate only measured residual setup costs; delete displaced wrappers and report net harness changes.",
           "depends_on": [
             "surface-test-inputs/do"
           ]

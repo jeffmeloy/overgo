@@ -16,6 +16,7 @@ import (
 	"overgo/internal/apimanifest"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/server"
 )
@@ -87,11 +88,11 @@ func compile(root string) (apimanifest.Manifest, error) {
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}
-	declarations, err := codemanifest.DocumentDeclarations(snapshot, []repoanalysis.BuildSelection{selection})
+	declarations, err := codemanifest.DocumentDeclarations(snapshot, []gosource.BuildSelection{selection})
 	if err != nil {
 		return apimanifest.Manifest{}, err
 	}

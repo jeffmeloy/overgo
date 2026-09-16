@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -24,7 +25,7 @@ type modernGoInput struct {
 	BaseKey      artifact.ID
 	Source       repoanalysis.SourceSnapshot
 	Base         repoanalysis.SourceSnapshot
-	Selection    repoanalysis.BuildSelection
+	Selection    gosource.BuildSelection
 	TargetGo     string
 }
 
@@ -53,7 +54,7 @@ func (g *gateContext) prepareModernGoInput() (*modernGoInput, error) {
 	if err != nil {
 		return nil, err
 	}
-	selection, err := repoanalysis.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(g.sourceRoot(), "./cmd/...", "./internal/...")
 	if err != nil {
 		return nil, err
 	}

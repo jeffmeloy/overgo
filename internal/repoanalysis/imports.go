@@ -9,13 +9,15 @@ import (
 	"path"
 	"slices"
 	"strconv"
+
+	"overgo/internal/gosource"
 )
 
 const importNameBatch = 32
 
 // PackageNames maps import paths to their declared package names through the
 // shared parsed snapshot and go-list ownership facts.
-func PackageNames(snapshot SourceSnapshot, selection BuildSelection) (map[string]string, error) {
+func PackageNames(snapshot SourceSnapshot, selection gosource.BuildSelection) (map[string]string, error) {
 	names := map[string]string{}
 	imports := map[string]bool{}
 	for _, source := range snapshot.Files {

@@ -73,10 +73,6 @@ func newLiveRepository() (*liveRepository, error) {
 	if err != nil {
 		return nil, errors.Join(err, repository.teardown())
 	}
-	// The unseeded checkout generates the base manifest every plan reuses.
-	if _, _, _, err := repository.context().deriveManifestImpact(); err != nil {
-		return nil, errors.Join(err, repository.teardown())
-	}
 	return repository, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/gosource"
 	"overgo/internal/jsonfile"
 )
 
@@ -75,7 +76,7 @@ func TestModernGoGateSnapshotMatchesPublishedCensus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		t.Fatal(err)
 	}

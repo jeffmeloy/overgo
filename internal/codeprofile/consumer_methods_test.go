@@ -3,6 +3,7 @@ package codeprofile
 import (
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -29,7 +30,7 @@ func Run(w Worker) int { return w.usedHelper() }
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64",
 		Files: map[string]bool{
 			"internal/api/api.go": true, "internal/api/api_test.go": true, "internal/helpers/helpers.go": true,

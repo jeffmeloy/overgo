@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"overgo/internal/codeprofile"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -18,7 +19,7 @@ const (
 
 type contextGraph struct {
 	context      BuildContext
-	selection    repoanalysis.BuildSelection
+	selection    gosource.BuildSelection
 	declarations []codeprofile.ConsumerDeclaration
 	references   []codeprofile.ConsumerReference
 }
@@ -26,7 +27,7 @@ type contextGraph struct {
 // Generate composes a canonical manifest from the repository's existing
 // source snapshot, function profile, build selections, consumer graphs, and
 // caller-declared content-identified external inputs.
-func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.BuildSelection, external []ExternalInput) (Manifest, error) {
+func Generate(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection, external []ExternalInput) (Manifest, error) {
 	profile, err := codeprofile.Build(snapshot)
 	if err != nil {
 		return Manifest{}, fmt.Errorf("code manifest: profile: %w", err)
@@ -34,7 +35,7 @@ func Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.Bu
 	return generate(snapshot, profile, selections, external)
 }
 
-func generate(snapshot repoanalysis.SourceSnapshot, profile codeprofile.Profile, selections []repoanalysis.BuildSelection, external []ExternalInput) (Manifest, error) {
+func generate(snapshot repoanalysis.SourceSnapshot, profile codeprofile.Profile, selections []gosource.BuildSelection, external []ExternalInput) (Manifest, error) {
 	if len(selections) == 0 || len(selections) > maxBuildContexts {
 		return Manifest{}, errors.New("code manifest: invalid build selection count")
 	}
@@ -133,7 +134,7 @@ func profileFingerprints(profile codeprofile.Profile) map[string]fingerprints {
 	return result
 }
 
-func buildContext(selection repoanalysis.BuildSelection) (BuildContext, error) {
+func buildContext(selection gosource.BuildSelection) (BuildContext, error) {
 	goos, goarch, found := strings.Cut(selection.Context, "/")
 	if !found || strings.TrimSpace(goos) == "" || strings.TrimSpace(goarch) == "" || strings.Contains(goarch, "/") {
 		return BuildContext{}, errors.New("code manifest: build selection lacks an exact GOOS/GOARCH context")

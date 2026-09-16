@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
@@ -162,7 +163,7 @@ func mutationImpact(t *testing.T, candidate map[string]string) codemanifest.Impa
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root,
 		Files: map[string]bool{"internal/alpha/alpha.go": true, "internal/beta/beta.go": true},
 		Packages: map[string]string{
@@ -170,11 +171,11 @@ func mutationImpact(t *testing.T, candidate map[string]string) codemanifest.Impa
 			"internal/beta/beta.go":   "internal/beta",
 		},
 	}
-	baseManifest, err := codemanifest.Generate(baseSnapshot, []repoanalysis.BuildSelection{selection}, nil)
+	baseManifest, err := codemanifest.Generate(baseSnapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidateManifest, err := codemanifest.Generate(candidateSnapshot, []repoanalysis.BuildSelection{selection}, nil)
+	candidateManifest, err := codemanifest.Generate(candidateSnapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

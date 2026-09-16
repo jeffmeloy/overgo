@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/codeprofile"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -121,7 +122,7 @@ func (cache *Cache) put(key cacheKey, manifest Manifest) error {
 
 // Generate reuses an exact authority match or generates and records a new
 // manifest. Reused is false on every incomplete or changed authority.
-func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.BuildSelection, external []ExternalInput) (manifest Manifest, reused bool, err error) {
+func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection, external []ExternalInput) (manifest Manifest, reused bool, err error) {
 	contexts := make([]BuildContext, 0, len(selections))
 	for _, selection := range selections {
 		context, contextErr := buildContext(selection)
@@ -134,7 +135,7 @@ func (cache *Cache) Generate(snapshot repoanalysis.SourceSnapshot, selections []
 	inputs := slices.Clone(external)
 	slices.SortFunc(inputs, func(left, right ExternalInput) int { return strings.Compare(left.Path, right.Path) })
 	type analysisSelection struct {
-		Selection   repoanalysis.BuildSelection
+		Selection   gosource.BuildSelection
 		ImportNames map[string]string
 	}
 	selected := make([]analysisSelection, len(selections))

@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -48,7 +49,7 @@ type contractSource struct {
 }
 
 // DocumentDeclarations compiles package-level artifact contracts.
-func DocumentDeclarations(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.BuildSelection) ([]DocumentDeclaration, error) {
+func DocumentDeclarations(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection) ([]DocumentDeclaration, error) {
 	sources, err := contractSources(snapshot, selections)
 	if err != nil {
 		return nil, err
@@ -101,7 +102,7 @@ func DocumentDeclarations(snapshot repoanalysis.SourceSnapshot, selections []rep
 	return declarations, nil
 }
 
-func contractSources(snapshot repoanalysis.SourceSnapshot, selections []repoanalysis.BuildSelection) ([]contractSource, error) {
+func contractSources(snapshot repoanalysis.SourceSnapshot, selections []gosource.BuildSelection) ([]contractSource, error) {
 	if len(selections) == 0 {
 		return nil, errors.New("code manifest: document census has no build selection")
 	}

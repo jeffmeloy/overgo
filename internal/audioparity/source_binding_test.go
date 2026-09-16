@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosource"
 	"overgo/internal/testutil"
 )
 
@@ -22,7 +22,7 @@ func TestAudioProducerSourceBinding(t *testing.T) {
 			"internal/gate/verification.go":                  false,
 			"internal/evaluation/qwen_retained_text_test.go": false,
 		} {
-			found := slices.ContainsFunc(source.Files, func(file repoanalysis.GoFile) bool { return file.Path == path })
+			found := slices.ContainsFunc(source.Files, func(file gosource.File) bool { return file.Path == path })
 			if found != want {
 				t.Fatalf("live source %s present=%t, want %t", path, found, want)
 			}

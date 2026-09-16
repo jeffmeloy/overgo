@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -15,8 +16,8 @@ func TestReferenceProvenanceAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{Context: "windows/amd64", Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
-	base, err := Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	selection := gosource.BuildSelection{Context: "windows/amd64", Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
+	base, err := Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +46,7 @@ func TestReferenceProvenanceAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidate, err := Generate(changed, []repoanalysis.BuildSelection{selection}, nil)
+	candidate, err := Generate(changed, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

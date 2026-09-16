@@ -12,6 +12,7 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
 
@@ -33,11 +34,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	selection, err := repoanalysis.HostBuildSelection(resolved, "./internal/...", "./cmd/...")
+	selection, err := gosource.HostBuildSelection(resolved, "./internal/...", "./cmd/...")
 	if err != nil {
 		return err
 	}
-	manifest, err := codemanifest.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	manifest, err := codemanifest.Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
 		return err
 	}

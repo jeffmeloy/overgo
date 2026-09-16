@@ -3,7 +3,7 @@ package codemanifest
 import (
 	"testing"
 
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosource"
 )
 
 func TestReverseClosure(t *testing.T) {
@@ -33,7 +33,7 @@ func TestInterfaceOverApproximation(t *testing.T) {
 	name := "internal/example/run.go"
 	baseSource := "package example\ntype Worker interface { Apply() int }\ntype A struct{}\nfunc (A) Apply() int { return 1 }\ntype B struct{}\nfunc (B) Apply() int { return 2 }\nfunc Run(worker Worker) int { return worker.Apply() }\n"
 	writeGeneratorFixture(t, root, name, baseSource)
-	selection := repoanalysis.BuildSelection{
+	selection := gosource.BuildSelection{
 		Context: "linux/amd64", Root: root, Files: map[string]bool{name: true},
 		Packages: map[string]string{name: "overgo/internal/example"},
 	}

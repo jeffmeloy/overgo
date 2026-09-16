@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"overgo/internal/gosource"
 )
 
 type modernGoSourceEdit struct {
@@ -36,7 +38,7 @@ func RewriteModernGoManualIdioms(root string) (ModernGoManualRewrite, error) {
 	if err != nil {
 		return ModernGoManualRewrite{}, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return ModernGoManualRewrite{}, err
 	}
@@ -279,7 +281,7 @@ func RewriteModernGoExtrema(root string) (int, []string, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -434,7 +436,7 @@ func RewriteModernGoNumericIntegerRanges(root string) (int, []string, error) {
 			return 0, nil, err
 		}
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -749,7 +751,7 @@ func RewriteModernGoOmitZeroEquivalent(root string) (int, []string, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -867,7 +869,7 @@ func RewriteModernGoErrorIdentityComparisons(root string) (int, []string, error)
 	if err != nil {
 		return 0, nil, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -954,7 +956,7 @@ func RewriteModernGoBenchmarkLoops(root string) (int, []string, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return 0, nil, err
 	}
@@ -1038,7 +1040,7 @@ func RewriteModernGoTestingContexts(root string) (int, []string, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return 0, nil, err
 	}

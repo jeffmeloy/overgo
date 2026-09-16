@@ -12,6 +12,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/codemanifest"
 	"overgo/internal/codeprofile"
+	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -93,8 +94,8 @@ func TestSurfaceProfileReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
-	if _, _, err := g.manifestCache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil); err != nil {
+	selection := gosource.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true}, Packages: map[string]string{name: "overgo/internal/example"}}
+	if _, _, err := g.manifestCache.Generate(snapshot, []gosource.BuildSelection{selection}, nil); err != nil {
 		t.Fatal(err)
 	}
 	for _, label := range []string{"first reader", "second reader"} {

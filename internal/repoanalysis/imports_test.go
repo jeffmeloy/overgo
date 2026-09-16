@@ -1,6 +1,10 @@
 package repoanalysis
 
-import "testing"
+import (
+	"testing"
+
+	"overgo/internal/gosource"
+)
 
 func TestPackageNamesPrefersProductionDeclaration(t *testing.T) {
 	snapshot, err := (SourceSnapshot{}).Overlay(map[string][]byte{
@@ -10,7 +14,7 @@ func TestPackageNamesPrefersProductionDeclaration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := BuildSelection{
+	selection := gosource.BuildSelection{
 		Root: ".",
 		Files: map[string]bool{
 			"internal/sample/sample.go":           true,

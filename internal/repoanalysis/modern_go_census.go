@@ -10,6 +10,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"overgo/internal/gosource"
 )
 
 // ModernGoRisk is the strongest proof required before changing a finding.
@@ -100,7 +102,7 @@ func BuildModernGoCensus(root, targetVersion string) (ModernGoCensus, error) {
 	if err != nil {
 		return ModernGoCensus{}, err
 	}
-	selection, err := HostBuildSelection(root, "./cmd/...", "./internal/...")
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
 	if err != nil {
 		return ModernGoCensus{}, err
 	}
@@ -109,7 +111,7 @@ func BuildModernGoCensus(root, targetVersion string) (ModernGoCensus, error) {
 
 // ModernGoCensusSnapshot computes a deterministic census over an explicit
 // snapshot and toolchain-derived build selection.
-func ModernGoCensusSnapshot(snapshot SourceSnapshot, selection BuildSelection, targetVersion string) (ModernGoCensus, error) {
+func ModernGoCensusSnapshot(snapshot SourceSnapshot, selection gosource.BuildSelection, targetVersion string) (ModernGoCensus, error) {
 	guidelines, err := ModernGoApplicableGuidelines(targetVersion)
 	if err != nil {
 		return ModernGoCensus{}, err
@@ -146,7 +148,7 @@ func ModernGoCensusSnapshot(snapshot SourceSnapshot, selection BuildSelection, t
 	}, nil
 }
 
-func parseModernGoFiles(snapshot SourceSnapshot, selection BuildSelection) ([]modernGoParsedFile, error) {
+func parseModernGoFiles(snapshot SourceSnapshot, selection gosource.BuildSelection) ([]modernGoParsedFile, error) {
 	type group struct {
 		fileSet *token.FileSet
 		files   []*ast.File

@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
-	"overgo/internal/repoanalysis"
+	"overgo/internal/gosource"
 	"overgo/internal/testutil"
 )
 
@@ -25,14 +25,14 @@ type referenceRoots struct {
 
 // Bind repository Go sources compiled into the acceptance and its CLI producers.
 // Models, corpus, native artifacts and protocol identities remain separate inputs.
-func audioSources(t *testing.T, root string) repoanalysis.SourceSnapshot {
+func audioSources(t *testing.T, root string) gosource.Snapshot {
 	t.Helper()
 	paths := map[string]bool{}
 	for _, patterns := range [][]string{
 		{"-deps", "-test", "./internal/audioparity"},
 		{"-deps", "./cmd/evaluate", "./cmd/recipe"},
 	} {
-		selection, err := repoanalysis.HostBuildSelection(root, patterns...)
+		selection, err := gosource.HostBuildSelection(root, patterns...)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -42,7 +42,7 @@ func audioSources(t *testing.T, root string) repoanalysis.SourceSnapshot {
 			}
 		}
 	}
-	source, err := repoanalysis.LoadGo(root, slices.Sorted(maps.Keys(paths)))
+	source, err := gosource.LoadGo(root, slices.Sorted(maps.Keys(paths)))
 	if err != nil {
 		t.Fatal(err)
 	}

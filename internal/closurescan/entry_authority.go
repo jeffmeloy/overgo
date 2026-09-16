@@ -205,7 +205,6 @@ func EntryAuthorityRules() []EntryAuthorityRule {
 			OwnerPaths: []string{"internal/processcontrol"},
 			Exceptions: map[string]string{
 				"internal/runrecord/verifying_commit.go":       "read-only git fact reads; execution-semantics binds repository facts to supervised receipts",
-				"internal/repoanalysis/build.go":               "read-only go toolchain fact reads; execution-semantics migration",
 				"internal/repoanalysis/imports.go":             "read-only go toolchain fact reads; execution-semantics migration",
 				"internal/clioptions/command.go":               "command self-identification fact; execution-semantics migration",
 				"internal/testprocess/process.go":              "test-support process helpers consumed only by suites",

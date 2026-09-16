@@ -2,8 +2,6 @@ package codemanifest
 
 import (
 	"encoding/json"
-	"overgo/internal/codeprofile"
-	"overgo/internal/repoanalysis"
 	"reflect"
 	"slices"
 	"strconv"
@@ -11,7 +9,10 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/codeprofile"
+	"overgo/internal/gosource"
 	"overgo/internal/overgodb"
+	"overgo/internal/repoanalysis"
 )
 
 func TestSurfaceManifestRoundTrip(t *testing.T) {
@@ -87,7 +88,7 @@ func TestSurfaceAnalysisReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection := repoanalysis.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true, testName: true}, Packages: map[string]string{name: "overgo/internal/example", testName: "overgo/internal/example"}}
+	selection := gosource.BuildSelection{Context: "linux/amd64", Root: root, Files: map[string]bool{name: true, testName: true}, Packages: map[string]string{name: "overgo/internal/example", testName: "overgo/internal/example"}}
 	cache, err := NewCache(1)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +96,7 @@ func TestSurfaceAnalysisReuse(t *testing.T) {
 	if _, found := cache.Profile(snapshot); found {
 		t.Fatal("uncomputed profile reused")
 	}
-	manifest, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	manifest, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil || reused {
 		t.Fatalf("initial generation: reused=%t err=%v", reused, err)
 	}
@@ -122,18 +123,18 @@ func TestSurfaceAnalysisReuse(t *testing.T) {
 	got.Clones[0].Functions[0] = "caller mutation"
 	got.Impact.Identity = "caller policy"
 	assertProfile()
-	again, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil)
+	again, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil || !reused || again.ID != manifest.ID {
 		t.Fatalf("exact manifest reuse: %t %v", reused, err)
 	}
 	// These inputs change manifest authority, not the syntax-only profile.
 	selection.Context = "windows/amd64"
-	if changed, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, nil); err != nil || reused || changed.ID == manifest.ID {
+	if changed, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, nil); err != nil || reused || changed.ID == manifest.ID {
 		t.Fatalf("context binding: %t %v", reused, err)
 	}
 	assertProfile()
 	inputs := []ExternalInput{{Path: "architecture_profiles.json", ContentID: fixtureDigest, Kind: "architecture-profiles", Owner: "internal/modelrecipe"}}
-	if _, reused, err := cache.Generate(snapshot, []repoanalysis.BuildSelection{selection}, inputs); err != nil || reused {
+	if _, reused, err := cache.Generate(snapshot, []gosource.BuildSelection{selection}, inputs); err != nil || reused {
 		t.Fatalf("external input binding: %t %v", reused, err)
 	}
 	assertProfile()
@@ -153,14 +154,14 @@ func TestSurfaceAnalysisReuse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := cache.Generate(broken, []repoanalysis.BuildSelection{selection}, nil); err == nil {
+	if _, _, err := cache.Generate(broken, []gosource.BuildSelection{selection}, nil); err == nil {
 		t.Fatal("invalid source accepted")
 	}
 	if _, found := cache.Profile(broken); found {
 		t.Fatal("failed computation retained profile")
 	}
 	assertProfile()
-	if _, _, err := cache.Generate(changed, []repoanalysis.BuildSelection{selection}, nil); err != nil {
+	if _, _, err := cache.Generate(changed, []gosource.BuildSelection{selection}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, found := cache.Profile(snapshot); found {

@@ -14,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"overgo/internal/gosource"
 )
 
 type sourceBlob struct {
@@ -99,14 +101,11 @@ type SourceSnapshot struct{ Files []GoFile }
 
 // Identity binds analysis evidence to the complete ordered source snapshot.
 func (s SourceSnapshot) Identity() string {
-	hash := sha256.New()
-	for _, file := range s.Files {
-		hash.Write([]byte(file.Path))
-		hash.Write([]byte{0})
-		hash.Write([]byte(file.ContentID))
-		hash.Write([]byte{0})
+	files := make([]gosource.File, len(s.Files))
+	for index, file := range s.Files {
+		files[index] = gosource.File{Path: file.Path, ContentID: file.ContentID}
 	}
-	return hex.EncodeToString(hash.Sum(nil))
+	return (gosource.Snapshot{Files: files}).Identity()
 }
 
 // Overlay returns a snapshot with repository-relative source replacements.
@@ -141,37 +140,21 @@ func (s SourceSnapshot) Overlay(contents map[string][]byte) (SourceSnapshot, err
 }
 
 func LoadGo(root string, relatives []string) (SourceSnapshot, error) {
-	paths := append([]string(nil), relatives...)
-	for index, name := range paths {
-		path := filepath.Clean(filepath.FromSlash(name))
-		if filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, ".."+string(filepath.Separator)) {
-			return SourceSnapshot{}, fmt.Errorf("repository source path %q escapes root", name)
-		}
-		paths[index] = filepath.ToSlash(path)
+	snapshot, err := gosource.LoadGo(root, relatives)
+	if err != nil {
+		return SourceSnapshot{}, err
 	}
-	slices.Sort(paths)
-	blobs := map[[sha256.Size]byte]*sourceBlob{}
-	files := make([]GoFile, 0, len(paths))
-	for index, relative := range paths {
-		if (index > 0 && relative == paths[index-1]) || !strings.HasSuffix(relative, ".go") {
-			continue
-		}
-		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(relative)))
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return SourceSnapshot{}, err
-		}
-		digest := sha256.Sum256(data)
-		blob := blobs[digest]
+	blobs := map[string]*sourceBlob{}
+	files := make([]GoFile, 0, len(snapshot.Files))
+	for _, file := range snapshot.Files {
+		blob := blobs[file.ContentID]
 		if blob == nil {
-			blob = &sourceBlob{data: data}
-			blobs[digest] = blob
+			blob = &sourceBlob{data: file.Data}
+			blobs[file.ContentID] = blob
 		}
 		files = append(files, GoFile{
-			Path: relative, ContentID: hex.EncodeToString(digest[:]), blob: blob,
-			Test: strings.HasSuffix(relative, "_test.go") || hasPathPart(relative, "testdata"),
+			Path: file.Path, ContentID: file.ContentID, blob: blob,
+			Test: strings.HasSuffix(file.Path, "_test.go") || hasPathPart(file.Path, "testdata"),
 		})
 	}
 	return SourceSnapshot{Files: files}, nil

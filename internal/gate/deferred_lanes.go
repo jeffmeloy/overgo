@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/atomicfile"
 	"overgo/internal/authoritylock"
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
@@ -166,6 +167,10 @@ func (g *gateContext) spawnLaneRunner(storePath string) error {
 	if err != nil {
 		return err
 	}
+	executable, err = laneExecutable(g.repo, executable)
+	if err != nil {
+		return fmt.Errorf("gate: retain lane executable: %w", err)
+	}
 	log, err := os.OpenFile(filepath.Join(g.repo, filepath.FromSlash(gateLanesLogFile)), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, clioptions.OutputFileMode)
 	if err != nil {
 		return err
@@ -187,6 +192,34 @@ func (g *gateContext) spawnLaneRunner(storePath string) error {
 	fmt.Printf("gate: lanes deferred: %s run on %.12s as pid %d; log %s; the next gate waits for them\n",
 		strings.Join(g.laneObligation.Checks, ","), g.laneObligation.CodeCommit, pid, gateLanesLogFile)
 	return nil
+}
+
+// laneExecutable retains the running image outside go run's temporary tree.
+// Admission serializes lane obligations; one file replaces per-run snapshots.
+func laneExecutable(repo, executable string) (string, error) {
+	source, err := os.Stat(executable)
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(repo, "bin", "gate-lanes"+filepath.Ext(executable))
+	if target, err := os.Stat(path); err == nil {
+		if os.SameFile(source, target) {
+			return path, nil
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", err
+	}
+	data, err := os.ReadFile(executable)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), clioptions.OutputDirectoryMode); err != nil {
+		return "", err
+	}
+	if err := atomicfile.Write(path, data, source.Mode().Perm()); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 // runDeferredLanes is `gate -lanes`: it takes the store's open obligation,

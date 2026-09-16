@@ -150,13 +150,13 @@
       "package": "overgo/internal/speechsynth",
       "name": "DocumentProgram",
       "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
-      "retire_with": "merge-31760aaa966a/do"
+      "retire_with": "speech-document-admission/do"
     },
     {
       "package": "overgo/internal/speechsynth",
       "name": "RegisterDocumentRuntime",
       "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
-      "retire_with": "merge-31760aaa966a/do"
+      "retire_with": "speech-document-admission/do"
     }
   ]
 }

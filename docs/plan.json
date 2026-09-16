@@ -4,14 +4,42 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "host-suite-walls",
-      "title": "Take the host group's suite walls down where the package lines rank them: audioparity 455 s in the complete group, capabilityruntime 101-134 s, evaluation, overgodb, modelintake, plan, tabularicl; each suite states what its wall buys and drops the work that buys nothing",
+      "id": "audio-measurement-owner",
+      "title": "Make TestAudioResourceFitnessAcceptance the one owner of the measured and profiled CPU speech child runs: the envelope, simplification and benchmark-coverage acceptances re-run the same measure, repeats and profile it already asserts (284, 236 and 177 s of the audio suite's 2737 test-seconds and 455 s wall); a static ratchet holds the measurement fixture to one test",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Take the host group's suite walls down where the package lines rank them: audioparity 455 s in the complete group, capabilityruntime 101-134 s, evaluation, overgodb, modelintake, plan, tabularicl; each suite states what its wall buys and drops the work that buys nothing",
+          "title": "Make TestAudioResourceFitnessAcceptance the one owner of the measured and profiled CPU speech child runs: the envelope, simplification and benchmark-coverage acceptances re-run the same measure, repeats and profile it already asserts (284, 236 and 177 s of the audio suite's 2737 test-seconds and 455 s wall); a static ratchet holds the measurement fixture to one test",
+          "status": "open",
+          "verify": "test -f internal/audioparity/measurement_owner_test.go \u0026\u0026 go test ./internal/audioparity -run '^TestAudioMeasurementOwner$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "native-asr-fixture-once",
+      "title": "Publish the native speech fixture once per capability-runtime test binary: the session acceptance (62 s) and the stream integration (43 s) each publish it before their own assertions",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the native speech fixture once per capability-runtime test binary: the session acceptance (62 s) and the stream integration (43 s) each publish it before their own assertions",
+          "status": "open",
+          "verify": "test -f internal/capabilityruntime/native_fixture_once_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestNativeFixturePublishedOnce$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "host-suite-walls",
+      "title": "Rank the host group's remaining suite walls from the gate's package lines after the audio and native speech owners land, and cut the next measured work that buys nothing: evaluation's 131 acceptances at 4 s each, plan's TestPrunedDependencyRequiresGatedCompletion at 21 s, overgodb's corpus and migration drills",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Rank the host group's remaining suite walls from the gate's package lines after the audio and native speech owners land, and cut the next measured work that buys nothing: evaluation's 131 acceptances at 4 s each, plan's TestPrunedDependencyRequiresGatedCompletion at 21 s, overgodb's corpus and migration drills",
           "status": "open",
           "verify": "test -f internal/gate/host_suite_walls_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostSuiteWallsRatchet$' -count=1"
         }
@@ -28,6 +56,20 @@
           "title": "Read every recorded wall through the performance counter and remove the fabricated one-nanosecond floors, so no record depends on the tick a run lands in",
           "status": "open",
           "verify": "test -f internal/processmeasure/recorded_walls_test.go \u0026\u0026 go test ./internal/processmeasure -run '^TestRecordedWallsReadTheCounter$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "speech-document-admission",
+      "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
+          "status": "open",
+          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1"
         }
       ]
     },
@@ -1005,7 +1047,11 @@
             "preflight-selection-report/do",
             "closure-proposals-one-pass/do",
             "host-suite-walls/do",
-            "recorded-walls-counter/do"
+            "recorded-walls-counter/do",
+            "speech-document-admission/do",
+            "audio-measurement-owner/do",
+            "native-asr-fixture-once/do",
+            "host-walls-replan/do"
           ]
         }
       ]

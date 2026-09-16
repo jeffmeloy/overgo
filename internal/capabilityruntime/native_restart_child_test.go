@@ -1,7 +1,6 @@
 package capabilityruntime_test
 
 import (
-	"os"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -31,14 +30,11 @@ type nativeStreamRestart struct {
 // verifyNativeRestartChild reloads the registered model and the persisted
 // stream cursor in this fresh process, refuses a mismatched source before
 // residency, and reproduces every continuation output and state identity.
-func verifyNativeRestartChild(t *testing.T, path string) {
+// The request arrives as the environment value itself.
+func verifyNativeRestartChild(t *testing.T, encoded string) {
 	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var request nativeStreamRestart
-	if err := strictjson.DecodeBytes(data, &request); err != nil {
+	if err := strictjson.DecodeBytes([]byte(encoded), &request); err != nil {
 		t.Fatal(err)
 	}
 	if len(request.Chunks) == 0 || len(request.Chunks) != len(request.Expected) {

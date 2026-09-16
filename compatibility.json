@@ -1520,7 +1520,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:0e63713eed1813cb9ee92609455c678ebb039fcc90b4acdfd5de475f561906a9"
+     "identity": "evidence:sha256:413cf293205dc3506fd049a69e7b60ae643ec541c4184cd8e559f523bc5aeee3"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -1578,7 +1578,7 @@
      "path": "internal/capabilityruntime/native_asr_session_test.go",
      "contains": "func TestNativeASRSessionAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:0e63713eed1813cb9ee92609455c678ebb039fcc90b4acdfd5de475f561906a9"
+     "identity": "evidence:sha256:413cf293205dc3506fd049a69e7b60ae643ec541c4184cd8e559f523bc5aeee3"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",

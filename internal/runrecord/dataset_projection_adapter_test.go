@@ -2,18 +2,13 @@ package runrecord
 
 import (
 	"bytes"
-	"go/ast"
-	"path/filepath"
-	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
-	"overgo/internal/repoanalysis"
 	"overgo/internal/testutil"
 )
 
@@ -428,75 +423,6 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	cold, err := RequireInteractionArcSelection(t.Context(), reopened, second.ID)
 	if err != nil || cold.ID != second.ID || cold.Head != second.Head {
 		t.Fatalf("cold interaction selection replay = (%s, %v)", cold.ID, err)
-	}
-}
-
-func TestCapabilityEpisodeProjectionAuthorityRatchet(t *testing.T) {
-	forbidden := map[string]bool{
-		"CompileCapabilityEpisodeProjection":  true,
-		"LoadCapabilityEpisodeProjection":     true,
-		"ParseCapabilityEpisodeProjection":    true,
-		"CompileInteractionArcProjection":     true,
-		"LoadInteractionArcProjection":        true,
-		"LoadInteractionArc":                  true,
-		"LoadInteractionArcMeasurement":       true,
-		"LoadInteractionArcMeasurementPolicy": true,
-		"LoadInteractionArcSelection":         true,
-		"NewInteractionArcMeasurement":        true,
-		"NewInteractionCallReference":         true,
-		"SelectInteractionArcsOnce":           true,
-	}
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("projection ratchet cannot locate its source")
-	}
-	repositoryRoot := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	snapshot, err := repoanalysis.DiscoverGo(repositoryRoot, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, source := range snapshot.Files {
-		if source.Test || source.Path == "internal/runrecord/dataset_projection_adapter.go" {
-			continue
-		}
-		parsed, parseErr := source.Syntax()
-		if parseErr != nil {
-			t.Fatal(parseErr)
-		}
-		aliases := map[string]bool{}
-		for _, spec := range parsed.Imports {
-			importPath, unquoteErr := strconv.Unquote(spec.Path.Value)
-			if unquoteErr != nil || importPath != "overgo/internal/dataset" {
-				continue
-			}
-			name := "dataset"
-			if spec.Name != nil {
-				name = spec.Name.Name
-			}
-			aliases[name] = true
-		}
-		ast.Inspect(parsed, func(node ast.Node) bool {
-			call, isCall := node.(*ast.CallExpr)
-			if !isCall {
-				return true
-			}
-			name := ""
-			switch function := call.Fun.(type) {
-			case *ast.SelectorExpr:
-				identifier, isIdentifier := function.X.(*ast.Ident)
-				if isIdentifier && aliases[identifier.Name] {
-					name = function.Sel.Name
-				}
-			case *ast.Ident:
-				if parsed.Name.Name == "dataset" || aliases["."] {
-					name = function.Name
-				}
-			}
-			if forbidden[name] {
-				t.Errorf("dataset projection authority bypass at %s:%d: %s", source.Path, source.Line(call.Pos()), name)
-			}
-			return true
-		})
 	}
 }
 

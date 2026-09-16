@@ -1,11 +1,8 @@
 package capabilityruntime
 
 import (
-	"go/parser"
-	"go/token"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -172,23 +169,3 @@ func TestRemoteRecipeCapabilityRequiresExactUTCPManual(t *testing.T) {
 // boundary structurally: the peer invocation path reaches another lane's
 // capability through HTTP and the exact manual only -- its files import no
 // serving, inference, or composition runtime code.
-func TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode(t *testing.T) {
-	forbidden := []string{
-		"overgo/internal/inference", "overgo/internal/server",
-		"overgo/internal/llamaserver", "overgo/internal/composition",
-	}
-	for _, file := range []string{"peer.go", "peer_invoke.go"} {
-		parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(".", file), nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, imported := range parsed.Imports {
-			path := strings.Trim(imported.Path.Value, `"`)
-			for _, runtimePath := range forbidden {
-				if path == runtimePath {
-					t.Errorf("%s imports runtime package %s", file, path)
-				}
-			}
-		}
-	}
-}

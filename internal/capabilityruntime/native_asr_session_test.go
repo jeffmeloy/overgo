@@ -28,8 +28,8 @@ import (
 // checkpoint its restart pass committed, against the results its plain pass
 // produced. It is also that child process's entry point.
 func TestNativeASRSessionAcceptance(t *testing.T) {
-	if path := os.Getenv(nativeRestartChildEnvironment); path != "" {
-		verifyNativeRestartChild(t, path)
+	if request := os.Getenv(nativeRestartChildEnvironment); request != "" {
+		verifyNativeRestartChild(t, request)
 		return
 	}
 	if testing.Short() {
@@ -62,12 +62,10 @@ func TestNativeASRSessionAcceptance(t *testing.T) {
 			t.Fatal("the longest capture's restart pass retained no checkpoint")
 		}
 		restart.Store = storePath
+		// The request rides in the environment, so the child reads no path
+		// its source does not name.
 		data, err := json.Marshal(restart)
 		if err != nil {
-			t.Fatal(err)
-		}
-		path := filepath.Join(directory, "restart.json")
-		if err := os.WriteFile(path, data, 0o600); err != nil {
 			t.Fatal(err)
 		}
 		// The child owns the store while it runs; the parent reopens it for its cleanup.
@@ -75,7 +73,7 @@ func TestNativeASRSessionAcceptance(t *testing.T) {
 			t.Fatal(err)
 		}
 		command := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestNativeASRSessionAcceptance$", "-test.count=1", "-test.v")
-		command.Env = append(os.Environ(), nativeRestartChildEnvironment+"="+path)
+		command.Env = append(os.Environ(), nativeRestartChildEnvironment+"="+string(data))
 		output, err := command.CombinedOutput()
 		if err != nil {
 			t.Fatalf("fresh-process recurrent restart: %v\n%s", err, output)

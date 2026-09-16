@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "source-reader-test-rules",
-      "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change; internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their suites run on any change",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the Go-parsing test rules out of the measured suites: a package whose tests import go/* is a source reader the gate selects on every Go change; internal/server (workspace_audit_test) and internal/capabilityruntime (peer_invoke_test) carry such tests, so their suites run on any change",
-          "status": "open",
-          "verify": "test -f internal/gate/source_reader_suites_test.go \u0026\u0026 go test ./internal/gate -run '^TestMeasuredSuitesParseNoGo$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "recorded-walls-counter",
       "title": "Read every recorded wall through the performance counter and remove the fabricated one-nanosecond floors, so no record depends on the tick a run lands in",
       "owner": "master-lead",

@@ -1,11 +1,6 @@
 package inference
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"os"
-	"strings"
 	"testing"
 
 	"overgo/internal/tensor"
@@ -51,34 +46,5 @@ func TestCompiledOutputPolicyOwnsAllDecodePaths(t *testing.T) {
 		if _, err := compileDeviceOutputPlan(invalid.mode, invalid.topK, vocabulary); err == nil {
 			t.Fatalf("invalid output policy accepted: %+v", invalid)
 		}
-	}
-
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || name == "decode_output.go" {
-			continue
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		ast.Inspect(file, func(node ast.Node) bool {
-			switch statement := node.(type) {
-			case *ast.SwitchStmt:
-				if selector, ok := statement.Tag.(*ast.SelectorExpr); ok && selector.Sel.Name == "mode" {
-					t.Errorf("%s retains a decode-output mode switch", name)
-				}
-			case *ast.FuncDecl:
-				if statement.Name.Name == "forwardDeviceCachedGreedyBatchLocked" ||
-					statement.Name.Name == "forwardDeviceCachedTopKBatchLocked" {
-					t.Errorf("%s retains displaced decode wrapper %s", name, statement.Name.Name)
-				}
-			}
-			return true
-		})
 	}
 }

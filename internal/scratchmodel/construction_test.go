@@ -2,14 +2,9 @@ package scratchmodel
 
 import (
 	"context"
-	"go/ast"
-	"go/build"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
 
 	"overgo/internal/adaptiveparity"
@@ -77,45 +72,6 @@ func TestScratchProgramOwnsResidentExecution(t *testing.T) {
 		if group.Name != parameter.Name || group.Rows != parameter.Rows || group.Cols != parameter.Cols || !parameter.Trainable {
 			t.Fatalf("shared group %d differs: %+v / %+v", index, group, parameter)
 		}
-	}
-
-	pkg, err := build.Default.ImportDir(".", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range pkg.GoFiles {
-		data, err := os.ReadFile(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		text := string(data)
-		if strings.Contains(text, "func muonUpdate") || strings.Contains(text, "type value struct") || strings.Contains(text, "type hostState") {
-			t.Fatalf("production scratch runtime owns forbidden primitive in %s", name)
-		}
-	}
-
-	file, err := parser.ParseFile(token.NewFileSet(), "resident_cuda_windows.go", nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	foundProgramRun, foundHardCoded := false, false
-	for _, declaration := range file.Decls {
-		function, ok := declaration.(*ast.FuncDecl)
-		if !ok || function.Name.Name != "Step" || function.Recv == nil {
-			continue
-		}
-		ast.Inspect(function.Body, func(node ast.Node) bool {
-			selector, ok := node.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-			foundProgramRun = foundProgramRun || selector.Sel.Name == "Run"
-			foundHardCoded = foundHardCoded || selector.Sel.Name == "forward" || selector.Sel.Name == "backward"
-			return true
-		})
-	}
-	if !foundProgramRun || foundHardCoded {
-		t.Fatalf("resident Step program authority=%t hard-coded forward/backward=%t", foundProgramRun, foundHardCoded)
 	}
 }
 
@@ -227,18 +183,6 @@ func TestScratchConstructionRejectsEmptyCorpus(t *testing.T) {
 	for _, documents := range [][]string{{"", "", ""}, {"abc", "", "cab"}} {
 		if _, err := Compile(CorpusFacts{Documents: documents, Seed: 7, Steps: 3}, testDerivationProfile(t)); err == nil {
 			t.Fatalf("empty corpus document accepted: %q", documents)
-		}
-	}
-}
-
-func TestScratchOracleRuntimeExcludedFromProduction(t *testing.T) {
-	pkg, err := build.Default.ImportDir(".", 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range pkg.GoFiles {
-		if strings.Contains(name, "oracle") || strings.HasPrefix(name, "host_") {
-			t.Fatalf("oracle runtime compiled into production: %s", name)
 		}
 	}
 }

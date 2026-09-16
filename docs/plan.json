@@ -4,16 +4,30 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "closure-proposals-one-pass",
-      "title": "Report every uncatalogued closure site of the changed paths with its proposal row in one preflight pass, so the closure triage needs one edit",
+      "id": "host-suite-walls",
+      "title": "Take the host group's suite walls down where the package lines rank them: audioparity 455 s in the complete group, capabilityruntime 101-134 s, evaluation, overgodb, modelintake, plan, tabularicl; each suite states what its wall buys and drops the work that buys nothing",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Report every uncatalogued closure site of the changed paths with its proposal row in one preflight pass, so the closure triage needs one edit",
+          "title": "Take the host group's suite walls down where the package lines rank them: audioparity 455 s in the complete group, capabilityruntime 101-134 s, evaluation, overgodb, modelintake, plan, tabularicl; each suite states what its wall buys and drops the work that buys nothing",
           "status": "open",
-          "verify": "test -f internal/gate/closure_proposals_test.go \u0026\u0026 go test ./internal/gate -run '^TestPreflightProposesEveryClosureSite$' -count=1"
+          "verify": "test -f internal/gate/host_suite_walls_test.go \u0026\u0026 go test ./internal/gate -run '^TestHostSuiteWallsRatchet$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "recorded-walls-counter",
+      "title": "Read every recorded wall through the performance counter and remove the fabricated one-nanosecond floors, so no record depends on the tick a run lands in",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Read every recorded wall through the performance counter and remove the fabricated one-nanosecond floors, so no record depends on the tick a run lands in",
+          "status": "open",
+          "verify": "test -f internal/processmeasure/recorded_walls_test.go \u0026\u0026 go test ./internal/processmeasure -run '^TestRecordedWallsReadTheCounter$' -count=1"
         }
       ]
     },
@@ -989,7 +1003,9 @@
             "timer-sweep-production/do",
             "preflight-mechanical-repairs/do",
             "preflight-selection-report/do",
-            "closure-proposals-one-pass/do"
+            "closure-proposals-one-pass/do",
+            "host-suite-walls/do",
+            "recorded-walls-counter/do"
           ]
         }
       ]

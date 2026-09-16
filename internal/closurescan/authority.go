@@ -11,6 +11,20 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
+// UncataloguedPolicyError names every production policy site without an
+// active closure row, one line each, so a caller proposes rows for all of
+// them in one pass.
+type UncataloguedPolicyError struct {
+	Sites  []Candidate
+	joined error
+}
+
+// Error lists the sites, one per line.
+func (err *UncataloguedPolicyError) Error() string { return err.joined.Error() }
+
+// Unwrap exposes the per-site errors.
+func (err *UncataloguedPolicyError) Unwrap() error { return err.joined }
+
 // AuthorityReport summarizes permanent literal authority.
 type AuthorityReport struct {
 	ProductionSites int
@@ -79,6 +93,7 @@ func validatePermanentAuthority(
 	}
 	report := AuthorityReport{ProductionSites: len(candidates)}
 	var missing []error
+	var sites []Candidate
 	for _, candidate := range candidates {
 		found := exactAuthority(active[candidate.DeclarationKey()], candidate)
 		if found {
@@ -89,10 +104,11 @@ func validatePermanentAuthority(
 				"permanent authority: uncatalogued production policy %s at %s:%d",
 				candidate.Name, candidate.File, candidate.Line,
 			))
+			sites = append(sites, candidate)
 		}
 	}
 	if len(missing) != 0 {
-		return AuthorityReport{}, errors.Join(missing...)
+		return AuthorityReport{}, &UncataloguedPolicyError{Sites: sites, joined: errors.Join(missing...)}
 	}
 	tests, err := CensusTestLiterals(snapshot)
 	if err != nil {

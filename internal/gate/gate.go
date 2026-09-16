@@ -62,9 +62,11 @@ const (
 	gateHeartbeatFile    = "tmp/gate_lifecycle.json"
 	gateRetryFile        = "tmp/gate_cache.json"
 	gatePlanScratchDir   = "tmp/gate_plan_scratch"
-	gateGitStateLockFile = "overgo-gate-git-state.lock"
-	gateProgressLine     = "gate: phase=%s heartbeat=%s\n"
-	gatePackageLine      = "gate: step=%s package=%s result=%s elapsed=%s\n"
+	// Proposal rows for the uncatalogued closure sites of the last refusal.
+	gateClosureProposalsFile = "tmp/closure_proposals.json"
+	gateGitStateLockFile     = "overgo-gate-git-state.lock"
+	gateProgressLine         = "gate: phase=%s heartbeat=%s\n"
+	gatePackageLine          = "gate: step=%s package=%s result=%s elapsed=%s\n"
 	// Recovery roots and transient Git authority must not be readable by
 	// other users. Directory traversal is likewise restricted to the owner.
 	gatePrivateFileMode      = clioptions.PrivateFileMode

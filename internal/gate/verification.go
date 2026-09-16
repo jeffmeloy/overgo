@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1450,7 +1451,11 @@ func (g *gateContext) stepMagics() (bool, error) {
 		return false, err
 	}
 	report, err := closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
-	if err != nil && staleClosureAuthorityFailure(err) {
+	uncatalogued, isUncatalogued := errors.AsType[*closurescan.UncataloguedPolicyError](err)
+	// The preflight writes no store: uncatalogued sites go straight to
+	// their proposal rows, whose history matches carry what a rebind
+	// would have covered.
+	if err != nil && staleClosureAuthorityFailure(err) && !(g.preflight && isUncatalogued) {
 		// The safe deterministic remediation: rebind unambiguous history to
 		// current offsets in the same store, then revalidate exactly once.
 		// Admitted content never changes; only stale alias offsets move.
@@ -1462,8 +1467,29 @@ func (g *gateContext) stepMagics() (bool, error) {
 			return false, err
 		}
 		report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+		uncatalogued, isUncatalogued = errors.AsType[*closurescan.UncataloguedPolicyError](err)
 	}
 	if err != nil {
+		if isUncatalogued {
+			proposed, drifted, proposalErr := g.proposeClosureRows(uncatalogued.Sites)
+			if proposalErr != nil {
+				return false, errors.Join(err, proposalErr)
+			}
+			var remedies []string
+			if len(proposed) != 0 {
+				remedies = append(remedies, fmt.Sprintf(
+					"%d new site(s) have proposal rows in %s: fill tier, status, understanding, closure_path and rerank_trigger, then run `go run ./cmd/closure-scan -store %s -triage %s`",
+					len(proposed), gateClosureProposalsFile, gateStorePath, gateClosureProposalsFile,
+				))
+			}
+			if len(drifted) != 0 {
+				remedies = append(remedies, fmt.Sprintf(
+					"%d site(s) drifted from catalogued offsets [%s]: run `go run ./cmd/closure-scan -store %s -import-store %s`",
+					len(drifted), strings.Join(drifted, ","), gateStorePath, gateStorePath,
+				))
+			}
+			return false, fmt.Errorf("%w; %s", err, strings.Join(remedies, "; "))
+		}
 		return false, fmt.Errorf(
 			"%w; remediate with `go run ./cmd/closure-scan -import-store %s` and catalog what remains, then re-run the gate",
 			err, gateStorePath,
@@ -1474,6 +1500,54 @@ func (g *gateContext) stepMagics() (bool, error) {
 		report.ProductionSites, report.ClassifiedSites, report.TestSites,
 	))
 	return false, nil
+}
+
+// proposeClosureRows separates the uncatalogued sites by the scanner's
+// projection: the sites it still lists are new and get ready-to-fill triage
+// rows in one propose run; the rest drifted from catalogued offsets and
+// want the rebind. The rows carry the working tree's coordinates, where the
+// author triages them, and the scanner resolves the store against that tree.
+func (g *gateContext) proposeClosureRows(sites []closurescan.Candidate) (proposed []string, drifted []string, err error) {
+	out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/closure-scan", "-store", g.storePath, "-inventory-unclassified-policy", "-format", "json")
+	if err != nil {
+		return nil, nil, fmt.Errorf("closure inventory: %w: %s", err, strings.TrimSpace(out))
+	}
+	var inventory struct {
+		Candidates []struct {
+			Current struct {
+				Name string `json:"name"`
+			} `json:"current"`
+		} `json:"candidates"`
+	}
+	if start := strings.Index(out, "{"); start < 0 {
+		return nil, nil, errors.New("closure inventory: no report in the scanner's output")
+	} else if err := json.Unmarshal([]byte(out[start:]), &inventory); err != nil {
+		return nil, nil, fmt.Errorf("closure inventory: %w", err)
+	}
+	current := map[string]bool{}
+	for _, candidate := range inventory.Candidates {
+		current[candidate.Current.Name] = true
+	}
+	for _, site := range sites {
+		switch {
+		case current[site.Name] && !slices.Contains(proposed, site.Name):
+			proposed = append(proposed, site.Name)
+		case !current[site.Name] && !slices.Contains(drifted, site.Name):
+			drifted = append(drifted, site.Name)
+		}
+	}
+	if len(proposed) == 0 {
+		return nil, drifted, nil
+	}
+	out, err = g.runGateCommand(g.repo, "go", "run", "./cmd/closure-scan", "-store", g.storePath, "-propose", strings.Join(proposed, ","))
+	if err != nil {
+		return nil, nil, fmt.Errorf("closure proposals: %w: %s", err, strings.TrimSpace(out))
+	}
+	path := filepath.Join(g.repo, filepath.FromSlash(gateClosureProposalsFile))
+	if err := os.MkdirAll(filepath.Dir(path), gatePrivateDirectoryMode); err != nil {
+		return nil, nil, err
+	}
+	return proposed, drifted, os.WriteFile(path, []byte(out), gatePrivateFileMode)
 }
 
 // staleClosureAuthorityFailure classifies magic-authority refusals whose fix

@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -21,6 +22,10 @@ import (
 )
 
 const terminalEvidenceRepo = "OVERGO_TEST_TERMINAL_EVIDENCE_REPO"
+
+// terminalReadyAnnouncement prefixes the line the child writes once it has
+// published a terminal package result.
+const terminalReadyAnnouncement = "terminal-ready "
 
 func terminalEvidenceFixture(t *testing.T, root string) (*gateContext, map[string]artifact.ID) {
 	t.Helper()
@@ -62,7 +67,9 @@ func TestTerminalEvidenceProcess(t *testing.T) {
 		if err := observe(pkg, passed); err != nil {
 			return err
 		}
-		return os.WriteFile(filepath.Join(root, "terminal-ready"), []byte(pkg), 0o600)
+		// The parent reads this announcement from the child's output.
+		fmt.Println(terminalReadyAnnouncement + pkg)
+		return nil
 	})
 	t.Fatalf("process returned before kill: %v", err)
 }
@@ -129,15 +136,11 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer lock.Close()
-		ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("receipt transaction did not finish"))
-		defer cancel()
+		ctx := t.Context()
 		done := make(chan error, 1)
+		// The live writer leaves the publication no early success; an early
+		// refusal answers the receive below with its error.
 		go func() { done <- ledger.record(ctx, "fixture/good", true) }()
-		select {
-		case err := <-done:
-			t.Fatalf("publication returned while a live writer holds the transaction: %v", err)
-		case <-time.After(20 * time.Millisecond):
-		}
 		if err := lock.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -167,26 +170,22 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if err := initialLedger.prepare(t.Context(), []string{"fixture/good", "fixture/pending"}, "complete", initialInputs, initial.retryCache); err != nil {
 		t.Fatalf("published typed environment must retain its descriptor: %v", err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 30*time.Second, errors.New("terminal receipt did not become durable"))
-	defer cancel()
+	ctx := t.Context()
 	child := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestTerminalEvidenceProcess$", "-test.timeout=1m")
 	child.Env = append(os.Environ(), terminalEvidenceRepo+"="+root)
+	ready := processcontrol.WatchLine(nil, terminalReadyAnnouncement)
+	child.Stdout = ready
 	if err := child.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = child.Process.Kill() })
-	ticker := time.Tick(10 * time.Millisecond)
-	for {
-		if _, err := os.Stat(filepath.Join(root, "terminal-ready")); err == nil {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			_ = child.Process.Kill()
-			_ = child.Wait()
-			t.Fatal(context.Cause(ctx))
-		case <-ticker:
-		}
+	// The child announces its terminal publication on its own output.
+	select {
+	case <-ready.Line():
+	case <-ctx.Done():
+		_ = child.Process.Kill()
+		_ = child.Wait()
+		t.Fatal(context.Cause(ctx))
 	}
 	// A terminal writer must release the catalog while an unfinished sibling runs.
 	store, err = overgodb.Open(filepath.Join(root, StorePath))

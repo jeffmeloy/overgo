@@ -48,7 +48,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 		!slices.Equal(dependencies(rewired, testRestCheckName), []string{testOwnersCheckName}) {
 		t.Fatalf("rewired dependencies: commit=%v test=%v", dependencies(rewired, "commit"), dependencies(rewired, testRestCheckName))
 	}
-	if deferred := compiler.laneDeferral(); len(deferred) != 3 || !deferred[testDeviceCheckName] || !deferred["device"] || !deferred[automationcheck.WebUICheckName] {
+	if deferred := compiler.laneDeferral(); len(deferred) != 4 || !deferred[testDeviceCheckName] || !deferred["device"] || !deferred[automationcheck.WebUICheckName] || !deferred[automationcheck.ModelJourneyCheckName] {
 		t.Fatalf("lane deferral = %v", deferred)
 	}
 
@@ -62,11 +62,12 @@ func TestDeferredLaneObligations(t *testing.T) {
 		gateCheck(testRestCheckName, runrecord.PhaseTest, pass),
 		gateCheck("device", runrecord.PhaseTest, refuse),
 		gateCheck(automationcheck.WebUICheckName, runrecord.PhaseTest, refuse),
+		gateCheck(automationcheck.ModelJourneyCheckName, runrecord.PhaseTest, refuse),
 		gateCheck("commit", runrecord.PhasePackage, pass),
 	}
 	graph := map[string][]string{
 		testDeviceCheckName: {testOwnersCheckName}, testRestCheckName: {testDeviceCheckName}, "device": {testDeviceCheckName},
-		automationcheck.WebUICheckName: {testOwnersCheckName}, "commit": {testRestCheckName, "device", automationcheck.WebUICheckName},
+		automationcheck.WebUICheckName: {testOwnersCheckName}, automationcheck.ModelJourneyCheckName: {testOwnersCheckName}, "commit": {testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName},
 	}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = graph[checks[index].Descriptor.Name]
@@ -184,6 +185,14 @@ func TestDeferredLaneObligations(t *testing.T) {
 		t.Fatal(err)
 	}
 	publish(running, &pending.ID)
+	resumed, err := (&gateContext{repo: repo, store: store}).resumeLaneObligation(running)
+	if err != nil || resumed.ID != running.ID {
+		t.Fatalf("interrupted runner did not retain its obligation: %+v %v", resumed, err)
+	}
+	retained, found, err := runrecord.CurrentGateLaneObligation(t.Context(), store)
+	if err != nil || !found || retained.ID != running.ID {
+		t.Fatalf("resuming changed the durable obligation: %+v %v", retained, err)
+	}
 	failed, err := running.Transition(runrecord.LaneObligationFailed, laneRun, now.Add(2*time.Second))
 	if err != nil {
 		t.Fatal(err)

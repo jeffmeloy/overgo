@@ -216,6 +216,9 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	return s.receipt, nil
 }
 
+// Done closes when the process tree and its pipes reach a terminal state.
+func (s *Supervised) Done() <-chan struct{} { return s.exited }
+
 // Exited reports, without blocking, whether the process tree and its
 // pipes have reached a terminal state.
 func (s *Supervised) Exited() bool {

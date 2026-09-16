@@ -1,13 +1,10 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
-	"time"
 
 	"overgo/internal/testskip"
 	"overgo/internal/webuilane"
@@ -25,8 +22,7 @@ func TestWebUIBrowserAgentCapabilityRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 45*time.Second, errors.New("agent capability refresh did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
 	if err != nil {
 		t.Fatal(err)

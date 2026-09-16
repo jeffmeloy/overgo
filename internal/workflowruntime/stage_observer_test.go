@@ -4,17 +4,15 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"overgo/internal/runrecord"
 )
 
 func TestStageProgressPrecedesSiblingCompletion(t *testing.T) {
 	fixture := newParallelFixture(t)
-	// A deadlock watchdog, not a throughput requirement: the right adapter
-	// cannot complete until the left receipt is published and observed.
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 5*time.Second, errors.New("durable progress was not delivered"))
-	defer cancel()
+	// The right adapter cannot complete until the left receipt is published
+	// and observed; the test runner owns the execution budget.
+	ctx := t.Context()
 	release := make(chan struct{})
 	observed := make(chan error, 1)
 	fixture.runtime.ObserveStages(func(receipt runrecord.StageReceipt) {

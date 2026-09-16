@@ -594,24 +594,40 @@ func packageInputIdentities(graph packageInputGraph, packages []string) (map[str
 	return identities, nil
 }
 
+// deviceRuntimeRoot holds the device runtime; deviceWorkerPackage creates
+// every device context; deviceTestPackages are what a test imports to reach
+// the device: the driver, the worker, or the kernel test gate that skips it
+// outside the device lane.
+const (
+	deviceRuntimeRoot   = "overgo/internal/cuda"
+	deviceWorkerPackage = deviceRuntimeRoot + "/device"
+)
+
+var deviceTestPackages = []string{deviceRuntimeRoot + "/driver", deviceWorkerPackage, deviceRuntimeRoot + "/testutil"}
+
 // devicePackages names, among the packages given and in their order, the
-// ones whose tests need the device: every package that is or transitively
-// depends on internal/cuda. It is the one fact the batch admission and the
-// batch order read.
+// ones whose tests execute on the device: a runtime package, a package whose
+// tests import the driver, the worker or the kernel test gate, or one whose
+// tests run a command that creates device contexts. Linking the runtime is
+// no need of its own: a test reaches a kernel only through the gate it
+// declares. It is the one fact the batch admission and the batch order read.
 func (graph packageInputGraph) devicePackages(packages []string) ([]string, error) {
-	directories, err := graph.dependentDirectories("internal/cuda")
-	if err != nil {
-		return nil, err
-	}
+	workers := graph.productionDependents(deviceWorkerPackage)
 	needing := map[string]bool{}
 	for _, node := range graph.nodes {
-		relative, err := filepath.Rel(graph.root, node.Dir)
-		if err != nil {
-			return nil, err
+		if node.ForTest != "" || strings.HasSuffix(node.ImportPath, ".test") {
+			continue
 		}
-		if slices.Contains(directories, filepath.ToSlash(relative)) {
-			needing[node.ImportPath] = true
+		switch {
+		case node.ImportPath == deviceRuntimeRoot || strings.HasPrefix(node.ImportPath, deviceRuntimeRoot+"/"):
+		case slices.ContainsFunc(slices.Concat(node.TestImports, node.XTestImports), func(imported string) bool {
+			return slices.Contains(deviceTestPackages, imported)
+		}):
+		case slices.ContainsFunc(node.executionDependencies, func(command string) bool { return workers[command] }):
+		default:
+			continue
 		}
+		needing[node.ImportPath] = true
 	}
 	var devices []string
 	for _, pkg := range packages {
@@ -620,6 +636,25 @@ func (graph packageInputGraph) devicePackages(packages []string) ([]string, erro
 		}
 	}
 	return devices, nil
+}
+
+// productionDependents reports the packages that are or through compiled
+// imports alone depend on the package named.
+func (graph packageInputGraph) productionDependents(root string) map[string]bool {
+	owned := map[string]bool{root: true}
+	for changed := true; changed; {
+		changed = false
+		for _, node := range graph.nodes {
+			if owned[node.ImportPath] || node.ForTest != "" {
+				continue
+			}
+			if slices.ContainsFunc(node.Imports, func(imported string) bool { return owned[imported] }) {
+				owned[node.ImportPath] = true
+				changed = true
+			}
+		}
+	}
+	return owned
 }
 
 // namedDocument reports a path some package names in production or test source.

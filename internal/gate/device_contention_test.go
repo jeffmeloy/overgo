@@ -1,3 +1,5 @@
+//go:build windows
+
 package gate
 
 import (
@@ -18,7 +20,7 @@ import (
 // batch that passes runs once.
 func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 	t.Parallel()
-	g := &gateContext{repo: t.TempDir()}
+	g := &gateContext{repo: t.TempDir(), deviceResource: "overgo-test-device-" + t.Name()}
 	type call struct {
 		packages []string
 		leased   bool
@@ -31,6 +33,14 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 		if leased || refusals > 0 {
 			if !leased {
 				refusals--
+				// The foreign holder releases the device as it refuses; its
+				// release is the signal the rerun waits on.
+				hold, err := processcontrol.ShareResource(g.deviceResource)
+				if err != nil {
+					t.Error(err)
+				} else if err := hold(); err != nil {
+					t.Error(err)
+				}
 			}
 			return contended, errors.New("go test evidence: refused")
 		}
@@ -64,13 +74,14 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 		t.Fatalf("real failure = %v after %d call(s), want it returned at once", err, len(calls))
 	}
 
-	// A refusal that never lifts ends with the admission budget's cause.
+	// A refusal that never lifts ends with the caller's cause.
+	ended := errors.New("the caller ended the wait")
 	wait, cancel := context.WithCancelCause(t.Context())
-	cancel(errContentionBudget)
+	cancel(ended)
 	_, err = g.runDeviceBatch(wait, batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
 		return contended, errors.New("go test evidence: refused")
 	})
-	if !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, errContentionBudget) {
-		t.Fatalf("unlifted refusal = %v, want the contention and the budget cause", err)
+	if !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, ended) {
+		t.Fatalf("unlifted refusal = %v, want the contention and the caller's cause", err)
 	}
 }

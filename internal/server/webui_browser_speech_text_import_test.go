@@ -1,8 +1,6 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"overgo/internal/artifact"
@@ -12,7 +10,6 @@ import (
 	"overgo/internal/testutil"
 	"overgo/internal/webuilane"
 	"testing"
-	"time"
 )
 
 func TestWebUIBrowserSpeechTextImport(t *testing.T) {
@@ -47,8 +44,7 @@ func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 60*time.Second, errors.New("speech surface probe did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

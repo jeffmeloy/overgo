@@ -84,7 +84,7 @@ func TestGateRunsStaticChecksBeforeAcceptance(t *testing.T) {
 			t.Fatalf("%s at %d follows acceptance at %d", static, positions[static], positions["acceptance"])
 		}
 	}
-	for _, expensive := range []string{"test", "device", automationcheck.WebUICheckName} {
+	for _, expensive := range []string{"test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 		if positions["acceptance"] >= positions[expensive] {
 			t.Fatalf("acceptance position %d is not before %s at %d", positions["acceptance"], expensive, positions[expensive])
 		}
@@ -99,7 +99,7 @@ func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
 		positions[step.Descriptor.Name] = index
 	}
 	for _, authority := range []string{"architecture", "fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
-		for _, expensive := range []string{"acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName} {
+		for _, expensive := range []string{"acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 			if positions[authority] >= positions[expensive] {
 				t.Fatalf("authority step %s at %d follows %s at %d", authority, positions[authority], expensive, positions[expensive])
 			}
@@ -114,7 +114,7 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 	for _, check := range checks {
 		byName[check.Descriptor.Name] = check.Descriptor
 	}
-	for _, name := range []string{"manifest", "sbom", "claims", "device", automationcheck.WebUICheckName} {
+	for _, name := range []string{"manifest", "sbom", "claims", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 		if len(byName[name].Triggers) == 0 || byName[name].Inapplicable == "" {
 			t.Errorf("%s lacks modular applicability: %+v", name, byName[name])
 		}
@@ -128,7 +128,7 @@ func TestModularPipelineDeclaresApplicabilityAndResources(t *testing.T) {
 		t.Fatalf("device resources = %+v", resources)
 	}
 	commitDependencies := byName["commit"].Dependencies
-	if !slices.Equal(commitDependencies, []string{"test", "device", automationcheck.WebUICheckName}) {
+	if !slices.Equal(commitDependencies, []string{"test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}) {
 		t.Fatalf("commit dependencies = %v", commitDependencies)
 	}
 }

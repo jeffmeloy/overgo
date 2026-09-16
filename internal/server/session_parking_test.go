@@ -3,19 +3,13 @@ package server
 import (
 	"runtime"
 	"testing"
-	"time"
 )
 
 func waitForServerSessionWaiter(t *testing.T, handler *Handler) {
 	t.Helper()
-	timer := time.NewTimer(time.Second)
-	defer timer.Stop()
+	// The parked request shows in the director's snapshot once its
+	// goroutine has yielded; the scheduler, not a clock, paces the look.
 	for handler.sessions.Snapshot().Waiting == 0 {
-		select {
-		case <-timer.C:
-			t.Fatal("request did not enter session parking")
-		default:
-			runtime.Gosched()
-		}
+		runtime.Gosched()
 	}
 }

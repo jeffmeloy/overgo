@@ -373,7 +373,7 @@ func run(args []string, output io.Writer) error {
 		}
 		defer cuda.Close()
 		admissionStart := time.Now()
-		fmt.Fprintln(output, "long-form device admission: waiting within aggregate budget; no models loaded")
+		fmt.Fprintln(output, "long-form device admission: waiting for the device's holder; no models loaded")
 		err = processcontrol.AwaitResource(ctx, func() error {
 			info, err := cuda.ReserveDevice(options.Device)
 			options.deviceInfo = info

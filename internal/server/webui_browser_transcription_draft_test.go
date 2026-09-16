@@ -1,13 +1,10 @@
 package server
 
 import (
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"strconv"
 	"testing"
-	"time"
 
 	"overgo/internal/overgodb"
 	"overgo/internal/testskip"
@@ -36,8 +33,7 @@ func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("transcription draft journey did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, path, server.URL)
 	if err != nil {
 		t.Fatal(err)

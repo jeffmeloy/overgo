@@ -185,9 +185,6 @@ func OpenContext(ctx context.Context, root string) (*Store, error) {
 	if ctx == nil {
 		return nil, errors.New("overgodb: opening with cancellation requires a context")
 	}
-	if err := contextError(ctx); err != nil {
-		return nil, err
-	}
 	return open(ctx, root, false)
 }
 
@@ -288,9 +285,6 @@ func (s *Store) Refresh(ctx context.Context) error {
 // Acquire before the local mutex so queued writers remain cancellable and do
 // not block reads. A nil mutation requests only a refreshed view.
 func (s *Store) writeTransaction(ctx context.Context, mutate func() error) error {
-	if err := contextError(ctx); err != nil {
-		return err
-	}
 	lock, err := processlock.AcquireContext(ctx, filepath.Join(s.root, lockFilename), storeFileMode)
 	if err != nil {
 		return err
@@ -1044,7 +1038,7 @@ func contextError(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("overgodb: nil context")
 	}
-	return ctx.Err()
+	return context.Cause(ctx)
 }
 
 var _ artifact.Repository = (*Store)(nil)

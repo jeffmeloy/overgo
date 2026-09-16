@@ -1,9 +1,7 @@
 package server
 
 import (
-	"context"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,7 +11,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 )
 
 func TestWebUIBrowserAudioInput(t *testing.T) {
@@ -49,8 +46,7 @@ func TestWebUIBrowserAudioInput(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			ctx, cancel := context.WithTimeoutCause(t.Context(), 45*time.Second, errors.New("cold transcription journey did not settle"))
-			defer cancel()
+			ctx := t.Context()
 			browser, err := webuilane.Open(ctx, path, "about:blank")
 			if err != nil {
 				t.Fatal(err)

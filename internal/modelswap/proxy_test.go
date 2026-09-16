@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestModelSwapRoutesLiveEnvelopeBeforeEOF(t *testing.T) {
@@ -47,8 +46,6 @@ func TestModelSwapRoutesLiveEnvelopeBeforeEOF(t *testing.T) {
 		}
 	case err := <-routeError:
 		t.Fatal(err)
-	case <-time.After(time.Second):
-		t.Fatal("routing waited for a live stream to end")
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)

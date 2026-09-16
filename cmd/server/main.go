@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -35,7 +36,6 @@ const (
 	serverReadHeaderTimeout = 10 * time.Second
 	serverReadTimeout       = 30 * time.Second
 	serverIdleTimeout       = 2 * time.Minute
-	serverShutdownTimeout   = 30 * time.Second
 	serverMaxHeaderBytes    = 1 << 20
 
 	// generationCatalogLimit bounds the activated models the generation workspace lists.
@@ -447,23 +447,30 @@ func run() error {
 	}
 	defer handler.Close()
 	log.Printf("serving model %q on http://%s", *modelID, *address)
-	return serve(shutdownContext, *address, handler)
+	return serve(shutdownContext, *address, handler, *requestTimeout)
 }
 
-// serve runs the handler on the address until the context ends, then
-// drains the connections within the shutdown timeout.
-func serve(ctx context.Context, address string, handler http.Handler) error {
+// serve binds the address, announces the bound listener, and runs the
+// handler until the context ends; the drain then waits for the requests in
+// flight, each already bounded by the declared request timeout when one is
+// set, and a further interrupt abandons it.
+func serve(ctx context.Context, address string, handler http.Handler, requestTimeout time.Duration) error {
 	httpServer := &http.Server{
-		Addr:              address,
 		Handler:           handler,
 		ReadHeaderTimeout: serverReadHeaderTimeout,
 		ReadTimeout:       serverReadTimeout,
 		IdleTimeout:       serverIdleTimeout,
 		MaxHeaderBytes:    serverMaxHeaderBytes,
 	}
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+	// The announcement follows the bind: a launcher reading it may connect at once.
+	log.Printf("%s%s", processcontrol.ListeningAnnouncement, listener.Addr())
 	serverError := make(chan error, 1)
 	go func() {
-		serverError <- httpServer.ListenAndServe()
+		serverError <- httpServer.Serve(listener)
 	}()
 	select {
 	case err := <-serverError:
@@ -473,13 +480,18 @@ func serve(ctx context.Context, address string, handler http.Handler) error {
 		return err
 	case <-ctx.Done():
 	}
-	log.Print("shutting down")
-	deadline, cancel := context.WithTimeoutCause(context.Background(), serverShutdownTimeout, errors.New("server: shutdown deadline elapsed"))
-	defer cancel()
-	if err := httpServer.Shutdown(deadline); err != nil {
+	log.Print("shutting down; a second interrupt abandons the drain")
+	drain, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if requestTimeout > 0 {
+		var cancel context.CancelFunc
+		drain, cancel = context.WithTimeoutCause(drain, requestTimeout, errors.New("server: the drain outlived the request timeout"))
+		defer cancel()
+	}
+	if err := httpServer.Shutdown(drain); err != nil {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
-	err := <-serverError
+	err = <-serverError
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

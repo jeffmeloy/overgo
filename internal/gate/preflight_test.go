@@ -92,7 +92,7 @@ func TestPreflightReportsValidateFindings(t *testing.T) {
 	if !slices.Equal(names, want) {
 		t.Fatalf("preflight checks = %v, want %v", names, want)
 	}
-	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, "commit"} {
+	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName, "commit"} {
 		if slices.Contains(names, excluded) {
 			t.Fatalf("preflight selected the %s check", excluded)
 		}
@@ -242,7 +242,7 @@ func TestGateEquivalentStaticPreflight(t *testing.T) {
 			t.Fatalf("preflight omits %s", required)
 		}
 	}
-	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, "commit"} {
+	for _, excluded := range []string{modernCensusCheckName, "acceptance", testPlanCheckName, testOwnersCheckName, testDeviceCheckName, testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName, "commit"} {
 		if !satisfied[excluded] || slices.Contains(names, excluded) {
 			t.Fatalf("preflight would run %s", excluded)
 		}

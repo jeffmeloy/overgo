@@ -159,7 +159,7 @@ func TestAudioSessionBackpressureCancellationAndLeaseLifetime(t *testing.T) {
 	close(release)
 	processErr := <-processed
 	if !errors.Is(pressureErr, ErrAudioBackpressure) || !errors.Is(snapshotErr, ErrAudioBackpressure) ||
-		!errors.Is(closeErr, context.Canceled) || !errors.Is(processErr, context.Canceled) || availableWhileActive != 0 {
+		!errors.Is(closeErr, context.Canceled) || !errors.Is(processErr, ErrSessionUnavailable) || availableWhileActive != 0 {
 		t.Fatalf("pressure=%v snapshot=%v close=%v process=%v active-slots=%d", pressureErr, snapshotErr, closeErr, processErr, availableWhileActive)
 	}
 	if err := session.Close(t.Context()); err != nil || director.Available() != 1 {

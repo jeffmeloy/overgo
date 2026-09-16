@@ -1,9 +1,7 @@
 package server
 
 import (
-	"context"
 	"encoding/base64"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"overgo/internal/media"
@@ -12,7 +10,6 @@ import (
 	"overgo/internal/webuilane"
 	"strconv"
 	"testing"
-	"time"
 )
 
 func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
@@ -31,8 +28,7 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("microphone format journey did not settle"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, executable, front.URL)
 	if err != nil {
 		t.Fatal(err)

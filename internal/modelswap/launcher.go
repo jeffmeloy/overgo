@@ -9,14 +9,9 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
 	"overgo/internal/processcontrol"
 )
-
-// healthPollInterval paces readiness probes against a starting child;
-// model load dominates startup, so a coarse poll costs nothing.
-const healthPollInterval = 250 * time.Millisecond
 
 // ServerLauncher launches the overgo server binary as the child for a
 // servable: one child at a time over the shared store, listening on a
@@ -56,7 +51,7 @@ func (w Workspaces) arguments() []string {
 }
 
 // Launch starts one child server for the servable and returns before
-// readiness; Ready polls the child's health until it answers.
+// readiness; Ready waits for the child's own listening announcement.
 func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process, error) {
 	if l.Binary == "" || l.Store == "" {
 		return nil, errors.New("model swap: launcher requires a server binary and a store")
@@ -76,12 +71,14 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 	// The child self-reports the servable's name so the GUI's model pill
 	// (and the proxy's self-identity short-circuit) track the swap.
 	arguments := append([]string{"-listen", address, "-repo", l.Store, "-model-id", servable.Name}, l.Workspaces.arguments()...)
+	// The child logs its bound listener; the announcement is the readiness signal.
+	announced := processcontrol.WatchLine(os.Stderr, processcontrol.ListeningAnnouncement+address)
 	supervised, err := processcontrol.Start(ctx, processcontrol.Command{
 		Path:   l.Binary,
 		Args:   append(arguments, servable.Location),
 		Dir:    l.Dir,
 		Stdout: os.Stderr,
-		Stderr: os.Stderr,
+		Stderr: announced,
 	})
 	if err != nil {
 		return nil, err
@@ -99,41 +96,47 @@ func (l ServerLauncher) Launch(ctx context.Context, servable Servable) (Process,
 		exited <- waitErr
 		close(exited)
 	}()
-	return &serverProcess{supervised: supervised, exited: exited, url: "http://" + address}, nil
+	return &serverProcess{supervised: supervised, exited: exited, announced: announced.Line(), url: "http://" + address}, nil
 }
 
 type serverProcess struct {
 	supervised *processcontrol.Supervised
 	// exited delivers the child's Wait result; a child that dies during
-	// startup fails Ready immediately instead of polling forever.
+	// startup fails Ready at once.
 	exited chan error
-	url    string
+	// announced delivers the child's listening line once its socket is bound.
+	announced <-chan string
+	url       string
 }
 
 // URL is the child's loopback base address.
 func (p *serverProcess) URL() string { return p.url }
 
-// Ready polls the child's health endpoint until it answers OK, the
-// child exits, or the context ends -- model load time is the wait.
+// Ready waits for the child's listening announcement, its exit, or the
+// context's end, then confirms the bound listener answers health once --
+// model load time is the wait, and the child itself reports its end.
 func (p *serverProcess) Ready(ctx context.Context) error {
-	client := &http.Client{Timeout: healthPollInterval}
-	for {
-		response, err := client.Get(p.url + "/health")
-		if err == nil {
-			response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				return nil
-			}
-		}
-		select {
-		case exit := <-p.exited:
-			exit = cmp.Or(exit, errors.New("child exited without serving"))
-			return fmt.Errorf("child server exited before becoming ready: %w", exit)
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(healthPollInterval):
-		}
+	select {
+	case <-p.announced:
+	case exit := <-p.exited:
+		exit = cmp.Or(exit, errors.New("child exited without serving"))
+		return fmt.Errorf("child server exited before becoming ready: %w", exit)
+	case <-ctx.Done():
+		return ctx.Err()
 	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, p.url+"/health", nil)
+	if err != nil {
+		return err
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("child server announced its listener but did not answer health: %w", err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("child server health answered status %d", response.StatusCode)
+	}
+	return nil
 }
 
 // Stop terminates the child process tree and reaps it.

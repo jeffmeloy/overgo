@@ -49,7 +49,7 @@ func openResourceAdmission(name string, shared bool) (syscall.Handle, error) {
 	handle, err := syscall.CreateFile(encoded, syscall.GENERIC_READ, share, nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
 		if errors.Is(err, resourceSharingViolation) {
-			err = errors.Join(ErrResourceBusy, err)
+			err = errors.Join(&ResourceBusyError{Name: name}, err)
 		}
 		return 0, fmt.Errorf("processcontrol: resource admission %q: %w", name, err)
 	}
@@ -80,7 +80,12 @@ func shareResource(name string) (func() error, error) {
 			return nil, fmt.Errorf("processcontrol: inspect exclusive resource %q: %w", name, callErr)
 		}
 		retained = true
-		return sync.OnceValue(func() error { return syscall.CloseHandle(handle) }), nil
+		// The release wakes the processes waiting on this resource.
+		return sync.OnceValue(func() error {
+			err := syscall.CloseHandle(handle)
+			signalResourceRelease(name)
+			return err
+		}), nil
 	}
 	defer syscall.CloseHandle(syscall.Handle(job))
 	process, _, _ := procGetCurrentProcess.Call()
@@ -89,7 +94,7 @@ func shareResource(name string) (func() error, error) {
 		return nil, fmt.Errorf("processcontrol: inspect resource membership: %w", err)
 	}
 	if member == 0 {
-		return nil, fmt.Errorf("processcontrol: %w: %q", ErrResourceBusy, name)
+		return nil, fmt.Errorf("processcontrol: %w", &ResourceBusyError{Name: name})
 	}
 	if err := claimResource(name); err != nil {
 		return nil, err

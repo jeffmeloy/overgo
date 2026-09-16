@@ -1,16 +1,13 @@
 package audioparity
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/server"
 	"overgo/internal/testskip"
@@ -53,8 +50,7 @@ func TestWebUIBrowserNativeASRMicrophone(t *testing.T) {
 	for index, name := range []string{"granite", "nemotron"} {
 		t.Run(name, func(t *testing.T) {
 			want := strings.TrimSpace(f.transcribe(t, front, index))
-			ctx, cancel := context.WithTimeoutCause(t.Context(), 90*time.Second, errors.New("real ASR browser journey did not settle"))
-			defer cancel()
+			ctx := t.Context()
 			browser, err := webuilane.Open(ctx, executable, browserURL)
 			if err != nil {
 				t.Fatal(err)

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProxyResponseCancellation(t *testing.T) {
@@ -56,7 +57,8 @@ func TestProxyClientCancellation(t *testing.T) {
 	t.Cleanup(func() { log.SetOutput(previous) })
 	cancelled, cancel := context.WithCancelCause(t.Context())
 	cancel(context.Canceled)
-	expired, release := context.WithTimeoutCause(t.Context(), 0, context.DeadlineExceeded)
+	// This deadline has already elapsed; the fixture never waits on a timer.
+	expired, release := context.WithDeadlineCause(t.Context(), time.Now(), context.DeadlineExceeded)
 	defer release()
 	upstream := errors.New("fixture upstream failure")
 	for _, test := range []struct {

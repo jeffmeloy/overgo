@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"overgo/internal/clioptions"
 )
@@ -166,10 +165,10 @@ func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Vi
 // viewport under each colour scheme (a light state's name carries the
 // "-light" suffix), audits each state's layout, and, with dir set, writes
 // each state's capture there. The page is ready once the chat composer
-// stands with no page error; a tab's own request settles within settle,
-// and a slow tab is captured as it stands. It answers the states captured
+// stands with no page error; a tab is captured once the shell reports no
+// request in flight, as it then stands. It answers the states captured
 // and every finding, and leaves the dark scheme emulated.
-func CaptureStates(ctx context.Context, browser *Browser, dir string, settle time.Duration) (int, []StateFinding, error) {
+func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []StateFinding, error) {
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-chat.active .composer textarea") && window.overgo.errors.length === 0`); err != nil {
 		return 0, nil, err
 	}
@@ -207,9 +206,9 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string, settle tim
 				if err := browser.Eventually(ctx, `!!document.querySelector("#panel-`+tab+`.active")`); err != nil {
 					return states, findings, fmt.Errorf("%s %s: %w", viewport.Name, tab, err)
 				}
-				loading, done := context.WithTimeoutCause(ctx, settle, errors.New("webui lane: the tab kept loading"))
-				_ = browser.Eventually(loading, `!document.querySelector("#panel-`+tab+` .note")?.textContent.startsWith("loading")`)
-				done()
+				if err := browser.Eventually(ctx, `window.overgo.api.inFlight() === 0`); err != nil {
+					return states, findings, fmt.Errorf("%s %s settle: %w", viewport.Name, tab, err)
+				}
 				if err := capture(viewport, tab+suffix); err != nil {
 					return states, findings, err
 				}

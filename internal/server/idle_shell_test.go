@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
@@ -138,8 +137,10 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("idle health with another writer = %d", response.Code)
 	}
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 20*time.Millisecond, errors.New("contended request expired"))
-	defer cancel()
+	// A request whose caller has already left waits for no writer: the
+	// contention is reported at once with the store busy.
+	ctx, leave := context.WithCancelCause(t.Context())
+	leave(errors.New("the request's caller left"))
 	busy := requestWrite(ctx)
 	if busy.Code != http.StatusServiceUnavailable || !strings.Contains(busy.Body.String(), `"store_busy"`) {
 		t.Fatalf("live contention = %d %s", busy.Code, busy.Body)

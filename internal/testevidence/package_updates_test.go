@@ -5,13 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"overgo/internal/processcontrol"
 )
@@ -22,8 +21,8 @@ func packageEvent(action, pkg, test, output string) string {
 }
 
 func TestSlowPublicationProcess(t *testing.T) {
-	marker := os.Getenv("OVERGO_TEST_SLOW_PUBLICATION")
-	if marker == "" {
+	announce := os.Getenv("OVERGO_TEST_SLOW_PUBLICATION")
+	if announce == "" {
 		return
 	}
 	for _, name := range []string{"first", "second"} {
@@ -36,16 +35,23 @@ func TestSlowPublicationProcess(t *testing.T) {
 		}
 		_, _ = io.WriteString(os.Stdout, packageEvent("pass", name, "TestWorks", "")+packageEvent("pass", name, "", ""))
 	}
-	if err := os.WriteFile(marker, nil, 0600); err != nil {
+	// Both streams feed the parser, so the fixture announces its drained
+	// output by connecting to the parent's listener.
+	connection, err := net.Dial("tcp", announce)
+	if err != nil {
 		t.Fatal(err)
 	}
+	_ = connection.Close()
 	os.Exit(0)
 }
 
 func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 20*time.Second, errors.New("output drain stalled behind publication"))
-	defer cancel()
-	marker := filepath.Join(t.TempDir(), "drained")
+	ctx := t.Context()
+	drained, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer drained.Close()
 	release, entered, done := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	unblock := sync.OnceFunc(func() { close(release) })
 	var report GoTestReport
@@ -54,7 +60,7 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 	go func() {
 		report, runErr = RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestSlowPublicationProcess$"},
-			Env: append(os.Environ(), "OVERGO_TEST_SLOW_PUBLICATION="+marker),
+			Env: append(os.Environ(), "OVERGO_TEST_SLOW_PUBLICATION="+drained.Addr().String()),
 		}, GoTestOptions{DiagnosticBytes: 1024, Observe: func(name string, passed bool) error {
 			if name == "first" {
 				close(entered)
@@ -71,19 +77,13 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal(context.Cause(ctx))
 	}
-	ticks := time.Tick(time.Millisecond)
-	for {
-		if _, err := os.Stat(marker); err == nil {
-			break
-		} else if !errors.Is(err, os.ErrNotExist) {
-			t.Fatal(err)
-		}
-		select {
-		case <-ticks:
-		case <-ctx.Done():
-			t.Fatal(context.Cause(ctx))
-		}
+	// The fixture drains its whole output while the first publication is
+	// still held; its connection proves the output was never blocked.
+	connection, err := drained.Accept()
+	if err != nil {
+		t.Fatal(err)
 	}
+	_ = connection.Close()
 	select {
 	case <-done:
 		t.Fatal("command returned before terminal publication finished")

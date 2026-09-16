@@ -3,6 +3,7 @@ package processcontrol
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"slices"
@@ -17,6 +18,18 @@ const inheritedResourcesEnvironment = "OVERGO_PROCESS_RESOURCES"
 
 // ErrResourceBusy means another process owns the requested physical resource.
 var ErrResourceBusy = errors.New("physical resource is already reserved")
+
+// ResourceBusyError is the contention of one named resource: a waiter
+// reads the name from it and waits on that resource's holders.
+type ResourceBusyError struct{ Name string }
+
+// Error names the resource beside the contention sentinel.
+func (e *ResourceBusyError) Error() string {
+	return fmt.Sprintf("%v: %q", ErrResourceBusy, e.Name)
+}
+
+// Is matches the contention sentinel.
+func (e *ResourceBusyError) Is(target error) bool { return errors.Is(target, ErrResourceBusy) }
 
 // ResourceBusyExitCode carries resource contention across supervised command
 // boundaries using BSD EX_TEMPFAIL (https://man.openbsd.org/sysexits).

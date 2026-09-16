@@ -105,5 +105,5 @@ func serveTranscription(ctx context.Context, definition recipe.Definition, confi
 	}
 	defer handler.Close()
 	log.Printf("serving transcription model %s recipe %s on http://%s", definition.Model, definition.ID, options.address)
-	return serve(ctx, options.address, handler)
+	return serve(ctx, options.address, handler, options.requestTimeout)
 }

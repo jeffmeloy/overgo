@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -129,26 +128,6 @@ func (g *gateContext) writeHeartbeat(state runrecord.GateHeartbeatState) error {
 		return err
 	}
 	return writeJSON(g.repo, gateHeartbeatFile, heartbeat, clioptions.OutputFileMode)
-}
-
-func (g *gateContext) startHeartbeat() (func(), error) {
-	if err := g.writeHeartbeat(runrecord.HeartbeatRunning); err != nil {
-		return nil, err
-	}
-	stop, done := make(chan struct{}), make(chan struct{})
-	go func() {
-		defer close(done)
-		ticker := time.Tick(5 * time.Second)
-		for {
-			select {
-			case <-ticker:
-				_ = g.writeHeartbeat(runrecord.HeartbeatRunning)
-			case <-stop:
-				return
-			}
-		}
-	}()
-	return sync.OnceFunc(func() { close(stop); <-done }), nil
 }
 
 type gateDebtEnvelope struct {

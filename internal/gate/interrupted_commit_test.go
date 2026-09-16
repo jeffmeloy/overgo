@@ -218,6 +218,16 @@ func assertGateGitLockPathsAbsent(t *testing.T, locks []gateGitLockPath) {
 	}
 }
 
+// treeWatcher delivers a directory tree's name-change notifications.
+type treeWatcher interface {
+	next() error
+	close()
+}
+
+// treeChangeWatch is the platform's tree notification; the Windows test
+// file binds it, and no other platform runs these fixtures.
+var treeChangeWatch func(directory string) (treeWatcher, error)
+
 func assertGitReferenceTransactionLocksReleased(t *testing.T, repo string, intent gateCommitIntent) {
 	t.Helper()
 	var paths []string
@@ -228,7 +238,20 @@ func assertGitReferenceTransactionLocksReleased(t *testing.T, repo string, inten
 		}
 		paths = append(paths, path+".lock")
 	}
-	deadline := time.Now().Add(5 * time.Second)
+	// The orphaned Git child releases its locks as it finishes; the file
+	// system's own change notification for the metadata tree is the signal.
+	if treeChangeWatch == nil {
+		t.Fatal("tree change notification is bound on Windows only")
+	}
+	metadata, err := gitMetadataPath(repo, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch, err := treeChangeWatch(filepath.Dir(metadata))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer watch.close()
 	for {
 		var present []string
 		for _, path := range paths {
@@ -241,10 +264,9 @@ func assertGitReferenceTransactionLocksReleased(t *testing.T, repo string, inten
 		if len(present) == 0 {
 			return
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("Git update-ref child left transaction locks after parent death: %v", present)
+		if err := watch.next(); err != nil {
+			t.Fatalf("Git update-ref child left transaction locks after parent death: %v: %v", present, err)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 

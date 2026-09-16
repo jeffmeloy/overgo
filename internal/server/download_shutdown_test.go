@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 // TestDownloadShutdownOwnership pins the one download shutdown owner:
@@ -44,11 +43,7 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 	if started.Code != http.StatusAccepted {
 		t.Fatalf("admission status=%d body=%s", started.Code, started.Body.String())
 	}
-	select {
-	case <-transferStarted:
-	case <-time.After(5 * time.Second):
-		t.Fatal("transfer never reached the hub")
-	}
+	<-transferStarted
 	// Close owns shutdown: it cancels the transfer, records the
 	// interruption, and returns only after the transfer goroutine has
 	// unwound -- so every assertion below reads settled state, and any

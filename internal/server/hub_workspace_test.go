@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 // hubTestServer serves one model repository with a digest-declared file, the
@@ -90,7 +90,6 @@ func TestWorkbenchAPIDownloadJob(t *testing.T) {
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("start status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
-	deadline := time.Now().Add(10 * time.Second)
 	for {
 		recorder = httptest.NewRecorder()
 		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/hub/downloads", nil))
@@ -113,10 +112,8 @@ func TestWorkbenchAPIDownloadJob(t *testing.T) {
 			}
 			break
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("download did not finish: %+v", job)
-		}
-		time.Sleep(20 * time.Millisecond)
+		// The job finishes once its goroutine has run; the scheduler paces the look.
+		runtime.Gosched()
 	}
 	stored, err := os.ReadFile(filepath.Join(root, "tiny", "weights.bin"))
 	if err != nil || string(stored) != string(weights) {

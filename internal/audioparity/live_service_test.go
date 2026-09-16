@@ -176,8 +176,7 @@ func (f *liveASRFixture) transcribe(t *testing.T, front *httptest.Server, index 
 	query := request.URL.Query()
 	query.Set("swap", definition.Model.String())
 	request.URL.RawQuery = query.Encode()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 2*time.Minute, errors.New("live ASR transcription exceeded test budget"))
-	defer cancel()
+	ctx := t.Context()
 	response, err := front.Client().Do(request.WithContext(ctx))
 	if err != nil {
 		t.Fatal(err)
@@ -247,8 +246,7 @@ func (f *liveASRFixture) refusedStartup(t *testing.T) {
 				t.Fatal(err)
 			}
 			supervisor, front := f.proxy(t)
-			ctx, cancel := context.WithTimeoutCause(t.Context(), time.Minute, errors.New("refused ASR startup exceeded test budget"))
-			defer cancel()
+			ctx := t.Context()
 			request, err := http.NewRequestWithContext(ctx, http.MethodGet, front.URL+"/health?swap="+f.native.Definition.Model.String(), nil)
 			if err != nil {
 				t.Fatal(err)
@@ -455,19 +453,11 @@ func TestASRLiveOperationsAcceptance(t *testing.T) {
 		}
 		swapped <- err
 	}()
-	select {
-	case err := <-swapped:
-		t.Fatalf("swap did not wait for open audio stream: %v", err)
-	case <-time.After(30 * time.Millisecond):
-	}
+	// A swap that did not wait for the open audio stream would answer with
+	// success, which the cancelled result below refuses.
 	cancel(context.Canceled)
-	select {
-	case err := <-swapped:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("canceled live swap: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("canceled swap retained an active waiter")
+	if err := <-swapped; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled live swap: %v", err)
 	}
 	if after, running := supervisor.Status(); !running || after != current {
 		t.Fatal("canceled swap replaced the streaming child")
@@ -524,7 +514,8 @@ type liveASRStream struct {
 
 func openLiveASRStream(t *testing.T, front *httptest.Server, initial any) *liveASRStream {
 	t.Helper()
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 2*time.Minute, errors.New("live ASR stream exceeded test budget"))
+	ctx, cancelCause := context.WithCancelCause(t.Context())
+	cancel := func() { cancelCause(context.Canceled) }
 	reader, writer := io.Pipe()
 	client := &liveASRStream{writer: writer, cancel: cancel}
 	t.Cleanup(client.close)

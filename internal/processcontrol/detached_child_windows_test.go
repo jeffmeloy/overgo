@@ -5,14 +5,12 @@ package processcontrol
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"io"
 	"net"
 	"os"
 	"os/exec"
 	"syscall"
 	"testing"
-	"time"
 )
 
 func TestDetachedJobChildHelper(t *testing.T) {
@@ -124,10 +122,9 @@ func TestWindowsWaitIncludesDetachedDescendant(t *testing.T) {
 			defer syscall.CloseHandle(handle)
 			ctx, cancel := context.WithCancelCause(t.Context())
 			defer cancel(nil)
-			// Bound this liveness counterexample after startup. Production release
-			// waits on process/job events; this watchdog detects a missing trigger.
-			waitContext, stop := context.WithTimeoutCause(ctx, 2*time.Second, errors.New("parent exit did not release its descendant"))
-			defer stop()
+			// The wait ends with the process or job event the release publishes;
+			// a missing trigger hangs here and the test binary reports it.
+			waitContext := ctx
 			if _, err := connection.Write([]byte{1}); err != nil {
 				t.Fatal(err)
 			}

@@ -3,7 +3,6 @@
 package adaptiveparity_test
 
 import (
-	"context"
 	"fmt"
 	"os/exec"
 	"slices"
@@ -27,11 +26,10 @@ func measureModelProcesses(t testing.TB, runs int, directory, binary, testName, 
 	t.Helper()
 	results := make([]processmeasure.Result, runs)
 	for index := range results {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx := t.Context()
 		command := exec.CommandContext(ctx, binary, "-test.run=^"+testName+"$", "-test.v")
 		command.Dir = directory
 		result, err := processmeasure.Measure(command)
-		cancel()
 		if err != nil {
 			t.Fatalf("%s run %d: %v: %s", testName, index, err, result.Output)
 		}

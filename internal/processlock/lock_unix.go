@@ -9,7 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"syscall"
-	"time"
 )
 
 // Lock is an exclusive file lock released by Close or process exit.
@@ -47,27 +46,43 @@ func (lock *Lock) Close() error {
 	return closeErr
 }
 
-// AcquireContext waits for exclusive access until ctx ends.
+// AcquireContext waits for exclusive access until ctx ends: a busy lock is
+// waited for with a blocking flock on its own thread, and a wait the caller
+// abandons releases the lock the moment it is finally granted.
 func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, error) {
-	// flock has no context-aware wait. Bound retry latency without busy-spinning;
-	// this cadence affects scheduling only, never ownership or stale-lock expiry.
-	const retryInterval = time.Millisecond
-	var contention error
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, errors.Join(err, contention)
+	if err := context.Cause(ctx); err != nil {
+		return nil, contendedCause(err, path, mode)
+	}
+	lock, err := Acquire(path, mode)
+	if !errors.Is(err, ErrBusy) {
+		return lock, err
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, mode)
+	if err != nil {
+		return nil, err
+	}
+	type outcome struct {
+		lock *Lock
+		err  error
+	}
+	granted := make(chan outcome, 1)
+	go func() {
+		if err := syscall.Flock(int(file.Fd()), syscall.LOCK_EX); err != nil {
+			_ = file.Close()
+			granted <- outcome{err: &os.PathError{Op: "lock", Path: path, Err: err}}
+			return
 		}
-		lock, err := Acquire(path, mode)
-		if !errors.Is(err, ErrBusy) {
-			return lock, err
-		}
-		contention = ErrBusy
-		timer := time.NewTimer(retryInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, errors.Join(ctx.Err(), contention)
-		case <-timer.C:
-		}
+		granted <- outcome{lock: &Lock{file: file}}
+	}()
+	select {
+	case result := <-granted:
+		return result.lock, result.err
+	case <-ctx.Done():
+		go func() {
+			if result := <-granted; result.lock != nil {
+				_ = result.lock.Close()
+			}
+		}()
+		return nil, errors.Join(context.Cause(ctx), ErrBusy)
 	}
 }

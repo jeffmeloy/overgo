@@ -84,8 +84,8 @@ func unlockFirstByte(file *os.File, overlapped *syscall.Overlapped) (uintptr, er
 // AcquireContext waits for exclusive access until ctx ends. Cancellation drains
 // the pending OS request before releasing its handle and OVERLAPPED storage.
 func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if err := context.Cause(ctx); err != nil {
+		return nil, contendedCause(err, path, mode)
 	}
 	name, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
@@ -128,7 +128,7 @@ func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, 
 	}
 	if result == 0 {
 		_ = syscall.CloseHandle(handle)
-		if err := ctx.Err(); err != nil {
+		if err := context.Cause(ctx); err != nil {
 			if contended {
 				return nil, errors.Join(err, ErrBusy)
 			}
@@ -138,7 +138,7 @@ func AcquireContext(ctx context.Context, path string, mode fs.FileMode) (*Lock, 
 	}
 	lock.overlapped.HEvent = 0
 	lock.file = os.NewFile(uintptr(handle), path)
-	if err := ctx.Err(); err != nil {
+	if err := context.Cause(ctx); err != nil {
 		_ = lock.Close()
 		return nil, err
 	}

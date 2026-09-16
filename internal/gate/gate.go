@@ -62,8 +62,11 @@ const (
 	gateHeartbeatFile    = "tmp/gate_lifecycle.json"
 	gateRetryFile        = "tmp/gate_cache.json"
 	gatePlanScratchDir   = "tmp/gate_plan_scratch"
-	gateGitStateLockFile = "overgo-gate-git-state.lock"
-	gateProgressLine     = "gate: phase=%s heartbeat=%s\n"
+	// Proposal rows for the uncatalogued closure sites of the last refusal.
+	gateClosureProposalsFile = "tmp/closure_proposals.json"
+	gateGitStateLockFile     = "overgo-gate-git-state.lock"
+	gateProgressLine         = "gate: phase=%s heartbeat=%s\n"
+	gatePackageLine          = "gate: step=%s package=%s result=%s elapsed=%s\n"
 	// Recovery roots and transient Git authority must not be readable by
 	// other users. Directory traversal is likewise restricted to the owner.
 	gatePrivateFileMode      = clioptions.PrivateFileMode
@@ -80,11 +83,14 @@ type gateContext struct {
 	// Lanes this gate runs after its commit, the obligation it records for
 	// them, the failed obligation that forces them inline, and the exact tree
 	// a lane runner plans instead of the worktree.
-	deferLanes          bool
-	deferredLanes       []string
-	laneDebt            *runrecord.GateLaneObligation
-	laneObligation      *runrecord.GateLaneObligation
-	fixedTree           string
+	deferLanes     bool
+	deferredLanes  []string
+	laneDebt       *runrecord.GateLaneObligation
+	laneObligation *runrecord.GateLaneObligation
+	fixedTree      string
+	// deviceResource names the device the shared test lease admitted; a
+	// refused exclusive claim waits on that device's holders.
+	deviceResource      string
 	messageFile         string
 	storePath           string
 	steps               []runrecord.GateStep
@@ -157,6 +163,8 @@ type gateContext struct {
 	// testStep names the check whose package executions are being recorded;
 	// the test checks run one after another.
 	testStep string
+	// progress receives the package lines; nil means standard error.
+	progress io.Writer
 	// selectionCauses retains every requested package's selection
 	// attribution and observed execution for the final record.
 	selectionCauses []runrecord.SelectionPackage
@@ -212,12 +220,11 @@ func (g *gateContext) openStore() (*overgodb.Store, error) {
 	}
 	if g.store == nil {
 		// Another writer, a lane recording its receipts beside the test
-		// groups, is waited out under the host batch budget instead of
-		// refused on the store's OS exclusion.
-		ctx, cancel := context.WithTimeoutCause(context.Background(), testAdmissionBudget, errStoreAdmissionBudget)
-		defer cancel()
+		// groups, is waited out instead of refused on the store's OS
+		// exclusion: the wait ends when it releases or exits, and the gate
+		// process's own end is the only cancellation it has.
 		began := time.Now()
-		store, err := overgodb.OpenContext(ctx, filepath.Join(g.repo, g.storePath))
+		store, err := overgodb.OpenContext(context.Background(), filepath.Join(g.repo, g.storePath))
 		if err != nil {
 			return nil, err
 		}
@@ -228,9 +235,6 @@ func (g *gateContext) openStore() (*overgodb.Store, error) {
 	}
 	return g.store, nil
 }
-
-// names the exhausted store admission budget as the cancellation cause
-var errStoreAdmissionBudget = errors.New("gate store admission budget exhausted")
 
 func (g *gateContext) closeStore() error {
 	if g == nil || g.store == nil {
@@ -735,8 +739,9 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 	var out []byte
 	var err error
 	// A child that Windows could not start (its loader failed under the
-	// parallel test load) ran nothing; starting it again is a retry of the
-	// launch, not of the work, and the bound keeps a real fault visible.
+	// parallel test load) ran nothing; starting it again at once is a retry
+	// of the launch, not of the work, and the bound keeps a real fault
+	// visible: a failure the load does not lift between launches is one.
 	for range processStartAttempts {
 		cmd := exec.Command(name, commandArgs...)
 		cmd.Dir = dir
@@ -749,7 +754,6 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 		if !processStartFailed(err) {
 			break
 		}
-		time.Sleep(processStartRetryDelay)
 	}
 	if err != nil {
 		return string(out), fmt.Errorf(
@@ -769,7 +773,6 @@ func commandEnvironment(dir string, environment []string, name string, args ...s
 const (
 	windowsProcessStartFailure = 0xc0000142
 	processStartAttempts       = 3
-	processStartRetryDelay     = 2 * time.Second
 )
 
 // processStartFailed reports a child that Windows failed to start.

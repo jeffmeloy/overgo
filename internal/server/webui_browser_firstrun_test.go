@@ -5,7 +5,6 @@ import (
 	"context"
 	"debug/buildinfo"
 	"encoding/base64"
-	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -19,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"overgo/internal/dataroot"
 	"overgo/internal/modelswap"
@@ -33,7 +31,7 @@ import (
 	"overgo/internal/webuilane"
 )
 
-// TestWebUIBrowserFirstRun drives the front page end to end against a
+// TestModelJourneyFirstRun drives the front page end to end against a
 // served model through the real swap proxy (professional GUI campaign,
 // gui-quality/acceptance-lane). The test prepares its server
 // binary, store and smallest servable models; missing prerequisites fail
@@ -51,9 +49,9 @@ import (
 // (gui-journey-modalities). When the default model refuses images and the
 // lane names a model whose store declares a projector, that model serves
 // the image-in leg.
-func TestWebUIBrowserFirstRun(t *testing.T) {
-	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane")
+func TestModelJourneyFirstRun(t *testing.T) {
+	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
+		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane -journeys")
 	}
 	journey, err := prepareBrowserJourney(t)
 	if err != nil {
@@ -117,8 +115,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	// The journey's bound caps the sum of its steps, each bounded on its
 	// own: alone the journey's real model loads take about seven minutes,
 	// and beside the gate's test groups they take longer.
-	ctx, cancel := context.WithTimeoutCause(t.Context(), 15*time.Minute, errors.New("webui lane: the first-run journey did not complete"))
-	defer cancel()
+	ctx := t.Context()
 	browser, err := webuilane.Open(ctx, browserPath, front.URL+"/")
 	if err != nil {
 		t.Fatal(err)
@@ -128,21 +125,15 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
 	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
 		t.Fatal(err)
 	}
-	// Each step settles within its own bound so a leg that cannot settle
-	// fails with the page's state rather than spending the journey's budget.
-	// A model switch loads real weights, which took over two minutes for the
-	// multimodal model beside the gate's test groups, so it settles under
-	// the load bound; every other step settles under the step bound.
-	const stepBound, loadBound = 2 * time.Minute, 6 * time.Minute
-	settleWithin := func(what string, bound time.Duration, expression string) {
+	// Each step settles on the page's own clock under the journey's context:
+	// a model switch loads real weights for as long as the machine takes,
+	// and a leg that cannot settle fails with the page's state when the
+	// journey ends.
+	settle := func(what string, expression string) {
 		t.Helper()
-		step, done := context.WithTimeoutCause(ctx, bound, errors.New("webui lane: the step did not settle"))
-		defer done()
-		if err := browser.Eventually(step, expression); err != nil {
+		if err := browser.Eventually(ctx, expression); err != nil {
 			var page string
-			dump, finish := context.WithTimeoutCause(t.Context(), 10*time.Second, errors.New("webui lane: page dump timed out"))
-			defer finish()
-			_ = browser.Evaluate(dump, `JSON.stringify({errors: window.overgo && window.overgo.errors, pill: (document.querySelector("#model-pill") || {}).textContent,
+			_ = browser.Evaluate(t.Context(), `JSON.stringify({errors: window.overgo && window.overgo.errors, pill: (document.querySelector("#model-pill") || {}).textContent,
         capability: (window.overgo.capabilities() || {}).id, composers: [...document.querySelectorAll(".composer")].map((node) => JSON.stringify(node.dataset)),
         chips: [...document.querySelectorAll(".operation-chip")].map((chip) => chip.textContent),
         assistant: document.querySelectorAll("#panel-chat .msg.assistant").length, busy: (document.querySelector(".composer .btn") || {}).disabled,
@@ -152,20 +143,15 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
         focused: document.hasFocus(), active: document.activeElement ? document.activeElement.outerHTML.slice(0, 160) : "",
         editor: !!document.querySelector("#history-rows form"), reload: [...document.querySelectorAll("button")].some((button) => button.textContent === "Reload history" && !button.hidden),
         predicate: (() => { try { return String(`+expression+`); } catch (failure) { return "throws: " + failure; } })()})`, &page)
-			// The exhausted bound is named: the step's own, or the journey's;
-			// the resolver's stage timing shows a picker stalled behind the
+			// The resolver's stage timing shows a picker stalled behind the
 			// catalog, with the stage the request waits in.
 			var stacks bytes.Buffer
 			_ = pprof.Lookup("goroutine").WriteTo(&stacks, 1)
 			t.Logf("blocked request stacks:\n%s", stacks.String())
-			t.Fatalf("%s: %v (%v); catalog resolver: %+v; page: %s", what, err, context.Cause(step), resolver.Progress(), page)
+			t.Fatalf("%s: %v; catalog resolver: %+v; page: %s", what, err, resolver.Progress(), page)
 		}
 	}
 	defer func() { t.Logf("catalog resolver stages, slowest: %v", resolver.Progress().Slowest) }()
-	settle := func(what, expression string) {
-		t.Helper()
-		settleWithin(what, stepBound, expression)
-	}
 	// captureStates: the page as it stands at this leg, captured and audited
 	// at both viewports (written when the lane writes screens); the journey
 	// continues at the desktop size.
@@ -236,7 +222,7 @@ func TestWebUIBrowserFirstRun(t *testing.T) {
     })()`)
 		// The pill names the served file; the welcome card, when the
 		// conversation is empty, names the model by its own declared name.
-		settleWithin("model switched and the composer re-derived", loadBound, `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
+		settle("model switched and the composer re-derived", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` &&
       !!document.querySelector("#panel-chat.active .composer textarea") && !document.querySelector(".composer").dataset.laneBefore &&
       !window.overgo.modelSwitching() && !document.querySelector('dialog[aria-label="Choose a model"][open]') && !document.querySelector('.send-button').disabled &&
       (window.overgo.capabilities() || {}).id !== `+strconv.Quote(previous)+``)

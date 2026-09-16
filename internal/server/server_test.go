@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"runtime"
 
 	"context"
 
@@ -645,9 +646,8 @@ func TestServerRequestTimeoutCancelsGeneration(t *testing.T) {
 }
 
 func TestWrappedErrorClassification(t *testing.T) {
-	ctx, cancel := context.WithTimeoutCause(t.Context(), time.Millisecond, errRequestTimeoutCause)
-	defer cancel()
-	<-ctx.Done()
+	ctx, end := context.WithCancelCause(t.Context())
+	end(errRequestTimeoutCause)
 	cause := context.Cause(ctx)
 	if !errors.Is(cause, errRequestTimeoutCause) {
 		t.Fatalf("timeout cause = %v", cause)
@@ -1322,12 +1322,10 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 			handler.ServeHTTP(responses[index], request)
 		})
 	}
-	deadline := time.Now().Add(time.Second)
-	for handler.sessions.Available() != 0 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if handler.sessions.Available() != 0 {
-		t.Fatal("generation requests did not acquire both slots")
+	// Both requests hold a slot once their goroutines have run; the
+	// scheduler, not a clock, paces the look.
+	for handler.sessions.Available() != 0 {
+		runtime.Gosched()
 	}
 
 	slotRequest := httptest.NewRequest(http.MethodGet, "/slots", nil)

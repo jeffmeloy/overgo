@@ -5,11 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"overgo/internal/automationcheck"
+	"overgo/internal/plan"
+	"overgo/internal/planverify"
 )
 
 // preflightChecks selects the pipeline's static checks in pipeline order: the
@@ -27,7 +31,7 @@ func (g *gateContext) preflightChecks() []automationcheck.Check {
 
 // Generated authority outputs reported by the existing scope inspection.
 var generatedAuthorityPaths = []string{
-	"docs/api_manifest.json", "compatibility.json", "docs/COMPATIBILITY.md",
+	apiManifestFile, compatibilityManifestFile, compatibilityMatrixFile,
 	"SBOM.cdx.json", "kernels/manifest.json",
 	"docs/modern_go_census.json", "docs/modern_go_baseline.json",
 }
@@ -165,7 +169,10 @@ func runPreflight(ctx context.Context, pipeline []automationcheck.Check, output 
 	return nil
 }
 
-// Preflight diagnoses the working tree without admission or store repair.
+// Preflight applies the derived-file repairs admission applies to the
+// working tree, diagnoses it without admission or store repair, and when
+// the static checks hold, prints what the gate would run for the planned
+// paths and runs the dispatched row's acceptance against the working tree.
 // Findings require correction before the normal commit gate.
 func (g *gateContext) Preflight(output io.Writer) error {
 	if g == nil || len(g.paths) == 0 {
@@ -175,9 +182,178 @@ func (g *gateContext) Preflight(output io.Writer) error {
 	if g.stepEvidence == nil {
 		g.stepEvidence = map[string]string{}
 	}
+	if err := g.preflightRepairs(output); err != nil {
+		return err
+	}
 	err := runPreflight(context.Background(), g.pipelineChecks(), output)
 	if g.pendingGenerated != nil {
 		fmt.Fprintf(output, "preflight: dirty-generated: ok (%d generated file(s) pending commit)\n", *g.pendingGenerated)
 	}
-	return err
+	if err != nil {
+		return err
+	}
+	if err := g.preflightSelection(output); err != nil {
+		return err
+	}
+	return g.preflightAcceptance(context.Background(), output)
+}
+
+// preflightAcceptance runs the dispatched row's verify against the working
+// tree, as the gate runs it against the frozen candidate, and prints the
+// verdict; without a row or a verify it prints so and passes.
+func (g *gateContext) preflightAcceptance(ctx context.Context, output io.Writer) error {
+	if g.planRef == "" {
+		fmt.Fprintln(output, "preflight: acceptance skipped: -plan names no row")
+		return nil
+	}
+	verify, err := plannedStepVerify(g.repo, g.planRef)
+	if err != nil {
+		return fmt.Errorf("preflight: acceptance: %w", err)
+	}
+	if verify == "" {
+		fmt.Fprintf(output, "preflight: acceptance skipped: %s declares no verify\n", g.planRef)
+		return nil
+	}
+	environment, err := g.sourceEnvironment()
+	if err != nil {
+		return err
+	}
+	started := time.Now()
+	verdict, err := planverify.Execute(ctx, g.repo, verify, environment)
+	wall := time.Since(started).Round(time.Millisecond)
+	if err != nil {
+		fmt.Fprintf(output, "preflight: acceptance FAIL %s: %s: %v\n", wall, verify, err)
+		return fmt.Errorf("preflight: acceptance %s: %w", g.planRef, err)
+	}
+	fmt.Fprintf(output, "preflight: acceptance ok %s verdict=%s: %s\n", wall, verdict, verify)
+	return nil
+}
+
+// plannedStepVerify reads the verify the plan declares for one item/step.
+func plannedStepVerify(repo, reference string) (string, error) {
+	document, err := plan.Load(filepath.Join(repo, plan.Path))
+	if err != nil {
+		return "", err
+	}
+	itemID, stepID, _ := strings.Cut(reference, "/")
+	for _, item := range document.Items {
+		if item.ID != itemID {
+			continue
+		}
+		for _, step := range item.Steps {
+			if step.ID == stepID {
+				return step.Verify, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%s is absent from the plan", reference)
+}
+
+// selectionGroups is what the test steps would run for the planned paths:
+// the pending packages of each group, the receipts they would reuse, the
+// changed owners that run first and the packages under the device lease.
+type selectionGroups struct {
+	owners, short, complete, devices []string
+	shortReused, completeReused      int
+	excluded                         int
+}
+
+// preflightSelection plans the pipeline as the gate does and prints the
+// checks it selects and excludes, the lanes among them, and the package
+// groups of the test steps with the receipts the retry cache would reuse.
+func (g *gateContext) preflightSelection(output io.Writer) error {
+	planned, err := g.planPipeline()
+	if err != nil {
+		return fmt.Errorf("preflight: selection: %w", err)
+	}
+	scope, err := g.deriveTestScope()
+	if err != nil {
+		return fmt.Errorf("preflight: selection: %w", err)
+	}
+	graph, err := g.inputGraph()
+	if err != nil {
+		return err
+	}
+	if !g.environment.ID.Valid() {
+		if g.environment, err = discoverEnvironment(g.repo); err != nil {
+			return err
+		}
+	}
+	direct := slices.Concat(scope.direct, scope.uncertain)
+	directInputs, err := packageInputIdentities(graph, direct)
+	if err != nil {
+		return err
+	}
+	dependentInputs, err := packageInputIdentities(graph, scope.dependent)
+	if err != nil {
+		return err
+	}
+	groups := selectionGroups{excluded: scope.excluded}
+	if groups.short, groups.shortReused, err = g.packageCachePartition(direct, "short", directInputs); err != nil {
+		return err
+	}
+	if groups.complete, groups.completeReused, err = g.packageCachePartition(scope.dependent, "complete", dependentInputs); err != nil {
+		return err
+	}
+	for _, pkg := range groups.short {
+		if slices.Contains(scope.edited, pkg) {
+			groups.owners = append(groups.owners, pkg)
+		}
+	}
+	if groups.devices, err = graph.devicePackages(slices.Concat(groups.short, groups.complete)); err != nil {
+		return err
+	}
+	writeSelectionReport(output, buildGatePlanReport(planned), groups)
+	return nil
+}
+
+// writeSelectionReport prints the selection: counts first, then each list
+// on its own line.
+func writeSelectionReport(output io.Writer, report gatePlanReport, groups selectionGroups) {
+	var lanes, excludedLanes []string
+	selected := map[string]bool{}
+	for _, disposition := range report.Selected {
+		selected[disposition.Name] = true
+	}
+	for _, lane := range deferredLaneChecks {
+		if selected[lane] {
+			lanes = append(lanes, lane)
+		} else {
+			excludedLanes = append(excludedLanes, lane)
+		}
+	}
+	var excluded []string
+	for _, disposition := range report.Excluded {
+		excluded = append(excluded, disposition.Name)
+	}
+	fmt.Fprintf(output, "preflight: selection: checks selected=%d excluded=%d unresolved=%d; excluded=[%s]\n",
+		len(report.Selected), len(report.Excluded), len(report.Unresolved), strings.Join(excluded, ","))
+	fmt.Fprintf(output, "preflight: selection: lanes selected=[%s] excluded=[%s]; a selected lane runs after the commit unless a failed obligation forces it inline\n",
+		strings.Join(lanes, ","), strings.Join(excludedLanes, ","))
+	fmt.Fprintf(output, "preflight: selection: test scope: short group %d pending + %d reused receipts, complete group %d pending + %d reused, %d packages excluded, %d under the device lease\n",
+		len(groups.short), groups.shortReused, len(groups.complete), groups.completeReused, groups.excluded, len(groups.devices))
+	for _, list := range []struct {
+		name     string
+		packages []string
+	}{{"owners first", groups.owners}, {"short pending", groups.short}, {"complete pending", groups.complete}, {"device lease", groups.devices}} {
+		if len(list.packages) != 0 {
+			fmt.Fprintf(output, "preflight: selection: %s=[%s]\n", list.name, strings.Join(list.packages, ","))
+		}
+	}
+}
+
+// preflightRepairs stages the registry against the working tree and prints
+// each repair with the files it rewrote; a store repair is left to the gate.
+func (g *gateContext) preflightRepairs(output io.Writer) error {
+	if err := g.stageMechanicalRepairs(); err != nil {
+		return err
+	}
+	g.auditMutex.Lock()
+	defer g.auditMutex.Unlock()
+	for _, line := range g.audit {
+		if strings.HasPrefix(line, "staged repair: ") {
+			fmt.Fprintf(output, "preflight: %s\n", line)
+		}
+	}
+	return nil
 }

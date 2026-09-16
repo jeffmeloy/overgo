@@ -774,7 +774,7 @@ RULES skill.md; only this task; port-first; park off-scope findings with cmd/fin
 
 // browserVerifyOutsideLane: a verify naming a browser acceptance test without the lane runner that makes it run.
 func browserVerifyOutsideLane(command string) bool {
-	return strings.Contains(command, webuilane.BrowserTestPrefix) && !strings.Contains(command, "cmd/webui-lane")
+	return (strings.Contains(command, webuilane.BrowserTestPrefix) || strings.Contains(command, webuilane.ModelJourneyPrefix)) && !strings.Contains(command, "cmd/webui-lane")
 }
 
 // runVerify executes the step's verify command; its exit code is the verdict.

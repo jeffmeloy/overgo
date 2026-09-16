@@ -177,12 +177,8 @@ func underAny(filePath string, prefixes []string) bool {
 	return false
 }
 
-// EntryAuthorityRules is the single policy table for the permanent
-// architecture ratchet. The gate consumes it on every commit, including
-// documentation-only commits, and each protected package's
-// TestProductionAuthorityBoundaries exercises its own domain against this
-// same table, so there is exactly one policy owner and no second guard
-// process.
+// EntryAuthorityRules owns the permanent architecture policy. The gate applies
+// it to every candidate; this package tests each domain independently.
 func EntryAuthorityRules() []EntryAuthorityRule {
 	return []EntryAuthorityRule{
 		{

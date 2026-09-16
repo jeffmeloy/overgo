@@ -1,4 +1,4 @@
-package automationcheck
+package gate
 
 import (
 	"os"
@@ -31,17 +31,17 @@ func TestAgentHarnessBoundaryOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	coverage, err := AgentHarnessBoundaryCoverage(snapshot, []string{"internal/recipe/recipe.go"})
+	coverage, err := agentHarnessBoundaryCoverage(snapshot, []string{"internal/recipe/recipe.go"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(coverage.Changed) != 1 || len(coverage.Boundaries) != 1 || coverage.Boundaries[0] != "internal/agentloop" || len(coverage.Missing) != 0 {
 		t.Fatalf("coverage = %+v", coverage)
 	}
-	if err := RequireAgentHarnessBoundaries(coverage, []string{"overgo/internal/recipe", "overgo/internal/agentloop"}); err != nil {
+	if err := requireAgentHarnessBoundaries(coverage, []string{"overgo/internal/recipe", "overgo/internal/agentloop"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := RequireAgentHarnessBoundaries(coverage, []string{"overgo/internal/recipe"}); err == nil {
+	if err := requireAgentHarnessBoundaries(coverage, []string{"overgo/internal/recipe"}); err == nil {
 		t.Fatal("missing assembled boundary passed selection")
 	}
 }

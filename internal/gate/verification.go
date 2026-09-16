@@ -1119,12 +1119,12 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	boundaryCoverage, err := automationcheck.AgentHarnessBoundaryCoverage(snapshot, scope.productionPaths)
+	boundaryCoverage, err := agentHarnessBoundaryCoverage(snapshot, scope.productionPaths)
 	if err != nil {
 		return false, err
 	}
 	selectedTests := append(slices.Clone(direct), dependent...)
-	if err := automationcheck.RequireAgentHarnessBoundaries(boundaryCoverage, selectedTests); err != nil {
+	if err := requireAgentHarnessBoundaries(boundaryCoverage, selectedTests); err != nil {
 		return false, err
 	}
 	if len(boundaryCoverage.Boundaries) != 0 {

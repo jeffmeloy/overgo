@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-command-owners",
-      "title": "Reduce duplicated command and API ownership",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reduce duplicated command and API ownership",
-          "status": "open",
-          "verify": "go run ./cmd/api-manifest -check",
-          "rationale": "Use AST call graphs and the generated manifest to identify commands or wrappers with identical execution owners and distinguish operator from internal consumers. Preserve documented flags, exit behavior, protocols and supported compatibility consumers. Prefer existing command owners and shared typed inputs; remove obsolete duplicate dispatchers and link targets with complete caller migration. Bind exact before/after executable/export counts and owner tests before closure; manifest freshness alone cannot accept removal. Avoid introducing a new command framework or changing HTTP/audio feature scope.",
-          "depends_on": [
-            "surface-common-implementations/retire-resolved-exceptions"
-          ]
-        }
-      ]
-    },
-    {
       "id": "surface-audio-fixtures",
       "title": "Resolve retained audio fixtures and retire duplicate skip controls",
       "owner": "surface-area-reduction",

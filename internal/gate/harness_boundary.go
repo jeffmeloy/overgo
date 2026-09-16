@@ -1,7 +1,8 @@
-package automationcheck
+package gate
 
 import (
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -10,9 +11,9 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
-// BoundaryCoverage reports, for the changed shared harness owners, the tested
+// harnessBoundaryCoverage reports, for the changed shared harness owners, the tested
 // assembly packages that exercise them and any owner left without a boundary.
-type BoundaryCoverage struct {
+type harnessBoundaryCoverage struct {
 	Changed    []string `json:"changed"`
 	Boundaries []string `json:"boundaries"`
 	Missing    []string `json:"missing,omitempty"`
@@ -25,15 +26,15 @@ var sharedHarnessOwners = map[string]bool{
 	"internal/plan":      true,
 }
 
-// AgentHarnessBoundaryCoverage maps each changed shared harness owner to the
+// agentHarnessBoundaryCoverage maps each changed shared harness owner to the
 // tested packages that reach it and assemble more than one harness owner.
-func AgentHarnessBoundaryCoverage(snapshot repoanalysis.SourceSnapshot, changedPaths []string) (BoundaryCoverage, error) {
+func agentHarnessBoundaryCoverage(snapshot repoanalysis.SourceSnapshot, changedPaths []string) (harnessBoundaryCoverage, error) {
 	graph := map[string]map[string]bool{}
 	tested := map[string]bool{}
 	for _, source := range snapshot.Files {
 		generated, err := source.Generated()
 		if err != nil {
-			return BoundaryCoverage{}, err
+			return harnessBoundaryCoverage{}, err
 		}
 		if generated {
 			continue
@@ -45,7 +46,7 @@ func AgentHarnessBoundaryCoverage(snapshot repoanalysis.SourceSnapshot, changedP
 		}
 		parsed, err := source.Syntax()
 		if err != nil {
-			return BoundaryCoverage{}, err
+			return harnessBoundaryCoverage{}, err
 		}
 		if graph[pkg] == nil {
 			graph[pkg] = map[string]bool{}
@@ -53,7 +54,7 @@ func AgentHarnessBoundaryCoverage(snapshot repoanalysis.SourceSnapshot, changedP
 		for _, spec := range parsed.Imports {
 			path, err := strconv.Unquote(spec.Path.Value)
 			if err != nil {
-				return BoundaryCoverage{}, err
+				return harnessBoundaryCoverage{}, err
 			}
 			if local := localPackagePath(path); local != "" {
 				graph[pkg][local] = true
@@ -67,28 +68,37 @@ func AgentHarnessBoundaryCoverage(snapshot repoanalysis.SourceSnapshot, changedP
 			changedSet[pkg] = true
 		}
 	}
-	coverage := BoundaryCoverage{Changed: sortedKeys(changedSet)}
-	boundaries := map[string]bool{}
-	for _, changed := range coverage.Changed {
-		found := false
-		for candidate := range graph {
-			if !tested[candidate] || candidate == changed || !reaches(graph, candidate, changed) || !assemblesHarnessOwners(graph, candidate) {
+	coverage := harnessBoundaryCoverage{Changed: slices.Sorted(maps.Keys(changedSet))}
+	boundaries, covered := map[string]bool{}, map[string]bool{}
+	for candidate := range graph {
+		if !tested[candidate] || len(coverage.Changed) == 0 {
+			continue
+		}
+		owners := reachableHarnessOwners(graph, candidate)
+		for _, changed := range coverage.Changed {
+			if candidate == changed || !owners[changed] {
 				continue
 			}
-			boundaries[candidate] = true
-			found = true
+			for other := range owners {
+				if other != changed {
+					boundaries[candidate], covered[changed] = true, true
+					break
+				}
+			}
 		}
-		if !found {
+	}
+	for _, changed := range coverage.Changed {
+		if !covered[changed] {
 			coverage.Missing = append(coverage.Missing, changed)
 		}
 	}
-	coverage.Boundaries = sortedKeys(boundaries)
+	coverage.Boundaries = slices.Sorted(maps.Keys(boundaries))
 	return coverage, nil
 }
 
-// RequireAgentHarnessBoundaries fails when a changed owner has no tested
+// requireAgentHarnessBoundaries fails when a changed owner has no tested
 // assembly boundary or a boundary package is missing from the derived test scope.
-func RequireAgentHarnessBoundaries(coverage BoundaryCoverage, selectedImports []string) error {
+func requireAgentHarnessBoundaries(coverage harnessBoundaryCoverage, selectedImports []string) error {
 	if len(coverage.Missing) != 0 {
 		return errors.New("automation ownership: changed agent contract has no tested assembly boundary: " + strings.Join(coverage.Missing, ","))
 	}
@@ -106,50 +116,23 @@ func RequireAgentHarnessBoundaries(coverage BoundaryCoverage, selectedImports []
 	return nil
 }
 
-func reaches(graph map[string]map[string]bool, start, target string) bool {
-	seen := map[string]bool{}
-	var visit func(string) bool
-	visit = func(current string) bool {
-		if current == target {
-			return true
-		}
+// Collect shared owners once; cycles and repeated edges visit each node once.
+func reachableHarnessOwners(graph map[string]map[string]bool, start string) map[string]bool {
+	owners, seen := map[string]bool{}, map[string]bool{}
+	pending := []string{start}
+	for len(pending) != 0 {
+		current := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
 		if seen[current] {
-			return false
-		}
-		seen[current] = true
-		for next := range graph[current] {
-			if visit(next) {
-				return true
-			}
-		}
-		return false
-	}
-	return visit(start)
-}
-
-func assemblesHarnessOwners(graph map[string]map[string]bool, start string) bool {
-	seen := map[string]bool{}
-	found := ""
-	var visit func(string) bool
-	visit = func(current string) bool {
-		if seen[current] {
-			return false
+			continue
 		}
 		seen[current] = true
 		if sharedHarnessOwners[current] {
-			if found != "" && found != current {
-				return true
-			}
-			found = current
+			owners[current] = true
 		}
-		for next := range graph[current] {
-			if visit(next) {
-				return true
-			}
-		}
-		return false
+		pending = slices.AppendSeq(pending, maps.Keys(graph[current]))
 	}
-	return visit(start)
+	return owners
 }
 
 func localPackagePath(importPath string) string {
@@ -163,13 +146,4 @@ func localPackagePath(importPath string) string {
 		}
 	}
 	return ""
-}
-
-func sortedKeys(values map[string]bool) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	slices.Sort(keys)
-	return keys
 }

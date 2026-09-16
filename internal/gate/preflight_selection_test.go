@@ -10,15 +10,8 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// TestPreflightRunsAcceptanceAndReportsSelection pins the preflight's last
-// two steps: the dispatched row's verify runs against the working tree and
-// prints its verdict, a failing or absent step is a finding and a step
-// without a verify passes by saying so; the selection report names the
-// checks the gate's impact selects and excludes, the lanes among them and
-// the package groups of the test steps with the changed owners first, and
-// on the live tree a change to the gate's own source selects the gate's
-// package as an owner, the device test group and the browser lanes the
-// gate reaches through the server, and excludes the device lane.
+// Preflight reports acceptance, failures and source-bound selection.
+// Gate-only changes retain owner tests and exclude the contract's model lanes.
 func TestPreflightRunsAcceptanceAndReportsSelection(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
@@ -87,7 +80,7 @@ func TestPreflightRunsAcceptanceAndReportsSelection(t *testing.T) {
 		}
 		text := live.String()
 		for _, want := range []string{
-			"preflight: selection: checks selected=", "preflight: selection: lanes selected=[test-device", "excluded=[device]",
+			"preflight: selection: checks selected=", "preflight: selection: lanes selected=[test-device]", "excluded=[" + strings.Join(testingReductionContract().Consumer, ",") + "]",
 			"preflight: selection: owners first=[overgo/internal/gate]", "preflight: selection: test scope: short group ",
 		} {
 			if !strings.Contains(text, want) {

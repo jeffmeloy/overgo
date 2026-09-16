@@ -97,6 +97,16 @@ stops and declared budgets; use the plan's stop mechanism for a required
 external prerequisite or irreversible action. A bounded user task ends when
 that task is complete.
 
+Launch campaigns through `go run ./cmd/loop -config docs/loop.json`; individual
+`plan -prompt` and `gate` commands do not start supervision. The launcher owns
+one worktree's process lock and passes its fresh session to every worker.
+Configured campaign worktrees require that live session at dispatch and commit
+admission. Do not copy a session token into an unrelated interactive process.
+Worker exit is a driver event: it waits for or recovers deferred validation,
+then dispatches again. Keep each worktree's launcher and console separate.
+Read `tmp/loop_supervisor.json` for the owner PID, and the launcher's log for
+worker progress; a retained locator without its live lock requires a restart.
+
 ## Robustness
 
 - Preserve exact identities for source, models, data, recipes, policies, and

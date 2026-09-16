@@ -185,6 +185,14 @@ func TestDeferredLaneObligations(t *testing.T) {
 		t.Fatal(err)
 	}
 	publish(running, &pending.ID)
+	resumed, err := (&gateContext{repo: repo, store: store}).resumeLaneObligation(running)
+	if err != nil || resumed.ID != running.ID {
+		t.Fatalf("interrupted runner did not retain its obligation: %+v %v", resumed, err)
+	}
+	retained, found, err := runrecord.CurrentGateLaneObligation(t.Context(), store)
+	if err != nil || !found || retained.ID != running.ID {
+		t.Fatalf("resuming changed the durable obligation: %+v %v", retained, err)
+	}
 	failed, err := running.Transition(runrecord.LaneObligationFailed, laneRun, now.Add(2*time.Second))
 	if err != nil {
 		t.Fatal(err)

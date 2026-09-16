@@ -211,11 +211,8 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	if err != nil {
 		return err
 	}
-	running, err := current.Transition(runrecord.LaneObligationRunning, artifact.ID{}, time.Now())
+	running, err := g.resumeLaneObligation(current)
 	if err != nil {
-		return err
-	}
-	if err := g.publishLaneState(running, current.ID); err != nil {
 		return err
 	}
 	// The locator names this runner's pid; admission judges liveness by it.
@@ -276,6 +273,19 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 		return fmt.Errorf("gate: deferred lanes failed on %.12s: %w", running.CodeCommit, runErr)
 	}
 	return nil
+}
+
+// resumeLaneObligation retains an interrupted run's exact obligation. Its
+// caller holds the authority lock and has rejected a live previous runner.
+func (g *gateContext) resumeLaneObligation(current runrecord.GateLaneObligation) (runrecord.GateLaneObligation, error) {
+	if current.State == runrecord.LaneObligationRunning {
+		return current, nil
+	}
+	running, err := current.Transition(runrecord.LaneObligationRunning, artifact.ID{}, time.Now())
+	if err != nil {
+		return running, err
+	}
+	return running, g.publishLaneState(running, current.ID)
 }
 
 // executeDeferredLanes plans the landed commit as the candidate and runs the

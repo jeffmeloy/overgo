@@ -132,13 +132,31 @@
       "package": "overgo/internal/testskip",
       "name": "StoreAcceptance",
       "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
-      "retire_with": "stale-store-acceptances/do"
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:017c8eb4a3d54e453680f7f072a8cf2b815d16649729785a7837a77db5f60a93"
+      }
     },
     {
       "package": "overgo/internal/testskip",
       "name": "StoreAcceptanceEnv",
       "reason": "The store-lineage acceptance gate names one variable and one skip reason for three test packages; the constants are test-consumed by design until the row that re-records the dispositions decides whether the gate stays.",
-      "retire_with": "stale-store-acceptances/do"
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:017c8eb4a3d54e453680f7f072a8cf2b815d16649729785a7837a77db5f60a93"
+      }
+    },
+    {
+      "package": "overgo/internal/speechsynth",
+      "name": "DocumentProgram",
+      "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
+      "retire_with": "merge-31760aaa966a/do"
+    },
+    {
+      "package": "overgo/internal/speechsynth",
+      "name": "RegisterDocumentRuntime",
+      "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
+      "retire_with": "merge-31760aaa966a/do"
     }
   ]
 }

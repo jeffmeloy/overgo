@@ -55,8 +55,21 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 		check(`(() => {const button=[...document.querySelectorAll('.capture-dialog button')].find(node=>node.textContent===` + strconv.Quote(text) + `&&!node.hidden);if(!button||button.disabled)return false;button.focus();return document.activeElement===button;})()`)
 		pressKey(t, ctx, browser, "Enter", 13)
 	}
+	capture := func(state string) {
+		t.Helper()
+		for _, viewport := range []webuilane.Viewport{{Name: "desktop", Width: 1280, Height: 900}, {Name: "phone", Width: 390, Height: 844}, {Name: "phone-keyboard", Width: 390, Height: 380}, {Name: "small-phone", Width: 320, Height: 568}} {
+			findings, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "camera-"+state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, finding := range findings {
+				t.Errorf("camera %s: %+v", state, finding)
+			}
+			check(`(() => {const dialog=captureDialog(), bounds=dialog.getBoundingClientRect();return dialog.open && bounds.left>=0 && bounds.right<=innerWidth && bounds.top>=0 && bounds.bottom<=innerHeight && dialog.scrollWidth<=dialog.clientWidth && [...dialog.querySelectorAll('button,select')].filter(node=>!node.disabled && node.getClientRects().length && getComputedStyle(node).visibility!=='hidden').every(node=>{const r=node.getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight && r.left>=0 && r.right<=innerWidth;});})()`)
+		}
+	}
 	settle(`!!document.querySelector('.composer textarea')`)
-	check(`(() => {window.captureOld=document.querySelector('.composer');document.querySelector('#settings-toggle').click();const key=document.querySelector('#api-key');key.value=` + strconv.Quote(testAPIKey) + `;key.dispatchEvent(new Event('change'));document.querySelector('#settings-toggle').click();return true;})()`)
+	check(`(() => {window.captureOld=document.querySelector('.composer');document.querySelector('#settings-toggle').click();const key=document.querySelector('#api-key');key.value=` + strconv.Quote(testAPIKey) + `;key.dispatchEvent(new Event('change'));document.querySelector('[aria-label="Close settings"]').click();return !document.querySelector('#settings-dialog').open;})()`)
 	settle(`!!document.querySelector('.composer .attach-button') && document.querySelector('.composer')!==captureOld`)
 	// A synthetic camera (a painted canvas) and microphone (an oscillator) drive the real recorder.
 	check(`(() => {
@@ -96,14 +109,31 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	settle(`!!clipButton() && !clipButton().disabled`)
 	activate("Record a clip")
 	settle(`captureDialog().dataset.state==='preview' && !!captureDialog().querySelector('video')`)
-	check(`(() => {window.priorCameraRequests=captureRequests.length;const device=captureDialog().querySelector('select');device.value='environment';device.dispatchEvent(new Event('change'));return true;})()`)
-	settle(`captureRequests.length>priorCameraRequests && captureDialog().dataset.state==='preview'`)
-	check(`captureRequests.at(-1).video.facingMode.ideal==='environment'`)
+	check(`captureRequests.at(-1).video.facingMode.ideal==='user'`)
+	for _, choice := range []string{"environment", "user", "device:fixture-camera"} {
+		check(`(() => {window.priorCameraRequests=captureRequests.length;window.priorCameraTracks=captureTracks.filter(track=>track.readyState==='live');const device=captureDialog().querySelector('select');device.value=` + strconv.Quote(choice) + `;device.dispatchEvent(new Event('change'));return priorCameraTracks.length>0 && priorCameraTracks.every(track=>track.readyState==='ended');})()`)
+		settle(`captureRequests.length===priorCameraRequests+1 && captureDialog().dataset.state==='preview'`)
+		if choice == "device:fixture-camera" {
+			check(`captureRequests.at(-1).video.deviceId.exact==='fixture-camera' && !captureRequests.at(-1).video.facingMode`)
+		} else {
+			check(`captureRequests.at(-1).video.facingMode.ideal===` + strconv.Quote(choice) + ` && !captureRequests.at(-1).video.deviceId`)
+		}
+		check(`captureDialog().querySelector('video').srcObject.getTracks().every(track=>track.readyState==='live')`)
+	}
+	capture("preview")
 	activate("Record clip")
 	settle(`captureDialog().dataset.state==='recording' && captureDialog().querySelector('p').textContent.includes(' · ')`)
+	capture("recording")
 	activate("Stop recording")
 	settle(`captureDialog().dataset.state==='ready' && !!captureDialog().querySelector('video[controls]')`)
 	check(`captureTracks.every(track=>track.readyState==='ended')`)
+	settle(`captureDialog().querySelector('video').readyState>=HTMLMediaElement.HAVE_CURRENT_DATA`)
+	if err := browser.Call(ctx, "Runtime.evaluate", map[string]any{"expression": `(async()=>{const video=captureDialog().querySelector('video');video.muted=true;await video.play();return true;})()`, "userGesture": true, "awaitPromise": true}, nil); err != nil {
+		t.Fatal(err)
+	}
+	settle(`captureDialog().querySelector('video').currentTime>0 && !captureDialog().querySelector('video').paused`)
+	check(`(() => {const video=captureDialog().querySelector('video');video.pause();return video.videoWidth>0 && video.videoHeight>0;})()`)
+	capture("ready")
 	activate("Retake")
 	settle(`captureDialog().dataset.state==='preview'`)
 	activate("Record clip")
@@ -138,4 +168,5 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	check(`intakeGIF && (intakeDecodes ? intakeOutcome==='stored' : intakeOutcome.includes('does not decode '+recorderTypes[0]))`)
 	check(`(() => {clearInterval(window.capturePaint);return true;})()`)
 	t.Log("video capture leg: negotiated container, bounded recording with stop, preview, retake and cleanup, and the intake's own decision on the format")
+	t.Log("capture facing leg: front, rear and exact device constraints; previous tracks released before each switch; real recorder preview, recording and playback controls at desktop, phone, keyboard and small-phone sizes; synthetic devices, no physical-phone claim")
 }

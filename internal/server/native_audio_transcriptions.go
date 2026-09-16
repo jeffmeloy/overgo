@@ -87,7 +87,18 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 				writeError(response, http.StatusRequestEntityTooLarge, "invalid_audio", "audio exceeds the recipe's encoded-byte bound")
 				return
 			}
-			if readErr == nil && (run.Failure == speechrecognition.AudioAdmissionFailure || run.Failure == speechrecognition.AudioFormatFailure) {
+			if readErr == nil && run.Failure == speechrecognition.AudioFormatFailure {
+				var audio *speechrecognition.InputRequirements
+				for _, control := range capability.Controls {
+					if control.Name == "audio" {
+						audio = control.Audio
+						break
+					}
+				}
+				writeInvalidRequestMessage(response, audioFormatMessage(audio))
+				return
+			}
+			if readErr == nil && run.Failure == speechrecognition.AudioAdmissionFailure {
 				writeInvalidRequestMessage(response, "audio does not satisfy the transcription recipe's admission policy")
 				return
 			}

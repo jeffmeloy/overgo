@@ -25,6 +25,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -41,6 +42,7 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 )
 
 const pauseMarker = "docs/.loop_pause"
@@ -148,12 +150,33 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
+	campaign, err := processcontrol.BeginCampaign(loopWorktree, strings.TrimSpace(os.Getenv(plan.AutomationWorkerEnvironment)))
+	if err != nil {
+		return err
+	}
+	defer campaign.Close()
+	priorSession, sessionPresent := os.LookupEnv(processcontrol.CampaignEnvironment)
+	_, session, _ := strings.Cut(campaign.Environment(), "=")
+	if err := os.Setenv(processcontrol.CampaignEnvironment, session); err != nil {
+		return err
+	}
+	defer func() {
+		if sessionPresent {
+			_ = os.Setenv(processcontrol.CampaignEnvironment, priorSession)
+		} else {
+			_ = os.Unsetenv(processcontrol.CampaignEnvironment)
+		}
+	}()
 	stopStore, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
 	if err != nil {
 		return err
 	}
 	defer stopStore.Close()
-	world := &execWorld{config: loaded, strategy: strategy, stopStore: stopStore}
+	prompt, found, err := artifact.ReadContent(context.Background(), stopStore, strategy.Prompt)
+	if err != nil || !found {
+		return errors.Join(errors.New("loop: configured strategy prompt is unavailable"), err)
+	}
+	world := &execWorld{config: loaded, strategy: strategy, stopStore: stopStore, promptPrefix: string(prompt.Data), campaign: campaign}
 	outcome, err := loop.Run(world, strategy.Loop)
 	fmt.Printf("loop: %s after %d worker invocation(s); parked=%v; audit: the gate remains the sole commit path, workers cannot advance an unverified step\n",
 		outcome.Reason, outcome.Invocations, outcome.Parked)
@@ -183,12 +206,18 @@ func resolveConfiguredStrategy(loaded config) (loop.Strategy, error) {
 
 // execWorld adapts the driver to the repository's real owners.
 type execWorld struct {
-	stopStore *overgodb.Store
-	config    config
-	strategy  loop.Strategy
+	stopStore      *overgodb.Store
+	config         config
+	strategy       loop.Strategy
+	validationDebt string
+	promptPrefix   string
+	campaign       *processcontrol.Campaign
 }
 
 func (w *execWorld) Current() (loop.Step, bool, error) {
+	if err := w.awaitValidation(); err != nil {
+		return loop.Step{}, false, err
+	}
 	// The dispatch arrives as data; the prose line is never parsed back.
 	out, err := planCommand("-prompt", "-json")
 	if err != nil {
@@ -207,12 +236,64 @@ func (w *execWorld) Current() (loop.Step, bool, error) {
 	return loop.Step{Item: dispatch.Item, ID: dispatch.Step}, true, nil
 }
 
+// awaitValidation waits for a live gate to release its mutation ownership. A
+// worker's supervised exit may also have ended its detached lane child; the
+// durable obligation then resumes through the existing gate owner.
+func (w *execWorld) awaitValidation() error {
+	if err := authoritylock.Wait(context.Background(), loopWorktree); err != nil {
+		return err
+	}
+	if w.stopStore == nil {
+		return nil
+	}
+	if err := w.stopStore.Refresh(context.Background()); err != nil {
+		return err
+	}
+	obligation, found, err := runrecord.CurrentGateLaneObligation(context.Background(), w.stopStore)
+	w.validationDebt = ""
+	if err != nil || !found || obligation.Resolved() {
+		return err
+	}
+	if obligation.State == runrecord.LaneObligationFailed {
+		w.validationDebt = fmt.Sprintf("Deferred validation failed for commit %s; inspect result %s and repair the recorded failure before the next commit. Do not rerun unchanged tests blindly.", obligation.CodeCommit, obligation.Outcome)
+		return nil
+	}
+	if w.Paused() {
+		return nil
+	}
+	out, err := runTool("go", "run", "./cmd/gate", "-lanes")
+	if err != nil {
+		// A recorded lane failure is work for the next repair invocation, not
+		// an invitation to rerun identical measurements until they turn green.
+		if refreshErr := w.stopStore.Refresh(context.Background()); refreshErr != nil {
+			return refreshErr
+		}
+		current, found, readErr := runrecord.CurrentGateLaneObligation(context.Background(), w.stopStore)
+		if readErr == nil && found && current.Resolved() {
+			return nil
+		}
+		if readErr == nil && found && current.State == runrecord.LaneObligationFailed {
+			w.validationDebt = fmt.Sprintf("Deferred validation failed for commit %s; inspect result %s and repair the recorded failure before the next commit. Do not rerun unchanged tests blindly.", current.CodeCommit, current.Outcome)
+			return nil
+		}
+		return fmt.Errorf("loop: resume deferred validation: %w: %s", err, tailOf(out, 4000))
+	}
+	return nil
+}
+
 func (w *execWorld) Prompt(loop.Step) (string, error) {
-	return planCommand("-prompt")
+	prompt, err := planCommand("-prompt")
+	if err == nil && w.validationDebt != "" {
+		prompt += "\n\n" + w.validationDebt
+	}
+	return prompt, err
 }
 
 func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, error) {
 	text := prompt
+	if w.promptPrefix != "" {
+		text = w.promptPrefix + "\n\n" + text
+	}
 	if feedback != "" {
 		text += "\n\nPREVIOUS ATTEMPT FEEDBACK (fix this, then commit through the gate):\n" + feedback
 	}
@@ -222,7 +303,27 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(w.config.WorkerTimeoutMinutes)*time.Minute)
 	defer cancel()
+	watchDone := make(chan struct{})
+	if w.campaign != nil {
+		go func() {
+			defer close(watchDone)
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-w.campaign.Stops():
+					if w.Paused() {
+						cancel()
+						return
+					}
+				}
+			}
+		}()
+	} else {
+		close(watchDone)
+	}
 	var combined bytes.Buffer
+	output := io.MultiWriter(os.Stdout, &combined)
 	// The declared strategy identity reaches every gate run inside the
 	// worker, so each attempt record states which strategy produced it.
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
@@ -232,9 +333,11 @@ func (w *execWorld) RunWorker(step loop.Step, prompt, feedback string) (string, 
 			loop.StrategyEnvironment+"="+loop.StrategyIdentity(w.config.Worker, w.config.Strategy),
 			loop.StrategyIDEnvironment+"="+w.strategy.ID.String()),
 		Stdin:  strings.NewReader(text),
-		Stdout: &combined,
-		Stderr: &combined,
+		Stdout: output,
+		Stderr: output,
 	})
+	cancel()
+	<-watchDone
 	tail := tailOf(combined.String(), 4000)
 	if err != nil && receipt.WallNS == 0 {
 		return tail, &loop.LaunchError{Err: err}

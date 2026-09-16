@@ -152,23 +152,25 @@
       function cleanup() { finished = true; unsubscribe(); if (fallback) fallback.abort(); if (signal) signal.removeEventListener('abort', abort); }
       function abort() { if (finished) return; cleanup(); reject(new DOMException('aborted', 'AbortError')); }
       function finish(current) { if (finished) return; if (observe) observe(current); if (!terminal(current.state)) return; cleanup(); resolve(current); }
+      function waitForReceipt() {
+        if (finished || fallback) return;
+        const request = new AbortController(); fallback = request;
+        window.overgo.api.get("/operations/wait?id=" + encodeURIComponent(id), { signal: request.signal }).then(finish, err => {
+          if (!finished && err.status === 404) { cleanup(); reject(err); }
+        }).finally(() => { if (fallback === request) fallback = null; });
+      }
       if (signal && signal.aborted) { abort(); return; }
       unsubscribe = subscribe((name, value) => {
         if (finished) return;
         if (name === "operation" && value.status.id === id) finish(value.status);
         if (name === "operation.snapshot") { const current = value.find((item) => item.id === id); if (current) finish(current); }
-        if (name === "stream.error" && !fallback) {
-          // The event stream can break under a model swap; the operation's
-          // durable status still answers from the server's own wait route.
-          const request = new AbortController(); fallback = request;
-          window.overgo.api.get("/operations/wait?id=" + encodeURIComponent(id), { signal: request.signal }).then(finish, err => {
-            // Transient failures keep observing the reconnecting stream. A
-            // blocked receipt still needs its operator decision, not a rerun.
-            if (!finished && err.status === 404) { cleanup(); reject(err); }
-          }).finally(() => { if (fallback === request) fallback = null; });
-        }
+        if (name === "stream.error" || name === "stream.ready") waitForReceipt();
       });
       if (signal) signal.addEventListener('abort', abort, { once: true });
+      // Activity is latest-only across operations, so a healthy stream may
+      // omit this operation's completion. Await its receipt independently;
+      // activity still supplies progress and recovery decisions.
+      waitForReceipt();
     });
   };
   window.overgo.workflowWorkspace = function (definition) {

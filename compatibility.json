@@ -251,7 +251,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:f4695d002e42a772ce53b3205bdf8bd1d7df24abb00790de6e93f99e6da618c5"
+     "identity": "file:sha256:92a4fabc73cefa8ec3e53cd34b0eaa21aa19c57748a9e26545f5b21c27c41a71"
     }
    ]
   },
@@ -290,7 +290,7 @@
      "path": "internal/speechrecognition/session.go",
      "contains": "func LoadSession(",
      "role": "source",
-     "identity": "file:sha256:f4695d002e42a772ce53b3205bdf8bd1d7df24abb00790de6e93f99e6da618c5"
+     "identity": "file:sha256:92a4fabc73cefa8ec3e53cd34b0eaa21aa19c57748a9e26545f5b21c27c41a71"
     },
     {
      "path": "internal/audioparity/segmented_transcription_test.go",
@@ -414,7 +414,7 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:0591f7b60e05dde5e78d9745047c186219f10f885670c973db6dc442f5329b64"
+     "identity": "file:sha256:fc7c8c20eca27bab0d1a6afc003f4ed2e6c6d34e4146b713b735e8fe680ec40c"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
@@ -1388,7 +1388,7 @@
      "contains": "func LoadSynthesizer(",
      "path": "internal/speechsynth/runtime.go",
      "role": "source",
-     "identity": "file:sha256:f0278f19fcfbed6666bd5b45665f9db6656425e60cbec487b40645c1c7cd6bbb"
+     "identity": "file:sha256:e98bdd7493c1e520ae390e80ab5e59677cc0d9e8b8280f05787162b840c89a97"
     },
     {
      "contains": "func TestPocketTTSProductionParity(",
@@ -1622,7 +1622,7 @@
      "path": "internal/modelswap/proxy.go",
      "contains": "func routingEnvelope(",
      "role": "source",
-     "identity": "file:sha256:f22b83bb7f07ba793532e04c7ed71d338de2ae3e99b62aad0ab53a4f03f8a9f5"
+     "identity": "file:sha256:accc285ec31519f462af79a25792d83fe822d02db7f3f943a78858f4fe5e09c5"
     },
     {
      "path": "internal/audioparity/live_service_test.go",

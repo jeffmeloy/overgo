@@ -54,6 +54,7 @@ type TranscriptionWorkspace struct {
 	store          *overgodb.Store
 	policy         TranscriptionPolicy
 	program        recipe.Program
+	audio          speechrecognition.InputRequirements
 	sessions       *speechrecognition.Session
 	commit         string
 	environment    artifact.ID
@@ -84,6 +85,16 @@ func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, polic
 	if activation.Definition.ID != policy.Recipe {
 		return nil, errors.New("transcription workspace: configured recipe is not active")
 	}
+	base, _, err := modelrecipe.SpeechComponents(definition)
+	if err != nil {
+		return nil, err
+	}
+	contractID, _ := base.PrimaryDependency(recipe.DependencyProfile)
+	contract, err := modelrecipe.RequireAudioContract(ctx, store, contractID)
+	if err != nil {
+		return nil, err
+	}
+	audio := speechrecognition.InputRequirements{Format: contract.Format, MaximumEncodedBytes: policy.Inspection.MaximumEncodedBytes, MaximumSamples: policy.Inspection.MaximumSamples}
 	environment, err := runrecord.CurrentEnvironment("cpu", "go")
 	if err != nil {
 		return nil, err
@@ -105,7 +116,7 @@ func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, polic
 	if directory, err := artifact.AvailablePath(ctx, store, definition.Model, artifact.LocationDirectory); err == nil {
 		name, location = filepath.Base(directory), directory
 	}
-	return &TranscriptionWorkspace{store: store, policy: policy, program: program,
+	return &TranscriptionWorkspace{store: store, policy: policy, program: program, audio: audio,
 		sessions: sessions, commit: revision.Commit, environment: environment.ID, name: name, location: location}, nil
 }
 
@@ -128,7 +139,7 @@ func (workspace *TranscriptionWorkspace) WorkflowCapabilities(_ context.Context,
 		Inputs:              definition.Inputs, Outputs: definition.Outputs,
 		// The audio control names a stored file artifact: an attachment the
 		// page stored through the intake route, or a card's stored id.
-		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true, Label: "audio clip", Media: "audio"}},
+		Controls: []WorkflowControl{{Name: "audio", Type: WorkflowControlArtifact, Required: true, Label: "audio clip", Media: "audio", Audio: &workspace.audio}},
 	}}, nil
 }
 
@@ -185,6 +196,9 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 			Key: "transcription/run/" + reporter.OperationID().String(), CodeCommit: workspace.commit, Environment: workspace.environment,
 		})
 	completion = operation.Completion{Run: run.ID, Outputs: run.Outputs}
+	if err != nil && run.Failure == speechrecognition.AudioFormatFailure {
+		err = errors.New(audioFormatMessage(&workspace.audio))
+	}
 	if err != nil || transcription.Text == "" {
 		return completion, err
 	}

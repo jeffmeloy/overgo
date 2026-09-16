@@ -379,12 +379,32 @@
         onSubmit: submit,
         onStop: overgo.stopTurn,
         onChange: () => { composer.input.setCustomValidity(''); saveDraft(); },
-        takesAny: () => !!artifactField(),
+        takesAny: () => composer.mode() === 'speech' || !!artifactField(),
+        captureAudio: () => [...generation.fields.values()].find(field => field.control.type === "artifact" && field.control.media === "audio")?.control.audio,
         captureAccept: () => {
+          if (composer.mode() === 'speech') return ['text/plain'];
           const slots = [...generation.fields.values()].filter(field => field.control.type === "artifact");
           return slots.length ? (capabilities.media.intake_accept || []).filter(mime => slots.some(field => !field.control.media || mime.startsWith(field.control.media + "/"))) : capabilities.media.accept || [];
         },
         intake: (file, { signal }) => {
+          if (composer.mode() === 'speech' && !(file.type === 'text/plain' || !file.type && /\.txt$/i.test(file.name)) && !artifactField(file)) throw new Error('Choose a text file.');
+          if (composer.mode() === 'speech' && (file.type === 'text/plain' || !file.type && /\.txt$/i.test(file.name))) {
+            const recipe = generation.capability?.recipe;
+            return (async () => {
+              if (!file.size) throw new Error('File is empty.');
+              if (file.size > capabilities.media.max_media_bytes) throw new Error('Text file exceeds the attachment limit.');
+              const bytes = await file.arrayBuffer(); signal.throwIfAborted();
+              let text;
+              try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+              catch (_) { throw new Error('Choose a UTF-8 text file.'); }
+              if (!text.trim() || text.includes('\u0000')) throw new Error('Choose a nonempty text file.');
+              const stored = await overgo.api.upload('/artifacts/intake', new File([bytes], file.name, { type: 'text/plain' }), { signal });
+              signal.throwIfAborted();
+              if (disposed || composer.mode() !== 'speech' || generation.capability?.recipe !== recipe) throw new Error('Model input changed. Retry to use the file here.');
+              if (!stored?.id) throw new Error('File upload failed. Retry.');
+              return { id: stored.id, text };
+            })();
+          }
           const field = artifactField(file);
           if (!field) return null;
           const attempt = {}, previousValue = field.input.value; fieldUploads.set(field, attempt);
@@ -402,10 +422,10 @@
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
         controls: [],
       });
-      disposeComposer = () => composer.dispose();
+      disposeComposer = () => { composer.dispose(); thread.dispose(); };
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
       if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true,
-        sourceArtifact: typeof item.sourceArtifact === 'string' ? item.sourceArtifact : undefined, sourceRun: typeof item.sourceRun === 'string' ? item.sourceRun : undefined })));
+        sourceArtifact: typeof item.sourceArtifact === 'string' ? item.sourceArtifact : undefined, sourceRun: typeof item.sourceRun === 'string' ? item.sourceRun : undefined, document: item.document === true, textApplied: item.textApplied === true })));
       const draftNotice = el("div", { class: "note", role: "status", hidden: true });
       composer.extras.appendChild(draftNotice);
       const uncertaintyNotice = el('div', { class: 'note', role: 'alert', hidden: true });
@@ -433,7 +453,7 @@
         if (disposed) return;
         persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
           uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
-          attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun })) });
+          attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun, document: item.document === true, textApplied: item.textApplied === true })) });
       };
       saveChat = saveDraft;
       for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
@@ -792,6 +812,7 @@
           if (mode && mode !== "chat") {
             // An accepted rewrite sent unchanged cites its enhancement record as the run's source.
             const sources = enhancement.record && text === enhancement.enhanced ? [enhancement.record] : [];
+            if (mode === 'speech') for (const item of attachments) if (item.textApplied && item.sourceArtifact && !sources.includes(item.sourceArtifact)) sources.push(item.sourceArtifact);
             enhancement.record = enhancement.enhanced = "";
             const work = generation.capability ? trackOperation() : null;
             const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources, lifecycle: work.lifecycle } : null;

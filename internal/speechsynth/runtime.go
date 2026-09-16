@@ -32,6 +32,8 @@ type SynthesisRequest struct {
 }
 
 type Audio struct {
+	// Complete records the native post-EOS stop; a bounded preview can be false.
+	Complete   bool      `json:"complete"`
 	PCM        []float32 `json:"pcm"`
 	SampleRate int       `json:"sample_rate"`
 	Channels   int       `json:"channels"`
@@ -178,7 +180,7 @@ func (s *Synthesizer) decode(ctx context.Context, latents LatentBatch) (Audio, e
 	if err := context.Cause(ctx); err != nil {
 		return Audio{}, err
 	}
-	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: tensor.SingletonExtent}, nil
+	return Audio{PCM: pcm, SampleRate: s.model.Codec.SampleRate, Channels: tensor.SingletonExtent, Complete: latents.Complete}, nil
 }
 
 // RegisterRuntime binds one synthesizer to its recipe stage.
@@ -186,16 +188,23 @@ func RegisterRuntime(runtime *workflowruntime.Runtime, modelID artifact.ID, synt
 	if synthesizer == nil {
 		return errors.New("speechsynth: incomplete runtime binding")
 	}
-	return workflowruntime.RegisterContextPipeline(
-		runtime, modelID,
-		modelrecipe.ModuleSpeechTokenize, func(ctx context.Context, request SynthesisRequest) (generationPlan, error) {
+	if err := workflowruntime.RegisterContextStage(runtime, modelrecipe.ModuleSpeechTokenize, modelID,
+		func(ctx context.Context, request SynthesisRequest) (generationPlan, error) {
 			if err := context.Cause(ctx); err != nil {
 				return generationPlan{}, err
 			}
 			return synthesizer.tokenize(request)
-		},
-		modelrecipe.ModuleSpeechGenerate, synthesizer.generate,
-		modelrecipe.ModuleSpeechDecode, synthesizer.decode,
-		func(audio Audio) (artifact.Content, error) { return artifact.JSONContent(audioContract, audio) },
-	)
+		}, nil); err != nil {
+		return err
+	}
+	// Persist the expensive stage through the existing receipt owner so recovery
+	// can decode or replay a completed segment without generating it again.
+	if err := workflowruntime.RegisterContextStage(runtime, modelrecipe.ModuleSpeechGenerate, modelID,
+		synthesizer.generate, func(latents LatentBatch) (artifact.Content, error) {
+			return artifact.JSONContent(artifact.JSONContract(artifact.KindFile, "overgo.speech-latents.v1"), latents)
+		}); err != nil {
+		return err
+	}
+	return workflowruntime.RegisterContextStage(runtime, modelrecipe.ModuleSpeechDecode, modelID,
+		synthesizer.decode, func(audio Audio) (artifact.Content, error) { return artifact.JSONContent(audioContract, audio) })
 }

@@ -3,6 +3,7 @@ package codemanifest
 import (
 	"cmp"
 	"errors"
+	"maps"
 	"slices"
 
 	"overgo/internal/artifact"
@@ -84,17 +85,17 @@ func Diff(base, candidate Manifest) (Delta, error) {
 
 func relevantUncertainty(delta Delta, groups ...[]Uncertainty) []Uncertainty {
 	paths := make(map[string]bool, len(delta.Files))
-	symbols := make(map[string]bool, len(delta.Symbols))
+	symbols := make(map[SymbolID]bool, len(delta.Symbols))
 	for _, change := range delta.Files {
 		paths[change.Path] = true
 	}
 	for _, change := range delta.Symbols {
-		symbols[symbolKey(change.ID)] = true
+		symbols[change.ID] = true
 	}
 	var result []Uncertainty
 	for _, group := range groups {
 		for _, item := range group {
-			if item.Path == "" || paths[item.Path] || item.Symbol != nil && symbols[symbolKey(*item.Symbol)] {
+			if item.Path == "" || paths[item.Path] || item.Symbol != nil && symbols[*item.Symbol] {
 				result = append(result, item)
 			}
 		}
@@ -111,7 +112,7 @@ func diffFiles(base, candidate []File) []FileChange {
 	for _, file := range candidate {
 		candidateIndex[file.Path] = file
 	}
-	keys := unionKeys(baseIndex, candidateIndex)
+	keys := unionKeys(baseIndex, candidateIndex, cmp.Compare[string])
 	changes := make([]FileChange, 0, len(keys))
 	for _, key := range keys {
 		before, inBase := baseIndex[key]
@@ -129,15 +130,15 @@ func diffFiles(base, candidate []File) []FileChange {
 }
 
 func diffSymbols(base, candidate []Symbol) []SymbolChange {
-	baseIndex := make(map[string]Symbol, len(base))
-	candidateIndex := make(map[string]Symbol, len(candidate))
+	baseIndex := make(map[SymbolID]Symbol, len(base))
+	candidateIndex := make(map[SymbolID]Symbol, len(candidate))
 	for _, symbol := range base {
-		baseIndex[symbolKey(symbol.ID)] = symbol
+		baseIndex[symbol.ID] = symbol
 	}
 	for _, symbol := range candidate {
-		candidateIndex[symbolKey(symbol.ID)] = symbol
+		candidateIndex[symbol.ID] = symbol
 	}
-	keys := unionKeys(baseIndex, candidateIndex)
+	keys := unionKeys(baseIndex, candidateIndex, compareSymbolID)
 	changes := make([]SymbolChange, 0, len(keys))
 	for _, key := range keys {
 		before, inBase := baseIndex[key]
@@ -170,7 +171,7 @@ func diffExternalInputs(base, candidate []ExternalInput) []ExternalInputChange {
 	for _, input := range candidate {
 		candidateIndex[externalKey(input)] = input
 	}
-	keys := unionKeys(baseIndex, candidateIndex)
+	keys := unionKeys(baseIndex, candidateIndex, cmp.Compare[string])
 	changes := make([]ExternalInputChange, 0, len(keys))
 	for _, key := range keys {
 		before, inBase := baseIndex[key]
@@ -191,22 +192,28 @@ func externalKey(input ExternalInput) string {
 	return input.Path + "\x00" + input.Kind + "\x00" + input.Owner
 }
 
-func unionKeys[T any](left, right map[string]T) []string {
-	keys := make(map[string]bool, len(left)+len(right))
+func unionKeys[K comparable, V any](left, right map[K]V, compare func(K, K) int) []K {
+	keys := make(map[K]bool, len(left)+len(right))
 	for key := range left {
 		keys[key] = true
 	}
 	for key := range right {
 		keys[key] = true
 	}
-	result := make([]string, 0, len(keys))
-	for key := range keys {
-		result = append(result, key)
-	}
-	slices.Sort(result)
-	return result
+	return slices.SortedFunc(maps.Keys(keys), compare)
 }
 
 func compareUncertainty(left, right Uncertainty) int {
-	return cmp.Or(cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Path, right.Path), cmp.Compare(left.Context, right.Context), cmp.Compare(optionalSymbolKey(left.Symbol), optionalSymbolKey(right.Symbol)), cmp.Compare(left.Reason, right.Reason))
+	if order := cmp.Or(cmp.Compare(left.Kind, right.Kind), cmp.Compare(left.Path, right.Path), cmp.Compare(left.Context, right.Context)); order != 0 {
+		return order
+	}
+	// Absence sorts before every valid symbol, whose package is nonempty.
+	var leftSymbol, rightSymbol SymbolID
+	if left.Symbol != nil {
+		leftSymbol = *left.Symbol
+	}
+	if right.Symbol != nil {
+		rightSymbol = *right.Symbol
+	}
+	return cmp.Or(compareSymbolID(leftSymbol, rightSymbol), cmp.Compare(left.Reason, right.Reason))
 }

@@ -12,13 +12,13 @@
       "status": "open",
       "steps": [
         {
-          "id": "do",
-          "title": "Consolidate the highest-cost equivalent implementation paths",
+          "id": "rewrite-publication",
+          "title": "Share source-rewrite publication across eight analysis paths",
           "status": "open",
-          "verify": "go run ./cmd/clone-census -summary",
-          "rationale": "Use the refreshed AST census, source history and retained execution records to select a coherent high-value group rather than another isolated fixture wrapper. Trace inputs, branches, errors, side effects, lifetime and outputs across every caller; distinguish shared construction from independent behavioral oracles. Review command setup, artifact binding and execution adapters before short host-test helpers. Record equivalence and counterexamples, migrate all affected callers, remove obsolete paths, and bind owning-package behavior plus measured reduction before closure. The census command is only a baseline, never sufficient acceptance. Split genuinely independent owners at dispatch; batch related migrations within one acceptance boundary.",
+          "verify": "test -f internal/repoanalysis/modern_go_rewrite_publication_test.go \u0026\u0026 go test ./internal/repoanalysis -run '^TestModernGoRewritePublication$' -short -count=1",
+          "rationale": "Prepared after AST and control/data-flow review: eight source-read, snapshot-identity, edit-bound and file-write paths share mechanics while keeping different matchers and import cleanup. The ignored prototype passes nine existing conformance and numerical tests, removes 181 production lines and 1374 AST nodes, and retains one file writer with no new public API. Remove two context-import aliases. Bind every existing conformance lower bound before dispatch closure and preserve errors, edit counts, file modes, stale-source rejection and unchanged cleanup. This is maintenance reduction; the measured manifest hotspot runs first.",
           "depends_on": [
-            "surface-gate-fixtures/do"
+            "surface-common-implementations/do"
           ]
         }
       ]
@@ -36,7 +36,7 @@
           "verify": "go run ./cmd/api-manifest -check",
           "rationale": "Use AST call graphs and the generated manifest to identify commands or wrappers with identical execution owners and distinguish operator from internal consumers. Preserve documented flags, exit behavior, protocols and supported compatibility consumers. Prefer existing command owners and shared typed inputs; remove obsolete duplicate dispatchers and link targets with complete caller migration. Bind exact before/after executable/export counts and owner tests before closure; manifest freshness alone cannot accept removal. Avoid introducing a new command framework or changing HTTP/audio feature scope.",
           "depends_on": [
-            "surface-common-implementations/do"
+            "surface-common-implementations/rewrite-publication"
           ]
         }
       ]
@@ -52,7 +52,7 @@
           "title": "Bind existing audio fixtures through their declared authority",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSkipConstantReach$' -short -count=1",
-          "rationale": "Retained from surface-test-inputs/do, not completed by moving source-policy tests. Only two current callers remain: TestSpeechAlignmentAcceptance and TestSpeakerDiarizationAcceptance. Both short-mode exclusions and StoreAcceptanceEnv currently suppress them; the latter still names a removed foreign row. Resolve fixture locations through existing artifact/data-root owners, bind effective inputs into evidence identity, then remove redundant opt-in controls. C:/Users/jeffm/overgo_audiocpp/tmp contains the annotation archive and speaker-reference assets:156 captures exist with declared sizes, but hashes and execution still need validation. Reuse originals without bulk copies or foreign code/store mutation. Candidate worktrees must resolve the same inputs without ignored tmp snapshots or unbound environment overrides. Find or construct every required missing asset. Bind actual owning-package numerical, corpus, command and relocation assertions before closure; TestSkipConstantReach is a retained lower bound only."
+          "rationale": "Retained from surface-test-inputs/do, not completed by moving source-policy tests. Only two current callers remain: TestSpeechAlignmentAcceptance and TestSpeakerDiarizationAcceptance. Both short-mode exclusions and StoreAcceptanceEnv currently suppress them; the latter still names a removed foreign row. Resolve fixture locations through existing artifact/data-root owners, bind effective inputs into evidence identity, then remove redundant opt-in controls. C:/Users/jeffm/overgo_audiocpp/tmp contains the annotation archive and speaker-reference assets:156 captures exist with declared sizes, but hashes and execution still need validation. Reuse originals without bulk copies or foreign code/store mutation. Candidate worktrees must resolve the same inputs without ignored tmp snapshots or unbound environment overrides. Find or construct every required missing asset. Bind actual owning-package numerical, corpus, command and relocation assertions before closure; TestSkipConstantReach is a retained lower bound only. All 156 retained capture files have now matched the committed SHA-256 and byte-count declarations (53,980,528 bytes); model/archive identities and acceptance execution remain outstanding."
         }
       ]
     },
@@ -67,7 +67,7 @@
           "title": "Prove reduced surface and repeated verification cost",
           "status": "open",
           "verify": "go run ./cmd/compatibility -check",
-          "rationale": "Compare source-bound package selection and actual executed/reused/failed/unstarted work against9565ed5c using retained results. Explain each exclusion and remaining invalidator; do not sum overlapping phase times or attribute unrelated host contention to this code. Publish net SLOC/AST, clone excess, exports, binaries and measured gate/acquisition changes through existing structured evidence owners. Bind a deterministic assertion of the chosen reduction and counterexamples before closure. Preserve unresolved process-exit finding evidence:sha256:d48c972c45ee19bd89d2f96db2437198c5688e4db2fe02759c7ede8ffe3f5da2 until explained; successful later runs do not prove it fixed. Propose the next high-value local slice from remaining measured costs; do not restore foreign rows or equate no current assignment with no useful work.",
+          "rationale": "Compare source-bound package selection and actual executed/reused/failed/unstarted work against9565ed5c using retained results. Explain each exclusion and remaining invalidator; do not sum overlapping phase times or attribute unrelated host contention to this code. Publish net SLOC/AST, clone excess, exports, binaries and measured gate/acquisition changes through existing structured evidence owners. Bind a deterministic assertion of the chosen reduction and counterexamples before closure. Preserve unresolved process-exit finding evidence:sha256:d48c972c45ee19bd89d2f96db2437198c5688e4db2fe02759c7ede8ffe3f5da2 until explained; successful later runs do not prove it fixed. Propose the next high-value local slice from remaining measured costs; do not restore foreign rows or equate no current assignment with no useful work. Correct packageCacheAudit's pending-as-executed label using retained execution records before interpreting counts; distinguish observed, failed, unstarted and deferred packages without a second mutable execution counter. The a7a81b14 publication passed in 12m25s with 4m25s acceptance and 4m0s owner tests, and its four deferred lanes passed in 344.1s. The identical nine-census test subset improved from 92.688s to 17.612s; do not present that subset result as whole-gate acceleration.",
           "depends_on": [
             "surface-command-owners/do",
             "surface-audio-fixtures/do"

@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "eb5effc6a19e3198212a85ab699f21c9d1fa4999dd973b785bb0dbe0a1b36951",
+  "source_identity": "35279e1c75128e23cff6210c1e855ee1f534312832e2d12217ded1f1f7ee235f",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3459,
-    "typed_files": 3395
+    "inspected_files": 3460,
+    "typed_files": 3396
   },
   "guidelines": [
     {
@@ -531,28 +531,6 @@
     },
     {
       "guideline": "maps_keys_values_iter",
-      "path": "internal/codemanifest/delta.go",
-      "symbol": "unionKeys",
-      "owner": "overgo/internal/codemanifest",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/codemanifest -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
-      "path": "internal/codemanifest/impact.go",
-      "symbol": "symbolValues",
-      "owner": "overgo/internal/codemanifest",
-      "reason": "The owner requires an explicitly materialized key or value slice for capacity, mutation, ordering, or downstream API ownership.",
-      "oracle": "go test ./internal/codemanifest -count=1",
-      "retirement": "Retire when the downstream contract accepts an iterator directly and no concrete slice identity or mutation remains.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "maps_keys_values_iter",
       "path": "internal/codeprofile/impact.go",
       "symbol": "changedPackageDirectories",
       "owner": "overgo/internal/codeprofile",
@@ -1064,17 +1042,6 @@
       "owner": "overgo/internal/automationcheck",
       "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
       "oracle": "go test ./internal/automationcheck -count=1",
-      "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sorted",
-      "path": "internal/codemanifest/delta.go",
-      "symbol": "unionKeys",
-      "owner": "overgo/internal/codemanifest",
-      "reason": "The owner retains explicit materialization or in-place ordering semantics that slices.Sorted would hide or change.",
-      "oracle": "go test ./internal/codemanifest -count=1",
       "retirement": "Retire when ordering can consume an iterator directly without preserving the current buffer identity or stable staging.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -4963,5 +4930,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "6d71a1f3103ce28601f996b5dfd5e1eb40b57394013977ad87db14f5313cc421"
+  "exceptions_sha256": "37cd1188fdcd0366f9bba70783ed151ddad55a3868fcd429bf29e8e721113096"
 }

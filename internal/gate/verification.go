@@ -1009,9 +1009,6 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
 		return false, err
 	}
-	if err := admitModernGoExactExceptions(baseline, candidate); err != nil {
-		return false, err
-	}
 	expected, err := repoanalysis.BuildModernGoPublishedCensus(candidate, baseline)
 	if err != nil {
 		return false, err

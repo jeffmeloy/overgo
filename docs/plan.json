@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-common-implementations",
-      "title": "Consolidate the highest-cost equivalent implementation paths",
-      "owner": "surface-area-reduction",
-      "status": "open",
-      "steps": [
-        {
-          "id": "retire-resolved-exceptions",
-          "title": "Retire resolved modernization exceptions during existing publication",
-          "status": "open",
-          "verify": "go test ./cmd/modern-census -run '^TestCombinedCensusPublication$' -short -count=1",
-          "rationale": "Priority from actual publication failures: the typed-symbol refactor eliminated three excepted sites, but publication first rejected stale exceptions and then their stale identity. Extend existing monotonic lowering and publication; do not add a policy registry or general repair framework. Only shrink reviewed authority when the complete current census proves its exact scope obsolete or smaller. Preserve reasons, ownership and expiry of retained exceptions, catalog and typed coverage, original authority integrity, introduced-debt refusal and no output writes on rejection. Refresh the exception identity through its existing owner. Add disappearance, partial reduction, unrelated/new debt, expired/tampered authority, lost coverage and repeat-publication cases to existing owner tests before binding final acceptance. Keep TestCombinedCensusPublication as a lower bound. Compare one bounded edit-to-publication cycle and remove displaced cleanup paths. No arbitrary timeout, lowered coverage or new policy exception.",
-          "depends_on": [
-            "surface-common-implementations/rewrite-publication"
-          ]
-        }
-      ]
-    },
-    {
       "id": "surface-command-owners",
       "title": "Reduce duplicated command and API ownership",
       "owner": "surface-area-reduction",

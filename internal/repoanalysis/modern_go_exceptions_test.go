@@ -2,6 +2,7 @@ package repoanalysis
 
 import (
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -94,4 +95,68 @@ func modernGoRepositoryExceptionAuthority(t *testing.T) (ModernGoCensus, ModernG
 		t.Fatal(err)
 	}
 	return census, baseline
+}
+
+func TestModernGoNoBroadSuppressions(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name   string
+		change func(*ModernGoBaseline, *ModernGoCensus)
+		want   string
+	}{
+		{name: "exact coverage"},
+		{name: "empty candidate set", change: func(b *ModernGoBaseline, c *ModernGoCensus) {
+			b.Exceptions = nil
+			c.Findings[0].Candidates = nil
+		}},
+		{name: "aggregate ceiling", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Guidelines[0].CandidateCeiling = 1
+		}, want: "broad aggregate ceiling"},
+		{name: "stale exception", change: func(_ *ModernGoBaseline, c *ModernGoCensus) {
+			c.Findings[0].Candidates = nil
+		}, want: "broad or stale exception"},
+		{name: "excess ceiling", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Exceptions[0].CandidateCeiling++
+		}, want: "broad or stale exception"},
+		{name: "insufficient ceiling", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Exceptions[0].CandidateCeiling--
+		}, want: "broad or stale exception"},
+		{name: "wrong path", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Exceptions[0].Path = "internal/other.go"
+		}, want: "broad or stale exception"},
+		{name: "wrong symbol", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Exceptions[0].Symbol = "other"
+		}, want: "broad or stale exception"},
+		{name: "wrong guideline", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Exceptions[0].Guideline = "other"
+		}, want: "broad or stale exception"},
+		{name: "duplicate exception", change: func(b *ModernGoBaseline, _ *ModernGoCensus) {
+			b.Exceptions = append(b.Exceptions, b.Exceptions[0])
+		}, want: "broad or stale exception"},
+		{name: "uncovered site", change: func(_ *ModernGoBaseline, c *ModernGoCensus) {
+			c.Findings[0].Candidates = append(c.Findings[0].Candidates, ModernGoSite{Path: "internal/new.go", Symbol: "new"})
+		}, want: "uncovered"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			baseline := ModernGoBaseline{
+				Guidelines: []ModernGoBaselineGuideline{{ID: "rule"}},
+				Exceptions: []ModernGoException{{Guideline: "rule", Path: "internal/example.go", Symbol: "example", CandidateCeiling: 2}},
+			}
+			census := ModernGoCensus{Findings: []ModernGoFinding{{ID: "rule", Candidates: []ModernGoSite{
+				{Path: "internal/example.go", Symbol: "example", Line: 10},
+				{Path: "internal/example.go", Symbol: "example", Line: 20},
+			}}}}
+			if test.change != nil {
+				test.change(&baseline, &census)
+			}
+			err := admitModernGoExactExceptions(baseline, census)
+			if test.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %q", err, test.want)
+			}
+		})
+	}
 }

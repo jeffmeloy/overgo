@@ -17,7 +17,6 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
@@ -124,13 +123,6 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": loader baseline reads retained acquisitions")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: media baseline requires its explicit data root")
-	}
 	path := filepath.Join(root, "docs/image_video_baseline.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -154,7 +146,7 @@ func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

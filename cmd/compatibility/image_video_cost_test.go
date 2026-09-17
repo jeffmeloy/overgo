@@ -19,7 +19,6 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
 	"overgo/internal/tensor"
@@ -129,13 +128,6 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": cost attribution reads the private snapshot and model metadata")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: media cost attribution requires its explicit data root")
-	}
 	var cost mediaCostProfile
 	data, err := os.ReadFile(filepath.Join(root, "docs/image_video_costs.json"))
 	if err != nil {
@@ -158,7 +150,7 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

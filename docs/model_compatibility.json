@@ -2666,7 +2666,18 @@
       }
      ]
     },
-    "Hy-Embodied-RxBrain-1.0": {
+    "Hy-Embodied-RxBrain-1.0 [model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b]": {
+     "model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
+     "inference": [
+      {
+       "capability": "vqa-canonical-native-text",
+       "tier": "exact-golden",
+       "commit": "7f575035c14975a6fd06763e0e1f4a3e94bae674",
+       "wall_ns": 21025610700
+      }
+     ]
+    },
+    "Hy-Embodied-RxBrain-1.0 [model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936]": {
      "model": "model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936",
      "training": [
       {

@@ -19,13 +19,49 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
+	"overgo/internal/strictjson"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
 const imageVideoProcessingSHA256 = "d0bd66db0cf42b56093f12d55c2423bcdf57bfb0c5e84025d623a5a927a52b02"
+
+// Freeze the reviewed source transition independently of the original costs.
+const mediaProcessingSourceSHA256 = "7edc55439d4d64959ba87140053c10431c93328a64f4df5c84977464fdea9e98"
+
+type mediaProcessingSource struct {
+	Path   string `json:"path"`
+	Before string `json:"before_sha256"`
+	After  string `json:"after_sha256"`
+	Edits  []struct {
+		Old   string `json:"old"`
+		New   string `json:"new"`
+		Count int    `json:"count"`
+	} `json:"edits"`
+	Scope string `json:"scope"`
+}
+
+func checkMediaProcessingSource(proof mediaProcessingSource, path string, before, current []byte) error {
+	current = []byte(strings.ReplaceAll(string(current), "\r\n", "\n"))
+	if bytes.Equal(before, current) {
+		return nil
+	}
+	if path != proof.Path || proof.Scope == "" || fmt.Sprintf("%x", sha256.Sum256(before)) != proof.Before || fmt.Sprintf("%x", sha256.Sum256(current)) != proof.After {
+		return errors.New("processing source exceeds the declared transition")
+	}
+	replayed := string(before)
+	for _, edit := range proof.Edits {
+		if edit.Old == "" || edit.Count <= 0 || strings.Count(replayed, edit.Old) != edit.Count {
+			return errors.New("processing source edit has different applicability")
+		}
+		replayed = strings.ReplaceAll(replayed, edit.Old, edit.New)
+	}
+	if replayed != string(current) {
+		return errors.New("processing source differs beyond the reviewed edits")
+	}
+	return nil
+}
 
 type mediaProcessingObservation struct {
 	Variant   string            `json:"variant"`
@@ -116,13 +152,6 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": retained media processing comparison")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: explicit image/video data root required")
-	}
 	path := filepath.Join(root, "docs/image_video_processing.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -142,7 +171,7 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,15 +266,43 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	if accepted {
 		variant = "candidate"
 	}
+	sourceRaw, err := os.ReadFile(filepath.Join(root, "cmd/compatibility/testdata/media_processing_source.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkMediaProtocolIdentity(sourceRaw, mediaProcessingSourceSHA256); err != nil {
+		t.Fatal(err)
+	}
+	var proof mediaProcessingSource
+	if err := strictjson.DecodeBytes(sourceRaw, &proof); err != nil {
+		t.Fatal(err)
+	}
 	for _, owner := range []string{"cmd/compatibility/media.go", "cmd/compatibility/samples.go"} {
 		current, err := os.ReadFile(filepath.Join(root, owner))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if sha256.Sum256(current) != sha256.Sum256(read(value.Sources[variant+"/"+owner])) {
-			t.Fatal("current processing owner differs from adopted comparison source")
+		before := read(value.Sources[variant+"/"+owner])
+		if err := checkMediaProcessingSource(proof, owner, before, current); err != nil {
+			t.Fatalf("%s: %v", owner, err)
+		}
+		if owner == proof.Path {
+			withoutEdits := proof
+			withoutEdits.Edits = nil
+			if err := checkMediaProcessingSource(withoutEdits, owner, before, current); err == nil {
+				t.Fatal("hashes without a complete source transition accepted")
+			}
+			withoutMemo := bytes.ReplaceAll(current, []byte("discovery.LoadMemo(ctx, store)"), []byte("nil"))
+			if bytes.Equal(withoutMemo, current) {
+				t.Fatal("memo-removal mutation did not change the source")
+			}
+			if err := checkMediaProcessingSource(proof, owner, before, withoutMemo); err == nil {
+				t.Fatal("removal of the accepted memo optimization admitted")
+			}
 		}
 	}
+	t.Run("current-report-contract", TestImageVideoReportContract)
+	t.Run("current-report-truth", TestMediaReportRendersStoreTruth)
 	if _, err := compareMediaProcessing(baseline, value.Observations["ablation"], limits); err != nil {
 		t.Fatal(err)
 	}
@@ -259,5 +316,5 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	if accepted, err := compareMediaProcessing(baseline, bad, limits); err != nil || accepted {
 		t.Fatal("accepted lost latency benefit")
 	}
-	t.Logf("processing candidate %s; exact report and exported samples retained for both lifetimes", value.Decision)
+	t.Logf("original processing candidate %s; original report and sample identities retained for both lifetimes; reviewed source transition and current report behavior pass; original costs remain historical", value.Decision)
 }

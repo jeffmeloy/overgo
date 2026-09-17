@@ -25,13 +25,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "media-processing-reconciliation",
-          "title": "Reconcile retained report optimization with subsequent processing changes",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestImageVideoProcessingOptimizationAcceptance$' -count=1 -v",
-          "rationale": "Outstanding acceptance split from media-retained-batch, not waived. Retained processing comparison passes its original measurements but current media.go/samples.go differ from the accepted source. Identify actual changes and reconcile their output and cost effects using retained inputs; do not rerun model acquisition or claim old timing is current. Preserve original report/sample identities, frozen budget, accepted/rejected decision and negative cases. Use the existing report/evidence owners for explicit source reconciliation; remove original-lane skip only after exact acceptance passes."
-        },
-        {
           "id": "media-evidence-binding",
           "title": "Bind imported media results to their exact scope",
           "status": "open",

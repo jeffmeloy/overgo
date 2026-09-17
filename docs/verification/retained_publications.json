@@ -1,0 +1,18 @@
+[
+  {
+    "name": "qwen-four",
+    "specification": "qwen35-4b-retained.json",
+    "record": "evidence:sha256:d625011eb8f92c10301bcb71a48bb25e9962277c8920033f38ddc075bbb6c161",
+    "preserve": [
+      "evidence:sha256:8b68cba243001530b04f040b0a9dbd0c0746ba614363db7d00af9093e736560a"
+    ]
+  },
+  {
+    "name": "qwen-nine",
+    "specification": "qwen35-9b-retained.json",
+    "record": "evidence:sha256:9fce10aab21b58574b7c3baf171c63cfd3fb8481716d7e4e370a63d1265f6383",
+    "preserve": [
+      "evidence:sha256:974c97589fc298d716467e6c1565088a6cab97861ba7f385b8d3c773fcece8b6"
+    ]
+  }
+]

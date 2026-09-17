@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"overgo/internal/jsonfile"
@@ -53,7 +52,7 @@ func TestWebUIReport(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(result.Before, result.After) || result.Before.Tree != "same" || result.Before.ClientRoutes == 0 {
+	if result.Before != result.After || result.Before.Tree != "same" || result.Before.ClientRoutes == 0 {
 		t.Fatalf("inconsistent comparison: %+v", result)
 	}
 	first := output.String()

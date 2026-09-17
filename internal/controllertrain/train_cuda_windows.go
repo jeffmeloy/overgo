@@ -4,6 +4,7 @@ package controllertrain
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 
@@ -39,6 +40,10 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 	if err != nil {
 		return SeedRun{}, err
 	}
+	inputs, err := prepareEvaluationInputs(construction, corpus)
+	if err != nil {
+		return SeedRun{}, err
+	}
 	trainer, err := scratchmodel.NewResidentTrainer(construction, steps, policy)
 	if err != nil {
 		return SeedRun{}, err
@@ -47,7 +52,7 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 	if err := trainer.ResetPeakMemory(); err != nil {
 		return SeedRun{}, err
 	}
-	initial, err := evaluateSuite(trainer, construction, corpus)
+	initial, err := evaluateSuite(trainer, inputs)
 	if err != nil {
 		return SeedRun{}, err
 	}
@@ -69,7 +74,7 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 			return SeedRun{}, stepErr
 		}
 	}
-	final, err := evaluateSuite(trainer, construction, corpus)
+	final, err := evaluateSuite(trainer, inputs)
 	if err != nil {
 		return SeedRun{}, err
 	}
@@ -110,26 +115,47 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 	}, nil
 }
 
-func evaluateSuite(trainer *scratchmodel.ResidentTrainer, construction scratchmodel.Construction, corpus Corpus) (SuiteMetrics, error) {
+type evaluationInputs struct {
+	actions  []Action
+	expected []Action
+	tokens   [][][]int
+}
+
+// Prepare the complete denominator before device allocation; both evaluations
+// consume the same token sequences rather than rebuilding their inputs.
+func prepareEvaluationInputs(construction scratchmodel.Construction, corpus Corpus) (evaluationInputs, error) {
 	actions, holdout := corpus.Actions(), corpus.Holdout()
-	var expectedLoss float64
-	correctAction, correctModality := 0, 0
+	inputs := evaluationInputs{actions: actions}
 	for _, record := range holdout {
-		bestLoss, bestIndex, expected := math.Inf(1), -1, 0.0
-		for actionIndex, action := range actions {
+		var candidates [][]int
+		for _, action := range actions {
 			document, err := corpus.CandidateDocument(record.Prompt, action)
 			if err != nil {
-				return SuiteMetrics{}, err
+				return evaluationInputs{}, err
 			}
 			tokens, err := construction.Tokens(document)
 			if err != nil {
-				return SuiteMetrics{}, err
+				return evaluationInputs{}, fmt.Errorf("controller training: held-out record %s: %w", record.ID, err)
 			}
+			candidates = append(candidates, tokens)
+		}
+		inputs.expected = append(inputs.expected, record.Action)
+		inputs.tokens = append(inputs.tokens, candidates)
+	}
+	return inputs, nil
+}
+
+func evaluateSuite(trainer *scratchmodel.ResidentTrainer, inputs evaluationInputs) (SuiteMetrics, error) {
+	var expectedLoss float64
+	correctAction, correctModality := 0, 0
+	for recordIndex, candidates := range inputs.tokens {
+		bestLoss, bestIndex, expected := math.Inf(1), -1, 0.0
+		for actionIndex, tokens := range candidates {
 			loss, err := trainer.Evaluate(tokens)
 			if err != nil {
 				return SuiteMetrics{}, err
 			}
-			if action == record.Action {
+			if inputs.actions[actionIndex] == inputs.expected[recordIndex] {
 				expected = loss
 			}
 			if loss < bestLoss {
@@ -138,16 +164,16 @@ func evaluateSuite(trainer *scratchmodel.ResidentTrainer, construction scratchmo
 		}
 		expectedLoss += expected
 		if bestIndex >= 0 {
-			selected := actions[bestIndex]
-			if selected == record.Action {
+			selected := inputs.actions[bestIndex]
+			if selected == inputs.expected[recordIndex] {
 				correctAction++
 			}
-			if selected.Modality == record.Action.Modality {
+			if selected.Modality == inputs.expected[recordIndex].Modality {
 				correctModality++
 			}
 		}
 	}
-	count := float64(len(holdout))
+	count := float64(len(inputs.expected))
 	return SuiteMetrics{
 		Loss: expectedLoss / count, ActionAccuracy: float64(correctAction) / count,
 		ModalityAccuracy: float64(correctModality) / count, ValidActionRate: 1,

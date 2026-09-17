@@ -1,6 +1,14 @@
 {
-  "before": "430431e889a3fdf62c10ba003894cf05b3928f78",
   "after": "5489d961e06ef4d3d0364797dbbcfffeccd9210b",
+  "assertion_sources": {
+    "internal/hostmath/dispatch_test.go": "0bcacaf1d2766db78716ec787cdc800539a571b3fb8a6e222d84834873645c7f",
+    "internal/processmeasure/stopwatch_test.go": "cc40eee841928bc6b747d266919afd95e1214cf655036229753ad7f101d2a945",
+    "internal/workflowruntime/parallel_test.go": "82cae4c2fc4bfed425aa7334f01000e28b2eac118eb0d64b5dd6293de83b1f06",
+    "internal/workflowruntime/remote_adapter_test.go": "5828aa4a3feeea17a9811d0048c0c0a9f432f9e93627fd8a211cbe2f1245b49e",
+    "internal/workflowruntime/runtime_test.go": "b0044371bf3bf370ca60779620081917ed5fe2367dd01eef7c16aed1941a3b3f",
+    "internal/workflowruntime/stage_observer_test.go": "b012531238ee625807ec9c080cf6838de20aa5e38f4516c8f54e032ea9853b1a"
+  },
+  "before": "9b8c9a953ff888087b6a3f4de09b5a1efe7441f9",
   "evidence": "evidence:sha256:a3297f0ec6c0b97d641b07b98c96285642f23b78e36f7f3cb8741c63aaef196b",
-  "scope": "Reviewed timing-only evolution: host dispatch reads the shared native counter and falls back to serial execution on measurement failure; kernels, accumulation order, dimensions and partition ownership are unchanged. Serial, parallel and failed-counter dispatch preserve identical linear/convolution outputs. Workflow timing preserves error propagation. Reuse prior numerical/loader acquisitions only; prior elapsed, throughput and resource observations retain their original source and environment and are not current performance claims."
+  "scope": "Reviewed lifecycle-to-current delta: 674f096e publishes completed workflow stages durably before waiting for siblings and observes completed or recovered receipts; 5489d961 replaces wall timing with the shared counter. Changes within the declared production scope are internal/workflowruntime/runtime.go, internal/workflowruntime/remote_adapter.go, internal/hostmath/dispatch.go and the existing internal/processmeasure owner. The retained source-bound receipt tests local and remote cancellation, restart, cancellation-cause retention, remote lineage and artifact identity, durable progress before sibling completion, exact serial/parallel/failed-counter numerical output and stopwatch failures. Assertion hashes bind committed acquisition tests; the host dispatch overlay is separately bound by the original receipt. No new acquisition. The original timing-only certificate remains in Git at eaf1b29d. Kernels, accumulation order, model dimensions and media output contracts are unchanged. Reuse prior numerical/loader acquisitions and these workflow assertions only; historical elapsed, throughput, device lifecycle and resource observations retain their original source and environment and are not current performance or full-model claims."
 }

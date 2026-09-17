@@ -17,7 +17,8 @@ import (
 // the drifted ones; a catalogued tree proposes nothing.
 func TestPreflightProposesEveryClosureSite(t *testing.T) {
 	t.Parallel()
-	root, _ := magicGateFixture(t, true)
+	root, existing := magicGateFixture(t, true)
+	writeMagicSource(t, existing, "package p\n")
 	writeMagicSource(t, filepath.Join(root, "internal", "p", "new.go"), "package p\n\nconst FirstLimit = 3\n\nconst SecondLimit = 5\n")
 	var recorded []string
 	var mutex sync.Mutex
@@ -42,6 +43,7 @@ func TestPreflightProposesEveryClosureSite(t *testing.T) {
 	}
 	message := err.Error()
 	for _, want := range []string{
+		"stale active binding", "ExistingLimit",
 		"uncatalogued production policy FirstLimit at", "uncatalogued production policy SecondLimit at",
 		"1 new site(s) have proposal rows in " + gateClosureProposalsFile, "-triage " + gateClosureProposalsFile,
 		"1 site(s) drifted from catalogued offsets [SecondLimit]", "-import-store " + gateStorePath,
@@ -60,6 +62,7 @@ func TestPreflightProposesEveryClosureSite(t *testing.T) {
 
 	// A tree whose sites are all catalogued proposes nothing.
 	recorded = nil
+	writeMagicSource(t, existing, "package p\nconst ExistingLimit = 8\n")
 	if err := os.Remove(filepath.Join(root, "internal", "p", "new.go")); err != nil {
 		t.Fatal(err)
 	}

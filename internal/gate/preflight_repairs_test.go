@@ -15,8 +15,8 @@ import (
 
 // TestPreflightAppliesMechanicalRepairs pins the preflight's repairs: a Go
 // change has the working tree formatted and the census and API manifest
-// republished, printed with the files each rewrote, while the closure
-// rebind that writes the store is left to the gate; a change to a file the
+// republished, printed with the files each rewrote; store repair remains
+// conditional on the gate's authority check. A change to a file the
 // compatibility manifest pins as evidence refreshes the identities and the
 // matrix and nothing else; a change reaching no repair stages none.
 func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
@@ -115,13 +115,13 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	if !slices.Equal(evidence.paths, []string{"docs/evidence/capture.txt", compatibilityManifestFile, compatibilityMatrixFile}) {
 		t.Fatalf("planned paths = %v", evidence.paths)
 	}
-	// The gate applies the same registry with the store repair.
+	// Both paths share derived-file repairs; neither eagerly imports the store.
 	gate := &gateContext{repo: repo, storePath: gateStorePath, paths: []string{compatibilityManifestFile}, runCommand: fake}
 	if !gate.compatibilityEvidenceChanged() {
 		t.Fatal("a change to the compatibility manifest itself does not refresh its identities")
 	}
-	if slices.ContainsFunc(gate.mechanicalRepairs(), func(repair mechanicalRepair) bool { return repair.name == "closure rebind" && !repair.store }) {
-		t.Fatal("the closure rebind is not marked as a store repair")
+	if slices.ContainsFunc(gate.mechanicalRepairs(), func(repair mechanicalRepair) bool { return repair.name == "closure rebind" }) {
+		t.Fatal("closure repair bypasses exact authority validation")
 	}
 
 	recorded = nil

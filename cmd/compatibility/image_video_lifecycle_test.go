@@ -17,7 +17,6 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -73,6 +72,18 @@ func mediaLifecycleProductionPath(path string) bool {
 // Reconcile only the complete, frozen lifecycle patch. Prior acquisitions retain
 // their original revisions and numerical scope; later source edits need new proof.
 func checkMediaLifecycleSource(root, revision string, paths []string) (string, error) {
+	base, prior := checkMediaLifecyclePatch(root, revision, paths)
+	if prior == nil {
+		return base, nil
+	}
+	timingBase, err := checkMediaTimingSource(root, revision, paths)
+	if err != nil {
+		return "", errors.Join(prior, err)
+	}
+	return checkMediaLifecyclePatch(root, timingBase, paths)
+}
+
+func checkMediaLifecyclePatch(root, revision string, paths []string) (string, error) {
 	bundle, err := readMediaLifecycleBundle(root)
 	if err != nil {
 		return "", err
@@ -129,13 +140,6 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": retained media lifecycle evidence")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: explicit image/video data root required")
-	}
 	bundle, err := readMediaLifecycleBundle(root)
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +159,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

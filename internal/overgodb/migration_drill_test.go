@@ -93,7 +93,7 @@ func drillCopyStore(t *testing.T, sourceRoot, destinationRoot string) {
 func TestRSIStoreMigrationDrill(t *testing.T) {
 	base := t.TempDir()
 	sourceRoot := filepath.Join(base, "source")
-	buildScaleCorpus(t, sourceRoot)
+	copyScaleCorpus(t, sourceRoot)
 	sourceHash := drillTreeHash(t, sourceRoot)
 	ctx := t.Context()
 

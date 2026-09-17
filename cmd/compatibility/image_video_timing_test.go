@@ -19,7 +19,7 @@ import (
 	"overgo/internal/testutil"
 )
 
-const mediaTimingSHA256 = "db80df5f97f94c8a0d54fbed89911e1c81b071256dab1ae8248e23cd2ade3386"
+const mediaTimingSHA256 = "1a1ebaf1e98a84e3c4fa0da0ae39b7d00825643e6c8c2c326466bd95bf860a4b"
 
 // Bind the entire numerical scope and the newly used measurement owner. Old
 // resource measurements retain their original source; this proves output reuse.
@@ -34,6 +34,7 @@ func checkMediaTimingSource(root, revision string, paths []string) (string, erro
 	var proof struct {
 		Before, After, Scope string
 		Evidence             artifact.ID
+		AssertionSources     map[string]string `json:"assertion_sources"`
 	}
 	if err := json.Unmarshal(raw, &proof); err != nil {
 		return "", err
@@ -63,14 +64,20 @@ func checkMediaTimingSource(root, revision string, paths []string) (string, erro
 	if !found || json.Unmarshal(content.Data, &receipt) != nil || receipt.Source != proof.After {
 		return "", errors.New("missing source-bound timing reconciliation receipt")
 	}
-	testSource, err := os.ReadFile(filepath.Join(root, "internal/hostmath/dispatch_test.go"))
-	testSource = []byte(strings.ReplaceAll(string(testSource), "\r\n", "\n"))
-	if err != nil || fmt.Sprintf("%x", sha256.Sum256(testSource)) != receipt.TestSHA256 {
-		return "", errors.New("timing reconciliation test source differs")
+	if receipt.TestSHA256 != proof.AssertionSources["internal/hostmath/dispatch_test.go"] {
+		return "", errors.New("reconciliation overlay differs from acquisition")
+	}
+	for path, expected := range proof.AssertionSources {
+		source, err := os.ReadFile(filepath.Join(root, path))
+		source = []byte(strings.ReplaceAll(string(source), "\r\n", "\n"))
+		if err != nil || fmt.Sprintf("%x", sha256.Sum256(source)) != expected {
+			return "", fmt.Errorf("reconciliation assertion source differs: %s", path)
+		}
 	}
 	if err := checkMediaTestReceipt("timing reconciliation", []byte(receipt.Output), map[string][]string{
-		"overgo/internal/hostmath":       {"TestDispatchSchedulingPreservesResults"},
-		"overgo/internal/processmeasure": {"TestStopwatchReadsCounter", "TestStopwatchRetainsFailure"},
+		"overgo/internal/hostmath":        {"TestDispatchSchedulingPreservesResults"},
+		"overgo/internal/processmeasure":  {"TestStopwatchReadsCounter", "TestStopwatchRetainsFailure"},
+		"overgo/internal/workflowruntime": {"TestRuntimePublishesCancelledRun", "TestWorkflowRestartSkipsCompletedStages", "TestCancellationCauseReachesTerminalReceipt", "TestStageProgressPrecedesSiblingCompletion", "TestRemoteStageAttemptLineage", "TestRemoteCancellation", "TestRemoteArtifactIdentity"},
 	}); err != nil {
 		return "", err
 	}
@@ -85,7 +92,9 @@ func mediaRuntimeChanges(root, before, revision string, paths []string) ([]strin
 		c.Dir = root
 		return c.Output()
 	}
-	args := []string{"diff", "--name-only", "-z", before}
+	// Inspect both sides: a rename from source to a non-source extension is a
+	// deletion from the execution scope, even when Git detects identical bytes.
+	args := []string{"diff", "--no-renames", "--name-only", "-z", before}
 	if revision != "" {
 		args = append(args, revision)
 	}
@@ -112,7 +121,7 @@ func TestMediaTimingSourceReconciliation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"before", "after", "evidence", "scope"} {
+	for _, field := range []string{"before", "after", "evidence", "scope", "assertion_sources"} {
 		var altered map[string]any
 		if err := json.Unmarshal(raw, &altered); err != nil {
 			t.Fatal(err)
@@ -147,6 +156,10 @@ func TestMediaTimingSourceReconciliation(t *testing.T) {
 	write("kernel.go", "package fixture\n")
 	git("add", ".")
 	git("commit", "-qm", "baseline")
+	baseline, err := mediaRuntimeIdentity(fixture, "HEAD", []string{"."})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range []string{"kernel_test.go", "kernel.go", "added.go", "added file.go", "café.go"} {
 		write(name, "package fixture\n// changed\n")
 		changed, err := mediaRuntimeChanges(fixture, "HEAD", "", []string{"."})
@@ -156,5 +169,27 @@ func TestMediaTimingSourceReconciliation(t *testing.T) {
 	}
 	if _, err := mediaRuntimeChanges(fixture, "missing-reference", "", []string{"."}); err == nil {
 		t.Fatal("invalid reference accepted")
+	}
+	git("add", ".")
+	git("commit", "-qm", "source additions")
+	added, err := mediaRuntimeIdentity(fixture, "HEAD", []string{"."})
+	if err != nil || added == baseline {
+		t.Fatal("source additions did not change identity", err)
+	}
+	for _, name := range []string{"kernel.go", "added file.go", "café.go"} {
+		git("mv", name, name+".txt")
+	}
+	if err := os.Remove(filepath.Join(fixture, "added.go")); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := mediaRuntimeChanges(fixture, "HEAD", "", []string{"."})
+	slices.Sort(changed)
+	if err != nil || !slices.Equal(changed, []string{"added file.go", "added.go", "café.go", "kernel.go"}) {
+		t.Fatalf("source removals/renames lost: %v, %v", changed, err)
+	}
+	git("add", ".")
+	git("commit", "-qm", "source removals")
+	if _, err := mediaRuntimeIdentity(fixture, "HEAD", []string{"."}); err == nil {
+		t.Fatal("test-only tree accepted as a production source identity")
 	}
 }

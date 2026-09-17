@@ -16,7 +16,6 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/latentvideo"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
@@ -95,13 +94,6 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": retained source-conditioned video evidence")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: explicit media data root required")
-	}
 	var bundle mediaConditionedBundle
 	path := filepath.Join(root, "docs/image_video_conditioned_videos.json")
 	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
@@ -121,7 +113,7 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

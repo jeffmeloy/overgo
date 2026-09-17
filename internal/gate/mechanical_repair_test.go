@@ -15,7 +15,7 @@ import (
 
 // TestGateStagesMechanicalRepairs pins the repair registry: before the
 // candidate freezes a Go change has its planned files formatted, the
-// closure ledger rebound, the modern-Go census and baseline and the API
+// modern-Go census and baseline and the API
 // manifest republished through their owners and bound into the
 // planned paths, and the harness surface baseline left alone when nothing
 // tightened; each repair is audited with the files it rewrote. A repair
@@ -66,8 +66,6 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 		recorded = append(recorded, invocation)
 		recordedMutex.Unlock()
 		switch {
-		case strings.Contains(invocation, "closure-scan"):
-			return "imported 0 closure document(s), unmatched=0", nil
 		case strings.Contains(invocation, "api-manifest -update"):
 			write(apiManifestFile, "new manifest\n")
 			return "wrote", nil
@@ -108,11 +106,11 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 			t.Fatalf("gofmt repair audit = %q", line)
 		}
 	}
-	if staged != 5 {
-		t.Fatalf("staged repairs audited = %d, want 5: %q", staged, g.audit)
+	if staged != 4 {
+		t.Fatalf("staged repairs audited = %d, want four derived-file repairs: %q", staged, g.audit)
 	}
-	if len(recorded) != 2 {
-		t.Fatalf("commands = %v, want only the rebind and manifest update", recorded)
+	if len(recorded) != 1 {
+		t.Fatalf("commands = %v, want only the manifest update", recorded)
 	}
 	// A retry starts with the caller's original paths and already repaired files.
 	g.paths = g.paths[:1]

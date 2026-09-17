@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"overgo/internal/plan"
 )
@@ -77,10 +78,11 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 	}
 
 	modernMemoPublish(t, repo)
-	// The closure rebind and manifest run in one wave: they prove it by
-	// meeting inside the command runner.
-	rebindKey, publishKey := filepath.Join(repo, gateStorePath), "-update"
-	wave := newRendezvous(rebindKey, publishKey)
+	// The two document publishers meet in one wave. A missing arrival is
+	// a deterministic deadlock inside synctest, not a package-wide wait.
+	g.paths = append(g.paths, compatibilityManifestFile)
+	compatibilityKey, publishKey := "-refresh-identities", "-update"
+	wave := newRendezvous(compatibilityKey, publishKey)
 	var mutex sync.Mutex
 	ran := map[string]bool{}
 	g.runCommand = func(root, name string, args ...string) (string, error) {
@@ -91,11 +93,13 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 		mutex.Unlock()
 		return "done", nil
 	}
-	if err := g.stageMechanicalRepairs(); err != nil {
-		t.Fatal(err)
-	}
-	if !ran[rebindKey] || !ran[publishKey] || len(ran) != 2 {
-		t.Fatalf("repairs ran %v, want the rebind and API manifest update", ran)
+	synctest.Test(t, func(t *testing.T) {
+		if err := g.stageMechanicalRepairs(); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !ran[compatibilityKey] || !ran[publishKey] || len(ran) != 2 {
+		t.Fatalf("repairs ran %v, want the compatibility and API manifest updates", ran)
 	}
 	staged := slices.IndexFunc(g.audit, func(line string) bool { return strings.HasPrefix(line, "staged repair: ") })
 	if staged < 0 || !strings.HasPrefix(g.audit[staged], "staged repair: gofmt") {

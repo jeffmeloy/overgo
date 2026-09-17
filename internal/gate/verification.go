@@ -1587,7 +1587,8 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 		return fmt.Errorf("preflight: repair required; run `go run ./cmd/closure-scan -import-store %s` outside preflight", g.storePath)
 	}
 	started := processmeasure.NewStopwatch()
-	out, err := g.runGateCommand(g.sourceRoot(), "go", "run", "./cmd/closure-scan", "-import-store", filepath.Join(g.repo, g.storePath))
+	storePath := filepath.Join(g.repo, g.storePath)
+	out, err := g.runGateCommand(g.sourceRoot(), "go", "run", "./cmd/closure-scan", "-store", storePath, "-import-store", storePath)
 	if err != nil {
 		return fmt.Errorf("gate: closure rebind remediation: %w", err)
 	}

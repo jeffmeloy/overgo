@@ -15,7 +15,6 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -72,13 +71,6 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": shared decoder reads retained acquisitions")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: media comparison requires its explicit data root")
-	}
 	t.Run("frozen-baseline", TestImageVideoOptimizationBaselineAcceptance)
 	var baseline mediaLoaderBaseline
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_baseline.json"), &baseline); err != nil {
@@ -105,7 +97,7 @@ func TestImageVideoSharedComponentsAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

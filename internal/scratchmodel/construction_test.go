@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/adaptiveparity"
@@ -12,6 +14,48 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/trainingprogram"
 )
+
+func TestScratchInputExtent(t *testing.T) {
+	oracle := loadOracle(t)
+	c, err := Compile(CorpusFacts{Documents: oracle.Documents, Seed: oracle.Seed, Steps: oracle.Steps}, testDerivationProfile(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	boundary := make([]int, c.config.BlockSize+1)
+	negative, outside := slices.Clone(boundary), slices.Clone(boundary)
+	negative[len(negative)-1], outside[len(outside)-1] = -1, c.config.VocabSize
+	for _, test := range []struct {
+		name   string
+		tokens []int
+		valid  bool
+	}{
+		{"absent", nil, false}, {"no target", boundary[:1], false},
+		{"single target", boundary[:2], true}, {"exact context", boundary, true},
+		{"overflow", append(slices.Clone(boundary), 0), false},
+		{"negative tail", negative, false}, {"out of vocabulary tail", outside, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			graph, err := c.CompileForwardGraph(test.tokens)
+			if (err == nil) != test.valid {
+				t.Fatalf("input accepted=%v want=%v: %v", err == nil, test.valid, err)
+			}
+			if test.valid && graph.positions != len(test.tokens)-1 {
+				t.Fatal("accepted a partial input")
+			}
+		})
+	}
+	// BOS and the terminal target each occupy one token; the latter is one
+	// additional prediction position beyond the document's characters.
+	for _, characters := range []int{c.config.BlockSize - 1, c.config.BlockSize} {
+		tokens, err := c.Tokens(strings.Repeat(c.config.Characters[0], characters))
+		if (err == nil) != (characters < c.config.BlockSize) {
+			t.Fatalf("tokenized extent=%d accepted=%v: %v", characters+1, err == nil, err)
+		}
+		if err != nil && tokens != nil {
+			t.Fatal("invalid input returned usable tokens")
+		}
+	}
+}
 
 func testDerivationProfile(t testing.TB) DerivationProfile {
 	t.Helper()

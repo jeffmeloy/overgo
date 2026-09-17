@@ -62,7 +62,7 @@ func catalogDigest(t *testing.T, state catalogState) string {
 // state loaded through the snapshot answer every facet identically.
 func TestCatalogFacetReplayEquivalence(t *testing.T) {
 	root := t.TempDir()
-	head, _, _, _ := buildScaleCorpus(t, root)
+	head, _, _ := copyScaleCorpus(t, root)
 
 	live, err := Open(root)
 	if err != nil {

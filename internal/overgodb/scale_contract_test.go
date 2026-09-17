@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -31,17 +32,21 @@ const (
 	scaleAliasStride = 8
 )
 
-// buildScaleCorpus commits the deterministic corpus into root and
-// returns the head, snapshot path, per-commit wall times, and total
-// content bytes.
-func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []time.Duration, uint64) {
-	t.Helper()
+type scaleCorpus struct {
+	root, snapshot string
+	head           artifact.CommitID
+	latencies      []time.Duration
+	contentBytes   uint64
+}
+
+// buildScaleCorpus retains actual commit timing; copied fixtures never claim it.
+func buildScaleCorpus(ctx context.Context, root string) (scaleCorpus, error) {
+	scaleCorpusBuilds.Add(1)
 	store, err := Open(root)
 	if err != nil {
-		t.Fatal(err)
+		return scaleCorpus{}, err
 	}
 	defer store.Close()
-	ctx := t.Context()
 	latencies := make([]time.Duration, 0, scaleCorpusCommits)
 	var contentBytes uint64
 	var previous artifact.ID
@@ -49,7 +54,7 @@ func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []t
 		content := scaleContent(ordinal)
 		id, err := artifact.IdentifyBytes(artifact.KindRun, content)
 		if err != nil {
-			t.Fatal(err)
+			return scaleCorpus{}, err
 		}
 		descriptor := artifact.Descriptor{
 			ID: id, Size: uint64(len(content)), MediaType: "application/octet-stream",
@@ -67,7 +72,7 @@ func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []t
 		}
 		start := time.Now()
 		if _, err := store.Commit(ctx, batch); err != nil {
-			t.Fatalf("commit %d: %v", ordinal, err)
+			return scaleCorpus{}, fmt.Errorf("commit %d: %w", ordinal, err)
 		}
 		latencies = append(latencies, time.Since(start))
 		contentBytes += uint64(len(content))
@@ -75,10 +80,10 @@ func buildScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, []t
 	}
 	snapshot, err := store.Snapshot(ctx)
 	if err != nil {
-		t.Fatal(err)
+		return scaleCorpus{}, err
 	}
 	head, _ := store.Head()
-	return head, snapshot.Path, latencies, contentBytes
+	return scaleCorpus{root, snapshot.Path, head, latencies, contentBytes}, nil
 }
 
 func aliasName(ordinal int) string { return fmt.Sprintf("scale/alias/%d", ordinal) }
@@ -103,10 +108,17 @@ func scaleContent(ordinal int) []byte {
 // against, never thresholds.
 func TestStoreScaleContract(t *testing.T) {
 	rootA, rootB := t.TempDir(), t.TempDir()
-	headA, snapshotPath, latencies, contentBytes := buildScaleCorpus(t, rootA)
-	headB, _, _, _ := buildScaleCorpus(t, rootB)
-	if headA != headB {
-		t.Fatalf("corpus is not deterministic: head %s != %s", headA, headB)
+	first, err := buildScaleCorpus(t.Context(), rootA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := buildScaleCorpus(t.Context(), rootB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	headA, snapshotPath, latencies, contentBytes := first.head, first.snapshot, first.latencies, first.contentBytes
+	if headA != second.head {
+		t.Fatalf("corpus is not deterministic: head %s != %s", headA, second.head)
 	}
 	journalA := fileDigestAt(t, filepath.Join(rootA, "overgodb.log"))
 	journalB := fileDigestAt(t, filepath.Join(rootB, "overgodb.log"))

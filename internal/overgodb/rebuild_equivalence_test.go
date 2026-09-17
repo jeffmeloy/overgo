@@ -95,7 +95,7 @@ func querySurfaceDigest(t *testing.T, store *Store) string {
 // head.
 func TestProjectionRebuildEquivalence(t *testing.T) {
 	root := t.TempDir()
-	buildScaleCorpus(t, root)
+	copyScaleCorpus(t, root)
 
 	checkpointed, err := OpenReadOnly(root)
 	if err != nil {

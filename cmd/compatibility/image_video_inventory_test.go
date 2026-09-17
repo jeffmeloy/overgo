@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -17,12 +18,15 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/strictjson"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
+
+// Preserve the historical declaration without activating retired task kinds.
+const imageVideoInventorySHA256 = "970714bb1fa52f4b7474e0b2e90739ac989d77fb7ab4a311b5e9c7cf457c1a49"
 
 type imageVideoInventory struct {
 	Version  uint16                    `json:"version"`
@@ -51,11 +55,25 @@ type imageVideoInactive struct {
 	Status recipe.Status `json:"status"`
 }
 
-func checkImageVideoCoverage(value imageVideoInventory, census capabilityCensus) error {
+func loadFrozenMediaInventory(root string) (imageVideoInventory, error) {
+	var value imageVideoInventory
+	path := filepath.Join(root, "docs/image_video_inventory.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return value, err
+	}
+	if err := checkMediaProtocolIdentity(raw, imageVideoInventorySHA256); err != nil {
+		return value, err
+	}
+	err = strictjson.DecodeBytes(raw, &value)
+	return value, err
+}
+
+func checkImageVideoCoverage(value imageVideoInventory, census capabilityCensus, declaredTasks []recipe.Task) error {
 	if value.Version != artifact.InitialDocumentVersion || value.Census != census.ID {
 		return errors.New("media inventory: census binding differs")
 	}
-	wantTasks := []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen}
+	wantTasks := slices.Clone(declaredTasks)
 	tasks := slices.Clone(value.Tasks)
 	slices.Sort(tasks)
 	slices.Sort(wantTasks)
@@ -187,22 +205,15 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": exact media inventory acceptance checks the private snapshot")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
+	value, err := loadFrozenMediaInventory(root)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: image_video_gen inventory requires its explicit data root")
-	}
-	var value imageVideoInventory
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &value); err != nil {
 		t.Fatal(err)
 	}
 	roots, err := dataroot.Resolve(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,10 +222,33 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := checkCapabilityCensus(t.Context(), store, census, len(census.Models)); err != nil {
+	var binding acceptedCensus
+	if err := jsonfile.DecodeStrict(filepath.Join(root, "cmd/compatibility/testdata/media_census.json"), &binding); err != nil {
 		t.Fatal(err)
 	}
-	if err := checkImageVideoCoverage(value, census); err != nil {
+	if err := checkCensusDisposition(t.Context(), store, census.ID, binding); err != nil {
+		t.Fatal(err)
+	}
+	current, err := capabilityCensusCodec.Require(t.Context(), store, binding.Current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(census.Models, current.Models) || !slices.Equal(census.Verifications, current.Verifications) {
+		t.Fatal("media census reconciliation changed model entries or verification coverage")
+	}
+	if err := checkCapabilityCensus(t.Context(), store, current, len(current.Models)); err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []acceptedCensus{
+		{Current: census.ID, Finding: binding.Finding, Disposition: binding.Disposition},
+		{Current: binding.Current, Finding: binding.Finding, Disposition: binding.Finding},
+		{Current: binding.Current, Finding: binding.Disposition, Disposition: binding.Disposition},
+	} {
+		if err := checkCensusDisposition(t.Context(), store, census.ID, invalid); err == nil {
+			t.Fatal("unbound census or substituted disposition accepted")
+		}
+	}
+	if err := checkImageVideoCoverage(value, census, value.Tasks); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkImageVideoDefinitions(t.Context(), store, value); err != nil {
@@ -228,10 +262,11 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 		}
 		t.Logf("%s %s model=%s recipe=%s references=%d; limitations=%v", cell.Name, cell.Task, cell.Model, cell.Recipe, len(cell.References), cell.Limitations)
 	}
-	for _, name := range []string{"omitted cell", "duplicate cell", "foreign task", "wrong recipe", "wrong census", "missing reference"} {
+	for _, name := range []string{"omitted cell", "duplicate cell", "foreign task", "wrong recipe", "wrong census", "missing reference", "omitted declared task", "duplicate declared task"} {
 		t.Run(name, func(t *testing.T) {
 			changed := value
 			changed.Cells = slices.Clone(value.Cells)
+			changed.Tasks = slices.Clone(value.Tasks)
 			switch name {
 			case "omitted cell":
 				changed.Cells = changed.Cells[1:]
@@ -245,8 +280,12 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 				changed.Census = artifact.ID{}
 			case "missing reference":
 				changed.Cells[0].References = nil
+			case "omitted declared task":
+				changed.Tasks = changed.Tasks[:len(changed.Tasks)-1]
+			case "duplicate declared task":
+				changed.Tasks[1] = changed.Tasks[0]
 			}
-			if err := checkImageVideoCoverage(changed, census); err == nil {
+			if err := checkImageVideoCoverage(changed, census, value.Tasks); err == nil {
 				t.Fatal("invalid media coverage accepted")
 			}
 		})
@@ -261,5 +300,19 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 			t.Fatal("changed reference accepted")
 		}
 	})
-	t.Logf("frozen census=%s producer=%s store sequence=%d; cells=%d inactive=%d; no model execution", value.Census, census.ProducerCommit, census.StoreSequence, len(value.Cells), len(value.Inactive))
+	t.Run("changed historical declaration", func(t *testing.T) {
+		directory := t.TempDir()
+		if err := os.Mkdir(filepath.Join(directory, "docs"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		changed := value
+		changed.Tasks = changed.Tasks[:len(changed.Tasks)-1]
+		if err := jsonfile.Write(filepath.Join(directory, "docs/image_video_inventory.json"), changed, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := loadFrozenMediaInventory(directory); err == nil {
+			t.Fatal("edited historical inventory accepted")
+		}
+	})
+	t.Logf("frozen census=%s producer=%s original store sequence=%d; current checkpoint census=%s disposition=%s; cells=%d inactive=%d; no model execution", value.Census, census.ProducerCommit, census.StoreSequence, current.ID, binding.Disposition, len(value.Cells), len(value.Inactive))
 }

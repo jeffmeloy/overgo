@@ -15,7 +15,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -134,13 +133,6 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": memory comparison reads retained acquisitions")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: media comparison requires its explicit data root")
-	}
 	path := filepath.Join(root, "docs/image_video_memory.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -160,7 +152,7 @@ func TestImageVideoMemoryOptimizationAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

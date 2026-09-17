@@ -225,7 +225,7 @@ func TestSnapshotReuseAcceptance(t *testing.T) {
 	})
 	t.Run("segmented corpus cost", func(t *testing.T) {
 		root := t.TempDir()
-		buildScaleCorpus(t, root)
+		copyScaleCorpus(t, root)
 		source, err := OpenReadOnly(root)
 		if err != nil {
 			t.Fatal(err)

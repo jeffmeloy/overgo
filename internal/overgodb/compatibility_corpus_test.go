@@ -20,7 +20,7 @@ import (
 // corpus is the contract a migrated reader is judged against.
 func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 	source := t.TempDir()
-	_, snapshotPath, _, _ := buildScaleCorpus(t, source)
+	_, snapshotPath, _ := copyScaleCorpus(t, source)
 	// Rotation empties the active segment at the snapshot boundary;
 	// append a post-seal tail so torn-tail and corruption behavior stay
 	// exercised against real active frames.

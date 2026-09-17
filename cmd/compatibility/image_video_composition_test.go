@@ -17,7 +17,6 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -60,13 +59,6 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": retained composition evidence")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: explicit media data root required")
-	}
 	var bundle mediaCompositionBundle
 	path := filepath.Join(root, "docs/image_video_composition.json")
 	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
@@ -86,7 +78,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

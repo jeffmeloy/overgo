@@ -18,7 +18,7 @@ import (
 func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
-	buildScaleCorpus(t, root)
+	copyScaleCorpus(t, root)
 
 	writer, err := Open(root)
 	if err != nil {

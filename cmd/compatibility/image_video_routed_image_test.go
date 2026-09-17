@@ -12,7 +12,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
@@ -66,13 +65,6 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": retained routed image bundle")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: explicit media data root required")
-	}
 	path := filepath.Join(root, "docs/image_video_routed_images.json")
 	var bundle mediaRoutedBundle
 	if err := jsonfile.DecodeStrict(path, &bundle); err != nil {
@@ -92,7 +84,7 @@ func TestImageVideoRoutedImageAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}

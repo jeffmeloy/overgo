@@ -17,7 +17,7 @@ import (
 // they are never authority.
 func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 	root := t.TempDir()
-	head, _, _, _ := buildScaleCorpus(t, root)
+	head, _, _ := copyScaleCorpus(t, root)
 	directory := filepath.Join(root, checkpointDirectory)
 
 	openAndDigest := func(t *testing.T, expectLoaded bool, expectReason string) string {

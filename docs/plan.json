@@ -382,21 +382,6 @@
       ]
     },
     {
-      "id": "surface-gate-dependencies",
-      "title": "Remove the next measured expensive dependency",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "bounded-reduction",
-          "title": "Consolidate one costly consumer and prove its exclusion",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestTestingReductionContract|TestNamedDocumentAttribution|TestNamedDocumentReach|TestDependencyCostAttributionAcceptance|TestGatePackageExecutionCostAcceptance)$' -short -count=1",
-          "rationale": "Choose the owner from actual execution and selection evidence:sha256:5da2cd7da69953625efbd87ea5400397fd93c37637925bb1664076e1e1dc9fad and its suite-cost record. Rank started work and critical-path cost, not all 192 opaque readers equally or unstarted packages. Explain changed file -\u003e compiled/reachable input -\u003e every independently sufficient selection reason -\u003e invalidated prior result. Prefer a dependency split, shared expensive fixture or deleted wrapper before broader analysis. Choose one consumer; analyze, implement and validate in one boundary. Preserve fd153b33 browser/model-journey exclusions for unrelated gate+manifest changes and UI, API-admission, analyzer and unknown-reader counterexamples. Require a real exclusion or eliminated repeated computation, unchanged oracles, and net source/AST/API plus whole-attempt costs. Re-rank when measured payback warrants; document position is not a dependency. No general analyzer or extra reporting command."
-        }
-      ]
-    },
-    {
       "id": "plan-publication-cost",
       "title": "Reduce recurring build and gate cost, then simplify dispatch and publication",
       "owner": "master-lead",

@@ -6,26 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-device-coverage",
-      "title": "Include declared inference device contracts in device verification",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Include declared inference device contracts in device verification",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck ./cmd/device-lane -run 'Device' -count=1",
-          "rationale": "P5. Full DeviceLanePackages omits inference kernel tests. Derive full and partial device coverage from the shared declared kernel-test ownership; keep general hermetic tests separate. A kernel/executor change must select recurrent checkpoint and speculation device contracts. Synthetic manifest cases prove selection, no declaration-only success.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-protocol-admission",
       "title": "Reject context overflow before streaming or durable turn reservation",
       "owner": "colibri",

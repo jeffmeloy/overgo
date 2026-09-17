@@ -23,12 +23,12 @@ func TestDevicePlan(t *testing.T) {
 	if len(steps) != 2 || !slices.Equal(steps[0], []string{"go", "run", "./cmd/cuda-smoke"}) {
 		t.Fatalf("scoped steps = %v", steps)
 	}
-	want := []string{"go", "test", "-p=1", "-timeout=20m", "./internal/cuda/kernel", "./internal/optimizer", "-count=1"}
+	want := []string{"go", "test", "-json", "-p=1", "-timeout=20m", "./internal/cuda/kernel", "./internal/optimizer", "-count=1"}
 	if !slices.Equal(steps[1], want) {
 		t.Fatalf("selected packages = %v, want %v", steps[1], want)
 	}
 	full := deviceSteps(automationcheck.DeviceVerificationPlan{Full: true})
-	if len(full) != 3 {
+	if len(full) != 4 {
 		t.Fatalf("full steps=%v", full)
 	}
 	for _, step := range full[1:] {
@@ -44,7 +44,7 @@ func TestDevicePlan(t *testing.T) {
 func TestDeviceLaneRunsChangedTestPackage(t *testing.T) {
 	steps := deviceSteps(automationcheck.DeviceVerificationPlan{Packages: []string{"./internal/adaptiveparity"}})
 	want := []string{
-		"go", "test", "-p=1", "-timeout=20m", "./internal/adaptiveparity", "-count=1",
+		"go", "test", "-json", "-p=1", "-timeout=20m", "./internal/adaptiveparity", "-count=1",
 	}
 	if len(steps) != 2 || !slices.Equal(steps[1], want) {
 		t.Fatalf("selected test step = %v, want %v", steps, want)

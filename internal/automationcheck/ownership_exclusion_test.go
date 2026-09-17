@@ -48,7 +48,7 @@ func fixtureResolver(t *testing.T) DependencyResolver {
 // lane, and a symbol-owned check is never excluded by dependency alone.
 func TestUntouchedOwnershipExcludesDeviceChecks(t *testing.T) {
 	record := recordingLane(new([]string))
-	device := DeviceCheck(".", nil, DeviceLanePackages[1:], record)
+	device := DeviceCheck(".", nil, DeviceLanePackages(), record)
 	webui := WebUICheck(".", record)
 	symbolOwned := Check{
 		Descriptor: Descriptor{

@@ -5,12 +5,6 @@ import (
 	"strings"
 )
 
-// DeviceLanePackages are the repository packages whose tests the device
-// lane runs in its full plan; internal/cuda is a prefix, the rest exact.
-var DeviceLanePackages = []string{
-	"internal/cuda", "internal/model", "internal/projector", "internal/optimizer", "internal/devicemath", "internal/densecausal",
-}
-
 // DependencyResolver reports whether any package the ownership names, or any
 // package under one of its prefixes, is or transitively depends on the
 // changed package.

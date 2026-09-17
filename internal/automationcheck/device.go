@@ -128,6 +128,9 @@ func DevicePlan(root string, paths []string) (DeviceVerificationPlan, error) {
 			packages[packagePath] = true
 		}
 	}
+	if err := addDeviceConsumers(root, paths, packages); err != nil {
+		return DeviceVerificationPlan{}, err
+	}
 	return DeviceVerificationPlan{Packages: slices.Sorted(maps.Keys(packages)), Functions: functionNames}, nil
 }
 

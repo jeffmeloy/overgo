@@ -3,9 +3,7 @@
 // integration tests and the device probes with explicit reporting: a missing
 // device or toolkit is UNAVAILABLE, never passing evidence.
 //
-// Target form (Automation Doctrine Layer 3) scopes kernels by manifest diff;
-// this faithful port runs the full device set and is the interim named by
-// skill.md Testing Lanes.
+// Full and manifest-scoped runs share declared device contracts.
 package main
 
 import (
@@ -15,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -93,6 +92,9 @@ func run() error {
 				Path: command[0], Args: command[1:], Env: append(os.Environ(), cudaTestEnv+"=1"),
 				Stdout: &stdout, Stderr: &stderr,
 			})
+			if err == nil && receipt.ExitCode == 0 {
+				err = verifyDeviceContracts(command, stdout.String())
+			}
 			return receipt.ExitCode, err
 		}
 		var code int
@@ -164,25 +166,31 @@ func deviceProgress(step []string, index, total int, elapsed time.Duration) stri
 
 func deviceSteps(plan automationcheck.DeviceVerificationPlan) [][]string {
 	steps := [][]string{{"go", "run", "./cmd/cuda-smoke"}}
-	if plan.Full {
-		// The full plan tests exactly the packages the lane declares it owns.
-		full := []string{"./" + automationcheck.DeviceLanePackages[0] + "/..."}
-		for _, packagePath := range automationcheck.DeviceLanePackages[1 : len(automationcheck.DeviceLanePackages)-1] {
-			full = append(full, "./"+packagePath)
+	var packages []string
+	var scoped [][]string
+	for _, scope := range automationcheck.DeviceScopes(plan) {
+		pattern := scope.Run
+		if len(scope.Tests) > 0 {
+			var names []string
+			for _, name := range scope.Tests {
+				names = append(names, regexp.QuoteMeta(name))
+			}
+			pattern = "^(" + strings.Join(names, "|") + ")$"
 		}
-		return append(steps,
-			deviceTestStep(full...),
-			deviceTestStep("-run", "Device", "./"+automationcheck.DeviceLanePackages[len(automationcheck.DeviceLanePackages)-1]))
+		if pattern == "" {
+			packages = append(packages, scope.Package)
+		} else {
+			scoped = append(scoped, deviceTestStep("-run", pattern, scope.Package))
+		}
 	}
-	if len(plan.Packages) > 0 {
-		// Bound this lane's package concurrency; independent consumers share VRAM.
-		steps = append(steps, deviceTestStep(plan.Packages...))
+	if len(packages) > 0 {
+		steps = append(steps, deviceTestStep(packages...))
 	}
-	return steps
+	return append(steps, scoped...)
 }
 
 func deviceTestStep(arguments ...string) []string {
-	command := []string{"go", "test", "-p=1", "-timeout=" + devicePackageTimeout}
+	command := []string{"go", "test", "-json", "-p=1", "-timeout=" + devicePackageTimeout}
 	command = append(command, arguments...)
 	return append(command, "-count=1")
 }

@@ -14,11 +14,75 @@ import (
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
+
+func TestExactVerificationCandidateBinding(t *testing.T) {
+	path := testutil.HermeticLlamaGGUF(t, 32)
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	ctx := t.Context()
+	if loaded, _, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err == nil {
+		loaded.Close()
+		t.Fatal("missing registered profile accepted")
+	}
+	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
+		t.Fatal(err)
+	}
+	want, err := modelintake.PrepareInferenceCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check := func() {
+		t.Helper()
+		loaded, definition, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer loaded.Close()
+		identity, err := loaded.Identity()
+		if err != nil || definition.ID != want.Definition.ID || identity.Recipe != want.Definition.ID ||
+			identity.Profile != want.Resolved.Profile.ID || identity.Definition != want.Resolved.Document.ID {
+			t.Fatalf("candidate binding differs: %+v, %v", identity, err)
+		}
+	}
+	check()
+	if _, active, err := modelrecipe.ActiveRecord(ctx, store, want.Inventory.Manifest.ID, recipe.TaskInference); err != nil || active {
+		t.Fatalf("verification activated a candidate: %v", err)
+	}
+	// A prior active recipe deliberately uses a different decode session.
+	prior, err := modelintake.PrepareInferenceCandidate(ctx, store, path,
+		modelintake.SessionOverride{Set: true, Value: modelrecipe.DecodeSessionRequest}, recipe.ResidencyHybridNative)
+	if err != nil || prior.Definition.ID == want.Definition.ID {
+		t.Fatalf("distinct active fixture: %v", err)
+	}
+	if err := modelrecipetest.PublishActivation(ctx, store, "fixture/prior-active", prior.Definition); err != nil {
+		t.Fatal(err)
+	}
+	head, sequence := store.Head()
+	check()
+	check()
+	active, found, err := modelrecipe.ActiveRecord(ctx, store, prior.Inventory.Manifest.ID, recipe.TaskInference)
+	if err != nil || !found || active.Definition.ID != prior.Definition.ID {
+		t.Fatalf("verification replaced the active recipe: %v", err)
+	}
+	canceled, cancel := context.WithCancelCause(ctx)
+	cancel(context.Canceled)
+	if loaded, _, err := prepareExactCandidate(canceled, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); !errors.Is(err, context.Canceled) {
+		loaded.Close()
+		t.Fatalf("cancellation lost: %v", err)
+	}
+	if got, ordinal := store.Head(); got != head || ordinal != sequence {
+		t.Fatal("repeat or canceled preparation mutated the store")
+	}
+}
 
 func TestPrepareCapabilityReusesPublishedFacts(t *testing.T) {
 	path := testutil.TempGGUF(t, "facts.gguf", nil, []gguf.TensorData{{

@@ -45,7 +45,17 @@ func checkMediaTimingSource(root, revision string, paths []string) (string, erro
 		return "", err
 	}
 	if len(changed) != 0 {
-		return "", fmt.Errorf("source exceeds retained timing reconciliation: %s", strings.Join(changed, ", "))
+		base, isolationErr := checkMediaRotarySource(root, revision, scope)
+		if isolationErr != nil {
+			return "", fmt.Errorf("source exceeds retained timing reconciliation: %s: %w", strings.Join(changed, ", "), isolationErr)
+		}
+		changed, err = mediaRuntimeChanges(root, proof.After, base, scope)
+		if err != nil {
+			return "", err
+		}
+		if len(changed) != 0 {
+			return "", fmt.Errorf("source before isolated rotary change differs: %v", changed)
+		}
 	}
 	roots, err := dataroot.Resolve(root)
 	if err != nil {

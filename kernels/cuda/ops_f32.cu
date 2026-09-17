@@ -3347,6 +3347,7 @@ extern "C" __global__ void rope_multi_f32(
         unsigned int section_1,
         unsigned int section_2,
         unsigned int section_3,
+        unsigned int interleaved_sections,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) {
@@ -3370,6 +3371,15 @@ extern "C" __global__ void rope_multi_f32(
         axis = 2;
     } else if (sector >= section_0) {
         axis = 1;
+    }
+    if (interleaved_sections) {
+        // IMRoPE cycles temporal, height and width; exhausted sections use the extra axis.
+        constexpr unsigned int spatial_axes = 3;
+        const unsigned int sections[] = {section_0, section_1, section_2};
+        axis = sector % spatial_axes;
+        if (sector >= spatial_axes * sections[axis]) {
+            axis = spatial_axes;
+        }
     }
     const unsigned int pair_offset = row * width + pair * 2;
     const float theta =

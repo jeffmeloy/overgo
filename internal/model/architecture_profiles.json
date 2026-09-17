@@ -2381,6 +2381,9 @@
    "FullAttentionInterval": 4
   },
   "Name": "qwen35",
+  "Rotary": {
+   "MultiAxis": 3
+  },
   "RecurrentMixer": 8,
   "Validation": {
    "Hybrid": 2
@@ -2418,6 +2421,9 @@
    "SharedExpert": 1
   },
   "Name": "qwen35moe",
+  "Rotary": {
+   "MultiAxis": 3
+  },
   "RecurrentMixer": 8,
   "Validation": {
    "ExpertMetadata": 1,
@@ -2489,7 +2495,7 @@
   },
   "Name": "qwen3vl",
   "Rotary": {
-   "MultiAxis": 1
+   "MultiAxis": 3
   },
   "Validation": {
    "BoundDeepstack": true,
@@ -2513,7 +2519,7 @@
   },
   "Name": "qwen3vlmoe",
   "Rotary": {
-   "MultiAxis": 1
+   "MultiAxis": 3
   },
   "Validation": {
    "BoundDeepstack": true,

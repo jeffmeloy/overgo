@@ -1758,6 +1758,9 @@ func TestBuildQwen35AttentionBlockUsesDistinctMRoPEPositions(t *testing.T) {
 		}
 		count++
 		attrs := node.Attrs.(tensor.RoPEMultiAttributes)
+		if !attrs.InterleavedSections {
+			t.Fatal("Qwen3.5 rotary sections must be interleaved")
+		}
 		for axis := range positions {
 			if !slices.Equal(attrs.Positions[axis], positions[axis]) {
 				t.Fatalf("Qwen3.5 MRoPE axis %d = %v, want %v", axis, attrs.Positions[axis], positions[axis])

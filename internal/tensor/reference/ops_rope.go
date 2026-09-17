@@ -166,6 +166,14 @@ func ropeMulti(
 						axis++
 						boundary += int(attributes.Sections[axis])
 					}
+					if attributes.InterleavedSections {
+						// IMRoPE cycles temporal, height and width; exhausted sections use the extra axis.
+						const spatialAxes = tensor.MaxDimensions - 1
+						axis = sector % spatialAxes
+						if sector >= spatialAxes*int(attributes.Sections[axis]) {
+							axis = spatialAxes
+						}
+					}
 					theta := float64(attributes.Positions[axis][token]) * float64(attributes.FrequencyScale) * math.Pow(
 						float64(attributes.FrequencyBase),
 						-2*float64(pair)/float64(rotary),

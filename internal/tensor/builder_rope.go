@@ -34,25 +34,40 @@ const (
 	RoPELayoutNeoX
 )
 
-// RoPEOptions: single-axis rotary graph controls.
+// RoPEOptions defines rotary coordinates and channel pairing.
 type RoPEOptions struct {
-	Layout           RoPELayout
-	Positions        []uint32
-	FrequencyFactors *Tensor
-	RotaryDimensions uint32
-	FrequencyBase    float32
-	FrequencyScale   float32
-	YaRN             bool
-	OriginalContext  uint32
-	ExtFactor        float32
-	AttentionFactor  float32
-	BetaFast         float32
-	BetaSlow         float32
-	Reverse          bool
+	Layout              RoPELayout
+	Positions           []uint32
+	MultiPositions      *[MaxDimensions][]uint32
+	Sections            [MaxDimensions]int32
+	InterleavedSections bool
+	FrequencyFactors    *Tensor
+	RotaryDimensions    uint32
+	FrequencyBase       float32
+	FrequencyScale      float32
+	YaRN                bool
+	OriginalContext     uint32
+	ExtFactor           float32
+	AttentionFactor     float32
+	BetaFast            float32
+	BetaSlow            float32
+	Reverse             bool
 }
 
-// RoPEWithOptions: typed single-axis rotary construction.
+// RoPEWithOptions builds single-axis or multi-axis rotary operations.
 func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
+	if options.MultiPositions != nil {
+		if options.Layout != RoPELayoutNormal || len(options.Positions) != 0 || options.FrequencyFactors != nil || options.YaRN || options.Reverse ||
+			options.OriginalContext != 0 || options.ExtFactor != 0 || options.AttentionFactor != 0 || options.BetaFast != 0 || options.BetaSlow != 0 {
+			b.setError(errors.New("multi-axis RoPE cannot combine single-axis controls"))
+			return nil
+		}
+		return b.buildRoPEMulti(input, options)
+	}
+	if options.InterleavedSections || options.Sections != [MaxDimensions]int32{} {
+		b.setError(errors.New("RoPE sections require multi-axis positions"))
+		return nil
+	}
 	operation, name := OpRoPENormal, "rope_normal"
 	switch options.Layout {
 	case RoPELayoutNormal:
@@ -73,14 +88,10 @@ func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
 	})
 }
 
-// RoPENeoX: split-half rotary layout; input [head width, heads, tokens, batch?].
-func (b *Builder) RoPEMultiScaled(
-	input *Tensor,
-	positions [4][]uint32,
-	sections [4]int32,
-	rotaryDimensions uint32,
-	frequencyBase, frequencyScale float32,
-) *Tensor {
+func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
+	positions, sections := *options.MultiPositions, options.Sections
+	rotaryDimensions := options.RotaryDimensions
+	frequencyBase, frequencyScale := options.FrequencyBase, options.FrequencyScale
 	if b.err != nil {
 		return nil
 	}
@@ -115,10 +126,11 @@ func (b *Builder) RoPEMultiScaled(
 		return nil
 	}
 	attributes := RoPEMultiAttributes{
-		Sections:         sections,
-		RotaryDimensions: rotaryDimensions,
-		FrequencyBase:    frequencyBase,
-		FrequencyScale:   frequencyScale,
+		InterleavedSections: options.InterleavedSections,
+		Sections:            sections,
+		RotaryDimensions:    rotaryDimensions,
+		FrequencyBase:       frequencyBase,
+		FrequencyScale:      frequencyScale,
 	}
 	for axis := range positions {
 		attributes.Positions[axis] = slices.Clone(positions[axis])

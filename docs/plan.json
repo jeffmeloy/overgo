@@ -36,6 +36,18 @@
           ]
         },
         {
+          "id": "qwen27-projection",
+          "title": "Validate Qwen27 image, image-pair and video execution in one bundle",
+          "status": "open",
+          "verify": "test -f cmd/compatibility/projection_publication_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestRetainedProjectionPublications$/^qwen-twentyseven$' -count=1 \u0026\u0026 go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1",
+          "rationale": "Remaining functional projection gap: registered model 73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6 and projector db5707757168251d43eb5ba8cb481b86b41324def89f5854667fff9736519d22 are present. The old activation's one-nanosecond, input-free verification is admission evidence, not measured generation. Use existing recipe verify, exact-suite, projection-session, run-record and compatibility owners. Freeze exact artifact identities, native source/build, processor settings, fixture bytes, prompt framing, sampler and required output/token contracts before the candidate acquisition. Cover each declared session mode: single image, multiple images and video frames; artifact declarations determine exclusions. Build the native reference from a clean isolated checkout, preserving the foreign mtmd.cpp edits. Reuse applicable pinned captures before making new ones. Group compatible cases in a residency, retain each result and all failures, and replay completed exact scopes without loading the model. Require actual projected generation and typed run/gate/report authority for every frozen case; reject missing/duplicate cases, changed inputs/protocol/source, compile-only records and missing/failed outputs. Publish one data-driven retained projection acceptance in the existing compatibility owner; do not create a new runner or per-model production path. Native comparison establishes only its declared functional/numerical scope, not broad VQA quality, throughput promotion or full-model acceptance. A short greedy match alone does not prove an attention mask. Preserve previously accepted text records, the original producer commits and historical activation. Full 27B MMLU-Pro remains operator-launched. If a runtime defect appears, retain the exact counterexample and commit the bounded source repair through its owning checks before clean-source publication; do not repeatedly reacquire settled cells.",
+          "depends_on": [
+            "surface-gate-execution/declaration-boundary",
+            "modality-verification/qwen27-retained-publication",
+            "modality-verification/projection-rotary-sections"
+          ]
+        },
+        {
           "id": "text-and-vision",
           "title": "Verify chat, embedding, rerank and vision-language activations",
           "status": "open",
@@ -68,7 +80,8 @@
             "modality-verification/gemma12-mmlu-publication",
             "modality-verification/gemma12-native-ifeval",
             "modality-verification/rxbrain-native-vqa",
-            "modality-verification/qwen27-retained-publication"
+            "modality-verification/qwen27-retained-publication",
+            "modality-verification/qwen27-projection"
           ],
           "outcome": {
             "gemma12_fp8_mmlu_pro": {

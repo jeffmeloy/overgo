@@ -16,6 +16,7 @@ const (
 	multiAxisRotaryNone multiAxisRotaryPolicy = iota
 	multiAxisRotaryAlways
 	multiAxisRotaryWithSections
+	multiAxisRotaryInterleaved
 )
 
 type rotaryPolicyKind uint8
@@ -76,20 +77,21 @@ func applyRoPEPairWithOptions(
 
 // RotaryPlan: compiled per-layer rotary graph.
 type RotaryPlan struct {
-	kind             rotaryGraphKind
-	layout           tensor.RoPELayout
-	sections         [tensor.MaxDimensions]int32
-	rotaryDimensions uint32
-	frequencyBase    float32
-	frequencyScale   float32
-	yarn             bool
-	originalContext  uint32
-	extFactor        float32
-	attentionFactor  float32
-	betaFast         float32
-	betaSlow         float32
-	factorPairs      uint32
-	outputScale      float32
+	interleavedSections bool
+	kind                rotaryGraphKind
+	layout              tensor.RoPELayout
+	sections            [tensor.MaxDimensions]int32
+	rotaryDimensions    uint32
+	frequencyBase       float32
+	frequencyScale      float32
+	yarn                bool
+	originalContext     uint32
+	extFactor           float32
+	attentionFactor     float32
+	betaFast            float32
+	betaSlow            float32
+	factorPairs         uint32
+	outputScale         float32
 }
 
 // Apply: shared query/key rotary graph.
@@ -154,10 +156,11 @@ func (p RotaryPlan) applyOne(
 		} else {
 			resolved = *multiPositions
 		}
-		input = builder.RoPEMultiScaled(
-			input, resolved, p.sections, p.rotaryDimensions,
-			p.frequencyBase, p.frequencyScale,
-		)
+		input = builder.RoPEWithOptions(input, tensor.RoPEOptions{
+			MultiPositions: &resolved, Sections: p.sections, RotaryDimensions: p.rotaryDimensions,
+			FrequencyBase: p.frequencyBase, FrequencyScale: p.frequencyScale,
+			InterleavedSections: p.interleavedSections,
+		})
 	case rotaryGraphSingle:
 		options := tensor.RoPEOptions{
 			Layout: p.layout, Positions: positions, FrequencyFactors: frequencyFactors,
@@ -188,12 +191,13 @@ func (s Spec) rotaryPlan(profile ArchitectureProfile, layer uint32) RotaryPlan {
 		frequencyScale: tensor.UnitScale,
 	}
 	policy := profile.Rotary
-	multiAxis := policy.MultiAxis == multiAxisRotaryAlways ||
+	multiAxis := policy.MultiAxis == multiAxisRotaryAlways || policy.MultiAxis == multiAxisRotaryInterleaved ||
 		policy.MultiAxis == multiAxisRotaryWithSections &&
 			hasLeadingRopeSections(s.RopeSections)
 	if multiAxis {
 		plan.kind = rotaryGraphMulti
 		plan.sections = s.RopeSections
+		plan.interleavedSections = policy.MultiAxis == multiAxisRotaryInterleaved
 		if s.RopeScalingType == ropeScalingLinear {
 			plan.frequencyScale = tensor.UnitScale / s.RopeScalingFactor
 		}

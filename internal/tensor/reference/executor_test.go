@@ -933,45 +933,61 @@ func TestExecuteGELUMoEExpertScale(t *testing.T) {
 }
 
 func TestExecuteRoPEMulti(t *testing.T) {
-	builder := tensor.NewBuilder()
-	input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))
-	positions := [4][]uint32{
-		{1},
-		{2},
-		{3},
-		{4},
-	}
-	output := builder.RoPEMultiScaled(
-		input,
-		positions,
-		[4]int32{2, 2, 2, 2},
-		8,
-		10000,
-		0.25,
-	)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
-	inputValue, _ := NewValue(input.Shape, []float32{1, 2, 3, 4, 5, 6, 7, 8})
-	results, err := Execute(
-		[]*tensor.Tensor{output},
-		map[*tensor.Tensor]Value{input: inputValue},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := make([]float32, 8)
-	for pair, position := range []float64{1, 1, 2, 2} {
-		theta := position * 0.25 * math.Pow(10000, -2*float64(pair)/8)
-		cosine, sine := float32(math.Cos(theta)), float32(math.Sin(theta))
-		first := pair * 2
-		want[first] = inputValue.Data[first]*cosine - inputValue.Data[first+1]*sine
-		want[first+1] = inputValue.Data[first]*sine + inputValue.Data[first+1]*cosine
-	}
-	for index, value := range results[output].Data {
-		if math.Abs(float64(value-want[index])) > 1e-6 {
-			t.Fatalf("RoPEMulti output[%d] = %v, want %v", index, value, want[index])
-		}
+	// Explicit coordinate schedules distinguish contiguous MRoPE from IMRoPE.
+	// Exhausted interleaved sections use the extra coordinate; sectors wrap.
+	for _, tc := range []struct {
+		name        string
+		interleaved bool
+		sections    [4]int32
+		axes        []int
+	}{
+		{"contiguous", false, [4]int32{2, 2, 2, 2}, []int{0, 0, 1, 1}},
+		{"interleaved", true, [4]int32{2, 2, 2, 2}, []int{0, 1, 2, 0}},
+		{"extra and wrap", true, [4]int32{1, 1, 1, 1}, []int{0, 1, 2, 3, 0, 1, 2, 3}},
+		{"uneven", true, [4]int32{3, 1, 2, 0}, []int{0, 1, 2, 0, 3, 2, 0, 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			rotary := 2 * len(tc.axes)
+			// Include an unrotated pair and a text token with equal coordinates.
+			input := builder.Input("input", dtype.F32, tensor.MustShape(uint64(rotary+2), 1, 2))
+			positions := [4][]uint32{{1, 5}, {2, 5}, {3, 5}, {4, 5}}
+			options := tensor.RoPEOptions{
+				MultiPositions: &positions, Sections: tc.sections, InterleavedSections: tc.interleaved,
+				RotaryDimensions: uint32(rotary), FrequencyBase: 10000, FrequencyScale: 0.25,
+			}
+			output := builder.RoPEWithOptions(input, options)
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			data := make([]float32, 2*(rotary+2))
+			for i := range data {
+				data[i] = float32(i+1) / float32(len(data))
+			}
+			inputValue, err := NewValue(input.Shape, data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: inputValue})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := append([]float32(nil), data...)
+			for token := range positions[0] {
+				for pair, axis := range tc.axes {
+					theta := float64(positions[axis][token]) * float64(options.FrequencyScale) * math.Pow(float64(options.FrequencyBase), -2*float64(pair)/float64(rotary))
+					cosine, sine := float32(math.Cos(theta)), float32(math.Sin(theta))
+					first := token*(rotary+2) + pair*2
+					want[first] = data[first]*cosine - data[first+1]*sine
+					want[first+1] = data[first]*sine + data[first+1]*cosine
+				}
+			}
+			for index, value := range results[output].Data {
+				if math.Abs(float64(value-want[index])) > 1e-6 {
+					t.Fatalf("RoPEMulti output[%d] = %v, want %v", index, value, want[index])
+				}
+			}
+		})
 	}
 }
 

@@ -19,9 +19,10 @@ type responsesStreamEvent struct {
 }
 
 type responsesProgress struct {
-	ID     string `json:"id"`
-	Object string `json:"object"`
-	Status string `json:"status"`
+	ID                string                     `json:"id"`
+	Object            string                     `json:"object"`
+	Status            string                     `json:"status"`
+	IncompleteDetails *responseIncompleteDetails `json:"incomplete_details,omitempty"`
 }
 
 type responsesMessageStart struct {

@@ -43,14 +43,15 @@ type conversationListResponse struct {
 }
 
 type conversationMessagesResponse struct {
-	Response string                `json:"response"`
-	Root     string                `json:"root"`
-	Model    artifact.ID           `json:"model"`
-	Recipe   artifact.ID           `json:"recipe"`
-	Status   string                `json:"status"`
-	Previous string                `json:"previous,omitzero"`
-	Failure  string                `json:"failure,omitzero"`
-	Messages []conversationMessage `json:"messages"`
+	Response          string                     `json:"response"`
+	Root              string                     `json:"root"`
+	Model             artifact.ID                `json:"model"`
+	Recipe            artifact.ID                `json:"recipe"`
+	Status            string                     `json:"status"`
+	Previous          string                     `json:"previous,omitzero"`
+	Failure           string                     `json:"failure,omitzero"`
+	Messages          []conversationMessage      `json:"messages"`
+	IncompleteDetails *responseIncompleteDetails `json:"incomplete_details,omitempty"`
 }
 
 type conversationLabelRequest struct {
@@ -229,13 +230,16 @@ func (h *Handler) conversationMessages(response http.ResponseWriter, request *ht
 		return
 	}
 	status, failure := h.responseTerminal(request.Context(), interaction)
+	details := responseLimitDetails(interaction.TerminalReason)
 	if turn, found := h.inflight.lookup(responseID); found {
 		_, _, final, failed, _ := turn.snapshot()
 		status, failure = final.Status, failed
+		details = final.IncompleteDetails
 	}
 	writeJSON(response, http.StatusOK, conversationMessagesResponse{
 		Status: status, Previous: previous, Failure: failure, Response: responseID, Root: chain[len(chain)-1].Response,
 		Model: interaction.Model, Recipe: interaction.Recipe, Messages: messages,
+		IncompleteDetails: details,
 	})
 }
 
@@ -404,7 +408,7 @@ func (h *Handler) conversationCancel(response http.ResponseWriter, request *http
 		return
 	}
 	status, _ := h.responseTerminal(request.Context(), interaction)
-	writeJSON(response, http.StatusOK, responsesProgress{ID: body.Response, Object: "response", Status: status})
+	writeJSON(response, http.StatusOK, responsesProgress{ID: body.Response, Object: "response", Status: status, IncompleteDetails: responseLimitDetails(interaction.TerminalReason)})
 }
 
 // conversationFollow replays the current turn, then follows it to a confirmed
@@ -437,7 +441,7 @@ func (h *Handler) conversationFollow(response http.ResponseWriter, request *http
 			return
 		}
 		stream := newSSEEmitter(request.Context(), response, flusher)
-		final := responsesProgress{ID: responseID, Object: "response", Status: status}
+		final := responsesProgress{ID: responseID, Object: "response", Status: status, IncompleteDetails: responseLimitDetails(interaction.TerminalReason)}
 		_ = stream.named("response.created", responsesStreamEvent{Type: "response.created", Response: final})
 		// Only this turn's assistant text is output; an interrupted initial
 		// record holds the user's prompt and must never replay it as an answer.

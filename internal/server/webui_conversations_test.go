@@ -83,7 +83,7 @@ func TestFrontPageConversations(t *testing.T) {
 
 	follow := serveTestRequest(handler, http.MethodGet, "/interactions/follow?response="+continued.ID, "")
 	if follow.Code != http.StatusOK || !strings.Contains(follow.Body.String(), "event: response.output_text.delta") ||
-		!strings.Contains(follow.Body.String(), "event: response.completed") {
+		!strings.Contains(follow.Body.String(), "event: response.incomplete") {
 		t.Fatalf("follow of a durable turn = %d %s", follow.Code, follow.Body.String())
 	}
 	if unknown := serveTestRequest(handler, http.MethodGet, "/interactions/follow?response=resp_999", ""); unknown.Code != http.StatusNotFound {

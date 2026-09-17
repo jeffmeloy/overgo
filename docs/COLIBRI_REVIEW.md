@@ -57,3 +57,12 @@ Cached prefixes count within that prompt. Unknown provider counts remain with
 the provider; decode budgets and context shifting remain with inference because
 encoder-decoder source and decode contexts are separate. This transfers the
 early-refusal behavior without translating source or importing engine margins.
+
+Terminal outcomes reread `c/openai_server.py` (length-limited finish reasons
+and valid tool-call precedence) and `web/src/lib/api.ts` (retained stream finish
+reason) at the pinned Apache-2.0 source revision. Overgo uses its existing
+generation pump and stop filter, persists the output-limit reason in the
+interaction owner, and projects incomplete Responses through live delivery,
+follow, restart and conversation history. Browser acceptance uses synthetic
+generation and makes no model quality or performance claim. No source was
+translated.

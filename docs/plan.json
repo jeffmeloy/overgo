@@ -6,26 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-terminal-outcomes",
-      "title": "Preserve output-limit outcomes through live response and history",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Preserve output-limit outcomes through live response and history",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestResponsesIncompleteAtOutputLimit$' -count=1 \u0026\u0026 go test ./internal/runrecord -run '^TestInteractionTerminalReason$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserTurnLimit$' -require 'turn limit leg'",
-          "rationale": "W0.5/G1. One coupled server-record-client change: incomplete/max_output_tokens for length stops, unchanged natural stops, correct streaming/non-streaming/follow/restart behavior. No false connection-ended message. Browser fake-generator acceptance is separate from real-model journeys.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-protocol-cache",
       "title": "Reuse prompt prefixes on ordinary protocol turns",
       "owner": "colibri",

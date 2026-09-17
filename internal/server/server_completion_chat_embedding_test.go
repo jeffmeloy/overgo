@@ -2185,7 +2185,8 @@ func TestBufferedResponsesAliases(t *testing.T) {
 		}
 		if !strings.HasPrefix(result.ID, "resp_") ||
 			result.Object != "response" ||
-			result.Status != "completed" ||
+			result.Status != "incomplete" ||
+			result.IncompleteDetails == nil || result.IncompleteDetails.Reason != "max_output_tokens" ||
 			len(result.Output) != 1 ||
 			!strings.HasPrefix(result.Output[0].ID, "msg_") ||
 			result.Output[0].Content[0].Text != "A" ||

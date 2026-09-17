@@ -20,32 +20,34 @@ import (
 
 // The turn status vocabulary.
 const (
-	turnStatusRunning   = "running"   // still generating; the in-flight registry holds it
-	turnStatusDone      = "done"      // recorded, or finished with its final held
-	turnStatusCancelled = "cancelled" // the client or the server stopped it
-	turnStatusTimeout   = "timeout"   // the request deadline ended it
-	turnStatusRefused   = "refused"   // admission refused it before generation
-	turnStatusError     = "error"     // generation failed
+	turnStatusRunning    = "running"    // still generating; the in-flight registry holds it
+	turnStatusDone       = "done"       // recorded, or finished with its final held
+	turnStatusIncomplete = "incomplete" // output budget exhausted; partial answer retained
+	turnStatusCancelled  = "cancelled"  // the client or the server stopped it
+	turnStatusTimeout    = "timeout"    // the request deadline ended it
+	turnStatusRefused    = "refused"    // admission refused it before generation
+	turnStatusError      = "error"      // generation failed
 )
 
-var turnStatuses = []string{turnStatusRunning, turnStatusDone, turnStatusCancelled, turnStatusTimeout, turnStatusRefused, turnStatusError}
+var turnStatuses = []string{turnStatusRunning, turnStatusDone, turnStatusIncomplete, turnStatusCancelled, turnStatusTimeout, turnStatusRefused, turnStatusError}
 
 // turnInspection is the run record of one turn as the side panel shows it.
 type turnInspection struct {
-	Response   string             `json:"response"`
-	Status     string             `json:"status"`
-	Statuses   []string           `json:"statuses"`
-	Failure    string             `json:"failure,omitzero"`
-	Timings    *slotStatusTimings `json:"timings,omitempty"`
-	Sampling   *responseSampling  `json:"sampling,omitempty"`
-	Model      artifact.ID        `json:"model,omitzero"`
-	Recipe     artifact.ID        `json:"recipe,omitzero"`
-	Trace      artifact.ID        `json:"trace,omitzero"`
-	Receipt    artifact.ID        `json:"receipt,omitzero"`
-	Operation  artifact.ID        `json:"operation,omitzero"`
-	Run        artifact.ID        `json:"run,omitzero"`
-	Prompt     string             `json:"prompt"`
-	Completion string             `json:"completion"`
+	Response          string                     `json:"response"`
+	Status            string                     `json:"status"`
+	Statuses          []string                   `json:"statuses"`
+	Failure           string                     `json:"failure,omitzero"`
+	Timings           *slotStatusTimings         `json:"timings,omitempty"`
+	Sampling          *responseSampling          `json:"sampling,omitempty"`
+	Model             artifact.ID                `json:"model,omitzero"`
+	Recipe            artifact.ID                `json:"recipe,omitzero"`
+	Trace             artifact.ID                `json:"trace,omitzero"`
+	Receipt           artifact.ID                `json:"receipt,omitzero"`
+	Operation         artifact.ID                `json:"operation,omitzero"`
+	Run               artifact.ID                `json:"run,omitzero"`
+	Prompt            string                     `json:"prompt"`
+	Completion        string                     `json:"completion"`
+	IncompleteDetails *responseIncompleteDetails `json:"incomplete_details,omitempty"`
 	// Reproducible is false for a turn served at a remote provider: its
 	// environment records the remote backend, and nothing about the
 	// hosted model can be replayed from the store.
@@ -81,7 +83,11 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 			result.Status, result.Failure = turnFailureStatus(failed), failed
 		} else if done {
 			result.Status = turnStatusDone
+			if final.Status == "incomplete" {
+				result.Status = turnStatusIncomplete
+			}
 		}
+		result.IncompleteDetails = final.IncompleteDetails
 		result.Timings, result.Sampling = final.Timings, final.Sampling
 	}
 	if messages, _, found := h.loadResponseInteraction(request.Context(), responseID); found {
@@ -91,10 +97,13 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 			result.Status = turnStatusDone
 			if status == "cancelled" {
 				result.Status = turnStatusCancelled
+			} else if status == "incomplete" {
+				result.Status = turnStatusIncomplete
 			} else if status != "completed" {
 				result.Status = turnStatusError
 			}
 			result.Failure = failure
+			result.IncompleteDetails = responseLimitDetails(interaction.TerminalReason)
 		}
 		result.Model, result.Recipe, result.Trace = interaction.Model, interaction.Recipe, interaction.Trace
 		result.Operation, result.Run = interaction.Operation, interaction.Run
@@ -120,11 +129,12 @@ func (h *Handler) conversationInspect(response http.ResponseWriter, request *htt
 // conversationMessage is one visible message with the response that
 // produced it, so a page can inspect the turn behind any assistant message.
 type conversationMessage struct {
-	Role      string                          `json:"role"`
-	Content   string                          `json:"content"`
-	Response  string                          `json:"response,omitzero"`
-	Media     []runrecord.InteractionMedia    `json:"media,omitempty"`
-	ToolCalls []runrecord.InteractionToolCall `json:"tool_calls,omitempty"`
+	Role              string                          `json:"role"`
+	Content           string                          `json:"content"`
+	Response          string                          `json:"response,omitzero"`
+	Media             []runrecord.InteractionMedia    `json:"media,omitempty"`
+	ToolCalls         []runrecord.InteractionToolCall `json:"tool_calls,omitempty"`
+	IncompleteDetails *responseIncompleteDetails      `json:"incomplete_details,omitempty"`
 }
 
 // chainMessages materializes a chain root-first, attributing each message
@@ -138,7 +148,11 @@ func (h *Handler) chainMessages(ctx context.Context, chain []runrecord.Interacti
 			return nil, err
 		}
 		for _, message := range transcript.Messages {
-			result = append(result, conversationMessage{Role: message.Role, Content: message.Content, Response: interaction.Response, Media: message.Media, ToolCalls: message.ToolCalls})
+			shown := conversationMessage{Role: message.Role, Content: message.Content, Response: interaction.Response, Media: message.Media, ToolCalls: message.ToolCalls}
+			if message.Role == "assistant" {
+				shown.IncompleteDetails = responseLimitDetails(interaction.TerminalReason)
+			}
+			result = append(result, shown)
 		}
 	}
 	return result, nil

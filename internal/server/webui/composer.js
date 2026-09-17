@@ -99,10 +99,10 @@
         yield { type: "cancelled", id, status: "cancelled" };
         return;
       }
-      else if (event === "response.completed") {
+      else if (event === "response.completed" || event === "response.incomplete") {
         const usage = parsed.response && parsed.response.usage;
         yield { type: "usage", usage: usage ? { prompt_tokens: usage.input_tokens, completion_tokens: usage.output_tokens } : null, timings: (parsed.response && parsed.response.timings) || null };
-        yield { type: "done", id, status: "completed" };
+        yield { type: "done", id, status: event === "response.incomplete" ? "incomplete" : "completed", reason: parsed.response?.incomplete_details?.reason };
         return;
       }
     }
@@ -158,6 +158,7 @@
       }
       const head = el("div", { class: "role" }, message.role);
       if (message.role === "assistant" && options && options.marker) head.appendChild(el("span", { class: "tag", text: options.marker }));
+      if (message.role === "assistant" && message.incompleteReason === "max_output_tokens") head.appendChild(el("span", { class: "tag", text: "Output limit reached", title: "The partial answer is saved. You can continue the conversation or raise the output limit." }));
       if (!streaming && message.content) {
         head.appendChild(overgo.copyButton(message.content, "copy"));
         if (message.response && overgo.inspectTurn) head.appendChild(el("button", { class: "link-button", text: "inspect", onclick: () => overgo.inspectTurn(message.response) }));
@@ -304,7 +305,11 @@
               break;
             case "done":
               terminal.status = event.status || "completed";
-              announcement.textContent = "Response ready.";
+              if (event.status === "incomplete") {
+                if (!assistant) assistant = add("assistant", "");
+                assistant.incompleteReason = event.reason;
+              }
+              announcement.textContent = event.status === "incomplete" ? "Output limit reached. Partial answer saved." : "Response ready.";
               break;
             case "created":
               break;

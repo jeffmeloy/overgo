@@ -21,7 +21,7 @@ import (
 // matrix and nothing else; a change reaching no repair stages none.
 func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	t.Parallel()
-	repo := t.TempDir()
+	repo := modernMemoFixture(t)
 	write := func(path, content string) {
 		full := filepath.Join(repo, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
@@ -39,12 +39,12 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 		return string(data)
 	}
 	write("internal/plan/a.go", "package x\n\nfunc  A( ) {}\n")
+	modernMemoPublish(t, repo)
 	write("docs/evidence/capture.txt", "capture\n")
 	write(apiManifestFile, "old manifest\n")
 	write(compatibilityManifestFile, `{"claims":[{"id":"c","evidence":[{"path":"docs/evidence/capture.txt","identity":"old"}]}]}`+"\n")
 	write(compatibilityMatrixFile, "old matrix\n")
 	write("docs/modern_go_census.json", "old census\n")
-	write("docs/modern_go_baseline.json", "old baseline\n")
 	write(harnessSurfaceBaselineFile, string(mustIndent(t, liveHarnessSurface(t, repo)))+"\n")
 
 	var recorded []string
@@ -55,9 +55,6 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 		recorded = append(recorded, invocation)
 		mutex.Unlock()
 		switch {
-		case strings.Contains(invocation, "-publish-census"):
-			write("docs/modern_go_census.json", "new census\n")
-			write("docs/modern_go_baseline.json", "new baseline\n")
 		case strings.Contains(invocation, "api-manifest -update"):
 			write(apiManifestFile, "new manifest\n")
 		case strings.Contains(invocation, "compatibility -refresh-identities"):
@@ -73,7 +70,7 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	if err := g.preflightRepairs(&output); err != nil {
 		t.Fatal(err)
 	}
-	if read("internal/plan/a.go") != "package x\n\nfunc A() {}\n" || read(apiManifestFile) != "new manifest\n" || read("docs/modern_go_census.json") != "new census\n" {
+	if read("internal/plan/a.go") != "package x\n\nfunc A() {}\n" || read(apiManifestFile) != "new manifest\n" || read("docs/modern_go_census.json") == "old census\n" {
 		t.Fatal("the preflight did not apply the derived-file repairs to the working tree")
 	}
 	if read(compatibilityMatrixFile) != "old matrix\n" {

@@ -16,14 +16,14 @@ import (
 // TestGateStagesMechanicalRepairs pins the repair registry: before the
 // candidate freezes a Go change has its planned files formatted, the
 // closure ledger rebound, the modern-Go census and baseline and the API
-// manifest republished through their own commands and bound into the
+// manifest republished through their owners and bound into the
 // planned paths, and the harness surface baseline left alone when nothing
 // tightened; each repair is audited with the files it rewrote. A repair
 // that would raise a reviewed ceiling refuses with the delta, a census
 // refusal stops the gate, and a commit without Go input stages nothing.
 func TestGateStagesMechanicalRepairs(t *testing.T) {
 	t.Parallel()
-	repo := t.TempDir()
+	repo := modernMemoFixture(t)
 	write := func(path, content string) {
 		full := filepath.Join(repo, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
@@ -41,8 +41,9 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 		return string(data)
 	}
 	write("internal/plan/a.go", "package x\n\nfunc  A( ) {}\n")
+	modernMemoPublish(t, repo)
+	priorBaseline := read("docs/modern_go_baseline.json")
 	write("docs/modern_go_census.json", "old census\n")
-	write("docs/modern_go_baseline.json", "old baseline\n")
 	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +60,6 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 
 	var recorded []string
 	var recordedMutex sync.Mutex
-	censusRefusal := false
 	fake := func(root, name string, args ...string) (string, error) {
 		invocation := name + " " + strings.Join(args, " ")
 		recordedMutex.Lock()
@@ -68,16 +68,6 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 		switch {
 		case strings.Contains(invocation, "closure-scan"):
 			return "imported 0 closure document(s), unmatched=0", nil
-		case strings.Contains(invocation, "-publish-census"):
-			if censusRefusal {
-				return "modern-census: modern-Go debt increased for range_over_int: 1 exceeds ceiling 0", os.ErrInvalid
-			}
-			if !strings.Contains(invocation, "-lower-baseline") {
-				t.Fatal("census publication did not share analysis with baseline lowering")
-			}
-			write("docs/modern_go_census.json", "new census\n")
-			write("docs/modern_go_baseline.json", "new baseline\n")
-			return "lowered", nil
 		case strings.Contains(invocation, "api-manifest -update"):
 			write(apiManifestFile, "new manifest\n")
 			return "wrote", nil
@@ -93,8 +83,8 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if got := read("internal/plan/a.go"); got != "package x\n\nfunc A() {}\n" {
 		t.Fatalf("formatted source = %q", got)
 	}
-	if read("docs/modern_go_census.json") != "new census\n" || read("docs/modern_go_baseline.json") != "new baseline\n" {
-		t.Fatal("the census repair did not republish through its command")
+	if read("docs/modern_go_census.json") == "old census\n" || read("docs/modern_go_baseline.json") == priorBaseline {
+		t.Fatal("the census repair did not publish the formatted source")
 	}
 	if read(apiManifestFile) != "new manifest\n" {
 		t.Fatal("the API manifest repair did not rewrite through its command")
@@ -121,8 +111,8 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if staged != 5 {
 		t.Fatalf("staged repairs audited = %d, want 5: %q", staged, g.audit)
 	}
-	if len(recorded) != 3 {
-		t.Fatalf("commands = %v, want the rebind, one combined census invocation and the manifest update", recorded)
+	if len(recorded) != 2 {
+		t.Fatalf("commands = %v, want only the rebind and manifest update", recorded)
 	}
 	// A retry starts with the caller's original paths and already repaired files.
 	g.paths = g.paths[:1]
@@ -149,7 +139,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	}
 	write(harnessSurfaceBaselineFile, string(mustIndent(t, surface))+"\n")
 
-	censusRefusal = true
+	write("internal/plan/a.go", "package x\nfunc A(value, other string) string { if value == \"\" { value = other }; return value }\n")
 	err = g.stageMechanicalRepairs()
 	if err == nil || !strings.Contains(err.Error(), "staged repair modern-Go census refused") || !strings.Contains(err.Error(), "debt increased") {
 		t.Fatalf("census refusal = %v, want the gate stopped with the reason", err)

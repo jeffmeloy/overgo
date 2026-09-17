@@ -169,6 +169,13 @@ func (g *gateContext) Preflight(output io.Writer) error {
 	if g.stepEvidence == nil {
 		g.stepEvidence = map[string]string{}
 	}
+	if !g.environment.ID.Valid() {
+		environment, err := discoverEnvironment(g.repo)
+		if err != nil {
+			return err
+		}
+		g.environment = environment
+	}
 	if err := g.preflightRepairs(output); err != nil {
 		return err
 	}
@@ -260,11 +267,6 @@ func (g *gateContext) preflightSelection(output io.Writer) error {
 	graph, err := g.inputGraph()
 	if err != nil {
 		return err
-	}
-	if !g.environment.ID.Valid() {
-		if g.environment, err = discoverEnvironment(g.repo); err != nil {
-			return err
-		}
 	}
 	direct := slices.Concat(scope.direct, scope.uncertain)
 	directInputs, err := packageInputIdentities(graph, direct)

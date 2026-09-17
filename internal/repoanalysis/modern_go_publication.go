@@ -2,9 +2,44 @@ package repoanalysis
 
 import (
 	"fmt"
+	"io/fs"
+	"path/filepath"
 	"reflect"
 	"time"
+
+	"overgo/internal/jsonfile"
 )
+
+// PublishModernGoCensus applies current policy to a computed census. Publishing
+// never carries admission forward from an earlier computation or invocation.
+func PublishModernGoCensus(root string, census ModernGoCensus, lower bool, mode fs.FileMode) (ModernGoPublishedCensus, error) {
+	var published ModernGoPublishedCensus
+	baselinePath := filepath.Join(root, ModernGoBaselineFile)
+	baseline, err := LoadModernGoBaseline(baselinePath)
+	if err != nil {
+		return published, err
+	}
+	if err := AdmitModernGoRatchet(baseline, census, time.Now().UTC()); err != nil {
+		return published, err
+	}
+	if lower {
+		baseline, err = LowerModernGoBaseline(baseline, census)
+		if err != nil {
+			return published, err
+		}
+	}
+	published, err = BuildModernGoPublishedCensus(census, baseline)
+	if err != nil {
+		return published, err
+	}
+	if err := jsonfile.Write(filepath.Join(root, ModernGoPublishedCensusFile), published, mode); err != nil {
+		return published, err
+	}
+	if lower {
+		err = jsonfile.Write(baselinePath, baseline, mode)
+	}
+	return published, err
+}
 
 const (
 	// ModernGoPublishedCensusFile is the repository-relative closure evidence.

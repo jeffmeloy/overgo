@@ -18,7 +18,7 @@ import (
 // formatter, so the chain's wall is the longest repair, not their sum.
 func TestAdmissionStepsOverlap(t *testing.T) {
 	t.Parallel()
-	repo := t.TempDir()
+	repo := modernMemoFixture(t)
 	runGitFixture(t, repo, "init", "-q")
 	runGitFixture(t, repo, "config", "user.email", "gate@test")
 	runGitFixture(t, repo, "config", "user.name", "gate")
@@ -76,11 +76,10 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 		t.Fatalf("plan parsed %d times", g.planLoads)
 	}
 
-	write("docs/modern_go_census.json", "old\n")
-	write("docs/modern_go_baseline.json", "old\n")
-	// The closure rebind and the census run in one wave: they prove it by
+	modernMemoPublish(t, repo)
+	// The closure rebind and manifest run in one wave: they prove it by
 	// meeting inside the command runner.
-	rebindKey, publishKey := filepath.Join(repo, gateStorePath), "-lower-baseline"
+	rebindKey, publishKey := filepath.Join(repo, gateStorePath), "-update"
 	wave := newRendezvous(rebindKey, publishKey)
 	var mutex sync.Mutex
 	ran := map[string]bool{}
@@ -95,8 +94,8 @@ func TestAdmissionStepsOverlap(t *testing.T) {
 	if err := g.stageMechanicalRepairs(); err != nil {
 		t.Fatal(err)
 	}
-	if !ran[rebindKey] || !ran[publishKey] || !ran["-update"] || len(ran) != 3 {
-		t.Fatalf("repairs ran %v, want the rebind, the census and the API manifest update", ran)
+	if !ran[rebindKey] || !ran[publishKey] || len(ran) != 2 {
+		t.Fatalf("repairs ran %v, want the rebind and API manifest update", ran)
 	}
 	staged := slices.IndexFunc(g.audit, func(line string) bool { return strings.HasPrefix(line, "staged repair: ") })
 	if staged < 0 || !strings.HasPrefix(g.audit[staged], "staged repair: gofmt") {

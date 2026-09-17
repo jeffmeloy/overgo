@@ -1871,6 +1871,11 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 		g.candidateRoot, g.candidateTree = "", ""
 		g.packageGraph = nil
 	}()
+	if g.modernInput != nil {
+		if _, err := g.refreshModernGoInput(); err != nil {
+			return err
+		}
+	}
 	return use(worktree)
 }
 

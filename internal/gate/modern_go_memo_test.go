@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,6 +24,88 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
+
+func TestSharedModernCensusPreparation(t *testing.T) {
+	root := modernMemoFixture(t)
+	testutil.WriteTextFile(t, root, "internal/example/value.go", "package example\nfunc Value() int { return 2 }\n")
+	g := modernMemoContext(t, root)
+	input, err := g.prepareModernGoInput()
+	if err != nil {
+		t.Fatal(err)
+	}
+	compute := input.candidate
+	computations := 0
+	input.candidate = sync.OnceValues(func() (repoanalysis.ModernGoCensus, error) {
+		computations++
+		return compute()
+	})
+	if err := g.repairModernGoCensus(); err != nil {
+		t.Fatal(err)
+	}
+	want, err := input.candidate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.paths = []string{"internal/example/value.go", repoanalysis.ModernGoBaselineFile, repoanalysis.ModernGoPublishedCensusFile}
+	tree, err := g.plannedTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.withCandidateWorktree(tree, func(string) error {
+		_, _, err := g.computeModernGo(t.Context(), automationcheck.Invocation{})
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, damage := range []string{"corrupt", "missing"} {
+		path := filepath.Join(root, repoanalysis.ModernGoPublishedCensusFile)
+		if damage == "corrupt" {
+			err = os.WriteFile(path, []byte("incomplete publication"), 0o644)
+		} else {
+			err = os.Remove(path)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := g.repairModernGoCensus(); err != nil {
+			t.Fatal(err)
+		}
+		var got repoanalysis.ModernGoPublishedCensus
+		if err := jsonfile.DecodeStrict(path, &got); err != nil || got.SourceIdentity != want.SourceIdentity {
+			t.Fatalf("%s recovery: %+v %v", damage, got, err)
+		}
+	}
+	if computations != 1 {
+		t.Fatalf("candidate computed %d times across repair, verification and output recovery", computations)
+	}
+
+	baselinePath := filepath.Join(root, repoanalysis.ModernGoBaselineFile)
+	baseline, err := os.ReadFile(baselinePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(baselinePath, []byte("invalid current authority"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.repairModernGoCensus(); err == nil {
+		t.Fatal("cached census bypassed current authority")
+	}
+	if err := os.WriteFile(baselinePath, baseline, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := g.modernInput.CandidateKey
+	testutil.WriteTextFile(t, root, "internal/example/value.go", "package example\nfunc Value() int { return 3 }\n")
+	if err := g.repairModernGoCensus(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := g.modernInput.candidate()
+	if err != nil || g.modernInput.CandidateKey == before || got.SourceIdentity == want.SourceIdentity {
+		t.Fatalf("changed source reused census: %v", err)
+	}
+	if computations != 1 {
+		t.Fatal("changed input invoked the old computation")
+	}
+}
 
 func TestModernCensusExistingContent(t *testing.T) {
 	t.Parallel()

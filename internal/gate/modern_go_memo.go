@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"overgo/internal/artifact"
@@ -27,6 +28,7 @@ type modernGoInput struct {
 	Base         repoanalysis.SourceSnapshot
 	Selection    gosource.BuildSelection
 	TargetGo     string
+	candidate    func() (repoanalysis.ModernGoCensus, error)
 }
 
 type modernGoReferences struct {
@@ -97,6 +99,24 @@ func (g *gateContext) prepareModernGoInput() (*modernGoInput, error) {
 		return nil, err
 	}
 	g.modernInput = input
+	input.candidate = sync.OnceValues(func() (repoanalysis.ModernGoCensus, error) {
+		return repoanalysis.ModernGoCensusSnapshot(input.Source, input.Selection, input.TargetGo)
+	})
+	return input, nil
+}
+
+// Rebind against the actual source root, retaining only an exactly matching
+// candidate computation. Generated policy is still read at each admission.
+func (g *gateContext) refreshModernGoInput() (*modernGoInput, error) {
+	current := gateContext{repo: g.repo, candidateRoot: g.candidateRoot, environment: g.environment}
+	input, err := current.prepareModernGoInput()
+	if err != nil {
+		return nil, err
+	}
+	if g.modernInput != nil && g.modernInput.CandidateKey == input.CandidateKey {
+		input.candidate = g.modernInput.candidate
+	}
+	g.modernInput = input
 	return input, nil
 }
 
@@ -137,7 +157,7 @@ func (g *gateContext) computeModernGo(ctx context.Context, _ automationcheck.Inv
 }
 
 func (input *modernGoInput) compute() (repoanalysis.ModernGoCensus, repoanalysis.ModernGoCensus, error) {
-	candidate, err := repoanalysis.ModernGoCensusSnapshot(input.Source, input.Selection, input.TargetGo)
+	candidate, err := input.candidate()
 	if err != nil {
 		return candidate, repoanalysis.ModernGoCensus{}, err
 	}

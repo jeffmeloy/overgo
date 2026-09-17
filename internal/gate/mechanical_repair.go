@@ -258,14 +258,23 @@ func (g *gateContext) repairFormatting() error {
 	return nil
 }
 
-// repairModernGoCensus republishes the modern-Go census and lowers the
-// baseline through their own command; the command refuses a debt increase,
-// so no ceiling moves upward here.
+// Publication and verification share one exact candidate computation. The
+// publisher still refuses debt increases and expired authority on every call.
 func (g *gateContext) repairModernGoCensus() error {
-	if out, err := g.runGateCommand(g.repo, "go", "run", "./cmd/modern-census", "-publish-census", "-lower-baseline"); err != nil {
-		return fmt.Errorf("modern-census publication: %w: %s", err, strings.TrimSpace(out))
+	input, err := g.refreshModernGoInput()
+	if err != nil {
+		return err
 	}
-	return nil
+	census, err := input.candidate()
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(filepath.Join(g.repo, repoanalysis.ModernGoBaselineFile))
+	if err != nil {
+		return err
+	}
+	_, err = repoanalysis.PublishModernGoCensus(g.repo, census, true, info.Mode().Perm())
+	return err
 }
 
 // repairHarnessSurface republishes the harness surface baseline when the

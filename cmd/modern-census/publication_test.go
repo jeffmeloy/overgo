@@ -69,6 +69,14 @@ func TestCombinedCensusPublication(t *testing.T) {
 	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
 		t.Fatal("retry changed an identical publication")
 	}
+	// Simulate interruption after census replacement and before baseline replacement.
+	write(repoanalysis.ModernGoBaselineFile, initial)
+	if err := run(args, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+		t.Fatal("partial publication did not converge to the complete result")
+	}
 	for _, extra := range []string{"-check", "-census", "-write-baseline"} {
 		if err := run(append(slices.Clone(args), extra), io.Discard); err == nil {
 			t.Fatalf("combined publication admitted conflicting mode %s", extra)

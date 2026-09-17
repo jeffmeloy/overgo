@@ -342,14 +342,14 @@ func Run(options Options) (runErr error) {
 	// Derived files are repaired before the candidate freezes, so the
 	// verification binds to the repaired candidate; the preflight applied
 	// the same registry to the working tree, less the store repairs.
-	if err := reportGateAdmissionPhase("stage mechanical repairs", g.stageMechanicalRepairs); err != nil {
-		return err
-	}
 	err = reportGateAdmissionPhase("discover verification environment", func() error {
 		g.environment, err = discoverEnvironment(repo)
 		return err
 	})
 	if err != nil {
+		return err
+	}
+	if err := reportGateAdmissionPhase("stage mechanical repairs", g.stageMechanicalRepairs); err != nil {
 		return err
 	}
 	if err := reportGateAdmissionPhase("publish lifecycle preparation", func() error {

@@ -36,7 +36,8 @@
             "modality-verification/media-artifact-binding",
             "modality-verification/media-retained-batch",
             "modality-verification/media-inventory-reconciliation",
-            "modality-verification/media-processing-reconciliation"
+            "modality-verification/media-processing-reconciliation",
+            "modality-verification/media-receipt-provenance"
           ]
         },
         {

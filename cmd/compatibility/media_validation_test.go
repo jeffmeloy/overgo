@@ -60,7 +60,11 @@ func TestMediaValidationProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/media-validation", Contents: []artifact.Content{content}}); err != nil {
+	passed, err := contract.ContentBytes(bytes.ReplaceAll(data, []byte(`"fail"`), []byte(`"pass"`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/media-validation", Contents: []artifact.Content{content, passed}}); err != nil {
 		t.Fatal(err)
 	}
 	missing, err := contract.Identify([]byte("absent"))
@@ -70,6 +74,7 @@ func TestMediaValidationProjection(t *testing.T) {
 	index := mediaValidationIndex{Version: 1, Source: strings.Repeat("1", 40), Environment: "fixture", Checks: []mediaValidationCheck{
 		{Name: "Failed generation", Evidence: content.Descriptor.ID, Command: "go test -json", Scope: "Fixture failure"},
 		{Name: "Missing acquisition", Evidence: missing, Command: "go test -json", Scope: "Fixture missing content"},
+		{Name: "Missing overlay", Evidence: passed.Descriptor.ID, Command: "go test -overlay=fixture.json -json", Scope: "Passing output with an unresolved producer overlay", Harness: map[string]artifact.ID{"historical/fixture_test.go": missing}},
 	}}
 	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -81,7 +86,7 @@ func TestMediaValidationProjection(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, mediaValidationPath), encoded, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	bindings, err := json.Marshal(map[string]map[string][]string{"Failed generation": {"fixture": {"TestGeneration"}}, "Missing acquisition": {"fixture": {"TestGeneration"}}})
+	bindings, err := json.Marshal(map[string]map[string][]string{"Failed generation": {"fixture": {"TestGeneration"}}, "Missing acquisition": {"fixture": {"TestGeneration"}}, "Missing overlay": {"fixture": {"TestGeneration"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +97,7 @@ func TestMediaValidationProjection(t *testing.T) {
 	if err := writeMediaValidation(t.Context(), &output, root, store); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Not accepted:", "Unavailable: evidence content absent", content.Descriptor.ID.String(), missing.String()} {
+	for _, want := range []string{"Not accepted:", "Unavailable: evidence content absent", "retained overlay sources:", content.Descriptor.ID.String(), missing.String()} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("missing %q in report: %s", want, output.String())
 		}

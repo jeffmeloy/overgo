@@ -1,7 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"io"
 	"maps"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +17,92 @@ import (
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 )
+
+type corruptMediaOverlayReader struct {
+	artifact.Reader
+	id artifact.ID
+}
+
+func (r corruptMediaOverlayReader) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
+	if id == r.id {
+		descriptor, found, err := r.Reader.Artifact(ctx, id)
+		return descriptor, bytes.NewReader(bytes.Repeat([]byte{'?'}, int(descriptor.Size))), found, err
+	}
+	return r.Reader.OpenContent(ctx, id)
+}
+
+func TestMediaReceiptProvenance(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "producer")
+	store, err := overgodb.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contract := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: "text/plain", Schema: "overgo/source/v1"}
+	content, err := contract.ContentBytes([]byte("package fixture\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "test/media-overlay", Contents: []artifact.Content{content}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	relocated := filepath.Join(root, "consumer")
+	if err := os.Rename(path, relocated); err != nil {
+		t.Fatal(err)
+	}
+	store, err = overgodb.OpenReadOnly(relocated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	missing, err := contract.Identify([]byte("unresolved overlay"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const producerPath = "C:/retired/worktree/fixture_test.go"
+	valid := mediaValidationCheck{
+		Source:      strings.Repeat("a", 40),
+		SourceFiles: map[string]string{"fixture.go": content.Descriptor.ID.DigestHex()},
+		Harness:     map[string]artifact.ID{producerPath: content.Descriptor.ID},
+	}
+	for _, test := range []struct {
+		name              string
+		change            func(*mediaValidationCheck)
+		corrupt, accepted bool
+	}{
+		{name: "relocated content retains producer path", accepted: true},
+		{name: "unrelated source file", change: func(*mediaValidationCheck) {
+			if err := os.WriteFile(filepath.Join(root, "unrelated.txt"), []byte("unrelated change"), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}, accepted: true},
+		{name: "corrupt content", corrupt: true},
+		{name: "missing overlay", change: func(v *mediaValidationCheck) { v.Harness[producerPath] = missing }},
+		{name: "invalid overlay identity", change: func(v *mediaValidationCheck) { v.Harness[producerPath] = artifact.ID{} }},
+		{name: "empty overlay path", change: func(v *mediaValidationCheck) { v.Harness[""] = content.Descriptor.ID }},
+		{name: "invalid producer", change: func(v *mediaValidationCheck) { v.Source = "unknown" }},
+		{name: "invalid source hash", change: func(v *mediaValidationCheck) { v.SourceFiles["fixture.go"] = "unknown" }},
+		{name: "escaping source path", change: func(v *mediaValidationCheck) { v.SourceFiles["../fixture.go"] = content.Descriptor.ID.DigestHex() }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			check := valid
+			check.Harness, check.SourceFiles = maps.Clone(valid.Harness), maps.Clone(valid.SourceFiles)
+			if test.change != nil {
+				test.change(&check)
+			}
+			var reader artifact.Reader = store
+			if test.corrupt {
+				reader = corruptMediaOverlayReader{Reader: store, id: content.Descriptor.ID}
+			}
+			if err := checkMediaReceiptProvenance(t.Context(), reader, check); (err == nil) != test.accepted {
+				t.Fatalf("accepted=%t want=%t: %v", err == nil, test.accepted, err)
+			}
+		})
+	}
+}
 
 func TestMediaReceiptAssertions(t *testing.T) {
 	const pkg = "overgo/fixture"
@@ -77,8 +167,7 @@ func TestMediaReceiptAssertions(t *testing.T) {
 		for _, path := range []string{mediaValidationPath, "docs/image_video_lifecycle.json", "docs/image_video_capacity.json"} {
 			var index struct {
 				Checks []struct {
-					Name     string
-					Evidence artifact.ID
+					mediaValidationCheck
 					Required []string `json:"required_tests"`
 				}
 			}
@@ -90,6 +179,9 @@ func TestMediaReceiptAssertions(t *testing.T) {
 					t.Fatal("duplicate check or missing assertion contract", check.Name)
 				}
 				seen[check.Name] = true
+				if err := checkMediaReceiptProvenance(t.Context(), store, check.mediaValidationCheck); err != nil {
+					t.Fatal(check.Name, err)
+				}
 				content, found, err := artifact.ReadContent(t.Context(), store, check.Evidence)
 				if err != nil || !found {
 					t.Fatal("retained acquisition absent", check.Name, err)

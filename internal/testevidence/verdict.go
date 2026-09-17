@@ -99,11 +99,11 @@ func RepeatAgreementForCommand(command, first, second string) error {
 }
 
 func repeatAgreement(first, second string, allowAuxiliary bool) error {
-	firstReport, err := goTestJSONReport(first, false, allowAuxiliary)
+	firstReport, err := goTestInvocationReports(first, false, allowAuxiliary)
 	if err != nil {
 		return fmt.Errorf("first run: %w", err)
 	}
-	secondReport, err := goTestJSONReport(second, false, allowAuxiliary)
+	secondReport, err := goTestInvocationReports(second, false, allowAuxiliary)
 	if err != nil {
 		return fmt.Errorf("second run: %w", err)
 	}
@@ -132,13 +132,23 @@ func repeatAgreement(first, second string, allowAuxiliary bool) error {
 	return nil
 }
 
-func verdictActions(report GoTestReport) map[string]string {
-	actions := make(map[string]string, len(report.tests))
-	for _, test := range report.tests {
-		if test.Name == "" {
-			continue
+func verdictActions(reports []GoTestReport) map[string]string {
+	actions := map[string]string{}
+	occurrences := map[string]int{}
+	for _, report := range reports {
+		for _, execution := range report.Executions {
+			occurrences[execution.Package]++
 		}
-		actions[test.Package+"."+test.Name] = test.Action
+		for _, test := range report.tests {
+			if test.Name == "" {
+				continue
+			}
+			name := test.Package
+			if occurrences[test.Package] > 1 {
+				name += fmt.Sprintf("#%d", occurrences[test.Package])
+			}
+			actions[name+"."+test.Name] = test.Action
+		}
 	}
 	return actions
 }

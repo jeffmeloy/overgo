@@ -250,13 +250,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "subtest-selection",
-          "title": "Match evidence with Go subtest selector semantics",
-          "status": "open",
-          "verify": "go test ./internal/testevidence -run '^TestVerifyGoTestEvidenceSubtests$' -count=1",
-          "rationale": "Observed during qwen27-retained-publication: the data-only gate failed after 64.8s because -run '^TestRetainedModelPublications$/^qwen-twentyseven$' was matched as one regular expression against the full event name. Go executes that anchored parent/subtest selection successfully; retained JSON events show the exact child passed. Its equivalent whole-path expression unblocks that publication without relaxing acceptance. Correct selector interpretation in the existing testevidence owner before expanding shared-execution reuse. Follow Go's slash-separated subtest and top-level alternation semantics, including nested paths, escaped slashes and character classes; validate the declared expression once. Prove matching against real go test JSON and controlled counterexamples: parent-only pass, missing child, skipped/failed/unavailable child, unrelated sibling, malformed selector, empty or partial event stream, and changed repeat evidence. A passing parent must never credit an unexecuted requested child. Preserve broad-run skip policy and current classifier thresholds; no new runner or policy exception."
-        },
-        {
           "id": "shared-execution",
           "title": "Reuse one owner execution for matching named acceptance",
           "status": "open",

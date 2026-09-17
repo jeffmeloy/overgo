@@ -59,6 +59,9 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 		if repeatErr != nil {
 			return "", fmt.Errorf("REPEAT failed: %w: %s", repeatErr, clioptions.Tail(repeat, clioptions.DiagnosticTailBytes))
 		}
+		if err := testevidence.VerifyGoTestEvidence(command, repeat); err != nil {
+			return "", fmt.Errorf("REPEAT vacuous: %w", err)
+		}
 		if err := testevidence.RepeatAgreementForCommand(command, first, repeat); err != nil {
 			return "", fmt.Errorf("NOT deterministic: %w", err)
 		}

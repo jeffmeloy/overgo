@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
@@ -36,6 +37,33 @@ type mediaValidationCheck struct {
 	Scope       string                 `json:"scope"`
 	SourceFiles map[string]string      `json:"changed_source_sha256,omitempty"`
 	Harness     map[string]artifact.ID `json:"overlay_sources,omitempty"`
+}
+
+// Declared overlay paths describe the producer workspace. Resolve their
+// contents by identity, never by the current checkout's filesystem.
+func checkMediaReceiptProvenance(ctx context.Context, reader artifact.Reader, check mediaValidationCheck) error {
+	if check.Source != "" && !gitauthority.ValidObjectID(check.Source) {
+		return errors.New("media validation: invalid acquisition source")
+	}
+	for path, digest := range check.SourceFiles {
+		if _, err := artifact.ParseID("evidence:sha256:" + digest); err != nil || !filepath.IsLocal(path) {
+			return fmt.Errorf("media validation: invalid changed-source binding for %q", path)
+		}
+	}
+	var ids []artifact.ID
+	for path, id := range check.Harness {
+		if strings.TrimSpace(path) == "" || id.Kind() != artifact.KindEvidence || !id.Valid() {
+			return fmt.Errorf("media validation: invalid overlay binding for %q", path)
+		}
+		ids = append(ids, id)
+	}
+	slices.SortFunc(ids, artifact.CompareID)
+	if len(ids) != 0 {
+		if err := artifact.ReadContents(ctx, reader, slices.Compact(ids), func(artifact.Content) error { return nil }); err != nil {
+			return fmt.Errorf("media validation: retained overlay sources: %w", err)
+		}
+	}
+	return nil
 }
 
 func checkMediaTestReceipt(name string, data []byte, required map[string][]string) error {
@@ -73,7 +101,7 @@ func mediaValidationVerdict(data []byte, required map[string][]string) string {
 	if err := checkMediaTestReceipt("media validation", data, required); err != nil {
 		return "Not accepted: " + err.Error()
 	}
-	return "Passed declared assertions"
+	return "Passed declared assertions (historical; current scope unbound)"
 }
 
 func writeMediaValidation(ctx context.Context, output *bytes.Buffer, root string, reader artifact.Reader) error {
@@ -101,9 +129,6 @@ func writeMediaValidation(ctx context.Context, output *bytes.Buffer, root string
 	output.WriteString("| Check | Recorded result | Scope and observations | Evidence |\n| --- | --- | --- | --- |\n")
 	seen := map[string]bool{}
 	for _, check := range index.Checks {
-		if check.Source != "" && !gitauthority.ValidObjectID(check.Source) {
-			return errors.New("media validation: invalid acquisition source")
-		}
 		if check.Name == "" || seen[check.Name] || check.Scope == "" || check.Command == "" || check.Evidence.Kind() != artifact.KindEvidence {
 			return errors.New("media validation: invalid or duplicate check")
 		}
@@ -113,7 +138,11 @@ func writeMediaValidation(ctx context.Context, output *bytes.Buffer, root string
 		if err != nil {
 			verdict = "Invalid evidence: " + err.Error()
 		} else if found {
-			verdict = mediaValidationVerdict(content.Data, assertions[check.Name])
+			if err := checkMediaReceiptProvenance(ctx, reader, check); err != nil {
+				verdict = "Not accepted: " + err.Error()
+			} else {
+				verdict = mediaValidationVerdict(content.Data, assertions[check.Name])
+			}
 		}
 		fmt.Fprintf(output, "| %s | %s | %s | `%s` |\n", escapeMarkdown(check.Name), escapeMarkdown(verdict), escapeMarkdown(check.Scope), check.Evidence)
 	}

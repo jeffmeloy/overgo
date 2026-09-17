@@ -1,0 +1,18 @@
+{
+  "path": "cmd/compatibility/media.go",
+  "before_sha256": "f595775f17f5bcb320fbfb5017fa35c2dec36a8413f10d05f367615620f1bdd5",
+  "after_sha256": "9a0c8f481aa887a8b82f0afee500ca63828233344e43a8071b2e2b7d833749f2",
+  "edits": [
+    {
+      "old": ", recipe.TaskVideoEdit",
+      "new": "",
+      "count": 2
+    },
+    {
+      "old": "The report includes only the selected tasks and the recipes actually declared by their active records.",
+      "new": "The report includes only the selected tasks and the recipes actually declared by their active records. Reference-guided video editing is a `video-gen` recipe with a source input.",
+      "count": 1
+    }
+  ],
+  "scope": "Retire the unused video-edit task selector and describe reference-guided video-gen in the report. Preserve sample export and discovery memo implementation. Current report behavior is checked separately; retained latency and allocations remain measurements of the original acquisition only."
+}

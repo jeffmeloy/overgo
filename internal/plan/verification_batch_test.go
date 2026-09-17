@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 	"overgo/internal/worklease"
 )
 
@@ -118,7 +117,7 @@ func TestVerificationBatchMerge(t *testing.T) {
 
 func TestVerificationBatchRequiresExactMemberEvidence(t *testing.T) {
 	checkpoint := batchPlanFixture().Items[0].Steps[0].VerificationBatch.Checkpoints[0]
-	evidence, err := runrecord.FormatCompletionAcceptanceEvidence(testevidence.CurrentVerifyPolicy, "audio/dataset", checkpoint.Verify)
+	evidence, err := runrecord.FormatCompletionAcceptanceEvidence(runrecord.CurrentVerifyPolicy, "audio/dataset", checkpoint.Verify)
 	if err != nil {
 		t.Fatal(err)
 	}

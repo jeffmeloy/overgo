@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"overgo/internal/testevidence"
 	"overgo/internal/textcheck"
 )
 
@@ -17,7 +16,7 @@ const completionAcceptancePrefix = "completion policy="
 // and exact verify-command digest into bounded GateStep evidence. The verdict
 // is derived by the named immutable policy rather than supplied independently.
 func FormatCompletionAcceptanceEvidence(
-	policy testevidence.VerifyPolicy,
+	policy VerifyPolicy,
 	planReference, verify string,
 ) (string, error) {
 	item, step, found := strings.Cut(planReference, "/")
@@ -29,7 +28,7 @@ func FormatCompletionAcceptanceEvidence(
 	if !validText(verify) {
 		return "", errors.New("run record: completion evidence requires the exact bounded verify command")
 	}
-	verdict, err := testevidence.ClassifyVerifyCommandForPolicy(policy, verify)
+	verdict, err := ClassifyVerifyCommandForPolicy(policy, verify)
 	if err != nil {
 		return "", fmt.Errorf("run record: completion evidence classifier: %w", err)
 	}
@@ -61,7 +60,7 @@ func VerifyCompletionAcceptanceEvidence(evidence, planReference, verify string) 
 	return nil
 }
 
-func completionAcceptancePolicy(evidence string) (testevidence.VerifyPolicy, error) {
+func completionAcceptancePolicy(evidence string) (VerifyPolicy, error) {
 	remainder, found := strings.CutPrefix(evidence, completionAcceptancePrefix)
 	if !found {
 		return "", errors.New("run record: completion acceptance evidence lacks a classifier policy")
@@ -70,5 +69,5 @@ func completionAcceptancePolicy(evidence string) (testevidence.VerifyPolicy, err
 	if !found || policy == "" {
 		return "", errors.New("run record: completion acceptance evidence has an invalid classifier policy")
 	}
-	return testevidence.VerifyPolicy(policy), nil
+	return VerifyPolicy(policy), nil
 }

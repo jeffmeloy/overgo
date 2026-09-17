@@ -1,4 +1,4 @@
-package testevidence
+package runrecord
 
 import (
 	"cmp"
@@ -9,19 +9,26 @@ import (
 	"unicode"
 )
 
-type goTestSelector struct {
-	pattern string
+// GoTestTarget is one compiled Go -run selector, including subtest paths.
+type GoTestTarget struct {
+	// Pattern retains the declared selector for diagnostics.
+	Pattern string
 	paths   [][]*regexp.Regexp
 }
 
-// Go splits top-level alternatives and subtest paths before compiling each
-// component. Escapes, character classes and groups protect their separators.
-func goTestTargets(command string) ([]*goTestSelector, error) {
+var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
+
+// GoTestTargets compiles every Go -run selector in command. requireTarget
+// rejects broad or non-Go declarations; false permits whole-package evidence.
+func GoTestTargets(command string, requireTarget bool) ([]*GoTestTarget, error) {
+	if requireTarget && !strings.Contains(command, "go test") {
+		return nil, fmt.Errorf("verifier %q is not a go test command", command)
+	}
 	matches := goTestRunFlag.FindAllStringSubmatch(command, -1)
-	if len(matches) == 0 {
+	if len(matches) == 0 && requireTarget {
 		return nil, fmt.Errorf("go test verifier must declare its acceptance target with -run")
 	}
-	var targets []*goTestSelector
+	var targets []*GoTestTarget
 	for _, match := range matches {
 		target, err := compileGoTestSelector(cmp.Or(match[1], match[2], match[3]))
 		if err != nil {
@@ -32,17 +39,17 @@ func goTestTargets(command string) ([]*goTestSelector, error) {
 	return targets, nil
 }
 
-func compileGoTestSelector(pattern string) (*goTestSelector, error) {
-	target := &goTestSelector{pattern: pattern}
+func compileGoTestSelector(pattern string) (*GoTestTarget, error) {
+	target := &GoTestTarget{Pattern: pattern}
 	var path []*regexp.Regexp
 	start, classes, groups := 0, 0, 0
-	for i := 0; i <= len(target.pattern); i++ {
+	for i := 0; i <= len(target.Pattern); i++ {
 		separator := byte('|') // Flush the last path at end of input.
-		if i < len(target.pattern) {
-			separator = target.pattern[i]
+		if i < len(target.Pattern) {
+			separator = target.Pattern[i]
 			switch separator {
 			case '\\':
-				if i+1 < len(target.pattern) {
+				if i+1 < len(target.Pattern) {
 					i++
 				}
 				continue
@@ -67,7 +74,7 @@ func compileGoTestSelector(pattern string) (*goTestSelector, error) {
 			}
 		}
 		var normalized strings.Builder
-		for _, r := range target.pattern[start:i] {
+		for _, r := range target.Pattern[start:i] {
 			switch {
 			case unicode.IsSpace(r):
 				normalized.WriteByte('_')
@@ -92,7 +99,8 @@ func compileGoTestSelector(pattern string) (*goTestSelector, error) {
 	return target, nil
 }
 
-func (target *goTestSelector) matches(name string) bool {
+// MatchString requires a complete selected path; parent discovery is insufficient.
+func (target *GoTestTarget) MatchString(name string) bool {
 	parts := strings.Split(name, "/")
 	for _, path := range target.paths {
 		// Go runs partial parents to discover children; they prove no child ran.

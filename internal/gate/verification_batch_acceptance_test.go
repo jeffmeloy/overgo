@@ -13,7 +13,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -145,7 +144,7 @@ func testBatchCompletionRecovery(t *testing.T) {
 		var members []runrecord.GateStep
 		if complete {
 			checkpoint := batch.Checkpoints[0]
-			evidence, err := runrecord.FormatCompletionAcceptanceEvidence(testevidence.CurrentVerifyPolicy, "ratchet/recover", checkpoint.Verify)
+			evidence, err := runrecord.FormatCompletionAcceptanceEvidence(runrecord.CurrentVerifyPolicy, "ratchet/recover", checkpoint.Verify)
 			if err != nil {
 				t.Fatal(err)
 			}

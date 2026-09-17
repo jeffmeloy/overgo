@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
 )
 
@@ -342,7 +343,6 @@ func FailureSummary(out string) string {
 	return strings.Join(report.Failed, ", ")
 }
 
-var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
 var goTestShortFlag = regexp.MustCompile(`(?:^|[ \t])-short(?:=true)?(?:[ \t;&|]|$)`)
 
 // JSONCommand enables structured events for every go test in a verifier.
@@ -357,7 +357,11 @@ func JSONCommand(command string) string {
 // broad run that executed tests. Targeted runs do not credit unrelated skips;
 // broad runs own and therefore reject every skip or unavailable fixture.
 func VerifyGoTestEvidence(command, out string) error {
-	if !goTestRunFlag.MatchString(command) {
+	targets, err := runrecord.GoTestTargets(command, false)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 0 {
 		report, err := goTestJSONReport(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
 		if err != nil {
 			return err
@@ -369,10 +373,6 @@ func VerifyGoTestEvidence(command, out string) error {
 			return fmt.Errorf("go test verifier executed no complete passing test package")
 		}
 		return nil
-	}
-	targets, err := goTestTargets(command)
-	if err != nil {
-		return err
 	}
 	reports, err := goTestInvocationReports(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
 	if err != nil {
@@ -386,20 +386,20 @@ func VerifyGoTestEvidence(command, out string) error {
 		if len(targets) > 1 {
 			target = targets[i]
 		}
-		if err := target.verify(report); err != nil {
+		if err := verifyTarget(target, report); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (target *goTestSelector) verify(report GoTestReport) error {
+func verifyTarget(target *runrecord.GoTestTarget, report GoTestReport) error {
 	if len(report.Failed) != 0 {
 		return fmt.Errorf("go test failed: %s", strings.Join(report.Failed, ", "))
 	}
 	passed := false
 	for _, result := range report.tests {
-		if !target.matches(result.Name) {
+		if !target.MatchString(result.Name) {
 			continue
 		}
 		if result.Unavailable != "" {
@@ -420,7 +420,7 @@ func (target *goTestSelector) verify(report GoTestReport) error {
 		}
 	}
 	if !passed {
-		return fmt.Errorf("go test -run %q matched no passing test", target.pattern)
+		return fmt.Errorf("go test -run %q matched no passing test", target.Pattern)
 	}
 	return nil
 }
@@ -435,18 +435,6 @@ func hasNonTestCommand(command string) bool {
 		}
 	}
 	return false
-}
-
-// ValidateGoTestCommand checks that a declared verifier is a go test command
-// naming its acceptance target -- the same admission bar plan verifiers meet.
-// It validates the declaration only; execution semantics stay with the
-// Verify* functions.
-func ValidateGoTestCommand(command string) error {
-	if !strings.Contains(command, "go test") {
-		return fmt.Errorf("verifier %q is not a go test command", command)
-	}
-	_, err := goTestTargets(command)
-	return err
 }
 
 // VerifyOutput rejects successful shell verification that did not prove its

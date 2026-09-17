@@ -10,7 +10,6 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 )
 
 func planVerificationBatch(repo, reference string) (*plan.VerificationBatch, error) {
@@ -65,7 +64,7 @@ func (g *gateContext) batchAcceptanceChecks(checks []automationcheck.Check, batc
 	var added []automationcheck.Check
 	for _, checkpoint := range batch.Checkpoints {
 		evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
-			testevidence.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
+			runrecord.CurrentVerifyPolicy, g.planRef, checkpoint.Verify,
 		)
 		if err != nil {
 			return nil, err

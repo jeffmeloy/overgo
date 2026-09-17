@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
 )
 
@@ -143,7 +144,7 @@ func TestSkippedParent(t *testing.T) { t.Run("child", func(t *testing.T) { t.Ski
 		t.Fatal("empty evidence passed")
 	}
 	for _, pattern := range []string{`^TestProbe$/[`, `^TestProbe$/\`} {
-		if err := ValidateGoTestCommand("go test ./fixture -run '" + pattern + "'"); err == nil {
+		if _, err := runrecord.GoTestTargets("go test ./fixture -run '"+pattern+"'", true); err == nil {
 			t.Fatalf("malformed selector %q passed admission", pattern)
 		}
 	}

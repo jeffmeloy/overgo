@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/testevidence"
+	"overgo/internal/runrecord"
 )
 
 func TestMixedVerifierRepeatEvidence(t *testing.T) {
@@ -66,7 +66,7 @@ func TestBehavior(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || verdict != testevidence.VerdictBitwiseDeterministic {
+			if err != nil || verdict != runrecord.VerdictBitwiseDeterministic {
 				t.Fatalf("verdict=%s error=%v", verdict, err)
 			}
 		})

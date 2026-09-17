@@ -8,7 +8,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
-	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -484,7 +483,7 @@ func TestVerifyAttemptGateRejectsConflictingPreparationFinalization(t *testing.T
 func TestCompletionAcceptanceEvidenceBindsExactVerify(t *testing.T) {
 	verify := "go test ./internal/plan -run '^TestExact$' -count=1"
 	reference := "authority-ratchet/complete.step"
-	evidence, err := FormatCompletionAcceptanceEvidence(testevidence.VerifyPolicyV1, reference, verify)
+	evidence, err := FormatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -517,13 +516,13 @@ func TestCompletionAcceptanceEvidenceBindsExactVerify(t *testing.T) {
 		{reference: reference, verify: verify + "\nextra"},
 	} {
 		if _, err := FormatCompletionAcceptanceEvidence(
-			testevidence.VerifyPolicyV1, invalid.reference, invalid.verify,
+			VerifyPolicyV1, invalid.reference, invalid.verify,
 		); err == nil {
 			t.Fatalf("invalid completion evidence authority was accepted: %+v", invalid)
 		}
 	}
 	if _, err := FormatCompletionAcceptanceEvidence(
-		testevidence.VerifyPolicy("verify-classifier-v2"), reference, verify,
+		VerifyPolicy("verify-classifier-v2"), reference, verify,
 	); err == nil {
 		t.Fatal("unknown completion acceptance policy was accepted")
 	}
@@ -532,14 +531,14 @@ func TestCompletionAcceptanceEvidenceBindsExactVerify(t *testing.T) {
 func TestCompletionAcceptanceEvidenceReplaysFrozenPolicy(t *testing.T) {
 	reference := "authority-ratchet/frozen-policy"
 	verify := "go test ./internal/plan -run '^TestFutureDeviceMarker$' -count=1"
-	evidence, err := FormatCompletionAcceptanceEvidence(testevidence.VerifyPolicyV1, reference, verify)
+	evidence, err := FormatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify)
 	if err != nil {
 		t.Fatal(err)
 	}
-	simulatedNewerClassifier := func(string) testevidence.VerdictClass {
-		return testevidence.VerdictToleranceBounded
+	simulatedNewerClassifier := func(string) VerdictClass {
+		return VerdictToleranceBounded
 	}
-	v1, err := testevidence.ClassifyVerifyCommandForPolicy(testevidence.VerifyPolicyV1, verify)
+	v1, err := ClassifyVerifyCommandForPolicy(VerifyPolicyV1, verify)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -557,7 +556,7 @@ func TestCompletionAcceptanceEvidencePlanReferenceContract(t *testing.T) {
 		"architecture-ratchets/completion.reference-v2",
 		"RSI.v2/Guard-Phase:1",
 	} {
-		if _, err := FormatCompletionAcceptanceEvidence(testevidence.VerifyPolicyV1, reference, verify); err != nil {
+		if _, err := FormatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify); err != nil {
 			t.Fatalf("plan-compatible reference %q was rejected: %v", reference, err)
 		}
 	}
@@ -565,7 +564,7 @@ func TestCompletionAcceptanceEvidencePlanReferenceContract(t *testing.T) {
 		"item", "/step", "item/", "item/step/extra", "item name/step", "item/step name",
 		"item\\name/step", "item/step\\name", "item\tname/step",
 	} {
-		if _, err := FormatCompletionAcceptanceEvidence(testevidence.VerifyPolicyV1, reference, verify); err == nil {
+		if _, err := FormatCompletionAcceptanceEvidence(VerifyPolicyV1, reference, verify); err == nil {
 			t.Fatalf("invalid plan reference %q was accepted", reference)
 		}
 	}

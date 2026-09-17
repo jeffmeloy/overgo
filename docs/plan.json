@@ -1051,7 +1051,8 @@
             "surface-gate-diagnostics/complete-findings",
             "surface-gate-scheduling/lane-overlap",
             "surface-gate-dependencies/bounded-reduction",
-            "timing-media-reconciliation/do"
+            "timing-media-reconciliation/do",
+            "surface-gate-execution/declaration-boundary"
           ]
         }
       ]

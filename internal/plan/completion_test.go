@@ -16,7 +16,6 @@ import (
 	"overgo/internal/codemanifest"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 	"overgo/internal/worklease"
 )
@@ -266,14 +265,14 @@ func publishCompletionAttemptWithManifestAnalysis(
 		t.Fatal(err)
 	}
 	acceptanceEvidence, err := runrecord.FormatCompletionAcceptanceEvidence(
-		testevidence.VerifyPolicyV1, item+"/"+step, acceptanceVerify,
+		runrecord.VerifyPolicyV1, item+"/"+step, acceptanceVerify,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if verdict := strings.LastIndex(acceptanceEvidence, " verdict="); verdict >= 0 {
 		acceptanceEvidence = acceptanceEvidence[:verdict] +
-			" verdict=" + string(testevidence.VerdictBitwiseDeterministic)
+			" verdict=" + string(runrecord.VerdictBitwiseDeterministic)
 	}
 	gate, err := runrecord.NewGateRecord(
 		manifest, environment, commit, runrecord.OutcomeSucceeded, "", 1,

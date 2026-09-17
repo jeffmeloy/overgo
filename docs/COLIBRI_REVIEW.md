@@ -90,3 +90,25 @@ compatibility. The legacy FNV stream hashes grammar source/root before vocabular
 bytes, so this slice preserves that stream; hash-once remains an explicit plan
 obligation. Allocation counts establish removal of per-compile vocabulary copies,
 not an end-to-end inference speed claim.
+
+The hash compatibility study reread the same pinned `grammar_setup_text`,
+`grammar_reset`, request cache, cache tests and grammar-draft limitations.
+It tests an independently derived exact FNV-1a suffix transform: byte XOR only
+changes the incoming low byte, while multiplication propagates higher bits
+linearly. A table covering every possible low byte and a power of the FNV prime
+therefore preserve the old stream for arbitrary grammar prefixes, using fixed
+storage independent of grammar count. The standard-library sequential hash is
+the independent oracle, including all incoming byte states, high-bit carries,
+empty and binary pieces, terminal flags and distinct grammar prefixes.
+
+This candidate remains test-only. Its single vocabulary traversal updates all
+256 hash lanes, imposing a substantial setup cost on the first grammar even
+though it amortizes over many distinct grammars. The acceptance receipt retains
+paired ABBA hash-only observations including table construction on identical
+serialized inputs, separately for one and many compilations. Those observations
+exclude parsing, model execution and decoding; they are neither total-generation
+evidence nor a production speed claim. Runtime promotion requires matched
+complete inference evidence covering cold, repeated and rotating grammars with
+setup and caller budgets included, or a cheaper exact construction. The original
+hash-once row, exact state compatibility and required hash-reuse regression
+remain open. No grammar cache, state format or production behavior changed.

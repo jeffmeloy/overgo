@@ -85,26 +85,11 @@ func checkMediaLifecycleSource(root, revision string, paths []string) (string, e
 		command.Dir = root
 		return command.Output()
 	}
-	args := []string{"diff", "--name-only", bundle.Source}
-	if revision != "" {
-		args = append(args, revision)
-	}
-	args = append(args, "--")
-	changed, err := git(append(args, paths...)...)
+	changed, err := mediaRuntimeChanges(root, bundle.Source, revision, paths)
 	if err != nil {
 		return "", err
 	}
-	if revision == "" {
-		untracked, err := git(append([]string{"ls-files", "--others", "--exclude-standard", "--"}, paths...)...)
-		if err != nil {
-			return "", err
-		}
-		changed = append(changed, untracked...)
-	}
-	for path := range strings.SplitSeq(strings.TrimSpace(string(changed)), "\n") {
-		if !mediaLifecycleProductionPath(path) {
-			continue
-		}
+	for _, path := range changed {
 		if _, found := bundle.Changes[path]; !found {
 			return "", fmt.Errorf("unreconciled lifecycle source: %s", path)
 		}

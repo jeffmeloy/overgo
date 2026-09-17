@@ -82,7 +82,14 @@ func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected
 	}
 	base, err := checkMediaLifecycleSource(root, revision, paths)
 	if err != nil {
-		return errors.Join(prior, err)
+		timingBase, timingErr := checkMediaTimingSource(root, revision, paths)
+		if timingErr != nil {
+			return errors.Join(prior, err, timingErr)
+		}
+		base, err = checkMediaLifecycleSource(root, timingBase, paths)
+		if err != nil {
+			return err
+		}
 	}
 	return checkMediaRuntimeBeforeLifecycle(root, base, paths, expected)
 }

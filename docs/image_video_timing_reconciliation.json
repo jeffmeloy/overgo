@@ -1,0 +1,6 @@
+{
+  "before": "430431e889a3fdf62c10ba003894cf05b3928f78",
+  "after": "5489d961e06ef4d3d0364797dbbcfffeccd9210b",
+  "evidence": "evidence:sha256:a3297f0ec6c0b97d641b07b98c96285642f23b78e36f7f3cb8741c63aaef196b",
+  "scope": "Reviewed timing-only evolution: host dispatch reads the shared native counter and falls back to serial execution on measurement failure; kernels, accumulation order, dimensions and partition ownership are unchanged. Serial, parallel and failed-counter dispatch preserve identical linear/convolution outputs. Workflow timing preserves error propagation. Reuse prior numerical/loader acquisitions only; prior elapsed, throughput and resource observations retain their original source and environment and are not current performance claims."
+}

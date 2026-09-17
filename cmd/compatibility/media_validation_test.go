@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,15 +16,21 @@ import (
 
 func requireMediaTestReceipt(t testing.TB, name string, raw []byte, required []string) {
 	t.Helper()
+	if err := checkMediaTestReceipt(name, raw, required); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func checkMediaTestReceipt(name string, raw []byte, required []string) error {
 	if len(required) == 0 {
-		t.Fatal(name, "has no required executions")
+		return fmt.Errorf("%s has no required executions", name)
 	}
 	report, err := testevidence.GoTestJSONReport(string(raw))
 	if err != nil {
-		t.Fatal(name, err)
+		return fmt.Errorf("%s: %w", name, err)
 	}
 	if err := testevidence.RequireComplete(report); err != nil {
-		t.Fatal(name, err)
+		return fmt.Errorf("%s: %w", name, err)
 	}
 	passed := map[string]bool{}
 	for line := range strings.SplitSeq(string(raw), "\n") {
@@ -34,9 +41,10 @@ func requireMediaTestReceipt(t testing.TB, name string, raw []byte, required []s
 	}
 	for _, test := range required {
 		if !passed[test] {
-			t.Fatalf("%s lacks executed test %s", name, test)
+			return fmt.Errorf("%s lacks executed test %s", name, test)
 		}
 	}
+	return nil
 }
 
 func TestMediaValidationRetainsFailures(t *testing.T) {

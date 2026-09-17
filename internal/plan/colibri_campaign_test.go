@@ -29,7 +29,7 @@ func assertColibriCampaign(t *testing.T, document Plan) {
 			continue
 		}
 		if strings.HasPrefix(item.ID, MergeItemPrefix) {
-			if !preparedMergeBoundary(item) {
+			if !preparedColibriMergeBoundary(item) {
 				t.Errorf("invalid Colibri merge boundary %s", item.ID)
 			}
 			continue
@@ -38,6 +38,36 @@ func assertColibriCampaign(t *testing.T, document Plan) {
 			if strings.TrimSpace(step.Rationale) == "" || len(step.Capabilities) == 0 {
 				t.Errorf("Colibri step %s/%s lacks rationale or capability contract", item.ID, step.ID)
 			}
+		}
+	}
+}
+
+// first-parent-target lane merges use the build verifier emitted by
+// cmd/plan.mergeVerify. The gate separately proves the parent receipts;
+// the full compatibility verifier remains mandatory for non-lane merges.
+func preparedColibriMergeBoundary(item Item) bool {
+	return item.Owner == "colibri" && preparedMergeShape(item) && item.Steps[0].Verify == "go build ./..."
+}
+
+func TestColibriPreparedMergeBoundary(t *testing.T) {
+	item := Item{ID: "merge-939317c05122", Owner: "colibri", Status: StatusOpen,
+		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go build ./..."}}}
+	if !preparedColibriMergeBoundary(item) || preparedMergeBoundary(item) {
+		t.Fatal("lane build boundary must be accepted only as a lane merge")
+	}
+	for _, mutate := range []func(*Item){
+		func(item *Item) { item.Owner = "master-lead" },
+		func(item *Item) { item.ID = "merge-not-a-revision" },
+		func(item *Item) { item.Status = StatusDone },
+		func(item *Item) { item.Steps = nil },
+		func(item *Item) {
+			item.Steps = []Step{{ID: "do", Status: StatusOpen, Verify: "go build ./... || true"}}
+		},
+	} {
+		invalid := item
+		mutate(&invalid)
+		if preparedColibriMergeBoundary(invalid) {
+			t.Fatalf("accepted invalid lane merge %+v", invalid)
 		}
 	}
 }

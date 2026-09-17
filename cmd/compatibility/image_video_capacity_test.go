@@ -234,12 +234,16 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 		}
 	}
 	measurements := map[string][]json.RawMessage{}
+	var assertions map[string]map[string][]string
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
+		t.Fatal(err)
+	}
 	for _, check := range bundle.Checks {
 		if check.Name == "" || check.Command == "" || check.Scope == "" {
 			t.Fatal("incomplete resource execution")
 		}
 		raw := read(check.Evidence)
-		requireMediaTestReceipt(t, check.Name, raw, check.Required)
+		requireMediaTestReceipt(t, check.Name, raw, check.Required, assertions)
 		measurements[check.Name] = mediaCapacityMeasurements(t, raw)
 	}
 	matchMeasurements := func(name string, id artifact.ID) {

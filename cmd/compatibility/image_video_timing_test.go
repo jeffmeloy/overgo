@@ -68,7 +68,10 @@ func checkMediaTimingSource(root, revision string, paths []string) (string, erro
 	if err != nil || fmt.Sprintf("%x", sha256.Sum256(testSource)) != receipt.TestSHA256 {
 		return "", errors.New("timing reconciliation test source differs")
 	}
-	if err := checkMediaTestReceipt("timing reconciliation", []byte(receipt.Output), []string{"TestDispatchSchedulingPreservesResults", "TestStopwatchReadsCounter", "TestStopwatchRetainsFailure"}); err != nil {
+	if err := checkMediaTestReceipt("timing reconciliation", []byte(receipt.Output), map[string][]string{
+		"overgo/internal/hostmath":       {"TestDispatchSchedulingPreservesResults"},
+		"overgo/internal/processmeasure": {"TestStopwatchReadsCounter", "TestStopwatchRetainsFailure"},
+	}); err != nil {
 		return "", err
 	}
 	return proof.Before, nil

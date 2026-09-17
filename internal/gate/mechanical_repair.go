@@ -41,22 +41,16 @@ type mechanicalRepair struct {
 	// applies reports whether the planned paths reach the repair's inputs;
 	// nil means a changed Go source.
 	applies func(g *gateContext) bool
-	// store marks a repair that writes the OvergoDB store; the preflight,
-	// which diagnoses without store repair, leaves it to the gate.
-	store bool
 	// Retain outputs authored on every successful apply, including retries.
 	retainOutputs bool
 }
 
 // mechanicalRepairs lists the registry: the formatter first, since every
-// other repair reads the Go sources it rewrites, then the repairs that
-// write disjoint outputs; the closure rebind the magics phase already
-// applied on its own is a registry entry, not a second path.
+// other repair reads its output. Magics repairs store bindings only after
+// exact authority validation fails; clean bindings need no history import.
 func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
-	none := func(*gateContext) []string { return nil }
 	return []mechanicalRepair{
 		{name: "gofmt", phase: "fmt", files: (*gateContext).changedGoFiles, apply: (*gateContext).repairFormatting},
-		{name: "closure rebind", phase: "magics", files: none, apply: (*gateContext).remediateStaleClosureBindings, store: true},
 		{
 			name: "modern-Go census", phase: "modern-go",
 			retainOutputs: true,
@@ -90,8 +84,7 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 // staged repair in the audit with the files it rewrote, and binds every
 // rewritten file into the planned paths so verification runs over the
 // repaired candidate. A refused repair stops the gate with its reason. The
-// preflight applies the same registry to the working tree, less the store
-// repairs.
+// preflight applies the same derived-file registry to the working tree.
 func (g *gateContext) stageMechanicalRepairs() error {
 	goChanged := len(g.changedGoFiles()) != 0
 	var repairs []mechanicalRepair
@@ -100,7 +93,7 @@ func (g *gateContext) stageMechanicalRepairs() error {
 		if repair.applies != nil {
 			applies = repair.applies(g)
 		}
-		if applies && !(g.preflight && repair.store) {
+		if applies {
 			repairs = append(repairs, repair)
 		}
 	}

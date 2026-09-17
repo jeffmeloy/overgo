@@ -416,6 +416,7 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 	if err != nil {
 		return err
 	}
+	var problems []error
 	if requirements.noStale {
 		issues, err := closurescan.ValidateActiveBindings(snapshot, scopedDocuments(documents, prefixes), aliases)
 		if err != nil {
@@ -428,12 +429,12 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			for _, issue := range issues {
 				fmt.Fprintf(output, "stale %s %s:%s\n", issue.Kind, issue.File, issue.Name)
 			}
-			return fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name)
+			problems = append(problems, fmt.Errorf("%d scoped closure binding(s) stale; first=%s:%s", len(issues), issues[0].File, issues[0].Name))
 		}
 	}
 	active, err := compileActiveClosures(documents, aliases)
 	if err != nil {
-		return err
+		return errors.Join(append(problems, err)...)
 	}
 	classified := 0
 	for _, candidate := range candidates {
@@ -442,22 +443,25 @@ func checkProductionClosures(root, storePath, scopeList string, all bool, requir
 			classified++
 		}
 		if requirements.classified && candidate.Kind == closureledger.BindingConstant && !found {
-			return fmt.Errorf("unclassified scoped constant %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
+			problems = append(problems, fmt.Errorf("unclassified scoped constant %s at %s:%d", candidate.Name, candidate.File, candidate.Line))
 		}
 		if requirements.noUncatalogued && candidate.Policy && !found {
-			return fmt.Errorf("uncatalogued production policy %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
+			problems = append(problems, fmt.Errorf("uncatalogued production policy %s at %s:%d", candidate.Name, candidate.File, candidate.Line))
 		}
 		if requirements.noModelFacts && modelAuthorityPackage(candidate.Package) && candidate.Policy &&
 			(!found || document.Status == closureledger.StatusOpen) {
-			return fmt.Errorf("unresolved model fact %s at %s:%d", candidate.Name, candidate.File, candidate.Line)
+			problems = append(problems, fmt.Errorf("unresolved model fact %s at %s:%d", candidate.Name, candidate.File, candidate.Line))
 		}
 	}
 	if requirements.zeroOpen {
 		for _, document := range documents {
 			if document.Status == closureledger.StatusOpen {
-				return fmt.Errorf("open closure row %s", document.Name)
+				problems = append(problems, fmt.Errorf("open closure row %s", document.Name))
 			}
 		}
+	}
+	if err := errors.Join(problems...); err != nil {
+		return err
 	}
 	stale := "unchecked"
 	if requirements.noStale {
@@ -650,7 +654,10 @@ func importClosureDocumentsWith(
 			return count, unmatched, first, aliases, err
 		}
 	}
-	destinationPath := filepath.Join(root, storePath)
+	destinationPath := storePath
+	if !filepath.IsAbs(destinationPath) {
+		destinationPath = filepath.Join(root, destinationPath)
+	}
 	sourceInfo, sourceErr := os.Stat(sourcePath)
 	destinationInfo, destinationErr := os.Stat(destinationPath)
 	sameStore := sourceErr == nil && destinationErr == nil && os.SameFile(sourceInfo, destinationInfo)

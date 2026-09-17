@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,7 +17,10 @@ func TestPermanentMagicGate(t *testing.T) {
 	t.Parallel()
 	t.Run("accepts exact closed authority", func(t *testing.T) {
 		root, _ := magicGateFixture(t, true)
-		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
+		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store", runCommand: func(string, string, ...string) (string, error) {
+			t.Fatal("valid authority triggered repair or proposal processing")
+			return "", nil
+		}}
 		if _, err := gate.stepMagics(); err != nil {
 			t.Fatalf("closed authority rejected: %v", err)
 		}
@@ -32,9 +36,19 @@ func TestPermanentMagicGate(t *testing.T) {
 	t.Run("rejects stale authority", func(t *testing.T) {
 		root, path := magicGateFixture(t, true)
 		writeMagicSource(t, path, "package p\nconst ExistingLimit = 9\n")
-		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store"}
+		repairs := 0
+		gate := gateContext{repo: root, paths: []string{"internal/p/p.go"}, storePath: "store", runCommand: func(_ string, _ string, args ...string) (string, error) {
+			if !strings.Contains(strings.Join(args, " "), "-import-store") {
+				t.Fatalf("unexpected command: %v", args)
+			}
+			repairs++
+			return "", errors.New("changed policy requires review")
+		}}
 		if _, err := gate.stepMagics(); err == nil || !strings.Contains(err.Error(), "stale active binding") {
 			t.Fatalf("stale error = %v", err)
+		}
+		if repairs != 1 {
+			t.Fatalf("repair attempts=%d, want one before refusing", repairs)
 		}
 	})
 	t.Run("rejects copied test policy", func(t *testing.T) {

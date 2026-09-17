@@ -74,11 +74,9 @@ func validatePermanentAuthority(
 	if err != nil {
 		return AuthorityReport{}, err
 	}
-	if len(issues) != 0 {
-		return AuthorityReport{}, fmt.Errorf(
-			"permanent authority: %d stale active binding(s), first=%s/%s",
-			len(issues), issues[0].Kind, issues[0].Name,
-		)
+	var problems []error
+	for _, issue := range issues {
+		problems = append(problems, fmt.Errorf("permanent authority: stale active binding %s %s:%s", issue.Kind, issue.File, issue.Name))
 	}
 	active := compileAuthority(documents, selected)
 	for _, document := range documents {
@@ -88,7 +86,7 @@ func validatePermanentAuthority(
 			continue
 		}
 		if document.Status == closureledger.StatusOpen {
-			return AuthorityReport{}, fmt.Errorf("permanent authority: open closure row %s", document.Name)
+			problems = append(problems, fmt.Errorf("permanent authority: open closure row %s", document.Name))
 		}
 	}
 	report := AuthorityReport{ProductionSites: len(candidates)}
@@ -108,20 +106,23 @@ func validatePermanentAuthority(
 		}
 	}
 	if len(missing) != 0 {
-		return AuthorityReport{}, &UncataloguedPolicyError{Sites: sites, joined: errors.Join(missing...)}
+		problems = append(problems, &UncataloguedPolicyError{Sites: sites, joined: errors.Join(missing...)})
 	}
 	tests, err := CensusTestLiterals(snapshot)
 	if err != nil {
-		return AuthorityReport{}, err
+		return AuthorityReport{}, errors.Join(append(problems, err)...)
 	}
 	report.TestSites = len(tests)
 	for _, site := range tests {
 		if site.Class == TestPolicyCopy {
-			return AuthorityReport{}, fmt.Errorf(
+			problems = append(problems, fmt.Errorf(
 				"permanent authority: test policy copy %s at %s:%d",
 				site.Name, site.File, site.Line,
-			)
+			))
 		}
+	}
+	if err := errors.Join(problems...); err != nil {
+		return AuthorityReport{}, err
 	}
 	return report, nil
 }

@@ -1,11 +1,72 @@
 package closurescan
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"overgo/internal/closureledger"
 )
+
+func TestPermanentAuthorityReportsMixedFindings(t *testing.T) {
+	snapshot := scanTestSnapshot(t, map[string]string{
+		"internal/active.go":  "package policy\nconst ActiveLimit = 8\n",
+		"internal/removed.go": "package policy\nconst RemovedLimit = 9\n",
+		"internal/open.go":    "package policy\nconst OpenLimit = 10\n",
+	})
+	candidates, err := ScanSnapshot(snapshot, nil, CandidateConstants)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var documents []closureledger.Document
+	for _, candidate := range candidates {
+		document := candidateDocument(t, candidate)
+		if candidate.Name == "OpenLimit" {
+			document.Status = closureledger.StatusOpen
+		}
+		documents = append(documents, document)
+	}
+	changed, err := snapshot.Overlay(map[string][]byte{
+		"internal/active.go":      []byte("package policy\nconst ActiveLimit = 11\n"),
+		"internal/removed.go":     nil,
+		"internal/new.go":         []byte("package policy\nconst NewLimit = 12\n"),
+		"internal/policy_test.go": []byte("package policy\nconst expectedOpenLimit = 10\nfunc verify() { if OpenLimit != expectedOpenLimit { panic(\"policy\") } }\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := ValidatePermanentAuthority(changed, documents)
+	if err == nil || report != (AuthorityReport{}) {
+		t.Fatalf("mixed debt credited: %+v %v", report, err)
+	}
+	for _, want := range []string{"stale active binding", "RemovedLimit", "open closure row OpenLimit", "uncatalogued production policy ActiveLimit", "uncatalogued production policy NewLimit", "test policy copy expectedOpenLimit"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("missing %q: %v", want, err)
+		}
+	}
+	missing, ok := errors.AsType[*UncataloguedPolicyError](err)
+	if !ok || len(missing.Sites) != 2 {
+		t.Fatalf("typed proposal obligations lost: %v", err)
+	}
+	candidates, err = ScanSnapshot(changed, nil, CandidateConstants)
+	if err != nil {
+		t.Fatal(err)
+	}
+	documents = nil
+	for _, candidate := range candidates {
+		documents = append(documents, candidateDocument(t, candidate))
+	}
+	if _, err := ValidatePermanentAuthority(changed, documents); err == nil || !strings.Contains(err.Error(), "test policy copy") || strings.Contains(err.Error(), "stale active binding") {
+		t.Fatalf("partial repair lost the remaining obligation: %v", err)
+	}
+	repaired, err := changed.Overlay(map[string][]byte{"internal/policy_test.go": nil})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report, err := ValidatePermanentAuthority(repaired, documents); err != nil || report.ClassifiedSites != len(candidates) {
+		t.Fatalf("complete repair: %+v %v", report, err)
+	}
+}
 
 func TestPermanentAuthorityReportsAllMissingPolicies(t *testing.T) {
 	snapshot := scanTestSnapshot(t, map[string]string{

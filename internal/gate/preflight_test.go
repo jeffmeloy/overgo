@@ -152,12 +152,14 @@ func TestPreflightNeverRepairsStore(t *testing.T) {
 	writeMagicSource(t, path, "package p\nconst ExistingLimit = 9\n")
 	g := &gateContext{
 		repo: root, paths: []string{"internal/p/p.go"}, storePath: "store", preflight: true,
-		runCommand: func(string, string, ...string) (string, error) {
-			t.Fatal("preflight attempted a store repair")
-			return "", nil
+		runCommand: func(_ string, _ string, args ...string) (string, error) {
+			if !strings.Contains(strings.Join(args, " "), "-inventory-unclassified-policy") {
+				t.Fatalf("preflight attempted a store repair: %v", args)
+			}
+			return `{"candidates":[]}`, nil
 		},
 	}
-	if _, err := g.stepMagics(); err == nil || !strings.Contains(err.Error(), "outside preflight") || !strings.Contains(err.Error(), "stale active binding") {
+	if _, err := g.stepMagics(); err == nil || !strings.Contains(err.Error(), "-import-store") || !strings.Contains(err.Error(), "stale active binding") {
 		t.Fatalf("stale authority was not diagnosed: %v", err)
 	}
 }

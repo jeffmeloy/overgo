@@ -1193,6 +1193,16 @@ func TestClosurePublicationDeltaCopiesFixtureAndSkipsRepeat(t *testing.T) {
 	if err != nil || count != 1 || unmatched != 0 || first != "" {
 		t.Fatalf("import=(%d, unmatched=%d first=%s, %v)", count, unmatched, first, err)
 	}
+	// A frozen candidate uses the canonical store, not a new candidate-local store.
+	candidateRoot := t.TempDir()
+	canonicalStore := filepath.Join(root, "target")
+	count, unmatched, first, _, err = importClosureDocuments(candidateRoot, canonicalStore, canonicalStore, snapshot, false, false)
+	if err != nil || count != 0 || unmatched != 0 || first != "" {
+		t.Fatalf("absolute same-store replay=(%d, %d, %s, %v)", count, unmatched, first, err)
+	}
+	if _, err := os.Stat(filepath.Join(candidateRoot, "overgodb-store")); !os.IsNotExist(err) {
+		t.Fatalf("candidate-local store appeared: %v", err)
+	}
 	target, err := overgodb.OpenReadOnly(filepath.Join(root, "target"))
 	if err != nil {
 		t.Fatal(err)
@@ -1328,6 +1338,28 @@ func TestScopedClosureCheckRequiresExactActiveEvidence(t *testing.T) {
 			}
 		})
 	}
+	t.Run("stale and new sites together", func(t *testing.T) {
+		if err := os.WriteFile(path, []byte("package policy\nconst FreshLimit = 11\nconst OtherLimit = 13\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		output.Reset()
+		err := checkProductionClosures(root, "store", "", true, requirements, &output)
+		if err == nil {
+			t.Fatal("mixed closure debt admitted")
+		}
+		for _, want := range []string{"closure binding(s) stale", "unclassified scoped constant FreshLimit", "unclassified scoped constant OtherLimit"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("missing %q: %v", want, err)
+			}
+		}
+		if strings.Contains(output.String(), "stale=0") {
+			t.Fatal("failed check reported current authority")
+		}
+		write("8")
+		if err := checkProductionClosures(root, "store", "", true, requirements, io.Discard); err != nil {
+			t.Fatalf("restored source refused: %v", err)
+		}
+	})
 }
 
 func TestPermanentMagicGateAuthorityEnforcement(t *testing.T) {

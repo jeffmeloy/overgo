@@ -27,14 +27,18 @@ func TestGateRefusalsCarryDeterministicRemediation(t *testing.T) {
 	}
 
 	recorded := [][]string{}
+	var recordedRoot string
 	gate := &gateContext{repo: t.TempDir(), storePath: gateStorePath, runCommand: func(repo, name string, args ...string) (string, error) {
+		recordedRoot = repo
 		recorded = append(recorded, append([]string{name}, args...))
 		return "imported 3 closure document(s), unmatched=0", nil
 	}}
+	gate.candidateRoot = t.TempDir()
 	if err := gate.remediateStaleClosureBindings(); err != nil {
 		t.Fatal(err)
 	}
-	if len(recorded) != 1 || strings.Join(recorded[0], " ") != "go run ./cmd/closure-scan -import-store "+filepath.Join(gate.repo, gate.storePath) {
+	storePath := filepath.Join(gate.repo, gate.storePath)
+	if len(recorded) != 1 || recordedRoot != gate.candidateRoot || strings.Join(recorded[0], " ") != "go run ./cmd/closure-scan -store "+storePath+" -import-store "+storePath {
 		t.Fatalf("rebind remediation command = %v", recorded)
 	}
 	receipt := false

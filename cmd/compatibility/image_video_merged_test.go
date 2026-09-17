@@ -42,19 +42,16 @@ func mediaRuntimeIdentity(root, revision string, paths []string) (string, error)
 	if len(paths) == 0 {
 		return "", errors.New("missing runtime scope")
 	}
-	command := exec.Command("git", append([]string{"ls-tree", "-r", revision, "--"}, paths...)...)
+	command := exec.Command("git", append([]string{"ls-tree", "-r", "-z", revision, "--"}, paths...)...)
 	command.Dir = root
 	raw, err := command.Output()
 	if err != nil {
 		return "", err
 	}
 	var production []string
-	for line := range strings.SplitSeq(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\x00") {
 		_, path, found := strings.Cut(line, "\t")
-		if !found || strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		if strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".cu") || strings.HasSuffix(path, ".cuh") || path == "kernels/manifest.json" || path == "go.mod" || path == "go.sum" {
+		if found && mediaLifecycleProductionPath(path) {
 			production = append(production, line)
 		}
 	}
@@ -82,14 +79,7 @@ func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected
 	}
 	base, err := checkMediaLifecycleSource(root, revision, paths)
 	if err != nil {
-		timingBase, timingErr := checkMediaTimingSource(root, revision, paths)
-		if timingErr != nil {
-			return errors.Join(prior, err, timingErr)
-		}
-		base, err = checkMediaLifecycleSource(root, timingBase, paths)
-		if err != nil {
-			return err
-		}
+		return errors.Join(prior, err)
 	}
 	return checkMediaRuntimeBeforeLifecycle(root, base, paths, expected)
 }
@@ -154,23 +144,13 @@ func checkMediaRuntimeBeforeLifecycle(root, revision string, paths []string, exp
 	if strings.Count(string(before), old) != 1 || string(after) != want || fmt.Sprintf("%x", sha256.Sum256(before)) != fix.Before || fmt.Sprintf("%x", sha256.Sum256(after)) != fix.After {
 		return errors.New("source change exceeds the declared LiveEdit pixel-range correction")
 	}
-	args := []string{"diff", "--name-only", fix.Source}
-	if revision != "" {
-		args = append(args, revision)
-	}
-	args = append(args, "--")
-	changed, err := git(append(args, paths...)...)
+	changed, err := mediaRuntimeChanges(root, fix.Source, revision, paths)
 	if err != nil {
 		return err
 	}
-	for path := range strings.SplitSeq(strings.TrimSpace(string(changed)), "\n") {
-		if strings.HasSuffix(path, "_test.go") {
-			continue
-		}
-		if strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".cu") || strings.HasSuffix(path, ".cuh") || path == "kernels/manifest.json" || path == "go.mod" || path == "go.sum" {
-			if path != fix.Path {
-				return fmt.Errorf("unreconciled generation source change: %s", path)
-			}
+	for _, path := range changed {
+		if path != fix.Path {
+			return fmt.Errorf("unreconciled generation source change: %s", path)
 		}
 	}
 	return nil

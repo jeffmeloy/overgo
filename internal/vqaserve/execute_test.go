@@ -51,6 +51,14 @@ func TestRunProgramBindsDescriptorInputsAndOutput(t *testing.T) {
 	if err != nil || answer != "there" {
 		t.Fatalf("answer = (%q, %v)", answer, err)
 	}
+	head, sequence := store.Head()
+	retained, err := ReadImage(t.Context(), store, image.Descriptor.ID)
+	if err != nil || retained.Descriptor != image.Descriptor || string(retained.Data) != string(image.Data) {
+		t.Fatalf("workflow image cannot enter the next request unchanged: %v", err)
+	}
+	if after, afterSequence := store.Head(); after != head || afterSequence != sequence {
+		t.Fatal("reading the workflow image changed the store")
+	}
 }
 
 // TestRequestFormAndBudget pins the page form: a request names a stored
@@ -93,5 +101,27 @@ func TestRequestFormAndBudget(t *testing.T) {
 	}
 	if _, err := ReadImage(t.Context(), store, question.Descriptor.ID); err == nil || !strings.Contains(err.Error(), "not an image") {
 		t.Fatalf("a JSON document read as an image: %v", err)
+	}
+	for _, test := range []struct {
+		name, media, schema string
+		accepted            bool
+	}{
+		{"declared image", "image/jpeg", "overgo.image-input.v1", true},
+		{"untyped binary", ImageContract.MediaType, "overgo.binary-fixture.v1", false},
+		{"wrong media", artifact.JSONMediaType, ImageContract.Schema, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			content, err := (artifact.DocumentContract{Kind: artifact.KindFile, MediaType: test.media, Schema: test.schema}).ContentBytes([]byte(test.name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{Key: "test/vqa/" + test.name, Contents: []artifact.Content{content}}); err != nil {
+				t.Fatal(err)
+			}
+			read, err := ReadImage(t.Context(), store, content.Descriptor.ID)
+			if (err == nil) != test.accepted || test.accepted && (read.Descriptor != content.Descriptor || string(read.Data) != string(content.Data)) {
+				t.Fatalf("image declaration admission = %+v, %v", read.Descriptor, err)
+			}
+		})
 	}
 }

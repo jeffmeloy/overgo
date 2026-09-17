@@ -36,6 +36,17 @@
           ]
         },
         {
+          "id": "rxbrain-native-vqa",
+          "title": "Retain current RxBrain VQA output against the native canonical case",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestAcceptedRxBrainVQA$' -count=1",
+          "rationale": "Pre-acquisition reconciliation: the retained activation is recipe 97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879; the current candidate is recipe 24f6d5c81c752c600bf32907c8ca4b34379bf0e1910dd30f7d3014091e1fbcbb because generate now declares request session semantics. Freeze and verify the current candidate explicitly, preserve the historical activation, and do not imply promotion or stamp its old run as current. Native model metadata matches the capture. Complete the image-contract repair before acquisition.\n\nFreeze one bounded functional VQA acceptance through the existing recipe command and compatibility publication owners. Resolve the active VQA identity e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b and recipe 97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879; do not confuse it with the separate training manifest. Use the canonical bridgev2 image and question in the retained native capture rxbrain_vqa_decode_steps_golden.json. Bind its exact content, image, request, expected text decoded from its generated tokens, model/recipe, producer source and observed output before claiming success. The decode bound follows the capture's token denominator and the pipeline's initial-token-plus-decode-steps contract. Require exact decoded output equality, not a loose substring. This proves that declared canonical request only, not the full historical 44-stage hidden-state ladder, general VQA quality or a performance threshold.\n\nInspect existing stage receipts before acquisition; do not label recovered unbound output with a new producer. Reuse a complete exact accepted bundle without a model load. The old activation verifier run 9d624ee2e95644abc39103913eefd97bff4e3682998e59d8a9827a0c48377c10 has no request/output binding, and the production pipeline moved from cmd/vqaparity into internal/vqaserve since its source 6da9e632, so it alone cannot prove the current path. Preserve that evidence and its original scope. Acquire only the missing declared current case using shared resource admission.\n\nRetain the successful command result and its producer, gate/run/request link, independent oracle and exact output through existing artifact/run-record owners; publish the model claim once through compatibility. Acceptance is read-only and rejects omitted or substituted request, model, recipe, source, oracle or output, a failed verifier, and an incomplete case denominator. Reopen and replay must preserve exact identities without reacquisition. Existing text models and completed modality cells remain accepted under their own scopes. Do not add a runner, general framework, schema registry or duplicate model snapshot. Carry residual orchestration improvements in experiment-resume rather than blocking this one model on their completion.",
+          "depends_on": [
+            "modality-verification/verification-request-binding",
+            "modality-verification/vqa-image-contract"
+          ]
+        },
+        {
           "id": "text-and-vision",
           "title": "Verify chat, embedding, rerank and vision-language activations",
           "status": "open",
@@ -66,7 +77,8 @@
             "modality-verification/qwen4-verification-publication",
             "modality-verification/qwen9-verification-publication",
             "modality-verification/gemma12-mmlu-publication",
-            "modality-verification/gemma12-native-ifeval"
+            "modality-verification/gemma12-native-ifeval",
+            "modality-verification/rxbrain-native-vqa"
           ],
           "outcome": {
             "gemma12_fp8_mmlu_pro": {

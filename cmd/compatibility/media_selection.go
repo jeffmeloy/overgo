@@ -14,8 +14,8 @@ import (
 	"overgo/internal/runrecord"
 )
 
-// A focused report selects the frozen requests, including later executions of
-// those same requests. The all-media report retains its full recorded scope.
+// Focused sample export selects frozen requests, including later executions
+// of those same requests. The canonical report retains all recorded media.
 type mediaSampleSelection map[artifact.ID][][]artifact.ID
 
 func (selection mediaSampleSelection) includes(run runrecord.Run) bool {
@@ -28,7 +28,7 @@ func (selection mediaSampleSelection) includes(run runrecord.Run) bool {
 }
 
 func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.Store, scope mediaReportScope, entries []discovery.CatalogEntry) (mediaSampleSelection, error) {
-	if scope.Path != imageVideoReportPath {
+	if !scope.FrozenRequests {
 		return nil, nil
 	}
 	var protocol imageVideoProtocol

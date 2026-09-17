@@ -117,7 +117,7 @@ func run() error {
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	updateModels := flag.Bool("update-models", false, "write the nested model compatibility report joined against the store")
 	updateMedia := flag.Bool("update-media", false, "write the media capability report from store activations and verification claims")
-	mediaScopeName := flag.String("media-scope", "all", "report/sample tasks: all or image-video")
+	mediaScopeName := flag.String("media-scope", "all", "sample export tasks: all or image-video; the report always includes all media")
 	publishCensus := flag.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flag.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
 	exportSamples := flag.Bool("export-samples", false, "export healthy media activations' generation outputs as decodable files under docs/media_samples")
@@ -147,8 +147,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if *mediaScopeName != "all" && !*updateMedia && !*exportSamples || *updateMedia && *exportSamples {
-		return errors.New("usage: compatibility [-update-media|-export-samples] [-media-scope all|image-video] [-models-repo <overgodb>]")
+	if *mediaScopeName != "all" && (!*exportSamples || *updateMedia) || *updateMedia && *exportSamples {
+		return errors.New("usage: compatibility -update-media [-models-repo <overgodb>] or -export-samples [-media-scope all|image-video] [-models-repo <overgodb>]; -update-media always writes the complete docs/MEDIA_REPORT.md")
 	}
 	if *publishCensus || *checkCensus != "" {
 		if flag.NArg() != 0 || *publishCensus && *checkCensus != "" || *check || *update || *refresh || *checkTraining || *updateTraining || *updateModels || *updateMedia || *exportSamples || *claimFlag || *recordVerification != "" {
@@ -180,14 +180,14 @@ func run() error {
 		if flag.NArg() != 0 || *check || *update || *refresh || *claimFlag || *recordVerification != "" {
 			return errors.New("usage: compatibility -update-media [-models-repo <overgodb>]")
 		}
-		data, err := generateMediaReport(".", *modelsRepo, mediaScope)
+		data, err := generateMediaReport(".", *modelsRepo)
 		if err != nil {
 			return err
 		}
-		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaScope.Path), data); err != nil {
+		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaReportPath), data); err != nil {
 			return err
 		}
-		fmt.Printf("wrote %s\n", mediaScope.Path)
+		fmt.Printf("wrote %s\n", mediaReportPath)
 		return nil
 	}
 	if *updateModels {

@@ -33,11 +33,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestManifest(t, root, []claim{}, testModels())
-	scope, err := resolveMediaReportScope("all")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := generateMediaReport(root, root+"/store", scope)
+	data, err := generateMediaReport(root, root+"/store")
 	if err != nil {
 		t.Fatal(err)
 	}

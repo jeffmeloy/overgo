@@ -121,10 +121,13 @@ func writeMediaValidation(ctx context.Context, output *bytes.Buffer, root string
 	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
 		return err
 	}
-	fmt.Fprintf(output, "The [validation index](%s) records each acquisition's source base and changed component hashes. The default base is `%s`; individual checks can identify a later base. Historical failures retain their original outcomes. This checkpoint does not complete the campaign.\n\n%s\n\n", mediaValidationPath, index.Source, index.Environment)
-	fmt.Fprintf(output, "The [assertion contracts](%s) bind required test names to their packages. Passing these assertions alone does not establish current source, environment or model-quality acceptance.\n\n", mediaAssertionsPath)
+	fmt.Fprintf(output, "The [validation index](%s) records each acquisition's source base and changed component hashes. The default base is `%s`; individual checks can identify a later base. Historical failures retain their original outcomes. This checkpoint does not complete the campaign.\n\n%s\n\n", filepath.Base(mediaValidationPath), index.Source, index.Environment)
+	fmt.Fprintf(output, "The [assertion contracts](%s) bind required test names to their packages. Passing these assertions alone does not establish current source, environment or model-quality acceptance.\n\n", filepath.Base(mediaAssertionsPath))
+	if len(index.Notes) != 0 {
+		output.WriteString("### Acquisition notes (historical)\n\n")
+	}
 	for _, note := range index.Notes {
-		fmt.Fprintf(output, "%s\n\n", note)
+		fmt.Fprintf(output, "%s\n\n", strings.ReplaceAll(note, "](docs/", "]("))
 	}
 	output.WriteString("| Check | Recorded result | Scope and observations | Evidence |\n| --- | --- | --- | --- |\n")
 	seen := map[string]bool{}

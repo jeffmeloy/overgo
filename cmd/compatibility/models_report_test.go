@@ -87,6 +87,32 @@ func TestModelsReportNestsSpecificModels(t *testing.T) {
 	if strings.Contains(string(data), "experimental") {
 		t.Fatal("report must carry no status vocabulary")
 	}
+	// Distinct artifacts can share a display name, as raw and registered Qwen4 do.
+	sibling := testutil.ArtifactID(t, artifact.KindModel, "alpha-sibling")
+	writeSpecification(t, root, "alpha-sibling.json", map[string]any{
+		"model": sibling.String(), "name": "Alpha-1B", "model_file": filepath.ToSlash(weights),
+		"claims": []map[string]any{
+			{"capability": "inference", "tier": "real-artifact-smoke", "commit": commit, "evidence": []string{proof.String()}},
+		},
+	})
+	data, err = generateModelsReport(root, filepath.Join(root, "absent-store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	models := report.Prototypes["zeta"].Models
+	if len(models) != 2 {
+		t.Fatalf("same-name artifacts lost or duplicated: %+v", models)
+	}
+	seen := map[string]string{}
+	for _, record := range models {
+		seen[record.Model] = record.Inference[0].Tier
+	}
+	if seen[model.String()] != "exact-golden" || seen[sibling.String()] != "real-artifact-smoke" {
+		t.Fatalf("same-name artifacts lost independent claims: %+v", seen)
+	}
 }
 
 func writeSpecification(t *testing.T, root, name string, document map[string]any) {

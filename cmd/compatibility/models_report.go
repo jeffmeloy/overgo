@@ -85,6 +85,10 @@ func generateModelsReport(root, repository string) ([]byte, error) {
 		return nil, err
 	}
 	resolve := prototypeResolver(repository, document.Models)
+	nameCounts := map[string]int{}
+	for _, row := range verifications.Rows {
+		nameCounts[row.Name]++
+	}
 	for _, row := range verifications.Rows {
 		record := modelRecord{Model: row.Model.String()}
 		for _, claim := range row.Capabilities {
@@ -110,7 +114,14 @@ func generateModelsReport(root, repository string) ([]byte, error) {
 		if entry.Models == nil {
 			entry.Models = map[string]modelRecord{}
 		}
-		entry.Models[row.Name] = record
+		key := row.Name
+		if nameCounts[key] > 1 {
+			key += " [" + record.Model + "]"
+		}
+		if _, exists := entry.Models[key]; exists {
+			return nil, fmt.Errorf("model report: ambiguous model key %q", key)
+		}
+		entry.Models[key] = record
 		report.Prototypes[prototype] = entry
 	}
 	encoded, err := json.MarshalIndent(report, "", " ")
@@ -158,7 +169,7 @@ func loadVerificationInventory(root string) (verificationInventory, error) {
 		if len(probe.Claims) == 0 || json.Unmarshal(probe.Model, &modelID) != nil {
 			continue
 		}
-		var specification trainingSpecification
+		var specification verificationSpecification
 		if err := jsonfile.Decode(path, &specification); err != nil {
 			return verificationInventory{}, fmt.Errorf("model report: %s: %w", filepath.ToSlash(path), err)
 		}

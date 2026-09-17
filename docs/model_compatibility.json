@@ -2126,7 +2126,27 @@
     "draft-and-target-bound-mtp-session-state"
    ],
    "models": {
-    "Qwen3.5-4B": {
+    "Qwen3.5-4B [model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b]": {
+     "model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
+     "inference": [
+      {
+       "capability": "ifeval-native",
+       "tier": "capability-measured",
+       "commit": "00188face63efba7c3466bb88ff00f88c8cf20be"
+      },
+      {
+       "capability": "mmlu-pro-generated-chat",
+       "tier": "capability-measured",
+       "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174"
+      },
+      {
+       "capability": "native-text",
+       "tier": "exact-golden",
+       "commit": "3abc5e1c2bd6e46e4d350bda88698fc2e1013b26"
+      }
+     ]
+    },
+    "Qwen3.5-4B [model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec]": {
      "model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
      "inference": [
       {

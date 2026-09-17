@@ -14,5 +14,21 @@
     "preserve": [
       "evidence:sha256:974c97589fc298d716467e6c1565088a6cab97861ba7f385b8d3c773fcece8b6"
     ]
+  },
+  {
+    "name": "gemma-twelve-bf16",
+    "preserve": [
+      "evidence:sha256:6e3964a5f3d2c00769b80d1b6c190a6c8124776f56cc171003f64490de93740f"
+    ],
+    "record": "evidence:sha256:62f4a3b8de0c3d125a53bb7739c831ff0919b132bb8c611328c982f17afae0cc",
+    "specification": "gemma-twelve-bf16-retained.json"
+  },
+  {
+    "name": "gemma-twelve-native",
+    "preserve": [
+      "evidence:sha256:5b9158ee16b4b42b2b5be1b62b940136a37190dc2502698608c9f414b4a6a374"
+    ],
+    "record": "evidence:sha256:0ee8c8da96411531702b5a365b976f995c468f2de2eeedbac0da4b4a3dba2b21",
+    "specification": "gemma-twelve-native-retained.json"
   }
 ]

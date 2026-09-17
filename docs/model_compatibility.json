@@ -782,6 +782,36 @@
     "optional-cuda-projector-execution"
    ],
    "models": {
+    "gemma-4-12B-it-fp8 [model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401]": {
+     "model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
+     "inference": [
+      {
+       "capability": "mmlu-pro-generated-chat",
+       "tier": "capability-measured",
+       "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174"
+      },
+      {
+       "capability": "mmlu-pro-raw",
+       "tier": "capability-measured",
+       "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174"
+      }
+     ]
+    },
+    "gemma-4-12B-it-fp8-native": {
+     "model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
+     "inference": [
+      {
+       "capability": "mmlu-pro-generated-chat",
+       "tier": "capability-measured",
+       "commit": "f278ca230121df1d0bedf8fc58bf7881a9ebc475"
+      },
+      {
+       "capability": "mmlu-pro-raw",
+       "tier": "capability-measured",
+       "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174"
+      }
+     ]
+    },
     "gemma-4-E4B-it-HF": {
      "model": "model:sha256:cfbd3d2f1cd71bd471c37fe2bf8546d5028d41e5736f64e1ca6c6b8893125503",
      "inference": [
@@ -2869,7 +2899,7 @@
       }
      ]
     },
-    "gemma-4-12B-it-fp8": {
+    "gemma-4-12B-it-fp8 [model:sha256:64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c]": {
      "model": "model:sha256:64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c",
      "training": [
       {

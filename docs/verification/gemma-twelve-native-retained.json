@@ -1,0 +1,24 @@
+{
+  "model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
+  "name": "gemma-4-12B-it-fp8-native",
+  "claims": [
+    {
+      "capability": "mmlu-pro-raw",
+      "tier": "capability-measured",
+      "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174",
+      "dataset": "dataset:sha256:be66e2e90a8f921e77923d94e49bbbd796c6c39655943c8c1a7a37589a4687b8",
+      "evidence": [
+        "evidence:sha256:4161f4a8010b3a8e5bd29c3cfbdcccacabff4f000f590a88f6885f679002f5c0"
+      ]
+    },
+    {
+      "capability": "mmlu-pro-generated-chat",
+      "tier": "capability-measured",
+      "commit": "f278ca230121df1d0bedf8fc58bf7881a9ebc475",
+      "dataset": "dataset:sha256:be66e2e90a8f921e77923d94e49bbbd796c6c39655943c8c1a7a37589a4687b8",
+      "evidence": [
+        "evidence:sha256:acbce9abc5492096c44be7f597e1acec5d108ef27a501f13eba04dfece8a96ac"
+      ]
+    }
+  ]
+}

@@ -17,7 +17,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -91,13 +90,6 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": media protocol reads retained private-store outputs")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: image_video_gen protocol requires its explicit data root")
-	}
 	path := filepath.Join(root, "docs/image_video_protocol.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -121,7 +113,7 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,10 +173,39 @@ func TestImageVideoProtocolAcceptance(t *testing.T) {
 				t.Logf("%s: historical duration error %.4f centiseconds; required absolute error <= 0.5", value.ID, errorCS)
 			}
 		}
-		changed := value
-		changed.Inputs = []artifact.ID{value.Outputs[0]}
-		if checkImageVideoCaseRun(changed, run) == nil {
-			t.Fatal("substituted request accepted")
+		for _, field := range []string{"run", "recipe", "input", "output", "missing output", "failed", "cancelled"} {
+			changed, recorded := value, run
+			switch field {
+			case "run":
+				changed.Run = artifact.ID{}
+			case "recipe":
+				changed.Recipe = artifact.ID{}
+			case "input":
+				changed.Inputs = []artifact.ID{value.Outputs[0]}
+			case "output":
+				changed.Outputs = []artifact.ID{value.Inputs[0]}
+			case "missing output":
+				changed.Outputs = nil
+			case "failed":
+				recorded.Outcome = runrecord.OutcomeFailed
+			case "cancelled":
+				recorded.Outcome = runrecord.OutcomeCancelled
+			}
+			if checkImageVideoCaseRun(changed, recorded) == nil {
+				t.Fatalf("%s accepted changed %s", value.ID, field)
+			}
+		}
+		// Synthetic multi-output relation: order is part of lineage even
+		// though these historical acquisitions each produced one output.
+		ordered, recorded := value, run
+		ordered.Outputs = append(slices.Clone(value.Outputs), value.Inputs[0])
+		recorded.Outputs = slices.Clone(ordered.Outputs)
+		if err := checkImageVideoCaseRun(ordered, recorded); err != nil {
+			t.Fatal(err)
+		}
+		slices.Reverse(ordered.Outputs)
+		if checkImageVideoCaseRun(ordered, recorded) == nil {
+			t.Fatal("reordered output lineage accepted")
 		}
 		coverage[value.Recipe]++
 	}

@@ -72,7 +72,7 @@ func trainingFixture(t *testing.T) string {
 	fullEvidence := testutil.ArtifactID(t, artifact.KindEvidence, string(fullEvidenceData))
 	testutil.WriteTextFile(t, root, "docs/verification/base-training-run.txt", string(baseEvidenceData))
 	testutil.WriteTextFile(t, root, "docs/verification/full-training-run.txt", string(fullEvidenceData))
-	specification := trainingSpecification{
+	specification := verificationSpecification{
 		Model: model, Name: "fixture-model",
 		EvidenceFiles: []string{
 			"docs/verification/base-training-run.txt",

@@ -178,7 +178,7 @@ func TestMediaEvidenceBinding(t *testing.T) {
 		}
 	})
 	t.Run("missing native fixture", func(t *testing.T) {
-		reader = mediaContentFaultReader{Reader: store, id: inputs.Bundle.Native, absent: true}
+		reader = verificationContentFaultReader{Reader: store, id: inputs.Bundle.Native, absent: true}
 		defer func() { reader = store }()
 		if _, err := automationcheck.Run(t.Context(), originalInvocation); err == nil {
 			t.Fatal("missing native fixture gained audit credit")
@@ -221,13 +221,13 @@ func TestMediaEvidenceBinding(t *testing.T) {
 	t.Logf("%d retained receipt contracts audited once; exact restart reuse accepted; changed binding and forged successor refused; historical scope retained", len(inputs.Bundle.Checks))
 }
 
-type mediaContentFaultReader struct {
+type verificationContentFaultReader struct {
 	artifact.Reader
 	id     artifact.ID
 	absent bool
 }
 
-func (r mediaContentFaultReader) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
+func (r verificationContentFaultReader) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
 	if id == r.id {
 		if r.absent {
 			return artifact.Descriptor{}, nil, false, nil
@@ -302,7 +302,7 @@ func TestMediaReceiptProvenance(t *testing.T) {
 			}
 			var reader artifact.Reader = store
 			if test.corrupt {
-				reader = mediaContentFaultReader{Reader: store, id: content.Descriptor.ID}
+				reader = verificationContentFaultReader{Reader: store, id: content.Descriptor.ID}
 			}
 			if err := checkMediaReceiptProvenance(t.Context(), reader, check); (err == nil) != test.accepted {
 				t.Fatalf("accepted=%t want=%t: %v", err == nil, test.accepted, err)

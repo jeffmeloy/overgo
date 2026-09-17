@@ -21,7 +21,7 @@ const (
 	trainingSpecificationPattern = "docs/verification/*training.json"
 )
 
-type trainingSpecification struct {
+type verificationSpecification struct {
 	Model         artifact.ID                 `json:"model"`
 	Name          string                      `json:"name"`
 	Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
@@ -84,7 +84,7 @@ func loadTrainingVerifications(root string) ([]trainingVerification, error) {
 	slices.Sort(paths)
 	result := make([]trainingVerification, len(paths))
 	for index, path := range paths {
-		var specification trainingSpecification
+		var specification verificationSpecification
 		if err := jsonfile.Decode(path, &specification); err != nil {
 			return nil, fmt.Errorf("training compatibility: %s: %w", filepath.ToSlash(path), err)
 		}
@@ -102,7 +102,7 @@ func loadTrainingVerifications(root string) ([]trainingVerification, error) {
 	return result, nil
 }
 
-func validateTrainingSpecification(root string, specification trainingSpecification, record runrecord.ModelVerification) error {
+func validateTrainingSpecification(root string, specification verificationSpecification, record runrecord.ModelVerification) error {
 	claimedEvidence := make(map[artifact.ID]bool)
 	claimedDatasets := make(map[artifact.ID]bool)
 	for _, claim := range record.Claims {

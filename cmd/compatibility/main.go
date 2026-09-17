@@ -314,15 +314,7 @@ func runClaim(input claimInput, recordStore string, output io.Writer) error {
 // registers by descriptor and location -- both verified against the named
 // identities, never invented.
 func runRecordVerification(specPath, recordStore string, output io.Writer) error {
-	var specification struct {
-		Model         artifact.ID                 `json:"model"`
-		Name          string                      `json:"name"`
-		Supersedes    []artifact.ID               `json:"supersedes,omitempty"`
-		ModelFile     string                      `json:"model_file,omitzero"`
-		EvidenceFiles []string                    `json:"evidence_files,omitempty"`
-		DatasetFiles  []string                    `json:"dataset_files,omitempty"`
-		Claims        []runrecord.CapabilityClaim `json:"claims"`
-	}
+	var specification verificationSpecification
 	if err := jsonfile.Decode(specPath, &specification); err != nil {
 		return err
 	}

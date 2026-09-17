@@ -1,0 +1,34 @@
+{
+  "model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+  "name": "Qwen3.5-9B",
+  "claims": [
+    {
+      "capability": "mmlu-pro-raw",
+      "tier": "capability-measured",
+      "commit": "8c2a60072839ae2640d76d9a275fd89f3fe4e5e5",
+      "dataset": "dataset:sha256:be66e2e90a8f921e77923d94e49bbbd796c6c39655943c8c1a7a37589a4687b8",
+      "evidence": [
+        "evidence:sha256:22913e30a0848869972e0a3599cfa72e7396574a08fb32a08d0fdbceb1b51b0c"
+      ]
+    },
+    {
+      "capability": "mmlu-pro-generated-chat",
+      "tier": "capability-measured",
+      "commit": "8c2a60072839ae2640d76d9a275fd89f3fe4e5e5",
+      "dataset": "dataset:sha256:be66e2e90a8f921e77923d94e49bbbd796c6c39655943c8c1a7a37589a4687b8",
+      "evidence": [
+        "evidence:sha256:044f718e8b3b438f916c7eac4da1d20fda37e7dfdcfcfc5debb88fa40a152b29"
+      ]
+    },
+    {
+      "capability": "ifeval-native",
+      "tier": "capability-measured",
+      "commit": "cc267157dd3e7c5680ab4eec982fb80b3e2c53c5",
+      "dataset": "dataset:sha256:649ef57474f03a261a2060e9bf4f71e3afd1dde10a645d73ffe4c29e2987019c",
+      "evidence": [
+        "evidence:sha256:3951d521fe791e72c7cc510b703540681d846bae1a2f6eaab41b5459d36643d0",
+        "evidence:sha256:6e68996c8a2045d399ff0dca5b6f8aec993e3e8049f306abff4ee121096d8efa"
+      ]
+    }
+  ]
+}

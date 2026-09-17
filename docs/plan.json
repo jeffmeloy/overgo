@@ -61,7 +61,8 @@
             "qwen9-ifeval-bundle/do",
             "modality-verification/qwen4-verification-publication",
             "modality-verification/qwen9-verification-publication",
-            "modality-verification/gemma12-mmlu-publication"
+            "modality-verification/gemma12-mmlu-publication",
+            "modality-verification/gemma12-native-ifeval"
           ],
           "outcome": {
             "gemma12_fp8_mmlu_pro": {

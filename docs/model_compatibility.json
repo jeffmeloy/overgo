@@ -786,6 +786,11 @@
      "model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
      "inference": [
       {
+       "capability": "ifeval-native",
+       "tier": "capability-measured",
+       "commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7"
+      },
+      {
        "capability": "mmlu-pro-generated-chat",
        "tier": "capability-measured",
        "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174"
@@ -800,6 +805,11 @@
     "gemma-4-12B-it-fp8-native": {
      "model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
      "inference": [
+      {
+       "capability": "ifeval-native",
+       "tier": "capability-measured",
+       "commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7"
+      },
       {
        "capability": "mmlu-pro-generated-chat",
        "tier": "capability-measured",

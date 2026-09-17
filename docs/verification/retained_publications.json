@@ -17,18 +17,20 @@
   },
   {
     "name": "gemma-twelve-bf16",
+    "specification": "gemma-twelve-bf16-retained.json",
+    "record": "evidence:sha256:5e9b9da92bc4d3efa4f5976b38bba787378d98fa7a8d31de67eb33f8c6c50c23",
     "preserve": [
-      "evidence:sha256:6e3964a5f3d2c00769b80d1b6c190a6c8124776f56cc171003f64490de93740f"
-    ],
-    "record": "evidence:sha256:62f4a3b8de0c3d125a53bb7739c831ff0919b132bb8c611328c982f17afae0cc",
-    "specification": "gemma-twelve-bf16-retained.json"
+      "evidence:sha256:6e3964a5f3d2c00769b80d1b6c190a6c8124776f56cc171003f64490de93740f",
+      "evidence:sha256:62f4a3b8de0c3d125a53bb7739c831ff0919b132bb8c611328c982f17afae0cc"
+    ]
   },
   {
     "name": "gemma-twelve-native",
+    "specification": "gemma-twelve-native-retained.json",
+    "record": "evidence:sha256:638240b0846c21dc2d7c45bbfe87d06131251410120efc54b81b625a35cc9a97",
     "preserve": [
-      "evidence:sha256:5b9158ee16b4b42b2b5be1b62b940136a37190dc2502698608c9f414b4a6a374"
-    ],
-    "record": "evidence:sha256:0ee8c8da96411531702b5a365b976f995c468f2de2eeedbac0da4b4a3dba2b21",
-    "specification": "gemma-twelve-native-retained.json"
+      "evidence:sha256:5b9158ee16b4b42b2b5be1b62b940136a37190dc2502698608c9f414b4a6a374",
+      "evidence:sha256:0ee8c8da96411531702b5a365b976f995c468f2de2eeedbac0da4b4a3dba2b21"
+    ]
   }
 ]

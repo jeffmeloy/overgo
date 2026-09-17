@@ -178,19 +178,10 @@ func evaluateSuiteFile(ctx context.Context, campaign *evaluation.Campaign, path 
 	return err
 }
 
-// printProgress reports a suite's case loop at a geometric cadence: at
-// every power-of-two case count and at completion. The cadence is
-// derived from the count itself, so a suite of N cases prints about
-// log2(N) lines whatever its speed, each carrying the running score,
-// the measured rate, and the remaining time that rate projects -- a
-// 13-hour suite (the 27B over BBH) is distinguishable from a hang
-// within its first seconds, and its cost is known long before it ends.
+// Report each completed case; geometric sampling hides progress on long suites.
 func printProgress(value evaluation.Progress) {
 	if value.Sample != "" {
 		fmt.Printf("  sample %s: %s\n", value.Suite, value.Sample)
-		return
-	}
-	if value.Done != value.Total && value.Done&(value.Done-1) != 0 {
 		return
 	}
 	perCase := value.Elapsed / time.Duration(value.Done)
@@ -199,7 +190,7 @@ func printProgress(value evaluation.Progress) {
 	if value.Scored {
 		// The printed precision resolves one case of the suite: as many
 		// decimals as the case count has digits.
-		score = strconv.FormatFloat(value.Score, 'f', len(strconv.Itoa(value.Total)), 64)
+		score = fmt.Sprintf("%.*f", len(strconv.Itoa(value.Total)), value.Score)
 	}
 	fmt.Printf("  progress %s: %d/%d score=%s elapsed=%s per-case=%s remaining=%s\n",
 		value.Suite, value.Done, value.Total, score,

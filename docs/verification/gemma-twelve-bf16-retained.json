@@ -19,6 +19,16 @@
       "evidence": [
         "evidence:sha256:b4fec62693b8891dad30273203f262b6bb94a3a53e80739a9d06f92966162603"
       ]
+    },
+    {
+      "capability": "ifeval-native",
+      "tier": "capability-measured",
+      "commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7",
+      "dataset": "dataset:sha256:649ef57474f03a261a2060e9bf4f71e3afd1dde10a645d73ffe4c29e2987019c",
+      "evidence": [
+        "evidence:sha256:78d0624ce8d866c92ffd3a351ca421e75677c8d93cb9a1808ad0d2317957710d",
+        "evidence:sha256:5c6943769adafb93a9e59d7b47a8eb23c474d7a1897933c46e02f645d8240d94"
+      ]
     }
   ]
 }

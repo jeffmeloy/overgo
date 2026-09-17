@@ -1,0 +1,12 @@
+{
+  "bf16": {
+    "native": "evidence:sha256:5c6943769adafb93a9e59d7b47a8eb23c474d7a1897933c46e02f645d8240d94",
+    "prefix": "evaluation/gemma12-bf16-ifeval-4487fe76",
+    "request": "evidence:sha256:20e64ac06fa50ed63b54e572ab2a931e68021ebd24e0ef99a3fa2b8bb9759518"
+  },
+  "native": {
+    "native": "evidence:sha256:66754aacd8cbf119926c8dedb90ef398a5ad80112835aecbebed0cf4588d289f",
+    "prefix": "evaluation/gemma12-native-ifeval-4487fe76/continued",
+    "request": "evidence:sha256:a2414091e4d440b974d0245931041bea6bc1dd386448d8382ca53667ff12b935"
+  }
+}

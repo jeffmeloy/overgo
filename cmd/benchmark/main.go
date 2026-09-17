@@ -18,6 +18,7 @@ import (
 	"overgo/internal/inference"
 	"overgo/internal/model"
 	"overgo/internal/modelcli"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
 	"overgo/internal/sampling"
@@ -233,7 +234,7 @@ func run(args []string) error {
 	}
 	var before runtime.MemStats
 	runtime.ReadMemStats(&before)
-	loadStarted := time.Now()
+	loadStarted := processmeasure.NewStopwatch()
 	openOptions := modelcli.BuildOpenOptions(options.Device, options.LoRA, 1)
 	runner, err := modelcli.OpenRunner(
 		context.Background(), options.Repository, options.Model, openOptions,
@@ -242,7 +243,10 @@ func run(args []string) error {
 		return err
 	}
 	defer runner.Close()
-	loadDuration := time.Since(loadStarted)
+	loadDuration, err := loadStarted.Elapsed()
+	if err != nil {
+		return fmt.Errorf("benchmark load measurement: %w", err)
+	}
 	var afterLoad runtime.MemStats
 	runtime.ReadMemStats(&afterLoad)
 	deviceAfterLoad, err := runner.DeviceMemoryStats(context.Background())
@@ -265,8 +269,7 @@ func run(args []string) error {
 		if statsErr != nil {
 			return runMetrics{}, statsErr
 		}
-		started := time.Now()
-		firstToken := time.Time{}
+		timing := startGenerationTiming()
 		promptEvaluation := inference.PromptEvaluation{}
 		outputTokens := 0
 		hostLogitTokens, deviceSelectedTokens := 0, 0
@@ -278,27 +281,21 @@ func run(args []string) error {
 			} else {
 				hostLogitTokens++
 			}
-			if firstToken.IsZero() {
-				firstToken = time.Now()
-			}
-			return nil
+			return timing.token()
 		}
 		_, _, generationErr := runner.Generate(context.Background(), options.Prompt, generation)
-		finished := time.Now()
+		total, ttft, decode, timingErr := timing.finish()
 		if generationErr != nil {
 			return runMetrics{}, generationErr
+		}
+		if timingErr != nil {
+			return runMetrics{}, timingErr
 		}
 		afterExecution, statsErr := runner.DeviceExecutionStats(context.Background())
 		if statsErr != nil {
 			return runMetrics{}, statsErr
 		}
 		execution := subtractExecutionStats(afterExecution, beforeExecution)
-		total := finished.Sub(started)
-		ttft := total
-		if !firstToken.IsZero() {
-			ttft = firstToken.Sub(started)
-		}
-		decode := total - ttft
 		metrics := runMetrics{
 			Run:                    index,
 			PromptTokens:           len(promptIDs),
@@ -446,7 +443,7 @@ func executeContinuousBatch(
 	if err != nil {
 		return runMetrics{}, err
 	}
-	started := time.Now()
+	timing := startGenerationTiming()
 	deviceGreedy := device && options.Temperature == 0 && runner.Spec().Profile().Attention == model.AttentionGatedDelta
 	step := batch.Step
 	if deviceGreedy {
@@ -480,7 +477,6 @@ func executeContinuousBatch(
 		id, sampleErr := sampler.Sample(output.Logits)
 		return tokenizer.TokenID(id), sampleErr
 	}
-	firstToken := time.Time{}
 	outputTokens := 0
 	for generated := range options.Tokens {
 		if len(outputs) != len(inputs) {
@@ -494,8 +490,8 @@ func executeContinuousBatch(
 			inputs[sequence].Tokens = []tokenizer.TokenID{token}
 			outputTokens++
 		}
-		if firstToken.IsZero() {
-			firstToken = time.Now()
+		if err := timing.token(); err != nil {
+			return runMetrics{}, err
 		}
 		if generated+1 == options.Tokens {
 			break
@@ -505,15 +501,15 @@ func executeContinuousBatch(
 			return runMetrics{}, err
 		}
 	}
-	finished := time.Now()
+	total, ttft, decode, err := timing.finish()
+	if err != nil {
+		return runMetrics{}, err
+	}
 	afterExecution, err := runner.DeviceExecutionStats(ctx)
 	if err != nil {
 		return runMetrics{}, err
 	}
 	execution := subtractExecutionStats(afterExecution, beforeExecution)
-	total := finished.Sub(started)
-	ttft := firstToken.Sub(started)
-	decode := total - ttft
 	promptTokens := len(prompt) * options.BatchSequences
 	metrics := runMetrics{
 		Run: index, PromptTokens: promptTokens, OutputTokens: outputTokens,

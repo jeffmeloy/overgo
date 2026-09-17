@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. Missing, blocked, historical, duplicate, and free-text future-work entries refuse. Undeclared new unconsumed surface still blocks the gate.",
+  "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. A lane projection may retain an unchanged foreign declaration through inherited_from, an exact ancestor with that foreign open step; it grants neither dispatch nor completion credit. Missing, blocked, historical, duplicate, and free-text future-work entries otherwise refuse. Undeclared new unconsumed surface still blocks the gate.",
+  "inherited_from": "a4d55c0212932002f3840c2287952e328a16ae81",
   "staged": [
     {
       "package": "overgo/internal/modelrecipetest",

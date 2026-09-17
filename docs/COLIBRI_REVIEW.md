@@ -78,3 +78,15 @@ cover multi-token decode, divergence, shortening and cancellation. Matched
 ABBA host total-generation observations describe the hermetic fixture only, not a
 production-model speed claim; device-greedy/speculative defaults are unchanged.
 No source was translated.
+
+Grammar vocabulary binding reread `c/colibri.c` (`grammar_setup_text`,
+`grammar_reset`, and the request cache), `c/tests/test_grammar_cache.c`, and
+`docs/grammar-draft.md` at the pinned Apache-2.0 revision. The reusable compiled
+data and fresh per-request state contract informs a shared immutable vocabulary
+binding in Overgo's sampling owner. Each runner decodes once; grammars share
+owned pieces, terminal flags and names while samplers keep their own state.
+No source was translated. Pre-change saved sampler states pin exact signature
+compatibility. The legacy FNV stream hashes grammar source/root before vocabulary
+bytes, so this slice preserves that stream; hash-once remains an explicit plan
+obligation. Allocation counts establish removal of per-compile vocabulary copies,
+not an end-to-end inference speed claim.

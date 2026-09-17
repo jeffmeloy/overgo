@@ -15,8 +15,11 @@
           "id": "do",
           "title": "Reuse immutable vocabulary bindings across constrained generations",
           "status": "open",
-          "verify": "go test ./internal/inference -run '^TestGrammarVocabularyBindingReuse$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGBNFVocabularyBindingShared$' -count=1",
-          "rationale": "W3.7. Decode/hash immutable vocabulary once per runner, share the binding through existing sampling grammar APIs, keep mutable parse state private. Verify distinct grammars/concurrent callers do not contaminate one another, signatures/output unchanged, second-compile decode count zero and allocations independent of vocabulary size. Retire displaced cloning paths.",
+          "verify": "go test ./internal/inference -run '^TestGrammarVocabularyBindingReuse$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGBNFVocabularyBindingShared$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGBNFVocabularyHashReuse$' -count=1",
+          "rationale": "W3.7. Decode/hash immutable vocabulary once per runner, share the binding through existing sampling grammar APIs, keep mutable parse state private. Verify distinct grammars/concurrent callers do not contaminate one another, signatures/output unchanged, second-compile decode count zero and allocations independent of vocabulary size. Retire displaced cloning paths. Split after inspecting state.go: the persisted FNV stream includes source/root before vocabulary, so ordinary prehash composition would change signatures. Reuse the binding slice and resolve hash-once while preserving exact legacy state signatures and bounded memory across distinct grammars; do not count decoding/allocation reuse as hash-once completion. TestGBNFVocabularyHashReuse is an implementation obligation, not existing evidence. Any performance promotion still requires paired total-generation evidence.",
+          "depends_on": [
+            "colibri-grammar-binding/binding"
+          ],
           "capabilities": [
             "shared-components",
             "correctness-and-quality",

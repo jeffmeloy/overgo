@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
@@ -74,6 +75,26 @@ func (r *Runner) compileGBNF(
 	if r == nil || r.vocab == nil {
 		return nil, errRunnerNil
 	}
+	// Initialize the lazy value separately from generation's runner lock, so
+	// compiling a grammar does not wait for a running generation to finish.
+	r.grammarVocabularyMu.Lock()
+	if r.grammarVocabulary == nil {
+		r.grammarVocabulary = sync.OnceValues(r.bindGrammarVocabulary)
+	}
+	load := r.grammarVocabulary
+	r.grammarVocabularyMu.Unlock()
+	vocabulary, err := load()
+	if err != nil {
+		return nil, err
+	}
+	grammar, err := vocabulary.Compile(source, root, lazy)
+	if err != nil {
+		return nil, fmt.Errorf("inference: compile GBNF: %w", err)
+	}
+	return grammar, nil
+}
+
+func (r *Runner) bindGrammarVocabulary() (*sampling.GBNFVocabulary, error) {
 	pieces := make([][]byte, r.vocab.Len())
 	tokenIDs := make(map[string]int, r.vocab.Len())
 	for token := range pieces {
@@ -95,16 +116,9 @@ func (r *Runner) compileGBNF(
 	for index, id := range terminalIDs {
 		terminalTokens[index] = int(id)
 	}
-	grammar, err := sampling.NewGBNFGrammarWithOptions(
-		source,
-		root,
-		pieces,
-		terminalTokens,
-		tokenIDs,
-		lazy,
-	)
+	vocabulary, err := sampling.NewGBNFVocabulary(pieces, terminalTokens, tokenIDs)
 	if err != nil {
 		return nil, fmt.Errorf("inference: compile GBNF: %w", err)
 	}
-	return grammar, nil
+	return vocabulary, nil
 }

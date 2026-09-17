@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -63,6 +64,35 @@ type GBNFGrammar struct {
 	lazy            bool
 	triggerTokens   map[int]struct{}
 	triggerPatterns []gbnfTriggerPattern
+}
+
+// GBNFVocabulary owns immutable decoded pieces, terminal flags and token names.
+// Multiple grammars may share it; parser and sampler state remain independent.
+type GBNFVocabulary struct {
+	pieces   [][]byte
+	eos      []bool
+	tokenIDs map[string]int
+}
+
+// NewGBNFVocabulary copies caller-owned vocabulary data once for reuse.
+func NewGBNFVocabulary(tokenPieces [][]byte, eosTokens []int, tokenIDs map[string]int) (*GBNFVocabulary, error) {
+	if len(tokenPieces) == 0 {
+		return nil, errors.New("GBNF token vocabulary is empty")
+	}
+	vocabulary := &GBNFVocabulary{
+		pieces:   make([][]byte, len(tokenPieces)),
+		eos:      make([]bool, len(tokenPieces)),
+		tokenIDs: maps.Clone(tokenIDs),
+	}
+	for index, piece := range tokenPieces {
+		vocabulary.pieces[index] = slices.Clone(piece)
+	}
+	for _, token := range eosTokens {
+		if token >= 0 && token < len(vocabulary.eos) {
+			vocabulary.eos[token] = true
+		}
+	}
+	return vocabulary, nil
 }
 
 type gbnfState struct {
@@ -162,6 +192,15 @@ func NewGBNFGrammarWithOptions(
 	tokenIDs map[string]int,
 	lazy GBNFLazyOptions,
 ) (*GBNFGrammar, error) {
+	vocabulary, err := NewGBNFVocabulary(tokenPieces, eosTokens, tokenIDs)
+	if err != nil {
+		return nil, err
+	}
+	return vocabulary.Compile(source, root, lazy)
+}
+
+// Compile binds a grammar to this vocabulary without copying vocabulary data.
+func (v *GBNFVocabulary) Compile(source, root string, lazy GBNFLazyOptions) (*GBNFGrammar, error) {
 	if source == "" {
 		return nil, errors.New("GBNF source is empty")
 	}
@@ -169,23 +208,13 @@ func NewGBNFGrammarWithOptions(
 		return nil, fmt.Errorf("GBNF source exceeds %d bytes", maxGBNFSourceBytes)
 	}
 	root = cmp.Or(root, "root")
-	if len(tokenPieces) == 0 {
+	if v == nil || len(v.pieces) == 0 {
 		return nil, errors.New("GBNF token vocabulary is empty")
-	}
-	pieces := make([][]byte, len(tokenPieces))
-	for index, piece := range tokenPieces {
-		pieces[index] = slices.Clone(piece)
-	}
-	eos := make([]bool, len(pieces))
-	for _, token := range eosTokens {
-		if token >= 0 && token < len(eos) {
-			eos[token] = true
-		}
 	}
 	parser := gbnfParser{
 		source:     source,
-		tokenIDs:   tokenIDs,
-		vocabulary: len(pieces),
+		tokenIDs:   v.tokenIDs,
+		vocabulary: len(v.pieces),
 	}
 	named, err := parser.parse()
 	if err != nil {
@@ -195,12 +224,12 @@ func NewGBNFGrammarWithOptions(
 	if err != nil {
 		return nil, err
 	}
-	grammar.tokenPieces = pieces
-	grammar.eos = eos
+	grammar.tokenPieces = v.pieces
+	grammar.eos = v.eos
 	grammar.lazy = lazy.Enabled
 	grammar.triggerTokens = make(map[int]struct{}, len(lazy.Tokens))
 	for _, token := range lazy.Tokens {
-		if token < 0 || token >= len(pieces) {
+		if token < 0 || token >= len(v.pieces) {
 			return nil, fmt.Errorf("GBNF trigger token %d is outside vocabulary", token)
 		}
 		grammar.triggerTokens[token] = struct{}{}
@@ -225,7 +254,7 @@ func NewGBNFGrammarWithOptions(
 		len(grammar.triggerPatterns) == 0 {
 		return nil, errors.New("lazy GBNF needs at least one trigger")
 	}
-	grammar.signature = grammarSignature(source, root, pieces, eos, grammar)
+	grammar.signature = grammarSignature(source, root, v.pieces, v.eos, grammar)
 	if _, err := grammar.initialState(); err != nil {
 		return nil, err
 	}

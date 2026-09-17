@@ -27,6 +27,13 @@ func savePlanMutation(root string, document plan.Plan) error {
 	if err != nil {
 		return err
 	}
+	return saveCapturedPlanMutation(root, before, document)
+}
+
+// Called only while holding withPlanMutation's lock, with before captured under
+// that same lock. Merge preparation can replace the live text with conflicts;
+// its claim authority remains the captured pre-merge document.
+func saveCapturedPlanMutation(root string, before, document plan.Plan) error {
 	store, err := overgodb.OpenReadOnly(filepath.Join(root, gitauthority.CanonicalOvergoDBDirectory))
 	if err != nil {
 		return err
@@ -35,7 +42,7 @@ func savePlanMutation(root string, document plan.Plan) error {
 	if err := plan.ValidateClaimedPlan(context.Background(), store, before, document); err != nil {
 		return err
 	}
-	return plan.Save(path, document)
+	return plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document)
 }
 
 func releaseDispatchClaim(root, rawID, worker, reason string, output io.Writer) (err error) {

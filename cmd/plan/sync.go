@@ -151,34 +151,15 @@ func prepareMergeWithProjection(
 		if err != nil || strings.TrimSpace(string(latestLocal)) != localRevision {
 			return fmt.Errorf("prepare-merge local HEAD moved from snapshot %s", localRevision)
 		}
-		_, mergeErr := commandOutput(root, "git", "merge", "--no-ff", "--no-commit", snapshot)
-		postMergeHead, headErr := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
-		if headErr != nil || strings.TrimSpace(string(postMergeHead)) != localRevision {
-			return fmt.Errorf("prepare-merge local HEAD moved during merge from snapshot %s", localRevision)
+		if err := mergeCapturedPlan(root, localRevision, snapshot, local, merged); err != nil {
+			return err
 		}
 		keepMerge := false
 		defer func() {
 			if !keepMerge {
-				abort := exec.Command("git", "--no-replace-objects", "merge", "--abort")
-				abort.Dir = root
-				abort.Env = gitauthority.RepositoryEnvironment()
-				_ = abort.Run()
+				abortMerge(root)
 			}
 		}()
-		if mergeErr != nil {
-			conflicts, conflictErr := gitOutput(root, "diff", "--name-only", "--diff-filter=U")
-			if conflictErr != nil {
-				return conflictErr
-			}
-			for path := range strings.FieldsSeq(string(conflicts)) {
-				if !mergeOwnedDocument(path) {
-					return fmt.Errorf("prepare-merge source conflict; merge aborted: %w", mergeErr)
-				}
-			}
-		}
-		if err := savePlanMutation(root, merged); err != nil {
-			return err
-		}
 		if err := regenerateMergeOwnedDocuments(root, localRevision); err != nil {
 			return err
 		}
@@ -242,6 +223,42 @@ func prepareMergeWithProjection(
 		}
 		return nil
 	})
+}
+
+// mergeCapturedPlan performs the textual merge and restores the validated plan
+// projection. Its caller holds withPlanMutation's lock from capture through
+// staging. Failed publication aborts the merge; later preparation failures are
+// rolled back by prepareMergeWithProjection.
+func mergeCapturedPlan(root, localRevision, snapshot string, local, merged plan.Plan) (err error) {
+	_, mergeErr := commandOutput(root, "git", "merge", "--no-ff", "--no-commit", snapshot)
+	postMergeHead, headErr := gitOutput(root, "rev-parse", "--verify", "HEAD^{commit}")
+	if headErr != nil || strings.TrimSpace(string(postMergeHead)) != localRevision {
+		return fmt.Errorf("prepare-merge local HEAD moved during merge from snapshot %s", localRevision)
+	}
+	defer func() {
+		if err != nil {
+			abortMerge(root)
+		}
+	}()
+	if mergeErr != nil {
+		conflicts, conflictErr := gitOutput(root, "diff", "--name-only", "--diff-filter=U")
+		if conflictErr != nil {
+			return conflictErr
+		}
+		for path := range strings.FieldsSeq(string(conflicts)) {
+			if !mergeOwnedDocument(path) {
+				return fmt.Errorf("prepare-merge source conflict; merge aborted: %w", mergeErr)
+			}
+		}
+	}
+	return saveCapturedPlanMutation(root, local, merged)
+}
+
+func abortMerge(root string) {
+	abort := exec.Command("git", "--no-replace-objects", "merge", "--abort")
+	abort.Dir = root
+	abort.Env = gitauthority.RepositoryEnvironment()
+	_ = abort.Run()
 }
 
 // laneMerge reports the lane case: a first-parent-target merge into a plan

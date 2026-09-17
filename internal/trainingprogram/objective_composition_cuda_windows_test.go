@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"unicode/utf8"
 
 	"overgo/internal/artifact"
 	"overgo/internal/controlleraction"
@@ -102,11 +103,8 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 	}
 	compileObjectiveRun(t, ctx, store, composition, contract)
 
-	// Device training is not run-context deterministic (kernel selection
-	// shifts under load) and the holdout scores metrics in one-case steps,
-	// so a single seed's one-sample margin flaps. The promotion contract —
-	// the composed objective regresses nothing — is judged on the mean over
-	// independent seeds instead.
+	// Preserve the declared three-seed comparison and strict non-regression.
+	// Retain each seed's outcome; an aggregate alone cannot explain a failure.
 	const trainingSteps = 400
 	seeds := []int64{17, 18, 19}
 	profile := scratchmodeltest.Profile(t)
@@ -118,6 +116,7 @@ func TestComposedObjectiveProducesBetterDescendant(t *testing.T) {
 			if err != nil {
 				return meanFinal{}, err
 			}
+			t.Logf("corpus=%s seed=%d initial=%+v final=%+v", corpus.Dataset(), seed, run.Evidence.Initial, run.Evidence.Final)
 			total.loss += run.Evidence.Final.Loss
 			total.action += run.Evidence.Final.ActionAccuracy
 			total.modality += run.Evidence.Final.ModalityAccuracy
@@ -241,6 +240,16 @@ func objectiveRecords() (base, added, holdout []controllertrain.Record) {
 			added = append(added, makeRecord("added", fmt.Sprintf("%s 0123456789 case %02d", prompts[actionIndex], variant), variant))
 		}
 		holdout = append(holdout, makeRecord("holdout", fmt.Sprintf("%s 0123456789 case %02d", prompts[actionIndex], 90+actionIndex), 90+actionIndex))
+	}
+	// The uninformed baseline must admit the same request extent as the added
+	// training data. Derive padding from training inputs, without reading labels
+	// or holdout outcomes; otherwise its shorter context truncates the judge.
+	width := 0
+	for _, record := range added {
+		width = max(width, utf8.RuneCountInString(record.Prompt))
+	}
+	for i := range base {
+		base[i].Prompt = fmt.Sprintf("%-*s", width, base[i].Prompt)
 	}
 	return base, added, holdout
 }

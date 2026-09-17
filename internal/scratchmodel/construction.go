@@ -263,7 +263,11 @@ func (c Construction) Tokens(document string) ([]int, error) {
 		}
 		tokens = append(tokens, index)
 	}
-	return append(tokens, c.config.BOS), nil
+	tokens = append(tokens, c.config.BOS)
+	if _, err := c.validateTokens(tokens); err != nil {
+		return nil, err
+	}
+	return tokens, nil
 }
 
 func splitDocuments(documents []string, seed int64, profile DerivationProfile) Split {

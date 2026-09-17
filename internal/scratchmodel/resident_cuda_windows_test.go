@@ -34,6 +34,15 @@ func TestScratchResidentTrajectoryParity(t *testing.T) {
 	}
 	defer trainer.Close()
 	initWall := time.Since(initializedAt)
+	// A resident cache hit must enforce the same boundary as a fresh graph.
+	overflow := make([]int, construction.config.BlockSize+2)
+	invalidTail := make([]int, construction.config.BlockSize+1)
+	invalidTail[len(invalidTail)-1] = construction.config.VocabSize
+	for _, tokens := range [][]int{overflow, invalidTail} {
+		if _, err := trainer.forwardProgram(tokens); err == nil {
+			t.Fatal("resident program cache bypassed input admission")
+		}
+	}
 	losses, walls := make([]float64, steps), make([]time.Duration, steps)
 	for step := range steps {
 		tokens, err := construction.Tokens(construction.split.Train[step%len(construction.split.Train)])

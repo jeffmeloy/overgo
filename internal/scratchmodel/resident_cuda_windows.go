@@ -236,19 +236,6 @@ func (t *ResidentTrainer) MemoryStats() (driver.MemoryStats, error) {
 	return t.worker.MemoryStats(context.Background())
 }
 
-func (t *ResidentTrainer) validateTokens(tokens []int) (int, error) {
-	if len(tokens) < 2 {
-		return 0, errors.New("scratch model: forward tokens absent")
-	}
-	positions := min(t.construction.config.BlockSize, len(tokens)-1)
-	for _, token := range tokens[:positions+1] {
-		if token < 0 || token >= t.construction.config.VocabSize {
-			return 0, errors.New("scratch model: forward token outside vocabulary")
-		}
-	}
-	return positions, nil
-}
-
 func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *executor.RetainedOutputs, error) {
 	program, err := t.forwardProgram(tokens)
 	if err != nil {
@@ -274,7 +261,7 @@ func (t *ResidentTrainer) forward(tokens []int, positions int) (ForwardGraph, *e
 func bindResidentProgram(trainer *ResidentTrainer) (trainingprogram.Execution[residentTrainingState], error) {
 	bindings := []trainingprogram.Binding[residentTrainingState]{
 		{Operator: scratchOperatorBatch, Execute: func(state *residentTrainingState) error {
-			positions, err := state.trainer.validateTokens(state.tokens)
+			positions, err := state.trainer.construction.validateTokens(state.tokens)
 			state.positions = positions
 			return err
 		}},
@@ -308,7 +295,10 @@ func bindResidentProgram(trainer *ResidentTrainer) (trainingprogram.Execution[re
 }
 
 func (t *ResidentTrainer) forwardProgram(tokens []int) (*residentForwardProgram, error) {
-	positions := min(t.construction.config.BlockSize, len(tokens)-1)
+	positions, err := t.construction.validateTokens(tokens)
+	if err != nil {
+		return nil, err
+	}
 	for index := range t.programs {
 		if t.programs[index].graph.positions == positions {
 			return &t.programs[index], nil

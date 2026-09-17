@@ -36,16 +36,27 @@ type forwardLayer struct {
 	heads                              []forwardHead
 }
 
+func (c Construction) validateTokens(tokens []int) (int, error) {
+	if len(tokens) < 2 {
+		return 0, errors.New("scratch model: forward tokens absent")
+	}
+	positions := len(tokens) - 1
+	if positions > c.config.BlockSize {
+		return 0, fmt.Errorf("scratch model: sequence has %d positions, context admits %d; refusing truncated evaluation", positions, c.config.BlockSize)
+	}
+	for _, token := range tokens {
+		if token < 0 || token >= c.config.VocabSize {
+			return 0, errors.New("scratch model: forward token outside vocabulary")
+		}
+	}
+	return positions, nil
+}
+
 // CompileForwardGraph emits the corpus-derived model without a family runtime.
 func (c Construction) CompileForwardGraph(tokens []int) (ForwardGraph, error) {
-	if len(tokens) < 2 {
-		return ForwardGraph{}, errors.New("scratch model: forward tokens absent")
-	}
-	positions := min(c.config.BlockSize, len(tokens)-1)
-	for _, token := range tokens[:positions+1] {
-		if token < 0 || token >= c.config.VocabSize {
-			return ForwardGraph{}, errors.New("scratch model: forward token outside vocabulary")
-		}
+	positions, err := c.validateTokens(tokens)
+	if err != nil {
+		return ForwardGraph{}, err
 	}
 	// The registered architecture profile drives the constructed forward:
 	// normalization and feed-forward come from the executor's policy

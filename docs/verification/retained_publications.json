@@ -35,7 +35,12 @@
   },
   {
     "name": "rxbrain-vqa",
-    "record": "evidence:sha256:5dc2502c776e9159cc8b54294890765c5c4e12b9cb5f9a41d6aae6db82665947",
-    "specification": "rxbrain-vqa-retained.json"
+    "specification": "rxbrain-vqa-retained.json",
+    "record": "evidence:sha256:5dc2502c776e9159cc8b54294890765c5c4e12b9cb5f9a41d6aae6db82665947"
+  },
+  {
+    "name": "qwen-twentyseven",
+    "specification": "qwen-twentyseven-retained.json",
+    "record": "evidence:sha256:7c0a6df2dc565c13f08a2db443d88cb422eea1a887d5880a997e474f008e94c0"
   }
 ]

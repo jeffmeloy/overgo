@@ -2268,6 +2268,31 @@
        "wall_ns": 10178000000
       }
      ]
+    },
+    "Qwen3.8-27B-UD-Q6_K": {
+     "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+     "inference": [
+      {
+       "capability": "bbh-recorded-raw",
+       "tier": "capability-measured",
+       "commit": "3e89a8977574952148a58c3d5a5428395f6f8190"
+      },
+      {
+       "capability": "ifeval-recorded-subset",
+       "tier": "capability-measured",
+       "commit": "3c3d09f32834ac605635c4eaa10be43e8b53e5c8"
+      },
+      {
+       "capability": "mmlu-recorded-generated-chat-subset",
+       "tier": "capability-measured",
+       "commit": "d75d3554941482c31fe467853244d937c1b1b628"
+      },
+      {
+       "capability": "mmlu-recorded-raw-subset",
+       "tier": "capability-measured",
+       "commit": "0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a"
+      }
+     ]
     }
    }
   },

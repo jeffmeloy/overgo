@@ -67,7 +67,8 @@
             "modality-verification/qwen9-verification-publication",
             "modality-verification/gemma12-mmlu-publication",
             "modality-verification/gemma12-native-ifeval",
-            "modality-verification/rxbrain-native-vqa"
+            "modality-verification/rxbrain-native-vqa",
+            "modality-verification/qwen27-retained-publication"
           ],
           "outcome": {
             "gemma12_fp8_mmlu_pro": {
@@ -249,11 +250,21 @@
       "status": "open",
       "steps": [
         {
+          "id": "subtest-selection",
+          "title": "Match evidence with Go subtest selector semantics",
+          "status": "open",
+          "verify": "go test ./internal/testevidence -run '^TestVerifyGoTestEvidenceSubtests$' -count=1",
+          "rationale": "Observed during qwen27-retained-publication: the data-only gate failed after 64.8s because -run '^TestRetainedModelPublications$/^qwen-twentyseven$' was matched as one regular expression against the full event name. Go executes that anchored parent/subtest selection successfully; retained JSON events show the exact child passed. Its equivalent whole-path expression unblocks that publication without relaxing acceptance. Correct selector interpretation in the existing testevidence owner before expanding shared-execution reuse. Follow Go's slash-separated subtest and top-level alternation semantics, including nested paths, escaped slashes and character classes; validate the declared expression once. Prove matching against real go test JSON and controlled counterexamples: parent-only pass, missing child, skipped/failed/unavailable child, unrelated sibling, malformed selector, empty or partial event stream, and changed repeat evidence. A passing parent must never credit an unexecuted requested child. Preserve broad-run skip policy and current classifier thresholds; no new runner or policy exception."
+        },
+        {
           "id": "shared-execution",
           "title": "Reuse one owner execution for matching named acceptance",
           "status": "open",
           "verify": "go test ./internal/gate -run '^(TestIndependentPackageEvidenceAcceptance|TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit|TestPackageExecutionAuditUsesObservedWork|TestGateRunsStaticChecksBeforeAcceptance)$' -short -count=1 \u0026\u0026 go test ./internal/planverify -run '^TestMixedVerifierRepeatEvidence$' -count=1",
-          "rationale": "Combined-plan boundary: only coalesce executions with matching test/profile/input contracts. The merge 430431e8 acceptance cost 1.361s versus owners 3m21.809s; this boundary is worthwhile only after identifying a representative implementation row with actual duplicated execution. Reuse the new analysis product; do not rebuild graph discovery or conflate filtered acceptance with full-package coverage.\n\nOwners: gate, planverify, testevidence and automationcheck. Baseline: fd153b33 acceptance 3m35.277s, owners 3m26.575s; suite evidence:sha256:399a5dff00420c3b6379d4407e33b48cad87ec5cf86596055bc7cd5f954555d1. Identify exact overlapping invocations before changing scheduling. Start with the existing finite Go-test grammar and matching owner profile; unsupported commands keep their existing path. Plan obligations before execution. One complete owner run may discharge matching named acceptance; a filtered pass never proves the whole package. Bind setup/cleanup, subtests, flags, environment, fixtures and declared ordering. Prove required tests actually run and pass. Counterexamples: absent/renamed/skipped or failed tests, changed inputs, short/full mismatch, tampered receipts, cancellation and interruption around publication. Preserve independent passes across restart without granting missing package credit. Demonstrate one real overlap executes once with the same verdict and report total cycle cost. Delete the duplicate execution path; do not add another runner."
+          "rationale": "Combined-plan boundary: only coalesce executions with matching test/profile/input contracts. The merge 430431e8 acceptance cost 1.361s versus owners 3m21.809s; this boundary is worthwhile only after identifying a representative implementation row with actual duplicated execution. Reuse the new analysis product; do not rebuild graph discovery or conflate filtered acceptance with full-package coverage.\n\nOwners: gate, planverify, testevidence and automationcheck. Baseline: fd153b33 acceptance 3m35.277s, owners 3m26.575s; suite evidence:sha256:399a5dff00420c3b6379d4407e33b48cad87ec5cf86596055bc7cd5f954555d1. Identify exact overlapping invocations before changing scheduling. Start with the existing finite Go-test grammar and matching owner profile; unsupported commands keep their existing path. Plan obligations before execution. One complete owner run may discharge matching named acceptance; a filtered pass never proves the whole package. Bind setup/cleanup, subtests, flags, environment, fixtures and declared ordering. Prove required tests actually run and pass. Counterexamples: absent/renamed/skipped or failed tests, changed inputs, short/full mismatch, tampered receipts, cancellation and interruption around publication. Preserve independent passes across restart without granting missing package credit. Demonstrate one real overlap executes once with the same verdict and report total cycle cost. Delete the duplicate execution path; do not add another runner.",
+          "depends_on": [
+            "surface-gate-execution/subtest-selection"
+          ]
         }
       ]
     },

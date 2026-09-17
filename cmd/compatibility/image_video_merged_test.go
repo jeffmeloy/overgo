@@ -18,7 +18,6 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -161,13 +160,6 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": merged media evidence requires the private store")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: explicit image/video data root required")
-	}
 	path := filepath.Join(root, "docs/image_video_merged.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -195,7 +187,7 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := overgodb.OpenReadOnly(roots.Store)
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,8 +208,8 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 			t.Fatal("empty merged-source check")
 		}
 	}
-	var inventory imageVideoInventory
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_inventory.json"), &inventory); err != nil {
+	inventory, err := loadFrozenMediaInventory(root)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if inventory.Census != value.Inventory {
@@ -227,7 +219,7 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := checkImageVideoCoverage(inventory, census); err != nil {
+	if err := checkImageVideoCoverage(inventory, census, inventory.Tasks); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkImageVideoDefinitions(t.Context(), store, inventory); err != nil {
@@ -253,7 +245,7 @@ func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
 	}
 	bad := inventory
 	bad.Cells = slices.Clone(inventory.Cells[1:])
-	if err := checkImageVideoCoverage(bad, census); err == nil {
+	if err := checkImageVideoCoverage(bad, census, inventory.Tasks); err == nil {
 		t.Fatal("accepted omitted media cell")
 	}
 	t.Logf("master %s merged at %s; %d active media cells retain their recipe/input bindings and unchanged generation source scope", value.Incoming, value.Merged, cells)

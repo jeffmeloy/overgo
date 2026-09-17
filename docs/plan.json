@@ -25,13 +25,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "media-inventory-reconciliation",
-          "title": "Reconcile frozen media inventory with producer history and current scope",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestImageVideo(Inventory|MergedCapabilities)Acceptance$' -count=1 -v",
-          "rationale": "Outstanding acceptance split from media-retained-batch, not waived. First audit at 952c83fb found imported census contents without the original store checkpoint, and historical video-edit scope removed from code while still declared by the frozen inventory. Preserve original census identity, checkpoint and complete historical denominator; make original history available through existing read-only evidence mechanisms without duplicating snapshots. Distinguish retained acceptance from current catalog and explicitly reconcile retired scope; do not restore unsupported runtime routes or silently shrink coverage. Remove obsolete plan-lane skips only with passing exact inventory and merged-source acceptance. Retain changed-reference, missing/duplicate cell, recipe and census substitutions. Keep unresolved conditions visible until accepted."
-        },
-        {
           "id": "media-processing-reconciliation",
           "title": "Reconcile retained report optimization with subsequent processing changes",
           "status": "open",

@@ -4,7 +4,7 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "6c6eb496b4459f544be326ea825220524926fc18ffb78c64cd0759e97f5771b4",
+  "source_identity": "78abb8c52e78c925bd2bdcf3f5dc6a3897c2a380443d4aeb86f7af68a08733bb",
   "coverage": {
     "applicable": 48,
     "measured": 48,
@@ -1301,28 +1301,6 @@
     },
     {
       "guideline": "cmp_or",
-      "path": "cmd/compatibility/media.go",
-      "symbol": "generateMediaReport",
-      "owner": "overgo/cmd/compatibility",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./cmd/compatibility -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
-      "path": "cmd/compatibility/media.go",
-      "symbol": "writeMediaSamplesSection",
-      "owner": "overgo/cmd/compatibility",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./cmd/compatibility -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "cmp_or",
       "path": "cmd/composite-generation-lane/run_windows.go",
       "symbol": "resolveLaneCatalog",
       "owner": "overgo/cmd/composite-generation-lane",
@@ -2370,17 +2348,6 @@
       "guideline": "slices_sort_func",
       "path": "cmd/compatibility/main.go",
       "symbol": "generate",
-      "owner": "overgo/cmd/compatibility",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./cmd/compatibility -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "cmd/compatibility/media.go",
-      "symbol": "generateMediaReport",
       "owner": "overgo/cmd/compatibility",
       "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
       "oracle": "go test ./cmd/compatibility -count=1",
@@ -4908,5 +4875,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "eddaf4460d118c235e0601d3eca9e5f752f242253959c02901e57ecbc121f2e2"
+  "exceptions_sha256": "dc12c0c9c65f4fcb758616869d689f8861f229884f23930b44ac52de3772d442"
 }

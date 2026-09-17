@@ -1,12 +1,22 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"overgo/internal/artifact"
+	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
+	"overgo/internal/jsonfile"
+	"overgo/internal/modelrecipe"
+	"overgo/internal/modelrecipetest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
+	"overgo/internal/testutil"
 )
 
 // TestMediaReportRendersStoreTruth pins the generated-report contract:
@@ -60,4 +70,142 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 	if staleCell("") != "-" || !strings.Contains(staleCell("no policy"), "stale: no policy") {
 		t.Fatal("stale cell contract")
 	}
+}
+
+func TestMediaMeasurementProjection(t *testing.T) {
+	store, err := overgodb.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	model := testutil.ArtifactID(t, artifact.KindModel, "media projection")
+	testutil.PublishArtifact(t, store, model)
+	definition, err := modelrecipe.GenerationDefinition(modelrecipe.ModuleOscillatorImagePrepare, model, artifact.ID{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := modelrecipetest.PublishActivation(t.Context(), store, "projection/active", definition); err != nil {
+		t.Fatal(err)
+	}
+	missing := testutil.ArtifactID(t, artifact.KindModel, "missing projection activation")
+	entries := []discovery.CatalogEntry{
+		{Model: model, Capabilities: []discovery.Capability{
+			{Task: recipe.TaskImageGen, Recipe: definition.ID},
+			{Task: recipe.TaskVideoGen, Stale: "missing verifier"},
+			{Task: recipe.TaskInference},
+		}},
+		{Model: missing, Capabilities: []discovery.Capability{{Task: recipe.TaskImageGen}}},
+	}
+	scope, err := resolveMediaReportScope("image-video")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader := &mediaProjectionReader{Store: store, resolves: map[string]int{}}
+	rows, err := loadMediaReportRows(t.Context(), reader, entries, scope, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("selected denominator = %d", len(rows))
+	}
+	var healthy reportRow
+	for _, row := range rows {
+		if row.verification.Run.ID.Valid() {
+			healthy = row
+		}
+	}
+	if healthy.verification.Run.Recipe != definition.ID || healthy.activation.Definition.ID != definition.ID {
+		t.Fatal("missing or foreign verifier")
+	}
+	if reader.resolves[modelrecipe.ActiveAlias(model, recipe.TaskImageGen)] != 1 ||
+		reader.resolves[modelrecipe.ActiveAlias(model, recipe.TaskVideoGen)] != 0 ||
+		reader.resolves[modelrecipe.ActiveAlias(model, recipe.TaskInference)] != 0 {
+		t.Fatal("repeated activation read or out-of-scope lookup", reader.resolves)
+	}
+	var headline, inventories bytes.Buffer
+	writeMediaVerdict(&headline, rows, scope)
+	writeMediaInventories(&inventories, rows)
+	if !strings.Contains(headline.String(), "3 activations; 2 are stale and 1 healthy") || !strings.Contains(inventories.String(), shortArtifact(definition.ID)) {
+		t.Fatal("headline and typed inventory disagree", headline.String())
+	}
+	if mediaRunResult(runrecord.Verification{}) != "- | - | - | - | -" {
+		t.Fatal("missing measurement invented a zero")
+	}
+	t.Run("wrong selected recipe", func(t *testing.T) {
+		changed := []discovery.CatalogEntry{{Model: model, Capabilities: []discovery.Capability{{Task: recipe.TaskImageGen, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "foreign")}}}}
+		rows, err := loadMediaReportRows(t.Context(), store, changed, scope, nil, nil)
+		if err != nil || len(rows) != 1 || rows[0].stale == "" || rows[0].verification.Run.ID.Valid() {
+			t.Fatal("foreign recipe gained measurement credit", err)
+		}
+	})
+	t.Run("exact bytes and source", func(t *testing.T) {
+		verified := healthy.verification
+		verified.Gate.Steps = []runrecord.GateStep{{Evidence: "peak_device_bytes=001048576"}}
+		cell := mediaRunResult(verified)
+		if !strings.Contains(cell, "1048576 B") || !strings.Contains(cell, shortCommit(verified.Run.CodeCommit)) {
+			t.Fatal("byte count or historical producer changed", cell)
+		}
+		for _, value := range []string{"", "peak_device_bytes=", "peak_device_bytes=-1", "peak_device_bytes=18446744073709551616", "peak_device_bytes=42.5", "peak_device_bytes=42MiB", "not_peak_device_bytes=42"} {
+			if _, ok := stepPeakDeviceBytes(value); ok {
+				t.Fatal("invalid or absent bytes accepted", value)
+			}
+		}
+		if value, ok := stepPeakDeviceBytes("peak_device_bytes=0"); !ok || value != 0 {
+			t.Fatal("observed zero treated as absent")
+		}
+	})
+	t.Run("retained protocol", func(t *testing.T) {
+		root := testutil.RepoRoot(t)
+		roots, err := dataroot.Resolve(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		retained, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer retained.Close()
+		var protocol imageVideoProtocol
+		if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_protocol.json"), &protocol); err != nil {
+			t.Fatal(err)
+		}
+		var entries []discovery.CatalogEntry
+		seen := map[string]bool{}
+		for _, cell := range protocol.Cases {
+			key := cell.Model.String() + "/" + string(cell.Task)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			entries = append(entries, discovery.CatalogEntry{Model: cell.Model, Capabilities: []discovery.Capability{{Task: cell.Task, Recipe: cell.Recipe}}})
+		}
+		rows, err := loadMediaReportRows(t.Context(), retained, entries, scope, nil, nil)
+		if err != nil || len(rows) != len(seen) || len(rows) == 0 {
+			t.Fatal("retained projection denominator differs", err)
+		}
+		measured := 0
+		for _, row := range rows {
+			if row.stale != "" {
+				continue
+			}
+			if row.verification.Run.Recipe != row.activation.Definition.ID || row.verification.Gate.Recipe != row.activation.Definition.ID || row.verification.Run.CodeCommit != row.verification.Gate.CodeCommit {
+				t.Fatal("retained verifier pair differs")
+			}
+			measured++
+		}
+		if measured == 0 {
+			t.Fatal("no retained measurement exercised")
+		}
+		t.Logf("%d retained model/task cells: %d measured, %d stale; no acquisition or current-quality promotion", len(rows), measured, len(rows)-measured)
+	})
+}
+
+type mediaProjectionReader struct {
+	*overgodb.Store
+	resolves map[string]int
+}
+
+func (r *mediaProjectionReader) ResolveAlias(ctx context.Context, name string) (artifact.ID, bool, error) {
+	r.resolves[name]++
+	return r.Store.ResolveAlias(ctx, name)
 }

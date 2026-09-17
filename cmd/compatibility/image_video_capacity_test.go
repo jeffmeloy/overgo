@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -51,6 +52,34 @@ type mediaCapacityBundle struct {
 		Evidence artifact.ID `json:"evidence"`
 		SHA256   string      `json:"sha256"`
 	} `json:"source_files"`
+}
+
+type mediaCapacityEnvironment struct {
+	Source    string  `json:"source"`
+	Available uint64  `json:"host_available_bytes"`
+	Total     uint64  `json:"host_total_bytes"`
+	CPUs      float64 `json:"cpu_logical_processors"`
+	GPU       string  `json:"gpu"`
+}
+
+func checkMediaCapacityBinding(bundle mediaCapacityBundle, protocol, environment []byte) (mediaCapacityEnvironment, error) {
+	if !gitauthority.ValidObjectID(bundle.Source) {
+		return mediaCapacityEnvironment{}, errors.New("capacity acquisition source is invalid")
+	}
+	if err := checkMediaProtocolIdentity(protocol, bundle.ProtocolSHA); err != nil {
+		return mediaCapacityEnvironment{}, err
+	}
+	var identity struct {
+		Source string `json:"source_base"`
+	}
+	if err := json.Unmarshal(protocol, &identity); err != nil || identity.Source != bundle.Source {
+		return mediaCapacityEnvironment{}, errors.New("capacity acquisition source differs")
+	}
+	var observed mediaCapacityEnvironment
+	if err := json.Unmarshal(environment, &observed); err != nil || observed.Source != bundle.Source || observed.Available == 0 || observed.Available > observed.Total || observed.CPUs == 0 || observed.GPU == "" {
+		return mediaCapacityEnvironment{}, errors.New("capacity environment is incomplete")
+	}
+	return observed, nil
 }
 
 type mediaCapacityNativeObservation struct {
@@ -169,24 +198,12 @@ func TestImageVideoCapacityAcceptance(t *testing.T) {
 	}
 	protocol := read(bundle.Protocol)
 	current, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity_protocol.json"))
-	if err != nil || checkMediaProtocolIdentity(protocol, bundle.ProtocolSHA) != nil || checkMediaProtocolIdentity(current, bundle.ProtocolSHA) != nil {
+	if err != nil || checkMediaProtocolIdentity(current, bundle.ProtocolSHA) != nil {
 		t.Fatal("capacity protocol changed", err)
 	}
-	var identity struct {
-		Source string `json:"source_base"`
-	}
-	if err := json.Unmarshal(protocol, &identity); err != nil || identity.Source != bundle.Source {
-		t.Fatal("capacity acquisition source differs", err)
-	}
-	var environment struct {
-		Source    string  `json:"source"`
-		Available uint64  `json:"host_available_bytes"`
-		Total     uint64  `json:"host_total_bytes"`
-		CPUs      float64 `json:"cpu_logical_processors"`
-		GPU       string  `json:"gpu"`
-	}
-	if err := json.Unmarshal(read(bundle.Environment), &environment); err != nil || environment.Source != bundle.Source || environment.Available == 0 || environment.Available > environment.Total || environment.CPUs == 0 || environment.GPU == "" {
-		t.Fatal("capacity environment is incomplete", err)
+	environment, err := checkMediaCapacityBinding(bundle, protocol, read(bundle.Environment))
+	if err != nil {
+		t.Fatal(err)
 	}
 	for path, digest := range bundle.Prior {
 		data, err := os.ReadFile(filepath.Join(root, path))

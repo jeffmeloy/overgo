@@ -3,28 +3,235 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/automationcheck"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
+	"overgo/internal/testutil"
 )
 
-type corruptMediaOverlayReader struct {
-	artifact.Reader
-	id artifact.ID
+func TestMediaEvidenceBinding(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testskip.ShortIntegration)
+	}
+	root := testutil.RepoRoot(t)
+	roots, err := dataroot.Resolve(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkMediaProtocolIdentity(raw, imageVideoCapacitySHA256); err != nil {
+		t.Fatal(err)
+	}
+	var inputs struct {
+		Bundle     mediaCapacityBundle
+		Assertions map[string]map[string][]string
+	}
+	if err := json.Unmarshal(raw, &inputs.Bundle); err != nil {
+		t.Fatal(err)
+	}
+	var assertions map[string]map[string][]string
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
+		t.Fatal(err)
+	}
+	inputs.Assertions = map[string]map[string][]string{}
+	for _, check := range inputs.Bundle.Checks {
+		inputs.Assertions[check.Name] = assertions[check.Name]
+	}
+	identify := func(value any) artifact.ID {
+		t.Helper()
+		id, err := artifact.JSONID(artifact.KindEvidence, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	inputID := identify(inputs)
+	var reader artifact.Reader = store
+	read := func(ctx context.Context, id artifact.ID) ([]byte, error) {
+		content, found, err := artifact.ReadContent(ctx, reader, id)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return nil, fmt.Errorf("media binding: missing %s", id)
+		}
+		return content.Data, nil
+	}
+	runs := 0
+	checks := []automationcheck.Check{{
+		Descriptor: automationcheck.Descriptor{Name: "retained-media-capacity-binding", Phase: runrecord.PhaseTest, Always: true},
+		Run: func(ctx context.Context, _ automationcheck.Invocation) (bool, string, error) {
+			runs++
+			refs := []artifact.ID{inputs.Bundle.Native, inputs.Bundle.Host, inputs.Bundle.Acquisition}
+			refs = append(refs, inputs.Bundle.Processing...)
+			refs = append(refs, inputs.Bundle.Failed...)
+			refs = append(refs, slices.Collect(maps.Values(inputs.Bundle.Harnesses))...)
+			refs = append(refs, slices.Collect(maps.Values(inputs.Bundle.Loaders))...)
+			for _, source := range inputs.Bundle.SourceFiles {
+				refs = append(refs, source.Evidence)
+			}
+			if err := artifact.ReadContents(ctx, reader, refs, func(artifact.Content) error { return nil }); err != nil {
+				return false, "", err
+			}
+			protocol, err := read(ctx, inputs.Bundle.Protocol)
+			if err != nil {
+				return false, "", err
+			}
+			environment, err := read(ctx, inputs.Bundle.Environment)
+			if err != nil {
+				return false, "", err
+			}
+			if _, err := checkMediaCapacityBinding(inputs.Bundle, protocol, environment); err != nil {
+				return false, "", err
+			}
+			for _, check := range inputs.Bundle.Checks {
+				receipt, err := read(ctx, check.Evidence)
+				if err != nil {
+					return false, "", err
+				}
+				if err := checkMediaTestReceipt(check.Name, receipt, inputs.Assertions[check.Name]); err != nil {
+					return false, "", err
+				}
+			}
+			return false, "Historical capacity bindings and named assertions; no current model-quality or performance promotion", nil
+		},
+	}}
+	invocations, err := automationcheck.Plan(checks, automationcheck.Impact{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition := invocations[0].ID
+	manifest := testutil.ArtifactID(t, artifact.KindProfile, "media binding fixture manifest")
+	bind := func(document string, input, environment artifact.ID) automationcheck.Invocation {
+		t.Helper()
+		plan, err := automationcheck.BindManifestPlan(manifest, manifest, input.DigestHex(), identify(document).DigestHex(), automationcheck.Surface{Identity: "retained-media-audit-fixture"}, automationcheck.Impact{}, invocations)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bound, err := automationcheck.BindManifestExecution(plan, invocations[0], []artifact.ID{input}, &automationcheck.ReuseBinding{Input: input, Environment: environment})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bound
+	}
+	originalInvocation := bind("before unrelated documentation edit", inputID, inputs.Bundle.Environment)
+	original, err := automationcheck.Run(t.Context(), originalInvocation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cache := automationcheck.NewEvidenceCache(inputs.Bundle.Environment)
+	slot := originalInvocation
+	slot.ID = definition
+	cache.Record(slot, inputID, original)
+	encoded, err := json.Marshal(cache)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resumed automationcheck.EvidenceCache
+	if err := json.Unmarshal(encoded, &resumed); err != nil {
+		t.Fatal(err)
+	}
+	successor := bind("after unrelated documentation edit", inputID, inputs.Bundle.Environment)
+	successor.ID = definition
+	reused, found := resumed.Lookup(successor, inputID)
+	if !found || runs != 1 || reused.Source == nil || reused.Source.Evidence != original.ID || reused.ID == original.ID {
+		t.Fatal("exact audit was reacquired or lost original authority after restart")
+	}
+	if err := automationcheck.ValidateReuseAuthority(reused, definition); err != nil {
+		t.Fatal(err)
+	}
+	if err := original.VerifyIdentity(); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("changed assertion contract", func(t *testing.T) {
+		changed := inputs
+		changed.Assertions = maps.Clone(inputs.Assertions)
+		changed.Assertions[inputs.Bundle.Checks[0].Name] = map[string][]string{"overgo/unrelated": {"TestUnrelated"}}
+		id := identify(changed)
+		candidate := bind("changed assertion contract", id, inputs.Bundle.Environment)
+		candidate.ID = definition
+		if _, found := resumed.Lookup(candidate, id); found {
+			t.Fatal("another package and assertion contract reused prior acceptance")
+		}
+	})
+	t.Run("missing native fixture", func(t *testing.T) {
+		reader = mediaContentFaultReader{Reader: store, id: inputs.Bundle.Native, absent: true}
+		defer func() { reader = store }()
+		if _, err := automationcheck.Run(t.Context(), originalInvocation); err == nil {
+			t.Fatal("missing native fixture gained audit credit")
+		}
+	})
+	for _, test := range []struct {
+		name   string
+		change func(*mediaCapacityBundle)
+	}{
+		{"source", func(b *mediaCapacityBundle) { b.Source = strings.Repeat("b", len(b.Source)) }},
+		{"protocol", func(b *mediaCapacityBundle) { b.Protocol = identify("changed protocol") }},
+		{"environment", func(b *mediaCapacityBundle) { b.Environment = identify("changed environment") }},
+		{"oracle", func(b *mediaCapacityBundle) { b.NativeOracle = identify("changed oracle").DigestHex() }},
+		{"artifact", func(b *mediaCapacityBundle) { b.Native = identify("changed native artifact") }},
+		{"overlay", func(b *mediaCapacityBundle) {
+			b.Harnesses = map[string]artifact.ID{"changed overlay": identify("changed overlay")}
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			changed := inputs
+			test.change(&changed.Bundle)
+			id := identify(changed)
+			candidate := bind(test.name, id, changed.Bundle.Environment)
+			candidate.ID = definition
+			if _, found := resumed.Lookup(candidate, id); found {
+				t.Fatal("changed media inputs reused prior acceptance")
+			}
+			forged := reused
+			forged.Authority = candidate.Authority
+			id, err := forged.Identity()
+			if err != nil {
+				t.Fatal(err)
+			}
+			forged.ID = id
+			if automationcheck.ValidateReuseAuthority(forged, definition) == nil {
+				t.Fatal("reidentified successor forged original input authority")
+			}
+		})
+	}
+	t.Logf("%d retained receipt contracts audited once; exact restart reuse accepted; changed binding and forged successor refused; historical scope retained", len(inputs.Bundle.Checks))
 }
 
-func (r corruptMediaOverlayReader) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
+type mediaContentFaultReader struct {
+	artifact.Reader
+	id     artifact.ID
+	absent bool
+}
+
+func (r mediaContentFaultReader) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descriptor, io.Reader, bool, error) {
 	if id == r.id {
+		if r.absent {
+			return artifact.Descriptor{}, nil, false, nil
+		}
 		descriptor, found, err := r.Reader.Artifact(ctx, id)
 		return descriptor, bytes.NewReader(bytes.Repeat([]byte{'?'}, int(descriptor.Size))), found, err
 	}
@@ -95,7 +302,7 @@ func TestMediaReceiptProvenance(t *testing.T) {
 			}
 			var reader artifact.Reader = store
 			if test.corrupt {
-				reader = corruptMediaOverlayReader{Reader: store, id: content.Descriptor.ID}
+				reader = mediaContentFaultReader{Reader: store, id: content.Descriptor.ID}
 			}
 			if err := checkMediaReceiptProvenance(t.Context(), reader, check); (err == nil) != test.accepted {
 				t.Fatalf("accepted=%t want=%t: %v", err == nil, test.accepted, err)

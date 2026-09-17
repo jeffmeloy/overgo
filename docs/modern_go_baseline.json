@@ -4,7 +4,7 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "64c9a154e8fa41cce85ca660afa5ee293a134d9c601d8a84a393f3fc68ac8701",
+  "source_identity": "efb7d9c1c1e43c851acbbd6b1c04fb7246f93d14e9e36e888b4315430fe7271d",
   "coverage": {
     "applicable": 48,
     "measured": 48,

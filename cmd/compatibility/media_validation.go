@@ -101,7 +101,7 @@ func mediaValidationVerdict(data []byte, required map[string][]string) string {
 	if err := checkMediaTestReceipt("media validation", data, required); err != nil {
 		return "Not accepted: " + err.Error()
 	}
-	return "Passed declared assertions"
+	return "Passed declared assertions (historical; current scope unbound)"
 }
 
 func writeMediaValidation(ctx context.Context, output *bytes.Buffer, root string, reader artifact.Reader) error {

@@ -13,7 +13,8 @@ import (
 	"io"
 	"os/exec"
 	"sync"
-	"time"
+
+	"overgo/internal/processmeasure"
 )
 
 // Command describes one supervised external process.
@@ -46,7 +47,7 @@ type Receipt struct {
 type Supervised struct {
 	command *exec.Cmd
 	tree    processTree
-	started time.Time
+	clock   processmeasure.Stopwatch
 
 	drain       sync.WaitGroup
 	stdoutBytes int64
@@ -62,6 +63,7 @@ type Supervised struct {
 	terminated  bool
 	finished    bool
 	receipt     Receipt
+	receiptErr  error
 }
 
 // Start launches the command under tree containment and begins
@@ -93,7 +95,7 @@ func Start(ctx context.Context, command Command) (*Supervised, error) {
 	if err := run.Start(); err != nil {
 		return nil, fmt.Errorf("processcontrol: start %s: %w", command.Path, err)
 	}
-	supervised := &Supervised{command: run, started: time.Now()}
+	supervised := &Supervised{command: run, clock: processmeasure.NewStopwatch()}
 	tree, err := newProcessTree(run)
 	if err != nil {
 		_ = run.Process.Kill()
@@ -179,8 +181,9 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	s.mu.Lock()
 	if s.finished {
 		receipt := s.receipt
+		err := s.receiptErr
 		s.mu.Unlock()
-		return receipt, nil
+		return receipt, err
 	}
 	s.mu.Unlock()
 
@@ -195,25 +198,29 @@ func (s *Supervised) Wait(ctx context.Context) (Receipt, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.finished {
-		return s.receipt, nil
+		return s.receipt, s.receiptErr
 	}
 	_ = s.tree.close()
 	s.finished = true
+	wall, wallErr := s.clock.Elapsed()
 	s.receipt = Receipt{
 		ExitCode:       s.command.ProcessState.ExitCode(),
 		Interrupted:    s.interrupted,
 		TreeTerminated: s.terminated,
 		StdoutBytes:    s.stdoutBytes,
 		StderrBytes:    s.stderrBytes,
-		WallNS:         time.Since(s.started).Nanoseconds(),
+		WallNS:         int64(wall),
+	}
+	if wallErr != nil {
+		s.receiptErr = fmt.Errorf("processcontrol: wall: %w", wallErr)
 	}
 	if _, ok := errors.AsType[*exec.ExitError](waitErr); waitErr != nil && !ok {
-		return s.receipt, fmt.Errorf("processcontrol: wait: %w", waitErr)
+		s.receiptErr = errors.Join(s.receiptErr, fmt.Errorf("processcontrol: wait: %w", waitErr))
 	}
 	if ctx.Err() != nil {
-		return s.receipt, fmt.Errorf("processcontrol: deadline terminated the tree: %w", ctx.Err())
+		s.receiptErr = errors.Join(s.receiptErr, fmt.Errorf("processcontrol: cancellation terminated the tree: %w", ctx.Err()))
 	}
-	return s.receipt, nil
+	return s.receipt, s.receiptErr
 }
 
 // Done closes when the process tree and its pipes reach a terminal state.

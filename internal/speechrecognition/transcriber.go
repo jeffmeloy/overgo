@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/adaptertrain"
 	"overgo/internal/artifact"
@@ -18,6 +17,7 @@ import (
 	"overgo/internal/media"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -241,10 +241,11 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 		binding.Dataset.Valid() && (binding.Dataset.Kind() != artifact.KindDataset || binding.Split.Kind() != artifact.KindDatasetShard) {
 		return recipecontract.Transcription{}, runrecord.Run{}, errors.New("speech recognition: invalid transcription execution")
 	}
-	started := time.Now()
-	decodeStart := time.Now()
+	var walls processmeasure.Walls
+	started := processmeasure.NewStopwatch()
+	decodeStart := processmeasure.NewStopwatch()
 	inspection, err := dataset.InspectAudio(ctx, transcriber.repository, data, origin, policy)
-	decodeDuration := elapsedNanoseconds(decodeStart)
+	decodeDuration := walls.Elapsed(decodeStart)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
@@ -258,26 +259,22 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 			inputs = uniqueIDs(append(inputs, dependency.Artifact)...)
 		}
 	}
+	phases := completedTranscriptionPhases(decodeDuration, 0, 0, 0)
 	if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted {
-		run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
-			AudioAdmissionFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
-		return recipecontract.Transcription{}, run, errors.Join(ErrAudioAdmissionRefused, runErr)
+		return transcriber.failedExecution(ctx, binding, inputs, AudioAdmissionFailure, started, &walls, phases, ErrAudioAdmissionRefused)
 	}
 	if inspection.Signal.Format != transcriber.contract.Format {
-		run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
-			AudioFormatFailure, elapsedNanoseconds(started), []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: decodeDuration}})
-		return recipecontract.Transcription{}, run, errors.Join(errors.New("speech recognition: decoded audio format differs"), runErr)
+		return transcriber.failedExecution(ctx, binding, inputs, AudioFormatFailure, started, &walls, phases, errors.New("speech recognition: decoded audio format differs"))
 	}
-	phases := completedTranscriptionPhases(decodeDuration, 0, 0, 0)
 	spans := []recipecontract.SampleSpan{{End: uint64(len(inspection.Samples))}}
 	var activityID artifact.ID
 	if detector != nil {
-		activityStart := time.Now()
+		activityStart := processmeasure.NewStopwatch()
 		activity, id, detectErr := detector.DetectDecoded(ctx, inspection.Signal.Source,
 			media.DecodedAudio{Format: inspection.Signal.Format, Samples: inspection.Samples}, activityWorkspace)
-		phases[1].DurationNS += elapsedNanoseconds(activityStart)
+		phases[1].DurationNS += walls.Elapsed(activityStart)
 		if detectErr != nil {
-			return transcriber.failedExecution(ctx, binding, inputs, "transcription-activity-failed", started, phases, detectErr)
+			return transcriber.failedExecution(ctx, binding, inputs, "transcription-activity-failed", started, &walls, phases, detectErr)
 		}
 		activityID = id
 		inputs = uniqueIDs(append(inputs, activityID)...)
@@ -286,22 +283,22 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 			spans[i] = segment.Span
 		}
 		if len(spans) == 0 {
-			return transcriber.failedExecution(ctx, binding, inputs, AudioAdmissionFailure, started, phases, ErrAudioAdmissionRefused)
+			return transcriber.failedExecution(ctx, binding, inputs, AudioAdmissionFailure, started, &walls, phases, ErrAudioAdmissionRefused)
 		}
 	}
 	pieces := make([]transcriptionPiece, 0, len(spans))
 	var assembled strings.Builder
 	for _, span := range spans {
 		if span.Start >= span.End || span.End > uint64(len(inspection.Samples)) {
-			return transcriber.failedExecution(ctx, binding, inputs, "transcription-span-invalid", started, phases, errors.New("speech recognition: segment outside admitted samples"))
+			return transcriber.failedExecution(ctx, binding, inputs, "transcription-span-invalid", started, &walls, phases, errors.New("speech recognition: segment outside admitted samples"))
 		}
 		samples := inspection.Samples[span.Start:span.End]
-		text, measured, failure, decodeErr := transcriber.decodeText(ctx, samples, int(inspection.Signal.Format.SampleRate), workspace)
+		text, measured, failure, decodeErr := transcriber.decodeText(ctx, samples, int(inspection.Signal.Format.SampleRate), workspace, &walls)
 		for i, metric := range measured {
 			phases[i].DurationNS += metric.DurationNS
 		}
 		if decodeErr != nil {
-			return transcriber.failedExecution(ctx, binding, inputs, failure, started, phases, decodeErr)
+			return transcriber.failedExecution(ctx, binding, inputs, failure, started, &walls, phases, decodeErr)
 		}
 		if detector == nil {
 			assembled.WriteString(text)
@@ -316,10 +313,10 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 			}
 		}
 	}
-	postStart := time.Now()
+	postStart := processmeasure.NewStopwatch()
 	result := recipecontract.Transcription{Source: inspection.Signal.Source, Text: assembled.String(), Language: transcriber.profile.Language}
 	if err = result.Validate(); err != nil {
-		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started, phases, err)
+		return transcriber.failedExecution(ctx, binding, inputs, "transcription-postprocess-failed", started, &walls, phases, err)
 	}
 	output, err := artifact.JSONContent(transcriptionContract, result)
 	if err != nil {
@@ -340,10 +337,13 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 		lineage = artifact.DependencyLineage(segments.Descriptor.ID, transcriber.recipe.ID, activityID, result.Source.Audio, result.Source.Profile)
 		lineage = append(lineage, artifact.DependencyLineage(output.Descriptor.ID, segments.Descriptor.ID)...)
 	}
-	phases[3].DurationNS += elapsedNanoseconds(postStart)
+	phases[3].DurationNS += walls.Elapsed(postStart)
+	measured := walls.Elapsed(started)
+	if err = walls.Err; err != nil {
+		return recipecontract.Transcription{}, runrecord.Run{}, err
+	}
 	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, runrecord.OutcomeSucceeded, inputs,
-		outputs, "", binding.CodeCommit, binding.Environment,
-		elapsedNanoseconds(started), phases)
+		outputs, "", binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
@@ -408,12 +408,16 @@ func persistSpeechRun(ctx context.Context, repository artifact.Repository, defin
 	return run, nil
 }
 
-func (transcriber *transcriptionModel) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started time.Time, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
+func (transcriber *transcriptionModel) failedExecution(ctx context.Context, binding RunBinding, inputs []artifact.ID, failure string, started processmeasure.Stopwatch, walls *processmeasure.Walls, phases []runrecord.PhaseMetric, executionErr error) (recipecontract.Transcription, runrecord.Run, error) {
 	if ctx.Err() != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, executionErr
 	}
+	measured := walls.Elapsed(started)
+	if err := walls.Err; err != nil {
+		return recipecontract.Transcription{}, runrecord.Run{}, errors.Join(executionErr, err)
+	}
 	run, runErr := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil,
-		failure, elapsedNanoseconds(started), phases)
+		failure, measured, phases)
 	return recipecontract.Transcription{}, run, errors.Join(executionErr, runErr)
 }
 
@@ -473,8 +477,4 @@ func uniqueIDs(ids ...artifact.ID) []artifact.ID {
 		}
 	}
 	return result
-}
-
-func elapsedNanoseconds(start time.Time) uint64 {
-	return max(uint64(time.Since(start).Nanoseconds()), uint64(time.Nanosecond))
 }

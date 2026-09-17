@@ -11,10 +11,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/operatoraction"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
@@ -423,9 +423,13 @@ func (r *Runtime) executeReadySet(
 					results <- stageResult{index: index, err: err}
 					return
 				}
-				started := time.Now()
+				started := processmeasure.NewStopwatch()
 				outputs, err := stage.adapter.Execute(runContext, stage.request)
-				results <- stageResult{index: index, outputs: outputs, wallNS: uint64(time.Since(started).Nanoseconds()), err: err}
+				wall, wallErr := started.Elapsed()
+				if wallErr != nil {
+					err = errors.Join(err, wallErr)
+				}
+				results <- stageResult{index: index, outputs: outputs, wallNS: wall, err: err}
 			}()
 		}
 		for range active {

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/projector"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
@@ -118,12 +118,13 @@ func (runtime *projectedTranscriptionRuntime) close(context.Context) error {
 }
 
 func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, input TranscriptionResourceInput, data []byte, binding speechrecognition.RunBinding) (recipecontract.Transcription, runrecord.Run, error) {
-	started := time.Now()
+	var walls processmeasure.Walls
+	started := processmeasure.NewStopwatch()
 	inspection, err := dataset.InspectAudio(ctx, runtime.repository, data, input.Reference.Origin, input.Policy)
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
-	phases := []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: elapsedResourceNanoseconds(started)}}
+	phases := []runrecord.PhaseMetric{{Phase: runrecord.PhaseMediaDecode, DurationNS: walls.Elapsed(started)}}
 	inputs := []artifact.ID{runtime.plan, runtime.model, runtime.projector, runtime.decodeRecipe, runtime.runner.RuntimePolicy().ID, binding.Dataset, binding.Split,
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile, inspection.SignalID, inspection.PolicyID, inspection.DecisionID}
 	policyContent, err := runtime.runner.RuntimePolicy().Content()
@@ -146,7 +147,11 @@ func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, in
 			outputs = append(outputs, content.Descriptor.ID)
 			outcome = runrecord.OutcomeSucceeded
 		}
-		run, err := runrecord.NewBoundRun(runtime.definition.ID, outcome, inputs, outputs, failure, binding.CodeCommit, binding.Environment, elapsedResourceNanoseconds(started), phases)
+		measured := walls.Elapsed(started)
+		if err := walls.Err; err != nil {
+			return result, runrecord.Run{}, errors.Join(cause, err)
+		}
+		run, err := runrecord.NewBoundRun(runtime.definition.ID, outcome, inputs, outputs, failure, binding.CodeCommit, binding.Environment, measured, phases)
 		if err != nil {
 			return result, runrecord.Run{}, errors.Join(cause, err)
 		}
@@ -170,7 +175,7 @@ func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, in
 	if inspection.Signal.Format.Channels != 1 || inspection.Signal.Format.SampleRate != uint64(runtime.sampleRate) {
 		return finish(recipecontract.Transcription{}, speechrecognition.AudioFormatFailure, errors.New("evaluation: waveform differs from projector format"))
 	}
-	prepareStarted := time.Now()
+	prepareStarted := processmeasure.NewStopwatch()
 	prompt, err := runtime.projection.BuildAudioPrompt(ctx, runtime.runner, inspection.Samples, "", runtime.prompt)
 	if err != nil {
 		return finish(recipecontract.Transcription{}, "transcription-prepare-failed", err)
@@ -179,10 +184,10 @@ func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, in
 	if err != nil {
 		return finish(recipecontract.Transcription{}, "transcription-prepare-failed", err)
 	}
-	phases = append(phases, runrecord.PhaseMetric{Phase: runrecord.PhasePrepare, DurationNS: elapsedResourceNanoseconds(prepareStarted)})
+	phases = append(phases, runrecord.PhaseMetric{Phase: runrecord.PhasePrepare, DurationNS: walls.Elapsed(prepareStarted)})
 	var text strings.Builder
 	var tokens []tokenizer.TokenID
-	generateStarted := time.Now()
+	generateStarted := processmeasure.NewStopwatch()
 	greedy, err := sampling.New(sampling.Config{Temperature: 0})
 	if err != nil {
 		return finish(recipecontract.Transcription{}, "transcription-prepare-failed", err)
@@ -194,7 +199,7 @@ func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, in
 			text.WriteString(event.Piece)
 			return nil
 		}})
-	phases = append(phases, runrecord.PhaseMetric{Phase: runrecord.PhaseGenerate, DurationNS: elapsedResourceNanoseconds(generateStarted)})
+	phases = append(phases, runrecord.PhaseMetric{Phase: runrecord.PhaseGenerate, DurationNS: walls.Elapsed(generateStarted)})
 	if err != nil {
 		return finish(recipecontract.Transcription{}, "transcription-inference-failed", err)
 	}

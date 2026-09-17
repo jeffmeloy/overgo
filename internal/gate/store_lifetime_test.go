@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/processlock"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
 
@@ -23,6 +24,7 @@ func TestGateStoreLifetime(t *testing.T) {
 	g, inputs := terminalEvidenceFixture(t, repo)
 	t.Cleanup(func() { _ = g.closeStore() })
 	g.start = time.Now()
+	g.clock = processmeasure.NewStopwatch()
 	g.planRef = "fixture/do"
 	head, err := command(repo, "git", "rev-parse", "HEAD")
 	if err != nil {

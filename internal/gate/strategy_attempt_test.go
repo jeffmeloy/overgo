@@ -3,11 +3,11 @@ package gate
 import (
 	"encoding/json"
 	"testing"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
@@ -51,7 +51,7 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 
 	t.Setenv(loop.StrategyEnvironment, "display-label")
 	t.Setenv(loop.StrategyIDEnvironment, strategy.ID.String())
-	gate := &gateContext{planRef: "resource-coverage/strategy-identity-binding", start: time.Now().Add(-time.Second)}
+	gate := &gateContext{planRef: "resource-coverage/strategy-identity-binding", clock: processmeasure.NewStopwatch()}
 	gate.resolveAttemptStrategy(store)
 	var batch artifact.Batch
 	if err := gate.appendAttemptRecord(&batch, strategyAttemptTestCommit, testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"), testutil.ArtifactID(t, artifact.KindEvidence, "gate-result"), runrecord.OutcomeSucceeded, ""); err != nil {
@@ -70,7 +70,7 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 	}
 
 	t.Setenv(loop.StrategyIDEnvironment, testutil.ArtifactID(t, artifact.KindProfile, "unpublished").String())
-	unresolved := &gateContext{planRef: gate.planRef, start: gate.start}
+	unresolved := &gateContext{planRef: gate.planRef, clock: gate.clock}
 	unresolved.resolveAttemptStrategy(store)
 	batch = artifact.Batch{}
 	if err := unresolved.appendAttemptRecord(&batch, strategyAttemptTestCommit, testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"), testutil.ArtifactID(t, artifact.KindEvidence, "gate-result"), runrecord.OutcomeSucceeded, ""); err != nil {
@@ -82,7 +82,7 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 	}
 
 	t.Setenv(loop.StrategyIDEnvironment, "")
-	labelOnly := &gateContext{planRef: gate.planRef, start: gate.start}
+	labelOnly := &gateContext{planRef: gate.planRef, clock: gate.clock}
 	labelOnly.resolveAttemptStrategy(store)
 	batch = artifact.Batch{}
 	if err := labelOnly.appendAttemptRecord(&batch, strategyAttemptTestCommit, testutil.ArtifactID(t, artifact.KindRecipe, "gate-recipe"), testutil.ArtifactID(t, artifact.KindEvidence, "gate-result"), runrecord.OutcomeSucceeded, ""); err != nil {

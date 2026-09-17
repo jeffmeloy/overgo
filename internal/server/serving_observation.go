@@ -9,6 +9,7 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -85,9 +86,14 @@ func (h *Handler) executeObservedOperation(
 		}
 	}
 	started := time.Now()
+	clock := processmeasure.NewStopwatch()
 	completion, err := execute(ctx, reporter)
 	if modelID.Kind() != artifact.KindModel || recipeID.Kind() != artifact.KindRecipe {
 		return completion, err
+	}
+	wall, wallErr := clock.Elapsed()
+	if wallErr != nil {
+		return completion, errors.Join(err, wallErr)
 	}
 	outcome, failure := executionOutcome(err)
 	if err == nil && completion.Run.Kind() != artifact.KindRun {
@@ -96,7 +102,7 @@ func (h *Handler) executeObservedOperation(
 	observation := runrecord.ServingObservation{
 		Model: modelID, Recipe: recipeID, Operation: reporter.OperationID(),
 		Task: task, Outcome: outcome, Failure: failure,
-		StartedUnixNS: started.UnixNano(), MeasuredNS: uint64(max(time.Since(started).Nanoseconds(), 0)),
+		StartedUnixNS: started.UnixNano(), MeasuredNS: wall,
 	}
 	if completion.Run.Kind() == artifact.KindRun {
 		observation.Run = completion.Run
@@ -135,15 +141,16 @@ func servingTransferDelta(before, after uint64) uint64 {
 }
 
 type servingHardwareCollector struct {
-	started time.Time
+	clock   processmeasure.Stopwatch
+	walls   processmeasure.Walls
 	api     DeviceMemoryAPI
 	samples []runrecord.ServingHardwareSample
 	prefill bool
 }
 
-func newServingHardwareCollector(generator Generator, started time.Time) *servingHardwareCollector {
+func newServingHardwareCollector(generator Generator, clock processmeasure.Stopwatch) *servingHardwareCollector {
 	api, _ := generator.(DeviceMemoryAPI)
-	return &servingHardwareCollector{started: started, api: api}
+	return &servingHardwareCollector{clock: clock, api: api}
 }
 
 func (collector *servingHardwareCollector) sample(ctx context.Context, stage runrecord.ServingHardwareStage) {
@@ -158,7 +165,7 @@ func (collector *servingHardwareCollector) sample(ctx context.Context, stage run
 		collector.prefill = true
 	}
 	collector.samples = append(collector.samples, runrecord.ServingHardwareSample{
-		Stage: stage, ElapsedNS: uint64(max(time.Since(collector.started).Nanoseconds(), 0)),
+		Stage: stage, ElapsedNS: collector.walls.Elapsed(collector.clock),
 		DeviceCurrentBytes: stats.CurrentBytes, DevicePeakBytes: stats.PeakBytes,
 		DeviceAllocations: stats.Allocations,
 	})

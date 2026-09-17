@@ -21,8 +21,8 @@
     {
       "budget": "internal-imports",
       "subject": "internal/server",
-      "limit": 42,
-      "reason": "The server is the assembly root: it composes workspace dependencies explicitly, with each handler constrained by the workspace-boundary audit. Native CPU transcription adds speechrecognition for inference and gitauthority for exact source-identity validation to the prior 40 dependencies. This exact two-owner increase admits no duplicate audio runtime; retire the exception when workspace assembly moves out of the HTTP package. The professional GUI lane's generation and library workspaces take their media executor catalog and their model intake from the launcher (GenerationCatalog, LibraryIntake), so neither package is named here."
+      "limit": 43,
+      "reason": "Server assembly composes 42 existing workspace dependencies plus processmeasure, the shared native counter owner for serving observations. Direct counter use replaces tick-clock durations and zero floors without a forwarding wrapper or duplicate timer. Retire assembly coupling through workspace decomposition; generation and intake remain injected by the launcher."
     },
     {
       "budget": "command-files",

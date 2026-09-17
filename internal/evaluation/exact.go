@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
+	"overgo/internal/processmeasure"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -138,7 +138,7 @@ func Record(
 	}
 	var generated strings.Builder
 	promptTokens := 0
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	ids, _, err := generator.Generate(ctx, prompt, inference.GenerateOptions{
 		MaxNewTokens: maxTokens,
 		Sampler:      greedy,
@@ -154,10 +154,14 @@ func Record(
 	if err != nil {
 		return ExactResult{}, fmt.Errorf("evaluation: generated case %q: %w", name, err)
 	}
+	wall, err := started.Elapsed()
+	if err != nil {
+		return ExactResult{}, err
+	}
 	result := ExactResult{
 		Name: name, PromptTokens: promptTokens,
 		GeneratedTokens: len(ids) - promptTokens, Text: generated.String(),
-		WallNS: uint64(time.Since(started).Nanoseconds()),
+		WallNS: wall,
 	}
 	return result, nil
 }

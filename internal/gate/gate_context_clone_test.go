@@ -5,7 +5,7 @@ package gate
 func cloneGateContext(g *gateContext) *gateContext {
 	return &gateContext{
 		repo: g.repo, candidateRoot: g.candidateRoot, candidateTree: g.candidateTree, paths: g.paths,
-		planRef: g.planRef, messageFile: g.messageFile, storePath: g.storePath, start: g.start,
+		planRef: g.planRef, messageFile: g.messageFile, storePath: g.storePath, start: g.start, clock: g.clock,
 		environment: g.environment, preparation: g.preparation, preparationCommit: g.preparationCommit,
 		source: g.source, baseSource: g.baseSource, profile: g.profile, profileDirty: g.profileDirty,
 		preflight: g.preflight, stepEvidence: g.stepEvidence, cachePaths: g.cachePaths, retryCache: g.retryCache,

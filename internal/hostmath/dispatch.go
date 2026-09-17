@@ -28,12 +28,13 @@ import (
 	"os"
 	"runtime"
 	"sync"
-	"time"
+
+	"overgo/internal/processmeasure"
 )
 
-// calibrationMinBatchNs: a timed batch must exceed the WORST Windows
-// monotonic-clock granularity, the 15.6ms interrupt tick (a shorter batch
-// times as zero). Clock structure, not tuning.
+// calibrationMinBatchNs: a timed batch is long enough that scheduling noise
+// inside it is a small fraction of the reading; the batch is read through
+// the performance counter, whose step is far below this floor.
 const calibrationMinBatchNs = 20e6
 
 // calibrationDim: square kernel shape; dim^2 = 2^18 MACs keeps one op
@@ -45,16 +46,20 @@ const calibrationDim = 1 << 9
 // granularity floor, then returns the MINIMUM per-op mean over three
 // qualifying batches. Minimum, not mean: contention can only inflate a
 // timing, so the smallest batch is closest to the uncontended cost.
-func timePerOpNs(op func()) float64 {
+func timePerOpNs(op func()) (float64, error) {
 	const qualifyingBatches = 3
 	best := 0.0
 	reps := 1
 	for measured := 0; measured < qualifyingBatches; {
-		t0 := time.Now()
+		t0 := processmeasure.NewStopwatch()
 		for range reps {
 			op()
 		}
-		elapsed := float64(time.Since(t0).Nanoseconds())
+		wall, err := t0.Elapsed()
+		if err != nil {
+			return 0, err
+		}
+		elapsed := float64(wall)
 		if elapsed < calibrationMinBatchNs {
 			reps *= 2
 			continue
@@ -64,7 +69,7 @@ func timePerOpNs(op func()) float64 {
 			best = perOp
 		}
 	}
-	return best
+	return best, nil
 }
 
 // macRate selects which measured kernel rate prices a call's unitMACs.
@@ -81,7 +86,15 @@ type dispatchCalibration struct {
 	macNs     [macRateCount]float64
 }
 
-var dispatchOnce = sync.OnceValue(measureDispatch)
+// dispatchOnce measures the host once; a failed measurement is reported
+// once and every kernel then runs serial.
+var dispatchOnce = sync.OnceValues(func() (dispatchCalibration, error) {
+	cal, err := measureDispatch()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[hostmath-dispatch-calibration] failed: %v; every kernel runs serial\n", err)
+	}
+	return cal, err
+})
 
 func poolWorkerLimit() int { return runtime.GOMAXPROCS(0) }
 
@@ -89,15 +102,19 @@ func poolWorkerLimit() int { return runtime.GOMAXPROCS(0) }
 // dispatch machinery alone.
 func calibrationNop(int, int) {}
 
-func measureDispatch() dispatchCalibration {
+func measureDispatch() (dispatchCalibration, error) {
 	workers := poolWorkerLimit()
 	if workers < 2 {
 		workers = 2 // fanOut needs a task; a single-core host never dispatches anyway
 	}
 	var cal dispatchCalibration
-	cal.perTaskNs = timePerOpNs(func() {
+	perTask, err := timePerOpNs(func() {
 		fanOut(workers, workers, calibrationNop)
-	}) / float64(workers-1)
+	})
+	if err != nil {
+		return dispatchCalibration{}, err
+	}
+	cal.perTaskNs = perTask / float64(workers-1)
 
 	// f32 rate: the exact Linear column kernel, one row.
 	x := make([]float32, calibrationDim)
@@ -109,9 +126,13 @@ func measureDispatch() dispatchCalibration {
 	for i := range w {
 		w[i] = float32(i%23) / 23
 	}
-	cal.macNs[macF32] = timePerOpNs(func() {
+	f32, err := timePerOpNs(func() {
 		linearCols(out, x, w, 1, calibrationDim, calibrationDim, 0, calibrationDim)
-	}) / float64(calibrationDim*calibrationDim)
+	})
+	if err != nil {
+		return dispatchCalibration{}, err
+	}
+	cal.macNs[macF32] = f32 / float64(calibrationDim*calibrationDim)
 
 	// f64 rate: the exact CausalConv1d channel kernel. These protocol extents
 	// realize the same MAC budget as the square F32 calibration while keeping
@@ -126,9 +147,13 @@ func measureDispatch() dispatchCalibration {
 	for i := range cw {
 		cw[i] = float32(i%23) / 23
 	}
-	cal.macNs[macF64] = timePerOpNs(func() {
+	f64, err := timePerOpNs(func() {
 		causalConv1dChannels(cOut, cx, cw, nil, cIn, calibrationDim, calibrationDim, ck, 1, ck-1, 0, 1)
-	}) / float64(calibrationDim*cIn*ck)
+	})
+	if err != nil {
+		return dispatchCalibration{}, err
+	}
+	cal.macNs[macF64] = f64 / float64(calibrationDim*cIn*ck)
 
 	// Loud one-line record of what this process derived its dispatch from: a
 	// biased calibration is invisible in every downstream symptom (it just
@@ -136,7 +161,7 @@ func measureDispatch() dispatchCalibration {
 	// moment it is measured.
 	fmt.Fprintf(os.Stderr, "[hostmath-dispatch-calibration] task=%.0fns f32=%.4fns/mac f64=%.4fns/mac workers=%d\n",
 		cal.perTaskNs, cal.macNs[macF32], cal.macNs[macF64], workers)
-	return cal
+	return cal, nil
 }
 
 // dispatchWorkers: worker count for n units of unitMACs each; 1 means run
@@ -151,7 +176,10 @@ func dispatchWorkers(n, unitMACs int, rate macRate) int {
 	if limit < 2 {
 		return 1
 	}
-	cal := dispatchOnce()
+	cal, err := dispatchOnce()
+	if err != nil {
+		return 1
+	}
 	s := float64(n) * float64(unitMACs) * cal.macNs[rate]
 	w := int(math.Sqrt(s / cal.perTaskNs))
 	w = min(w, limit)

@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -59,6 +60,7 @@ func (adapter RemoteAdapter) Execute(ctx context.Context, request StepRequest) (
 		return nil, errors.Join(errors.New("workflow runtime: remote capability changed"), err)
 	}
 	started := time.Now()
+	clock := processmeasure.NewStopwatch()
 	response, executeErr := adapter.Transport.ExecuteRemote(ctx, RemoteStageRequest{
 		Endpoint: current.Peer.Capability.Endpoint, Compatibility: current.Peer.ID,
 		Recipe: request.Recipe, Operation: request.Operation, Model: request.Model,
@@ -74,11 +76,15 @@ func (adapter RemoteAdapter) Execute(ctx context.Context, request StepRequest) (
 			outcome, failure = runrecord.OutcomeCancelled, ""
 		}
 	}
+	wall, wallErr := clock.Elapsed()
+	if wallErr != nil {
+		return nil, errors.Join(executeErr, wallErr)
+	}
 	observation, publishErr := runrecord.PublishServingObservation(context.WithoutCancel(ctx), adapter.Store, runrecord.ServingObservation{
 		Model: request.Model, Recipe: request.Recipe, Environment: current.Peer.PeerEnvironment,
 		Operation: request.Operation, Compatibility: current.Peer.ID,
 		Task: request.Task, Outcome: outcome, Failure: failure,
-		StartedUnixNS: started.UnixNano(), MeasuredNS: uint64(time.Since(started).Nanoseconds()),
+		StartedUnixNS: started.UnixNano(), MeasuredNS: wall,
 	})
 	if publishErr == nil && request.Attempts != nil {
 		request.Attempts.Attempt(observation.ID)

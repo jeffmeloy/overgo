@@ -12,6 +12,7 @@ import (
 	"overgo/internal/capabilityruntime"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/trainingprogram"
@@ -41,6 +42,8 @@ type Observer struct {
 	lease       *capabilityruntime.SessionLease[struct{}]
 	sampler     *sessionSampler
 	started     time.Time
+	clock       processmeasure.Stopwatch
+	walls       processmeasure.Walls
 	phases      []runrecord.PhaseMetric
 	hardware    []runrecord.ServingHardwareSample
 	stepUsed    uint64
@@ -63,7 +66,7 @@ func NewObserver(store artifact.Repository, host bool) (*Observer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("training observation: environment: %w", err)
 	}
-	observer := &Observer{store: store, environment: environment, started: time.Now()}
+	observer := &Observer{store: store, environment: environment, started: time.Now(), clock: processmeasure.NewStopwatch()}
 	if !host {
 		observer.sampler = newSessionSampler()
 	}
@@ -116,7 +119,7 @@ func (o *Observer) sampleHardware(stage runrecord.ServingHardwareStage) {
 		return
 	}
 	o.hardware = append(o.hardware, runrecord.ServingHardwareSample{
-		Stage: stage, ElapsedNS: uint64(time.Since(o.started)),
+		Stage: stage, ElapsedNS: o.walls.Elapsed(o.clock),
 		DeviceCurrentBytes: used, DevicePeakBytes: used,
 	})
 }
@@ -130,7 +133,7 @@ func (o *Observer) SampleStep() {
 	if !ok || o.stepSampled && used <= o.stepUsed {
 		return
 	}
-	o.stepUsed, o.stepElapsed, o.stepSampled = used, uint64(time.Since(o.started)), true
+	o.stepUsed, o.stepElapsed, o.stepSampled = used, o.walls.Elapsed(o.clock), true
 }
 
 // Finish releases directed ownership; publishes evidence.
@@ -189,7 +192,10 @@ func (o *Observer) finish(
 	for _, sample := range o.hardware {
 		peakDevice = max(peakDevice, sample.DevicePeakBytes)
 	}
-	measured := uint64(time.Since(o.started))
+	measured := o.walls.Elapsed(o.clock)
+	if err := o.walls.Err; err != nil {
+		return artifact.ID{}, nil, artifact.ID{}, err
+	}
 	inputTokens := streamPosition
 	if result.Objective == trainingprogram.ObjectiveCTC {
 		// A speech stream cursor counts source records, not tokenizer units.

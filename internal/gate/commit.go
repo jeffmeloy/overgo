@@ -65,7 +65,7 @@ func (g *gateContext) stepCommit() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	validationDuration, err := completedGateMeasurement(g.start, "pre-commit record validation")
+	validationDuration, err := completedGateMeasurement(g.clock, "pre-commit record validation")
 	if err != nil {
 		return false, err
 	}

@@ -5,13 +5,13 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
 	"overgo/internal/checked"
 	"overgo/internal/dataset"
 	"overgo/internal/modelartifact"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -119,18 +119,23 @@ func (p *speakerModel) diarize(ctx context.Context, data []byte, origin dataset.
 	if binding.Key == "" || binding.Dataset.Valid() != binding.Split.Valid() || binding.Dataset.Valid() && (binding.Dataset.Kind() != artifact.KindDataset || binding.Split.Kind() != artifact.KindDatasetShard) {
 		return recipecontract.SpeechTurns{}, runrecord.Run{}, errors.New("speaker activity: invalid run binding")
 	}
-	started := time.Now()
+	var walls processmeasure.Walls
+	started := processmeasure.NewStopwatch()
 	inspection, err := dataset.InspectAudio(ctx, p.repository, data, origin, policy)
 	if err != nil {
 		return recipecontract.SpeechTurns{}, runrecord.Run{}, err
 	}
-	phases := completedTranscriptionPhases(elapsedNanoseconds(started), 0, 0, 0)
+	phases := completedTranscriptionPhases(walls.Elapsed(started), 0, 0, 0)
 	inputs := uniqueIDs(p.profile.Model, p.profile.License, binding.Dataset, binding.Split, inspection.Signal.Source.Audio, inspection.Signal.Source.Profile, inspection.SignalID, inspection.PolicyID, inspection.DecisionID)
 	fail := func(code string, cause error) (recipecontract.SpeechTurns, runrecord.Run, error) {
 		if ctx.Err() != nil {
 			return recipecontract.SpeechTurns{}, runrecord.Run{}, cause
 		}
-		run, err := persistSpeechRun(ctx, p.repository, p.definition.ID, binding, runrecord.OutcomeFailed, inputs, nil, code, elapsedNanoseconds(started), phases)
+		measured := walls.Elapsed(started)
+		if err := walls.Err; err != nil {
+			return recipecontract.SpeechTurns{}, runrecord.Run{}, errors.Join(cause, err)
+		}
+		run, err := persistSpeechRun(ctx, p.repository, p.definition.ID, binding, runrecord.OutcomeFailed, inputs, nil, code, measured, phases)
 		return recipecontract.SpeechTurns{}, run, errors.Join(cause, err)
 	}
 	if inspection.Decision.Outcome != recipecontract.AudioAdmissionAccepted {
@@ -140,7 +145,7 @@ func (p *speakerModel) diarize(ctx context.Context, data []byte, origin dataset.
 	if format.SampleRate != uint64(p.profile.Frontend.SampleRate) || format.Channels != 1 || format.Encoding != "pcm-f32le" {
 		return fail(AudioFormatFailure, errors.New("speaker activity: decoded format differs"))
 	}
-	prepare := time.Now()
+	prepare := processmeasure.NewStopwatch()
 	samples := inspection.Samples
 	if len(samples) == 0 {
 		return fail("speaker-normalization-invalid", errors.New("speaker activity: empty decoded audio"))
@@ -163,21 +168,21 @@ func (p *speakerModel) diarize(ctx context.Context, data []byte, origin dataset.
 		return fail("speaker-input-too-short", errors.New("speaker activity: no complete feature hop"))
 	}
 	features, frames, err := p.frontend.Process(ctx, [][]float32{samples}, int(format.SampleRate), &component.text.Frontend, audiodsp.ProcessOptions{FrameLimit: frames})
-	phases[1].DurationNS = elapsedNanoseconds(prepare)
+	phases[1].DurationNS = walls.Elapsed(prepare)
 	if err != nil {
 		return fail("speaker-frontend-failed", err)
 	}
-	execute := time.Now()
+	execute := processmeasure.NewStopwatch()
 	probabilities, frames, err := p.activity.Predict(ctx, features, frames, &component.speakers, nil)
-	phases[2].DurationNS = elapsedNanoseconds(execute)
+	phases[2].DurationNS = walls.Elapsed(execute)
 	if err != nil {
 		return fail("speaker-execution-failed", err)
 	}
-	post := time.Now()
+	post := processmeasure.NewStopwatch()
 	turns, err := speakerTurns(ctx, probabilities, frames, p.activity.output.out, uint64(len(samples)), p.profile.Boundary)
 	result := recipecontract.SpeechTurns{Source: inspection.Signal.Source, Turns: turns}
 	err = cmp.Or(err, result.Validate())
-	phases[3].DurationNS = elapsedNanoseconds(post)
+	phases[3].DurationNS = walls.Elapsed(post)
 	if err != nil {
 		return fail("speaker-output-invalid", err)
 	}
@@ -185,7 +190,11 @@ func (p *speakerModel) diarize(ctx context.Context, data []byte, origin dataset.
 	if err != nil {
 		return fail("speaker-output-invalid", err)
 	}
-	run, err := runrecord.NewBoundRun(p.definition.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output.Descriptor.ID}, "", binding.CodeCommit, binding.Environment, elapsedNanoseconds(started), phases)
+	measured := walls.Elapsed(started)
+	if err := walls.Err; err != nil {
+		return recipecontract.SpeechTurns{}, runrecord.Run{}, err
+	}
+	run, err := runrecord.NewBoundRun(p.definition.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output.Descriptor.ID}, "", binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {
 		return recipecontract.SpeechTurns{}, runrecord.Run{}, err
 	}

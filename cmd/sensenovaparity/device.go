@@ -41,6 +41,7 @@ import (
 	"overgo/internal/cuda/executor"
 	"overgo/internal/jsonfile"
 	"overgo/internal/parity"
+	"overgo/internal/processmeasure"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
 	"overgo/internal/tensor"
@@ -380,13 +381,17 @@ func runDevice(l *parity.Campaign, modelDir, fixturesDir string) error {
 				return "", math.NaN(), "", err
 			}
 		}
-		start := time.Now()
+		start := processmeasure.NewStopwatch()
 		for range iters {
 			if _, err := exe.ExecuteCompiled(ctx, compiled, host, inputs); err != nil {
 				return "", math.NaN(), "", err
 			}
 		}
-		perCall := float64(time.Since(start).Microseconds()) / float64(iters) / 1000.0
+		wall, err := start.Elapsed()
+		if err != nil {
+			return "", math.NaN(), "", err
+		}
+		perCall := float64(wall) / float64(iters) / float64(time.Millisecond)
 		return parity.Wired, worst, fmt.Sprintf("DEVICE==HOST (routedlm.FlowHeadVelocity) on real fm_head: rows=%d hidden=%d flow_dim=%d worst|d|=%.3e max|host|=%.3e rel=%.3e tol=%.0e | head-terminal %.3fms/step", rows, H, F, worst, ref, rel, nativeBF16RelativeTolerance, perCall), nil
 	})
 

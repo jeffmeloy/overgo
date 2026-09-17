@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
@@ -16,6 +15,7 @@ import (
 	"overgo/internal/fsatomic"
 	"overgo/internal/loop"
 	"overgo/internal/plan"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
 
@@ -44,12 +44,15 @@ func (g *gateContext) packagePassObserver(ctx context.Context, ledger *packageEv
 	}
 }
 
-func completedGateMeasurement(started time.Time, operation string) (uint64, error) {
-	duration := time.Since(started).Nanoseconds()
-	if duration <= 0 {
+func completedGateMeasurement(started processmeasure.Stopwatch, operation string) (uint64, error) {
+	duration, err := started.Elapsed()
+	if err != nil {
+		return 0, fmt.Errorf("gate: %s duration: %w", operation, err)
+	}
+	if duration == 0 {
 		return 0, fmt.Errorf("gate: %s duration is unavailable", operation)
 	}
-	return uint64(duration), nil
+	return duration, nil
 }
 
 func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
@@ -80,10 +83,11 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err != nil {
 		return err
 	}
-	record, err := runrecord.NewGateRecord(
-		recipeID, g.environment.ID, codeCommit, outcome, failure,
-		uint64(time.Since(g.start).Nanoseconds()), g.steps,
-	)
+	wall, err := g.clock.Elapsed()
+	if err != nil {
+		return err
+	}
+	record, err := runrecord.NewGateRecord(recipeID, g.environment.ID, codeCommit, outcome, failure, wall, g.steps)
 	if err != nil {
 		return err
 	}
@@ -186,7 +190,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 			return err
 		}
 		evaluation, err := runrecord.NewEvaluation(recipeID, record.Run.ID, workloadID, []runrecord.Metric{{
-			Name: "gate_wall_ns", Value: float64(time.Since(g.start).Nanoseconds()),
+			Name: "gate_wall_ns", Value: float64(wall),
 			Unit: "ns", Direction: runrecord.DirectionMinimize,
 		}})
 		if err != nil {
@@ -282,13 +286,17 @@ func (g *gateContext) appendAttemptRecord(
 	if !bound {
 		return fmt.Errorf("gate: attempt record requires an item/step plan reference, got %q", g.planRef)
 	}
+	wall, err := g.clock.Elapsed()
+	if err != nil {
+		return err
+	}
 	attempt := runrecord.AttemptRecord{
 		PlanItem: item, PlanStep: step, Result: resultID, Recipe: recipeID,
 		// The driver exports the declared strategy; an interactive
 		// session leaves it empty and the record stays exact.
 		Strategy:   os.Getenv(loop.StrategyEnvironment),
 		CodeCommit: codeCommit, Outcome: outcome, Failure: failure,
-		WallNS: uint64(time.Since(g.start).Nanoseconds()),
+		WallNS: wall,
 		Selection: runrecord.AttemptSelection{
 			Defined: g.manifestMetrics.Defined, Selected: g.manifestMetrics.Selected,
 			Excluded: g.manifestMetrics.Excluded, Uncertainty: g.manifestMetrics.Uncertainty,
@@ -304,7 +312,6 @@ func (g *gateContext) appendAttemptRecord(
 		attempt.CandidateManifest = g.candidateManifest.ID
 	}
 	var published runrecord.AttemptRecord
-	var err error
 	if g.strategy == nil {
 		published, err = runrecord.NewAttemptRecord(attempt)
 	} else {

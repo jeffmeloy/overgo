@@ -15,6 +15,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 	"overgo/internal/worklease"
 )
@@ -239,7 +240,7 @@ func Run(options Options) (runErr error) {
 		}
 	}
 	g := &gateContext{
-		repo: repo, planRef: *planRef, checkpoint: checkpoint, messageFile: *messageFile, storePath: cleanStore, start: time.Now(),
+		repo: repo, planRef: *planRef, checkpoint: checkpoint, messageFile: *messageFile, storePath: cleanStore, start: time.Now(), clock: processmeasure.NewStopwatch(),
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 		completionAuthority: completionAuthority, planHead: planHead, dispatchClaim: dispatchClaim,
 		indexBefore: indexBefore, mergeBefore: mergeBefore,

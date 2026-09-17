@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
 
@@ -1223,7 +1224,7 @@ func TestFinalRecordRefusesSecondFinalization(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := gateContext{
-		repo: repo, storePath: storePath, start: time.Now().Add(-time.Second),
+		repo: repo, storePath: storePath, start: time.Now(), clock: processmeasure.NewStopwatch(),
 		environment: environment, preparation: preparation, preparationCommit: preparationCommit,
 		planHead: "0123456789abcdef0123456789abcdef01234567", planRef: "authority/record",
 		store: retained,

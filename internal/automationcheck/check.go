@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
 
@@ -261,12 +261,16 @@ func Run(ctx context.Context, invocation Invocation) (Evidence, error) {
 	if !invocation.ID.Valid() || invocation.runner == nil {
 		return Evidence{}, errors.New("automation check: invalid invocation")
 	}
-	begin := time.Now()
+	begin := processmeasure.NewStopwatch()
 	inapplicable, detail, runErr := invocation.runner(ctx, invocation)
+	wall, err := begin.Elapsed()
+	if err != nil {
+		return Evidence{}, fmt.Errorf("automation check %q: %w", invocation.Check.Name, errors.Join(runErr, err))
+	}
 	evidence := Evidence{
 		InvocationID: invocation.ID, Authority: cloneExecutionAuthority(invocation.Authority),
 		Name: invocation.Check.Name, Phase: invocation.Check.Phase,
-		Outcome: runrecord.LaneOutcomeOf(runErr), DurationNS: max(uint64(time.Since(begin).Nanoseconds()), uint64(time.Nanosecond)),
+		Outcome: runrecord.LaneOutcomeOf(runErr), DurationNS: wall,
 		Inapplicable: inapplicable, Detail: strings.TrimSpace(detail),
 	}
 	id, err := evidence.Identity()

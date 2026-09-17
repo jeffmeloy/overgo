@@ -32,6 +32,7 @@ import (
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
 	"overgo/internal/processcontrol"
+	"overgo/internal/processmeasure"
 	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
@@ -1585,14 +1586,18 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 	if g.preflight {
 		return fmt.Errorf("preflight: repair required; run `go run ./cmd/closure-scan -import-store %s` outside preflight", g.storePath)
 	}
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	out, err := g.runGateCommand(g.sourceRoot(), "go", "run", "./cmd/closure-scan", "-import-store", filepath.Join(g.repo, g.storePath))
 	if err != nil {
 		return fmt.Errorf("gate: closure rebind remediation: %w", err)
 	}
+	wall, err := started.Elapsed()
+	if err != nil {
+		return err
+	}
 	g.note(fmt.Sprintf(
 		"remediation: closure rebind applied (%s) wall=%dms",
-		strings.TrimSpace(out), time.Since(started).Milliseconds(),
+		strings.TrimSpace(out), wall/uint64(time.Millisecond),
 	))
 	return nil
 }
@@ -1633,7 +1638,7 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, map[
 // and launches no second verification process; the check retires only when
 // the authorities it guards disappear.
 func (g *gateContext) stepArchitecture() (bool, error) {
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	snapshot, err := g.sourceSnapshot()
 	if err != nil {
 		return false, err
@@ -1660,9 +1665,13 @@ func (g *gateContext) stepArchitecture() (bool, error) {
 	for _, domain := range report.Domains {
 		domains = append(domains, string(domain.Domain))
 	}
+	wall, err := started.Elapsed()
+	if err != nil {
+		return false, err
+	}
 	g.note(fmt.Sprintf(
 		"entry authority ratchet: domains=%s wall=%dms",
-		strings.Join(domains, ","), time.Since(started).Milliseconds(),
+		strings.Join(domains, ","), wall/uint64(time.Millisecond),
 	))
 	return false, nil
 }

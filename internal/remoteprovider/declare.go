@@ -7,11 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -35,7 +35,7 @@ type Declaration struct {
 // reproducible from the store. A provider declared before returns the
 // same identities without a second activation.
 func Declare(ctx context.Context, store artifact.Repository, provider Provider, codeCommit string) (Declaration, error) {
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	declared, err := New(provider)
 	if err != nil {
 		return Declaration{}, err
@@ -88,7 +88,10 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 	if err != nil {
 		return Declaration{}, err
 	}
-	duration := stepDuration(started)
+	duration, err := started.Elapsed()
+	if err != nil {
+		return Declaration{}, err
+	}
 	record, err := runrecord.NewGateRecord(
 		definition.ID, environment.ID, codeCommit, runrecord.OutcomeSucceeded, "", duration,
 		[]runrecord.GateStep{{
@@ -148,12 +151,6 @@ func DeclareDocument(ctx context.Context, store artifact.Repository, document Do
 	return declarations, nil
 }
 
-// stepDuration: step duration since started; floor 1ns (records need a
-// positive duration; clock may not advance).
-func stepDuration(started time.Time) uint64 {
-	return max(uint64(time.Since(started).Nanoseconds()), 1)
-}
-
 // retirementStep: retirement step name + failed record's failure code;
 // prose reason goes in step evidence.
 const retirementStep = "remote-provider-retirement"
@@ -162,7 +159,7 @@ const retirementStep = "remote-provider-retirement"
 // endpoint gone, key withdrawn) -> evidence-backed retirement -> alias
 // released; declaration stays in history, catalog stops listing.
 func Retire(ctx context.Context, store *overgodb.Store, limit int, location, codeCommit, reason string) error {
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	declared, err := List(ctx, store, limit)
 	if err != nil {
 		return err
@@ -184,7 +181,10 @@ func Retire(ctx context.Context, store *overgodb.Store, limit int, location, cod
 	if err != nil {
 		return err
 	}
-	duration := stepDuration(started)
+	duration, err := started.Elapsed()
+	if err != nil {
+		return err
+	}
 	record, err := runrecord.NewGateRecord(
 		definition.ID, environment.ID, codeCommit, runrecord.OutcomeFailed, retirementStep, duration,
 		[]runrecord.GateStep{{

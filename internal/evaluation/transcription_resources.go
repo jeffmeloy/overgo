@@ -13,6 +13,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/speechrecognition"
@@ -179,12 +180,12 @@ func EvaluateTranscriptionResources(
 		return TranscriptionResourceReport{}, err
 	}
 	loadBefore := readTranscriptionMemoryBoundary()
-	loadStarted := time.Now()
+	loadStarted := processmeasure.NewStopwatch()
 	executor, loadErr := loadTranscriptionRuntime(ctx, repository, plan, compiled.suite.Prompt, compiled.suite.MaxTokens, compiled.suite.DecodeRecipe, memoryBytes)
-	loadWall := elapsedResourceNanoseconds(loadStarted)
+	loadWall, wallErr := loadStarted.Elapsed()
 	loadAfter := readTranscriptionMemoryBoundary()
 	if loadErr != nil {
-		return TranscriptionResourceReport{}, loadErr
+		return TranscriptionResourceReport{}, errors.Join(loadErr, wallErr)
 	}
 	closed := false
 	defer func() {
@@ -192,6 +193,9 @@ func EvaluateTranscriptionResources(
 			returnErr = errors.Join(returnErr, executor.close(context.WithoutCancel(ctx)))
 		}
 	}()
+	if wallErr != nil {
+		return TranscriptionResourceReport{}, wallErr
+	}
 	report = TranscriptionResourceReport{
 		Version: artifact.InitialDocumentVersion, Plan: plan.identity, Model: model,
 		Dataset: compiled.dataset, Split: compiled.split, Options: options,
@@ -297,16 +301,19 @@ func executeTranscriptionResourceCase(
 		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, err
 	}
 	before := readTranscriptionMemoryBoundary()
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	_, returnedRun, executeErr := executor.transcribe(ctx, input, data, speechrecognition.RunBinding{
 		Key:        fmt.Sprintf("evaluation/transcription-resource/%s/%t/%d/%s", loadAttempt.DigestHex(), warmup, repetition, input.Name),
 		CodeCommit: plan.body.CodeCommit, Environment: plan.body.Environment,
 		Dataset: plan.body.Dataset, Split: plan.body.Split,
 	})
-	wallNS := elapsedResourceNanoseconds(started)
+	wallNS, wallErr := started.Elapsed()
 	after := readTranscriptionMemoryBoundary()
 	if !returnedRun.ID.Valid() {
 		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, errors.Join(errors.New("evaluation: transcription returned no persisted run"), executeErr)
+	}
+	if wallErr != nil {
+		return TranscriptionResourceMeasurement{}, runrecord.Run{}, transcriptionExecutionSignature{}, wallErr
 	}
 	run, err := runrecord.RequireExactRun(ctx, repository, returnedRun.ID)
 	if err != nil {
@@ -546,12 +553,4 @@ func readTranscriptionMemoryBoundary() transcriptionMemoryBoundary {
 	var stats runtime.MemStats
 	runtime.ReadMemStats(&stats)
 	return transcriptionMemoryBoundary{mallocs: stats.Mallocs}
-}
-
-func elapsedResourceNanoseconds(started time.Time) uint64 {
-	elapsed := time.Since(started).Nanoseconds()
-	if elapsed <= 0 {
-		return uint64(time.Nanosecond)
-	}
-	return uint64(elapsed)
 }

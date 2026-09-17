@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"overgo/internal/processmeasure"
 )
 
 // TestSupervisorProcessTreeContract holds the supervisor to its
@@ -96,6 +98,23 @@ func TestWrappedErrorClassification(t *testing.T) {
 	}
 	if receipt.ExitCode != 7 || receipt.TreeTerminated {
 		t.Fatalf("nonzero receipt = %+v", receipt)
+	}
+}
+
+func TestSupervisorRetainsMeasurementFailure(t *testing.T) {
+	supervised, err := Start(t.Context(), shellCommand(t, "echo retained"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Invalidate only this process's clock; no global counter hook or sleep.
+	supervised.clock = processmeasure.Stopwatch{}
+	receipt, firstErr := supervised.Wait(t.Context())
+	if firstErr == nil || receipt.ExitCode != 0 || receipt.StdoutBytes == 0 || !supervised.Exited() {
+		t.Fatalf("terminal receipt/failure lost: %+v, %v", receipt, firstErr)
+	}
+	again, againErr := supervised.Wait(t.Context())
+	if again != receipt || !errors.Is(againErr, firstErr) {
+		t.Fatalf("repeated Wait changed outcome: %+v, %v; want %+v, %v", again, againErr, receipt, firstErr)
 	}
 }
 

@@ -20,6 +20,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processmeasure"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
@@ -137,7 +138,7 @@ type gateDebtEnvelope struct {
 }
 
 func recoverInterruptedCommit(repo, storePath string) (recovered artifact.ID, err error) {
-	recoveryStarted := time.Now()
+	recoveryStarted := processmeasure.NewStopwatch()
 	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(gateDebtFile))); err == nil {
 		return artifact.ID{}, errors.New("gate: record debt exists for the interrupted commit; run `go run ./cmd/gate -reconcile`")
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -1162,7 +1163,7 @@ var gateRecordFailureAfterStoreCommitHook func(*overgodb.Store) error
 // current authority whose locator matches it; every other recovery shape keeps
 // the census cardinality rule.
 func recordSelectedUnbatchableFailure(repo, storePath, selected string) (artifact.ID, error) {
-	recordStarted := time.Now()
+	recordStarted := processmeasure.NewStopwatch()
 	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(gateCommitIntentFile))); err == nil {
 		return artifact.ID{}, errors.New("gate: interrupted commit intent exists; run `go run ./cmd/gate -recover-interrupted` instead of recording failure")
 	} else if !errors.Is(err, os.ErrNotExist) {

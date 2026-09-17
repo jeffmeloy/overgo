@@ -6,9 +6,9 @@ import (
 	"errors"
 	"math"
 	"slices"
-	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratchmodel"
 	"overgo/internal/trainingprogram"
@@ -28,7 +28,7 @@ type SeedRun struct {
 }
 
 func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy trainingprogram.OptimizerPolicy, seed int64, steps int) (SeedRun, error) {
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	if steps <= 0 {
 		return SeedRun{}, errors.New("controller training: steps must be positive")
 	}
@@ -94,11 +94,15 @@ func TrainSeed(corpus Corpus, profile scratchmodel.DerivationProfile, policy tra
 	if err != nil {
 		return SeedRun{}, err
 	}
+	wall, err := started.Elapsed()
+	if err != nil {
+		return SeedRun{}, err
+	}
 	return SeedRun{
 		Evidence: SeedEvidence{
 			Seed: seed, Model: model, Run: run.ID, Evaluation: evaluation.ID,
 			Initial: initial, Final: final,
-			Cost: ResourceCost{WallNS: uint64(time.Since(started).Nanoseconds()), PeakDeviceBytes: memory.PeakBytes},
+			Cost: ResourceCost{WallNS: wall, PeakDeviceBytes: memory.PeakBytes},
 		},
 		InitialModel: initialModel, InitialRun: initialRun, InitialEvaluation: initialEvaluation,
 		Run: run, Evaluation: evaluation, Recipe: recipeID,

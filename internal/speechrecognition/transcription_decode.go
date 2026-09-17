@@ -2,10 +2,10 @@ package speechrecognition
 
 import (
 	"context"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/audiodsp"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
 	"overgo/internal/scratch"
@@ -30,9 +30,9 @@ type segmentedTranscription struct {
 // decodeText is the single clip inference path for both whole-record and
 // activity-selected transcription. It borrows samples and reuses all numeric
 // workspaces; each clip starts a fresh offline frontend/encoder computation.
-func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples []float32, rate int, workspace *transcriptionWorkspace) (string, []runrecord.PhaseMetric, string, error) {
+func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples []float32, rate int, workspace *transcriptionWorkspace, walls *processmeasure.Walls) (string, []runrecord.PhaseMetric, string, error) {
 	phases := completedTranscriptionPhases(0, 0, 0, 0)
-	prepareStart := time.Now()
+	prepareStart := processmeasure.NewStopwatch()
 	var features []float32
 	var frames int
 	var err error
@@ -41,11 +41,11 @@ func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples [
 	} else {
 		features, frames, err = transcriber.frontend.Process(ctx, [][]float32{samples}, rate, &workspace.Frontend, audiodsp.ProcessOptions{})
 	}
-	phases[1].DurationNS = elapsedNanoseconds(prepareStart)
+	phases[1].DurationNS = walls.Elapsed(prepareStart)
 	if err != nil {
 		return "", phases, "transcription-prepare-failed", err
 	}
-	prefillStart := time.Now()
+	prefillStart := processmeasure.NewStopwatch()
 	var logits []float32
 	var outputFrames int
 	var result TransducerResult
@@ -58,11 +58,11 @@ func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples [
 	} else {
 		result, err = transcriber.transducer.Recognize(ctx, features, frames, &workspace.Transducer, nil)
 	}
-	phases[2].DurationNS = elapsedNanoseconds(prefillStart)
+	phases[2].DurationNS = walls.Elapsed(prefillStart)
 	if err != nil {
 		return "", phases, "transcription-inference-failed", err
 	}
-	postStart := time.Now()
+	postStart := processmeasure.NewStopwatch()
 	var text string
 	if transcriber.transducer == nil {
 		workspace.frameIDs = scratch.Resize(workspace.frameIDs, outputFrames)
@@ -75,6 +75,6 @@ func (transcriber *transcriptionModel) decodeText(ctx context.Context, samples [
 	} else {
 		text, err = transcriber.tokenizer.DecodeText(result.Tokens)
 	}
-	phases[3].DurationNS = elapsedNanoseconds(postStart)
+	phases[3].DurationNS = walls.Elapsed(postStart)
 	return text, phases, "transcription-postprocess-failed", err
 }

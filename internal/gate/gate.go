@@ -46,6 +46,7 @@ import (
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processmeasure"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/worklease"
@@ -96,6 +97,7 @@ type gateContext struct {
 	steps               []runrecord.GateStep
 	audit               []string
 	start               time.Time
+	clock               processmeasure.Stopwatch
 	environment         runrecord.Environment
 	preparation         runrecord.GateLifecycle
 	preparationCommit   artifact.CommitID

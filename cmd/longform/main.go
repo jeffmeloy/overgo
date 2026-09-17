@@ -33,6 +33,7 @@ import (
 	"overgo/internal/modelcli"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/tensor/dtype"
@@ -432,16 +433,17 @@ func runTargets(ctx context.Context, output io.Writer, options options, targets 
 			modelContext, cancelModel = context.WithTimeoutCause(ctx, options.ModelBudget, fmt.Errorf("longform: model budget %s exhausted: %w", options.ModelBudget, context.DeadlineExceeded))
 		}
 		started++
-		start := time.Now()
+		start := processmeasure.NewStopwatch()
 		result, err := measure(modelContext, output, options, target, commit, surface, floors, ceiling)
-		result.WallNS = time.Since(start).Nanoseconds()
+		wall, wallErr := start.Elapsed()
+		result.WallNS = int64(wall)
 		result.BudgetNS, result.ModelBudgetNS = int64(options.Budget), int64(options.ModelBudget)
 		modelErr := context.Cause(modelContext)
 		if deadline, bounded := modelContext.Deadline(); modelErr == nil && bounded && time.Now().After(deadline) {
 			modelErr = context.DeadlineExceeded
 		}
 		cancelModel()
-		err = errors.Join(err, modelErr)
+		err = errors.Join(err, modelErr, wallErr)
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
 			fmt.Fprintf(output, "  ERROR %v\n", err)

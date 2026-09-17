@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
 
@@ -238,7 +239,7 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 		return fmt.Errorf("gate: open store for the lane runner: %w", err)
 	}
 	g := &gateContext{
-		repo: repo, storePath: storePath, store: store, start: time.Now(),
+		repo: repo, storePath: storePath, store: store, start: time.Now(), clock: processmeasure.NewStopwatch(),
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 	}
 	defer func() { runErr = errors.Join(runErr, g.closeStore()) }()
@@ -279,8 +280,11 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	if err != nil {
 		return err
 	}
-	record, err := runrecord.NewGateRecord(recipeID, g.environment.ID, running.CodeCommit, outcome, failure,
-		uint64(time.Since(g.start).Nanoseconds()), steps)
+	wall, err := g.clock.Elapsed()
+	if err != nil {
+		return err
+	}
+	record, err := runrecord.NewGateRecord(recipeID, g.environment.ID, running.CodeCommit, outcome, failure, wall, steps)
 	if err != nil {
 		return err
 	}
@@ -338,7 +342,7 @@ func (g *gateContext) resumeLaneObligation(current runrecord.GateLaneObligation)
 // obligation's lanes with every other check satisfied by the gate that
 // deferred them.
 func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligation) (runrecord.Outcome, string, []runrecord.GateStep, error) {
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	g.laneDebt = &obligation
 	var steps []runrecord.GateStep
 	outcome, failure := runrecord.OutcomeSucceeded, ""
@@ -397,8 +401,12 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 	})
 	if err != nil && failure == "" {
 		outcome, failure = runrecord.OutcomeFailed, "lane-resolution"
+		wall, wallErr := started.Elapsed()
+		if wallErr != nil {
+			return outcome, failure, steps, errors.Join(err, wallErr)
+		}
 		steps = append(steps, gateEvidenceRecord(failure, runrecord.PhaseValidate,
-			automationcheck.Evidence{DurationNS: uint64(time.Since(started))}, err, ""))
+			automationcheck.Evidence{DurationNS: wall}, err, ""))
 	}
 	return outcome, failure, steps, err
 }

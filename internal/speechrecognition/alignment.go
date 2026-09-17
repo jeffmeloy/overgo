@@ -6,12 +6,12 @@ import (
 	"math"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
 	"overgo/internal/dataset"
 	"overgo/internal/hfbpe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/recipecontract"
 	"overgo/internal/runrecord"
@@ -61,19 +61,24 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 	if err != nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
 	}
-	started := time.Now()
+	var walls processmeasure.Walls
+	started := processmeasure.NewStopwatch()
 	inspection, err := dataset.InspectAudio(ctx, transcriber.repository, data, origin, policy)
 	if err != nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
 	}
-	phases := completedTranscriptionPhases(elapsedNanoseconds(started), 0, 0, 0)
+	phases := completedTranscriptionPhases(walls.Elapsed(started), 0, 0, 0)
 	inputs := uniqueIDs(transcriber.model, request.Transcription, binding.Dataset, binding.Split,
 		inspection.Signal.Source.Audio, inspection.Signal.Source.Profile, inspection.SignalID, inspection.PolicyID, inspection.DecisionID)
 	fail := func(code string, cause error) (recipecontract.TimestampedAlignment, runrecord.Run, error) {
 		if ctx.Err() != nil {
 			return recipecontract.TimestampedAlignment{}, runrecord.Run{}, cause
 		}
-		run, err := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil, code, elapsedNanoseconds(started), phases)
+		measured := walls.Elapsed(started)
+		if err := walls.Err; err != nil {
+			return recipecontract.TimestampedAlignment{}, runrecord.Run{}, errors.Join(cause, err)
+		}
+		run, err := persistSpeechRun(ctx, transcriber.repository, transcriber.recipe.ID, binding, runrecord.OutcomeFailed, inputs, nil, code, measured, phases)
 		return recipecontract.TimestampedAlignment{}, run, errors.Join(cause, err)
 	}
 	requestContent, err := artifact.JSONContent(alignmentRequestContract, request)
@@ -91,7 +96,7 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 	if inspection.Signal.Format != transcriber.contract.Format || transcript.Source != inspection.Signal.Source || request.Span.End > uint64(len(inspection.Samples)) {
 		return fail("alignment-source-mismatch", errors.New("alignment: transcript, format or interval differs from admitted audio"))
 	}
-	items, err := transcriber.alignWords(ctx, inspection.Samples[request.Span.Start:request.Span.End], int(inspection.Signal.Format.SampleRate), transcript.Text, request.Span.Start, component, phases)
+	items, err := transcriber.alignWords(ctx, inspection.Samples[request.Span.Start:request.Span.End], int(inspection.Signal.Format.SampleRate), transcript.Text, request.Span.Start, component, &walls, phases)
 	if err != nil {
 		return fail("alignment-execution-failed", err)
 	}
@@ -103,7 +108,11 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 	if err != nil {
 		return fail("alignment-output-invalid", err)
 	}
-	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output.Descriptor.ID}, "", binding.CodeCommit, binding.Environment, elapsedNanoseconds(started), phases)
+	measured := walls.Elapsed(started)
+	if err := walls.Err; err != nil {
+		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
+	}
+	run, err := runrecord.NewBoundRun(transcriber.recipe.ID, runrecord.OutcomeSucceeded, inputs, []artifact.ID{output.Descriptor.ID}, "", binding.CodeCommit, binding.Environment, measured, phases)
 	if err != nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
 	}
@@ -152,8 +161,8 @@ func alignmentTargets(tokenizer *hfbpe.Tokenizer, text string) (words []string, 
 	return words, targets, owners, nil
 }
 
-func (transcriber *transcriptionModel) alignWords(ctx context.Context, samples []float32, rate int, text string, offset uint64, component *transcriptionComponent, phases []runrecord.PhaseMetric) ([]recipecontract.AlignedText, error) {
-	prepareStart := time.Now()
+func (transcriber *transcriptionModel) alignWords(ctx context.Context, samples []float32, rate int, text string, offset uint64, component *transcriptionComponent, walls *processmeasure.Walls, phases []runrecord.PhaseMetric) ([]recipecontract.AlignedText, error) {
+	prepareStart := processmeasure.NewStopwatch()
 	words, targets, owners, err := alignmentTargets(transcriber.tokenizer, text)
 	if err != nil {
 		return nil, err
@@ -175,22 +184,22 @@ func (transcriber *transcriptionModel) alignWords(ctx context.Context, samples [
 	// measurements and are not represented by this scratch reservation.
 	component.text.Encoder.reservedBytes = budget
 	features, frames, _, err := transcriber.frontend.ProcessGrouped(ctx, samples, rate, &component.text.Frontend, transcriber.profile.Grouping)
-	phases[1].DurationNS = elapsedNanoseconds(prepareStart)
+	phases[1].DurationNS = walls.Elapsed(prepareStart)
 	if err != nil {
 		return nil, err
 	}
-	inferStart := time.Now()
+	inferStart := processmeasure.NewStopwatch()
 	hidden, frames, err := transcriber.encoder.Encode(ctx, features, frames, &component.text.Encoder, nil)
 	if err != nil {
 		return nil, err
 	}
 	logits, err := transcriber.encoder.Project(ctx, hidden, frames, &component.text.Encoder)
-	phases[2].DurationNS = elapsedNanoseconds(inferStart)
+	phases[2].DurationNS = walls.Elapsed(inferStart)
 	if err != nil {
 		return nil, err
 	}
-	postStart := time.Now()
-	defer func() { phases[3].DurationNS = elapsedNanoseconds(postStart) }()
+	postStart := processmeasure.NewStopwatch()
+	defer func() { phases[3].DurationNS = walls.Elapsed(postStart) }()
 	vocabulary := transcriber.encoder.VocabularySize()
 	for frame := range frames {
 		if err := ctx.Err(); err != nil {

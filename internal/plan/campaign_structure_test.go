@@ -75,6 +75,10 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
+	if document.Lane == "colibri" {
+		assertColibriCampaign(t, document)
+		return
+	}
 	if strings.HasPrefix(document.Campaign, "Structural GUI redesign") || strings.HasPrefix(document.Campaign, "GUI capability roadmap:") {
 		assertConversationGUICampaign(t, document)
 		return

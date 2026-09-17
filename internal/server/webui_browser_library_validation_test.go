@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -148,54 +147,14 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	if err := browser.SetViewport(ctx, webuilane.ScreenViewports[0].Width, webuilane.ScreenViewports[0].Height); err != nil {
 		t.Fatal(err)
 	}
-	// settle waits on progress, not on a clock: while the page has a request
-	// in flight the step is still working, however long the machine takes;
-	// a page that went idle without the expected state has failed the step.
+	// API idleness does not imply shell readiness: workspace scripts load
+	// outside the API request counter. Use the shared browser predicate wait.
 	settle := func(what, expression string) {
 		t.Helper()
-		fail := func(err error) {
-			t.Helper()
+		if err := browser.Eventually(ctx, expression); err != nil {
 			var page string
 			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), pending: window.overgo.api.pending(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
 			t.Fatalf("%s: %v; page: %s", what, err, page)
-		}
-		// Each observation evaluates the predicate once: row predicates click
-		// their control as a side effect, so a second evaluation would see
-		// the control it just disabled.
-		// A page still loading, or a shell not yet booted, is busy: the boot
-		// script itself and the libraries and modules it loads are progress
-		// the pending count only sees once the shell exists.
-		observe := `(() => { if (` + expression + `) return "ready"; if (document.readyState !== "complete" || !window.overgo) return "busy"; return window.overgo.api.pending() === 0 ? "idle" : "busy"; })()`
-		// The page observes itself once per animation frame while busy and
-		// answers the first state that is not; the wait follows the page's
-		// clock under the journey's context.
-		notBusy := `new Promise((resolve) => {
-	const check = () => {
-		const state = ` + observe + `;
-		if (state !== "busy") { resolve(state); return; }
-		(document.visibilityState === "visible" ? requestAnimationFrame : setTimeout)(check);
-	};
-	check();
-})`
-		settled := `new Promise((resolve) => requestAnimationFrame(() => resolve(` + observe + `)))`
-		for {
-			var state string
-			if err := browser.Evaluate(ctx, notBusy, &state); err != nil {
-				fail(err)
-			}
-			if state == "idle" {
-				// The last response renders on the next frame; only a page
-				// still idle after it has failed the step.
-				if err := browser.Evaluate(ctx, settled, &state); err != nil {
-					fail(err)
-				}
-				if state == "idle" {
-					fail(errors.New("webui lane: the page went idle before the step settled"))
-				}
-			}
-			if state == "ready" {
-				return
-			}
 		}
 	}
 	// rowButton: the lifecycle control of the Library row that names the model.

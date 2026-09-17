@@ -193,12 +193,16 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 		}
 	}
 	covered := map[string]bool{}
+	var assertions map[string]map[string][]string
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
+		t.Fatal(err)
+	}
 	for _, check := range bundle.Checks {
 		if check.Name == "" || check.Command == "" || check.Scope == "" || len(check.Required) == 0 {
 			t.Fatal("incomplete lifecycle check", check.Name)
 		}
 		raw := read(check.Evidence)
-		requireMediaTestReceipt(t, check.Name, raw, check.Required)
+		requireMediaTestReceipt(t, check.Name, raw, check.Required, assertions)
 		var acquisition struct {
 			Source string            `json:"source_base"`
 			Files  map[string]string `json:"production_source_sha256"`

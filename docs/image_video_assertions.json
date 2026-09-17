@@ -1,0 +1,637 @@
+{
+  "Cancellation causes in host boundaries": {
+    "overgo/internal/diffusionimage": [
+      "TestHostSamplingCancellationRecovery",
+      "TestResidentGeneratorCancellationBeforeLoad"
+    ],
+    "overgo/internal/latentvideo": [
+      "TestTextConditioningCancellationBeforeIO"
+    ],
+    "overgo/internal/oscillatorimage": [
+      "TestStagedCancellationKeepsOutputs",
+      "TestVideoCancellationKeepsOutputs"
+    ],
+    "overgo/internal/workflowruntime": [
+      "TestCancellationWhileWaitingForStageLock",
+      "TestContextPipelineCarriesRequestContext",
+      "TestScalarStageCancellationBoundaries"
+    ]
+  },
+  "Capacity evidence identity and altered-evidence rejection": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoCapacityAcceptance",
+      "TestImageVideoCapacityEvidenceRejectsAlteration",
+      "TestImageVideoCapacityMeasurementsReassembleOutput"
+    ]
+  },
+  "Combined image/video capacity validation": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoCompositionAcceptance",
+      "TestImageVideoCompositionRejectsChangedEvidence",
+      "TestImageVideoConditionedVideoAcceptance",
+      "TestImageVideoCostAttributionAcceptance",
+      "TestImageVideoInventoryAcceptance",
+      "TestImageVideoLatentImageAcceptance",
+      "TestImageVideoLifecycleAcceptance",
+      "TestImageVideoLifecycleRejectsChangedEvidence",
+      "TestImageVideoMemoryOptimizationAcceptance",
+      "TestImageVideoMergedCapabilitiesAcceptance",
+      "TestImageVideoOptimizationBaselineAcceptance",
+      "TestImageVideoProcessingOptimizationAcceptance",
+      "TestImageVideoProtocolAcceptance",
+      "TestImageVideoReportContract",
+      "TestImageVideoResourceProtocolAcceptance",
+      "TestImageVideoRoutedImageAcceptance",
+      "TestImageVideoSharedComponentsAcceptance",
+      "TestImageVideoTransferOptimizationAcceptance",
+      "TestImageVideoWanAcceptance",
+      "TestImageVideoWanGIFRejectsAlteredSequence",
+      "TestImageVideoWorktreeReadiness",
+      "TestImageVideoWorktreeReadinessRejectsInvalidState"
+    ]
+  },
+  "Conditioned video and current-source bundle acceptance": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoLatentImageAcceptance",
+      "TestImageVideoMemoryOptimizationAcceptance",
+      "TestImageVideoMergedCapabilitiesAcceptance",
+      "TestImageVideoRoutedImageAcceptance",
+      "TestImageVideoTransferOptimizationAcceptance",
+      "TestImageVideoWanAcceptance",
+      "TestImageVideoWanGIFRejectsAlteredSequence"
+    ]
+  },
+  "Current Un-0 native image and converter checks": {
+    "overgo/internal/oscillatorimage": [
+      "TestArtifactGenerateDeterministicAndClassSensitive",
+      "TestArtifactLoadDerivesDims",
+      "TestArtifactPublishesReferencePNG",
+      "TestDynamicsMatchesTorch",
+      "TestGeneratorMatchesTorch"
+    ],
+    "overgo/internal/safetensors": [
+      "TestReadF32PromotesIntoFinalSlab",
+      "TestReadF32RejectsTruncatedPayload",
+      "TestReadF32RejectsUnsupportedBeforeAllocation"
+    ]
+  },
+  "Current Wan schedule, request, bounds, layout and GIF owners": {
+    "overgo/internal/latentvideo": [
+      "TestGIFEncoderFrameOrderAndTiming",
+      "TestGIFEncoderRejectsUnknownPixelRange",
+      "TestProfileControlBoundsFollowTheStrides",
+      "TestSourceVideoFromGIFRoundTrips",
+      "TestWanLayoutBufferOwnership",
+      "TestWanRequestFormAdmitsPromptOrTensors",
+      "TestWanTextConditioningSpecLocatesThePipeline"
+    ],
+    "overgo/internal/media": [
+      "TestDecodeEncodedVideoGIF",
+      "TestDecodeGIFCompositesDisposalAndSamples",
+      "TestGIFFrameTimingPreservesDuration"
+    ]
+  },
+  "Current complete denoiser loader": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLoaderAcquisition"
+    ]
+  },
+  "Current complete projection loader": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLoaderAcquisition"
+    ]
+  },
+  "Current report and sample export": {
+    "overgo/cmd/compatibility": [
+      "TestAcquireMediaProcessing"
+    ]
+  },
+  "Current source-conditioned request, sampler, codec and native Un-0 GIF owners": {
+    "overgo/internal/latentvideo": [
+      "TestEditPolicyDeclaresTheReferenceSchedule",
+      "TestLiveEditReferenceParity",
+      "TestLiveEditSourceCodecBoundary",
+      "TestReferenceEditRequestFormAdmitsClipOrTensors",
+      "TestSourceVideoFromGIFRoundTrips"
+    ],
+    "overgo/internal/mediacapability": [
+      "TestOutputContentPublishesOscillatorClip"
+    ],
+    "overgo/internal/oscillatorimage": [
+      "TestArtifactPublishesReferenceGIF"
+    ]
+  },
+  "Documented device cancellation helper": {
+    "overgo/internal/latentvideo": [
+      "TestLiveEditCancellationRecovery"
+    ]
+  },
+  "Existing signed/unit pixel mapping and GIF boundary checks": {
+    "overgo/internal/latentvideo": [
+      "TestGIFEncoderFrameOrderAndTiming",
+      "TestGIFEncoderRejectsUnknownPixelRange",
+      "TestVideoPixelRanges"
+    ]
+  },
+  "Failed run persistence and completed-stage recovery": {
+    "overgo/internal/workflowruntime": [
+      "TestCancellationCauseReachesTerminalReceipt",
+      "TestCancellationWhileWaitingForStageLock",
+      "TestRuntimePublishesCancelledRun",
+      "TestRuntimePublishesFailedRun",
+      "TestSingleLifecycleMutator",
+      "TestWorkflowRecoveryRejectsRecipeDrift",
+      "TestWorkflowRestartSkipsCompletedStages"
+    ]
+  },
+  "Frozen Krea and SimpleDiffusion bundle acceptance": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoLatentImageAcceptance"
+    ]
+  },
+  "Frozen SenseNova and Un-0 image bundle acceptance": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoRoutedImageAcceptance"
+    ]
+  },
+  "Frozen media composition coverage and evidence acceptance": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoCompositionAcceptance",
+      "TestImageVideoCompositionRejectsChangedEvidence"
+    ]
+  },
+  "Frozen processing optimization decision": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoMergedCapabilitiesAcceptance",
+      "TestImageVideoProcessingOptimizationAcceptance"
+    ]
+  },
+  "Historical: SenseNova native diagnostic": {
+    "overgo/internal/sensenovarecipe": [
+      "TestMediaSenseNovaDiagnosis"
+    ]
+  },
+  "Historical: SenseNova production and full-resolution quality": {
+    "overgo/internal/sensenovarecipe": [
+      "TestMediaCurrentSenseNovaValidation"
+    ]
+  },
+  "Image/video cancellation, cleanup and native recovery": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoCompositionAcceptance",
+      "TestImageVideoCompositionRejectsChangedEvidence",
+      "TestImageVideoConditionedVideoAcceptance",
+      "TestImageVideoCostAttributionAcceptance",
+      "TestImageVideoInventoryAcceptance",
+      "TestImageVideoLatentImageAcceptance",
+      "TestImageVideoMemoryOptimizationAcceptance",
+      "TestImageVideoMergedCapabilitiesAcceptance",
+      "TestImageVideoOptimizationBaselineAcceptance",
+      "TestImageVideoProcessingOptimizationAcceptance",
+      "TestImageVideoProtocolAcceptance",
+      "TestImageVideoReportContract",
+      "TestImageVideoResourceProtocolAcceptance",
+      "TestImageVideoRoutedImageAcceptance",
+      "TestImageVideoSharedComponentsAcceptance",
+      "TestImageVideoTransferOptimizationAcceptance",
+      "TestImageVideoWanAcceptance",
+      "TestImageVideoWanGIFRejectsAlteredSequence",
+      "TestImageVideoWorktreeReadiness",
+      "TestImageVideoWorktreeReadinessRejectsInvalidState"
+    ]
+  },
+  "Krea G2 intermediate distribution and determinism": {
+    "overgo/internal/latentimage": [
+      "TestDenoiserResidentG2Distribution"
+    ]
+  },
+  "Krea frozen 512x512 image acquisition": {
+    "overgo/internal/latentimage": [
+      "TestMediaKreaFrozenCaseAcquisition"
+    ]
+  },
+  "Krea generation and cancellation recovery": {
+    "overgo/internal/latentimage": [
+      "TestResidentLifetimeResourceAcceptance"
+    ]
+  },
+  "Krea native component chain: identical-request routing comparison": {
+    "overgo/internal/latentimage": [
+      "TestMediaKreaCompositionNative"
+    ]
+  },
+  "Krea resident decoder recovery": {
+    "overgo/internal/latentimage": [
+      "TestResidentLifetimeResourceAcceptance"
+    ]
+  },
+  "Krea schedule and artifact geometry": {
+    "overgo/internal/latentimage": [
+      "TestDenoiserDerivesFromRealCheckpoint",
+      "TestFlowScheduleReproducesG2Exactly",
+      "TestRenderKreaTextInputGoldenSHA",
+      "TestVAEDecoderDerivesFromRealCheckpoint"
+    ]
+  },
+  "LiveEdit cancellation and native runtime": {
+    "overgo/internal/latentvideo": [
+      "TestLiveEditCancellationRecovery",
+      "TestLiveEditDeviceRuntime"
+    ]
+  },
+  "LiveEdit device runtime": {
+    "overgo/internal/latentvideo": [
+      "TestMediaCurrentLiveEditValidation"
+    ]
+  },
+  "LiveEdit signed-pixel encoding correction and frozen clips": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLiveEditCorrectedFrozenAcquisition"
+    ]
+  },
+  "Master integration and retained media capability coverage": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoReportContract",
+      "TestMediaReportRendersStoreTruth",
+      "TestMediaValidationProjection",
+      "TestMediaValidationRetainsFailures"
+    ],
+    "overgo/internal/discovery": [
+      "TestCapabilityCatalogForTasksSkipsUnselectedPresence",
+      "TestIdentityMemoPersistence",
+      "TestMemoReusesOnlyUnchangedFiles",
+      "TestWeightsIdentityDigestsThroughTheMemo",
+      "TestWeightsIdentityReusesPersistedTensorDigest"
+    ]
+  },
+  "Media process completion and invalid input": {
+    "overgo/internal/latentvideo": [
+      "TestExternalProcessLifecycle",
+      "TestVAEDecodeRejectsInvalidInputs"
+    ],
+    "overgo/internal/media": [
+      "TestExternalProcessLifecycle",
+      "TestResamplePolyRejectsInvalidNumericsAndCancellation",
+      "TestVideoDecodeRejectsInvalidInput"
+    ]
+  },
+  "Native CPU image references": {
+    "overgo/internal/diffusionimage": [
+      "TestRealCheckpointPublishesReferencePNG",
+      "TestTinyModelForwardMatchesTorch"
+    ],
+    "overgo/internal/oscillatorimage": [
+      "TestArtifactPublishesReferenceGIF",
+      "TestArtifactPublishesReferencePNG",
+      "TestDynamicsMatchesTorch",
+      "TestGeneratorMatchesTorch"
+    ]
+  },
+  "Native component recipe construction and inventory owners": {
+    "overgo/internal/mediacapability": [
+      "TestImagePolicyComesFromRecipeProfile",
+      "TestLatentImageInventoryAcceptsDiffusersShards",
+      "TestTypedImageRecipeSelectsRuntimeWithoutPlacement"
+    ],
+    "overgo/internal/modelrecipe": [
+      "TestCapabilityComponentSlots",
+      "TestImagePolicyComesFromRecipeProfile",
+      "TestTypedImageRecipeSelectsRuntimeWithoutPlacement"
+    ]
+  },
+  "Native device cancellation causes and recovery": {
+    "overgo/internal/cuda/executor": [
+      "TestWeightStagingPhaseRelease"
+    ],
+    "overgo/internal/latentvideo": [
+      "TestLiveEditCancellationRecovery"
+    ],
+    "overgo/internal/sensenovarecipe": [
+      "TestSenseNovaCancellationRecovery"
+    ]
+  },
+  "Native encoder cancellation cause": {
+    "overgo/internal/latentvideo": [
+      "TestEncodeTokensStreamedMatchesReferenceHost"
+    ]
+  },
+  "Native text encoder cancellation and restart": {
+    "overgo/internal/latentvideo": [
+      "TestEncodeTokensStreamedMatchesReferenceHost"
+    ]
+  },
+  "Native text-conditioning references": {
+    "overgo/internal/latentvideo": [
+      "TestTextConditioningGoldenParity"
+    ]
+  },
+  "Report and sample preparation: ablation": {
+    "overgo/cmd/compatibility": [
+      "TestAcquireMediaProcessing"
+    ]
+  },
+  "Report and sample preparation: baseline": {
+    "overgo/cmd/compatibility": [
+      "TestAcquireMediaProcessing"
+    ]
+  },
+  "Report and sample preparation: candidate": {
+    "overgo/cmd/compatibility": [
+      "TestAcquireMediaProcessing"
+    ]
+  },
+  "Request cancellation boundaries": {
+    "overgo/internal/diffusionimage": [
+      "TestHostSamplingCancellationRecovery",
+      "TestResidentGeneratorCancellationBeforeLoad"
+    ],
+    "overgo/internal/latentvideo": [
+      "TestTextConditioningCancellationBeforeIO"
+    ],
+    "overgo/internal/oscillatorimage": [
+      "TestStagedCancellationKeepsOutputs",
+      "TestVideoCancellationKeepsOutputs"
+    ],
+    "overgo/internal/workflowruntime": [
+      "TestCancellationWhileWaitingForStageLock",
+      "TestContextPipelineCarriesRequestContext",
+      "TestScalarStageCancellationBoundaries"
+    ]
+  },
+  "Resource admission across processes": {
+    "overgo/internal/processcontrol": [
+      "TestGPUCapacityAdmissionConcurrent",
+      "TestGPUCapacityAdmissionProcessExit",
+      "TestGPUExclusiveMeasurementAdmission",
+      "TestResourceContention"
+    ]
+  },
+  "Resource admission and ownership": {
+    "overgo/internal/capabilityruntime": [
+      "TestBoundedSessionAdmission",
+      "TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain",
+      "TestSessionAuthorityRebindsCompatibleExecution",
+      "TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle"
+    ],
+    "overgo/internal/plan": [
+      "TestResourceAdvisory"
+    ],
+    "overgo/internal/processcontrol": [
+      "TestGPUCapacityAdmissionConcurrent",
+      "TestGPUCapacityAdmissionProcessExit",
+      "TestGPUCapacityTransactionRecovery",
+      "TestGPUExclusiveMeasurementAdmission",
+      "TestResourceAdmissionCancellationAndFailure",
+      "TestResourceAdmissionWaitsForRelease"
+    ],
+    "overgo/internal/runrecord": [
+      "TestImprovementFitnessRejectsTransferredCost",
+      "TestResourceFitnessContract"
+    ]
+  },
+  "SenseNova cancellation and memory recovery": {
+    "overgo/internal/sensenovarecipe": [
+      "TestSenseNovaCancellationRecovery"
+    ]
+  },
+  "SenseNova causal-attention isolation probe": {
+    "overgo/internal/sensenovarecipe": [
+      "TestMediaSenseNovaCausalProbe"
+    ]
+  },
+  "SenseNova exact-output recovery": {
+    "overgo/internal/sensenovarecipe": [
+      "TestSenseNovaOutputReferenceAcceptance"
+    ]
+  },
+  "SenseNova frozen 512x512 requests": {
+    "overgo/internal/sensenovarecipe": [
+      "TestMediaSenseNovaFrozenCasesAcquisition"
+    ]
+  },
+  "SenseNova full-resolution recovery": {
+    "overgo/internal/sensenovarecipe": [
+      "TestMediaSenseNovaFullFixed"
+    ]
+  },
+  "SenseNova request transitions": {
+    "overgo/internal/sensenovarecipe": [
+      "TestSenseNovaVariableRequestResources"
+    ]
+  },
+  "Shared GIF timing correction": {
+    "overgo/internal/latentvideo": [
+      "TestGIFEncoderFrameOrderAndTiming",
+      "TestGIFEncoderRejectsUnknownPixelRange"
+    ],
+    "overgo/internal/media": [
+      "TestGIFFrameTimingPreservesDuration"
+    ],
+    "overgo/internal/mediacapability": [
+      "TestOutputContentPublishesOscillatorClip"
+    ],
+    "overgo/internal/oscillatorimage": [
+      "TestArtifactPublishesReferenceGIF"
+    ]
+  },
+  "Shared receipt validation": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoLifecycleAcceptance"
+    ]
+  },
+  "Shared session, process, lock and publication owners": {
+    "overgo/internal/capabilityruntime": [
+      "TestBoundedSessionAdmission",
+      "TestSessionAuthorityPublishesReplacementBeforeBorrowerDrain",
+      "TestSessionAuthorityRebindsCompatibleExecution",
+      "TestSessionDirectorBoundsComponentWaitingAndReportsLifecycle"
+    ],
+    "overgo/internal/overgodb": [
+      "TestAppendFaultClosesEveryStoreSurfaceUntilReopen",
+      "TestCompleteCorruptFrameRejected",
+      "TestExternalBlobCommitAtomicity",
+      "TestProjectionPublicationIsAtomic",
+      "TestTornTailRecovered"
+    ],
+    "overgo/internal/processcontrol": [
+      "TestResourceAdmissionCancellationAndFailure",
+      "TestResourceAdmissionWaitsForRelease",
+      "TestSupervisorProcessTreeContract",
+      "TestWindowsContainmentPrecedesExecution"
+    ],
+    "overgo/internal/processlock": [
+      "TestAcquireCancellationReleaseRace",
+      "TestAcquireContextContentionIdentity",
+      "TestAcquireIsExclusiveAndReleasedByClose",
+      "TestAcquireRejectsFalseContention",
+      "TestAcquireReleasedAfterProcessDeath"
+    ]
+  },
+  "Shared weight-staging ownership": {
+    "overgo/internal/cuda/executor": [
+      "TestWeightStagingPhaseRelease"
+    ]
+  },
+  "SimpleDiffusion frozen 256x256 image acquisitions": {
+    "overgo/internal/diffusionimage": [
+      "TestMediaDiffusionFrozenCasesAcquisition"
+    ]
+  },
+  "SimpleDiffusion host/CUDA comparison": {
+    "overgo/internal/diffusionimage": [
+      "TestMediaCurrentDiffusionValidation"
+    ]
+  },
+  "SimpleDiffusion native owners": {
+    "overgo/internal/diffusionimage": [
+      "TestRealCheckpointPublishesReferencePNG",
+      "TestTinyModelForwardMatchesTorch"
+    ]
+  },
+  "SimpleDiffusion resident sampling recovery": {
+    "overgo/internal/diffusionimage": [
+      "TestResidentSamplingDeviceAcceptance"
+    ]
+  },
+  "Un-0 CPU and shape transitions": {
+    "overgo/internal/oscillatorimage": [
+      "TestArtifactPublishesReferenceGIF",
+      "TestArtifactPublishesReferencePNG",
+      "TestArtifactThreadCountAndShapeResources"
+    ]
+  },
+  "Un-0 frozen CPU image requests": {
+    "overgo/internal/oscillatorimage": [
+      "TestMediaUn0FrozenImageAcquisition"
+    ]
+  },
+  "Un-0 frozen CPU video requests": {
+    "overgo/internal/oscillatorimage": [
+      "TestMediaUn0FrozenVideoAcquisition"
+    ]
+  },
+  "Un-0 image and video references (before timing fix)": {
+    "overgo/internal/oscillatorimage": [
+      "TestArtifactGenerateDeterministicAndClassSensitive",
+      "TestArtifactLoadDerivesDims",
+      "TestArtifactPublishesReferenceGIF",
+      "TestArtifactPublishesReferencePNG",
+      "TestDynamicsMatchesTorch",
+      "TestGeneratorMatchesTorch"
+    ]
+  },
+  "Unavailable device and physical allocation refusal": {
+    "overgo/internal/cuda/device": [
+      "TestUnavailableDeviceAllowsRecovery"
+    ],
+    "overgo/internal/cuda/executor": [
+      "TestDeviceBufferPoolCapacityRefusalReclaimsIdle"
+    ]
+  },
+  "Wan cancellation, cleanup and reuse": {
+    "overgo/internal/latentvideo": [
+      "TestWanLifecycleAcceptance"
+    ]
+  },
+  "Wan current conditioning-handle validation": {
+    "overgo/internal/latentvideo": [
+      "TestDenoiserCUDASessionBF16G3",
+      "TestDenoiserCUDASessionGoldenG3",
+      "TestDenoiserCUDASessionGoldenG4",
+      "TestWanContextHandleOwnership",
+      "TestWanLifecycleAcceptance"
+    ]
+  },
+  "Wan current host layout ownership": {
+    "overgo/internal/latentvideo": [
+      "TestWanLayoutBufferOwnership"
+    ]
+  },
+  "Wan current implementation: full video and memory baseline": {
+    "overgo/internal/latentvideo": [
+      "TestMediaWanMemoryAcquisitionGroup"
+    ]
+  },
+  "Wan denoiser and temporal VAE": {
+    "overgo/internal/latentvideo": [
+      "TestMediaCurrentWanValidation"
+    ]
+  },
+  "Wan denoiser loader baseline": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLoaderAcquisition"
+    ]
+  },
+  "Wan denoiser shared decoder": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLoaderAcquisition"
+    ]
+  },
+  "Wan frozen full clip publication and bundle acceptance": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoWanAcceptance",
+      "TestImageVideoWanGIFRejectsAlteredSequence"
+    ]
+  },
+  "Wan frozen small compiled-recipe clips": {
+    "overgo/internal/latentvideo": [
+      "TestMediaWanFrozenSmallAcquisition"
+    ]
+  },
+  "Wan full-video transfer baseline": {
+    "overgo/internal/latentvideo": [
+      "TestMediaWanTransferAcquisitionGroup"
+    ]
+  },
+  "Wan guidance-pair ownership": {
+    "overgo/internal/latentvideo": [
+      "TestWanLifecycleAcceptance"
+    ]
+  },
+  "Wan layout reuse experiment: exact output with lower host allocation": {
+    "overgo/internal/latentvideo": [
+      "TestMediaWanMemoryAcquisitionGroup"
+    ]
+  },
+  "Wan lifecycle and native references": {
+    "overgo/internal/latentvideo": [
+      "TestWanLifecycleAcceptance"
+    ]
+  },
+  "Wan memory comparison and allocation-lifetime ablation": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoMemoryOptimizationAcceptance"
+    ]
+  },
+  "Wan projection loader baseline": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLoaderAcquisition"
+    ]
+  },
+  "Wan projection shared decoder": {
+    "overgo/internal/latentvideo": [
+      "TestMediaLoaderAcquisition"
+    ]
+  },
+  "Wan references after shared decoding": {
+    "overgo/internal/latentvideo": [
+      "TestDenoiserCUDASessionBF16G3",
+      "TestDenoiserCUDASessionGoldenG3",
+      "TestDenoiserCUDASessionGoldenG4",
+      "TestTextConditioningGoldenParity",
+      "TestVAEDecodeCUDAGoldenG3",
+      "TestVAEDecodeCUDAGoldenG4",
+      "TestWanLifecycleAcceptance"
+    ]
+  },
+  "Wan transfer candidate: complete output parity": {
+    "overgo/internal/latentvideo": [
+      "TestMediaWanTransferAcquisitionGroup"
+    ]
+  },
+  "Wan transfer decision and causal ablation": {
+    "overgo/cmd/compatibility": [
+      "TestImageVideoTransferOptimizationAcceptance"
+    ]
+  }
+}

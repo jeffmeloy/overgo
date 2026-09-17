@@ -202,8 +202,9 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		StopReason:   stopReason,
 		StopSequence: stopSequence,
 		Usage: anthropicUsage{
-			InputTokens:  len(plan.prompt.TokenIDs),
-			OutputTokens: pump.generated,
+			InputTokens:          result.promptTokens() - result.cachedTokens(),
+			CacheReadInputTokens: result.cachedTokens(),
+			OutputTokens:         pump.generated,
 		},
 	})
 }
@@ -223,17 +224,23 @@ func (h *Handler) streamAnthropicMessages(
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	writeEvent := stream.named
-	if err := writeEvent("message_start", anthropicStreamEvent{
-		Type: "message_start",
-		Message: anthropicMessageStart{
-			ID: messageID, Type: "message", Role: inference.ChatRoleAssistant, Content: []any{},
-			Model: h.config.ModelID, StopReason: nil, StopSequence: nil,
-			Usage: anthropicUsage{
-				InputTokens: len(plan.prompt.TokenIDs),
+	messageStarted := false
+	startMessage := func() error {
+		if messageStarted {
+			return nil
+		}
+		messageStarted = true
+		return writeEvent("message_start", anthropicStreamEvent{
+			Type: "message_start",
+			Message: anthropicMessageStart{
+				ID: messageID, Type: "message", Role: inference.ChatRoleAssistant, Content: []any{},
+				Model: h.config.ModelID, StopReason: nil, StopSequence: nil,
+				Usage: anthropicUsage{
+					InputTokens:          len(plan.prompt.TokenIDs) - plan.evaluation.Cached,
+					CacheReadInputTokens: plan.evaluation.Cached,
+				},
 			},
-		},
-	}); err != nil {
-		return
+		})
 	}
 	textStarted := false
 	textStopped := false
@@ -352,6 +359,9 @@ func (h *Handler) streamAnthropicMessages(
 	}
 	result, err := plan.run(
 		func(piece string) error {
+			if err := startMessage(); err != nil {
+				return err
+			}
 			if thinkingEnabled {
 				buffered.WriteString(piece)
 				return request.Context().Err()
@@ -367,6 +377,9 @@ func (h *Handler) streamAnthropicMessages(
 	)
 	if err != nil {
 		_ = emitNamedGenerationError(writeEvent, "error", err)
+		return
+	}
+	if err := startMessage(); err != nil {
 		return
 	}
 	pump := result.pump

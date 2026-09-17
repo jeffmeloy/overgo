@@ -18,6 +18,10 @@ import (
 	"overgo/internal/tokenizer"
 )
 
+// SupportsPromptCache reports whether an initialized runner supports the bounded,
+// signature-checked pool used by Generate. Schedulers declare their own support.
+func (r *Runner) SupportsPromptCache() bool { return r != nil && r.vocab != nil }
+
 // ClearPromptCaches: releases retained request state; preserves prepared assets.
 func (r *Runner) ClearPromptCaches(ctx context.Context) error {
 	if r == nil {

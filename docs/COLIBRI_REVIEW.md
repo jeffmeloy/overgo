@@ -66,3 +66,15 @@ interaction owner, and projects incomplete Responses through live delivery,
 follow, restart and conversation history. Browser acceptance uses synthetic
 generation and makes no model quality or performance claim. No source was
 translated.
+
+Protocol prompt reuse reread `c/openai_server.py` (`conversation_cache_slot`),
+`c/kv_prefix.h` (fed-token identity and media taint), and the GLM-5.2 failure
+ledger at the pinned Apache-2.0 revision. Overgo retains its existing bounded
+prompt pool and projection/LoRA signatures. Ordinary chat, Responses and
+Anthropic turns request reuse only from the selected execution owner when it
+declares support; continuous generation retains its admission policy. Usage
+comes from prefill observations. Cold/reused host and CUDA token/logit tests
+cover multi-token decode, divergence, shortening and cancellation. Matched
+ABBA host total-generation observations describe the hermetic fixture only, not a
+production-model speed claim; device-greedy/speculative defaults are unchanged.
+No source was translated.

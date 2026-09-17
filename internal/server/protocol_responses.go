@@ -293,7 +293,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			InputTokens:       promptTokens,
 			OutputTokens:      result.outputTokens(),
 			TotalTokens:       promptTokens + result.outputTokens(),
-			InputTokenDetails: responseInputTokenDetails{},
+			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 		Sampling: resolvedSampling(plan.sampler),
 	}
@@ -707,7 +707,7 @@ func (h *Handler) streamResponses(
 			InputTokens:       promptTokens,
 			OutputTokens:      result.outputTokens(),
 			TotalTokens:       promptTokens + result.outputTokens(),
-			InputTokenDetails: responseInputTokenDetails{},
+			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 	}
 	if completionStatus == "incomplete" {

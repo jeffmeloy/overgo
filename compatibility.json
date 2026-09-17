@@ -913,7 +913,7 @@
      "contains": "func (r *Runner) selectPromptCache(",
      "path": "internal/inference/prompt_cache.go",
      "role": "source",
-     "identity": "file:sha256:f03b06ab758ddcfa35429c26ce2f798bc0d1e40b06682ff3335c6f4db3623d70"
+     "identity": "file:sha256:9c4ab7a7776e4b4ff7e71dd3bd99071f2687ad03049d5bc45a72f19ae67b478e"
     },
     {
      "contains": "func TestProjectedPromptCacheRequiresExactMediaSignature(",
@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:9e45c883948393cc3d53bfa673b2cb3e2a30f38e3cf9e35639623737911fc25d"
+     "identity": "file:sha256:bac1cfebdd11a239dbe27c5e601862bf7b3908068a3c10a3031f1767fa47694a"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1130,7 +1130,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:7b8eb96e675d1e217dc682264b39d52110534899f0dd707eda6a64d572f9e75a"
+     "identity": "file:sha256:888cb9e1aa28fc1cac9de9f37ed46776afd707b2a7e74d1187d093734bd93581"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1172,7 +1172,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:9b190ae87580f3cb62dde1e4f58f80fa987d8778e15c3ad0cbd839ae5e1f015c"
+     "identity": "file:sha256:b9ee5ada0b2d89d13d93e09014c665403f3aaceea7679d464097ad3b08371388"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -1256,7 +1256,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:9e45c883948393cc3d53bfa673b2cb3e2a30f38e3cf9e35639623737911fc25d"
+     "identity": "file:sha256:bac1cfebdd11a239dbe27c5e601862bf7b3908068a3c10a3031f1767fa47694a"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

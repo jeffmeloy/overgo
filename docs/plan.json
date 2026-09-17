@@ -6,29 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-protocol-cache",
-      "title": "Reuse prompt prefixes on ordinary protocol turns",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reuse prompt prefixes on ordinary protocol turns",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestProtocolPromptCacheReuse$' -count=1 \u0026\u0026 go test ./internal/inference -run '^TestPromptCacheReuseAfterDecodeTokensHost$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestPromptCacheReuseAfterDecodeTokens$' -count=1",
-          "rationale": "W0.1. Enable existing pool only where the selected generator supports it, report actual cached counts on chat/Responses/Anthropic, preserve projection/LoRA signatures and continuous-plan admission. Cold/reused output and logit comparison plus bounded cache lifetime. CachePrompt currently excludes device-greedy/speculation; benchmark total-turn latency, not only fewer prefill tokens, before wider defaults.",
-          "depends_on": [
-            "colibri-device-coverage/do"
-          ],
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-grammar-binding",
       "title": "Reuse immutable vocabulary bindings across constrained generations",
       "owner": "colibri",

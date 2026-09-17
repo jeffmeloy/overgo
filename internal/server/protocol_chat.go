@@ -667,6 +667,7 @@ func (h *Handler) completeChat(
 ) {
 	choices := make([]chatChoice, 0, n)
 	promptTokens := 0
+	cachedTokens := 0
 	totalCompletionTokens := 0
 	for choiceIndex := range n {
 		result, err := plan.runChoice(choiceIndex, nil)
@@ -676,6 +677,7 @@ func (h *Handler) completeChat(
 		}
 		if choiceIndex == 0 {
 			promptTokens = result.promptTokens()
+			cachedTokens = result.cachedTokens()
 		}
 		pump := result.pump
 		finishReason := pump.finishReason(plan.maxTokens, "stop", "length")
@@ -718,9 +720,10 @@ func (h *Handler) completeChat(
 		Model:   h.config.ModelID,
 		Choices: choices,
 		Usage: completionUsage{
-			PromptTokens:     promptTokens,
-			CompletionTokens: totalCompletionTokens,
-			TotalTokens:      promptTokens + totalCompletionTokens,
+			PromptTokenDetails: responseInputTokenDetails{CachedTokens: cachedTokens},
+			PromptTokens:       promptTokens,
+			CompletionTokens:   totalCompletionTokens,
+			TotalTokens:        promptTokens + totalCompletionTokens,
 		},
 	})
 }
@@ -922,9 +925,10 @@ func (h *Handler) streamChatCompletion(
 			}
 		}
 		terminalUsage := completionUsage{
-			PromptTokens:     result.promptTokens(),
-			CompletionTokens: result.completionTokens(),
-			TotalTokens:      result.promptTokens() + result.completionTokens(),
+			PromptTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
+			PromptTokens:       result.promptTokens(),
+			CompletionTokens:   result.completionTokens(),
+			TotalTokens:        result.promptTokens() + result.completionTokens(),
 		}
 		terminalTimings := h.slotStats[plan.session.ID].metrics(true).Timings
 		usage = &terminalUsage

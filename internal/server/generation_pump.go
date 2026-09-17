@@ -15,6 +15,7 @@ type generationPump struct {
 	output     strings.Builder
 	generated  int
 	completion int
+	evaluation inference.PromptEvaluation
 	// usage: the provider's accounting when the generator reports one (a
 	// hosted turn); nil for a local runner, whose ids are the count.
 	usage *inference.Usage
@@ -77,6 +78,13 @@ func (h *Handler) generateWithPump(
 	options.StopSequences = stops
 	options.OnToken = pump.accept
 	options.OnUsage = func(usage inference.Usage) { pump.usage = &usage }
+	onPromptEvaluated := options.OnPromptEvaluated
+	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
+		pump.evaluation = evaluation
+		if onPromptEvaluated != nil {
+			onPromptEvaluated(evaluation)
+		}
+	}
 	ids, _, err := h.generate(ctx, session, prompt, options)
 	if err != nil {
 		return ids, pump, err

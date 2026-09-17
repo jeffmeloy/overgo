@@ -48,3 +48,12 @@ replaced. Missing or skipped device/model checks never count as acceptance.
 Colibri is an external behavioral and experimental reference. Reimplement
 concepts in existing Go/CUDA components; record source revision and applicable
 license before any source translation. This review copies no Colibri source.
+
+Protocol admission reread `c/openai_server.py` (`_engine_error` and deferred
+stream acceptance), `c/colibri.c` and `c/qwen38.c` at the pinned revision above,
+under Apache-2.0. Overgo checks the fully prepared prompt, including projected
+media, before generation, stream headers or durable Responses reservation.
+Cached prefixes count within that prompt. Unknown provider counts remain with
+the provider; decode budgets and context shifting remain with inference because
+encoder-decoder source and decode contexts are separate. This transfers the
+early-refusal behavior without translating source or importing engine margins.

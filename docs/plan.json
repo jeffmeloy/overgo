@@ -6,26 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-protocol-admission",
-      "title": "Reject context overflow before streaming or durable turn reservation",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Reject context overflow before streaming or durable turn reservation",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestProtocolContextOverflow$' -count=1",
-          "rationale": "W0.4. All three protocols, projected tokens and cache context; reject overflow before generator/SSE/store work, release the lease, preserve context-shift behavior. Add typed late errors in their existing inference owner with corresponding tests when needed. Match current GUI worktree changes after master synchronization.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-terminal-outcomes",
       "title": "Preserve output-limit outcomes through live response and history",
       "owner": "colibri",

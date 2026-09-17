@@ -25,13 +25,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "census",
-          "title": "Reconcile the historical census and current registered denominator with an explicit disposition",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/compatibility -run '^TestAcceptedCapabilityCensus$' -count=1",
-          "rationale": "Preserve the accepted historical census and its producer/checkpoint identity. Reconstruct the current denominator, record additions, retirements and stale or unavailable capabilities, then bind the acceptance to that explicit disposition. A later registration must not silently gain validation credit or require rewriting an immutable historical fact. Use the existing census/report and store snapshot owners; no model execution is required. Bind one verifier to its owning package; do not reuse a multi-package pattern with zero matches."
-        },
-        {
           "id": "do",
           "title": "Restore the complete control cohorts without relabeling historical measurements",
           "status": "open",

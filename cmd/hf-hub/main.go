@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
 
 	"overgo/internal/clioptions"
@@ -22,20 +23,35 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) < 2 {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	return runArguments(ctx, os.Args[1:])
+}
+
+func runArguments(ctx context.Context, args []string) error {
+	if len(args) < 1 {
 		return errors.New("usage: hf-hub <search|resolve|download> [options] <query|repository>")
 	}
-	verb := os.Args[1]
+	verb := args[0]
 	flags := flag.NewFlagSet("hf-hub "+verb, flag.ContinueOnError)
 	endpoint := flags.String("endpoint", "", "hub endpoint; empty means the public hub")
 	token := flags.String("token", os.Getenv("OVERGO_HF_TOKEN"), "bearer token (default OVERGO_HF_TOKEN)")
 	datasets := flags.Bool("datasets", false, "address the dataset namespace instead of models")
 	revision := flags.String("revision", "", "repository revision; empty resolves the default branch")
 	destination := flags.String("dest", "", "download destination directory")
+	timeout := flags.Duration("timeout", 0, "total caller budget; zero runs until completion or interrupt")
 	limit := flags.Int("limit", 20, "search result bound")
 	filter := flags.String("filter", "", "hub tag filter, e.g. gguf")
-	if err := flags.Parse(os.Args[2:]); err != nil {
+	if err := flags.Parse(args[1:]); err != nil {
 		return err
+	}
+	if *timeout < 0 {
+		return errors.New("hf-hub: timeout must be non-negative")
+	}
+	if *timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeoutCause(ctx, *timeout, fmt.Errorf("hf-hub caller budget: %w", context.DeadlineExceeded))
+		defer cancel()
 	}
 	client, err := hfhub.New(*endpoint, *token)
 	if err != nil {
@@ -45,7 +61,6 @@ func run() error {
 	if *datasets {
 		kind = hfhub.KindDataset
 	}
-	ctx := context.Background()
 	subject := strings.Join(flags.Args(), " ")
 	switch verb {
 	case "search":

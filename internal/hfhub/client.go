@@ -166,10 +166,10 @@ func (c *Client) Resolve(ctx context.Context, kind RepoKind, repository, revisio
 	if err := c.getJSON(ctx, path+"?blobs=true", &info); err != nil {
 		return RepoRevision{}, err
 	}
-	resolved := RepoRevision{ID: info.ID, Revision: revision}
-	if resolved.Revision == "" {
-		resolved.Revision = info.SHA
+	if strings.TrimSpace(info.SHA) == "" {
+		return RepoRevision{}, errors.New("hfhub: repository response has no immutable revision")
 	}
+	resolved := RepoRevision{ID: info.ID, Revision: info.SHA}
 	for _, entry := range info.Siblings {
 		file := RepoFile{Path: entry.Path, Size: entry.Size}
 		if entry.LFS != nil {

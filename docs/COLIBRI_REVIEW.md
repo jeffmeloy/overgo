@@ -16,6 +16,7 @@ React build, private weight format or parallel scheduler is required.
 | Source inspected in the local Colibri checkout | Transfer into Overgo | Acceptance boundary |
 | --- | --- | --- |
 | README.md; docs/benchmarks.md; c/tools/datapoint.py | Cold, repeated and rotating workloads; full environment and realized residency | Same artifacts, token digests, workload and quality protocol; paired end-to-end measurements |
+| c/download_fp8.py (`download_file_curl`); Apache-2.0 LICENSE | Retain interrupted transfer progress in the existing Go hub client | Immutable source identity, prefix rehash, range/validator checks, exact declared size/digest, caller cancellation and serialized publication; no source translation |
 | docs/experiments/glm52-decode-failure-ledger-2026-07-31.md | Retain failed experiments and topology-specific reopen conditions | Never generalize six-5090 or H200 results to this Windows machine |
 | c/colibri.c prefix reuse; c/kv_persist.h | Repeated-turn prefix reuse, recurrent boundaries and exact restart | Shared cache/session owner; cold-versus-reused token/logit equality, bounded memory, cancellation |
 | c/sample.h; docs/corpus-draft.md; docs/grammar-draft.md | Shared target-verified MTP, context, corpus and grammar draft sources | Span/quantization invariance first; forced rejection; unchanged output; positive end-to-end gain before default enablement |

@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"overgo/internal/processlock"
 )
 
 // Progress reports one download's advancing byte count. Total is zero when
@@ -35,7 +37,7 @@ type DownloadRequest struct {
 }
 
 // Download fetches a repository revision into the destination directory.
-// Every file downloads to a temporary sibling first and is renamed into
+// Every file downloads to an identity-bound partial sibling and is renamed into
 // place only after its declared size and, for LFS files, its sha256 match;
 // a partial or tampered download never lands under its final name. Files
 // already present with matching size and digest are not fetched again.
@@ -70,16 +72,38 @@ func (c *Client) downloadFile(ctx context.Context, request DownloadRequest, revi
 	if err != nil {
 		return err
 	}
-	if alreadyComplete(local, file) {
-		return nil
-	}
 	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
 		return err
 	}
+	// Lock the destination, not the source identity: different revisions must
+	// not race publication. The lock file survives close to keep one OS owner.
+	lock, err := processlock.AcquireContext(ctx, local+".download.lock", 0o600)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	if alreadyComplete(ctx, local, file) {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	partial, err := c.openPartial(ctx, local, request, revision, file)
+	if err != nil {
+		return err
+	}
+	defer partial.file.Close()
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		c.fileURL(request.Kind, request.Repository, revision, file.Path), nil)
 	if err != nil {
 		return err
+	}
+	httpRequest.Header.Set("Accept-Encoding", "identity")
+	if partial.received > 0 {
+		httpRequest.Header.Set("Range", fmt.Sprintf("bytes=%d-", partial.received))
+		if partial.etag != "" {
+			httpRequest.Header.Set("If-Range", partial.etag)
+		}
 	}
 	c.authorize(httpRequest)
 	response, err := c.transfer.Do(httpRequest)
@@ -87,44 +111,61 @@ func (c *Client) downloadFile(ctx context.Context, request DownloadRequest, revi
 		return err
 	}
 	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return statusError(response)
-	}
-	partial, err := os.CreateTemp(filepath.Dir(local), filepath.Base(local)+".partial-*")
-	if err != nil {
+	if err := partial.acceptResponse(response, &file); err != nil {
 		return err
 	}
-	defer func() {
-		_ = partial.Close()
-		_ = os.Remove(partial.Name())
-	}()
-	digest := sha256.New()
-	received, copyErr := observedCopy(io.MultiWriter(partial, digest), response.Body, file, request.Observe)
-	if copyErr != nil {
-		return copyErr
+	if response.StatusCode != http.StatusRequestedRangeNotSatisfiable {
+		received, copyErr := observedCopy(ctx, io.MultiWriter(partial.file, partial.digest), response.Body, file, partial.received, request.Observe)
+		partial.received = received
+		if copyErr != nil {
+			if errors.Is(copyErr, errDownloadOversize) {
+				return errors.Join(copyErr, partial.discard())
+			}
+			return copyErr
+		}
 	}
-	if file.Size > 0 && received != file.Size {
-		return fmt.Errorf("received %d bytes, hub declared %d", received, file.Size)
-	}
-	if file.SHA256 != "" && !strings.EqualFold(hex.EncodeToString(digest.Sum(nil)), file.SHA256) {
-		return errors.New("sha256 differs from the hub's declared digest")
-	}
-	if err := partial.Close(); err != nil {
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return os.Rename(partial.Name(), local)
+	if file.Size > 0 && partial.received != file.Size {
+		return fmt.Errorf("received %d bytes, hub declared %d: %w", partial.received, file.Size, io.ErrUnexpectedEOF)
+	}
+	if file.SHA256 != "" && !strings.EqualFold(hex.EncodeToString(partial.digest.Sum(nil)), file.SHA256) {
+		return errors.Join(errors.New("sha256 differs from the hub's declared digest"), partial.discard())
+	}
+	if err := partial.file.Sync(); err != nil {
+		return err
+	}
+	if err := partial.file.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(partial.file.Name(), local); err != nil {
+		return err
+	}
+	return removePartialMetadata(partial.file.Name())
 }
 
-func observedCopy(destination io.Writer, source io.Reader, file RepoFile, observe func(Progress)) (int64, error) {
+var errDownloadOversize = errors.New("download exceeds the declared size")
+
+func observedCopy(ctx context.Context, destination io.Writer, source io.Reader, file RepoFile, received int64, observe func(Progress)) (int64, error) {
 	buffer := make([]byte, 1<<20)
-	var received int64
 	for {
+		if err := ctx.Err(); err != nil {
+			return received, err
+		}
 		read, err := source.Read(buffer)
 		if read > 0 {
-			if _, writeErr := destination.Write(buffer[:read]); writeErr != nil {
+			if file.Size > 0 && int64(read) > file.Size-received {
+				return received, errDownloadOversize
+			}
+			written, writeErr := destination.Write(buffer[:read])
+			received += int64(written)
+			if writeErr != nil {
 				return received, writeErr
 			}
-			received += int64(read)
+			if written != read {
+				return received, io.ErrShortWrite
+			}
 			if observe != nil {
 				observe(Progress{Path: file.Path, Received: received, Total: file.Size})
 			}
@@ -141,7 +182,7 @@ func observedCopy(destination io.Writer, source io.Reader, file RepoFile, observ
 // alreadyComplete reports whether the local file exactly matches the hub's
 // declaration; without a declared digest, matching size is the best claim
 // available and re-download is skipped on it.
-func alreadyComplete(local string, file RepoFile) bool {
+func alreadyComplete(ctx context.Context, local string, file RepoFile) bool {
 	info, err := os.Stat(local)
 	if err != nil || info.IsDir() {
 		return false
@@ -158,7 +199,7 @@ func alreadyComplete(local string, file RepoFile) bool {
 	}
 	defer handle.Close()
 	digest := sha256.New()
-	if _, err := io.Copy(digest, handle); err != nil {
+	if _, err := observedCopy(ctx, digest, handle, file, 0, nil); err != nil {
 		return false
 	}
 	return strings.EqualFold(hex.EncodeToString(digest.Sum(nil)), file.SHA256)

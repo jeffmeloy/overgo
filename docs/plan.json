@@ -6,29 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-download-resume",
-      "title": "Resume verified hub transfers without losing interruption progress",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resume verified hub transfers without losing interruption progress",
-          "status": "open",
-          "verify": "go test ./internal/hfhub -run 'TestDownload' -count=1 \u0026\u0026 go test ./cmd/hf-hub -count=1",
-          "rationale": "W2.8. Deterministic partial identity over immutable revision/path/digest, prefix rehash, validated Range/If-Range and Content-Range, clean restart on 200, handling 416, corruption, cancellation and concurrent same-target requests. Final size/digest before publish. Preserve bounded cancellation: replace a fixed timeout only after CLI and detached jobs have caller-declared budgets or an explicit policy. Measure served bytes after interruption; one stream and the existing download owner.",
-          "depends_on": [
-            "colibri-merge-plan-repair/do"
-          ],
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-device-coverage",
       "title": "Include declared inference device contracts in device verification",
       "owner": "colibri",

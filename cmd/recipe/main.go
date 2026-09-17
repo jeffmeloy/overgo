@@ -331,7 +331,7 @@ func prepareCapability(
 		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
 	}
 	batch.Contents = append(batch.Contents, facts...)
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if _, err := store.Commit(ctx, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish model facts: %w", err)
 	}
 	// Component-group manifests commit under their own content-derived

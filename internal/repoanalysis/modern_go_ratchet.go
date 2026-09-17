@@ -4,7 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -157,10 +159,12 @@ func AdmitModernGoRatchet(baseline ModernGoBaseline, census ModernGoCensus, toda
 	if len(census.Findings) != baseline.Coverage.Applicable || len(census.Findings) != len(baseline.Guidelines) {
 		return fmt.Errorf("modern-Go ratchet coverage lost: findings=%d applicable=%d", len(census.Findings), baseline.Coverage.Applicable)
 	}
+	var problems []error
 	for index, ceiling := range baseline.Guidelines {
 		finding := census.Findings[index]
 		if finding.ID != ceiling.ID || finding.Risk != ceiling.Risk || !finding.Measured {
-			return fmt.Errorf("modern-Go ratchet coverage lost at %s", ceiling.ID)
+			problems = append(problems, fmt.Errorf("modern-Go ratchet coverage lost at %s", ceiling.ID))
+			continue
 		}
 		// Typed coverage ratchets on the untyped-file count, not the
 		// ratio: deleting a fully typed file lowers the ratio without
@@ -170,26 +174,28 @@ func AdmitModernGoRatchet(baseline ModernGoBaseline, census ModernGoCensus, toda
 		ratioHeld := baseline.Coverage.InspectedFiles*finding.TypedFiles >= baseline.Coverage.TypedFiles*finding.InspectedFiles
 		untypedGrew := finding.InspectedFiles-finding.TypedFiles > baseline.Coverage.InspectedFiles-baseline.Coverage.TypedFiles
 		if finding.InspectedFiles == 0 || !ratioHeld && untypedGrew {
-			return fmt.Errorf("modern-Go ratchet typed coverage fell at %s: %d/%d below %d/%d",
+			problems = append(problems, fmt.Errorf("modern-Go ratchet typed coverage fell at %s: %d/%d below %d/%d",
 				finding.ID, finding.TypedFiles, finding.InspectedFiles,
-				baseline.Coverage.TypedFiles, baseline.Coverage.InspectedFiles)
+				baseline.Coverage.TypedFiles, baseline.Coverage.InspectedFiles))
 		}
 		excepted, err := modernGoExceptionCount(baseline.Exceptions, finding)
 		if err != nil {
-			return err
+			problems = append(problems, err)
+			continue
 		}
 		debt := len(finding.Candidates) - excepted
 		if debt > ceiling.CandidateCeiling {
-			return fmt.Errorf("modern-Go debt increased for %s: %d exceeds ceiling %d after %d excepted candidates",
-				finding.ID, debt, ceiling.CandidateCeiling, excepted)
+			problems = append(problems, fmt.Errorf("modern-Go debt increased for %s: %d exceeds ceiling %d after %d excepted candidates",
+				finding.ID, debt, ceiling.CandidateCeiling, excepted))
 		}
 	}
-	return nil
+	return errors.Join(problems...)
 }
 
 // AdmitModernGoDelta rejects newly introduced findings in changed source even
 // when the aggregate manifest ceiling still has headroom.
 func AdmitModernGoDelta(baseline ModernGoBaseline, previous, candidate ModernGoCensus, changedPaths []string) error {
+	var problems []error
 	changed := map[string]bool{}
 	for _, name := range changedPaths {
 		changed[filepath.ToSlash(filepath.Clean(name))] = true
@@ -201,16 +207,17 @@ func AdmitModernGoDelta(baseline ModernGoBaseline, previous, candidate ModernGoC
 	for _, finding := range candidate.Findings {
 		before := modernGoSiteCounts(previousByID[finding.ID].Candidates)
 		after := modernGoSiteCounts(finding.Candidates)
-		for key, count := range after {
+		for _, key := range slices.Sorted(maps.Keys(after)) {
+			count := after[key]
 			path, symbol, _ := strings.Cut(key, "\x00")
 			if !changed[path] || count <= before[key] || modernGoExceptionAllows(baseline.Exceptions, finding.ID, path, symbol, count) {
 				continue
 			}
-			return fmt.Errorf("modern-Go debt introduced for %s at %s:%s: %d exceeds HEAD count %d",
-				finding.ID, path, symbol, count, before[key])
+			problems = append(problems, fmt.Errorf("modern-Go debt introduced for %s at %s:%s: %d exceeds HEAD count %d",
+				finding.ID, path, symbol, count, before[key]))
 		}
 	}
-	return nil
+	return errors.Join(problems...)
 }
 
 func validateModernGoBaseline(baseline ModernGoBaseline, today time.Time) error {
@@ -286,6 +293,7 @@ func validateModernGoException(exception ModernGoException, guidelines map[strin
 
 func modernGoExceptionCount(exceptions []ModernGoException, finding ModernGoFinding) (int, error) {
 	count := 0
+	var problems []error
 	for _, exception := range exceptions {
 		if exception.Guideline != finding.ID {
 			continue
@@ -299,12 +307,12 @@ func modernGoExceptionCount(exceptions []ModernGoException, finding ModernGoFind
 			}
 		}
 		if matches > exception.CandidateCeiling {
-			return 0, fmt.Errorf("modern-Go exception expanded for %s at %s:%s: %d exceeds %d; sites=%v",
-				exception.Guideline, exception.Path, exception.Symbol, matches, exception.CandidateCeiling, matchedSites)
+			problems = append(problems, fmt.Errorf("modern-Go exception expanded for %s at %s:%s: %d exceeds %d; sites=%v",
+				exception.Guideline, exception.Path, exception.Symbol, matches, exception.CandidateCeiling, matchedSites))
 		}
 		count += matches
 	}
-	return count, nil
+	return count, errors.Join(problems...)
 }
 
 func modernGoExceptionAllows(exceptions []ModernGoException, guideline, path, symbol string, count int) bool {

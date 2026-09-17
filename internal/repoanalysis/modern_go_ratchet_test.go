@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,57 @@ func TestModernGoRatchetCannotIncreaseDebt(t *testing.T) {
 	if err := AdmitModernGoRatchet(baseline, census, time.Now()); err == nil || !strings.Contains(err.Error(), "debt increased") {
 		t.Fatalf("increased debt result = %v", err)
 	}
+	t.Run("independent findings survive partial repair", func(t *testing.T) {
+		good := modernGoRatchetCensus()
+		for _, id := range []string{"strings_split_seq", "sort_slice_weak"} {
+			finding := good.Findings[0]
+			finding.ID = id
+			good.Findings = append(good.Findings, finding)
+		}
+		last := &good.Findings[len(good.Findings)-1]
+		second := last.Candidates[0]
+		second.Symbol = "second"
+		last.Candidates = append(slices.Clone(last.Candidates), second)
+		authority, err := BuildModernGoBaseline(good)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, site := range last.Candidates {
+			authority.Exceptions = append(authority.Exceptions, ModernGoException{
+				Guideline: last.ID, Path: site.Path, Symbol: site.Symbol, Owner: "sample",
+				Reason: "fixture compatibility", Oracle: "go test ./internal/sample", Retirement: "remove legacy fixture",
+				Expires: "2099-01-01", CandidateCeiling: 1,
+			})
+		}
+		authority.ExceptionSHA256, err = ModernGoExceptionIdentity(authority.Exceptions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bad := good
+		bad.Findings = slices.Clone(good.Findings)
+		bad.Findings[0].Candidates = slices.Repeat(good.Findings[0].Candidates, 2)
+		bad.Findings[1].TypedFiles--
+		bad.Findings[len(bad.Findings)-1].Candidates = slices.Repeat(last.Candidates, 2)
+		debt := "debt increased for any:"
+		remaining := []string{"typed coverage fell at strings_split_seq:", "exception expanded for sort_slice_weak at internal/sample/sample.go:first:", "exception expanded for sort_slice_weak at internal/sample/sample.go:second:"}
+		for _, repaired := range []bool{false, true} {
+			if repaired {
+				bad.Findings[0] = good.Findings[0]
+			}
+			err := AdmitModernGoRatchet(authority, bad, time.Time{})
+			if err == nil || strings.Contains(err.Error(), debt) == repaired {
+				t.Fatalf("repaired=%v: independent debt lost or invented: %v", repaired, err)
+			}
+			for _, want := range remaining {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("repaired=%v: missing %q: %v", repaired, want, err)
+				}
+			}
+		}
+		if err := AdmitModernGoRatchet(authority, good, time.Time{}); err != nil {
+			t.Fatalf("corrected census refused: %v", err)
+		}
+	})
 }
 
 func TestModernGoRatchetCannotLoseCoverage(t *testing.T) {
@@ -69,6 +121,29 @@ func TestModernGoRatchetRejectsIntroducedDebt(t *testing.T) {
 	}}
 	if err := AdmitModernGoDelta(baseline, previous, candidate, []string{"internal/sample/sample.go"}); err == nil || !strings.Contains(err.Error(), "introduced") {
 		t.Fatalf("introduced debt result = %v", err)
+	}
+	first := candidate.Findings[0].Candidates[0]
+	second := first
+	second.Symbol = "second"
+	unchanged := first
+	unchanged.Path = "internal/unchanged/sample.go"
+	candidate.Findings[0].Candidates = []ModernGoSite{second, unchanged, first}
+	changed := []string{first.Path}
+	err = AdmitModernGoDelta(baseline, previous, candidate, changed)
+	if err == nil || !strings.Contains(err.Error(), first.Path+":"+first.Symbol) ||
+		!strings.Contains(err.Error(), second.Path+":"+second.Symbol) || strings.Contains(err.Error(), unchanged.Path) {
+		t.Fatalf("incomplete or unrelated delta diagnostics: %v", err)
+	}
+	slices.Reverse(candidate.Findings[0].Candidates)
+	if reordered := AdmitModernGoDelta(baseline, previous, candidate, changed); reordered == nil || reordered.Error() != err.Error() {
+		t.Fatalf("diagnostics depend on candidate enumeration: %v versus %v", err, reordered)
+	}
+	if err := AdmitModernGoDelta(baseline, previous, candidate, nil); err != nil {
+		t.Fatalf("unchanged source falsely refused: %v", err)
+	}
+	candidate.Findings[0].Candidates = previous.Findings[0].Candidates
+	if err := AdmitModernGoDelta(baseline, previous, candidate, changed); err != nil {
+		t.Fatalf("corrected source refused: %v", err)
 	}
 }
 

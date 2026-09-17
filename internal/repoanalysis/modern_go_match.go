@@ -1028,7 +1028,10 @@ func expressionIsError(expression ast.Expr, info *types.Info) bool {
 		return false
 	}
 	errorType := types.Universe.Lookup("error").Type().Underlying().(*types.Interface).Complete()
-	return types.Implements(info.TypeOf(expression), errorType)
+	// Implements tolerates invalid embedded fields to suppress cascading
+	// compiler errors. A rewrite requires an actual matching method instead.
+	missing, _ := types.MissingMethod(info.TypeOf(expression), errorType, true)
+	return missing == nil
 }
 
 func callExpressionKey(expression ast.Expr, info *types.Info, imports map[string]string, keys ...string) bool {

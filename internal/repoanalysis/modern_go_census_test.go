@@ -951,6 +951,49 @@ func inspect(err error) bool {
 	if rewritten != 0 || len(files) != 0 {
 		t.Fatalf("second error identity rewrite = %d edits in %v", rewritten, files)
 	}
+	t.Run("partial imports require method proof", func(t *testing.T) {
+		root := modernGoTestRepository(t, `package sample
+import (
+	"example/internal/review"
+	"io/fs"
+)
+type census struct { review.Review; Total int }
+type inheritedError struct { *fs.PathError }
+type wrongSignature struct{}
+func (wrongSignature) Error() int { return 0 }
+func unresolved(a, b census) bool { return a == b }
+func nonError(a, b wrongSignature) bool { return a == b }
+func imported(a, b *fs.PathError) bool { return a == b }
+func promoted(a, b inheritedError) bool { return a == b }
+`)
+		directory := filepath.Join(root, "internal", "review")
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, "review.go"), []byte("package review\ntype Review struct { Count int }\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// Host selection resolves the local package, while the export importer
+		// leaves its embedding unresolved. That is not proof of Error() string.
+		census, err := BuildModernGoCensus(root, ModernGoTargetVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		finding := modernGoTestFinding(t, census, "errors_is")
+		var symbols []string
+		for _, site := range finding.Candidates {
+			symbols = append(symbols, site.Symbol)
+		}
+		slices.Sort(symbols)
+		if !slices.Equal(symbols, []string{"imported", "promoted"}) {
+			t.Fatalf("error method proofs = %v; unresolved and wrong signatures must remain unchanged", symbols)
+		}
+		rewritten, files, err := RewriteModernGoErrorIdentityComparisons(root)
+		if err != nil || rewritten != len(symbols) || len(files) != 1 {
+			t.Fatalf("proven error rewrites = %d files=%v: %v", rewritten, files, err)
+		}
+		modernGoAssertCandidateCounts(t, root, []modernGoExpectedCount{{"errors_is", 0}})
+	})
 }
 
 func TestModernGoJSONTagConformance(t *testing.T) {

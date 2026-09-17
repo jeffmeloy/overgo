@@ -368,13 +368,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "typed-classification",
-          "title": "Correct false error-comparison classification",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^(TestModernGoErrorConformance|TestModernGoCensusPackageIsolation)$' -count=1",
-          "rationale": "Owner: repoanalysis modern-Go type matching. Resolve finding evidence:sha256:9086a01a5c201f51b1f3bb5b2bcf9787edb5ff86034bc873b4e8c114f16ac5db: a webuiCensus comparison with imported embedded Review was classified as errors_is despite neither type declaring Error. Reproduce with a minimal imported-embedding fixture; trace invalid, partial or stub type information before changing the matcher. Require a valid error-interface proof; represent unresolved typing explicitly rather than inventing a behavioral rewrite. Preserve positive wrapped/sentinel and imported-error cases. Remove the need for callsite workarounds without an analyzer exemption or lowered debt ceiling."
-        },
-        {
           "id": "complete-findings",
           "title": "Report stale and new authority problems in one preflight",
           "status": "open",

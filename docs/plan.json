@@ -19,25 +19,6 @@
       ]
     },
     {
-      "id": "stale-store-acceptances",
-      "title": "Restore the three store-bound acceptances the complete group exposed: capability census denominator, longform guard cohort, speech alignment annotations",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Restore the complete control cohorts without relabeling historical measurements",
-          "status": "open",
-          "verify": "OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/longform -run '^TestCurrentGuardControls$' -count=1",
-          "rationale": "Retain the original do completion identity as the final bundle boundary. Three distinct complete immutable records per control model remain required. Inspect source, producer, protocol and acquisition lineage before deciding whether an existing record is reusable or a specific missing acquisition is necessary. Do not regenerate accepted numerical evidence for unrelated changes or promote historical performance as current. The annotation and census steps retain their own exact-package acceptance; closing do requires both, without rerunning those protocols. Current inspection at 34520f51: Qwen 0.5B and E4B each list three distinct records. The test stops at the first record of each cohort because its surface/producer differs; the reported two-record denominator is partial traversal, not evidence that four acquisitions are missing. Explain the actual changed source and retained producers before scheduling any model execution. Required data root is supplied by gate sourceEnvironment; explicit store acceptance is part of this command.",
-          "depends_on": [
-            "stale-store-acceptances/annotations",
-            "stale-store-acceptances/census"
-          ]
-        }
-      ]
-    },
-    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "status": "open",

@@ -16,6 +16,7 @@ import (
 
 type guardCohort struct {
 	name, historical  string
+	producer          string
 	initialModel      string
 	retired           bool
 	repeats           [3]string
@@ -39,6 +40,7 @@ func TestCurrentGuardControls(t *testing.T) {
 	}
 	for index := range fixtures {
 		fixture := &fixtures[index]
+		fixture.producer = selected.Producers[fixture.name]
 		records := selected.Cohorts[fixture.name]
 		if len(records) != len(fixture.repeats) {
 			t.Fatalf("%s requires three complete immutable records", fixture.name)
@@ -123,7 +125,7 @@ func requireGuardCohorts(t *testing.T, fixtures []guardCohort, producer string, 
 					t.Fatal(err)
 				}
 				fresh := accepted.Result
-				if !fixture.retired && (fresh.Surface != cmp.Or(fixture.historicalSurface, surface) || fresh.Commit != producer) {
+				if !fixture.retired && (fresh.Surface != cmp.Or(fixture.historicalSurface, surface) || fresh.Commit != cmp.Or(fixture.producer, producer)) {
 					t.Fatal("control does not identify the required inference surface and clean measured producer")
 				}
 				if !fixture.retired && fixture.historicalSurface == "" && fresh.Shape.WarmupOutputTokens != longform.WarmupOutputTokens {

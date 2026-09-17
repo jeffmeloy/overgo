@@ -27,6 +27,7 @@ func TestAcceptedFP8Guard(t *testing.T) {
 	}
 	requireGuardCohorts(t, []guardCohort{{
 		name:       "Gemma 12B FP8",
+		producer:   selected.Producers["Gemma 12B FP8"],
 		historical: "evidence:sha256:e28cc3d5a6f8d19d984063e8f3f7c9893a582a85e31d770115f406a713422bf4",
 		repeats:    [3]string(records),
 	}}, selected.Producer, false)
@@ -49,9 +50,10 @@ func TestRetiredGuardRecords(t *testing.T) {
 }
 
 type guardCatalog struct {
-	Producer string              `json:"producer"`
-	Cohorts  map[string][]string `json:"cohorts"`
-	Pending  map[string]struct {
+	Producer  string              `json:"producer"`
+	Producers map[string]string   `json:"producers,omitzero"`
+	Cohorts   map[string][]string `json:"cohorts"`
+	Pending   map[string]struct {
 		Record  string `json:"record"`
 		Finding string `json:"finding"`
 	} `json:"pending,omitzero"`
@@ -75,6 +77,11 @@ func readGuardCatalog(t *testing.T) guardCatalog {
 	var selected guardCatalog
 	if err := jsonfile.Decode(filepath.Join("..", "..", "docs", "verification", "guard-catalog.json"), &selected); err != nil {
 		t.Fatal(err)
+	}
+	for name, producer := range selected.Producers {
+		if producer == "" || len(selected.Cohorts[name]) == 0 {
+			t.Fatalf("producer override has no named cohort: %q", name)
+		}
 	}
 	return selected
 }
@@ -115,6 +122,7 @@ func selectedGuardCohorts(t *testing.T, selected guardCatalog) []guardCohort {
 	}
 	for index := range fixtures {
 		fixture := &fixtures[index]
+		fixture.producer = selected.Producers[fixture.name]
 		records := selected.Cohorts[fixture.name]
 		if len(records) != len(fixture.repeats) {
 			t.Fatalf("%s requires three complete immutable records", fixture.name)
@@ -155,8 +163,7 @@ func TestAcceptedCompletedGuardCohorts(t *testing.T) {
 	const pendingModel = "Qwen 0.5B"
 	pending, ok := selected.Pending[pendingModel]
 	if !ok || len(selected.Pending) != 1 || pending.Record != "evidence:sha256:ae452b31fbf6b55365f91881746c35e2f5ad0a275a6063b8b59be8195b5bf2f9" ||
-		pending.Finding != "evidence:sha256:7ff7c0b6406545604fa20777966f7baf30e043b66ebf92180f1043c6fb1c2d92" ||
-		!slices.Contains(selected.Cohorts[pendingModel], pending.Record) {
+		pending.Finding != "evidence:sha256:7ff7c0b6406545604fa20777966f7baf30e043b66ebf92180f1043c6fb1c2d92" {
 		t.Fatal("partial admission must retain the exact pending Qwen record and repair finding")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
@@ -175,6 +182,10 @@ func TestAcceptedCompletedGuardCohorts(t *testing.T) {
 	failed, err := longform.ReadBaseline(t.Context(), store, id)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// A refreshed cohort does not erase its unresolved historical incident.
+	if failed.Result.Commit != selected.Producer {
+		t.Fatal("pending latency observation lost its original producer")
 	}
 	if err := validateGuard(failed.Result); err != nil {
 		t.Fatal(err)

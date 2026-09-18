@@ -112,3 +112,25 @@ complete inference evidence covering cold, repeated and rotating grammars with
 setup and caller budgets included, or a cheaper exact construction. The original
 hash-once row, exact state compatibility and required hash-reuse regression
 remain open. No grammar cache, state format or production behavior changed.
+
+The continuation repair retains accepted completion facts in the existing plan
+authority and checks them through the loop's existing world adapter. It adds no
+new evidence ledger, scheduler, or authority package. The observed failure was
+two accepted prerequisite commits being counted as two failed attempts because
+the parent step stayed open. Regression tests require those accepted results to
+reset only the consecutive nonprogress count, while unchanged or invalid
+receipts, merges, and pending validation earn no credit and the total invocation
+ceiling remains fixed.
+
+The reviewed harness baseline increases by one focused command adapter file,
+374 syntax nodes, 40 nodes in the largest file, and 13 nodes in the largest
+function. Its structural repeated-policy census rises by one group and five
+sites. Package count, guarded scalar fields and layer violations do not change.
+These measured additions bind progress to existing receipt, ownership and
+validation checks; replacing them with HEAD movement would restore false
+progress credit. The baseline records this bounded correctness cost without
+claiming a runtime speed improvement. Moving the adapter into an unrelated file
+merely to preserve the file count would not remove its complexity. This repo
+repair does not authorize restarting the Colibri supervisor: the user selected
+direct execution in the current task, and its background timer and campaign
+were stopped on 2026-09-17.

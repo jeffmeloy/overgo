@@ -6,6 +6,26 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "colibri-serving-stream",
+      "title": "Push durable serving observations into the existing runtime stream",
+      "owner": "colibri",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Push durable serving observations into the existing runtime stream",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestRuntimeStreamDeliversServingObservation$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserServingStream$' -require 'serving stream leg'",
+          "rationale": "G2. Publish after durable success, one event per turn through existing stream/subscription owners. Reconnect snapshot plus cursor must neither lose nor duplicate observations; bounded slow-subscriber behavior and cancellation. Extend Activity rather than another poller. Coordinate views with incoming GUI changes.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
       "id": "colibri-grammar-binding",
       "title": "Reuse immutable vocabulary bindings across constrained generations",
       "owner": "colibri",
@@ -21,26 +41,6 @@
             "colibri-grammar-binding/binding",
             "colibri-grammar-binding/hash-study"
           ],
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "colibri-serving-stream",
-      "title": "Push durable serving observations into the existing runtime stream",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Push durable serving observations into the existing runtime stream",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestRuntimeStreamDeliversServingObservation$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserServingStream$' -require 'serving stream leg'",
-          "rationale": "G2. Publish after durable success, one event per turn through existing stream/subscription owners. Reconnect snapshot plus cursor must neither lose nor duplicate observations; bounded slow-subscriber behavior and cancellation. Extend Activity rather than another poller. Coordinate views with incoming GUI changes.",
           "capabilities": [
             "shared-components",
             "correctness-and-quality",

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -23,104 +22,6 @@ import (
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
-
-// This join reuses committed acceptance, not model execution or a new evaluator.
-// Original protocol scopes do not confer current-source or performance credit.
-type acceptedCoverage struct {
-	Version uint16
-	Scope   string
-	Models  []acceptedModel
-	Proofs  []acceptedGateProof
-	Inputs  map[string]string
-}
-
-type acceptedModel struct {
-	Model   artifact.ID
-	Domains []string
-	Cells   []acceptedCell
-}
-
-type acceptedCell struct {
-	Task   recipe.Task
-	Recipe artifact.ID
-	Proofs []string
-	Scope  string
-}
-
-type acceptedGateProof struct {
-	Reference, Commit, Verify string
-	Preparation, Result       artifact.ID
-	Check                     string `json:",omitzero"`
-}
-
-func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expected []acceptedModel, live []discovery.CatalogEntry) error {
-	type key struct {
-		model artifact.ID
-		task  recipe.Task
-	}
-	wanted := map[key]acceptedCell{}
-	domains := map[artifact.ID][]string{}
-	for _, model := range expected {
-		if _, found := domains[model.Model]; found || model.Model.Kind() != artifact.KindModel || len(model.Cells) == 0 {
-			return errors.New("coverage: empty or duplicate model")
-		}
-		domains[model.Model] = model.Domains
-		for _, cell := range model.Cells {
-			k := key{model.Model, cell.Task}
-			if _, found := wanted[k]; found || cell.Recipe.Kind() != artifact.KindRecipe || len(cell.Proofs) == 0 || cell.Scope == "" {
-				return errors.New("coverage: invalid or duplicate required cell")
-			}
-			wanted[k] = cell
-		}
-	}
-	if len(wanted) == 0 {
-		return errors.New("coverage: required denominator absent")
-	}
-	for _, entry := range live {
-		if len(entry.Capabilities) == 0 {
-			continue // An inactive registration grants no credit and invalidates none.
-		}
-		declared, _, err := evaluation.EvalDomains(ctx, store, entry.Model)
-		if err != nil {
-			return err
-		}
-		for _, capability := range entry.Capabilities {
-			if capability.Task == recipe.TaskInference && slices.Equal(declared, []string{"dna"}) {
-				continue
-			}
-			k := key{entry.Model, capability.Task}
-			cell, found := wanted[k]
-			if !found || !entry.Present || capability.Stale != "" || capability.Recipe != cell.Recipe || !slices.Equal(declared, domains[entry.Model]) {
-				return fmt.Errorf("coverage: missing, duplicate or changed activation %s/%s", entry.Model, capability.Task)
-			}
-			definition, err := recipe.RequireDefinition(ctx, store, capability.Recipe)
-			if err != nil {
-				return err
-			}
-			model, found := definition.PrimaryDependency(recipe.DependencyModel)
-			if !found || model != entry.Model || definition.Task != capability.Task {
-				return errors.New("coverage: recipe input or task changed")
-			}
-			delete(wanted, k)
-		}
-	}
-	if len(wanted) != 0 {
-		return fmt.Errorf("coverage: %d required activations missing", len(wanted))
-	}
-	return nil
-}
-
-func checkAcceptedGate(proof acceptedGateProof, gate runrecord.GateResult) error {
-	if gate.ID != proof.Result || gate.CodeCommit != proof.Commit || gate.Outcome != runrecord.OutcomeSucceeded {
-		return errors.New("coverage: acceptance result failed or source changed")
-	}
-	for _, step := range gate.Steps {
-		if step.Name == cmp.Or(proof.Check, "acceptance") && (step.Outcome == runrecord.StepSucceeded || step.Outcome == runrecord.StepReused) {
-			return runrecord.VerifyCompletionAcceptanceEvidence(step.Evidence, proof.Reference, proof.Verify)
-		}
-	}
-	return errors.New("coverage: required acceptance was not completed")
-}
 
 func TestAcceptedTextVisionEvidence(t *testing.T) {
 	if testing.Short() {
@@ -219,16 +120,9 @@ func requireAcceptedCoverage(t *testing.T, root string, coverage acceptedCoverag
 
 func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGateProof) {
 	t.Helper()
-	finalized, found, err := runrecord.GateFinalizationForPreparation(t.Context(), store, proof.Preparation)
-	if err != nil || !found || finalized.CodeCommit != proof.Commit || finalized.Outcome != runrecord.OutcomeSucceeded || finalized.Result == nil || *finalized.Result != proof.Result {
-		t.Fatalf("coverage: %s lacks unique successful finalization: %v", proof.Reference, err)
-	}
-	gate, err := runrecord.RequireGateResult(t.Context(), store, proof.Result)
+	gate, err := loadAcceptedGate(t.Context(), store, proof)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if err := checkAcceptedGate(proof, gate); err != nil {
-		t.Fatalf("%s: %v", proof.Reference, err)
 	}
 	for _, mutation := range []string{"failed", "skipped", "wrong-source", "wrong-verifier", "wrong-check", "missing"} {
 		t.Run(proof.Reference+"/"+mutation, func(t *testing.T) {
@@ -279,4 +173,61 @@ func TestAcceptedSpecializedTaskEvidence(t *testing.T) {
 	var coverage acceptedCoverage
 	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "700b2bd046116527c6c514a6cbcce080d02d685ad1b939a3d51c981e020458a8", &coverage)
 	requireAcceptedCoverage(t, root, coverage, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskTranscription, recipe.TaskAlignment, recipe.TaskDiarization, recipe.TaskActivityDetection, recipe.TaskAudioConversion, recipe.TaskAudioGeneration)
+}
+
+func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expected []acceptedModel, live []discovery.CatalogEntry) error {
+	type key struct {
+		model artifact.ID
+		task  recipe.Task
+	}
+	wanted := map[key]acceptedCell{}
+	domains := map[artifact.ID][]string{}
+	for _, model := range expected {
+		if _, found := domains[model.Model]; found || model.Model.Kind() != artifact.KindModel || len(model.Cells) == 0 {
+			return errors.New("coverage: empty or duplicate model")
+		}
+		domains[model.Model] = model.Domains
+		for _, cell := range model.Cells {
+			k := key{model.Model, cell.Task}
+			if _, found := wanted[k]; found || cell.Recipe.Kind() != artifact.KindRecipe || len(cell.Proofs) == 0 || cell.Scope == "" {
+				return errors.New("coverage: invalid or duplicate required cell")
+			}
+			wanted[k] = cell
+		}
+	}
+	if len(wanted) == 0 {
+		return errors.New("coverage: required denominator absent")
+	}
+	for _, entry := range live {
+		if len(entry.Capabilities) == 0 {
+			continue // An inactive registration grants no credit and invalidates none.
+		}
+		declared, _, err := evaluation.EvalDomains(ctx, store, entry.Model)
+		if err != nil {
+			return err
+		}
+		for _, capability := range entry.Capabilities {
+			if capability.Task == recipe.TaskInference && slices.Equal(declared, []string{"dna"}) {
+				continue
+			}
+			k := key{entry.Model, capability.Task}
+			cell, found := wanted[k]
+			if !found || !entry.Present || capability.Stale != "" || capability.Recipe != cell.Recipe || !slices.Equal(declared, domains[entry.Model]) {
+				return fmt.Errorf("coverage: missing, duplicate or changed activation %s/%s", entry.Model, capability.Task)
+			}
+			definition, err := recipe.RequireDefinition(ctx, store, capability.Recipe)
+			if err != nil {
+				return err
+			}
+			model, found := definition.PrimaryDependency(recipe.DependencyModel)
+			if !found || model != entry.Model || definition.Task != capability.Task {
+				return errors.New("coverage: recipe input or task changed")
+			}
+			delete(wanted, k)
+		}
+	}
+	if len(wanted) != 0 {
+		return fmt.Errorf("coverage: %d required activations missing", len(wanted))
+	}
+	return nil
 }

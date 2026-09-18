@@ -18,16 +18,6 @@ import (
 	"overgo/internal/testutil"
 )
 
-type imageVideoCoverage struct {
-	acceptedCoverage
-	Cases []acceptedMediaCase
-}
-
-type acceptedMediaCase struct {
-	Case                string
-	Run, Output, Review artifact.ID
-}
-
 func checkAcceptedMediaCases(protocol imageVideoProtocol, coverage imageVideoCoverage) error {
 	wanted := map[string]imageVideoCase{}
 	for _, value := range protocol.Cases {

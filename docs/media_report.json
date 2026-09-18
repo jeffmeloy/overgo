@@ -1968,5 +1968,3344 @@
       }
     ],
     "retained_run_lineages": 15
+  },
+  "accepted_protocols": {
+    "Registered": 209,
+    "Activations": 29,
+    "AcceptedActivations": 22,
+    "Models": [
+      {
+        "Model": "model:sha256:000df141c36bd8a393a013338d16898c02f92691ed2897342a745da598b87a6f",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:00120f44681f9843e72913f29127b066020075c21edd13eaf6503fcc35770167",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:0228208e2837168c7bed1c3b7bc787bdfa7f20a584507588acfe15667100e7d2",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+        "Name": "SenseNova-U1-8B-MoT-Infographic-V3",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "image-gen",
+            "Recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+            "Proofs": [
+              "modality-verification/sensenova-current-generation#"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:3d0bc88bed1aadcc018add214916bcf8ee4018049a28d0169f6da8146668134e",
+              "run": "run:sha256:da178b2cfc4dbcde37a0b4e755c234281bb45132474b79642e7cd15372da4824",
+              "source": "73414af5ea9b21d5665226cf896f96e38dd3d265",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:3d0bc88bed1aadcc018add214916bcf8ee4018049a28d0169f6da8146668134e"
+              ],
+              "wall_ns": 137156447700,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 939066900
+                },
+                {
+                  "phase": "integrate",
+                  "duration_ns": 122434426800
+                },
+                {
+                  "phase": "prepare",
+                  "duration_ns": 13187145800
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 137156447700
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+        "Name": "Un-0",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "image-gen",
+            "Recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+            "Proofs": [
+              "modality-verification/un0-current-generation#"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:033e4554d122101e25c8fb792fa30b65d317770980ad12d667526be64283e653",
+              "run": "run:sha256:4f87a73c4e38f7def792280c74310cc5be8b4e7889685ca17af869e942598fda",
+              "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:033e4554d122101e25c8fb792fa30b65d317770980ad12d667526be64283e653"
+              ],
+              "wall_ns": 54377100,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 1584200
+                },
+                {
+                  "phase": "integrate",
+                  "duration_ns": 504500
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 54377100
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Task": "video-gen",
+            "Recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+            "Proofs": [
+              "modality-verification/un0-current-generation#"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:30d089f92a60ec236ad420b62624a41e6e2749f6901b7a19ef9ecd4ee838f20d",
+              "run": "run:sha256:65d0ca4450e8578ef4201da185cad7779217a11a9ffdfe6295abd8d0dc6c4c06",
+              "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:30d089f92a60ec236ad420b62624a41e6e2749f6901b7a19ef9ecd4ee838f20d"
+              ],
+              "wall_ns": 40948700,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 17934200
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 40948700
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:0477fc020915a037e996e6888a8e3a0a3871d3eb739fdeb30b689c33cc012384",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:04e117c24c7749e8a71a8d5ee92492265f6c38cb069f42c3a727bc50fc06fb61",
+        "Name": "model.pth.tar",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:05e3027c1225a0d3346e863202e59ff1257619c90afa428c0c84158b53327147",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:071d61cd587df776491609669cb551627f02580c1ff0c95bfc9978f4bc2ae256",
+        "Name": "LiveEdit",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "training",
+            "Recipe": "recipe:sha256:5aeae795dc015beed395c0a8aae2d00bee8680f7309c582c24782adec73bec0a",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:ed57752b6a7f2802bd65f7dbba903676d6431e50d800536afa9aec838bca0d04",
+              "run": "run:sha256:131bad0244ad41f5d007025052a59aa187869cdc2a386d368f4996740b7f1b76",
+              "source": "0123456789abcdef0123456789abcdef01234567",
+              "environment": "evidence:sha256:b02a8e03fd4e97669f9434f27d9d0ec215aed4b403e24cc4c53e0d2c72a11a88",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:ed57752b6a7f2802bd65f7dbba903676d6431e50d800536afa9aec838bca0d04"
+              ],
+              "wall_ns": 110,
+              "phases": [
+                {
+                  "phase": "validate",
+                  "duration_ns": 110
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:0754fb8aca4227b773ea6690df0e188d360d71b71d6d103dfcd970648406fc9a",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": [
+          "dna"
+        ],
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:cb2cdd27ff36e6d2d0edf607173eb94e8feb135b64890b5859e7c4abe8c460a2",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:d567bc5a7f2057797224ec75d5839cd5fefc26d3223a502bc82df0d8bec645c3",
+              "run": "run:sha256:1c2b1ac4672bc5405a83ca6f7fee38b46ea2945e3d2ddcb96c1bb2a0cea29267",
+              "source": "92cb7873ae42c093bbdbd8d64d13487cb2ca3581",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:d567bc5a7f2057797224ec75d5839cd5fefc26d3223a502bc82df0d8bec645c3"
+              ],
+              "wall_ns": 495491900,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 495491900
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:096c968efe9d0b1726a9ae121bf525e0e3d7402355bb8330351031e5792cfade",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:0bff105f0d15de8cfce729bd3093d943773eda6c858ff4826fef030062a81811",
+        "Name": "overgo-hfconvert",
+        "Present": false,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:0c31686704ece29b72f261ad5550bad7964a7cdf5b6c144a949bafdb989cf4f5",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:0e5fd19812291e13bc08d88ea9c7d5b563282f9dd9eae0928564d88236fcf214",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:1206b7c288a90b0a958427ad5a779dd81dc6e10307fe73c634be505197051113",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:127ad48856519e932017fedeed3e9c09a6f12ea726f496ac1c97abeaa1bf30b5",
+        "Name": "tabfm-1.0.0-pytorch",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "tabular",
+            "Recipe": "recipe:sha256:24ea92b943a3971d0433e224b9be96e2dd149667e69e4a442ecde9ddc36b105d",
+            "Proofs": [
+              "modality-verification/specialized-native-generation#acceptance-tabular"
+            ],
+            "Scope": "Four native classification/regression cases, max absolute error \u003c= 1e-3, plus malformed-input refusal; current activation names the classification artifact.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:5a9775a3b885d5ff4c7330b304db18f632a16d0c82b732a4222eed5e2ab470d9",
+              "run": "run:sha256:5c2a20450dbc6b6400132d1cabb9e3ec3eb5528ada467f4dd9e61fa0a9c5c12b",
+              "source": "013b2c6879d1711daf04fc4c521294f312505c27",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:5a9775a3b885d5ff4c7330b304db18f632a16d0c82b732a4222eed5e2ab470d9"
+              ],
+              "wall_ns": 3090199400,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 3090199400
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098",
+        "Name": "granite-speech-5.0-470m-turboctc",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:174647859c21eabf032db0d16ee6f552e37598dd7af9dbdf77058a2c4ba15670",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:1772ca69b4a276c0de7f61bec0478c5d7d6b886aa2dfbbaf98dbed48ab738f1c",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:1831361e384c46b75a2c72242843151253db42f36b553a6b7a66c22e92009c00",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:18f216b9d5a3c84fd577d07c09f36aa8eab659ae9734de9fc609230b84acbb21",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:1abf71300a7d632a5a1149ad315ee122613fb1d9766c920e5b9950aa1ecf334f",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:1b7acc66c8e9c396e08a8145009a3db39c52fd500db2c4df11dd26c040073df2",
+        "Name": "Krea-2-Turbo",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:1b8ae1f88829b7434d2b909acf9a395fc43021405da395266b9d3c60a875c1c6",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:212f6ab64523bb971e886e82e17259798dfc68d5c7992736b918b27dbc80c8bd",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca",
+            "Proofs": [
+              "modality-verification/resident-publication"
+            ],
+            "Scope": "Four native exact cases; two likelihood sequences and candidate ordering. Resource isolation and throughput are separate.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:00a0e3f72ef1cf5b82820697a23a854f61ddd091a3e886a4b9b95d3d307c2d35",
+              "run": "run:sha256:9f7be12fc83be4dbbb916238822092d919517629f6ddf2cf984c34c24980cdf4",
+              "source": "20285ec8ec90394ef8ccc87e4bd8104c65ca388e",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:00a0e3f72ef1cf5b82820697a23a854f61ddd091a3e886a4b9b95d3d307c2d35"
+              ],
+              "wall_ns": 445178700,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 445178700
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:219e348df1bc85079b562474379826341553e5e1181604d5057b0b9ba18f3537",
+        "Name": "Wan2.1-T2V-1.3B",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:2436ae0fb1a618f6d3254d2a07737f2ca9f47947097b99df90e4e67026462732",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:26aded26193b7129e1bf799c5e25ff74a9bdc8c78158bf87d9dc8e25095e1259",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:28462119c525a97658deb6d48bb1b5bdc35f5b1cb8bfd862dcb5ed48c82c1c63",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:2928aabcbb4c9f8a11e1ca47fcac873dcae5f4032e26529ada55affbaf9014ad",
+        "Name": "needle",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "seq2seq",
+            "Recipe": "recipe:sha256:97d4e5f577aceab7a0b616688d3d6c0708b8012e04155ef2c045641f97fa71c8",
+            "Proofs": [
+              "modality-verification/specialized-native-generation#acceptance-seq2seq"
+            ],
+            "Scope": "Native encoder/logit relative RMS \u003c= 8e-3/5e-3, exact native argmax, exact incremental/full recomputation and a grounded weather tool call. Non-finite or missing vectors fail.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:7ce076a2a280dfd3dfaa3548b7eab87051d385943f7dd04b0aa8291e3f3c5eff",
+              "run": "run:sha256:e5bde28137949caa0e088ff92de3d174f09f7ca4818ebb94c5175b7d753e8348",
+              "source": "2206380c1bb90717bbb41c61921ee7b64ce2f17b",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:7ce076a2a280dfd3dfaa3548b7eab87051d385943f7dd04b0aa8291e3f3c5eff"
+              ],
+              "wall_ns": 554121200,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 554121200
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:2b0b2d9368fc96806069ae89a051822c5dd23102a8230845f827bfd0b8075a36",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:2dbfaf8dbf4ab4cd95bb03cc6d86cc51ba51ca59575144696f1015ce2d82112a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:2f8909624b5ee648c33441ece2b7d046ec5b22187f9fd821683eac84b4786336",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:2fd32cf5f0d1699f308b9f03d2a36d0a4c8ee29d83419ea95d02909807aa11e5",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
+        "Name": "models",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c",
+            "Proofs": [
+              "modality-verification/retained-model-bundles",
+              "modality-verification/ifeval-parity-report"
+            ],
+            "Scope": "Four CPU and CUDA native text cases; full MMLU-Pro; BBH/MuSR generated-letter-opener; 541 IFEval prompts, 834 instructions and 1668 matched verdicts. Preserve capped and unsuccessful quality responses.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 2,
+            "AcceptedPhases": 2,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:875ddbb6d78075fedd67a92becd10e3af43ebb75d8d66dd6e9edcec79893a800",
+              "run": "run:sha256:9ab572a23c6892a503788766b0baebc1321d5067ee2cfb0870d0405a17e4fd36",
+              "source": "7c91a8169514eadc57e8a4e48b42f67412f76a44",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:875ddbb6d78075fedd67a92becd10e3af43ebb75d8d66dd6e9edcec79893a800"
+              ],
+              "wall_ns": 465380400,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 465380400
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:31188925754900e6728b2cbe30c75b6524a4b95aecaaedf44eef9b53fbc61db6",
+        "Name": "overgo-hfconvert",
+        "Present": false,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:31f578555a82588e373f695c5f6a27f508922f0fc94de70264ef35b2e26b6db3",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:32c207617ee8e0aae32fddbb467d164142185209c9de0dd4e7539f4733721c1c",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:330c8a71f0e1e4e6f14d0e4dd22516a69a2d44845527991630260eeeb921830a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3443690a7befb212c64f89c9ef8310f7024d35917f92101ad3ca858c5faddd24",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:353fb1a59060ee2152e2ac34bc25bb3127038869c0ff3b70b0aa7d1132781a56",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:35e33bf0d07b9a6010dbd5f9d9871b099212a5fe0c4749ce40533c7144ecbe63",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3600f9774577d40d81e3283438656b721955fca3d9461919b43635a7aaabe93d",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:36f3056d152cae14de001e2c2db98e2dd675d5c96ead5463a525fad5281ae749",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:37bbbb794bcb495e027862a31b2d339c3fabb42c99f6ea707e8f76dc3893ce4b",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:38ff6e0c7f786b2931223f1098593b1b438314cd067aab33725f73fca92218fe",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3b2ab8f08276ec1458433bc71df352767f61e14b9b89978ab2b43330f11d1881",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3c797a269e47b1d9fba6168571298c7942213d2d8a3eb73662669793b1a1a3e2",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3ced4af7b688a0f013dbd69649a36c0cc9553761090c018040a3c44a9830807a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3dd2b6b1299c19eecdf4f4a1c38fe8c6524c37d0eb59e4869aaf76b423c552a4",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3f5b9f6be7bbba0bdf5429ae393a19b3ab407df3e48fa134a42bf368d25a073c",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3f69d4e3859ff6cf1f294e21c3d2d1a45de383d218a27c12b4201785fadbec08",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:3f792b2503c35dff2bb43a7ae5ecdec6d2898fa613af336d9f327297347d89cf",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4034debebdfd937b4cc83cd635fd1f5c5277c353f0ab78a485e4fbf7d7ed9758",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:41e4717f6a2204cda17a5782f39519f1f85a2be151daf53462da5a45b65483a6",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:427f4b11b98736275ed1d3ed72424f2b27fb0677657fed6ea30776ccb3cbdbc1",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4416df8532cb335e1c30f79a6c639e0ce71e06a700ee5bba5aeaccdb445b77fa",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:458f3590a1e703298a9d50153096232ea13dc86f8acddd3bad41ef83c892353a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4712dff96f83102689cd5ab78da63ec91a2a4975ce7983e82e0c90255f63fc26",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:471fc8c4e83f4bf524a14bb71be0b757639d9a1e60515152514afeda0e0c8091",
+        "Name": "overgo-hfconvert",
+        "Present": false,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:47c801c8717f60d3af3659e3651023e43d5074462db3d82ff9e77c71bfb5e32f",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:47fdf02c43fe6eae840c0ef8e555699531dc6a5a08917001ef5e4f9c174f3f0c",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:49686887afd324e1fffdce8950cca7381842b3e45428b8503b8f5e19ccc6c41d",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4a46b25a53697927991d8ff2f6a4237d83766a895c1561436776671cc6b8767a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4c2cd30a6a4e90ab20d1997b8295d8183fc38a12bd685c511dcd84b7f11f8ef0",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4c97ba081f523b0946af04819aab34b0fbff26ad463c73e6e540b66ab72d60f2",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:4e27935eec4d2e002ba69cd3fca98bb80a55427d69e00f45745adcbae58a291e",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:52f57ade151acb5e8fae10c0cd0ddf8fc1dd4a56bd12782f5e7d6b8d86a653da",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:55f23e065a62cf5a831359aa9ef7856cbb27bf8dee8439dcfe351a7e9be2eb8f",
+        "Name": "models",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:56277ef6b294956569993519998dc11210899a9f6c807818ff789af1ee17b07b",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+        "Name": "SimpleDiffusion-TensorProductAttentionRope",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "image-gen",
+            "Recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+            "Proofs": [
+              "modality-verification/diffusion-current-generation#"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:710bb24341b1d20ae6c714a49874f0358dee8672fa7388fe4aec3415062e7be0",
+              "run": "run:sha256:91d38d9a086504b06f65e47c89170632c86468d1de51eecbc1c915d86ad5d301",
+              "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:710bb24341b1d20ae6c714a49874f0358dee8672fa7388fe4aec3415062e7be0"
+              ],
+              "wall_ns": 1845098700,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 7658700
+                },
+                {
+                  "phase": "integrate",
+                  "duration_ns": 1413084600
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 1845098700
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:5728d1c1f0c405b337766b8ee947eb4d089f6584a6318dc6a76a85465e15d44b",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5af952e228ed6ec31bcca2e77ae55c7271e8e05523e14f461eeb3786771febfe",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5b042df5e5e6768c6917cde779a7b5493f009be7f7af354badb26c7bb38e029a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5b6effeb7458ab469234823380df0a8da23a6de26707bd0dd29b3ca8e40adc23",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5b9f463db6760908b0711ddc6b33b11ab3fd709d0cc36339e58d7301f84e5d20",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5e31d9d7382c0bd956a1d9bea59a80f0c898dd84edc0481f0e8be967115b9bed",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5e884086288427ad7396cd1d1b81c0eb03e66527f82fd2b4f316a50342977602",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:60e04f2739ddcd16bf64d4677d107c441ac43d877b5fc0df2b24e75ac01cc627",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:6158c8f2fb7ab7a81b3e7b8d3b8aac8f0cf7a14156b10ddcfde49714da34fb17",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:636ba6624981c5b0a77a551ea39fc8d7867fedf7302e06838e7e4f19bbab8a60",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:6377b600111cf4b60da45f9c9dd24db9a4a40b2c227716e2a191bbf3afa4f027",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+        "Name": "LiveEdit",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "video-gen",
+            "Recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+            "Proofs": [
+              "modality-verification/latent-video-current-generation#",
+              "modality-verification/latent-video-current-generation#acceptance-frozen-generation",
+              "modality-verification/latent-video-current-generation#acceptance-lifecycle"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 3,
+            "AcceptedPhases": 3,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:9962cef18a9b42edc20d18d844dd23405b24d34fc4c730356921fffda97611f6",
+              "run": "run:sha256:b5479fb69973629fb55043eccafc748fe8701133f6f5bf8b72ed1177f63b6075",
+              "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:9962cef18a9b42edc20d18d844dd23405b24d34fc4c730356921fffda97611f6"
+              ],
+              "wall_ns": 5408733600,
+              "phases": [
+                {
+                  "phase": "integrate",
+                  "duration_ns": 671371000
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 5408733600
+                }
+              ],
+              "peak_step_device_bytes": 3260313344
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:68ad1881ffcedc9ed797346b8ecd0784e59162a3de2db8daa92acb014c1251ee",
+        "Name": "pocket-tts",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "speech",
+            "Recipe": "recipe:sha256:353213be1a91a29530711460da9a2cd8de4e44f43c97e824d029881a74d0f403",
+            "Proofs": [
+              "modality-verification/specialized-native-generation#acceptance-speech"
+            ],
+            "Scope": "Native latent/EOS and PCM/WAV bounds; post-EOS completion; frame, codec and pipeline cancellation; durable generation/decoding recovery; ordered document recording and source coverage. Original per-stage numerical tolerances retained.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:9d1085218ce3b99d2d6cc79e9b9201c676c94ff03c4e09b0547b59be6fa39dfa",
+              "run": "run:sha256:d8e9b00f3c3694e066e17ea678548fec35382d74e3c3cbe6f14fe467347d34ec",
+              "source": "1f6efd8b7cdaee994f9e44ebc2f0023f4f97bf06",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:9d1085218ce3b99d2d6cc79e9b9201c676c94ff03c4e09b0547b59be6fa39dfa"
+              ],
+              "wall_ns": 2087774600,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 1069925800
+                },
+                {
+                  "phase": "generate",
+                  "duration_ns": 774149500
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 2087774600
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:6f36514db95b1822d0c03feba5992c8f7f7aa28d326eaa5f16a13d7270280635",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:6fa35feab0fe1ef208de6d131e2311f07864fa5e10c26315153d75ced083de68",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:6fb93183bfeac7e2de58cfe92bd8fb2bd810060a1c322a61839d7a275a831f77",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:70512f880f1916c05621a070fc2f52fd1ba1a07eb12319429189de95a87c8920",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:72de387c73641aedc3ad63bc13df185be38b9e4992104ad4dfc6d794718e1951",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:730e9b5e31213cdaa607e0a8ea9a2e69825206b7fdd8ff91a1499fe6f73710a6",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+        "Name": "Qwen3.8-27B-UD-Q6_K",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+            "Proofs": [
+              "modality-verification/qwen27-retained-publication"
+            ],
+            "Scope": "Retained declared text subsets. Full 27B MMLU-Pro remains operator-owned and is not accepted here.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:fa89b18c7f348df7360c65d8f8e9d61d8f5f13fde24d6498c81247d7d4b84989",
+              "run": "run:sha256:10f0b1a438ea7cefe378f6d9945b6ad94d10cf111de0f1e98127de4e832cbbb2",
+              "source": "dc7f79752fb34d58318d3fcb72dd49139ff7b6c1",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:fa89b18c7f348df7360c65d8f8e9d61d8f5f13fde24d6498c81247d7d4b84989"
+              ],
+              "wall_ns": 23957361300,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 23957361300
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Task": "projection",
+            "Recipe": "recipe:sha256:3303271c18bc20af25ff6ab592e21922d2b4dd7472af479ce2526ac8de99a01e",
+            "Proofs": [
+              "modality-verification/qwen27-projection"
+            ],
+            "Scope": "Twenty grounded image/video cases match native CPU/CUDA and Go exactly. Retain the failed verbose protocol separately.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:837d08b540a581a1a52e80afdc9ced0c4608435e03a497ace5087e8a798ff9bb",
+              "run": "run:sha256:c9a4e3f6ab7703ce8e3dd4f642e22cc2fc175c30dd488f0ef6b0b566019f1ad6",
+              "source": "fa86e3abbed052f741f7f7483a1233e3b978106e",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:837d08b540a581a1a52e80afdc9ced0c4608435e03a497ace5087e8a798ff9bb"
+              ],
+              "wall_ns": 1,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 1
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:73f60c3288772798c0fc7c23ac96ad056b296297c8517bb49dd2968613734561",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:764862917fa7051c6b115269b6e0f6ce3728161a4a1f2cf798fed9d111258627",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:787b660f010dd367d2935ccafd05ea0163b6acc8f36f44f441c600ffbfabbf66",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7907f358bb03d82d0adf21a2c9e9c8f706881f55893cfff1acb842b1aa571f08",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7a1863fcb28251090cd940652595dbefac587b5b82543cf5e379d5513d88efff",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7aa08ec99ff95936111fff35b63ad3debef97d67edee0df2800b6d73ca99b281",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7b7c630d88557572a6bea90a5a64a2590b7bc437fae7fd2154c5b203f551da91",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+        "Name": "Wan2.1-T2V-1.3B",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "video-gen",
+            "Recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+            "Proofs": [
+              "modality-verification/latent-video-current-generation#",
+              "modality-verification/latent-video-current-generation#acceptance-frozen-generation",
+              "modality-verification/latent-video-current-generation#acceptance-lifecycle"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 3,
+            "AcceptedPhases": 3,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:d137ace0d95df805c9a270d99e332e91c4b979283196fe07365316914c56916f",
+              "run": "run:sha256:e12f8b3baf8c7d41858fc714cceec8ec60497643fbdf556af657a7151b49d416",
+              "source": "b862f3c902fbbce8d5d6c511ee53dfa0d82f7e4e",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:d137ace0d95df805c9a270d99e332e91c4b979283196fe07365316914c56916f"
+              ],
+              "wall_ns": 382361382500,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 4605600
+                },
+                {
+                  "phase": "integrate",
+                  "duration_ns": 376763850400
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 382361382500
+                }
+              ],
+              "peak_step_device_bytes": 10329897932
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:7c6b20c84285c0092878fc10aa890e4bd94111a20955ad8124629f3c0e445789",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7f18fe2069a0e0ae5c444d3d3fa64ed6894d6b55df9fa67e606b273239930fa6",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:8036bdca9475a5d601dbdc525752fc1b8147ebe849c3f25fcb0c1bf9c3cdec8c",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
+        "Name": "models",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "training",
+            "Recipe": "recipe:sha256:039c60d69ef954582d5cfe7ba71080d1181e2f3cb0c0539f09934bf30da7846a",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:60933ff4657f8400ec720317d1f78ee66a71cbb7bc5af47cc6aee97833848294",
+              "run": "run:sha256:b455fa71a7aaef114de5a473e4ed8c7224871d12b89eb9d0de0e337eba4cd350",
+              "source": "0123456789abcdef0123456789abcdef01234567",
+              "environment": "evidence:sha256:b2f22e75a76fbd223a971037f4df5649e86744fc04ff8da3c6c9267cf31e82df",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:60933ff4657f8400ec720317d1f78ee66a71cbb7bc5af47cc6aee97833848294"
+              ],
+              "wall_ns": 110,
+              "phases": [
+                {
+                  "phase": "validate",
+                  "duration_ns": 110
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:82d61003a69e3451599444f8783f3acad74b3847618b2cde76793b8714ef8eee",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:8400fbdec374acf97d92b1e7544cb6f69bca9ec4e0af5eb273732bb063490048",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:84ad75f7726d10b000c4370ed43e442e5a293aeeaed680ba66a35a9b1838da13",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:84faac48ff3d717ed40000ddf1e5a34ae3236b5608c4f68f7d9871abbc4896c2",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:859b63241d72ffd6a92adfb5b3d8e0322d188550ce7343c1f4945e6df106441f",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:87ba5ab1494959dbda53b89800fc95b034aa50bc54a5aa6f257632b691e38577",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803",
+            "Proofs": [
+              "modality-verification/qwen4-native-reference",
+              "modality-verification/qwen4-verification-publication"
+            ],
+            "Scope": "Four native text cases; 12032 generated MMLU-Pro cases; 541 IFEval prompts and 1668 matched verdicts. No throughput claim.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 2,
+            "AcceptedPhases": 2,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:aded8827f8616899c8bd8373b713baff078c196eec811597782625e598d9984f",
+              "run": "run:sha256:b4b9c5137471d45275e6f47f8bcb3c6de4b6c18e079dc605af7a53819b1784cc",
+              "source": "20285ec8ec90394ef8ccc87e4bd8104c65ca388e",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:aded8827f8616899c8bd8373b713baff078c196eec811597782625e598d9984f"
+              ],
+              "wall_ns": 551760200,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 551760200
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342",
+        "Name": "Qwen2.5-0.5B",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "training",
+            "Recipe": "recipe:sha256:fd31c9db90701fd87cf8fa83d965abebaa42babf2cb4690ac52a943f5f2ea713",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:4e21dec7a372c66f38a982ef2b7636faddcebf4b490152ce845cec29f51886ba",
+              "run": "run:sha256:7ba1c66c8520da0388ce2eac2acba4103b1a36341a64f9c1784fc4d58eba41b1",
+              "source": "0123456789abcdef0123456789abcdef01234567",
+              "environment": "evidence:sha256:419f0d211bebd678dd9744a8cb687854804c2294a1257d7e12f5574737b0351a",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:4e21dec7a372c66f38a982ef2b7636faddcebf4b490152ce845cec29f51886ba"
+              ],
+              "wall_ns": 110,
+              "phases": [
+                {
+                  "phase": "validate",
+                  "duration_ns": 110
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+        "Name": "models",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84",
+            "Proofs": [
+              "modality-verification/qwen9-verification-publication"
+            ],
+            "Scope": "Full raw and generated MMLU-Pro; 541 IFEval prompts and 1668 matched verdicts. Numerical and performance findings remain separate.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:fbb3c77f474ffa62f665827ff76d3c8a9a5b30ba123649b72d3ae42d1b9bec73",
+              "run": "run:sha256:f53d930081b672dbe0fb132c6248a71f4c630a1100fcb27410afe9a1a2c2e921",
+              "source": "20285ec8ec90394ef8ccc87e4bd8104c65ca388e",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:fbb3c77f474ffa62f665827ff76d3c8a9a5b30ba123649b72d3ae42d1b9bec73"
+              ],
+              "wall_ns": 361019200,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 361019200
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:8ae2969a1aec3a2d6f2f7cdc85883dd287bb91b06042a5e790535df01857abc6",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:8c3fd233bebcf1cd06ad3a1adeaf97793415a2105766d4c512ee747905a80d1b",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:8ebbc81f4bbc8cdbb49856b934194b0fe68dc5340c7490c39e82ede19feeeedf",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:8f2e2c875364a9c71bac996c899547a706b44fbc4f65dd9c368ff2ed03fb757c",
+        "Name": "Krea-2-Turbo",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:93128151b16fe85c49acc0d9f14e344fe23671e44bfbfc77bca9465af7f208de",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:93c8a146d1677f35405fd205781ca035e975287a37e40ea1e77ecdecaa9e6bee",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:943acac2c3e324a363b04962c17d5a0ae6deb103dc93f5bddf5b80f06e62328a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9539931ee8c9c6e6d08f861daed151f1599daea49b31d69b282116871ce611da",
+        "Name": "overgo-hfconvert",
+        "Present": false,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:961b7d67e8fb6bf4e7a262895390b5300fb530d367e3432cb92aa7f829766a43",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:96b6b242ca1c2f24e9d02cd6596066fab6d310e2d7538f33ae267cb18d957e8f",
+        "Name": "Wan2.1-T2V-1.3B",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "training",
+            "Recipe": "recipe:sha256:f17a60546d11948f20f162e02b257b6e20377e740c093d94ce70d9fe2afbec8a",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:839d0cce7abf86f3977f1d1bb95bc251738c082c550bca56cfdbbc1d5bacf8eb",
+              "run": "run:sha256:43f18333774edfa1d1bd570090166bde95c6ac676dcf62e6fbcbb43099d5b937",
+              "source": "0123456789abcdef0123456789abcdef01234567",
+              "environment": "evidence:sha256:c51c1a5afe4eea228d9df9cc931f86b74b6a27295ef8d726e878c8327fd4ea00",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:839d0cce7abf86f3977f1d1bb95bc251738c082c550bca56cfdbbc1d5bacf8eb"
+              ],
+              "wall_ns": 110,
+              "phases": [
+                {
+                  "phase": "validate",
+                  "duration_ns": 110
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:96e6b249610e050a1eb6fb4a60919bc311a35a9de74948a5383cb86bf0178932",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9765d2a5d7cb546c01d77932e9a62d41dde25010f44f343e9d6e613308763907",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9a0f8aa0f795c8e8f232a6c882c1551d8951fe4a5ac693cbf5636cd4f54e8d43",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9a2d2606f0ad1643c09b00e4d352ef4e3a0e44f5543f93012d8e2150641a995d",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9a5e1dbfe1176160bbb63d9f7de6abded977d4f63f1bb02a53e725dd726a5020",
+        "Name": "overgo-hfconvert",
+        "Present": false,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9adacea936d5545e2dcf48bb7b8150003a2458fdd1828787d3b70f82891810d4",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9b8eedde770bfcf37c4b463ea201656485b4d2ec05a428c1dd785f3f31a2fbfb",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9cc837230e968e7b14acf5df9d602e2898a609c737e083f4f6d434b7812fdf57",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9dcc3961459017c8bcb8149df736d731cb4a0be7d0c1b2dfcf1230e5e04d7ace",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9e448ba9c0a8f293aa4e3b9e33cc53cc729ce5e9997bcf198559f8ddaf5aa21c",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:9fd51c9a222d5f7efdf5a5988958bb2636d5111d7da5e7f45883104a30972087",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:a0713f05de553e1e53d553c0ba0591853fdcfcfbb2759d59cc1f5d4a6c1ab968",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:a1b5919001898472406f567c5cb68ed054f764f22675add2c7389595afd16fbd",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:a4428d5534154479cb311dfb82bcc07b636e8be1085000d8b6adddf02541dcbe",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:a4c9312e903c702f83e5966813a0c8dbdfade2d6dacf78ad7ddfdf6f9fe48596",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:a6695a6ce643a630cb3cc6ee3abc8db6079629732498740da8dae006c603b4db",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:a87a9d6e5ed5d4bc735451bcee757c50fef7c77ada345ca89fe2d81ec66d5803",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:aae1381832adc9bbc03a348868fcf23937df66120e6a7f802a80919fee901ff8",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ab46f7156a1f392118946e96add73ed79ded27a33b7ef83a324f7e42ff4ec925",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ad489bbc15ec9bc5c61abdc317223a5ba27b99afd5e67d098b6d63ae34eb838e",
+        "Name": "overgo-hfconvert",
+        "Present": false,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ad72d518e747eb86ef2e96ae117e32858e328cb19287514e1ca746baa2facc23",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:afc93e73e2c7351a4e37fc1a926a6d2b36a87681432ddd63093eed7fa80c8bfe",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b23062277773be6dfb4fb8201526ea8c4d322c1a8d86dff8c3c964b5a5502c34",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b36c77f0a997dca73635b2851251b42fbcb61c15b5bb458fbaf4c9fb24a9c82c",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b45b8f191872f29394df96363ac3f633d4dd4ce78dde9dc7a0c50a626633a8b3",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b5207a249fa197e41f23003d9ed50ff62815bb63bbe3e9c819a4622ef14b15b7",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b53c178de43b6a5dcf11dc24b76cc1316591a1f2a79d75761f929e6ecd4a01f9",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b66e583be9dac1cd6ed9b67bbe264a92d871ab71699882b4d8e126cf00fe3fe6",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b6965e43a350538d05e4c515d8175e06625302851fe4437fd513adf3a9abe7e9",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b92c1b0fa27246fffaebaad8633638166fce0780c75f13ed7a5b5aff988ddc33",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b9f4738d6ef3a0e8d5443a53cf7b37cb00f2eecdd51e109b70c342c3ee8c018c",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:baabe0894067bdce20189b42f9bb6f233e24bcaaad1f0ad9242e0d4264884c24",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:bbe45f15023f9a0ea018cbc8e1558965022681bf897f6ea4d497d5bd1cd551c0",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:bd42d2cdaee87995ae59c7ba7503aee8486c8f21512b7dd58238f2aa6f6ea024",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c391791c625c6607373609650f83308a5ce5a525af2a148760b3fbb4abbe2afc",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "training",
+            "Recipe": "recipe:sha256:b39e2e5d37a3ff64e43f7ceeff1b42a30717b2065749cc19e0eeb07bf3179030",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:e078f767367e6f7a94780177b808ebb0355a7825950ce164a793123e93a15942",
+              "run": "run:sha256:e111432879a7bd6c5ffed44f03d019f97e0a2771b459362ceb1158509be9082f",
+              "source": "0123456789abcdef0123456789abcdef01234567",
+              "environment": "evidence:sha256:a486ca4c955c1a51f71980f36c19891581a9bd3aef871a78bb74e9ef40dd4017",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:e078f767367e6f7a94780177b808ebb0355a7825950ce164a793123e93a15942"
+              ],
+              "wall_ns": 110,
+              "phases": [
+                {
+                  "phase": "validate",
+                  "duration_ns": 110
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:c576bfd3abee69bdabbb7a92238fd59301ce1939bad724e32f0f15446988addb",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c593ea07c10cf8f00b86ce54cd85264941cbc1ade55c78943433446a078c28d1",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c7bb04fbfb2c548b4687d86e01bb743b7f06e9dd57ce25c2cfadbc7332af803c",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c85b4a85a28001344f623568c37f46adb5c2da58dc6add8f6491bcee98ff1691",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c8ddf214837deb1355bf7c5afc3f2637b140a561369d8e48ad1ea064952d1db6",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:c9c206812fbe4ac7b76a729e25928b63f2ae89d37f69da7a71c20aec763cd436",
+        "Name": "Qwen3.8-27B-UD-Q6_K",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ca03adf63e0a9b70e3265ae4a401cad2816c6d75e4b309014ae84cbd8b5c4b38",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:cb7fe81f91033e3841e95aca42d9caa3e31bdf192ae2a9d81b48459dd4ee7268",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:cd15f3a0bfa22d766ed0bc9ffd6d3ed3cc4cc076712e469fc328bb62a6da6229",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:cdb1566010a7cc442d28c4a29929c1d41e771768d05d71953694d9caa2e64e69",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ce5df197bc1b339428767b5333819ae945e4601679b3dece526b6b9cabb05701",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+            "Proofs": [
+              "modality-verification/gemma12-mmlu-publication",
+              "modality-verification/gemma12-native-ifeval"
+            ],
+            "Scope": "12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. Instruction-model raw NLL is not a new defect.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 2,
+            "AcceptedPhases": 2,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:9b3bc7edddc11f586541f67b86a1914e5c72cdb799aeda9565a61fc917526d40",
+              "run": "run:sha256:1e24e14c018e73d21d4c80931b1bed695ff53eeedf1bf1324927b4c6b0d8c4d0",
+              "source": "013b2c6879d1711daf04fc4c521294f312505c27",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:9b3bc7edddc11f586541f67b86a1914e5c72cdb799aeda9565a61fc917526d40"
+              ],
+              "wall_ns": 711772000,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 711772000
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:d112ec5d8564b6321b7f06fcd1ef9399c667c8ca2f4074798beb250d780ae77b",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:d2003d23f69739621e39d1daf3b25d2c55a93b0ad5d03115c7e4668beac3fdf9",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:d53a6ecbe84acda6f6b3da21240fefd25bc606d8c0fb9cf63a6fb7698ceaa37a",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:d5778b759aa7a3e3fbdfcb03ade46d34746ce46343f65f931a25637ba9e69e3d",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:da5f55cc24353072aceae342181c6870399c12b043d9d279cbd2128c5d4b93bb",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:da9167d573b319ed5875800027382707f5d239d0dfec3c0f00a1672ee5f4aff3",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:dada2a725d2147ff5a4516c297528ce02a138ec8f87b332118bd05292c959d65",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:dc235001f0345ee995fcac73a066565acedcdf0186c3e3d163992bfa80194f33",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ddbe8dec39b731bf8b1f356e819c57f48c78857ee8348ab4c7cbec90bdc12018",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:dec6b9ffefc0576318a39ec6b2c0fecb33fd0b92cd2f18df7c65dc7da9bf05d4",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e1e4e374f7c8072e39f5c6cf816198346fd860eadc577c83e848580f82728926",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e23aa3ef8cd715040993bfeb2db3063a494ed3760ebf0d6414143f69a5121fd5",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e2c0b9cd68657465f9dc7612ad8a1619a63353175b0edcfc7b4da0caacf919f4",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e2e5f69dc8d5c157d9762ff0418dd9048b965160516e8e6319f3b48129f0c183",
+        "Name": "timesfm-2.5-200m-transformers",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "forecast",
+            "Recipe": "recipe:sha256:bfebea0c7c6ba6f37e92c9dfa56fbe5c31595d9c23fe606015dfb2dbd55db763",
+            "Proofs": [
+              "modality-verification/specialized-native-generation#acceptance-forecast"
+            ],
+            "Scope": "Two native full-stack cases, 128 horizons and ten outputs per horizon; max absolute error \u003c= 1e-2.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:a16235350fd5fee79709b90a53a05f308b5ee11dd6459b72fe575796427d817c",
+              "run": "run:sha256:7dd117cbb8b3b52086f082f3b1f54ac389ae96305db97303bbbf8bdb26b526a9",
+              "source": "013b2c6879d1711daf04fc4c521294f312505c27",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:a16235350fd5fee79709b90a53a05f308b5ee11dd6459b72fe575796427d817c"
+              ],
+              "wall_ns": 679419200,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 679419200
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:e33387829adea323a41a59d96bd579d3cdcfc43467c90692cbe86211caa00277",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e37577c45aec2255ac437ae6e86518ea99745d6616dd8c59b1fe7e26a04606f7",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e381f0746029431e27fb376dc25273b7cbe48fea9ac8e44ad6764127c7fa9db1",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+        "Name": "Krea-2-Turbo",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "image-gen",
+            "Recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+            "Proofs": [
+              "modality-verification/krea-current-generation#",
+              "modality-verification/krea-current-generation#acceptance-native-lifecycle"
+            ],
+            "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 2,
+            "AcceptedPhases": 2,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:5b3a1c4bb7981dba814537a3bc55e9a7289f744e64884952417c56e48d8a9cba",
+              "run": "run:sha256:e4d68f9684123f97e07865a49641306cdf06410992e587608f7b75fb10f689a0",
+              "source": "05faa01ef333b7f2f1c93ba1c38d2f0779ff0e02",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:5b3a1c4bb7981dba814537a3bc55e9a7289f744e64884952417c56e48d8a9cba"
+              ],
+              "wall_ns": 14581471800,
+              "phases": [
+                {
+                  "phase": "decode",
+                  "duration_ns": 161904200
+                },
+                {
+                  "phase": "integrate",
+                  "duration_ns": 1416863400
+                },
+                {
+                  "phase": "prepare",
+                  "duration_ns": 9728573600
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 14581471800
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:e43119a64233444acda61c1cd89c5aba7fb1629da55a065a7a2a74fecade98bc",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e4a194ca36050be6ca48099f447db8baef33789dd66783b248312a4a81ac068f",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e61f34926cd36a73ee0814b0a01ee4e515d983c204676df0e9bc0652a571869d",
+        "Name": "nemotron-3.5-asr-streaming-0.6b",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
+        "Name": "Hy-Embodied-RxBrain-1.0",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "vqa",
+            "Recipe": "recipe:sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879",
+            "Proofs": [
+              "modality-verification/rxbrain-native-vqa"
+            ],
+            "Scope": "One frozen native image/question/text comparison. No broad VQA quality, hidden-state or performance claim.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:da6e3efbd0aedc4548eaaf5c50029d8ec2850b08e3ec8a1652041174ce09fc9c",
+              "run": "run:sha256:9d624ee2e95644abc39103913eefd97bff4e3682998e59d8a9827a0c48377c10",
+              "source": "6da9e6329fe7a3d78af483a04b5377699de150bc",
+              "environment": "evidence:sha256:d0edcef493e3fdb665583d278d1363d7e391b20147050cf35b8718b3d835bce1",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:da6e3efbd0aedc4548eaaf5c50029d8ec2850b08e3ec8a1652041174ce09fc9c"
+              ],
+              "wall_ns": 10113058200,
+              "phases": [
+                {
+                  "phase": "generate",
+                  "duration_ns": 10667648600
+                },
+                {
+                  "phase": "prepare",
+                  "duration_ns": 134636400
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 10113058200
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:e78d51bf93cd0892d36daff3693424dee021bda231a6e7901d8df1b80c74665e",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ea08dcf8508dcedf28bd31546a7f95d0f639df18dc8314b16c9f878077459c47",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:eab95eeb398d2e6844f3f6450faa3bd1716b090adb84155aa6c363a777bcb435",
+        "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:ee1d268c5ac4270ee84e0ddac701567fef0924cbe7452add9973d820e5167585",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:f2a1c235c30f0d8875ab3454678c5338310516567c36bd0e9b6fb13c86990b4f",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:f3ba850aa60126c50c53c7db0cc1510c93c7603fc3acf81ba4ba67bf538c2649",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:f56d447bad2b83262f85476f3dd3b33be2ca5700bee7010dbc620212837f8d77",
+        "Name": "Krea-2-Turbo",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
+            "Proofs": [
+              "modality-verification/gemma12-mmlu-publication"
+            ],
+            "Scope": "12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. BF16 artifact remains distinct from the native variant.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:c9cd0047a2ace2f53d8f60230ff42afc6ffed23ae8512b0bfea654131e985c25",
+              "run": "run:sha256:5bf93fc47c85f83adcb221fc0ddbf7b9b743eb65fabb29e9f38e15b0277a4baf",
+              "source": "013b2c6879d1711daf04fc4c521294f312505c27",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:c9cd0047a2ace2f53d8f60230ff42afc6ffed23ae8512b0bfea654131e985c25"
+              ],
+              "wall_ns": 852815500,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 852815500
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:f7cad193320a4873a067f0584c9c28bc1f18ea275ad382c3e29bfdc5d0032916",
+        "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:f8b932cdc72a739cb65d0d99e81c6f9c761372d7df26ca970b6a084e4e55b19d",
+        "Name": "model.pth.tar",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936",
+        "Name": "Hy-Embodied-RxBrain-1.0",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "training",
+            "Recipe": "recipe:sha256:9a437ecac687ab5c7332b8f36fb11114ce30143ad6ff16f5c8a55bf27e7a0f69",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:30582810fd54d1074ba25004a69e57ab5350dbec9239a57a51afa6a4a2355ec1",
+              "run": "run:sha256:f783771bb896820dd03bdd90a40a2bbd003e6ec20dbcfa9e9fc8645448414176",
+              "source": "0123456789abcdef0123456789abcdef01234567",
+              "environment": "evidence:sha256:b23f9c119fde4441b122a1c663e893f53858fffc74cc339aefdefdb0c55bb340",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:30582810fd54d1074ba25004a69e57ab5350dbec9239a57a51afa6a4a2355ec1"
+              ],
+              "wall_ns": 110,
+              "phases": [
+                {
+                  "phase": "validate",
+                  "duration_ns": 110
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+            "Proofs": [
+              "modality-verification/retained-model-bundles"
+            ],
+            "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:070bec738e53e0514049db2c8defe975769c6e129179c797947b34d1e5a20be7",
+              "run": "run:sha256:e4ce1638d36b8aeaede5d99577bca68fe6fb5d33e981859c1c3ec895ecaf54c7",
+              "source": "013b2c6879d1711daf04fc4c521294f312505c27",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:070bec738e53e0514049db2c8defe975769c6e129179c797947b34d1e5a20be7"
+              ],
+              "wall_ns": 571000700,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 571000700
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Task": "projection",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Proofs": [
+              "modality-verification/retained-model-bundles"
+            ],
+            "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056",
+              "run": "run:sha256:5f62f4a42907708817c706abd3c4fa48ce2548d8fa24941200079b2a4556c552",
+              "source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+              ],
+              "wall_ns": 63422076800,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 63422076800
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Gap": "",
+        "RepairOwner": ""
+      }
+    ],
+    "Documents": {
+      "docs/verification/image-video-coverage.json": "88af07241fd07965fe65bb31b020c7f29fb400c7deadce60712ea54ae0d91d51",
+      "docs/verification/specialized-coverage.json": "700b2bd046116527c6c514a6cbcce080d02d685ad1b939a3d51c981e020458a8",
+      "docs/verification/text-vision-coverage.json": "4da8f01ca386f1943401ec58455a682759fa86aa6b7e661bb1e9c8c04ac0d261"
+    },
+    "Proofs": [
+      {
+        "Reference": "modality-verification/gemma12-mmlu-publication",
+        "Commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7",
+        "Verify": "go test ./cmd/compatibility -run '^TestRetainedModelPublications$' -count=1",
+        "Preparation": "evidence:sha256:c4a7daf42d69a5df5dda2fbbae02433c8d05d39fe8a2090bc240eef0d0834cbd",
+        "Result": "evidence:sha256:dd97a5efd308835f5cfc5040ba5eb89bcf88d96d70eab5937deb154d1ca04d7f"
+      },
+      {
+        "Reference": "modality-verification/gemma12-native-ifeval",
+        "Commit": "7df4f2c2b73150edeb3662436030798bb5b89438",
+        "Verify": "go test ./internal/evaluation -run '^TestGemmaNativeIFEvalAcceptance$' -count=1",
+        "Preparation": "evidence:sha256:dab776874cf73748130ef34b1cf90197b8370e391629c9e3e525fe3c4eb4292e",
+        "Result": "evidence:sha256:1eda3704f26c4696621b58982acd91292df27ce65d3c24ff8a555a758f6654e4"
+      },
+      {
+        "Reference": "modality-verification/ifeval-parity-report",
+        "Commit": "b3d6663f9643f25b9bf92305226194d86f634ea6",
+        "Verify": "go test ./cmd/compatibility -run '^(TestMiniCPMIFEvalGoParityAcceptance|TestMiniCPMIFEvalAcquisitionAcceptance|TestMiniCPMIFEvalNativeScoringAcceptance)$' -count=1",
+        "Preparation": "evidence:sha256:e92fbf6ddbe10312dfc7f663c4ab77d239d27579406d29c7e7dd2d0149a223a9",
+        "Result": "evidence:sha256:ebd5432ed591a31b28ae53f2e5ebf0dec4ee9aab1b34fd9a072a15121d364ca6"
+      },
+      {
+        "Reference": "modality-verification/qwen27-projection",
+        "Commit": "69ffcc7423fa498c5df1dd4aaee269838626fe27",
+        "Verify": "go test ./internal/evaluation -run '^(TestRetainedProjectionResults|TestResumeRejectsPartialOrForeignPlanResults)$' -count=1 \u0026\u0026 go test ./cmd/compatibility -run '^TestRetainedProjectionPublications$/^qwen-twentyseven$' -count=1 \u0026\u0026 go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1",
+        "Preparation": "evidence:sha256:ce587547ad1864cb2ceb938beebcb008da1fe2d8d4bf7ce8449bc25dafefb1ec",
+        "Result": "evidence:sha256:479f62f486a33e8985d0a70667bf711def7453678e06e0044de9d38ab37d95ab"
+      },
+      {
+        "Reference": "modality-verification/qwen27-retained-publication",
+        "Commit": "8233e312749cfba83d4c345f5c2c9d6235ba3683",
+        "Verify": "go test ./cmd/compatibility -run '^TestRetainedModelPublications/qwen-twentyseven$' -count=1",
+        "Preparation": "evidence:sha256:7c550439a3c86555a991a06cadad2a40a117a8b841c9f6ea92c1901d92b0595d",
+        "Result": "evidence:sha256:039e1dadfde1105b1f8db357828363dfc2eeb01405d5420b205fe8bb363aed5b"
+      },
+      {
+        "Reference": "modality-verification/qwen4-native-reference",
+        "Commit": "dffd8555e6aab632eaffd7e8e25be8cec22a96b2",
+        "Verify": "go test ./internal/hfgguf -run '^(TestQwen35RecurrentMetadataIncludesPredictionLayers|TestQwen35ConvolutionNativeStorage|TestValidateQwen35RepositoryUsesRuntimeCatalog)$' -count=1 \u0026\u0026 test -f cmd/compatibility/qwen4_native_reference_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestQwenFourNativeReferenceAcceptance|TestMiniCPMNativeContract|TestAcceptedMiniCPMNativeReference)$' -count=1",
+        "Preparation": "evidence:sha256:5b7f9bc3bdd8d8ebd1494c62790b2411c0298f8e13f4784a4adff87a525efb0e",
+        "Result": "evidence:sha256:fa70b1eca0c6818c2bd60b68a5158b674cf93c65174f9e09b8f632953f4a6ec7"
+      },
+      {
+        "Reference": "modality-verification/qwen4-verification-publication",
+        "Commit": "4efa1bfda72838ae80ce54a933fc81151f6109b5",
+        "Verify": "go test ./cmd/compatibility -run '^TestQwenFourVerificationPublication$' -count=1",
+        "Preparation": "evidence:sha256:93cc55e998e7317f3c3e309761f61c0cd6c529e17e36a6f5a0f0abb14e9de874",
+        "Result": "evidence:sha256:2b8a8e4c73ef5743dea0a4cbf0f621c6b68ac1ce4730478573db89d9700fa0fe"
+      },
+      {
+        "Reference": "modality-verification/qwen9-verification-publication",
+        "Commit": "d78c582b2ec59e25adf53b1c25e1888a1190f49c",
+        "Verify": "go test ./cmd/compatibility -run \"^TestRetainedModelPublications/qwen-nine$\" -count=1",
+        "Preparation": "evidence:sha256:cd35718aa5409a8173bab8ff32171af1e303375f71379b73e4a3404706307b53",
+        "Result": "evidence:sha256:b6738dd6c1f21f3d26fecabe059863fa4a2ca1fbd04e0fb7ca793d098cd70c66"
+      },
+      {
+        "Reference": "modality-verification/resident-publication",
+        "Commit": "363d434f754395ec77ae6c45f9466ed1697b803f",
+        "Verify": "go test ./internal/evaluation -run '^(TestResidentCampaignPublication|TestIsolatedModelPerformanceEvidence|TestResourceFitnessContract|TestResumeRejectsPartialOrForeignPlanResults|TestQwenSmallRetainedTextAcceptance|TestQwenFourRetainedBenchmarkAcceptance)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestGateStagesMechanicalRepairs|TestAdmissionStepsOverlap|TestCandidateCheckoutOwnsIndexRefresh|TestCandidateVerifierCannotMutateAcceptedTree|TestCandidateVerifierExcludesAmbientWorktreeInputs)$' -count=1",
+        "Preparation": "evidence:sha256:d13e69cedd01b225ad8d18146a398bec2c28e53a7de298d7cf61716f81f22f0d",
+        "Result": "evidence:sha256:19f94d2850e1b68cb9bfd16a50aee1be73687449826c2eb2ecf0a0d36bb2e4ec"
+      },
+      {
+        "Reference": "modality-verification/retained-model-bundles",
+        "Commit": "85c67e71c17dc0d72ae65571c6a2a9cf33372c83",
+        "Verify": "go test ./internal/evaluation -run '^TestMiniCPMRetainedChoiceAcceptance$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestAcceptedMiniCPMNativeReference|TestMiniCPMNativeContract|TestMiniCPMIFEvalAcquisitionAcceptance|TestMiniCPMIFEvalNativeScoringAcceptance|TestMiniCPMIFEvalGoParityAcceptance|TestAcceptedE4BModalities)$' -count=1",
+        "Preparation": "evidence:sha256:4e6432d10050d8d28d52725999745abe75c6bde44ef7aac6e859536983d308d3",
+        "Result": "evidence:sha256:fc288ae5ba560ee6eaa8a11bbb0b6eebff0e524738029289028d871b0f7c066c"
+      },
+      {
+        "Reference": "modality-verification/rxbrain-native-vqa",
+        "Commit": "91201b26ce30eeede520c9804ddac4c4769c20e9",
+        "Verify": "go test ./cmd/compatibility -run '^TestAcceptedRxBrainVQA$' -count=1",
+        "Preparation": "evidence:sha256:3db4883b9319117176d0e4879ac37566ed472c8bdc2bddac14ed94f898c54a7c",
+        "Result": "evidence:sha256:bbc02608ddbb097d7078d572ad259c904104e810ecda63059d426e9f9e098bdf"
+      },
+      {
+        "Reference": "modality-verification/diffusion-current-generation",
+        "Commit": "fcc70f110ab92af8713e6723fce0a92a5fa341c7",
+        "Verify": "go test ./internal/diffusionimage -tags=modeltest -run '^(TestTinyModelForwardMatchesTorch|TestRealCheckpointPublishesReferencePNG|TestHostSamplingCancellationRecovery)$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -tags=modeltest -run '^(TestFrozenDiffusionGeneration|TestResidentSamplingDeviceAcceptance)$' -count=1",
+        "Preparation": "evidence:sha256:d3b220537a3accbffd4b423a112617fad74c194df903c2547be4c5b208b8a631",
+        "Result": "evidence:sha256:7f2b5027ab9055c49bfd8643cce52e391287fb312e07382f0dc120fe3d4cc5f3"
+      },
+      {
+        "Reference": "modality-verification/krea-current-generation",
+        "Commit": "51c87fce47fc9edeb3259b8a416f548b57405f8c",
+        "Verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/mediacapability -run '^TestFrozenKreaGeneration$' -count=1 -timeout=20m",
+        "Preparation": "evidence:sha256:a72de549f4e685445415915520bf7bea1ce85779c369f6928dd34219a976081b",
+        "Result": "evidence:sha256:d941484c81333480003a463b83a61364be6dcb24df9955b27ad424dfc75266be"
+      },
+      {
+        "Reference": "modality-verification/krea-current-generation",
+        "Commit": "51c87fce47fc9edeb3259b8a416f548b57405f8c",
+        "Verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^(TestFlowScheduleReproducesG2Exactly|TestDenoiserResidentG2Distribution|TestResidentLifetimeResourceAcceptance)$' -count=1 -timeout=20m",
+        "Preparation": "evidence:sha256:a72de549f4e685445415915520bf7bea1ce85779c369f6928dd34219a976081b",
+        "Result": "evidence:sha256:d941484c81333480003a463b83a61364be6dcb24df9955b27ad424dfc75266be",
+        "Check": "acceptance-native-lifecycle"
+      },
+      {
+        "Reference": "modality-verification/latent-video-current-generation",
+        "Commit": "91301d49604a81e2729a8cca29689928d6ce0bf7",
+        "Verify": "go test ./internal/latentvideo -run '^(TestWanRequestFormAdmitsPromptOrTensors|TestReferenceEditRequestFormAdmitsClipOrTensors)$' -count=1",
+        "Preparation": "evidence:sha256:c25d4c45063d2c630f3636d55090aa5de6aa781c775d1a9616ef3e4e687c1d6e",
+        "Result": "evidence:sha256:6a4c1e5ae55d9367526c716869d4075e90eaead74235dd18e0ada83fa802dbd3"
+      },
+      {
+        "Reference": "modality-verification/latent-video-current-generation",
+        "Commit": "91301d49604a81e2729a8cca29689928d6ce0bf7",
+        "Verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_FULL=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^TestFrozenLatentVideoGeneration$' -count=1 -timeout=40m",
+        "Preparation": "evidence:sha256:c25d4c45063d2c630f3636d55090aa5de6aa781c775d1a9616ef3e4e687c1d6e",
+        "Result": "evidence:sha256:6a4c1e5ae55d9367526c716869d4075e90eaead74235dd18e0ada83fa802dbd3",
+        "Check": "acceptance-frozen-generation"
+      },
+      {
+        "Reference": "modality-verification/latent-video-current-generation",
+        "Commit": "91301d49604a81e2729a8cca29689928d6ce0bf7",
+        "Verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestWanLifecycleAcceptance|TestLiveEditDeviceRuntime|TestLiveEditCancellationRecovery)$' -count=1 -timeout=20m",
+        "Preparation": "evidence:sha256:c25d4c45063d2c630f3636d55090aa5de6aa781c775d1a9616ef3e4e687c1d6e",
+        "Result": "evidence:sha256:6a4c1e5ae55d9367526c716869d4075e90eaead74235dd18e0ada83fa802dbd3",
+        "Check": "acceptance-lifecycle"
+      },
+      {
+        "Reference": "modality-verification/media-evidence-binding",
+        "Commit": "a79742e867dd3573c6d690276bf40fcdfeb35644",
+        "Verify": "test -f cmd/compatibility/verification_workflow_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestMediaEvidenceBinding$' -count=1",
+        "Preparation": "evidence:sha256:563fb00de48e0a80953f2f2dbdb44666e95fb314ffe2dadc87ad166309928ba6",
+        "Result": "evidence:sha256:3a812e82bc5973c62c0b4f774cabf1a2d5b009029084ddc90f19bb15fc84fb19"
+      },
+      {
+        "Reference": "modality-verification/sensenova-current-generation",
+        "Commit": "bb529c7d93df669cb410559fb2c40aa817ddab66",
+        "Verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_FULL=1 go test ./internal/sensenovarecipe -run '^(TestFrozenSenseNovaGeneration|TestSenseNovaProductionImageGeneration|TestSenseNovaCancellationRecovery)$' -count=1 -timeout=20m",
+        "Preparation": "evidence:sha256:2df6662e12a21590c150a67af4673a018de1bdd9c5c1352441a19501f49107f3",
+        "Result": "evidence:sha256:7ce06725d852465f9ea289a78cad1ffe82e4f5f89d5022daf5ebe416bff40b09"
+      },
+      {
+        "Reference": "modality-verification/un0-current-generation",
+        "Commit": "ff4209e2b6e27bf93700e42fe31d950485f6aabf",
+        "Verify": "go test ./internal/oscillatorimage -run '^(TestFrozenUn0Modalities|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch|TestArtifactPublishesReferencePNG|TestArtifactPublishesReferenceGIF|TestStagedCancellationKeepsOutputs|TestVideoCancellationKeepsOutputs)$' -count=1",
+        "Preparation": "evidence:sha256:70acbe4828fbe2fabe73963ddbd580cc61f0f560de6b4874a24ac14863ea6269",
+        "Result": "evidence:sha256:f32e17ef2526695da98098977697e59a3d5c5a093afc406bca10c7a89eec95e4"
+      },
+      {
+        "Reference": "modality-verification/specialized-native-generation",
+        "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+        "Verify": "go test ./internal/seq2seq -run '^TestOracleRejectsNonFinite$' -count=1",
+        "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+        "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4"
+      },
+      {
+        "Reference": "modality-verification/specialized-native-generation",
+        "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+        "Verify": "go test ./internal/seriesforecast -run '^TestForecastMatchesGolden$' -count=1 -timeout=10m",
+        "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+        "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+        "Check": "acceptance-forecast"
+      },
+      {
+        "Reference": "modality-verification/specialized-native-generation",
+        "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+        "Verify": "go test ./internal/tabularicl -run '^(TestPredictParity|TestValidateRequestRejectsMalformedInputs)$' -count=1 -timeout=20m",
+        "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+        "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+        "Check": "acceptance-tabular"
+      },
+      {
+        "Reference": "modality-verification/specialized-native-generation",
+        "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+        "Verify": "go test ./internal/seq2seq -tags=modeltest -run '^(TestEncoderMatchesOracle|TestIncrementalDecodeMatchesOracle|TestIncrementalMatchesFullDecode|TestRealTextGeneration)$' -count=1 -timeout=10m",
+        "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+        "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+        "Check": "acceptance-seq2seq"
+      },
+      {
+        "Reference": "modality-verification/specialized-native-generation",
+        "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+        "Verify": "go test ./internal/speechsynth -run '^(TestGenerationGolden|TestSpeakE2EProducesReferenceAudio|TestSpeechCompletion|TestSpeechRecovery|TestSpeechFrameCancellation|TestSpeechCodecCancellation|TestSpeechPipelineCancellation|TestSpeechDocumentOrderedRecording|TestSpeechDocumentSourceCoverage|TestSpeechDocumentRejectsInvalidSource)$' -count=1 -timeout=20m",
+        "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+        "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+        "Check": "acceptance-speech"
+      }
+    ]
   }
 }

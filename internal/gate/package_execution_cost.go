@@ -120,25 +120,32 @@ func (g *gateContext) recordPackageExecution(packages []string, short bool, wall
 	g.testExecutions = append(g.testExecutions, batch)
 }
 
+// canonicalPackage resolves a go-list selector to its import path against this
+// candidate's package graph, never a guessed module name: an import path the
+// graph already owns stays itself, a ./relative or matched selector becomes the
+// production node's import path, and an unowned target reports false.
+func (graph packageInputGraph) canonicalPackage(target string) (string, bool) {
+	if len(graph.byID[target]) != 0 {
+		return target, true
+	}
+	for _, node := range graph.nodes {
+		relative, err := filepath.Rel(graph.root, node.Dir)
+		if node.ForTest == "" && len(node.Match) != 0 && (slices.Contains(node.Match, target) || err == nil && target == "./"+filepath.ToSlash(relative)) {
+			return node.ImportPath, true
+		}
+	}
+	return "", false
+}
+
 // normalizePackageExecutions resolves go-list selectors without guessing module names.
 func (graph packageInputGraph) normalizePackageExecutions(batches []packageExecutionBatch) []packageExecutionBatch {
 	result := slices.Clone(batches)
 	for index, batch := range result {
 		var requested []string
 		for _, target := range batch.Requested {
-			if len(graph.byID[target]) != 0 {
-				requested = append(requested, target)
-				continue
-			}
-			found := false
-			for _, node := range graph.nodes {
-				relative, err := filepath.Rel(graph.root, node.Dir)
-				if node.ForTest == "" && len(node.Match) != 0 && (slices.Contains(node.Match, target) || err == nil && target == "./"+filepath.ToSlash(relative)) {
-					requested = append(requested, node.ImportPath)
-					found = true
-				}
-			}
-			if !found {
+			if canonical, ok := graph.canonicalPackage(target); ok {
+				requested = append(requested, canonical)
+			} else {
 				requested = append(requested, target)
 			}
 		}

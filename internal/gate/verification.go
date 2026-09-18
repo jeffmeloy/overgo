@@ -1700,9 +1700,14 @@ func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) erro
 	if err := g.requirePreparedCandidate(g.manifestPlan.CandidateTree); err != nil {
 		return err
 	}
-	verdict, err := g.executeCandidateVerifier(tree, verify)
+	verdict, reused, err := g.reuseAcceptanceVerdict(context.Background(), verify)
 	if err != nil {
 		return err
+	}
+	if !reused {
+		if verdict, err = g.executeCandidateVerifier(tree, verify); err != nil {
+			return err
+		}
 	}
 	if verdict != runrecord.ClassifyVerifyCommand(verify) {
 		return errors.New("acceptance: verifier returned the wrong classifier verdict")

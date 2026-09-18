@@ -437,6 +437,30 @@ func hasNonTestCommand(command string) bool {
 	return false
 }
 
+// VerifyGoTestNames parses out once and verifies that every named test passed
+// with complete package evidence. A caller checking many declared contracts
+// against one command's output calls this instead of re-parsing the output per
+// name.
+func VerifyGoTestNames(out string, short bool, names []string) error {
+	report, err := goTestJSONReport(out, short, false)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		targets, err := runrecord.GoTestTargets("go test -run '^"+regexp.QuoteMeta(name)+"$'", true)
+		if err != nil {
+			return err
+		}
+		if len(targets) != 1 {
+			return fmt.Errorf("go test names verifier: %q is not one target", name)
+		}
+		if err := verifyTarget(targets[0], report); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // VerifyOutput rejects successful shell verification that did not prove its
 // Go tests ran. Non-Go commands retain ordinary exit-code semantics.
 func VerifyOutput(command, out string) error {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 
 	"overgo/internal/automationcheck"
@@ -10,9 +9,12 @@ import (
 )
 
 // Every declared name needs executed evidence: a surviving sibling cannot hide
-// a renamed, skipped or missing contract. Reuse the common event validator.
+// a renamed, skipped or missing contract. The whole step output is parsed once
+// and every declared name is checked against that one report, not re-parsed per
+// contract.
 func verifyDeviceContracts(command []string, output string) error {
 	run, skip := stepTestPattern(command, "-run"), stepTestPattern(command, "-skip")
+	var names []string
 	for _, scope := range automationcheck.DeviceScopes(automationcheck.DeviceVerificationPlan{Full: true}) {
 		if !slices.Contains(command, scope.Package) {
 			continue
@@ -21,10 +23,14 @@ func verifyDeviceContracts(command []string, output string) error {
 			if run != nil && !run.MatchString(name) || skip != nil && skip.MatchString(name) {
 				continue
 			}
-			if err := testevidence.VerifyGoTestEvidence("go test -run '^"+regexp.QuoteMeta(name)+"$'", output); err != nil {
-				return fmt.Errorf("device contract %s %s: %w", scope.Package, name, err)
-			}
+			names = append(names, name)
 		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	if err := testevidence.VerifyGoTestNames(output, false, names); err != nil {
+		return fmt.Errorf("device contract: %w", err)
 	}
 	return nil
 }

@@ -4,24 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-resource-efficiency",
-      "title": "Cut gate and runtime peak memory by removing retained buffers and duplicate loads",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "first-memory-reduction",
-          "title": "Remove one dominant duplicate load or snapshot copy, net-AST down",
-          "status": "open",
-          "verify": "test -f internal/gate/memory_reduction_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateDuplicateLoadRemoved$' -count=1",
-          "rationale": "Choose one target from resource-baseline: duplicate immutable fixture/model loads, repeated census/graph materialization, whole-output buffers, unnecessary snapshot copies or avoidable child-process fan-out. Inspect existing owners and landed lane work; prefer deletion, streaming, compact references and shorter lifetime over pools, caches or a new controller. The diagnostic streaming repair belongs to surface-gate-diagnostics, analysis sharing to validation-gate-selection/static-analysis-sharing, and prepared-state lifetime to surface-gate-deferred; consume their results instead of duplicating implementation. Keep this slice to one causal repair and its affected tests. Freeze source/input/environment identities, acceptance oracle and measured baseline before comparison. Acceptance retains all required verdicts and failure/recovery semantics, demonstrates a repeatable reduction in observed peak process-tree memory or retained bytes, and reports full-attempt wall/CPU/I/O and any tradeoff without hiding compilation, retries or finalization. Numerical result reuse still requires exact input authority; memory pressure never authorizes skipping a required check. Prove cancellation, restart, bounded resource use and release with existing lifecycle owners. If initial target has no defensible benefit, retain the refusal and select a cheaper bounded target; measurement alone does not complete this repair. Bind the target's owning-package regression tests before closure; the named gate acceptance verifies the retained matched comparison rather than rerunning models.",
-          "depends_on": [
-            "gate-resource-efficiency/resource-baseline"
-          ]
-        }
-      ]
-    },
-    {
       "id": "surface-gate-execution",
       "title": "Satisfy matching acceptance and owner obligations once",
       "owner": "master-lead",

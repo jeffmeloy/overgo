@@ -1,10 +1,37 @@
 package gate
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/testevidence"
 )
+
+// TestGateDuplicateLoadRemoved holds the device lane's contract verification to
+// one parse of the step output: every declared contract is checked against a
+// single parsed report through testevidence.VerifyGoTestNames rather than
+// re-parsing the whole output once per contract name.
+func TestGateDuplicateLoadRemoved(t *testing.T) {
+	var stream strings.Builder
+	event := func(format string, args ...any) { fmt.Fprintf(&stream, format+"\n", args...) }
+	const pkg = "overgo/internal/kern"
+	for _, name := range []string{"TestAlphaKernel", "TestBetaKernel"} {
+		event(`{"Action":"run","Package":%q,"Test":%q}`, pkg, name)
+		event(`{"Action":"output","Package":%q,"Test":%q,"Output":"--- PASS\n"}`, pkg, name)
+		event(`{"Action":"pass","Package":%q,"Test":%q,"Elapsed":0.1}`, pkg, name)
+	}
+	event(`{"Action":"pass","Package":%q,"Elapsed":0.3}`, pkg)
+	output := stream.String()
+
+	if err := testevidence.VerifyGoTestNames(output, false, []string{"TestAlphaKernel", "TestBetaKernel"}); err != nil {
+		t.Fatalf("declared contracts rejected from one parse: %v", err)
+	}
+	if err := testevidence.VerifyGoTestNames(output, false, []string{"TestMissingKernel"}); err == nil {
+		t.Fatal("a missing contract was accepted")
+	}
+}
 
 // TestGateRetainedMemoryReduced holds the gate lane runner's output retention
 // bounded: superviseLane streams a lane's whole stdout and stderr through a

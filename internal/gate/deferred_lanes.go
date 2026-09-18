@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/processlock"
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
 )
@@ -30,6 +31,7 @@ var deferredLaneChecks = []string{testDeviceCheckName, "device", automationcheck
 const (
 	gateLanesLocatorFile = "tmp/gate_lanes.json"
 	gateLanesLogFile     = "tmp/gate_lanes.log"
+	gateLanesLockFile    = "tmp/gate_lanes.lock"
 )
 
 // gateLanesLocator is the advisory pointer to the lane runner: which
@@ -103,13 +105,15 @@ func requireLaneObligationsResolved(repo string, store *overgodb.Store) (*runrec
 	if current.State == runrecord.LaneObligationFailed {
 		return &current, nil
 	}
-	var locator gateLanesLocator
-	if err := readJSON(repo, gateLanesLocatorFile, &locator); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("gate: inspect lane locator: %w", err)
+	guard, err := acquireLaneRunner(repo)
+	if errors.Is(err, processlock.ErrBusy) {
+		return nil, fmt.Errorf("gate: deferred lanes of %.12s are still running (log %s); wait for them before another gate", current.CodeCommit, gateLanesLogFile)
 	}
-	if locator.Obligation == current.ID && processcontrol.ProcessAlive(locator.PID) {
-		return nil, fmt.Errorf("gate: deferred lanes of %.12s are still running (pid %d, log %s); wait for them before another gate",
-			current.CodeCommit, locator.PID, gateLanesLogFile)
+	if err != nil {
+		return nil, fmt.Errorf("gate: inspect lane ownership: %w", err)
+	}
+	if err := guard.Close(); err != nil {
+		return nil, err
 	}
 	return nil, fmt.Errorf("gate: deferred lanes of %.12s did not finish; run `go run ./cmd/gate -lanes` before another gate", current.CodeCommit)
 }
@@ -226,7 +230,15 @@ func laneExecutable(repo, executable string) (string, error) {
 // runDeferredLanes is `gate -lanes`: it takes the store's open obligation,
 // runs its lanes against the exact landed commit in a candidate worktree,
 // and records the outcome on the obligation chain.
-func runDeferredLanes(repo, storePath string) (runErr error) {
+func runDeferredLanes(repo, storePath string, execute func(*gateContext, runrecord.GateLaneObligation) (runrecord.Outcome, string, []runrecord.GateStep, error)) (runErr error) {
+	if execute == nil {
+		return errors.New("gate: deferred execution is absent")
+	}
+	guard, err := acquireLaneRunner(repo)
+	if err != nil {
+		return fmt.Errorf("gate: acquire lane runner: %w", err)
+	}
+	defer func() { runErr = errors.Join(runErr, guard.Close()) }()
 	// The gate that spawned this runner still holds the authority lock for a
 	// moment; the runner waits on the lock itself under its own lifetime.
 	lock, err := authoritylock.AcquireContext(context.Background(), repo)
@@ -250,13 +262,6 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	if !found || current.Resolved() {
 		return errors.New("gate: no deferred lanes are outstanding")
 	}
-	var locator gateLanesLocator
-	if err := readJSON(repo, gateLanesLocatorFile, &locator); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if current.State == runrecord.LaneObligationRunning && locator.Obligation == current.ID && locator.PID != os.Getpid() && processcontrol.ProcessAlive(locator.PID) {
-		return fmt.Errorf("gate: another runner (pid %d) holds the deferred lanes of %.12s", locator.PID, current.CodeCommit)
-	}
 	g.environment, err = discoverEnvironment(repo)
 	if err != nil {
 		return err
@@ -265,7 +270,7 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 	if err != nil {
 		return err
 	}
-	// The locator names this runner's pid; admission judges liveness by it.
+	// The locator is advisory; the OS guard owns the runner's lifetime.
 	if err := g.writeLaneLocator(running); err != nil {
 		return err
 	}
@@ -275,7 +280,38 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 		return fmt.Errorf("gate: resolve the landed commit's tree: %w", err)
 	}
 	g.fixedTree = strings.TrimSpace(tree)
-	outcome, failure, steps, runErr := g.executeDeferredLanes(running)
+	g.sourceEnv, err = g.sourceEnvironment()
+	if err != nil {
+		return err
+	}
+	var outcome runrecord.Outcome
+	var failure string
+	var steps []runrecord.GateStep
+	err = g.withCandidateWorktree(g.fixedTree, func(string) error {
+		releaseErr := lock.Close()
+		lock = nil
+		if releaseErr != nil {
+			return releaseErr
+		}
+		outcome, failure, steps, runErr = execute(g, running)
+		return nil
+	})
+	if err != nil {
+		outcome, failure, steps, runErr = deferredResolutionFailure(g.clock, steps, errors.Join(runErr, err))
+	}
+	if lock == nil {
+		lock, err = authoritylock.AcquireContext(context.Background(), repo)
+		if err != nil {
+			return errors.Join(runErr, err)
+		}
+	}
+	if err := store.Refresh(context.Background()); err != nil {
+		return errors.Join(runErr, err)
+	}
+	latest, found, err := runrecord.CurrentGateLaneObligation(context.Background(), store)
+	if err != nil || !found || latest.ID != running.ID {
+		return errors.Join(runErr, err, errors.New("gate: lane obligation changed during execution"))
+	}
 	recipeID, err := g.gateRecipeID()
 	if err != nil {
 		return err
@@ -323,6 +359,14 @@ func runDeferredLanes(repo, storePath string) (runErr error) {
 		return fmt.Errorf("gate: deferred lanes failed on %.12s: %w", running.CodeCommit, runErr)
 	}
 	return nil
+}
+
+func acquireLaneRunner(repo string) (*processlock.Lock, error) {
+	path := filepath.Join(repo, filepath.FromSlash(gateLanesLockFile))
+	if err := os.MkdirAll(filepath.Dir(path), clioptions.OutputDirectoryMode); err != nil {
+		return nil, err
+	}
+	return processlock.Acquire(path, gatePrivateFileMode)
 }
 
 // resumeLaneObligation retains an interrupted run's exact obligation. Its
@@ -400,15 +444,18 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 		return validateManifestCommitAdmission(*planned.manifest, g.terminal, satisfied)
 	})
 	if err != nil && failure == "" {
-		outcome, failure = runrecord.OutcomeFailed, "lane-resolution"
-		wall, wallErr := started.Elapsed()
-		if wallErr != nil {
-			return outcome, failure, steps, errors.Join(err, wallErr)
-		}
-		steps = append(steps, gateEvidenceRecord(failure, runrecord.PhaseValidate,
-			automationcheck.Evidence{DurationNS: wall}, err, ""))
+		return deferredResolutionFailure(started, steps, err)
 	}
 	return outcome, failure, steps, err
+}
+
+func deferredResolutionFailure(started processmeasure.Stopwatch, steps []runrecord.GateStep, err error) (runrecord.Outcome, string, []runrecord.GateStep, error) {
+	const failure = "lane-resolution"
+	wall, wallErr := started.Elapsed()
+	if wallErr == nil {
+		steps = append(steps, gateEvidenceRecord(failure, runrecord.PhaseValidate, automationcheck.Evidence{DurationNS: wall}, err, ""))
+	}
+	return runrecord.OutcomeFailed, failure, steps, errors.Join(err, wallErr)
 }
 
 // wireLaneRunnerDependencies makes the device test group follow the test

@@ -140,6 +140,8 @@ type gateContext struct {
 	// runCommand overrides supervised command execution for remediation
 	// tests; nil routes through the package command runner.
 	runCommand func(repo, name string, args ...string) (string, error)
+	// Deferred execution retains the environment resolved at admission.
+	sourceEnv []string
 	// The validate wave runs its checks concurrently; the snapshots and
 	// the audit they share are written under these locks.
 	sourceMutex      sync.Mutex

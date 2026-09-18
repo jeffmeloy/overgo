@@ -356,13 +356,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "authority-lifetime",
-          "title": "Limit deferred authority ownership to conflicting mutations",
-          "status": "open",
-          "verify": "test -f internal/gate/deferred_authority_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeferredAuthorityLifetime$' -short -count=1",
-          "rationale": "Measured blocker: d2b6484a deferred lanes passed in 649.8s, but runDeferredLanes held the worktree authority lock throughout, refusing an independent plan dispatch while tests used a candidate worktree. Finding d698d73e82263c1ba660ccb98b9107ab635efc6d7858185d6a0720e1dad7ca09. Audit all lane input reads and mutation boundaries first. Permit independent dispatch only once the complete execution input closure is immutable and isolated; protect admission, obligation state and terminal publication through existing authority/transaction owners, with the existing live process lock preventing duplicate runners. Do not replace ownership with elapsed-time leases or create another scheduler. Test concurrent dispatch, source drift, duplicate launch, cancellation/process death, restart and simultaneous result publication; retain every owed check and exact candidate binding. Demonstrate dispatch during a held test without weakening mutation exclusion. This is separate from prepared-resume's selection reconstruction optimization."
-        },
-        {
           "id": "prepared-resume",
           "title": "Carry immutable selections into the deferred runner",
           "status": "open",

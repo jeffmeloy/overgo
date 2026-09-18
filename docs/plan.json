@@ -25,17 +25,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "speech-ocr-tabular-forecast",
-          "title": "Verify speech, OCR, tabular, forecast and embodied activations",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/accepted_modalities_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^TestAcceptedSpecializedTaskEvidence$' -count=1 \u0026\u0026 go run ./cmd/eval-lane",
-          "rationale": "Use each existing owner for pocket-tts, OCR/SenseNova, tabular, forecast and Hy-Embodied activations found in the census; retain unverified status where no oracle exists. Bind exact owner invocations, budgets and per-task assertions; no generic eval-lane result substitutes for missing task coverage. Independence from other modality branches permits host preparation without waiting on their GPU runs. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row. Collect and consume complete per-model bundles across applicable modalities; task-group rows are final coverage joins, not a reason to reload every model or recommit already accepted evidence. Include input modalities under inference, even when the activation task name is not VQA or media generation.\n\nRequired read-only acceptance: TestAcceptedSpecializedTaskEvidence in cmd/compatibility/accepted_modalities_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.",
-          "depends_on": [
-            "modality-verification/declared-smoke-expectations",
-            "modality-verification/specialized-native-generation"
-          ]
-        },
-        {
           "id": "media-report",
           "title": "Generate the complete modality report from verified outcomes and visible gaps",
           "status": "open",

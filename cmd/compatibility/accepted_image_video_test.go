@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -11,11 +10,8 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/dataroot"
-	"overgo/internal/discovery"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
-	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
@@ -23,7 +19,7 @@ import (
 )
 
 type imageVideoCoverage struct {
-	textVisionCoverage
+	acceptedCoverage
 	Cases []acceptedMediaCase
 }
 
@@ -87,24 +83,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	}
 	root := testutil.RepoRoot(t)
 	var coverage imageVideoCoverage
-	path := filepath.Join(root, "docs/verification/image-video-coverage.json")
-	if err := jsonfile.DecodeStrict(path, &coverage); err != nil {
-		t.Fatal(err)
-	}
-	// Assignments are reviewed independently of the evidence resolver.
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fmt.Sprintf("%x", sha256.Sum256(data)) != acceptedImageVideoSHA256 {
-		t.Fatal("reviewed media acceptance assignments changed")
-	}
-	for path, digest := range coverage.Inputs {
-		data, err := os.ReadFile(filepath.Join(root, path))
-		if !filepath.IsLocal(path) || err != nil || fmt.Sprintf("%x", sha256.Sum256(data)) != digest {
-			t.Fatalf("accepted declaration changed: %s: %v", path, err)
-		}
-	}
+	requireAcceptedDocument(t, root, "docs/verification/image-video-coverage.json", acceptedImageVideoSHA256, &coverage)
 	var protocol imageVideoProtocol
 	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
 		t.Fatal(err)
@@ -112,25 +91,7 @@ func TestAcceptedImageVideoEvidence(t *testing.T) {
 	if err := checkAcceptedMediaCases(protocol, coverage); err != nil {
 		t.Fatal(err)
 	}
-	roots, err := dataroot.Resolve(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	entries, truncated, err := discovery.CapabilityCatalogForTasks(t.Context(), store, mediaCatalogLimit, discovery.LoadMemo(t.Context(), store), recipe.TaskImageGen, recipe.TaskVideoGen)
-	if err != nil || truncated {
-		t.Fatalf("media denominator unavailable or truncated: %v", err)
-	}
-	if err := checkAcceptedDenominator(t.Context(), store, coverage.Models, entries); err != nil {
-		t.Fatal(err)
-	}
-	for _, proof := range coverage.Proofs {
-		requireAcceptedGate(t, store, proof)
-	}
+	store := requireAcceptedCoverage(t, root, coverage.acceptedCoverage, recipe.TaskImageGen, recipe.TaskVideoGen)
 	for i, binding := range coverage.Cases {
 		t.Run(binding.Case, func(t *testing.T) {
 			value := protocol.Cases[i]

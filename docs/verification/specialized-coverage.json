@@ -1,0 +1,127 @@
+{
+  "Version": 1,
+  "Scope": "Four active specialized tasks at the recorded producer source. Numerical and functional protocols only; no broad quality or performance claim. TabFM also tests the regression head without inventing a regression activation. Hy-Embodied VQA remains in the text/vision join; Unlimited-OCR training smoke is not OCR inference acceptance.",
+  "Models": [
+    {
+      "Model": "model:sha256:127ad48856519e932017fedeed3e9c09a6f12ea726f496ac1c97abeaa1bf30b5",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "tabular",
+          "Recipe": "recipe:sha256:24ea92b943a3971d0433e224b9be96e2dd149667e69e4a442ecde9ddc36b105d",
+          "Proofs": [
+            "modality-verification/specialized-native-generation#acceptance-tabular"
+          ],
+          "Scope": "Four native classification/regression cases, max absolute error \u003c= 1e-3, plus malformed-input refusal; current activation names the classification artifact."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:2928aabcbb4c9f8a11e1ca47fcac873dcae5f4032e26529ada55affbaf9014ad",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "seq2seq",
+          "Recipe": "recipe:sha256:97d4e5f577aceab7a0b616688d3d6c0708b8012e04155ef2c045641f97fa71c8",
+          "Proofs": [
+            "modality-verification/specialized-native-generation#acceptance-seq2seq"
+          ],
+          "Scope": "Native encoder/logit relative RMS \u003c= 8e-3/5e-3, exact native argmax, exact incremental/full recomputation and a grounded weather tool call. Non-finite or missing vectors fail."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:68ad1881ffcedc9ed797346b8ecd0784e59162a3de2db8daa92acb014c1251ee",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "speech",
+          "Recipe": "recipe:sha256:353213be1a91a29530711460da9a2cd8de4e44f43c97e824d029881a74d0f403",
+          "Proofs": [
+            "modality-verification/specialized-native-generation#acceptance-speech"
+          ],
+          "Scope": "Native latent/EOS and PCM/WAV bounds; post-EOS completion; frame, codec and pipeline cancellation; durable generation/decoding recovery; ordered document recording and source coverage. Original per-stage numerical tolerances retained."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:e2e5f69dc8d5c157d9762ff0418dd9048b965160516e8e6319f3b48129f0c183",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "forecast",
+          "Recipe": "recipe:sha256:bfebea0c7c6ba6f37e92c9dfa56fbe5c31595d9c23fe606015dfb2dbd55db763",
+          "Proofs": [
+            "modality-verification/specialized-native-generation#acceptance-forecast"
+          ],
+          "Scope": "Two native full-stack cases, 128 horizons and ten outputs per horizon; max absolute error \u003c= 1e-2."
+        }
+      ]
+    }
+  ],
+  "Proofs": [
+    {
+      "Reference": "modality-verification/specialized-native-generation",
+      "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+      "Verify": "go test ./internal/seq2seq -run '^TestOracleRejectsNonFinite$' -count=1",
+      "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+      "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4"
+    },
+    {
+      "Reference": "modality-verification/specialized-native-generation",
+      "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+      "Verify": "go test ./internal/seriesforecast -run '^TestForecastMatchesGolden$' -count=1 -timeout=10m",
+      "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+      "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+      "Check": "acceptance-forecast"
+    },
+    {
+      "Reference": "modality-verification/specialized-native-generation",
+      "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+      "Verify": "go test ./internal/tabularicl -run '^(TestPredictParity|TestValidateRequestRejectsMalformedInputs)$' -count=1 -timeout=20m",
+      "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+      "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+      "Check": "acceptance-tabular"
+    },
+    {
+      "Reference": "modality-verification/specialized-native-generation",
+      "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+      "Verify": "go test ./internal/seq2seq -tags=modeltest -run '^(TestEncoderMatchesOracle|TestIncrementalDecodeMatchesOracle|TestIncrementalMatchesFullDecode|TestRealTextGeneration)$' -count=1 -timeout=10m",
+      "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+      "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+      "Check": "acceptance-seq2seq"
+    },
+    {
+      "Reference": "modality-verification/specialized-native-generation",
+      "Commit": "77a4d745b07fefcb62c59a8b8eac18a7d1b5ef4b",
+      "Verify": "go test ./internal/speechsynth -run '^(TestGenerationGolden|TestSpeakE2EProducesReferenceAudio|TestSpeechCompletion|TestSpeechRecovery|TestSpeechFrameCancellation|TestSpeechCodecCancellation|TestSpeechPipelineCancellation|TestSpeechDocumentOrderedRecording|TestSpeechDocumentSourceCoverage|TestSpeechDocumentRejectsInvalidSource)$' -count=1 -timeout=20m",
+      "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
+      "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
+      "Check": "acceptance-speech"
+    }
+  ],
+  "Inputs": {
+    "docs/verification/rxbrain-vqa-retained.json": "9410388415f20784dfbed90079f902e99d255013fb095f3a3988a716bf38f16e",
+    "docs/verification/unlimited-ocr-training.json": "90b02a76a81e8f399212d8035392b1e76621830b6a9291d63cdcc87fde06c0e7",
+    "fixtures/needle_forward_oracle.json": "3bf4214e92d34a26872c0cf9a21001670534d0a7b6fed0872313f7a1ded69eb6",
+    "fixtures/pockettts/_go_generated.wav": "ceed9147f6bb3430a75dfef097300148905a9c801bae2d17529d2e072876fea5",
+    "fixtures/pockettts/g1_tokenizer.json": "a9bae4ef8a1eea7914222a34644c682a30695ec83b6a2947de5eac9fcd91557c",
+    "fixtures/pockettts/g4_e2e.json": "b1b36895f66eaba0a52fc0f0a24b6eb78c790679a4901da5586e1838c55a7012",
+    "fixtures/pockettts/g6_backbone.json": "6c9847ed20492c482c72ec3a7fdfcff0e5784f51a3e95b2297c1062b05229e2b",
+    "fixtures/pockettts/g7_generation.json": "1658f8b442d25adcbe7ed1b9306d333ba2cc81d7e7647ac6a48252c8a437eee1",
+    "fixtures/tabfm_predict_golden.json": "c3d7c0c4d9b5f5cf04074d810a07756bc040e9e1e2e48a00270e0512aa79e9f9",
+    "fixtures/timesfm_golden.json": "4ea782a5ac1173f7dfa829f9e618615e8cccd0faf3b06a3ade40a50cd5f0ff17",
+    "internal/seq2seq/oracle_golden_test.go": "35a1e10ec2478a4b9904ad3d28ea6f88efc5b928ac5ae3ae7c02941e6689a73f",
+    "internal/seq2seq/real_text_model_test.go": "1697ced95aef741665b63cbbf22857fc706a221c56f21187554ac653ee12c83f",
+    "internal/seriesforecast/forward_golden_test.go": "ff5f6a548ba6fcc34e5b46140fed5b50b142fd273745f98ee47b874ed84597d9",
+    "internal/speechsynth/cancellation_test.go": "b9a7293ce114fe53df08a41c7a5725ca4f6ec9d740dbe0321c36da6797c39464",
+    "internal/speechsynth/codec_golden_test.go": "9095b101f804d2201947c98f2ecde6f02a788d0eec2c946e749131fcfe242f30",
+    "internal/speechsynth/completion_test.go": "a97ba8e5951dd09de5a17a1fa0a75a533c698ed201b5245e36eb9dff8e516855",
+    "internal/speechsynth/document_runtime_test.go": "a8174c141e444f9a0d782fdb9b2d359e66e15a44329160ab99c0db0a8c817971",
+    "internal/speechsynth/document_test.go": "32f2d229d49b91c07d98ee3e80ab1a587e14cc44e1d227430dff5c8c2bc66912",
+    "internal/speechsynth/generate_golden_test.go": "730e174610c86d1e8b0672cdd89bc537392e0e4c5adf673dcd61683816d1b93a",
+    "internal/speechsynth/golden_test.go": "85b70b11e286611025c576dbf45415876e32fe6cfe2f2922c1a466917235e1db",
+    "internal/speechsynth/recovery_test.go": "c0746cc7c48eb0950603710e7a42aa27108ae534271899e5be906445448a4ce8",
+    "internal/tabularicl/predict_golden_test.go": "7971f400f2fcdb39add4e5767b7b471adb99dca0318f06e834b202ec462703fc"
+  }
+}

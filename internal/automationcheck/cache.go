@@ -98,9 +98,9 @@ func (cache *EvidenceCache) RunCached(ctx context.Context, invocation Invocation
 // original execution. The original must be proven, recorded in this
 // environment under the same input, and verify the same definition.
 func (cache *EvidenceCache) Lookup(invocation Invocation, input artifact.ID) (Evidence, bool) {
-	entry, found := cache.Entries[cacheKey(invocation.ID)]
-	if !found || entry.Input != input || !entry.Proven() ||
-		entry.Source.Environment != cache.Environment || entry.Source.Definition != executionDefinition(invocation.Authority, invocation.ID) {
+	definition := executionDefinition(invocation.Authority, invocation.ID)
+	entry, found := cache.reusableEntry(invocation.ID, definition, input)
+	if !found || entry.Source.Environment != cache.Environment || entry.Source.Definition != definition {
 		return Evidence{}, false
 	}
 	if invocation.Authority != nil && !(ReuseBinding{Input: input, Environment: cache.Environment}).matches(invocation.Authority) {
@@ -116,6 +116,23 @@ func (cache *EvidenceCache) Lookup(invocation Invocation, input artifact.ID) (Ev
 	}
 	evidence.ID = id
 	return evidence, true
+}
+
+// reusableEntry finds a proven result for this definition and input: the exact
+// invocation slot first, then any recipe composition's slot that executed the
+// same definition on the same input. The second path lets an unchanged node be
+// reused across recipe compositions -- whose plan identities give the node
+// different bound invocation ids -- instead of re-executing it.
+func (cache *EvidenceCache) reusableEntry(invocation, definition, input artifact.ID) (CacheEntry, bool) {
+	if entry, found := cache.Entries[cacheKey(invocation)]; found && entry.Input == input && entry.Proven() {
+		return entry, true
+	}
+	for _, entry := range cache.Entries {
+		if entry.Input == input && entry.Proven() && entry.Source.Definition == definition {
+			return entry, true
+		}
+	}
+	return CacheEntry{}, false
 }
 
 // Record replaces the stable invocation slot with one successful result.

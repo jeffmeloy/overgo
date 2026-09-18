@@ -3,8 +3,6 @@ package apimanifest
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -241,7 +239,7 @@ func canonicalize(value *Manifest) error {
 }
 
 func validate(value Manifest) error {
-	if value.Version != artifact.InitialDocumentVersion || !validText(value.Release) || !validDigest(value.SourceIdentity) || len(value.BuildContexts) == 0 || len(value.Authorities) == 0 {
+	if value.Version != artifact.InitialDocumentVersion || !validText(value.Release) || !artifact.ValidHexDigest(value.SourceIdentity) || len(value.BuildContexts) == 0 || len(value.Authorities) == 0 {
 		return errors.New("API manifest header is invalid")
 	}
 	contexts := map[string]bool{}
@@ -254,7 +252,7 @@ func validate(value Manifest) error {
 	documents := map[string]bool{}
 	for _, document := range value.Documents {
 		key := documentKey(document.Kind, document.MediaType, document.Schema)
-		if !validText(document.Name) || !validText(document.Owner) || !validText(document.VersionOwner) || !validText(document.Source) || !validDigest(document.SourceIdentity) || !validContract(ContractRef{Kind: document.Kind, MediaType: document.MediaType, Schema: document.Schema}) || documents[key] || !knownContexts(document.BuildContexts, contexts) {
+		if !validText(document.Name) || !validText(document.Owner) || !validText(document.VersionOwner) || !validText(document.Source) || !artifact.ValidHexDigest(document.SourceIdentity) || !validContract(ContractRef{Kind: document.Kind, MediaType: document.MediaType, Schema: document.Schema}) || documents[key] || !knownContexts(document.BuildContexts, contexts) {
 			return errors.New("API manifest document contract is invalid")
 		}
 		documents[key] = true
@@ -336,7 +334,7 @@ func validateNamedContent[T any](values []T, fields func(T) (string, string, str
 	seen := map[string]bool{}
 	for _, value := range values {
 		name, path, identity := fields(value)
-		if !validText(name) || !validText(path) || !validDigest(identity) || seen[name] {
+		if !validText(name) || !validText(path) || !artifact.ValidHexDigest(identity) || seen[name] {
 			return errors.New("invalid or duplicate entry")
 		}
 		seen[name] = true
@@ -433,9 +431,4 @@ func duplicateInts(values []int) bool {
 
 func validText(value string) bool {
 	return value != "" && strings.TrimSpace(value) == value && !strings.ContainsAny(value, "\x00\r\n")
-}
-
-func validDigest(value string) bool {
-	decoded, err := hex.DecodeString(value)
-	return err == nil && len(decoded) == sha256.Size
 }

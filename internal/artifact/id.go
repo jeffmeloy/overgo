@@ -166,6 +166,14 @@ func (id ID) DigestHex() string {
 	return hex.EncodeToString(id.digest[:])
 }
 
+// ValidHexDigest reports whether value is a hex encoding of a sha256 digest.
+// It is the shared predicate manifests, records and closure evidence use
+// instead of each re-deriving the decode-and-length test.
+func ValidHexDigest(value string) bool {
+	decoded, err := hex.DecodeString(value)
+	return err == nil && len(decoded) == digestBytes
+}
+
 func (id ID) String() string {
 	if !id.Valid() {
 		return ""

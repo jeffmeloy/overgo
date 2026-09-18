@@ -1,8 +1,6 @@
 package automationcheck
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
@@ -110,7 +108,7 @@ func canonicalizeManifestPlan(plan *ManifestPlan) {
 
 func validateManifestPlan(plan ManifestPlan) error {
 	if plan.BaseManifest.Kind() != artifact.KindProfile || plan.CandidateManifest.Kind() != artifact.KindProfile ||
-		!validManifestDigest(plan.CandidateSource) || !validManifestDigest(plan.CandidateTree) ||
+		!artifact.ValidHexDigest(plan.CandidateSource) || !artifact.ValidHexDigest(plan.CandidateTree) ||
 		strings.TrimSpace(plan.SurfaceIdentity) == "" || len(plan.Invocations) == 0 {
 		return errors.New("automation manifest plan: invalid authority or empty invocation set")
 	}
@@ -141,14 +139,6 @@ func validateManifestPlan(plan ManifestPlan) error {
 		done[invocation.Check.Name] = true
 	}
 	return nil
-}
-
-func validManifestDigest(value string) bool {
-	if len(value) != 2*sha256.Size {
-		return false
-	}
-	decoded, err := hex.DecodeString(value)
-	return err == nil && len(decoded) == sha256.Size
 }
 
 func manifestPlanID(plan ManifestPlan) (artifact.ID, error) {

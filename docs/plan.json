@@ -883,7 +883,8 @@
             "surface-gate-deferred/authority-lifetime",
             "gate-resource-priority-replan/do",
             "gate-resource-efficiency/first-memory-reduction",
-            "command-store-root-resolver/do"
+            "command-store-root-resolver/do",
+            "digest-validator-primitive/do"
           ]
         }
       ]

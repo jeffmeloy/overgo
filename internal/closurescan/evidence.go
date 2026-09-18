@@ -2,8 +2,6 @@ package closurescan
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"slices"
 
@@ -88,7 +86,7 @@ func (e CensusEvidence) Batch(previous *artifact.ID) (artifact.Batch, error) {
 }
 
 func validateCensusEvidence(value *CensusEvidence) error {
-	if value == nil || !digest(value.Source) || !digest(value.CatalogHead) || value.Pressure.ActiveDocuments < value.Pressure.OpenDocuments {
+	if value == nil || !artifact.ValidHexDigest(value.Source) || !artifact.ValidHexDigest(value.CatalogHead) || value.Pressure.ActiveDocuments < value.Pressure.OpenDocuments {
 		return errors.New("closure scan: invalid census evidence")
 	}
 	var named, inline, assumptions, policy, groups, sites int
@@ -135,11 +133,6 @@ func validateCensusEvidence(value *CensusEvidence) error {
 func literalClassTotal(counts CensusCounts) int {
 	return counts.Structural + counts.Mathematical + counts.Format + counts.Capacity +
 		counts.Policy + counts.ModelFact + counts.Unknown
-}
-
-func digest(value string) bool {
-	decoded, err := hex.DecodeString(value)
-	return err == nil && len(decoded) == sha256.Size
 }
 
 func cloneCensusEvidence(value CensusEvidence) CensusEvidence {

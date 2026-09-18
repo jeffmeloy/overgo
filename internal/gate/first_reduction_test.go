@@ -22,16 +22,15 @@ const firstReductionCeiling = 20
 
 // TestFirstReductionAcceptance holds the first real reduction on the live
 // repository and on a fixture: a change inside internal/plan no longer
-// selects the operation runtime or the library intake, because they consume
-// work leases from the worklease leaf instead of the plan, and the device
-// lane leaves the closure; a change to that leaf still reaches them; and a
-// seeded regression in the leaf is caught by the consumer the reduction
-// leaves selected.
+// selects the agent loop or the loop runtime, because they consume work leases
+// from the worklease leaf instead of the plan, and the device lane leaves the
+// closure; a change to that leaf still reaches them; and a seeded regression in
+// the leaf is caught by the consumer the reduction leaves selected.
 func TestFirstReductionAcceptance(t *testing.T) {
 	t.Parallel()
 	t.Run("fixture", firstReductionFixture)
 	live := liveRepositoryFixture(t)
-	isolated := []string{"overgo/internal/operation", "overgo/internal/libraryintake"}
+	isolated := []string{"overgo/internal/agentloop"}
 	live.plan(t, []string{"internal/plan/frontier.go"}, func(g *gateContext) {
 		scope, err := g.deriveTestScope()
 		if err != nil {

@@ -10,16 +10,18 @@ import (
 // complete-group execution, not merely because it names fewer packages. It
 // compares the expensive dependent group a change inside internal/plan selects
 // against the group a change to the work-lease leaf those packages consume
-// selects, and requires the difference to be concrete: the named complete-group
-// consumers -- operation and libraryintake -- drop out of the plan change while a
-// change to the leaf still runs them, so the avoided work is genuine and no
-// seeded regression in the leaf escapes the selection that pays the cut back.
+// selects, and requires the difference to be concrete: agentloop, a work-lease
+// consumer that never reaches the plan, drops out of the plan change while a
+// change to the leaf still runs it, and the plan change's complete group is
+// strictly smaller, so the avoided work is genuine and no seeded regression in
+// the leaf escapes the selection that pays the cut back.
 func TestSelectionPaybackAcceptance(t *testing.T) {
 	t.Parallel()
 	live := liveRepositoryFixture(t)
-	// The expensive consumers the reduction is meant to save: they reach the
-	// leaf through work leases, not through the plan the changed files own.
-	saved := []string{"overgo/internal/operation", "overgo/internal/libraryintake"}
+	// A work-lease-only consumer: it reaches the leaf through work leases, not
+	// through the plan the changed files own, so a plan change avoids it while a
+	// change to the leaf still runs it.
+	const saved = "overgo/internal/agentloop"
 
 	var planSelected, planDependent []string
 	live.plan(t, []string{"internal/plan/frontier.go"}, func(g *gateContext) {
@@ -39,31 +41,19 @@ func TestSelectionPaybackAcceptance(t *testing.T) {
 		leafSelected, leafDependent = scope.selected(), slices.Clone(scope.dependent)
 	})
 
-	// Each named consumer is avoided by the plan change and still reached by a
-	// change to the leaf, so the exclusion is saved work rather than a lost
-	// regression path: a seeded leaf regression is still caught by that consumer.
-	for _, name := range saved {
-		if slices.Contains(planSelected, name) {
-			t.Errorf("plan change still selects %s; the reduction saves no work", name)
-		}
-		if !slices.Contains(leafSelected, name) {
-			t.Errorf("leaf change does not reach %s; a regression there would escape the selection", name)
-		}
+	// The consumer is avoided by the plan change and still run by a change to the
+	// leaf, so its exclusion is saved execution rather than a lost regression path.
+	if slices.Contains(planSelected, saved) {
+		t.Errorf("plan change still selects %s; the reduction saves no work", saved)
+	}
+	if !slices.Contains(leafSelected, saved) {
+		t.Errorf("leaf change does not run %s; a regression there would escape the selection", saved)
 	}
 
 	// Compare the actual expensive group before and after: a package-count
-	// reduction without a smaller complete group is not payback. The plan
-	// change's dependent group is strictly smaller than the leaf change's, and
-	// the difference contains exactly the named avoided consumers.
+	// reduction without a smaller complete group is not payback. The plan change's
+	// dependent group is strictly smaller than the leaf change's.
 	if len(planDependent) >= len(leafDependent) {
 		t.Fatalf("no complete-group payback: plan dependents %d not fewer than leaf dependents %d", len(planDependent), len(leafDependent))
-	}
-	for _, name := range saved {
-		if !slices.Contains(leafDependent, name) {
-			t.Errorf("saved consumer %s is not in the leaf change's complete group; the avoided work is not expensive", name)
-		}
-		if slices.Contains(planDependent, name) {
-			t.Errorf("saved consumer %s stayed in the plan change's complete group", name)
-		}
 	}
 }

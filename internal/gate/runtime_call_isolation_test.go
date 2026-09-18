@@ -8,15 +8,15 @@ import (
 // TestRuntimeCallIsolationAcceptance holds the runtime-input side of the
 // work-lease cut on the live repository: internal/plan/plan.go is the reader
 // of docs/plan.json, so a change to it selects every package that compiles
-// the plan; the operation runtime consumes leases from the worklease leaf
-// and is isolated from the reader, while the gate, which compiles the plan,
-// is the reachable reader the change still selects. A change to the leaf
-// itself reaches the runtime, so the isolation is a measured boundary and
-// not an exemption.
+// the plan; the agent loop consumes leases from the worklease leaf and is
+// isolated from the reader, while the gate, which compiles the plan, is the
+// reachable reader the change still selects. A change to the leaf itself
+// reaches the agent loop, so the isolation is a measured boundary and not an
+// exemption.
 func TestRuntimeCallIsolationAcceptance(t *testing.T) {
 	t.Parallel()
 	live := liveRepositoryFixture(t)
-	const isolated, reader = "overgo/internal/operation", "overgo/internal/gate"
+	const isolated, reader = "overgo/internal/agentloop", "overgo/internal/gate"
 	live.plan(t, []string{"internal/plan/plan.go"}, func(g *gateContext) {
 		scope, err := g.deriveTestScope()
 		if err != nil {

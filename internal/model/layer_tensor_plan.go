@@ -157,6 +157,7 @@ func (p RotaryPlan) applyOne(
 			resolved = *multiPositions
 		}
 		input = builder.RoPEWithOptions(input, tensor.RoPEOptions{
+			Layout:         p.layout,
 			MultiPositions: &resolved, Sections: p.sections, RotaryDimensions: p.rotaryDimensions,
 			FrequencyBase: p.frequencyBase, FrequencyScale: p.frequencyScale,
 			InterleavedSections: p.interleavedSections,

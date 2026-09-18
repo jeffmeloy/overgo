@@ -604,7 +604,8 @@ func validateRuntimeAttributes(node *tensor.Tensor, attributes tensor.Attributes
 				return errors.New("CUDA runtime multi-RoPE position count changes compiled shape")
 			}
 		}
-		if initial.Sections != next.Sections || initial.RotaryDimensions != next.RotaryDimensions ||
+		if initial.Layout != next.Layout || initial.InterleavedSections != next.InterleavedSections ||
+			initial.Sections != next.Sections || initial.RotaryDimensions != next.RotaryDimensions ||
 			initial.FrequencyBase != next.FrequencyBase || initial.FrequencyScale != next.FrequencyScale {
 			return errors.New("CUDA runtime multi-RoPE override changes compiled policy")
 		}

@@ -757,7 +757,7 @@ func buildGatedProjectionMixCached(
 	sequences uint64,
 	pastKey, pastValue *tensor.Tensor,
 	cacheWrite tensor.CacheWriteMode,
-	deltaProjection gatedDeltaPolicy,
+	rotary RotaryPlan,
 ) (DenseBlockResult, error) {
 	if builder == nil || normalized == nil {
 		return DenseBlockResult{}, errors.New("gated-delta attention mix input is nil")
@@ -806,29 +806,7 @@ func buildGatedProjectionMixCached(
 	}
 	query = builder.WeightedRMSNorm(query, weights.AttentionQNorm, spec.RMSNormEpsilon)
 	key = builder.WeightedRMSNorm(key, weights.AttentionKNorm, spec.RMSNormEpsilon)
-	frequencyScale := spec.ropeFrequencyScale()
-	if deltaProjection == gatedDeltaInterleavedProjections {
-		query = builder.RoPEWithOptions(
-			query, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: frequencyScale})
-
-		key = builder.RoPEWithOptions(
-			key, tensor.RoPEOptions{Layout: tensor.RoPELayoutNeoX, Positions: positions, RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase, FrequencyScale: frequencyScale})
-
-	} else {
-		resolved := [4][]uint32{}
-		if multiPositions == nil {
-			for axis := range resolved {
-				resolved[axis] = positions
-			}
-		} else {
-			resolved = *multiPositions
-		}
-		query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
-			MultiPositions: &resolved, Sections: spec.RopeSections,
-			RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase,
-			FrequencyScale: frequencyScale, InterleavedSections: spec.Profile().Rotary.MultiAxis == multiAxisRotaryInterleaved,
-		})
-	}
+	query, key = rotary.Apply(builder, query, key, positions, multiPositions, nil)
 
 	cacheKey, cacheValue := key, value
 	var queryStart uint32

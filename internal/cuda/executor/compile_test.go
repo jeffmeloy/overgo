@@ -248,6 +248,55 @@ func TestCompiledRuntimeAttributesUseNodeIndexes(t *testing.T) {
 	}
 }
 
+func TestCompiledMultiRoPERetainsPolicy(t *testing.T) {
+	for _, layout := range []tensor.RoPELayout{tensor.RoPELayoutNormal, tensor.RoPELayoutNeoX} {
+		builder := tensor.NewBuilder()
+		input := builder.Input("input", dtype.F32, tensor.MustShape(8, 1, 1))
+		positions := [tensor.MaxDimensions][]uint32{{3}, {5}, {7}, {0}}
+		output := builder.RoPEWithOptions(input, tensor.RoPEOptions{
+			Layout: layout, MultiPositions: &positions, Sections: [tensor.MaxDimensions]int32{2, 1, 1},
+			RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: tensor.UnitFrequencyScale,
+			InterleavedSections: true,
+		})
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		compiled, err := Compile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attributes := compiled.NewRuntimeAttributes()
+		next := output.Attrs.(tensor.RoPEMultiAttributes)
+		next.Positions[0] = []uint32{4}
+		if err := attributes.Set(output, next); err != nil {
+			t.Fatal("coordinate update refused:", err)
+		}
+		for _, field := range []string{"layout", "interleaving", "shape"} {
+			changed := next
+			switch field {
+			case "layout":
+				if layout == tensor.RoPELayoutNormal {
+					changed.Layout = tensor.RoPELayoutNeoX
+				} else {
+					changed.Layout = tensor.RoPELayoutNormal
+				}
+			case "interleaving":
+				changed.InterleavedSections = !changed.InterleavedSections
+			case "shape":
+				changed.Positions[0] = append(changed.Positions[0], 5)
+			}
+			if err := attributes.Set(output, changed); err == nil {
+				t.Fatalf("layout %d: compiled %s change accepted", layout, field)
+			}
+		}
+		retained := attributes.values[compiled.orderIndexes[output]].(tensor.RoPEMultiAttributes)
+		if retained.Layout != next.Layout || retained.InterleavedSections != next.InterleavedSections ||
+			len(retained.Positions[0]) != len(next.Positions[0]) || retained.Positions[0][0] != next.Positions[0][0] {
+			t.Fatal("rejected override changed retained runtime attributes")
+		}
+	}
+}
+
 func TestGeneratedKernelArgumentCountValidation(t *testing.T) {
 	kernel := boundKernel{
 		id:            kernelAddF32,

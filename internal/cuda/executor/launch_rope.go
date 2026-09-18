@@ -105,11 +105,15 @@ func launchRoPE(
 			sections[index] = uint32(section)
 		}
 		interleaved := kernelBool(attributes.InterleavedSections)
+		splitHalf := kernelBool(attributes.Layout == tensor.RoPELayoutNeoX)
+		if attributes.Layout > tensor.RoPELayoutNeoX {
+			return errors.New("RoPE multi layout is invalid")
+		}
 		return launch1DABI(
 			state, functions[kernelRopeMultiF32], count,
 			&input, &positions, &output, &width, &heads, &tokens, &rotary,
 			&frequencyBase, &frequencyScale,
-			&sections[0], &sections[1], &sections[2], &sections[3], &interleaved, &count,
+			&sections[0], &sections[1], &sections[2], &sections[3], &interleaved, &splitHalf, &count,
 		)
 	default:
 		return fmt.Errorf("unsupported CUDA operation %s", node.Op)

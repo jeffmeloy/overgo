@@ -842,11 +842,16 @@ func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 		name        string
 		interleaved bool
 		sections    [4]int32
+		layout      tensor.RoPELayout
 	}{
-		{"contiguous", false, [4]int32{2, 2, 2, 2}},
-		{"interleaved", true, [4]int32{2, 2, 2, 2}},
-		{"extra and wrap", true, [4]int32{1, 1, 1, 1}},
-		{"uneven", true, [4]int32{3, 1, 2, 0}},
+		{"contiguous", false, [4]int32{2, 2, 2, 2}, tensor.RoPELayoutNormal},
+		{"interleaved", true, [4]int32{2, 2, 2, 2}, tensor.RoPELayoutNormal},
+		{"extra and wrap", true, [4]int32{1, 1, 1, 1}, tensor.RoPELayoutNormal},
+		{"uneven", true, [4]int32{3, 1, 2, 0}, tensor.RoPELayoutNormal},
+		{"split-half contiguous", false, [4]int32{2, 2, 2, 2}, tensor.RoPELayoutNeoX},
+		{"split-half interleaved", true, [4]int32{2, 2, 2, 2}, tensor.RoPELayoutNeoX},
+		{"split-half extra and wrap", true, [4]int32{1, 1, 1, 1}, tensor.RoPELayoutNeoX},
+		{"split-half uneven", true, [4]int32{3, 1, 2, 0}, tensor.RoPELayoutNeoX},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			builder := tensor.NewBuilder()
@@ -855,6 +860,7 @@ func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
 				{0, 1, 2, 3}, {3, 5, 7, 9}, {2, 4, 6, 8}, {11, 13, 17, 19},
 			}
 			output := builder.RoPEWithOptions(input, tensor.RoPEOptions{
+				Layout:         tc.layout,
 				MultiPositions: &positions, Sections: tc.sections, InterleavedSections: tc.interleaved,
 				RotaryDimensions: 16, FrequencyBase: 1_000_000, FrequencyScale: 0.25,
 			})

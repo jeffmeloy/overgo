@@ -871,13 +871,13 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:26b3df89f37537916c51cc57bf6b1e08b2ec09c7413d2b3fb40ffd8225f98854"
+     "identity": "file:sha256:8c85f0abb1de9ce95160122f138010c9c3187a554ecd2da063f4fe4d0f2c9bd9"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",
      "path": "internal/cuda/executor/compile_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:d4ba66ea0fe339e262b508bc2796f625f67df3dc8f8c52f4c6fb617da43ebbef"
+     "identity": "evidence:sha256:b3b14a335acdd9e562b003bb0f17e41a11fe6cfcbc29eb2dde5fb224bbdab61e"
     }
    ],
    "id": "compiled-cuda-graph",
@@ -1298,7 +1298,7 @@
      "contains": "func (p CompiledLayerProgram) Build(",
      "path": "internal/model/graph_dispatch.go",
      "role": "source",
-     "identity": "file:sha256:887c75656181186045226f956db9d14f4754820cd73961bcfd0d6f616d505b37"
+     "identity": "file:sha256:f40401f07b321852ae8dee013a0cf45f3b24843f4b6ad6ad15c28d98e6ee4eda"
     },
     {
      "contains": "func ReadWeights(",

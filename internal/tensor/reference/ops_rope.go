@@ -149,7 +149,7 @@ func ropeMulti(
 	for _, section := range attributes.Sections {
 		sectionPairs += int(section)
 	}
-	if rotary <= 0 || rotary%2 != 0 || rotary > width ||
+	if attributes.Layout > tensor.RoPELayoutNeoX || rotary <= 0 || rotary%2 != 0 || rotary > width ||
 		sectionPairs <= 0 {
 		return Value{}, errors.New("invalid rope_multi dimensions")
 	}
@@ -181,10 +181,14 @@ func ropeMulti(
 					cosine := float32(math.Cos(theta))
 					sine := float32(math.Sin(theta))
 					first := offset + pair*2
+					second := first + 1
+					if attributes.Layout == tensor.RoPELayoutNeoX {
+						first, second = offset+pair, offset+pair+half
+					}
 					x0 := input.Data[first]
-					x1 := input.Data[first+1]
+					x1 := input.Data[second]
 					output[first] = x0*cosine - x1*sine
-					output[first+1] = x0*sine + x1*cosine
+					output[second] = x0*sine + x1*cosine
 				}
 			}
 		}

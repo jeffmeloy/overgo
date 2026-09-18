@@ -45,7 +45,8 @@
             "surface-gate-execution/declaration-boundary",
             "modality-verification/qwen27-retained-publication",
             "modality-verification/projection-rotary-sections",
-            "modality-verification/projection-candidate-binding"
+            "modality-verification/projection-candidate-binding",
+            "modality-verification/projection-rotary-pairing"
           ]
         },
         {

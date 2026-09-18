@@ -11,6 +11,41 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
+func TestRoPEMultiNativePairing(t *testing.T) {
+	// llama.cpp 42fc243060709331ff9b158a9ed2cbe37219ae83, CPU
+	// ggml_rope_multi(IMROPE): axis interleaving retains NeoX channel pairs.
+	want := []float32{-1.6955925, -1.1213882, 2.5030532, 3.9759822, -4.8088427, 6.224346, 7.1926856, 8.011964}
+	data := []float32{1, 2, 3, 4, 5, 6, 7, 8}
+	for _, tail := range [][]float32{nil, {101, 102}} {
+		inputData := append(slices.Clone(data), tail...)
+		expected := append(slices.Clone(want), tail...)
+		builder := tensor.NewBuilder()
+		input := builder.Input("native-rope-input", dtype.F32, tensor.MustShape(uint64(len(inputData)), 1, 1))
+		positions := [4][]uint32{{3}, {5}, {7}, {0}}
+		output := builder.RoPEWithOptions(input, tensor.RoPEOptions{
+			Layout: tensor.RoPELayoutNeoX, MultiPositions: &positions,
+			Sections: [4]int32{2, 1, 1, 0}, InterleavedSections: true,
+			RotaryDimensions: uint32(len(data)), FrequencyBase: 10000, FrequencyScale: 1,
+		})
+		if err := builder.Err(); err != nil {
+			t.Fatal(err)
+		}
+		value, err := NewValue(input.Shape, inputData)
+		if err != nil {
+			t.Fatal(err)
+		}
+		results, err := Execute([]*tensor.Tensor{output}, map[*tensor.Tensor]Value{input: value})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for index, actual := range results[output].Data {
+			if math.Abs(float64(actual-expected[index])) > 1e-6 {
+				t.Fatalf("native rotary channel %d: got %g, want %g", index, actual, expected[index])
+			}
+		}
+	}
+}
+
 func TestBorrowedValueValidatesShapeWithoutCopy(t *testing.T) {
 	shape := tensor.MustShape(2)
 	data := []float32{1, 2}

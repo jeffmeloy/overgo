@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/jsonfile"
+	"overgo/internal/tokenizer"
 )
 
 type Tokenizer struct {
@@ -32,13 +33,19 @@ type Tokenizer struct {
 	decodeMarker      string
 	stripDecodePrefix bool
 	omitSpecial       map[int]bool
+	normalizeNFC      bool
+	normalizerErr     error
 }
 
 type tokenizerJSON struct {
 	AddedTokens []struct {
-		ID      int    `json:"id"`
-		Content string `json:"content"`
-		Special bool   `json:"special"`
+		ID         int    `json:"id"`
+		Content    string `json:"content"`
+		Special    bool   `json:"special"`
+		Normalized *bool  `json:"normalized"`
+		SingleWord bool   `json:"single_word"`
+		LStrip     bool   `json:"lstrip"`
+		RStrip     bool   `json:"rstrip"`
 	} `json:"added_tokens"`
 	Normalizer json.RawMessage `json:"normalizer"`
 	Decoder    struct {
@@ -78,19 +85,7 @@ func Load(dir string) (*Tokenizer, error) {
 		t.decodeMarker = tj.Decoder.Replacement
 		t.stripDecodePrefix = tj.Decoder.PrependScheme != "never"
 	}
-	if len(tj.Normalizer) > 0 {
-		var norm struct {
-			Type    string `json:"type"`
-			Pattern struct {
-				String string `json:"String"`
-			} `json:"pattern"`
-			Content string `json:"content"`
-		}
-		if json.Unmarshal(tj.Normalizer, &norm) == nil &&
-			norm.Type == "Replace" && norm.Pattern.String == " " && norm.Content != "" {
-			t.spaceMarker = norm.Content
-		}
-	}
+	t.configureNormalizer(tj.Normalizer)
 	for i, raw := range tj.Model.Merges {
 		var pair [2]string
 		if err := json.Unmarshal(raw, &pair); err == nil {
@@ -105,6 +100,9 @@ func Load(dir string) (*Tokenizer, error) {
 		return nil, fmt.Errorf("merges[%d]: unrecognized wire format", i)
 	}
 	for _, a := range tj.AddedTokens {
+		if t.normalizeNFC && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
+			t.normalizerErr = fmt.Errorf("NFC added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
+		}
 		t.special[a.Content] = a.ID
 		t.specials = append(t.specials, a.Content)
 		if a.Special {
@@ -157,11 +155,20 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 	if t.decodeMarker != "" {
 		return nil, fmt.Errorf("metaspace decoding is supported; its normalization and encoding pipeline is not compiled")
 	}
+	if t.normalizerErr != nil {
+		return nil, t.normalizerErr
+	}
+	if t.normalizeNFC && !utf8.ValidString(text) {
+		return nil, fmt.Errorf("declared NFC encoding requires valid UTF-8 input")
+	}
 	var ids []int
 	for _, seg := range t.splitOnSpecials(text) {
 		if id, ok := t.special[seg]; ok {
 			ids = append(ids, id)
 			continue
+		}
+		if t.normalizeNFC {
+			seg = tokenizer.NormalizeNFC(seg)
 		}
 		if t.spaceMarker != "" {
 			segIDs, err := t.encodeSentencepiece(seg)

@@ -8,12 +8,14 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/graphruntime"
 	"overgo/internal/tensor"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/tensor/reference"
+	"overgo/internal/testutil"
 )
 
 type lifetimeContext struct {
@@ -94,20 +96,19 @@ func checkDecodeLifetimeFixture(t *testing.T) {
 
 func TestResidentLifetimeResourceAcceptance(t *testing.T) {
 	cudatest.Require(t)
-	profile, err := ResolveProfile(kreaModelDir)
+	directory := testutil.ModelArtifactDir(t, "Krea-2-Turbo")
+	profile, err := ResolveProfile(directory)
 	if err != nil {
 		t.Fatalf("required resident pipeline artifact: %v", err)
 	}
-	if cudatest.MeasurementProcess(t, 0) {
-		return
-	}
+	// Exact output and owned allocation checks permit shared GPU admission.
 	// Use the existing bounded real-pipeline cohort, including all denoise
 	// steps, before exercising decoder cancellation and subsequent publication.
 	request := Request{
 		Prompt: kreaGoldenPrompt,
 		Width:  256, Height: 256, Steps: 8, Seed: 42, DynamicShiftMu: 1.15,
 	}
-	generator, err := LoadGenerator(t.Context(), kreaModelDir, profile, request)
+	generator, err := LoadGenerator(t.Context(), directory, profile, request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +117,10 @@ func TestResidentLifetimeResourceAcceptance(t *testing.T) {
 			t.Error(err)
 		}
 	})
+	var library *driver.Library
+	if err := generator.pipeline.runtime.Do(t.Context(), func(state *device.State) error { library = state.Driver; return nil }); err != nil {
+		t.Fatal(err)
+	}
 	session, err := generator.prepare(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +128,7 @@ func TestResidentLifetimeResourceAcceptance(t *testing.T) {
 	if _, err := generator.integrate(t.Context(), session); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("artifact=%s profile=%s request=%+v", kreaModelDir, profile.ID, request)
+	t.Logf("artifact=%s profile=%s request=%+v", directory, profile.ID, request)
 	assertCanceledDecodeStorage(t, generator.pipeline)
 	image, err := generator.decode(t.Context(), session)
 	if err != nil {
@@ -133,6 +138,13 @@ func TestResidentLifetimeResourceAcceptance(t *testing.T) {
 		t.Fatal("recovered pipeline published no image")
 	}
 	t.Logf("recovered image SHA256=%x", sha256.Sum256(image.Data))
+	if err := generator.Close(context.WithoutCancel(t.Context())); err != nil {
+		t.Fatal(err)
+	}
+	if stats := library.MemoryStats(); stats.CurrentBytes != 0 || stats.Allocations != 0 {
+		t.Fatalf("closed resident pipeline leaked: %+v", stats)
+	}
+	t.Log("resource: task=Krea-recovery state=not_busy scope=owned-session current_bytes=0")
 }
 
 func assertCanceledDecodeStorage(t *testing.T, pipeline *ResidentImagePipeline) {

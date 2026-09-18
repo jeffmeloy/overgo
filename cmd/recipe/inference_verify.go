@@ -331,7 +331,7 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 	closeErr := runtime.Close()
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
-		evidence := "plan=" + evaluationPlan.Identity().String() + "; " + strings.ReplaceAll(failure.Error(), "\n", " ")
+		evidence := fmt.Sprintf("plan=%s;report=%s; %s", evaluationPlan.Identity(), reportID, strings.ReplaceAll(failure.Error(), "\n", " "))
 		if len(evidence) > 1900 {
 			evidence = evidence[:1900]
 		}
@@ -345,7 +345,8 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		if encodeErr := json.NewEncoder(os.Stdout).Encode(map[string]any{
 			"error": failure.Error(), "gate_id": verification.Gate.String(),
 			"outcome": "failed", "recipe_id": definition.ID.String(),
-			"run_id": verification.Run.String(),
+			"run_id":    verification.Run.String(),
+			"report_id": reportID.String(),
 		}); encodeErr != nil {
 			return errors.Join(failure, encodeErr)
 		}

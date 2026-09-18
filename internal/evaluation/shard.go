@@ -57,9 +57,10 @@ type textOutput struct {
 }
 
 type caseObservation struct {
-	Case   artifact.ID `json:"case"`
-	Output artifact.ID `json:"output"`
-	Passed bool        `json:"passed"`
+	Case    artifact.ID `json:"case"`
+	Output  artifact.ID `json:"output"`
+	Passed  bool        `json:"passed"`
+	Failure string      `json:"failure,omitzero"`
 }
 
 type metricState struct {
@@ -111,25 +112,35 @@ func EvaluateExactSharded(
 	}
 	reports := make([]shardReport, 0, len(shards))
 	for index, shard := range shards {
+		if err := ctx.Err(); err != nil {
+			return artifact.ID{}, err
+		}
 		if stored, ok := completed[index]; ok {
 			reports = append(reports, stored)
 			continue
 		}
 		result, err := evaluateExactCase(ctx, generator, exact.suite.Cases[index])
-		if err != nil {
+		if err != nil && !errors.Is(err, errExactMismatch) {
 			return artifact.ID{}, err
+		}
+		observation := caseObservation{Case: shard.Cases[0], Passed: err == nil}
+		credit := float64(1)
+		if err != nil {
+			observation.Failure = err.Error()
+			credit = 0
 		}
 		output, err := newTextOutput(plan.identity, shard.Cases[0], result.Text)
 		if err != nil {
 			return artifact.ID{}, err
 		}
 		metric := metricState{Name: exactMetricName}
-		if err := metric.observe(1); err != nil {
+		if err := metric.observe(credit); err != nil {
 			return artifact.ID{}, err
 		}
+		observation.Output = output.ID
 		report, err := newShardReport(
 			shard,
-			[]caseObservation{{Case: shard.Cases[0], Output: output.ID, Passed: true}},
+			[]caseObservation{observation},
 			[]metricState{metric},
 		)
 		if err != nil {
@@ -152,7 +163,15 @@ func EvaluateExactSharded(
 	if err := publishCampaignReport(ctx, repository, plan, campaign); err != nil {
 		return artifact.ID{}, err
 	}
-	return campaign.ID, nil
+	var failures []error
+	for _, report := range reports {
+		for _, observation := range report.Observations {
+			if !observation.Passed {
+				failures = append(failures, fmt.Errorf("%w: %s: %s", errExactMismatch, observation.Case, observation.Failure))
+			}
+		}
+	}
+	return campaign.ID, errors.Join(failures...)
 }
 
 func compileExactShards(exact ExactPlan, plan Plan) ([]caseShard, error) {

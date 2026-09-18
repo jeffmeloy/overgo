@@ -76,8 +76,8 @@ func TestExactReportsGenerationFailureAndMismatch(t *testing.T) {
 	if _, err := evaluateExactCase(t.Context(), exactGenerator{err: errors.New("generate")}, plan.suite.Cases[0]); err == nil {
 		t.Fatal("generation failure accepted")
 	}
-	if _, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"n", "o"}}, plan.suite.Cases[0]); err == nil {
-		t.Fatal("mismatch accepted")
+	if result, err := evaluateExactCase(t.Context(), exactGenerator{pieces: []string{"n", "o"}}, plan.suite.Cases[0]); !errors.Is(err, errExactMismatch) || result.Text != "no" || result.PromptTokens != exactPromptTokens || result.GeneratedTokens != exactGeneratedTokens {
+		t.Fatalf("mismatch accepted or acquisition lost: %+v %v", result, err)
 	}
 }
 

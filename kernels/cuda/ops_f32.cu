@@ -3348,6 +3348,7 @@ extern "C" __global__ void rope_multi_f32(
         unsigned int section_2,
         unsigned int section_3,
         unsigned int interleaved_sections,
+        unsigned int split_half,
         unsigned int count) {
     const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     if (index >= count) {
@@ -3360,7 +3361,8 @@ extern "C" __global__ void rope_multi_f32(
     }
     const unsigned int row = index / width;
     const unsigned int token = (row / heads) % tokens;
-    const unsigned int pair = column / 2;
+    const unsigned int half = rotary_dimensions / 2;
+    const unsigned int pair = split_half ? column % half : column / 2;
     const unsigned int section_pairs =
         section_0 + section_1 + section_2 + section_3;
     const unsigned int sector = pair % section_pairs;
@@ -3381,7 +3383,7 @@ extern "C" __global__ void rope_multi_f32(
             axis = spatial_axes;
         }
     }
-    const unsigned int pair_offset = row * width + pair * 2;
+    const unsigned int pair_offset = row * width + (split_half ? pair : pair * 2);
     const float theta =
         (float) positions[axis * tokens + token] * frequency_scale *
         powf(frequency_base, -2.0f * (float) pair / (float) rotary_dimensions);
@@ -3389,8 +3391,9 @@ extern "C" __global__ void rope_multi_f32(
     float cosine;
     sincosf(theta, &sine, &cosine);
     const float x0 = input[pair_offset];
-    const float x1 = input[pair_offset + 1];
-    output[index] = (column & 1) == 0
+    const float x1 = input[pair_offset + (split_half ? half : 1)];
+    const bool first = split_half ? column < half : (column & 1) == 0;
+    output[index] = first
         ? x0 * cosine - x1 * sine
         : x0 * sine + x1 * cosine;
 }

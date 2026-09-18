@@ -1,0 +1,10 @@
+{
+  "base_commit": "3842e242de6ba8c690aa7eb39b29070c535c5d22",
+  "defect": "IMRoPE interleaves axis frequencies while retaining NeoX split-half channel pairing. The prior section fix left adjacent pairing. A pinned native eight-value witness agrees exactly with independent split-half arithmetic and differs from the current adjacent operation by max_abs 9.376940727233887. The existing kernel tests mirrored adjacent pairing and missed this native contract.",
+  "evidence": "evidence:sha256:3ff99ce346eea43bfd5a2135f706f9706a76198a159b794f779fe38ce2867e86",
+  "failed_run": "run:sha256:2f271e07b67c5009ea8ed17a1384d3f2901db68fc69b68995623b2527c8ccdf1",
+  "native_source": "42fc243060709331ff9b158a9ed2cbe37219ae83",
+  "next": "Commit the native-witness-backed channel-pairing repair, shared rotary-owner consolidation and required CPU/CUDA/source-isolation checks. Keep the model exact suite open; use a new causal measurement for residual numerical divergence instead of repeating the same known failure or changing the oracle.",
+  "schema": "overgo/projection-pairing-diagnosis-reference/v1",
+  "scope": "Single-image diagnostic only. Clean current-candidate exact run still fails at generated index 18. Post-pairing traces used changed sources before commit and confer no acceptance. No image-pair/video, quality or performance completion."
+}

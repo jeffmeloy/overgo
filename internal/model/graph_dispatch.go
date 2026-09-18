@@ -154,7 +154,7 @@ func executeAttentionOperator(
 			c.Builder, execution.current, options.Spec, options.Weights,
 			c.Positions, c.MultiPositions, c.Sequences,
 			operands.caches[RuntimeCachePrimaryKey], operands.caches[RuntimeCachePrimaryValue], c.CacheWrite,
-			plan.AttentionGraph.deltaProjection,
+			plan.Rotary,
 		)
 	case LayerOperatorAttentionOutputProjection:
 		if options.Weights.AttentionOutput == nil {

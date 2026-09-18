@@ -57,7 +57,7 @@ type RoPEOptions struct {
 // RoPEWithOptions builds single-axis or multi-axis rotary operations.
 func (b *Builder) RoPEWithOptions(input *Tensor, options RoPEOptions) *Tensor {
 	if options.MultiPositions != nil {
-		if options.Layout != RoPELayoutNormal || len(options.Positions) != 0 || options.FrequencyFactors != nil || options.YaRN || options.Reverse ||
+		if options.Layout > RoPELayoutNeoX || len(options.Positions) != 0 || options.FrequencyFactors != nil || options.YaRN || options.Reverse ||
 			options.OriginalContext != 0 || options.ExtFactor != 0 || options.AttentionFactor != 0 || options.BetaFast != 0 || options.BetaSlow != 0 {
 			b.setError(errors.New("multi-axis RoPE cannot combine single-axis controls"))
 			return nil
@@ -126,6 +126,7 @@ func (b *Builder) buildRoPEMulti(input *Tensor, options RoPEOptions) *Tensor {
 		return nil
 	}
 	attributes := RoPEMultiAttributes{
+		Layout:              options.Layout,
 		InterleavedSections: options.InterleavedSections,
 		Sections:            sections,
 		RotaryDimensions:    rotaryDimensions,

@@ -823,7 +823,7 @@ func TestBuilderRoPERejectsMixedCoordinates(t *testing.T) {
 	positions := [MaxDimensions][]uint32{{1}, {2}, {3}, {4}}
 	for name, mutate := range map[string]func(*RoPEOptions){
 		"single positions":    func(o *RoPEOptions) { o.Positions = positions[0] },
-		"channel layout":      func(o *RoPEOptions) { o.Layout = RoPELayoutNeoX },
+		"invalid layout":      func(o *RoPEOptions) { o.Layout = RoPELayoutNeoX + 1 },
 		"yarn":                func(o *RoPEOptions) { o.YaRN = true },
 		"reverse":             func(o *RoPEOptions) { o.Reverse = true },
 		"ignored context":     func(o *RoPEOptions) { o.OriginalContext = 1 },

@@ -1198,8 +1198,8 @@ func TestBuildQwen3VLBlockUsesDistinctMRoPEPositions(t *testing.T) {
 		}
 		count++
 		attrs := node.Attrs.(tensor.RoPEMultiAttributes)
-		if !attrs.InterleavedSections {
-			t.Fatal("Qwen3VL rotary sections must be interleaved")
+		if !attrs.InterleavedSections || attrs.Layout != tensor.RoPELayoutNeoX {
+			t.Fatal("Qwen3VL rotary requires interleaved sections and split-half channels")
 		}
 		for axis := range positions {
 			if !slices.Equal(attrs.Positions[axis], positions[axis]) {

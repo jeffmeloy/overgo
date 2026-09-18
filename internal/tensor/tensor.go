@@ -166,6 +166,7 @@ type RoPEAttributes struct {
 type RoPENeoXAttributes = RoPEAttributes
 
 type RoPEMultiAttributes struct {
+	Layout              RoPELayout
 	InterleavedSections bool
 	Positions           [4][]uint32
 	Sections            [4]int32

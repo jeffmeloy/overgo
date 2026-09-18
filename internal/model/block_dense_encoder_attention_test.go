@@ -1758,8 +1758,8 @@ func TestBuildQwen35AttentionBlockUsesDistinctMRoPEPositions(t *testing.T) {
 		}
 		count++
 		attrs := node.Attrs.(tensor.RoPEMultiAttributes)
-		if !attrs.InterleavedSections {
-			t.Fatal("Qwen3.5 rotary sections must be interleaved")
+		if !attrs.InterleavedSections || attrs.Layout != tensor.RoPELayoutNeoX {
+			t.Fatal("Qwen3.5 rotary requires interleaved sections and split-half channels")
 		}
 		for axis := range positions {
 			if !slices.Equal(attrs.Positions[axis], positions[axis]) {

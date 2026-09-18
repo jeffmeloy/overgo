@@ -17,8 +17,8 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelcli"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -84,7 +84,7 @@ func run(args []string) error {
 	references := make(map[artifact.ID][]smokeReferenceCase)
 	for _, entry := range entries {
 		oracle := oracles[entry.Model]
-		domains, declared, domainErr := modelrecipe.EvalDomains(ctx, reader, entry.Model)
+		domains, declared, domainErr := modelartifact.EvalDomains(ctx, reader, entry.Model)
 		if domainErr != nil || (!declared && oracle.Domain != evaluation.DomainText) || (declared && (len(domains) != 1 || domains[0] != oracle.Domain)) {
 			return errors.Join(fmt.Errorf("smoke: domain binding differs for %s: %v", entry.Model, domainErr), reader.Close())
 		}

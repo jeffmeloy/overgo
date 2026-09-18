@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/modelrecipe"
+	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -28,20 +28,20 @@ func TestDomainRoutedSuites(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, declared, err := modelrecipe.EvalDomains(ctx, store, model); err != nil || declared {
+	if _, declared, err := modelartifact.EvalDomains(ctx, store, model); err != nil || declared {
 		t.Fatalf("undeclared model = (%t, %v)", declared, err)
 	}
-	if _, err := modelrecipe.DeclareEvalDomains(ctx, store, model, []string{"dna"}); err != nil {
+	if _, err := modelartifact.DeclareEvalDomains(ctx, store, model, []string{"dna"}); err != nil {
 		t.Fatal(err)
 	}
-	domains, declared, err := modelrecipe.EvalDomains(ctx, store, model)
+	domains, declared, err := modelartifact.EvalDomains(ctx, store, model)
 	if err != nil || !declared || len(domains) != 1 || domains[0] != "dna" {
 		t.Fatalf("declared domains = (%v, %t, %v)", domains, declared, err)
 	}
-	if _, err := modelrecipe.DeclareEvalDomains(ctx, store, model, []string{"dna", "text"}); err != nil {
+	if _, err := modelartifact.DeclareEvalDomains(ctx, store, model, []string{"dna", "text"}); err != nil {
 		t.Fatal(err)
 	}
-	if domains, _, _ := modelrecipe.EvalDomains(ctx, store, model); len(domains) != 2 {
+	if domains, _, _ := modelartifact.EvalDomains(ctx, store, model); len(domains) != 2 {
 		t.Fatalf("redeclared domains = %v", domains)
 	}
 

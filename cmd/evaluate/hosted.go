@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -104,7 +105,7 @@ func (s *hostedSession) EvaluateDerived(ctx context.Context, family string) erro
 	if err != nil {
 		return err
 	}
-	domains, declared, err := modelrecipe.EvalDomains(ctx, s.store, s.model)
+	domains, declared, err := modelartifact.EvalDomains(ctx, s.store, s.model)
 	if err != nil {
 		return err
 	}

@@ -14,7 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
-	"overgo/internal/modelrecipe"
+	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -202,7 +202,7 @@ func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expect
 		if len(entry.Capabilities) == 0 {
 			continue // An inactive registration grants no credit and invalidates none.
 		}
-		declared, _, err := modelrecipe.EvalDomains(ctx, store, entry.Model)
+		declared, _, err := modelartifact.EvalDomains(ctx, store, entry.Model)
 		if err != nil {
 			return err
 		}

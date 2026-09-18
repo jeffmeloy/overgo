@@ -1,4 +1,4 @@
-package modelrecipe
+package modelartifact
 
 import (
 	"slices"

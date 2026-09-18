@@ -30,8 +30,8 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
 	"overgo/internal/longform"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelcli"
-	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
@@ -228,7 +228,7 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 		if selected && !wanted[longform.Key(entry.Location)] {
 			continue
 		}
-		domains, declared, err := modelrecipe.EvalDomains(ctx, store, entry.Model)
+		domains, declared, err := modelartifact.EvalDomains(ctx, store, entry.Model)
 		if err != nil {
 			return nil, err
 		}

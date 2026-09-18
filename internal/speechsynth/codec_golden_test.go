@@ -115,7 +115,7 @@ func TestMimiDecodeStagesGolden(t *testing.T) {
 // gated against the reference generation (g7 torch PCM), the e2e summary
 // (g4), and the committed reference WAV — the rung-1 pattern where the
 // boundary refusal became the golden output test. The synthesized audio is
-// written as a real WAV to the OS temp dir.
+// written as a real WAV in this test's directory.
 func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 	m := loadArtifactModel(t)
 	g6 := loadFixture[g6Golden](t, "g6_backbone.json")
@@ -202,7 +202,7 @@ func TestSpeakE2EProducesReferenceAudio(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	outPath := filepath.Join(os.TempDir(), e2eTempWavName)
+	outPath := filepath.Join(t.TempDir(), e2eTempWavName)
 	if err := os.WriteFile(outPath, encoded, 0o644); err != nil {
 		t.Fatal(err)
 	}

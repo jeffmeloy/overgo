@@ -128,7 +128,7 @@ func NewEvaluationWorkspace(
 		if err != nil {
 			return nil, fmt.Errorf("evaluation workspace: derive store suites: %w", err)
 		}
-		domains, declared, err := evaluation.EvalDomains(context.Background(), repository, identity.Model)
+		domains, declared, err := modelrecipe.EvalDomains(context.Background(), repository, identity.Model)
 		if err != nil {
 			return nil, err
 		}

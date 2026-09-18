@@ -156,3 +156,16 @@ func artifactDir(t *testing.T) string {
 	t.Helper()
 	return testutil.ModelArtifactDir(t, "pocket-tts")
 }
+
+// Real-model synthesis belongs to the explicit native checkpoint, not -short.
+func loadArtifactSynthesizer(t *testing.T) *Synthesizer {
+	t.Helper()
+	if testing.Short() {
+		t.Skip(testskip.ShortIntegration)
+	}
+	synth, err := LoadSynthesizer(artifactDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return synth
+}

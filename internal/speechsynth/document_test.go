@@ -10,10 +10,7 @@ import (
 )
 
 func TestSpeechDocumentSourceCoverage(t *testing.T) {
-	synth, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synth := loadArtifactSynthesizer(t)
 	for _, text := range []string{
 		"Hello. This speech was generated locally.",
 		strings.Repeat("Every sentence belongs to this document. Preserve the final sentence!\n", 5),
@@ -45,10 +42,7 @@ func TestSpeechDocumentSourceCoverage(t *testing.T) {
 }
 
 func TestSpeechDocumentRejectsInvalidSource(t *testing.T) {
-	synth, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synth := loadArtifactSynthesizer(t)
 	for _, request := range []DocumentRequest{
 		{Text: " \n", Voice: "alba"},
 		{Text: string([]byte{255}), Voice: "alba"},

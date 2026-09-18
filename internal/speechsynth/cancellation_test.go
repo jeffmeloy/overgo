@@ -84,10 +84,7 @@ func TestSpeechCodecCancellation(t *testing.T) {
 }
 
 func TestSpeechPipelineCancellation(t *testing.T) {
-	synthesizer, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synthesizer := loadArtifactSynthesizer(t)
 	capability := modelrecipetest.NewCapability(t, "speech-cancellation-fixture", recipe.TaskSpeech)
 	if err := RegisterRuntime(capability.Runtime, capability.Model, synthesizer); err != nil {
 		t.Fatal(err)

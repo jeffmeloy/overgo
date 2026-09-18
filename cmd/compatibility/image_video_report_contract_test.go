@@ -39,6 +39,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	}
 	defer store.Close()
 	writeTestManifest(t, root, []claim{}, testModels())
+	writeEmptyAcceptedCoverage(t, root)
 	register := func(task recipe.Task) recipe.Definition {
 		t.Helper()
 		payload := []byte(task)
@@ -162,6 +163,13 @@ func TestImageVideoReportContract(t *testing.T) {
 	if !bytes.Equal(first.Markdown, second.Markdown) || !bytes.Equal(first.JSON, second.JSON) {
 		t.Fatal("report rendering is not deterministic")
 	}
+	var projected mediaProjection
+	if err := json.Unmarshal(first.JSON, &projected); err != nil {
+		t.Fatal(err)
+	}
+	if projected.Coverage == nil || projected.Coverage.Activations != 2 || projected.Coverage.AcceptedActivations != 0 {
+		t.Fatal("fixture activation or generated sample gained acceptance credit")
+	}
 	text := string(first.Markdown)
 	for _, required := range []string{"# Media capability report", "## Current validation checkpoint", "(image_video_protocol.json)", "failed: 1; cancelled: 1", "fixture-failure", successful.ID.String(), outputID.String(), "Source: unavailable", "Environment: unavailable", "](media_samples/", "`speech`"} {
 		if !strings.Contains(text, required) {
@@ -229,5 +237,24 @@ func TestImageVideoReportContract(t *testing.T) {
 	}
 	if err := visitRecipeRuns(ctx, store, foreign, func(runrecord.Run) error { return nil }); err == nil {
 		t.Fatal("substituted recipe lineage accepted")
+	}
+}
+
+func writeEmptyAcceptedCoverage(t *testing.T, root string) {
+	t.Helper()
+	// This isolated store has no campaign acceptance. Declare that explicitly;
+	// activation and generated samples must not acquire protocol credit.
+	coverageRoot := filepath.Join(root, "docs", "verification")
+	if err := os.MkdirAll(coverageRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	emptyCoverage, err := json.Marshal(acceptedCoverage{Version: artifact.InitialDocumentVersion, Scope: "Fixture with no accepted campaign protocols."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"text-vision-coverage.json", "image-video-coverage.json", "specialized-coverage.json"} {
+		if err := os.WriteFile(filepath.Join(coverageRoot, name), emptyCoverage, 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

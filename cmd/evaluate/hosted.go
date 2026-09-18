@@ -104,7 +104,7 @@ func (s *hostedSession) EvaluateDerived(ctx context.Context, family string) erro
 	if err != nil {
 		return err
 	}
-	domains, declared, err := evaluation.EvalDomains(ctx, s.store, s.model)
+	domains, declared, err := modelrecipe.EvalDomains(ctx, s.store, s.model)
 	if err != nil {
 		return err
 	}

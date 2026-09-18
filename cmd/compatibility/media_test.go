@@ -33,6 +33,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 		t.Fatal(err)
 	}
 	writeTestManifest(t, root, []claim{}, testModels())
+	writeEmptyAcceptedCoverage(t, root)
 	data, err := generateMediaReport(root, root+"/store")
 	if err != nil {
 		t.Fatal(err)

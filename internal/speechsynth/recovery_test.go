@@ -20,10 +20,7 @@ import (
 )
 
 func TestSpeechRecovery(t *testing.T) {
-	synth, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synth := loadArtifactSynthesizer(t)
 	directory := t.TempDir()
 	store, err := overgodb.Open(directory)
 	if err != nil {
@@ -168,10 +165,7 @@ func (store *speechCancelAfterLatents) Commit(ctx context.Context, batch artifac
 }
 
 func testSpeechRecoveryAfterGenerationCancellation(t *testing.T) {
-	synth, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synth := loadArtifactSynthesizer(t)
 	directory := t.TempDir()
 	store, err := overgodb.Open(directory)
 	if err != nil {

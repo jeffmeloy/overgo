@@ -74,7 +74,7 @@ func TestDeviceGroupRatchet(t *testing.T) {
 	if len(device) > ceiling {
 		t.Fatalf("device group regrew to %d of %d packages, ceiling %d", len(device), total, ceiling)
 	}
-	for _, host := range []string{"internal/hostoptimizer", "internal/model", "internal/trainingprogram", "internal/runrecord", "internal/plan", "internal/testevidence"} {
+	for _, host := range []string{"internal/hostoptimizer", "internal/model", "internal/trainingprogram", "internal/runrecord", "internal/plan", "internal/testevidence", "internal/modelrecipe", "cmd/compatibility"} {
 		if slices.Contains(device, host) {
 			t.Errorf("%s links the device runtime", host)
 		}

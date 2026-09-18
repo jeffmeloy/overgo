@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/remoteprovider"
@@ -236,7 +237,7 @@ func declareEvalDomain(ctx context.Context, repository, modelPath, domainsCSV st
 		if !strings.EqualFold(filepath.Clean(entry.Location), wanted) {
 			continue
 		}
-		declaration, err := evaluation.DeclareEvalDomains(ctx, store, entry.Model, domains)
+		declaration, err := modelrecipe.DeclareEvalDomains(ctx, store, entry.Model, domains)
 		if err != nil {
 			return err
 		}
@@ -272,7 +273,7 @@ func (s *nativeSession) EvaluateDerived(ctx context.Context, family string) erro
 	}
 	// A declared eval domain routes suites: a DNA model never meets
 	// English multiple choice. Undeclared models keep full coverage.
-	domains, declared, err := evaluation.EvalDomains(ctx, s.store, s.model)
+	domains, declared, err := modelrecipe.EvalDomains(ctx, s.store, s.model)
 	if err != nil {
 		return err
 	}

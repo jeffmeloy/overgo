@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -9,10 +10,10 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
-	"overgo/internal/modelcli"
 	"overgo/internal/modelintake"
 	"overgo/internal/overgodb"
 	"overgo/internal/projector"
+	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/testutil"
 )
@@ -54,20 +55,25 @@ func TestProjectionExecutionE4B(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	runner, err := modelcli.OpenRunner(t.Context(), roots.Store, paths[0], inference.OpenOptions{})
+	language, err := modelintake.PrepareInferenceCandidate(t.Context(), store, paths[0], modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := runner.RuntimePolicy().ValidateIdentity(); err != nil {
-		runner.Close()
 		t.Fatal(err)
 	}
 	projection, err := projector.OpenSession(t.Context(), paths[1], projector.OpenOptions{CUDA: true, MediaPreprocess: candidate.Processor})
 	if err != nil {
-		runner.Close()
 		t.Fatal(err)
 	}
-	runtime := &projectedExactRuntime{runner: runner, projection: projection}
+	runtime := &deferredExactRuntime{release: projection.Close, open: func(ctx context.Context) (exactRuntime, error) {
+		runner, err := openExactCandidate(ctx, paths[0], language)
+		if err != nil {
+			return nil, err
+		}
+		if err := runner.RuntimePolicy().ValidateIdentity(); err != nil {
+			runner.Close()
+			return nil, err
+		}
+		return &projectedExactRuntime{runner: runner, projection: projection}, nil
+	}}
 	defer func() {
 		if err := runtime.Close(); err != nil {
 			t.Error(err)

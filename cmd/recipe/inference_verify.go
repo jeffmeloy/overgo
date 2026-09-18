@@ -51,33 +51,39 @@ func verifyInference(
 		return err
 	}
 	defer store.Close()
-	loaded, definition, err := prepareExactCandidate(ctx, store, path, override, residency)
+	candidate, err := prepareExactCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
-	identity, err := loaded.Identity()
-	if err != nil {
-		return errors.Join(err, loaded.Close())
-	}
-	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
-	if err != nil {
-		return errors.Join(err, loaded.Close())
-	}
-	return verifyExactRuntime(ctx, store, definition, revision, suite, exactPlan, identity.Definition, runner)
+	runtime := &deferredExactRuntime{open: func(ctx context.Context) (exactRuntime, error) {
+		return openExactCandidate(ctx, path, candidate)
+	}}
+	return verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
 }
 
 func prepareExactCandidate(ctx context.Context, store *overgodb.Store, path string,
 	override modelintake.SessionOverride, residency recipe.ResidencyPolicy,
-) (modelrecipe.LoadedProgram, recipe.Definition, error) {
+) (modelintake.Candidate, error) {
 	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
 	if err != nil {
-		return modelrecipe.LoadedProgram{}, recipe.Definition{}, err
+		return modelintake.Candidate{}, err
 	}
 	if err := modelintake.RegisterCandidate(ctx, store, candidate); err != nil {
-		return modelrecipe.LoadedProgram{}, recipe.Definition{}, err
+		return modelintake.Candidate{}, err
 	}
+	return candidate, nil
+}
+
+func openExactCandidate(ctx context.Context, path string, candidate modelintake.Candidate) (*inference.Runner, error) {
 	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
-	return loaded, candidate.Definition, err
+	if err != nil {
+		return nil, err
+	}
+	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
+	if err != nil {
+		return nil, errors.Join(err, loaded.Close())
+	}
+	return runner, nil
 }
 
 // Projection cases carry exact source identities inside the existing exact suite.
@@ -271,35 +277,33 @@ func verifyProjection(repository, path, projectorPath, input string,
 	if _, err := modelrecipe.CompileCandidateExecution(ctx, store, program); err != nil {
 		return err
 	}
-	loaded, _, err := prepareExactCandidate(ctx, store, path, override, residency)
+	candidate, err := prepareExactCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
-	identity, err := loaded.Identity()
-	if err != nil {
-		return errors.Join(err, loaded.Close())
-	}
-	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
-	if err != nil {
-		return errors.Join(err, loaded.Close())
-	}
 	_, _, declaredProcessor, err := projector.InspectProjection(ctx, projectorPath)
 	if err != nil {
-		return errors.Join(err, runner.Close())
+		return err
 	}
 	processor, err := projector.ResolvePreprocessProfile(ctx, store, definition, declaredProcessor)
 	if err != nil {
-		return errors.Join(err, runner.Close())
+		return err
 	}
 	projection, err := projector.OpenSession(ctx, projectorPath, projector.OpenOptions{CUDA: true, MediaPreprocess: processor})
 	if err != nil {
-		return errors.Join(err, runner.Close())
+		return err
 	}
-	runtime := &projectedExactRuntime{runner: runner, projection: projection}
 	if err := requireProjectionCoverage(suite, projection.Capabilities()); err != nil {
-		return errors.Join(err, runtime.Close())
+		return errors.Join(err, projection.Close())
 	}
-	return verifyExactRuntime(ctx, store, definition, revision, suite, exactPlan, identity.Definition, runtime)
+	runtime := &deferredExactRuntime{release: projection.Close, open: func(ctx context.Context) (exactRuntime, error) {
+		runner, err := openExactCandidate(ctx, path, candidate)
+		if err != nil {
+			return nil, err
+		}
+		return &projectedExactRuntime{runner: runner, projection: projection}, nil
+	}}
+	return verifyExactRuntime(ctx, store, definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runtime)
 }
 
 type exactRuntime interface {
@@ -307,10 +311,62 @@ type exactRuntime interface {
 	Close() error
 }
 
+// The exact ledger calls Generate only for missing cases. Prepared resources
+// transfer to the acquired runtime; otherwise Close releases them directly.
+type deferredExactRuntime struct {
+	open    func(context.Context) (exactRuntime, error)
+	release func() error
+	runtime exactRuntime
+	closed  bool
+}
+
+// Generate acquires the language runtime once for missing case execution.
+func (runtime *deferredExactRuntime) Generate(ctx context.Context, prompt string, options inference.GenerateOptions) ([]tokenizer.TokenID, string, error) {
+	if err := runtime.acquire(ctx); err != nil {
+		return nil, "", err
+	}
+	return runtime.runtime.Generate(ctx, prompt, options)
+}
+
+func (runtime *deferredExactRuntime) acquire(ctx context.Context) error {
+	if runtime.closed {
+		return errors.New("recipe: exact runtime is closed")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if runtime.runtime == nil {
+		opened, err := runtime.open(ctx)
+		if err != nil {
+			return err
+		}
+		if opened == nil {
+			return errors.New("recipe: exact runtime acquisition returned nil")
+		}
+		runtime.runtime = opened
+	}
+	return nil
+}
+
+// Close releases acquired or prepared resources once.
+func (runtime *deferredExactRuntime) Close() error {
+	if runtime.closed {
+		return nil
+	}
+	runtime.closed = true
+	if runtime.runtime != nil {
+		return runtime.runtime.Close()
+	}
+	if runtime.release != nil {
+		return runtime.release()
+	}
+	return nil
+}
+
 // verifyExactRuntime shares real execution, failure publication and release for
 // language-only and projected generation. Compilation alone cannot publish success.
 func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition recipe.Definition, revision string,
-	suite evaluation.ExactSuite, exactPlan evaluation.ExactPlan, modelDefinition artifact.ID, runtime exactRuntime,
+	suite evaluation.ExactSuite, exactPlan evaluation.ExactPlan, modelDefinition artifact.ID, runtime *deferredExactRuntime,
 ) error {
 	environment, err := runrecord.CurrentEnvironment("cuda:0", "cuda")
 	if err != nil {
@@ -326,9 +382,46 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 	if err != nil {
 		return errors.Join(fmt.Errorf("recipe: bind exact evaluation: %w", err), runtime.Close())
 	}
+	_, found, err := artifact.ReadContent(ctx, store, environment.ID)
+	if err == nil && !found {
+		var batch artifact.Batch
+		batch, err = environment.Batch("recipe/exact-environment/" + environment.ID.String())
+		if err == nil {
+			_, err = artifact.CommitBatch(ctx, store, batch)
+		}
+	}
+	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		return errors.Join(err, runtime.Close())
+	}
 	started := time.Now()
+	retained, retainedReport, err := retainedExactVerification(ctx, store, definition.ID, revision, environment.ID, evaluationPlan.Identity())
+	if err != nil {
+		return errors.Join(err, runtime.Close())
+	}
+	if retained.Gate.ID != (artifact.ID{}) {
+		// A terminal record proves the previous lifecycle, including cleanup.
+		// Missing ledger entries contradict it; never silently acquire again.
+		runtime.open = func(context.Context) (exactRuntime, error) {
+			return nil, errors.New("recipe: terminal verification has incomplete case evidence")
+		}
+	} else if err := runtime.acquire(ctx); err != nil {
+		return errors.Join(err, runtime.Close())
+	}
 	reportID, evaluateErr := evaluation.EvaluateExactSharded(ctx, store, runtime, exactPlan, evaluationPlan, nil)
 	closeErr := runtime.Close()
+	if retained.Gate.ID != (artifact.ID{}) {
+		if closeErr != nil || reportID != retainedReport {
+			return errors.Join(evaluateErr, closeErr, errors.New("recipe: retained verification could not be replayed exactly"))
+		}
+		if retained.Gate.Outcome == runrecord.OutcomeFailed {
+			evaluateErr = errors.Join(evaluateErr, fmt.Errorf("recipe: retained verification failed: %s", retained.Gate.Steps[0].Evidence))
+		}
+		return errors.Join(evaluateErr, json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"gate_id": retained.Gate.ID.String(), "recipe_id": definition.ID.String(),
+			"run_id": retained.Run.ID.String(), "report_id": reportID.String(),
+			"outcome": retained.Gate.Outcome, "reused": true,
+		}))
+	}
 	if evaluateErr != nil || closeErr != nil {
 		failure := errors.Join(evaluateErr, closeErr)
 		evidence := fmt.Sprintf("plan=%s;report=%s; %s", evaluationPlan.Identity(), reportID, strings.ReplaceAll(failure.Error(), "\n", " "))

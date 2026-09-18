@@ -29,8 +29,7 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 	}
 	defer store.Close()
 	ctx := t.Context()
-	if loaded, _, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err == nil {
-		loaded.Close()
+	if _, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); err == nil {
 		t.Fatal("missing registered profile accepted")
 	}
 	if _, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, store); err != nil {
@@ -42,13 +41,17 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 	}
 	check := func() {
 		t.Helper()
-		loaded, definition, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+		candidate, err := prepareExactCandidate(ctx, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer loaded.Close()
 		identity, err := loaded.Identity()
-		if err != nil || definition.ID != want.Definition.ID || identity.Recipe != want.Definition.ID ||
+		if err != nil || candidate.Definition.ID != want.Definition.ID || identity.Recipe != want.Definition.ID ||
 			identity.Profile != want.Resolved.Profile.ID || identity.Definition != want.Resolved.Document.ID {
 			t.Fatalf("candidate binding differs: %+v, %v", identity, err)
 		}
@@ -75,8 +78,7 @@ func TestExactVerificationCandidateBinding(t *testing.T) {
 	}
 	canceled, cancel := context.WithCancelCause(ctx)
 	cancel(context.Canceled)
-	if loaded, _, err := prepareExactCandidate(canceled, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); !errors.Is(err, context.Canceled) {
-		loaded.Close()
+	if _, err := prepareExactCandidate(canceled, store, path, modelintake.SessionOverride{}, recipe.ResidencyHybridNative); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation lost: %v", err)
 	}
 	if got, ordinal := store.Head(); got != head || ordinal != sequence {

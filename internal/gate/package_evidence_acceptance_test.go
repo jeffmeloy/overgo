@@ -2,6 +2,7 @@ package gate
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,6 +20,55 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 	if isolatedProcess(t) {
 		return
 	}
+	t.Run("named receipt contract", func(t *testing.T) {
+		obligation, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("named-package-obligation"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := packageReceipt{Obligation: obligation, Passed: true, Tests: map[string]string{"TestWorks": "pass", "TestIntegration": "skip"}}
+		receipt, err := packageReceiptCodec.NewInitial(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input.Tests["TestWorks"] = "fail"
+		if receipt.Tests["TestWorks"] != "pass" {
+			t.Fatal("receipt shares mutable caller verdicts")
+		}
+		content, err := packageReceiptCodec.Content(receipt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := packageReceiptCodec.Parse(content.Data)
+		if err != nil || parsed.ID != receipt.ID || !maps.Equal(parsed.Tests, receipt.Tests) {
+			t.Fatalf("named receipt round trip: %v", err)
+		}
+		parsed.Tests["TestForged"] = "pass"
+		if _, err := packageReceiptCodec.Content(parsed); err == nil {
+			t.Fatal("altered named verdict retained its original identity")
+		}
+		for _, tests := range []map[string]string{{"TestWorks": "fail"}, {"": "pass"}, {"TestIntegration": "skip"}} {
+			input.Tests = tests
+			if _, err := packageReceiptCodec.NewInitial(input); err == nil {
+				t.Fatal("invalid named receipt accepted", tests)
+			}
+		}
+		input.Passed, input.Tests = false, map[string]string{"TestWorks": "pass"}
+		if _, err := packageReceiptCodec.NewInitial(input); err == nil {
+			t.Fatal("revoked receipt retained named credit")
+		}
+		legacy, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation, Passed: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		content, err = packageReceiptCodec.Content(legacy)
+		if err != nil || strings.Contains(string(content.Data), `"tests"`) {
+			t.Fatalf("legacy receipt representation changed: %v", err)
+		}
+		legacy, err = packageReceiptCodec.Parse(content.Data)
+		if err != nil || len(legacy.Tests) != 0 {
+			t.Fatalf("historical package receipt acquired named credit: %v", err)
+		}
+	})
 	t.Run("real failed group survives restart and retries only failures", func(t *testing.T) {
 		root, _ := packageIdentityFixture(t)
 		if err := os.Mkdir(filepath.Join(root, "tmp"), 0o755); err != nil {
@@ -84,6 +134,10 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 		}
 		if err := ledger.prepare(t.Context(), packages, "short", inputs, g.retryCache); err != nil {
 			t.Fatal(err)
+		}
+		receipt, found, err := packageReceiptCodec.Resolve(t.Context(), ledger.store, packageReceiptAlias+ledger.obligations["example/other"].ID.String())
+		if err != nil || !found || !receipt.Passed || !maps.Equal(receipt.Tests, map[string]string{"TestRequired": "pass", "TestIntegration": "skip"}) {
+			t.Fatalf("named verdicts did not survive sibling failure and restart: %+v %v", receipt, err)
 		}
 		pending, reused, err := g.packageCachePartition(packages, "short", inputs)
 		if err != nil || reused != 1 || !slices.Equal(pending, []string{"example/app"}) {

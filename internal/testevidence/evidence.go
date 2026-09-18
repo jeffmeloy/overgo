@@ -133,7 +133,7 @@ func GoTestJSONShortReport(out string) (GoTestReport, error) {
 
 // GoTestJSONReader streams test evidence, retaining bounded failure
 // diagnostics and completed verdicts even when a later event is malformed.
-func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe func(string, bool) error) (GoTestReport, error) {
+func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe func(string, bool, map[string]string) error) (GoTestReport, error) {
 	if diagnosticBytes <= 0 {
 		return GoTestReport{}, fmt.Errorf("diagnostic byte limit must be positive")
 	}
@@ -156,7 +156,7 @@ type goTestEvent struct {
 	Elapsed                                   *float64
 }
 
-func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
+func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool, map[string]string) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
 	digest := sha256.New()
 	reader = io.TeeReader(reader, digest)
 	scanner := bufio.NewScanner(reader)

@@ -28,7 +28,7 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 	var calls []call
 	contended := testevidence.GoTestReport{Failed: []string{"overgo/internal/routedlm: TestTrainerDescends"}, Contended: []string{"overgo/internal/routedlm"}}
 	refusals := 2
-	run := func(_ context.Context, packages []string, _ bool, _ func(string, bool) error, leased bool) (testevidence.GoTestReport, error) {
+	run := func(_ context.Context, packages []string, _ bool, _ func(string, bool, map[string]string) error, leased bool) (testevidence.GoTestReport, error) {
 		calls = append(calls, call{packages: packages, leased: leased})
 		if leased || refusals > 0 {
 			if !leased {
@@ -66,7 +66,7 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 
 	other := errors.New("go test evidence: a real failure")
 	calls = nil
-	_, err = g.runDeviceBatch(t.Context(), batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
+	_, err = g.runDeviceBatch(t.Context(), batch, false, nil, func(context.Context, []string, bool, func(string, bool, map[string]string) error, bool) (testevidence.GoTestReport, error) {
 		calls = append(calls, call{})
 		return testevidence.GoTestReport{Failed: []string{"overgo/internal/devicemath: TestKernel"}}, other
 	})
@@ -78,7 +78,7 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 	ended := errors.New("the caller ended the wait")
 	wait, cancel := context.WithCancelCause(t.Context())
 	cancel(ended)
-	_, err = g.runDeviceBatch(wait, batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
+	_, err = g.runDeviceBatch(wait, batch, false, nil, func(context.Context, []string, bool, func(string, bool, map[string]string) error, bool) (testevidence.GoTestReport, error) {
 		return contended, errors.New("go test evidence: refused")
 	})
 	if !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, ended) {

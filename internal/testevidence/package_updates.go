@@ -2,19 +2,21 @@ package testevidence
 
 import (
 	"errors"
+	"maps"
 	"sync"
 )
 
 // queuedPackageUpdates keeps persistence off the process-output drain. Only
 // verdict transitions queue, never raw output; flush joins the worker and
 // reports every publication error before command evidence can be accepted.
-func queuedPackageUpdates(observe func(string, bool) error) (func(string, bool) error, func() error) {
+func queuedPackageUpdates(observe func(string, bool, map[string]string) error) (func(string, bool, map[string]string) error, func() error) {
 	if observe == nil {
 		return nil, func() error { return nil }
 	}
 	type update struct {
 		name   string
 		passed bool
+		tests  map[string]string
 	}
 	var mutex sync.Mutex
 	wake := sync.NewCond(&mutex)
@@ -33,7 +35,7 @@ func queuedPackageUpdates(observe func(string, bool) error) (func(string, bool) 
 			pending = nil
 			mutex.Unlock()
 			for _, change := range batch {
-				if err := observe(change.name, change.passed); err != nil {
+				if err := observe(change.name, change.passed, change.tests); err != nil {
 					failures = append(failures, err)
 				}
 			}
@@ -44,9 +46,9 @@ func queuedPackageUpdates(observe func(string, bool) error) (func(string, bool) 
 			}
 		}
 	}()
-	return func(name string, passed bool) error {
+	return func(name string, passed bool, tests map[string]string) error {
 			mutex.Lock()
-			pending = append(pending, update{name: name, passed: passed})
+			pending = append(pending, update{name: name, passed: passed, tests: maps.Clone(tests)})
 			wake.Signal()
 			mutex.Unlock()
 			return nil
@@ -63,7 +65,7 @@ func queuedPackageUpdates(observe func(string, bool) error) (func(string, bool) 
 // packageUpdates publishes terminal verdict changes; a later contradiction
 // revokes the receipt. Unfinished siblings never alter completed packages.
 type packageUpdates struct {
-	observe func(string, bool) error
+	observe func(string, bool, map[string]string) error
 	passed  map[string]bool
 }
 
@@ -89,7 +91,16 @@ func (updates *packageUpdates) update(results map[string]*testResult, name strin
 	if passed == updates.passed[name] {
 		return nil
 	}
-	if err := updates.observe(name, passed); err != nil {
+	var tests map[string]string
+	if passed {
+		tests = map[string]string{}
+		for _, result := range results {
+			if result.Package == name && result.Name != "" {
+				tests[result.Name] = result.Action
+			}
+		}
+	}
+	if err := updates.observe(name, passed, tests); err != nil {
 		return err
 	}
 	updates.passed[name] = passed
@@ -100,7 +111,7 @@ func (updates *packageUpdates) invalidate() error {
 	var result error
 	for name, passed := range updates.passed {
 		if passed {
-			result = errors.Join(result, updates.observe(name, false))
+			result = errors.Join(result, updates.observe(name, false, nil))
 			updates.passed[name] = false
 		}
 	}

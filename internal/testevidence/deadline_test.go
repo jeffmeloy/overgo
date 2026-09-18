@@ -84,7 +84,7 @@ func TestActiveTestDeadlineAcceptance(t *testing.T) {
 			options := GoTestOptions{DiagnosticBytes: 1024, ActiveTimeout: 5 * time.Second}
 			if mode == "operator cancellation" {
 				options.ActiveTimeout = 0
-				options.Observe = func(pkg string, passed bool) error {
+				options.Observe = func(pkg string, passed bool, tests map[string]string) error {
 					if pkg == "good" && passed {
 						cancel(operator)
 					}

@@ -29,7 +29,7 @@ func TestShortProfilePackageEvidence(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var updates []bool
-			report, err := GoTestJSONReader(strings.NewReader(tc.stream), tc.short, len(tc.stream), func(pkg string, passed bool) error {
+			report, err := GoTestJSONReader(strings.NewReader(tc.stream), tc.short, len(tc.stream), func(pkg string, passed bool, tests map[string]string) error {
 				if pkg != "example" {
 					t.Fatalf("unexpected package %q", pkg)
 				}

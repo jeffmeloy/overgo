@@ -14,7 +14,7 @@ import (
 type GoTestOptions struct {
 	Short           bool
 	DiagnosticBytes int
-	Observe         func(string, bool) error
+	Observe         func(string, bool, map[string]string) error
 	// Progress receives each package's terminal event as the stream reports
 	// it, in stream order, before the report is complete.
 	Progress func(PackageProgress)

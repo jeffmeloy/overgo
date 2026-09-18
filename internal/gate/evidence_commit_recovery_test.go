@@ -50,7 +50,7 @@ func TestEvidenceCommitRecoveryAcceptance(t *testing.T) {
 		acquisitions := map[string]int{}
 		acquire := func(pkg string) {
 			acquisitions[pkg]++
-			if err := ledger.record(t.Context(), pkg, true); err != nil {
+			if err := ledger.record(t.Context(), pkg, true, nil); err != nil {
 				t.Fatal(err)
 			}
 		}

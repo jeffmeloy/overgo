@@ -4,6 +4,25 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "surface-gate-execution",
+      "title": "Satisfy matching acceptance and owner obligations once",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "shared-execution",
+          "title": "Reuse one owner execution for matching named acceptance",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^(TestIndependentPackageEvidenceAcceptance|TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit|TestPackageExecutionAuditUsesObservedWork|TestGateRunsStaticChecksBeforeAcceptance)$' -short -count=1 \u0026\u0026 go test ./internal/planverify -run '^TestMixedVerifierRepeatEvidence$' -count=1",
+          "rationale": "Combined-plan boundary: only coalesce executions with matching test/profile/input contracts. The merge 430431e8 acceptance cost 1.361s versus owners 3m21.809s; this boundary is worthwhile only after identifying a representative implementation row with actual duplicated execution. Reuse the new analysis product; do not rebuild graph discovery or conflate filtered acceptance with full-package coverage.\n\nOwners: gate, planverify, testevidence and automationcheck. Baseline: fd153b33 acceptance 3m35.277s, owners 3m26.575s; suite evidence:sha256:399a5dff00420c3b6379d4407e33b48cad87ec5cf86596055bc7cd5f954555d1. Identify exact overlapping invocations before changing scheduling. Start with the existing finite Go-test grammar and matching owner profile; unsupported commands keep their existing path. Plan obligations before execution. One complete owner run may discharge matching named acceptance; a filtered pass never proves the whole package. Bind setup/cleanup, subtests, flags, environment, fixtures and declared ordering. Prove required tests actually run and pass. Counterexamples: absent/renamed/skipped or failed tests, changed inputs, short/full mismatch, tampered receipts, cancellation and interruption around publication. Preserve independent passes across restart without granting missing package credit. Demonstrate one real overlap executes once with the same verdict and report total cycle cost. Delete the duplicate execution path; do not add another runner.\n\nNamed-execution-receipts supplies the previously missing durable named outcomes. Use those authoritative receipts, never suite-cost diagnostics. Preserve the immutable host repeat policy: one execution cannot stand in for two observations. Unsupported commands, unmatched setup/cleanup or ordering, changed flags/fixtures/environment, missing names and incompatible short/full profiles keep their existing execution path. Audio intake now names the four existing acceptance owners after fa8745cb and bedb9e93 removed duplicate wrappers; do not reintroduce those wrappers.",
+          "depends_on": [
+            "surface-gate-execution/subtest-selection",
+            "surface-gate-execution/named-execution-receipts"
+          ]
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
       "owner": "professional_overgo_gui",
@@ -28,8 +47,8 @@
           "id": "native-audio-streaming-intake",
           "title": "Verify landed native audio production consumers and retire staged APIs",
           "status": "open",
-          "verify": "test -f internal/capabilityruntime/audio_stream_integration_test.go \u0026\u0026 go test ./internal/capabilityruntime -run '^TestNativeAudioStreamIntegration$' -count=1 \u0026\u0026 test -f internal/audioparity/production_intake_test.go \u0026\u0026 go test ./internal/audioparity -run '^TestNativeAudioProductionIntake$' -count=1",
-          "rationale": "Master integration follow-up for staged OpenAudioStream; implementation remains in the separate audio lane. When its finalized production consumer lands, verify exact admitted model/recipe/corpus identities, native chunk processing, offline/chunk transcript agreement, cancellation, bounded retained state, restart and residency release through that consumer. Bind the case/protocol denominator and quantitative bounds before execution. Existing workflow/session contract tests remain lower bounds and do not establish native streaming quality. Remove the staged declaration only when the production consumer is verified, or atomically remove the unused API and every caller with a bound removal/coverage assertion if the capability is explicitly abandoned. Until either result is established this obligation stays open. This row does not gate E4B's existing waveform-input validation and does not import or dispatch the audio lane's development plan.\n\nThe gated audio intake also assigns NewTextTransform, PublishInputProjection and RestoreInputProjection here. Their CPU publication and fresh-process resume tests prove a frozen one-row adapter boundary, not production assembly, held-out WER, HTTP recovery, promotion or GPU training. Keep development in the audio lane. At its next finalized intake, TestNativeAudioProductionIntake must exercise all three APIs through the landed production consumer with exact base/transform/checkpoint/corpus identities, successful resume and rejected mismatches; bind its denominator and applicable quality/resource acceptance before dispatch. The new named test is an implementation obligation. Retain TestASRAdapterPublicationAcceptance and TestASRExactResumeAcceptance as lower bounds, never as substitutes for production use. Close this row only after every assigned staged API has a verified production consumer or has been atomically removed with all callers. This follow-up does not block E4B waveform validation.\n\nThe e36c3103 intake supplies the implementation and six CPU acceptance families. Reuse its passing evidence and remove only obsolete staged declarations; do not rebuild the landed streaming, switching, alignment or attribution owners. Retain the existing integration and production-intake lower bounds and independently scoped hardware, held-out quality and transport obligations.\n\nAudio integration 99cdcd8d also lands hybrid training and diffusion improvements, not new ASR quality acceptance. Keep audio-owned unfinished training, native oracle and HTTP work in their lanes. Master consumes committed capabilities and tests production activation/streaming boundaries against registered artifacts; optimizer trajectory or image sampling evidence cannot substitute for transcription, speech generation or speech dataset coverage.",
+          "verify": "go test ./internal/capabilityruntime -run '^TestNativeASRSessionAcceptance$' -count=1 \u0026\u0026 go test ./internal/audioparity -run '^TestASRProductionTrainingAcceptance$' -count=1 \u0026\u0026 go test ./internal/audioparity -run '^TestAudioPublicationRecoveryAcceptance$' -count=1 \u0026\u0026 go test ./internal/audioparity -run '^TestAudioResourceFitnessAcceptance$' -count=1",
+          "rationale": "Verify the landed production consumers of OpenAudioStream, NewTextTransform, PublishInputProjection and RestoreInputProjection. Native session acceptance binds the registered model/recipe and every immutable corpus capture, native chunk transcripts, bounded history, cancellation, restart and residency release. The three existing audioparity owners bind production training and exact fresh-process resume, publication and authority recovery, and held-out quality/resource fitness. Preserve the independent adapter-publication and exact-resume lower bounds. Keep native offline and streaming references distinct, and retain each owner's current denominator, numerical bounds and resource scope. CPU acceptance grants no recurrent-decoder training, GPU training, quality-improvement or promotion claim.\n\nReference repair: fa8745cb deleted TestNativeAudioProductionIntake because it redundantly invoked these three independently registered tests and consumed 570.21 seconds in its aggregate wrapper. bedb9e93 consolidated TestNativeAudioStreamIntegration into TestNativeASRSessionAcceptance, publishing the native fixture once and reusing the longest capture. This plan had reintroduced the deleted references. Bind the current four owners directly, with separate invocations; do not restore either wrapper, concatenate their test regexes into a new aggregate budget, or weaken their assertions. The four staged declarations are already absent and their production callers exist. Completion still requires verified production evidence, not merely those source facts.\n\nReuse matching retained execution receipts through surface-gate-execution/shared-execution when test/profile/source/environment/fixture and setup/cleanup contracts agree; cost observations alone confer no acceptance. Preserve absent, skipped, failed or invalidated obligations. Acquire only evidence that cannot be reused soundly. Keep implementation development in the audio lane, independently scoped hardware and transport work with their owners, and do not import its development plan. This intake does not gate E4B waveform-input acceptance.",
           "depends_on": [
             "audio-worktree-integration/register-models",
             "merge-e36c3103a2e1/do"
@@ -69,24 +88,6 @@
           "depends_on": [
             "modality-verification/media-evidence-binding",
             "modality-verification/experiment-resume"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "surface-gate-execution",
-      "title": "Satisfy matching acceptance and owner obligations once",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "shared-execution",
-          "title": "Reuse one owner execution for matching named acceptance",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestIndependentPackageEvidenceAcceptance|TestAcceptanceEvidenceRejectsPlanMutationBeforeCommit|TestPackageExecutionAuditUsesObservedWork|TestGateRunsStaticChecksBeforeAcceptance)$' -short -count=1 \u0026\u0026 go test ./internal/planverify -run '^TestMixedVerifierRepeatEvidence$' -count=1",
-          "rationale": "Combined-plan boundary: only coalesce executions with matching test/profile/input contracts. The merge 430431e8 acceptance cost 1.361s versus owners 3m21.809s; this boundary is worthwhile only after identifying a representative implementation row with actual duplicated execution. Reuse the new analysis product; do not rebuild graph discovery or conflate filtered acceptance with full-package coverage.\n\nOwners: gate, planverify, testevidence and automationcheck. Baseline: fd153b33 acceptance 3m35.277s, owners 3m26.575s; suite evidence:sha256:399a5dff00420c3b6379d4407e33b48cad87ec5cf86596055bc7cd5f954555d1. Identify exact overlapping invocations before changing scheduling. Start with the existing finite Go-test grammar and matching owner profile; unsupported commands keep their existing path. Plan obligations before execution. One complete owner run may discharge matching named acceptance; a filtered pass never proves the whole package. Bind setup/cleanup, subtests, flags, environment, fixtures and declared ordering. Prove required tests actually run and pass. Counterexamples: absent/renamed/skipped or failed tests, changed inputs, short/full mismatch, tampered receipts, cancellation and interruption around publication. Preserve independent passes across restart without granting missing package credit. Demonstrate one real overlap executes once with the same verdict and report total cycle cost. Delete the duplicate execution path; do not add another runner.",
-          "depends_on": [
-            "surface-gate-execution/subtest-selection"
           ]
         }
       ]

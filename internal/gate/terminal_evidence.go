@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"strings"
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
@@ -25,6 +27,8 @@ type packageReceipt struct {
 	Obligation artifact.ID `json:"obligation"`
 	Previous   artifact.ID `json:"previous,omitzero"`
 	Passed     bool        `json:"passed"`
+	// Absent on historical receipts; those carry no named-test evidence.
+	Tests map[string]string `json:"tests,omitempty"`
 }
 
 var packageReceiptCodec = artifact.JSONDocumentCodec(
@@ -34,10 +38,20 @@ var packageReceiptCodec = artifact.JSONDocumentCodec(
 			value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence {
 			return errors.New("gate package receipt: invalid binding")
 		}
+		passedTest := false
+		for name, action := range value.Tests {
+			if !value.Passed || strings.TrimSpace(name) == "" || action != "pass" && action != "skip" {
+				return errors.New("gate package receipt: invalid named verdict")
+			}
+			passedTest = passedTest || action == "pass"
+		}
+		if len(value.Tests) != 0 && !passedTest {
+			return errors.New("gate package receipt: named verdicts contain no passing test")
+		}
 		return nil
 	}, func(value packageReceipt) artifact.ID { return value.ID },
 	func(value *packageReceipt, id artifact.ID) { value.ID = id },
-	func(value packageReceipt) packageReceipt { return value },
+	func(value packageReceipt) packageReceipt { value.Tests = maps.Clone(value.Tests); return value },
 )
 
 type packageEvidenceLedger struct {
@@ -136,13 +150,18 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 	return err
 }
 
-func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, passed bool) error {
+func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, passed bool, tests map[string]string) error {
 	obligation, found := ledger.obligations[pkg]
 	if !found {
 		return fmt.Errorf("package evidence: undeclared package %q", pkg)
 	}
+	for _, action := range tests {
+		if action == "skip" && !strings.HasPrefix(obligation.Scope, "short:") {
+			return errors.New("package evidence: complete profile cannot contain skipped tests")
+		}
+	}
 	previous := ledger.previous[pkg]
-	receipt, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation.ID, Previous: previous, Passed: passed})
+	receipt, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation.ID, Previous: previous, Passed: passed, Tests: tests})
 	if err != nil {
 		return err
 	}

@@ -76,7 +76,7 @@ func TestGateStoreLifetime(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if err := ledger.record(t.Context(), "fixture/good", true); err != nil {
+	if err := ledger.record(t.Context(), "fixture/good", true, nil); err != nil {
 		t.Fatal(err)
 	}
 	// Terminal recording must reuse the same handle even on a failed gate.

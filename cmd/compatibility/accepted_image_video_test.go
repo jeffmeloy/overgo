@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,55 +15,6 @@ import (
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
-
-func checkAcceptedMediaCases(protocol imageVideoProtocol, coverage imageVideoCoverage) error {
-	wanted := map[string]imageVideoCase{}
-	for _, value := range protocol.Cases {
-		if _, found := wanted[value.ID]; found {
-			return errors.New("media acceptance: duplicate protocol case")
-		}
-		wanted[value.ID] = value
-	}
-	proofs := map[string]bool{}
-	for _, proof := range coverage.Proofs {
-		key := proof.Reference + "#" + proof.Check
-		if proofs[key] {
-			return errors.New("media acceptance: duplicate proof")
-		}
-		proofs[key] = true
-	}
-	for _, binding := range coverage.Cases {
-		value, found := wanted[binding.Case]
-		if !found || binding.Run.Kind() != artifact.KindRun || binding.Output.Kind() != artifact.KindOutput || binding.Review.Kind() != artifact.KindEvidence {
-			return errors.New("media acceptance: absent, duplicate or invalid case")
-		}
-		bound := false
-		for _, model := range coverage.Models {
-			for _, cell := range model.Cells {
-				if model.Model != value.Model || cell.Task != value.Task {
-					continue
-				}
-				if bound || cell.Recipe != value.Recipe || len(cell.Proofs) == 0 {
-					return errors.New("media acceptance: duplicate or changed activation")
-				}
-				for _, reference := range cell.Proofs {
-					if !proofs[reference] {
-						return fmt.Errorf("media acceptance: missing proof %s", reference)
-					}
-				}
-				bound = true
-			}
-		}
-		if !bound {
-			return errors.New("media acceptance: case has no accepted activation")
-		}
-		delete(wanted, binding.Case)
-	}
-	if len(wanted) != 0 || len(coverage.Cases) == 0 {
-		return errors.New("media acceptance: incomplete denominator")
-	}
-	return nil
-}
 
 func TestAcceptedImageVideoEvidence(t *testing.T) {
 	if testing.Short() {

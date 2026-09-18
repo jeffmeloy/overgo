@@ -11,6 +11,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/longform"
 	"overgo/internal/modelrecipe"
@@ -30,12 +31,16 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
-	if os.Getenv(testskip.StoreAcceptanceEnv) == "" {
-		t.Skip(testskip.StoreAcceptance)
-	}
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT for canonical resource refresh acceptance")
 	}
+	checkE4BResourceRefresh(t, true)
+}
+
+// Historical reports bind the original test and source; current admission keeps
+// the stricter surface comparison. Neither path repeats model acquisition.
+func checkE4BResourceRefresh(t *testing.T, current bool) {
+	t.Helper()
 	root := testutil.RepoRoot(t)
 	var selected struct {
 		Surface string                       `json:"surface"`
@@ -45,9 +50,11 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 	if err := jsonfile.Decode(filepath.Join(root, "docs", "verification", "e4b-resource-refresh.json"), &selected); err != nil {
 		t.Fatal(err)
 	}
-	surface, err := longform.Surface(t.Context(), root)
-	if err != nil || surface != selected.Surface {
-		t.Fatalf("resource evidence does not bind the current inference surface: %v", err)
+	if current {
+		surface, err := longform.Surface(t.Context(), root)
+		if err != nil || surface != selected.Surface {
+			t.Fatalf("resource evidence does not bind the current inference surface: %v", err)
+		}
 	}
 	var original modelValidationSpecification
 	if err := jsonfile.Decode(filepath.Join(root, "docs", "verification", "e4b-validation.json"), &original); err != nil {
@@ -92,10 +99,17 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 	}
 	active, found, err := modelrecipe.ActiveRecord(t.Context(), store, original.Model, recipe.TaskInference)
 	if err != nil || !found || capture.Model != original.Model || capture.Recipe != active.Definition.ID ||
-		capture.CodeCommit != selected.Media.CodeCommit || capture.Surface != surface || capture.Environment != selected.Media.Cells[0].Environment {
+		capture.CodeCommit != selected.Media.CodeCommit || capture.Surface != selected.Surface || capture.Environment != selected.Media.Cells[0].Environment {
 		t.Fatalf("text recovery execution identity differs: %v", err)
 	}
 	source, err := os.ReadFile(filepath.Join(root, "cmd", "longform", "e4b_recovery_windows_test.go"))
+	if !current {
+		var originals [][]byte
+		originals, err = gitauthority.AncestorFiles(t.Context(), root, capture.CodeCommit, "cmd/longform/e4b_recovery_windows_test.go")
+		if err == nil {
+			source = originals[0]
+		}
+	}
 	if err != nil || capture.TestSHA256 != fmt.Sprintf("%x", sha256.Sum256(source)) {
 		t.Fatalf("text recovery contract changed: %v", err)
 	}
@@ -111,5 +125,5 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 			t.Fatalf("foreign recovery event: %s %v", line, err)
 		}
 	}
-	t.Log("18 protocol cases, 270 media resource requests across six modes and full 32768-token text recovery accepted at current surface; original quality and mask evidence retained")
+	t.Logf("18 protocol cases, 270 media resource requests across six modes and full 32768-token text recovery retained at %s; current-surface admission=%t", capture.CodeCommit, current)
 }

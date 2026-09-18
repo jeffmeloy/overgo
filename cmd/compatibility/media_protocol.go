@@ -106,7 +106,7 @@ func projectMediaProtocol(ctx context.Context, root string, reader artifact.Read
 				return nil, errors.New("media protocol: invalid output dimensions or timing units")
 			}
 		}
-		projected := mediaProtocolCaseProjection{imageVideoCase: declared, Gap: "Current source and protocol acceptance are unbound.", RepairOwner: "modality-verification/image-and-video"}
+		projected := mediaProtocolCaseProjection{imageVideoCase: declared, Gap: "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.", RepairOwner: "final-model-validation/do"}
 		for _, row := range rows {
 			if row.Model == declared.Model && row.Task == declared.Task && row.Stale == "" {
 				projected.CurrentRecipe = row.Recipe
@@ -134,9 +134,9 @@ func projectMediaProtocol(ctx context.Context, root string, reader artifact.Read
 }
 
 func writeMediaProtocol(output *bytes.Buffer, value *mediaProtocolProjection) {
-	output.WriteString("## Declared generation protocol\n\n")
+	output.WriteString("## Historical generation protocol\n\n")
 	if value == nil {
-		output.WriteString("No image/video protocol is recorded; generation coverage is unresolved. Repair owner: `modality-verification/image-and-video`.\n\n")
+		output.WriteString("No image/video protocol is recorded; generation coverage is unresolved. Repair owner: `final-model-validation/do`.\n\n")
 		return
 	}
 	fmt.Fprintf(output, "[Protocol](%s): %d declared cases; %d retained successful run lineages. These counts establish neither current-source compatibility nor quality acceptance.\n\n", filepath.Base(imageVideoProtocolPath), len(value.Cases), value.Retained)

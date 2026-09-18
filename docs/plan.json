@@ -4,25 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-gate-diagnostics",
-      "title": "Prevent serial mechanical refusal cycles",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "complete-findings",
-          "title": "Report stale and new authority problems in one preflight",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestPreflightProposesEveryClosureSite|TestGateEquivalentStaticPreflight|TestPreflightNeverRepairsStore|TestPreflightReportsValidateFindings|TestStaticFailurePreventsAcceptance)$' -short -count=1",
-          "rationale": "Owners: existing preflight, repair and closure proposal paths. The last change required separate passes for prefix cleanup, type misclassification, stale callsites and a new regexp constant declaration. Use one prepared inventory to report all independent findings, including stale and new sites, with exact locations/remedies. Continue independent diagnostics while respecting true dependencies. Share gate checks and environment. Preflight remains diagnostic, without store mutation or acceptance credit. Route deterministic repairs through existing owners; authority migration requires exact semantics/provenance and ambiguous decisions stay explicit. No blanket cataloguing or approval of new policy. Prove one mixed-defect pass reports every actionable blocker before behavioral tests. This row does not depend on the independent type fix. Reproduction from the training input-extent repair after 964d5191: preflight reported stale bindings first; same-store import rebound 38 documents; the remaining four ambiguous/deleted active bindings required review and retirement; only then did a separate inventory expose seven current scalar/group/causal-pair sites. Classification publication is store commit 24561287e170ed23. Preserve this mixed moved/deleted/new-site case in acceptance. Produce all findings and exact triage rows from one source snapshot and one catalog/history view, and carry that reviewed view into existing batch publication with source/head compare-and-swap checks. An unrelated source edit, changed callsite semantics, changed store head or ambiguous prior classifications must invalidate only the affected proof or require review. Avoid repeated standalone import/propose/inventory scans and first-error-only loops; do not loosen literal policy or invent a second ledger. Measure complete repair-to-commit wall and actual scans against this sequence.\n\nPriority integration witness: 964838b7 needed a 1301.9s failed gate, a 281.1s static refusal, and a 1408.6s successful gate (2991.6s gate wall across attempts, excluding preparation and diagnosis). Removing the rejected NFC paths left 21 imported closure bindings; the first-error repair loop only found them on the next gate. Include partial merge rejection and moved/deleted/new bindings in one prepared preflight. Readiness should compile declared tokenizer/fixture contracts on CPU before loading models when that cheap check can expose the same refusal. Preserve the actual device behavior tests after readiness.\n\nAlso resolve finding evidence:sha256:0e46de1df7f30465753612bea9b5c333e5649ed7c513fa2861899b1abc9dd758: device-lane retained only a later passing package tail, hiding the RxBrain failure and forcing reacquisition. Reuse the existing testevidence streaming parser for bounded per-failure diagnostics and successful sibling receipts; do not retain whole multi-package JSON streams in RAM or add a second parser. Test early failure followed by large passing output, multiple failures, malformed/truncated streams, cancellation and build errors. Bind the device-lane regression in its owning package before closure; retain this row's existing lower-bound verifier. plan-publication-cost/verification-failure-summary only projects that shared result into the plan command, rather than reimplementing capture.",
-          "depends_on": [
-            "surface-gate-diagnostics/closure-admission",
-            "surface-gate-diagnostics/modern-findings"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gate-resource-efficiency",
       "title": "Reduce gate and automation memory with measured end-to-end savings",
       "owner": "master-lead",

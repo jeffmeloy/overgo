@@ -1,0 +1,32 @@
+{
+  "schema": "overgo/native-projection/v1",
+  "source": "llama.cpp:42fc243060709331ff9b158a9ed2cbe37219ae83;protocol-sha256:d5e5f3c30a3754eaa4db040b59283dbd3c3487607e876a0ea59905caef9f0729",
+  "model_dir": "Qwen3.8-27B-UD-Q6_K",
+  "date": "2026-09-17",
+  "cases": [
+    {
+      "name": "single-image",
+      "prompt": "{\"kind\":\"image\",\"files\":[{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-0.png\",\"Artifact\":\"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"}],\"text\":[\"\",\"Describe the colors and their positions in the image.\"]}",
+      "max_tokens": 32,
+      "text": "The image is divided vertically into two equal halves:\n\n- **Left half**: Solid red color.\n- **Right half**: Solid blue color.\n\nThere",
+      "prompt_tokens": 88,
+      "generated_tokens": 32
+    },
+    {
+      "name": "multiple-images",
+      "prompt": "{\"kind\":\"images\",\"files\":[{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-0.png\",\"Artifact\":\"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"},{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-1.png\",\"Artifact\":\"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"}],\"text\":[\"\",\"\\n\",\"Describe the colors and their positions in the first and second images.\"]}",
+      "max_tokens": 32,
+      "text": "Based on the images provided, here is a description of the colors and their positions:\n\n**First Image:**\n- This image is a square divided vertically into",
+      "prompt_tokens": 158,
+      "generated_tokens": 32
+    },
+    {
+      "name": "paired-motion-video",
+      "prompt": "{\"kind\":\"video\",\"files\":[{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-0.png\",\"Artifact\":\"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"},{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-1.png\",\"Artifact\":\"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"},{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-1.png\",\"Artifact\":\"file:sha256:1465c1b16f7722254fac80a13532251298cf1ebcc7279f34df7f8d55b62d6053\"},{\"Kind\":\"image\",\"Path\":\"docs/verification/fixtures/qwen27/image-0.png\",\"Artifact\":\"file:sha256:cb9549be184fba6e3969811657310cf63d38b108befcc0f50345a335e07b4e7e\"}],\"text\":[\"\",\"Describe how the colors change from the beginning to the end of the video.\"],\"fps\":4}",
+      "max_tokens": 32,
+      "text": "Actually, there is **no video** provided — only two static images are shown.\n\nLet’s analyze what we have:\n\n---\n\n### Image 1",
+      "prompt_tokens": 173,
+      "generated_tokens": 32
+    }
+  ]
+}

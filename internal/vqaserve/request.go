@@ -69,7 +69,7 @@ func (request Request) Budget() int {
 }
 
 // ReadImage reads the request's image document from the store, refusing
-// an absent artifact or one whose media type is not an image's.
+// an absent artifact or one outside the declared image contracts.
 func ReadImage(ctx context.Context, reader artifact.Reader, id artifact.ID) (artifact.Content, error) {
 	content, found, err := artifact.ReadContent(ctx, reader, id)
 	if err != nil {
@@ -78,7 +78,7 @@ func ReadImage(ctx context.Context, reader artifact.Reader, id artifact.ID) (art
 	if !found {
 		return artifact.Content{}, fmt.Errorf("vqa: image %s is absent from the store", id)
 	}
-	if !strings.HasPrefix(content.Descriptor.MediaType, "image/") {
+	if !strings.HasPrefix(content.Descriptor.MediaType, "image/") && ImageContract.ValidateContent(content, id) != nil {
 		return artifact.Content{}, fmt.Errorf("vqa: image %s is %s, not an image", id, content.Descriptor.MediaType)
 	}
 	return content, nil

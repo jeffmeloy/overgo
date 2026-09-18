@@ -133,9 +133,6 @@ func run() error {
 			if strings.TrimSpace(rawInput) == "" {
 				return errors.New("verify requires -input JSON")
 			}
-			if selectedTask == recipe.TaskProjection {
-				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput)
-			}
 			sessionOverride, sessionErr := parseSessionOverride(*sessionFlag)
 			if sessionErr != nil {
 				return sessionErr
@@ -143,6 +140,9 @@ func run() error {
 			residency, residencyErr := parseResidency(*residencyFlag)
 			if residencyErr != nil {
 				return residencyErr
+			}
+			if selectedTask == recipe.TaskProjection {
+				return verifyProjection(repository, path, roots.ResolveModelPath(*projectorPath), rawInput, sessionOverride, residency)
 			}
 			return verifyInference(repository, path, rawInput, sessionOverride, residency)
 		}
@@ -331,7 +331,7 @@ func prepareCapability(
 		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
 	}
 	batch.Contents = append(batch.Contents, facts...)
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if _, err := store.Commit(ctx, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish model facts: %w", err)
 	}
 	// Component-group manifests commit under their own content-derived

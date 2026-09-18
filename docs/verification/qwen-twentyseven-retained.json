@@ -1,0 +1,42 @@
+{
+  "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+  "name": "Qwen3.8-27B-UD-Q6_K",
+  "claims": [
+    {
+      "capability": "bbh-recorded-raw",
+      "tier": "capability-measured",
+      "commit": "3e89a8977574952148a58c3d5a5428395f6f8190",
+      "dataset": "dataset:sha256:499159783116b68537621f1c3b8bd766e4fa42eaaadb040d7c57167ee657dabd",
+      "evidence": [
+        "evidence:sha256:abc958b4cf60325d30ddd71e28ba379487204533180b40a564cc28b94c0413e5"
+      ]
+    },
+    {
+      "capability": "ifeval-recorded-subset",
+      "tier": "capability-measured",
+      "commit": "3c3d09f32834ac605635c4eaa10be43e8b53e5c8",
+      "dataset": "dataset:sha256:6873fd5f1cf60c546f0cc13f1615bfe921ef058b0fb9b17efc5eb1aeed63f7ef",
+      "evidence": [
+        "evidence:sha256:6440dcd58ce2a24dee41fc204437f3f6127ae0109ee2b0e6f997b6b9865369d7"
+      ]
+    },
+    {
+      "capability": "mmlu-recorded-generated-chat-subset",
+      "tier": "capability-measured",
+      "commit": "d75d3554941482c31fe467853244d937c1b1b628",
+      "dataset": "dataset:sha256:68dd41fdf4b084bc3109edf977df62309e2bd8c667a7e034f64d01b72f7e0e69",
+      "evidence": [
+        "evidence:sha256:25e96bb524f5555914cc97f91f684ab68c382fcb0567ea9d724697952d6ef6b2"
+      ]
+    },
+    {
+      "capability": "mmlu-recorded-raw-subset",
+      "tier": "capability-measured",
+      "commit": "0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a",
+      "dataset": "dataset:sha256:68dd41fdf4b084bc3109edf977df62309e2bd8c667a7e034f64d01b72f7e0e69",
+      "evidence": [
+        "evidence:sha256:ee988e366ab7f5d6c511ff691cb3f521a05fd7c1b7f21b1860f4ee0f0cf23dc4"
+      ]
+    }
+  ]
+}

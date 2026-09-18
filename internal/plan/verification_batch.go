@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"strings"
 
-	"overgo/internal/testevidence"
+	"overgo/internal/runrecord"
 	"overgo/internal/textcheck"
 	"overgo/internal/worklease"
 )
@@ -69,7 +69,7 @@ func validateVerificationBatch(batch *VerificationBatch) error {
 			!worklease.ValidAutomationText(checkpoint.Title) || !validAutomationDetail(checkpoint.Verify) {
 			return fmt.Errorf("verification batch checkpoint %q is invalid or duplicated", checkpoint.ID)
 		}
-		if err := testevidence.ValidateGoTestCommand(checkpoint.Verify); err != nil {
+		if _, err := runrecord.GoTestTargets(checkpoint.Verify, true); err != nil {
 			return fmt.Errorf("verification batch checkpoint %s: %w", checkpoint.ID, err)
 		}
 		dependencies := map[string]bool{}

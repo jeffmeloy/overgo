@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
 )
 
@@ -342,7 +343,6 @@ func FailureSummary(out string) string {
 	return strings.Join(report.Failed, ", ")
 }
 
-var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
 var goTestShortFlag = regexp.MustCompile(`(?:^|[ \t])-short(?:=true)?(?:[ \t;&|]|$)`)
 
 // JSONCommand enables structured events for every go test in a verifier.
@@ -357,11 +357,15 @@ func JSONCommand(command string) string {
 // broad run that executed tests. Targeted runs do not credit unrelated skips;
 // broad runs own and therefore reject every skip or unavailable fixture.
 func VerifyGoTestEvidence(command, out string) error {
-	report, err := goTestJSONReport(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
+	targets, err := runrecord.GoTestTargets(command, false)
 	if err != nil {
 		return err
 	}
-	if !goTestRunFlag.MatchString(command) {
+	if len(targets) == 0 {
+		report, err := goTestJSONReport(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
+		if err != nil {
+			return err
+		}
 		if err := RequireComplete(report); err != nil {
 			return err
 		}
@@ -370,9 +374,28 @@ func VerifyGoTestEvidence(command, out string) error {
 		}
 		return nil
 	}
-	target, err := goTestTarget(command)
+	reports, err := goTestInvocationReports(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
 	if err != nil {
 		return err
+	}
+	if len(reports) == 0 || len(targets) > 1 && len(targets) != len(reports) {
+		return fmt.Errorf("go test selectors require complete per-invocation evidence: targets=%d packages=%d", len(targets), len(reports))
+	}
+	for i, report := range reports {
+		target := targets[0]
+		if len(targets) > 1 {
+			target = targets[i]
+		}
+		if err := verifyTarget(target, report); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyTarget(target *runrecord.GoTestTarget, report GoTestReport) error {
+	if len(report.Failed) != 0 {
+		return fmt.Errorf("go test failed: %s", strings.Join(report.Failed, ", "))
 	}
 	passed := false
 	for _, result := range report.tests {
@@ -382,6 +405,9 @@ func VerifyGoTestEvidence(command, out string) error {
 		if result.Unavailable != "" {
 			return fmt.Errorf("%s:%s: %s", result.Package, result.Name, result.Unavailable)
 		}
+		if result.ineligible || !report.packages[result.Package].passed {
+			return fmt.Errorf("%s:%s has incomplete package evidence", result.Package, result.Name)
+		}
 		switch result.Action {
 		case "pass":
 			passed = true
@@ -389,10 +415,12 @@ func VerifyGoTestEvidence(command, out string) error {
 			return fmt.Errorf("%s:%s skipped", result.Package, result.Name)
 		case "fail":
 			return fmt.Errorf("%s:%s failed", result.Package, result.Name)
+		default:
+			return fmt.Errorf("%s:%s unfinished", result.Package, result.Name)
 		}
 	}
 	if !passed {
-		return fmt.Errorf("go test -run %q matched no passing test", target.String())
+		return fmt.Errorf("go test -run %q matched no passing test", target.Pattern)
 	}
 	return nil
 }
@@ -407,37 +435,6 @@ func hasNonTestCommand(command string) bool {
 		}
 	}
 	return false
-}
-
-// ValidateGoTestCommand checks that a declared verifier is a go test command
-// naming its acceptance target -- the same admission bar plan verifiers meet.
-// It validates the declaration only; execution semantics stay with the
-// Verify* functions.
-func ValidateGoTestCommand(command string) error {
-	if !strings.Contains(command, "go test") {
-		return fmt.Errorf("verifier %q is not a go test command", command)
-	}
-	_, err := goTestTarget(command)
-	return err
-}
-
-func goTestTarget(command string) (*regexp.Regexp, error) {
-	match := goTestRunFlag.FindStringSubmatch(command)
-	if match == nil {
-		return nil, fmt.Errorf("go test verifier must declare its acceptance target with -run")
-	}
-	pattern := match[1]
-	if pattern == "" {
-		pattern = match[2]
-	}
-	if pattern == "" {
-		pattern = match[3]
-	}
-	target, err := regexp.Compile(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("compile go test -run target: %w", err)
-	}
-	return target, nil
 }
 
 // VerifyOutput rejects successful shell verification that did not prove its

@@ -166,11 +166,12 @@ type RoPEAttributes struct {
 type RoPENeoXAttributes = RoPEAttributes
 
 type RoPEMultiAttributes struct {
-	Positions        [4][]uint32
-	Sections         [4]int32
-	RotaryDimensions uint32
-	FrequencyBase    float32
-	FrequencyScale   float32
+	InterleavedSections bool
+	Positions           [4][]uint32
+	Sections            [4]int32
+	RotaryDimensions    uint32
+	FrequencyBase       float32
+	FrequencyScale      float32
 }
 
 type AttentionAttributes struct {

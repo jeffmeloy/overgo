@@ -1704,7 +1704,7 @@ func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) erro
 	if err != nil {
 		return err
 	}
-	if verdict != testevidence.ClassifyVerifyCommand(verify) {
+	if verdict != runrecord.ClassifyVerifyCommand(verify) {
 		return errors.New("acceptance: verifier returned the wrong classifier verdict")
 	}
 	if complete {
@@ -1778,7 +1778,7 @@ func completionAcceptanceContractForPlan(
 		step = current
 	}
 	evidence, err := runrecord.FormatCompletionAcceptanceEvidence(
-		testevidence.CurrentVerifyPolicy, reference, step.Verify,
+		runrecord.CurrentVerifyPolicy, reference, step.Verify,
 	)
 	if err != nil {
 		return acceptanceContract{}, err
@@ -1788,7 +1788,7 @@ func completionAcceptanceContractForPlan(
 
 func (g *gateContext) executeCandidateVerifier(
 	tree, verify string,
-) (verdict testevidence.VerdictClass, err error) {
+) (verdict runrecord.VerdictClass, err error) {
 	err = g.withCandidateWorktree(tree, func(worktree string) error {
 		environment, executeErr := g.sourceEnvironment()
 		if executeErr != nil {

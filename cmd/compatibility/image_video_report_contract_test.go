@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"image"
 	"image/png"
 	"os"
@@ -20,6 +21,15 @@ import (
 )
 
 func TestImageVideoReportContract(t *testing.T) {
+	t.Run("focused update refuses before store access", func(t *testing.T) {
+		savedFlags, savedArgs := flag.CommandLine, os.Args
+		defer func() { flag.CommandLine, os.Args = savedFlags, savedArgs }()
+		flag.CommandLine = flag.NewFlagSet("compatibility", flag.ContinueOnError)
+		os.Args = []string{"compatibility", "-update-media", "-media-scope", "image-video", "-models-repo", filepath.Join(t.TempDir(), "absent")}
+		if err := run(); err == nil || !strings.Contains(err.Error(), "always writes the complete docs/MEDIA_REPORT.md") {
+			t.Fatalf("focused update must preserve complete report: %v", err)
+		}
+	})
 	ctx := t.Context()
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")
@@ -112,7 +122,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if scope.Path != imageVideoReportPath || len(scope.Tasks) != 2 {
+	if !scope.FrozenRequests || len(scope.Tasks) != 2 {
 		t.Fatal("focused scope differs")
 	}
 	if _, err := resolveMediaReportScope("image"); err == nil {
@@ -141,11 +151,11 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err := exportMediaSamples(root, storePath, scope); err != nil {
 		t.Fatal(err)
 	}
-	first, err := generateMediaReport(root, storePath, scope)
+	first, err := generateMediaReport(root, storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := generateMediaReport(root, storePath, scope)
+	second, err := generateMediaReport(root, storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,24 +163,10 @@ func TestImageVideoReportContract(t *testing.T) {
 		t.Fatal("report rendering is not deterministic")
 	}
 	text := string(first)
-	for _, required := range []string{"# Image and video generation report", "failed: 1; cancelled: 1", "fixture-failure", successful.ID.String(), outputID.String(), "Source: unavailable", "Environment: unavailable", "docs/media_samples/"} {
+	for _, required := range []string{"# Media capability report", "## Current validation checkpoint", "(image_video_protocol.json)", "failed: 1; cancelled: 1", "fixture-failure", successful.ID.String(), outputID.String(), "Source: unavailable", "Environment: unavailable", "](media_samples/", "`speech`"} {
 		if !strings.Contains(text, required) {
 			t.Fatalf("report omits %q:\n%s", required, text)
 		}
-	}
-	if strings.Contains(text, "speech") {
-		t.Fatal("focused report includes speech")
-	}
-	allScope, err := resolveMediaReportScope("all")
-	if err != nil {
-		t.Fatal(err)
-	}
-	all, err := generateMediaReport(root, storePath, allScope)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(all), "speech") || !strings.Contains(string(all), "](media_samples/") {
-		t.Fatal("default report scope or relative sample links changed")
 	}
 	for _, defect := range []string{"duplicate", "omitted", "lineage", "criteria"} {
 		bad := protocol
@@ -186,7 +182,7 @@ func TestImageVideoReportContract(t *testing.T) {
 			bad.RequiredChecks = nil
 		}
 		writeProtocol(bad)
-		if _, err := generateMediaReport(root, storePath, scope); err == nil {
+		if err := exportMediaSamples(root, storePath, scope); err == nil {
 			t.Fatalf("%s protocol accepted", defect)
 		}
 	}
@@ -205,7 +201,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err := exportMediaSamples(root, storePath, scope); err == nil {
 		t.Fatal("damaged existing export accepted")
 	}
-	damaged, err := generateMediaReport(root, storePath, scope)
+	damaged, err := generateMediaReport(root, storePath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +211,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	missing, err := generateMediaReport(root, storePath, scope)
+	missing, err := generateMediaReport(root, storePath)
 	if err != nil {
 		t.Fatal(err)
 	}

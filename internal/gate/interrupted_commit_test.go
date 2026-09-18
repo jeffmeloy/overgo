@@ -18,7 +18,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
 
@@ -1876,7 +1875,7 @@ func successfulAttemptBatchForReference(
 ) (runrecord.AttemptRecord, artifact.Batch) {
 	t.Helper()
 	acceptance, err := runrecord.FormatCompletionAcceptanceEvidence(
-		testevidence.VerifyPolicyV1, item+"/"+step, verify,
+		runrecord.VerifyPolicyV1, item+"/"+step, verify,
 	)
 	if err != nil {
 		t.Fatal(err)

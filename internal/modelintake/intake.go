@@ -173,7 +173,8 @@ func PublishVerification(
 // PublishMeasuredVerification records a successful candidate execution
 // together with its measured decomposition: per-node phase walls become
 // gate steps (and thereby run phases), and the peak device bytes enter
-// the execution step's evidence.
+// the execution step's evidence. A supplied request becomes a retained run
+// input; absent requests remain unbound.
 func PublishMeasuredVerification(
 	ctx context.Context,
 	store artifact.Repository,
@@ -228,6 +229,13 @@ func publishResult(
 	failure string,
 	measured capabilityruntime.Measured,
 ) (modelrecipe.Verification, error) {
+	var inputs []artifact.ID
+	if measured.Input.Descriptor != (artifact.Descriptor{}) || measured.Input.Data != nil {
+		if err := measured.Input.Validate(); err != nil {
+			return modelrecipe.Verification{}, fmt.Errorf("capability verification request: %w", err)
+		}
+		inputs = []artifact.ID{measured.Input.Descriptor.ID}
+	}
 	environment, err := runrecord.CurrentEnvironment(device, backend)
 	if err != nil {
 		return modelrecipe.Verification{}, err
@@ -258,9 +266,21 @@ func publishResult(
 	if err != nil {
 		return modelrecipe.Verification{}, err
 	}
-	batch, err := record.Batch("recipe/verification/" + definition.ID.String() + "/" + record.Result.ID.String())
+	publicationID := record.Result.ID
+	if len(inputs) != 0 {
+		run := record.Run
+		record.Run, err = runrecord.NewBoundRun(run.Recipe, run.Outcome, inputs, run.Outputs, run.Failure, run.CodeCommit, run.Environment, run.MeasuredNS, run.Phases)
+		if err != nil {
+			return modelrecipe.Verification{}, err
+		}
+		publicationID = record.Run.ID
+	}
+	batch, err := record.Batch("recipe/verification/" + definition.ID.String() + "/" + publicationID.String())
 	if err != nil {
 		return modelrecipe.Verification{}, err
+	}
+	if len(inputs) != 0 {
+		batch.Contents = append(batch.Contents, measured.Input)
 	}
 	environmentContent, err := environment.Content()
 	if err != nil {

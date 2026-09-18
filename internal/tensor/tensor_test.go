@@ -808,18 +808,38 @@ func TestBuilderGetRowsAndRoPE(t *testing.T) {
 	positions[1] = []uint32{3, 4}
 	positions[2] = []uint32{5, 6}
 	positions[3] = []uint32{7, 8}
-	multi := builder.RoPEMultiScaled(
-		builder.Input("multi", dtype.F32, MustShape(8, 1, 2)),
-		positions,
-		[4]int32{2, 2, 2, 2},
-		8,
-		10000, 1)
+	multi := builder.RoPEWithOptions(
+		builder.Input("multi", dtype.F32, MustShape(8, 1, 2)), RoPEOptions{MultiPositions: &positions, Sections: [4]int32{2, 2, 2, 2}, RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: 1})
 
 	if err := builder.Err(); err != nil {
 		t.Fatal(err)
 	}
 	if multi.Op != OpRoPEMulti || !multi.Shape.Equal(MustShape(8, 1, 2)) {
 		t.Fatalf("unexpected multi-axis RoPE tensor: %+v", multi)
+	}
+}
+
+func TestBuilderRoPERejectsMixedCoordinates(t *testing.T) {
+	positions := [MaxDimensions][]uint32{{1}, {2}, {3}, {4}}
+	for name, mutate := range map[string]func(*RoPEOptions){
+		"single positions":    func(o *RoPEOptions) { o.Positions = positions[0] },
+		"channel layout":      func(o *RoPEOptions) { o.Layout = RoPELayoutNeoX },
+		"yarn":                func(o *RoPEOptions) { o.YaRN = true },
+		"reverse":             func(o *RoPEOptions) { o.Reverse = true },
+		"ignored context":     func(o *RoPEOptions) { o.OriginalContext = 1 },
+		"ignored scaling":     func(o *RoPEOptions) { o.AttentionFactor = 1 },
+		"missing coordinates": func(o *RoPEOptions) { o.MultiPositions = nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			builder := NewBuilder()
+			input := builder.Input("input", dtype.F32, MustShape(8, 1, 1))
+			options := RoPEOptions{MultiPositions: &positions, Sections: [MaxDimensions]int32{1, 1, 1, 1},
+				RotaryDimensions: 8, FrequencyBase: 10000, FrequencyScale: UnitFrequencyScale}
+			mutate(&options)
+			if builder.RoPEWithOptions(input, options) != nil || builder.Err() == nil {
+				t.Fatal("ambiguous rotary controls accepted")
+			}
+		})
 	}
 }
 

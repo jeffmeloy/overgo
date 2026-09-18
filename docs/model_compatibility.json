@@ -786,6 +786,11 @@
      "model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
      "inference": [
       {
+       "capability": "ifeval-native",
+       "tier": "capability-measured",
+       "commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7"
+      },
+      {
        "capability": "mmlu-pro-generated-chat",
        "tier": "capability-measured",
        "commit": "8029e9096dcb5f17f05f74d870468ecaff2ae174"
@@ -800,6 +805,11 @@
     "gemma-4-12B-it-fp8-native": {
      "model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
      "inference": [
+      {
+       "capability": "ifeval-native",
+       "tier": "capability-measured",
+       "commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7"
+      },
       {
        "capability": "mmlu-pro-generated-chat",
        "tier": "capability-measured",
@@ -2258,6 +2268,31 @@
        "wall_ns": 10178000000
       }
      ]
+    },
+    "Qwen3.8-27B-UD-Q6_K": {
+     "model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+     "inference": [
+      {
+       "capability": "bbh-recorded-raw",
+       "tier": "capability-measured",
+       "commit": "3e89a8977574952148a58c3d5a5428395f6f8190"
+      },
+      {
+       "capability": "ifeval-recorded-subset",
+       "tier": "capability-measured",
+       "commit": "3c3d09f32834ac605635c4eaa10be43e8b53e5c8"
+      },
+      {
+       "capability": "mmlu-recorded-generated-chat-subset",
+       "tier": "capability-measured",
+       "commit": "d75d3554941482c31fe467853244d937c1b1b628"
+      },
+      {
+       "capability": "mmlu-recorded-raw-subset",
+       "tier": "capability-measured",
+       "commit": "0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a"
+      }
+     ]
     }
    }
   },
@@ -2656,7 +2691,18 @@
       }
      ]
     },
-    "Hy-Embodied-RxBrain-1.0": {
+    "Hy-Embodied-RxBrain-1.0 [model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b]": {
+     "model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
+     "inference": [
+      {
+       "capability": "vqa-canonical-native-text",
+       "tier": "exact-golden",
+       "commit": "7f575035c14975a6fd06763e0e1f4a3e94bae674",
+       "wall_ns": 21025610700
+      }
+     ]
+    },
+    "Hy-Embodied-RxBrain-1.0 [model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936]": {
      "model": "model:sha256:fa8d2cf13e6056494f89fb49ace96057dd9008371def50641c36a7d05e29d936",
      "training": [
       {

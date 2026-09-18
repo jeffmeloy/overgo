@@ -823,14 +823,11 @@ func buildGatedProjectionMixCached(
 		} else {
 			resolved = *multiPositions
 		}
-		query = builder.RoPEMultiScaled(
-			query, resolved, spec.RopeSections, spec.RopeDimensionCount,
-			spec.RopeFrequencyBase, frequencyScale,
-		)
-		key = builder.RoPEMultiScaled(
-			key, resolved, spec.RopeSections, spec.RopeDimensionCount,
-			spec.RopeFrequencyBase, frequencyScale,
-		)
+		query, key = applyRoPEPairWithOptions(builder, query, key, tensor.RoPEOptions{
+			MultiPositions: &resolved, Sections: spec.RopeSections,
+			RotaryDimensions: spec.RopeDimensionCount, FrequencyBase: spec.RopeFrequencyBase,
+			FrequencyScale: frequencyScale, InterleavedSections: spec.Profile().Rotary.MultiAxis == multiAxisRotaryInterleaved,
+		})
 	}
 
 	cacheKey, cacheValue := key, value

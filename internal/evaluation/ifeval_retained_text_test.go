@@ -1,7 +1,10 @@
 package evaluation
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"testing"
@@ -10,6 +13,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/dataset"
 	"overgo/internal/overgodb"
+	"overgo/internal/strictjson"
 	"overgo/internal/testutil"
 )
 
@@ -22,6 +26,9 @@ type ifevalNativeScores struct {
 	}
 	Metrics map[string]float64
 }
+
+// The native reference's immutable 541-prompt task corpus.
+const retainedIFEvalDataset = "dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f8486dfa492c4f301cf9155ca8e4d7cd4"
 
 func TestIFEvalRetainedTextAcceptance(t *testing.T) {
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
@@ -68,7 +75,7 @@ func checkRetainedIFEvalScores(t *testing.T, store *overgodb.Store, scores ifeva
 	if len(responses) != 541 || len(scores.Rows) != 541 || scores.Prompts != 541 || scores.Instructions != 834 {
 		t.Fatal("native scoring denominator differs")
 	}
-	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, parse("dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f8486dfa492c4f301cf9155ca8e4d7cd4"))
+	imported, found, err := dataset.ReadBenchmarkImport(t.Context(), store, parse(retainedIFEvalDataset))
 	if err != nil || !found || len(imported.Records) != scores.Prompts {
 		t.Fatalf("corpus denominator: found=%t err=%v", found, err)
 	}
@@ -256,6 +263,7 @@ func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID ar
 		Packages     map[string]string `json:"runtime_packages"`
 		Dependencies map[string]string `json:"runtime_dependencies"`
 		InputSHA256  string            `json:"native_input_sha256"`
+		Input        artifact.ID       `json:"native_input"`
 		LanguageSeed int               `json:"langdetect_seed"`
 		RandomSeed   int               `json:"random_seed"`
 	}
@@ -269,10 +277,116 @@ func checkIFEvalNativeReference(t *testing.T, store *overgodb.Store, nativeID ar
 	readRetainedEvidence(t, store, previous.Scores, &reference)
 	readRetainedEvidence(t, store, nativeID, &actual)
 	if actual.Version != "0.4.9.1" || actual.Version != reference.Version ||
-		actual.InputSHA256 != reference.InputSHA256 || actual.LanguageSeed != 0 || actual.RandomSeed != 0 ||
+		actual.LanguageSeed != 0 || actual.RandomSeed != 0 ||
 		len(actual.Sources) == 0 || len(actual.Dependencies) == 0 ||
 		!maps.Equal(actual.Sources, reference.Sources) || !maps.Equal(actual.Packages, reference.Packages) ||
 		!maps.Equal(actual.Dependencies, reference.Dependencies) {
 		t.Fatal("pinned native judge or task inputs changed")
+	}
+	if actual.Input.Valid() {
+		content, err := artifact.RequireTypedContent(t.Context(), store, actual.Input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		contract := artifact.JSONContract(artifact.KindEvidence, "overgo/ifeval-native-input/v1")
+		if err := contract.ValidateContent(content, actual.Input); err != nil || actual.InputSHA256 != actual.Input.DigestHex() {
+			t.Fatal("native input content differs from its recorded hash or contract")
+		}
+		var input nativeIFEvalInput
+		if err := strictjson.DecodeBytes(content.Data, &input); err != nil {
+			t.Fatal(err)
+		}
+		if err := checkNativeIFEvalCases(t.Context(), store, input); err != nil {
+			t.Fatal(err)
+		}
+	} else if actual.InputSHA256 != reference.InputSHA256 {
+		t.Fatal("legacy native input identity changed without retained task inputs")
+	}
+}
+
+// Retain only fields the native judge reads, bound to the frozen task corpus.
+type nativeIFEvalInput struct {
+	Dataset artifact.ID                           `json:"dataset"`
+	Cases   map[string]map[string]json.RawMessage `json:"cases"`
+}
+
+func checkNativeIFEvalCases(ctx context.Context, reader artifact.Reader, input nativeIFEvalInput) error {
+	if input.Dataset.String() != retainedIFEvalDataset {
+		return errors.New("native input differs from the frozen corpus")
+	}
+	imported, found, err := dataset.ReadBenchmarkImport(ctx, reader, input.Dataset)
+	if err != nil || !found {
+		return errors.Join(err, errors.New("native input corpus is absent"))
+	}
+	if len(input.Cases) != len(imported.Records) {
+		return errors.New("native input case denominator differs")
+	}
+	for ordinal, id := range imported.Records {
+		record, found, err := dataset.ReadBenchmarkRecord(ctx, reader, id)
+		if err != nil || !found {
+			return errors.Join(err, errors.New("native input record is absent"))
+		}
+		name := fmt.Sprintf("ifeval/default/train/%d", ordinal)
+		fields, found := input.Cases[name]
+		if !found || len(fields) != len(record.Fields) {
+			return fmt.Errorf("native input fields differ: %s", name)
+		}
+		for _, field := range record.Fields {
+			value, present := fields[field.Name]
+			if !present {
+				return fmt.Errorf("native input field absent: %s/%s", name, field.Name)
+			}
+			want, err := json.Marshal(field.Value)
+			if err != nil {
+				return err
+			}
+			got, err := json.Marshal(value)
+			if err != nil || !bytes.Equal(got, want) {
+				return fmt.Errorf("native input value differs: %s/%s", name, field.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func TestNativeIFEvalInputBinding(t *testing.T) {
+	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(retainedReferenceStore(roots.Store))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id, err := artifact.ParseID("evidence:sha256:1850c0aa24d39471d3a36a1a528760c953a8c4ed17619dc24bb2b73c3e46b37d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var original nativeIFEvalInput
+	readRetainedEvidence(t, store, id, &original)
+	if err := checkNativeIFEvalCases(t.Context(), store, original); err != nil {
+		t.Fatal(err)
+	}
+	const first = "ifeval/default/train/0"
+	for name, mutate := range map[string]func(*nativeIFEvalInput){
+		"missing case":   func(input *nativeIFEvalInput) { delete(input.Cases, first) },
+		"foreign corpus": func(input *nativeIFEvalInput) { input.Dataset = id },
+		"renamed case": func(input *nativeIFEvalInput) {
+			input.Cases["foreign"] = input.Cases[first]
+			delete(input.Cases, first)
+		},
+		"changed prompt": func(input *nativeIFEvalInput) { input.Cases[first]["prompt"] = json.RawMessage(`"Forged prompt."`) },
+		"extra field":    func(input *nativeIFEvalInput) { input.Cases[first]["undeclared"] = json.RawMessage(`true`) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := original
+			changed.Cases = maps.Clone(original.Cases)
+			changed.Cases[first] = maps.Clone(original.Cases[first])
+			mutate(&changed)
+			if err := checkNativeIFEvalCases(t.Context(), store, changed); err == nil {
+				t.Fatal("changed native input accepted")
+			}
+		})
 	}
 }

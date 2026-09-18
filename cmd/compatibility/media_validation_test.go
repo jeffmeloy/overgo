@@ -76,6 +76,7 @@ func TestMediaValidationProjection(t *testing.T) {
 		{Name: "Missing acquisition", Evidence: missing, Command: "go test -json", Scope: "Fixture missing content"},
 		{Name: "Missing overlay", Evidence: passed.Descriptor.ID, Command: "go test -overlay=fixture.json -json", Scope: "Passing output with an unresolved producer overlay", Harness: map[string]artifact.ID{"historical/fixture_test.go": missing}},
 	}}
+	index.Notes = []string{"[Retained protocol](docs/image_video_protocol.json); source path `docs/original.go`."}
 	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +98,7 @@ func TestMediaValidationProjection(t *testing.T) {
 	if err := writeMediaValidation(t.Context(), &output, root, store); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Not accepted:", "Unavailable: evidence content absent", "retained overlay sources:", content.Descriptor.ID.String(), missing.String()} {
+	for _, want := range []string{"Not accepted:", "Unavailable: evidence content absent", "retained overlay sources:", "### Acquisition notes (historical)", "](image_video_protocol.json)", "`docs/original.go`", "](image_video_validation.json)", "](image_video_assertions.json)", content.Descriptor.ID.String(), missing.String()} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("missing %q in report: %s", want, output.String())
 		}

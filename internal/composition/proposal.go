@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/testevidence"
+	"overgo/internal/runrecord"
 )
 
 const (
@@ -109,7 +109,7 @@ func canonicalizeBridgeProposal(value *BridgeProposal) error {
 			return errors.New("composition: invalid proposal candidate")
 		}
 	}
-	if err := testevidence.ValidateGoTestCommand(value.RequiredVerifier); err != nil {
+	if _, err := runrecord.GoTestTargets(value.RequiredVerifier, true); err != nil {
 		return errors.New("composition: proposal requires a failable verifier: " + err.Error())
 	}
 	if value.State != ProposalPromotionBlocked {

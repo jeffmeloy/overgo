@@ -1,0 +1,10 @@
+{
+  "defect": "Native IMRoPE interleaves temporal, height and width frequency sections for Qwen3VL and Qwen3.5; Overgo selected contiguous sections. Equal text coordinates hide the difference. This source-level defect is established; its contribution to full-model exact-output divergence is not yet measured.",
+  "evidence": "evidence:sha256:273dd505a00777542ed41b903fd31002c4df4b1681bf2d918496b0c598bd9ea4",
+  "failed_run": "run:sha256:91d1fbc0249bb29199df14a6acf9bee7f6791ee124869f68bb8187cb37452b4f",
+  "native_source": "42fc243060709331ff9b158a9ed2cbe37219ae83",
+  "next": "Repair shared CPU/CUDA section selection through architecture profiles; retain contiguous layouts. Reacquire the frozen exact projection suite after committing the repair; do not change its oracle.",
+  "producer": "e6cd9abcb3fe9dcb52a638775064dae94a6266b3",
+  "schema": "overgo/projection-rotary-diagnosis-reference/v1",
+  "scope": "Single-image exact greedy prefix: 88 prompt tokens and 32 generated tokens; first divergence at generated index 18. Other projection cases were not executed by the failed candidate. No quality or performance acceptance."
+}

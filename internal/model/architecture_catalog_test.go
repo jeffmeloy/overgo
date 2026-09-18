@@ -96,3 +96,22 @@ func TestEmbeddedArchitectureCatalog(t *testing.T) {
 		}
 	}
 }
+
+func TestArchitectureRotarySectionBinding(t *testing.T) {
+	for name, want := range map[string]bool{
+		"qwen35": true, "qwen35moe": true, "qwen3vl": true, "qwen3vlmoe": true,
+		"qwen2vl": false, "paddleocr": false, "glm4": false,
+	} {
+		profile, ok := architectureRegistry[name]
+		if !ok {
+			t.Fatalf("missing profile %q", name)
+		}
+		if got := profile.Rotary.MultiAxis == multiAxisRotaryInterleaved; got != want {
+			t.Errorf("%s: interleaved sections = %v, want %v", name, got, want)
+		}
+	}
+	profile := ArchitectureProfile{Name: fixtureArchitectureName, Rotary: RotaryPolicy{MultiAxis: multiAxisRotaryInterleaved}}
+	if err := ValidateArchitectureProfile(profile); err == nil {
+		t.Fatal("interleaved sections without multi-axis positions accepted")
+	}
+}

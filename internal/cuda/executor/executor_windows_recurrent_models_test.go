@@ -838,29 +838,33 @@ func TestExecutorKimiLinearMLABlockMatchesReference(t *testing.T) {
 }
 
 func TestExecutorRoPEMultiMatchesReference(t *testing.T) {
-	builder := tensor.NewBuilder()
-	input := builder.Input("input", dtype.F32, tensor.MustShape(12, 3, 4, 2))
-	positions := [4][]uint32{
-		{0, 1, 2, 3},
-		{3, 5, 7, 9},
-		{2, 4, 6, 8},
-		{11, 13, 17, 19},
+	for _, tc := range []struct {
+		name        string
+		interleaved bool
+		sections    [4]int32
+	}{
+		{"contiguous", false, [4]int32{2, 2, 2, 2}},
+		{"interleaved", true, [4]int32{2, 2, 2, 2}},
+		{"extra and wrap", true, [4]int32{1, 1, 1, 1}},
+		{"uneven", true, [4]int32{3, 1, 2, 0}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			builder := tensor.NewBuilder()
+			input := builder.Input("input", dtype.F32, tensor.MustShape(20, 3, 4, 2))
+			positions := [4][]uint32{
+				{0, 1, 2, 3}, {3, 5, 7, 9}, {2, 4, 6, 8}, {11, 13, 17, 19},
+			}
+			output := builder.RoPEWithOptions(input, tensor.RoPEOptions{
+				MultiPositions: &positions, Sections: tc.sections, InterleavedSections: tc.interleaved,
+				RotaryDimensions: 16, FrequencyBase: 1_000_000, FrequencyScale: 0.25,
+			})
+			if err := builder.Err(); err != nil {
+				t.Fatal(err)
+			}
+			feeds := map[*tensor.Tensor]reference.Value{input: patternedValue(input.Shape, 17, 0.08, -0.2)}
+			checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: 2e-6})
+		})
 	}
-	output := builder.RoPEMultiScaled(
-		input,
-		positions,
-		[4]int32{2, 2, 2, 2},
-		8,
-		1_000_000,
-		0.25,
-	)
-	if err := builder.Err(); err != nil {
-		t.Fatal(err)
-	}
-	feeds := map[*tensor.Tensor]reference.Value{
-		input: patternedValue(input.Shape, 17, 0.08, -0.2),
-	}
-	checkCUDAGraph(t, feeds, graphOutputCheck{output: output, tolerance: 2e-6})
 }
 
 func qwen35ExecutorWeights(

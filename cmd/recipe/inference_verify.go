@@ -51,33 +51,33 @@ func verifyInference(
 		return err
 	}
 	defer store.Close()
-	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
+	loaded, definition, err := prepareExactCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}
-	if _, err := modelrecipe.PublishResolvedModelDefinition(
-		ctx, store, candidate.Inventory, candidate.Resolved,
-	); err != nil {
-		return fmt.Errorf("publish model facts: %w", err)
-	}
-	if _, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID); err != nil {
-		return err
-	} else if !published {
-		if _, _, err := modelrecipe.PublishCandidate(
-			ctx, store, "recipe/candidate/"+candidate.Definition.ID.String(), candidate.Definition,
-		); err != nil {
-			return err
-		}
-	}
-	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
+	identity, err := loaded.Identity()
 	if err != nil {
-		return err
+		return errors.Join(err, loaded.Close())
 	}
 	runner, err := inference.OpenWithProgram(ctx, &loaded, inference.OpenOptions{})
 	if err != nil {
-		return err
+		return errors.Join(err, loaded.Close())
 	}
-	return verifyExactRuntime(ctx, store, candidate.Definition, revision, suite, exactPlan, candidate.Resolved.Document.ID, runner)
+	return verifyExactRuntime(ctx, store, definition, revision, suite, exactPlan, identity.Definition, runner)
+}
+
+func prepareExactCandidate(ctx context.Context, store *overgodb.Store, path string,
+	override modelintake.SessionOverride, residency recipe.ResidencyPolicy,
+) (modelrecipe.LoadedProgram, recipe.Definition, error) {
+	candidate, err := modelintake.PrepareInferenceCandidate(ctx, store, path, override, residency)
+	if err != nil {
+		return modelrecipe.LoadedProgram{}, recipe.Definition{}, err
+	}
+	if err := modelintake.RegisterCandidate(ctx, store, candidate); err != nil {
+		return modelrecipe.LoadedProgram{}, recipe.Definition{}, err
+	}
+	loaded, err := modelrecipe.ResolveCandidateGGUF(path, candidate.Definition, candidate.Resolved)
+	return loaded, candidate.Definition, err
 }
 
 // Projection cases carry exact source identities inside the existing exact suite.
@@ -232,7 +232,9 @@ func (runtime *projectedExactRuntime) Generate(ctx context.Context, raw string, 
 	return runtime.runner.Generate(ctx, "", options)
 }
 
-func verifyProjection(repository, path, projectorPath, input string) error {
+func verifyProjection(repository, path, projectorPath, input string,
+	override modelintake.SessionOverride, residency recipe.ResidencyPolicy,
+) error {
 	revision, err := modelintake.CleanRevision(context.Background())
 	if err != nil {
 		return err
@@ -269,7 +271,7 @@ func verifyProjection(repository, path, projectorPath, input string) error {
 	if _, err := modelrecipe.CompileCandidateExecution(ctx, store, program); err != nil {
 		return err
 	}
-	loaded, err := modelrecipe.ResolveActiveGGUF(ctx, store, path)
+	loaded, _, err := prepareExactCandidate(ctx, store, path, override, residency)
 	if err != nil {
 		return err
 	}

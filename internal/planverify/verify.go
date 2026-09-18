@@ -1,5 +1,5 @@
 // Package planverify executes plan acceptance commands and validates their
-// evidence with the immutable classifier contracts in testevidence.
+// evidence with the immutable classifier contracts in runrecord.
 package planverify
 
 import (
@@ -12,6 +12,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/gitauthority"
 	"overgo/internal/processcontrol"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
 
@@ -19,7 +20,7 @@ import (
 // successful process produced non-vacuous evidence. Deterministic Go-test
 // claims are repeated against the same working tree and must agree exactly.
 // Overrides bind caller-owned inputs without changing the acceptance command.
-func Execute(ctx context.Context, directory, command string, overrides []string) (testevidence.VerdictClass, error) {
+func Execute(ctx context.Context, directory, command string, overrides []string) (runrecord.VerdictClass, error) {
 	if ctx == nil {
 		return "", errors.New("verification context is nil")
 	}
@@ -53,11 +54,14 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	if err != nil {
 		return "", fmt.Errorf("VACUOUS: %w", err)
 	}
-	verdict := testevidence.ClassifyVerifyCommand(command)
-	if structuredGoTest && verdict == testevidence.VerdictBitwiseDeterministic {
+	verdict := runrecord.ClassifyVerifyCommand(command)
+	if structuredGoTest && verdict == runrecord.VerdictBitwiseDeterministic {
 		repeat, repeatErr := executeShell(ctx, shell, directory, executable, environment)
 		if repeatErr != nil {
 			return "", fmt.Errorf("REPEAT failed: %w: %s", repeatErr, clioptions.Tail(repeat, clioptions.DiagnosticTailBytes))
+		}
+		if err := testevidence.VerifyGoTestEvidence(command, repeat); err != nil {
+			return "", fmt.Errorf("REPEAT vacuous: %w", err)
 		}
 		if err := testevidence.RepeatAgreementForCommand(command, first, repeat); err != nil {
 			return "", fmt.Errorf("NOT deterministic: %w", err)

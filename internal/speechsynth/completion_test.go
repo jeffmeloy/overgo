@@ -48,10 +48,7 @@ func TestSpeechCompletion(t *testing.T) {
 	t.Run("native output", testSpeechCompletionMetadata)
 }
 func testSpeechCompletionMetadata(t *testing.T) {
-	synth, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synth := loadArtifactSynthesizer(t)
 	var config struct {
 		Mimi struct {
 			FrameRate float64 `json:"frame_rate"`

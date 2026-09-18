@@ -19,10 +19,7 @@ import (
 )
 
 func TestSpeechDocumentOrderedRecording(t *testing.T) {
-	synth, err := LoadSynthesizer(artifactDir(t))
-	if err != nil {
-		t.Fatal(err)
-	}
+	synth := loadArtifactSynthesizer(t)
 	plan, err := synth.PlanDocument(t.Context(), DocumentRequest{Text: strings.Repeat("Hello. This speech was generated locally. Each sentence belongs to this document. ", 4), Voice: "alba", Seed: 7})
 	if err != nil {
 		t.Fatal(err)

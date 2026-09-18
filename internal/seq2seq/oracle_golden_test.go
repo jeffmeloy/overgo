@@ -80,9 +80,15 @@ func loadArtifactModel(t *testing.T) *Model {
 }
 
 func relRMS(got, want []float32) float64 {
+	if len(got) == 0 || len(got) != len(want) {
+		return math.Inf(1)
+	}
 	var num, den float64
 	for i := range got {
 		delta := float64(got[i]) - float64(want[i])
+		if math.IsNaN(delta) || math.IsInf(delta, 0) {
+			return math.Inf(1)
+		}
 		num += delta * delta
 		den += float64(want[i]) * float64(want[i])
 	}
@@ -90,6 +96,26 @@ func relRMS(got, want []float32) float64 {
 		return math.Sqrt(num)
 	}
 	return math.Sqrt(num / den)
+}
+
+func TestOracleRejectsNonFinite(t *testing.T) {
+	finite := []float32{1}
+	for _, value := range []float32{float32(math.NaN()), float32(math.Inf(1)), float32(math.Inf(-1))} {
+		invalid := []float32{value}
+		for _, pair := range [][2][]float32{{invalid, finite}, {finite, invalid}, {invalid, invalid}} {
+			if difference := relRMS(pair[0], pair[1]); !(difference > encoderRelRMSTolerance) || !(difference > logitsRelRMSTolerance) {
+				t.Fatalf("non-finite comparison can pass native bounds: %v vs %v: %g", pair[0], pair[1], difference)
+			}
+		}
+	}
+	for _, pair := range [][2][]float32{{nil, nil}, {finite, nil}, {nil, finite}} {
+		if difference := relRMS(pair[0], pair[1]); !math.IsInf(difference, 1) {
+			t.Fatalf("absent or mismatched vectors received credit: %g", difference)
+		}
+	}
+	if difference := relRMS(finite, finite); difference != 0 {
+		t.Fatalf("equal finite vectors changed: %g", difference)
+	}
 }
 
 func rowArgmax(values []float32, rows, cols int) []int {

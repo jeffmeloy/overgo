@@ -156,3 +156,34 @@ These are integrity and transfer-count results, not a model-performance claim.
 Existing final-file caching without a digest still relies on declared size;
 staging inventory contamination, cross-revision reuse and transport timers are
 separate outstanding work. No Colibri source was translated.
+
+Live Activity reread `web/src/Profiling.tsx` and `web/src/lib/api.ts` at the
+pinned Apache-2.0 revision. Colibri's turn view motivates the capability;
+Overgo delivers it through the existing authenticated runtime SSE route and
+shared browser subscription, without adopting the poller or React components.
+No Colibri source was translated and no persistent record format changed.
+
+Successful durable publication now sends the already-identified observation.
+The record codec owns its slices; normal delivery needs no store visit. A
+handler-local cursor ties initial and recovery snapshots to publication, while
+artifact IDs retain observation identity across restarts. Subscriber buffers
+and visible history use MaxStoredResponses; existing operation subscription
+admission bounds the paired runtime streams. Overflow explicitly requests a
+snapshot instead of silently losing state. Publication and snapshot capture
+share a mutex, so connection/recovery snapshot reads can delay publication;
+this is a consistency tradeoff, not a model-performance promotion.
+
+The shared browser projection rejects old cursors, deduplicates record IDs,
+retains its declared history limit, and carries forward current operation
+states. Channel-rendezvous tests cover live publication, failed publication,
+snapshot overlap, slow readers, cancellation, reconnect and handler restart.
+The browser fixture exercises actual local completions, late Activity mounting,
+bounded rows, reconnect, bearer authentication and zero activity-polling GETs.
+These establish delivery and UI behavior on a synthetic serving fixture; they
+do not establish production-model quality or throughput.
+
+Both exact acceptance commands remain mandatory in a verification batch. The
+first combined gate attempt failed evidence parsing: its selector scanner
+counted the browser lane's `-run` as a second direct Go test, while the lane
+reports its own checked browser verdict. The server test is now a required
+checkpoint and the unchanged browser command is the final integration check.

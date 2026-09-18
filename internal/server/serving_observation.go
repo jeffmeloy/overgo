@@ -63,12 +63,15 @@ func (h *Handler) publishServing(ctx context.Context, observation runrecord.Serv
 	if h == nil || h.repository == nil {
 		return artifact.ID{}
 	}
+	h.servingEvents.mu.Lock()
+	defer h.servingEvents.mu.Unlock()
 	observation.Environment = h.environment.ID
 	published, err := runrecord.PublishServingObservation(context.WithoutCancel(ctx), h.repository, observation)
 	if err != nil {
 		h.observationErrors.Add(1)
 		return artifact.ID{}
 	}
+	h.servingEvents.publishLocked(published, h.observationErrors.Load())
 	return published.ID
 }
 

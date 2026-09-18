@@ -442,6 +442,7 @@ type Handler struct {
 	environment        runrecord.Environment
 	modelArtifact      artifact.ID
 	observationErrors  atomic.Uint64
+	servingEvents      servingEvents
 	servingWorkspace
 	operatorWorkspace
 	agentWorkspace

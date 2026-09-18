@@ -52,13 +52,11 @@ func run(args []string) error {
 	if flags.NArg() != 0 || *check == *update {
 		return errors.New("usage: benchmark-report [-check|-update] [-repo <store>]")
 	}
-	if strings.TrimSpace(*repository) == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		*repository = roots.Store
+	resolved, err := dataroot.StoreRoot(*repository)
+	if err != nil {
+		return err
 	}
+	*repository = resolved
 	data, err := generate(context.Background(), *repository)
 	if err != nil {
 		return err

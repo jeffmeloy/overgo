@@ -40,13 +40,9 @@ func runArgs(args []string, output io.Writer) error {
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
 		return errors.New("usage: finding -title <text> -severity <low|medium|high> -owner <surface> -evidence <observation> -closure <path> -check <failable-check> [-repo <path>] | finding -close <finding-id> -resolution <text> [-status closed|refuted|deferred] [-repo <path>]")
 	}
-	root := strings.TrimSpace(*repository)
-	if root == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		root = roots.Store
+	root, err := dataroot.StoreRoot(*repository)
+	if err != nil {
+		return err
 	}
 	store, err := overgodb.Open(root)
 	if err != nil {

@@ -47,15 +47,13 @@ func run() error {
 	baselinePath := flag.String("baseline", "docs/published_debt.json", "committed baseline of already-broken chains")
 	printBaseline := flag.Bool("print-baseline", false, "emit the current failures as a baseline document and exit zero")
 	flag.Parse()
-	if strings.TrimSpace(*repository) == "" {
-		// A plan-row verify runs in the gate's candidate worktree, which
-		// holds no store; the data-root contract names the canonical one.
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		*repository = roots.Store
+	// A plan-row verify runs in the gate's candidate worktree, which holds no
+	// store; the data-root contract names the canonical one.
+	resolved, err := dataroot.StoreRoot(*repository)
+	if err != nil {
+		return err
 	}
+	*repository = resolved
 	failures, checked, err := activeChainFailures(*repository)
 	if err != nil {
 		return err

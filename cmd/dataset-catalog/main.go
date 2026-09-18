@@ -39,13 +39,9 @@ func run(args []string, output io.Writer) error {
 	if flags.NArg() != 0 {
 		return errors.New("usage: dataset-catalog [-repo <path>] -legacy <path> -root <path> | -register <name> -root <dir>")
 	}
-	repositoryRoot := strings.TrimSpace(*repositoryPath)
-	if repositoryRoot == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		repositoryRoot = roots.Store
+	repositoryRoot, err := dataroot.StoreRoot(*repositoryPath)
+	if err != nil {
+		return err
 	}
 	contentRoot := filepath.Clean(strings.TrimSpace(*contentPath))
 	if strings.TrimSpace(*speechSpec) != "" {

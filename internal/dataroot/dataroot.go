@@ -88,6 +88,21 @@ func ResolveCurrent() (Roots, error) {
 	return Resolve(working)
 }
 
+// StoreRoot resolves the OvergoDB store root from a -repo flag value: a
+// non-empty flag is the authoritative override, an empty one falls back to the
+// current data-root contract. Commands share this instead of each re-deriving
+// it from ResolveCurrent.
+func StoreRoot(flag string) (string, error) {
+	if root := strings.TrimSpace(flag); root != "" {
+		return root, nil
+	}
+	roots, err := ResolveCurrent()
+	if err != nil {
+		return "", err
+	}
+	return roots.Store, nil
+}
+
 // Resolve returns the data roots for the given working directory. The
 // OVERGO_DATA_ROOT base is itself resolved as a working directory: its own
 // local-models.json, when present, redirects the bulk roots the way a

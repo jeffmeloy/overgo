@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"overgo/internal/clioptions"
 	"overgo/internal/dataroot"
@@ -31,13 +30,9 @@ func run(args []string, output io.Writer) error {
 	if flags.NArg() != 0 {
 		return errors.New("usage: profile-catalog [-repo <path>]")
 	}
-	root := strings.TrimSpace(*repository)
-	if root == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		root = roots.Store
+	root, err := dataroot.StoreRoot(*repository)
+	if err != nil {
+		return err
 	}
 	store, err := overgodb.Open(root)
 	if err != nil {

@@ -94,13 +94,11 @@ func run(args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *repoPath == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		*repoPath = roots.Store
+	resolved, err := dataroot.StoreRoot(*repoPath)
+	if err != nil {
+		return err
 	}
+	*repoPath = resolved
 	switch {
 	case *publishStrategySpec != "":
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)

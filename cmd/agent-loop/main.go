@@ -58,13 +58,9 @@ func run(args []string, output io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("agent-loop: model id: %w", err)
 	}
-	root := strings.TrimSpace(*repository)
-	if root == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		root = roots.Store
+	root, err := dataroot.StoreRoot(*repository)
+	if err != nil {
+		return err
 	}
 	store, err := overgodb.Open(root)
 	if err != nil {

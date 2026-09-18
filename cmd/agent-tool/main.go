@@ -64,7 +64,7 @@ func run(args []string, output io.Writer) error {
 			return err
 		}
 		if *stage {
-			root, err := repositoryRoot(*repository)
+			root, err := dataroot.StoreRoot(*repository)
 			if err != nil {
 				return err
 			}
@@ -88,7 +88,7 @@ func run(args []string, output io.Writer) error {
 	if *stage {
 		return errors.New("agent-tool: -stage requires -openapi")
 	}
-	root, err := repositoryRoot(*repository)
+	root, err := dataroot.StoreRoot(*repository)
 	if err != nil {
 		return err
 	}
@@ -217,17 +217,6 @@ func run(args []string, output io.Writer) error {
 		publication.Coverage.Registered, publication.Coverage.Published,
 		publication.Changed, publication.Commit)
 	return err
-}
-
-func repositoryRoot(value string) (string, error) {
-	if root := strings.TrimSpace(value); root != "" {
-		return root, nil
-	}
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		return "", err
-	}
-	return roots.Store, nil
 }
 
 // loadManuals returns the standard store-inspection manuals plus any

@@ -38,13 +38,11 @@ func run(args []string) error {
 	if flags.NArg() != 1 || strings.TrimSpace(*source) == "" {
 		return errors.New("usage: model-config -source <directory> [-repo <store>] <model.gguf>")
 	}
-	if strings.TrimSpace(*repository) == "" {
-		roots, err := dataroot.ResolveCurrent()
-		if err != nil {
-			return err
-		}
-		*repository = roots.Store
+	resolved, err := dataroot.StoreRoot(*repository)
+	if err != nil {
+		return err
 	}
+	*repository = resolved
 	store, err := overgodb.Open(*repository)
 	if err != nil {
 		return err

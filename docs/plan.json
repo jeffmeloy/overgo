@@ -882,7 +882,8 @@
             "surface-gate-execution/declaration-boundary",
             "surface-gate-deferred/authority-lifetime",
             "gate-resource-priority-replan/do",
-            "gate-resource-efficiency/first-memory-reduction"
+            "gate-resource-efficiency/first-memory-reduction",
+            "command-store-root-resolver/do"
           ]
         }
       ]

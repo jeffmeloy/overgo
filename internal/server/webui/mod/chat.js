@@ -32,6 +32,7 @@
     try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID)); }
     catch (err) { body.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
     const cards = [overgo.stat("Status", record.status, record.statuses.join(" · "))];
+    if (record.incomplete_details?.reason === "max_output_tokens") cards.push(overgo.stat("Output limit reached", "Partial answer saved"));
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
     if (record.timings) cards.push(overgo.stat("Prefill", Number(record.timings.prompt_per_second).toFixed(2), "tok/s"), overgo.stat("Decode", Number(record.timings.predicted_per_second).toFixed(2), "tok/s"));
     if (record.sampling) cards.push(overgo.stat("Sampling", "T " + record.sampling.temperature, record.sampling.samplers.join(" › ") || "no stage"));
@@ -881,6 +882,7 @@
             const shown = thread.add(message.role, message.content);
             shown.response = message.response;
             shown.media = message.media; shown.tool_calls = message.tool_calls;
+            shown.incompleteReason = message.incomplete_details?.reason;
             thread.renderMessage(shown, false);
           }
           lastResponseID = chain.status === "failed" ? (chain.previous || "") : chain.response;

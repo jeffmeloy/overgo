@@ -166,6 +166,7 @@ func writeSSEEvent(response io.Writer, event string, value any) error {
 type apiError struct {
 	Message string `json:"message"`
 	Type    string `json:"type"`
+	Code    string `json:"code,omitzero"`
 }
 
 type apiErrorEnvelope struct {

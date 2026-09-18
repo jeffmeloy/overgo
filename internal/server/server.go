@@ -86,6 +86,10 @@ type ContinuousGeneratorFactory interface {
 	) (*inference.ContinuousGenerator, error)
 }
 
+type promptCacheProvider interface {
+	SupportsPromptCache() bool
+}
+
 type Embedder interface {
 	Embed(context.Context, string) ([]float32, int, error)
 }
@@ -438,6 +442,7 @@ type Handler struct {
 	environment        runrecord.Environment
 	modelArtifact      artifact.ID
 	observationErrors  atomic.Uint64
+	servingEvents      servingEvents
 	servingWorkspace
 	operatorWorkspace
 	agentWorkspace
@@ -1018,9 +1023,10 @@ type completionChoice struct {
 }
 
 type completionUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
+	PromptTokenDetails responseInputTokenDetails `json:"prompt_tokens_details"`
+	PromptTokens       int                       `json:"prompt_tokens"`
+	CompletionTokens   int                       `json:"completion_tokens"`
+	TotalTokens        int                       `json:"total_tokens"`
 }
 
 type completionResponse struct {

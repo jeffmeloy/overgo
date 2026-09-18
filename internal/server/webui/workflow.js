@@ -11,7 +11,29 @@
       const operations = new Map((latest.get("operation.snapshot") || []).map((item) => [item.id, item]));
       operations.set(value.status.id, value.status);
       latest.set("operation.snapshot", [...operations.values()]);
-    } else latest.set(name, value);
+      const activity = latest.get("runtime.activity");
+      if (activity) latest.set("runtime.activity", { ...activity, operations: [...operations.values()] });
+    } else if (name === "runtime.serving") {
+      const snapshot = latest.get("runtime.activity");
+      if (!snapshot || BigInt(value.cursor) <= BigInt(snapshot.cursor)) return;
+      const activity = [value.activity, ...snapshot.activity.filter((item) => item.id !== value.activity.id)];
+      value = {
+        ...snapshot,
+        cursor: value.cursor,
+        publish_failures: value.publish_failures,
+        activity: activity.slice(0, snapshot.limit),
+        count: Math.min(activity.length, snapshot.limit),
+        truncated: snapshot.truncated || activity.length > snapshot.limit,
+      };
+      name = "runtime.activity";
+      latest.set(name, value);
+    } else {
+      latest.set(name, value);
+      if (name === "operation.snapshot") {
+        const activity = latest.get("runtime.activity");
+        if (activity) latest.set("runtime.activity", { ...activity, operations: value });
+      }
+    }
     for (const subscriber of subscribers) subscriber(name, value);
   }
 

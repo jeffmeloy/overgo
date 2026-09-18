@@ -44,13 +44,14 @@ func (h *Handler) decodeProtocolJSON(
 }
 
 type protocolGenerationPlan struct {
-	handler   *Handler
-	request   *http.Request
-	session   *requestSession
-	prompt    preparedPrompt
-	sampler   *sampling.Sampler
-	maxTokens int
-	stops     []string
+	evaluation inference.PromptEvaluation
+	handler    *Handler
+	request    *http.Request
+	session    *requestSession
+	prompt     preparedPrompt
+	sampler    *sampling.Sampler
+	maxTokens  int
+	stops      []string
 }
 
 type protocolGenerationResult struct {
@@ -145,6 +146,10 @@ func (result protocolGenerationResult) promptTokens() int {
 	return len(result.ids) - result.pump.generated
 }
 
+func (result protocolGenerationResult) cachedTokens() int {
+	return result.pump.evaluation.Cached
+}
+
 // outputTokens: the completion's count; the provider's when reported,
 // else the generated ids.
 func (result protocolGenerationResult) outputTokens() int {
@@ -186,6 +191,22 @@ func (h *Handler) prepareProtocolGenerationPlan(
 		writeGenerationError(response, err)
 		return nil, false
 	}
+	if properties, ok := h.generator.(ModelPropertiesAPI); ok {
+		limit := properties.ModelProperties().ContextLength
+		// Prepared IDs include projected media and any reusable prefix. Decode
+		// shifting cannot make an oversized initial prompt fit. An unknown
+		// context or an untokenized provider prompt stays with its generator.
+		if limit > 0 && uint64(len(prepared.TokenIDs)) > uint64(limit) {
+			h.releaseSession(lease)
+			failure := errorEnvelope("invalid_request_error", fmt.Sprintf(
+				"prompt has %d tokens, exceeding the model context length of %d tokens",
+				len(prepared.TokenIDs), limit,
+			))
+			failure.Error.Code = "context_length_exceeded"
+			writeJSON(response, http.StatusBadRequest, failure)
+			return nil, false
+		}
+	}
 	return &protocolGenerationPlan{
 		handler: h, request: request, session: lease, prompt: prepared,
 		sampler: sampler, maxTokens: maxTokens, stops: stops,
@@ -221,13 +242,22 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	sampler *sampling.Sampler,
 	emit func(string) error,
 ) (protocolGenerationResult, error) {
+	options := plan.handler.protocolGenerationOptions(
+		plan.maxTokens, sampler, plan.prompt.TokenIDs, plan.prompt.ProjectedInputs,
+	)
+	// The selected session may use a scheduler instead of the inspected model.
+	// Never infer scheduler support from the underlying Runner.
+	if provider, ok := plan.session.Model().(promptCacheProvider); ok {
+		options.CachePrompt = provider.SupportsPromptCache()
+	}
+	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
+		plan.evaluation = evaluation
+	}
 	ids, pump, err := plan.handler.generateWithPump(
 		plan.context(),
 		plan.session,
 		plan.prompt.Text,
-		plan.handler.protocolGenerationOptions(
-			plan.maxTokens, sampler, plan.prompt.TokenIDs, plan.prompt.ProjectedInputs,
-		),
+		options,
 		plan.stops,
 		emit,
 	)

@@ -75,6 +75,10 @@ func groundedDoctrineDecisions() []string {
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	document := loadCampaignPlan(t)
+	if document.Lane == "colibri" {
+		assertColibriCampaign(t, document)
+		return
+	}
 	if strings.HasPrefix(document.Campaign, "Structural GUI redesign") || strings.HasPrefix(document.Campaign, "GUI capability roadmap:") {
 		assertConversationGUICampaign(t, document)
 		return
@@ -713,12 +717,16 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 // The gate separately proves the exact parent and prunes this temporary row.
 // Campaign closeout therefore cannot depend on it without changing the target plan.
 func preparedMergeBoundary(item Item) bool {
+	return preparedMergeShape(item) &&
+		(item.Steps[0].Verify == "go run ./cmd/compatibility -check" ||
+			strings.HasPrefix(item.Steps[0].Verify, "go run ./cmd/compatibility -check && "))
+}
+
+func preparedMergeShape(item Item) bool {
 	revision, found := strings.CutPrefix(item.ID, "merge-")
 	return found && len(revision) == 12 && strings.Trim(revision, "0123456789abcdef") == "" &&
 		item.Status == StatusOpen && len(item.Steps) == 1 && item.Steps[0].ID == "do" &&
-		item.Steps[0].Status == StatusOpen &&
-		(item.Steps[0].Verify == "go run ./cmd/compatibility -check" ||
-			strings.HasPrefix(item.Steps[0].Verify, "go run ./cmd/compatibility -check && "))
+		item.Steps[0].Status == StatusOpen
 }
 
 func TestPreparedMergeBoundaryVerification(t *testing.T) {

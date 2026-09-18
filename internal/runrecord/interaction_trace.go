@@ -119,7 +119,7 @@ func NewInteractionTrace(value Interaction, request artifact.ID, messages []Inte
 	return interactionTraceCodec.NewInitial(InteractionTrace{
 		Recipe: value.Recipe, Model: value.Model, Terminal: terminal,
 		Operation: value.Operation, Request: request, Events: events,
-		ToolActions: slices.Clone(value.Tools), Decisions: slices.Clone(decisions), FinalArtifacts: final,
+		ToolActions: value.Tools, Decisions: decisions, FinalArtifacts: final,
 	})
 }
 

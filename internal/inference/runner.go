@@ -191,6 +191,9 @@ type preparedModel struct {
 	modelSignatureOnce  sync.Once
 	audioTables         *audioWaveformTables
 	audioTablesOnce     sync.Once
+
+	grammarVocabulary   func() (*sampling.GBNFVocabulary, error)
+	grammarVocabularyMu sync.Mutex
 }
 
 // runnerState: mutable LoRA and prompt-cache state.

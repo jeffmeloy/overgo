@@ -9,10 +9,11 @@ import (
 )
 
 type interactionReplayResponse struct {
-	ID         artifact.ID                            `json:"id"`
-	Trace      runrecord.InteractionTrace             `json:"trace"`
-	Media      []interactionMediaRef                  `json:"media,omitempty"`
-	Comparison *evaluation.InteractionTraceComparison `json:"comparison,omitempty"`
+	ID             artifact.ID                            `json:"id"`
+	Trace          runrecord.InteractionTrace             `json:"trace"`
+	TerminalReason runrecord.InteractionTerminalReason    `json:"terminal_reason,omitzero"`
+	Media          []interactionMediaRef                  `json:"media,omitempty"`
+	Comparison     *evaluation.InteractionTraceComparison `json:"comparison,omitempty"`
 }
 
 // interactionMediaRef names one media artifact an interaction carries
@@ -39,7 +40,7 @@ func (h *Handler) interactionReplay(response http.ResponseWriter, request *http.
 		writeGenerationError(response, err)
 		return
 	}
-	result := interactionReplayResponse{ID: trace.ID, Trace: trace}
+	result := interactionReplayResponse{ID: trace.ID, Trace: trace, TerminalReason: interaction.TerminalReason}
 	for _, mediaID := range interaction.Media {
 		reference := interactionMediaRef{ID: mediaID}
 		if descriptor, present, err := h.repository.Artifact(request.Context(), mediaID); err == nil && present {

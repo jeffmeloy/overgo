@@ -5,8 +5,8 @@
 //
 // Every outbound request goes to one configured endpoint (the public hub by
 // default), and every downloaded file that declares a size or an LFS sha256
-// is verified against it before the file is surrendered to its final name --
-// a partial or tampered download never lands under the requested path.
+// is verified against it before publication. Retained partial bytes require a
+// declared digest for reuse; size alone cannot detect equal-length corruption.
 package hfhub
 
 import (
@@ -166,10 +166,10 @@ func (c *Client) Resolve(ctx context.Context, kind RepoKind, repository, revisio
 	if err := c.getJSON(ctx, path+"?blobs=true", &info); err != nil {
 		return RepoRevision{}, err
 	}
-	resolved := RepoRevision{ID: info.ID, Revision: revision}
-	if resolved.Revision == "" {
-		resolved.Revision = info.SHA
+	if strings.TrimSpace(info.SHA) == "" {
+		return RepoRevision{}, errors.New("hfhub: repository response has no immutable revision")
 	}
+	resolved := RepoRevision{ID: info.ID, Revision: info.SHA}
 	for _, entry := range info.Siblings {
 		file := RepoFile{Path: entry.Path, Size: entry.Size}
 		if entry.LFS != nil {

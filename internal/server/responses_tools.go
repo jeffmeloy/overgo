@@ -596,12 +596,13 @@ func responseItems(
 	message inference.ChatMessage,
 	messageID, idSuffix string,
 	includeReasoning bool,
+	status string,
 ) []responseOutputItem {
 	items := make([]responseOutputItem, 0, 2+len(message.ToolCalls))
 	if includeReasoning && message.ReasoningContent != "" {
 		items = append(items, responseOutputItem{
 			ID:     "rs_" + idSuffix,
-			Status: "completed",
+			Status: status,
 			Summary: []responseReasoningSummary{{
 				Text: message.ReasoningContent, Type: "summary_text",
 			}},
@@ -618,7 +619,7 @@ func responseItems(
 			}},
 			ID:     messageID,
 			Role:   inference.ChatRoleAssistant,
-			Status: "completed",
+			Status: status,
 			Type:   "message",
 		})
 	}
@@ -632,7 +633,7 @@ func responseItems(
 			CallID:    callID,
 			ID:        fmt.Sprintf("fc_%s_%d", idSuffix, index),
 			Name:      call.Function.Name,
-			Status:    "completed",
+			Status:    status,
 			Type:      "function_call",
 		})
 	}

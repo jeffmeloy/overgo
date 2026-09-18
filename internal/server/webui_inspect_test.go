@@ -35,7 +35,7 @@ func TestFrontPageInspect(t *testing.T) {
 	if err := json.Unmarshal(inspected.Body.Bytes(), &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.Status != turnStatusDone || !slices.Equal(record.Statuses, turnStatuses) || record.Prompt != "hello there world" ||
+	if record.Status != turnStatusIncomplete || record.IncompleteDetails == nil || record.IncompleteDetails.Reason != "max_output_tokens" || !slices.Equal(record.Statuses, turnStatuses) || record.Prompt != "hello there world" ||
 		record.Completion == "" || !record.Model.Valid() || !record.Trace.Valid() || !record.Receipt.Valid() {
 		t.Fatalf("inspection = %+v", record)
 	}

@@ -47,6 +47,14 @@ type World interface {
 	Paused() bool
 }
 
+// ProgressWorld recognizes accepted prerequisite work while the dispatched
+// step remains open. The checkpoint precedes the worker; neither a changed
+// revision nor a green verifier alone establishes accepted progress.
+type ProgressWorld interface {
+	ProgressCheckpoint() (string, error)
+	AcceptedProgress(step Step, checkpoint string) (bool, error)
+}
+
 // ProposalSource is the optional world extension that feeds the driver
 // admitted steering proposals once the plan drains: the loop closure.
 // AdmitNext admits the next pending proposal into the plan through
@@ -61,8 +69,8 @@ type ProposalSource interface {
 // Config bounds the driver. Every limit is mechanical: no prose persuasion.
 type Config struct {
 	// MaxAttemptsPerStep parks the step after this many worker exits
-	// without plan advancement. Zero refuses to run: an unbounded retry
-	// loop on a stuck step is the failure mode this exists to prevent.
+	// without plan advancement or accepted prerequisite progress. Zero
+	// refuses to run: unbounded retries on a stuck step are forbidden.
 	MaxAttemptsPerStep int `json:"max_attempts_per_step"`
 	// MaxInvocations bounds total worker launches for one Run call.
 	MaxInvocations int            `json:"max_invocations"`
@@ -157,6 +165,7 @@ func Run(world World, config Config) (Outcome, error) {
 	saturation := 0
 	proposalItems := map[string]bool{}
 	source, feeds := world.(ProposalSource)
+	progress, observesProgress := world.(ProgressWorld)
 	feeds = feeds && config.SaturationLimit > 0
 	obligations, replays := world.(ObligationWorld)
 	var lastKey, feedback string
@@ -263,6 +272,13 @@ func Run(world World, config Config) (Outcome, error) {
 		if err != nil {
 			return outcome, fmt.Errorf("loop: render prompt: %w", err)
 		}
+		var checkpoint string
+		if observesProgress {
+			checkpoint, err = progress.ProgressCheckpoint()
+			if err != nil {
+				return outcome, fmt.Errorf("loop: checkpoint progress: %w", err)
+			}
+		}
 		tail, err := world.RunWorker(step, prompt, feedback)
 		outcome.Invocations++
 		attempts++
@@ -289,6 +305,19 @@ func Run(world World, config Config) (Outcome, error) {
 				saturation = 0
 			}
 			continue
+		}
+		if observesProgress {
+			accepted, err := progress.AcceptedProgress(step, checkpoint)
+			if err != nil {
+				return outcome, fmt.Errorf("loop: accepted progress: %w", err)
+			}
+			if accepted {
+				// Only the consecutive nonprogress streak resets. This worker
+				// still consumed an invocation, and the parent is still open.
+				attempts = 0
+				feedback = "Accepted prerequisite work; remaining acceptance is still open: " + step.Key()
+				continue
+			}
 		}
 		failure, err := world.Verify(step)
 		if err != nil {

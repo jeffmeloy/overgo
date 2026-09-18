@@ -38,6 +38,8 @@ type servingActivity struct {
 }
 
 type runtimeActivityResponse struct {
+	Cursor       uint64             `json:"cursor,string"`
+	Limit        int                `json:"limit"`
 	Count        int                `json:"count"`
 	Truncated    bool               `json:"truncated"`
 	PublishFail  uint64             `json:"publish_failures"`
@@ -73,10 +75,6 @@ func (h *Handler) runtimeSessionsSnapshot() runtimeSessionsResponse {
 
 func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Request) {
 	activity, err := h.runtimeActivitySnapshot(request.Context())
-	if errors.Is(err, errBrowseRepositoryUnavailable) {
-		writeJSON(response, http.StatusOK, runtimeActivityResponse{Operations: h.operations.List()})
-		return
-	}
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
@@ -85,7 +83,15 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 }
 
 func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityResponse, error) {
+	h.servingEvents.mu.Lock()
+	defer h.servingEvents.mu.Unlock()
 	store, err := h.browseStore(ctx)
+	if errors.Is(err, errBrowseRepositoryUnavailable) {
+		return runtimeActivityResponse{
+			Cursor: h.servingEvents.cursor, Limit: h.config.MaxStoredResponses,
+			Activity: []servingActivity{}, Operations: h.operations.List(),
+		}, nil
+	}
 	if err != nil {
 		return runtimeActivityResponse{}, err
 	}
@@ -116,6 +122,7 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 	interactions, interactionsTruncated, err := projectedDocuments(ctx, store,
 		runrecord.InteractionMediaType, runrecord.InteractionSchema, runrecord.InteractionResponseAliasRoot, h.config.MaxStoredResponses)
 	return runtimeActivityResponse{
+		Cursor: h.servingEvents.cursor, Limit: h.config.MaxStoredResponses,
 		Count: len(activity), PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
 		Stages: stages, Decisions: decisions, Interactions: interactions,
 		Truncated: page.Truncated || stagesTruncated || decisionsTruncated || interactionsTruncated,
@@ -146,6 +153,8 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		return
 	}
 	defer unsubscribe()
+	serving, unsubscribeServing := h.servingEvents.subscribe(h.config.MaxStoredResponses)
+	defer unsubscribeServing()
 	flusher, ok := beginSSE(response)
 	if !ok {
 		return
@@ -154,17 +163,11 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 	if stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
 		return
 	}
-	if activity, snapshotErr := h.runtimeActivitySnapshot(request.Context()); snapshotErr == nil {
-		if stream.named("runtime.activity", activity) != nil {
-			return
-		}
-	} else if errors.Is(snapshotErr, errBrowseRepositoryUnavailable) {
-		if stream.named("runtime.activity", runtimeActivityResponse{Operations: h.operations.List()}) != nil {
-			return
-		}
-	} else {
+	activity, err := h.runtimeActivitySnapshot(request.Context())
+	if err != nil || stream.named("runtime.activity", activity) != nil {
 		return
 	}
+	cursor := activity.Cursor
 	if stream.named("operation.snapshot", h.operations.List()) != nil {
 		return
 	}
@@ -172,6 +175,25 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 		select {
 		case <-request.Context().Done():
 			return
+		case event, open := <-serving:
+			if !open {
+				return
+			}
+			if event.Cursor <= cursor {
+				continue
+			}
+			if event.Activity == nil {
+				activity, err := h.runtimeActivitySnapshot(request.Context())
+				if err != nil || stream.named("runtime.activity", activity) != nil {
+					return
+				}
+				cursor = activity.Cursor
+			} else {
+				if stream.named("runtime.serving", event) != nil {
+					return
+				}
+				cursor = event.Cursor
+			}
 		case event, open := <-events:
 			if !open || stream.named("operation", event) != nil ||
 				stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {

@@ -45,20 +45,28 @@ var interactionTranscriptCodec = artifact.JSONDocumentCodec(
 	cloneInteractionTranscript,
 )
 
+// InteractionTerminalReason distinguishes a bounded output from a natural end.
+// Empty reasons preserve the interpretation and identity of older records.
+type InteractionTerminalReason string
+
+// InteractionOutputLimit means generation exhausted its declared output budget.
+const InteractionOutputLimit InteractionTerminalReason = "output-limit"
+
 // Interaction binds one response event to durable execution and message facts.
 type Interaction struct {
-	Version   uint16        `json:"version"`
-	Response  string        `json:"response"`
-	Recipe    artifact.ID   `json:"recipe,omitzero"`
-	Model     artifact.ID   `json:"model"`
-	Node      recipe.NodeID `json:"node"`
-	Operation artifact.ID   `json:"operation,omitzero"`
-	Run       artifact.ID   `json:"run,omitzero"`
-	Parent    artifact.ID   `json:"parent,omitzero"`
-	Message   artifact.ID   `json:"message"`
-	Trace     artifact.ID   `json:"trace"`
-	Tools     []artifact.ID `json:"tools,omitempty"`
-	Media     []artifact.ID `json:"media,omitempty"`
+	Version        uint16                    `json:"version"`
+	Response       string                    `json:"response"`
+	Recipe         artifact.ID               `json:"recipe,omitzero"`
+	Model          artifact.ID               `json:"model"`
+	Node           recipe.NodeID             `json:"node"`
+	Operation      artifact.ID               `json:"operation,omitzero"`
+	Run            artifact.ID               `json:"run,omitzero"`
+	Parent         artifact.ID               `json:"parent,omitzero"`
+	Message        artifact.ID               `json:"message"`
+	Trace          artifact.ID               `json:"trace"`
+	Tools          []artifact.ID             `json:"tools,omitempty"`
+	Media          []artifact.ID             `json:"media,omitempty"`
+	TerminalReason InteractionTerminalReason `json:"terminal_reason,omitzero"`
 	// Stimulus references the exact boundary admitted before execution.
 	Stimulus artifact.ID `json:"stimulus,omitzero"`
 	ID       artifact.ID `json:"-"`
@@ -108,16 +116,15 @@ func canonicalizeInteraction(value *Interaction) error {
 	if value.Version != artifact.InitialDocumentVersion || strings.TrimSpace(value.Response) != value.Response || value.Response == "" ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Model.Kind() != artifact.KindModel || value.Node == "" ||
 		value.Message.Kind() != artifact.KindEvidence || value.Trace.Kind() != artifact.KindEvidence ||
-		(value.Parent.Valid() && value.Parent.Kind() != artifact.KindEvidence) {
+		(value.Parent.Valid() && value.Parent.Kind() != artifact.KindEvidence) ||
+		(value.Stimulus.Valid() && value.Stimulus.Kind() != artifact.KindEvidence) ||
+		(value.TerminalReason != "" && value.TerminalReason != InteractionOutputLimit) {
 		return errors.New("run record: invalid interaction")
 	}
-	for _, id := range append(slices.Clone(value.Tools), value.Media...) {
+	for _, id := range slices.Concat(value.Tools, value.Media) {
 		if !id.Valid() {
 			return errors.New("run record: invalid interaction attachment")
 		}
-	}
-	if value.Stimulus.Valid() && value.Stimulus.Kind() != artifact.KindEvidence {
-		return errors.New("run record: invalid interaction stimulus")
 	}
 	return nil
 }
@@ -227,8 +234,10 @@ func VisibleInteractionMessages(
 // PublishInteraction commits the transcript, trace outcome and event atomically.
 // An empty terminal leaves the execution outcome unspecified.
 func PublishInteraction(ctx context.Context, repository artifact.Repository, value Interaction, messages []InteractionMessage, terminal Outcome) (Interaction, error) {
-	if ctx == nil || repository == nil {
-		return Interaction{}, errors.New("run record: interaction repository is absent")
+	// A successful bounded generation may exhaust its output allowance. A
+	// reservation, cancellation or failed execution cannot assert that reason.
+	if ctx == nil || repository == nil || value.TerminalReason != "" && terminal != OutcomeSucceeded {
+		return Interaction{}, errors.New("run record: invalid interaction publication")
 	}
 	transcript, err := NewInteractionTranscript(messages)
 	if err != nil {
@@ -260,22 +269,16 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 	if err != nil {
 		return Interaction{}, err
 	}
-	transcriptContent, err := interactionTranscriptCodec.Content(transcript)
-	if err != nil {
+	transcriptContent, transcriptErr := interactionTranscriptCodec.Content(transcript)
+	interactionContent, interactionErr := interactionCodec.Content(value)
+	traceContent, traceErr := interactionTraceCodec.Content(trace)
+	if err := errors.Join(transcriptErr, interactionErr, traceErr); err != nil {
 		return Interaction{}, err
 	}
-	interactionContent, err := interactionCodec.Content(value)
-	if err != nil {
-		return Interaction{}, err
-	}
-	traceContent, err := interactionTraceCodec.Content(trace)
-	if err != nil {
-		return Interaction{}, err
-	}
-	parents := []artifact.ID{value.Trace, value.Recipe, value.Operation, value.Run, value.Parent}
-	parents = append(parents, value.Tools...)
-	parents = append(parents, value.Media...)
-	parents = append(parents, value.Stimulus)
+	parents := slices.Concat(
+		[]artifact.ID{value.Trace, value.Recipe, value.Operation, value.Run, value.Parent, value.Stimulus},
+		value.Tools, value.Media,
+	)
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
 	contents := []artifact.Content{transcriptContent}
 	if requestTranscript.ID != transcript.ID {
@@ -316,16 +319,12 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 			Name: InteractionOperationAliasRoot + value.Operation.String() + "/" + value.ID.String(), Target: value.ID,
 		})
 	}
-	batch, err := artifact.NewDocumentBatch(
-		"interaction/"+value.ID.String(),
-		contents,
-		lineage,
-		aliases,
-	)
-	if err != nil {
-		return Interaction{}, err
-	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil {
+	// All buffers were constructed here. CommitBatch owns validation; no
+	// caller-owned content needs cloning before this single atomic commit.
+	if _, err := artifact.CommitBatch(ctx, repository, artifact.Batch{
+		Key: "interaction/" + value.ID.String(), Contents: contents,
+		Lineage: lineage, Aliases: aliases,
+	}); err != nil {
 		return Interaction{}, err
 	}
 	return value, nil

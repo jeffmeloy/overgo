@@ -205,6 +205,11 @@ type completionEvidence struct {
 	result       artifact.ID
 	finalization artifact.ID
 	retiredItem  bool
+	// These fields come from the already-verified contract. Dependency IDs
+	// contain no whitespace; joining them keeps evidence values comparable.
+	owner        string
+	dependencies string
+	merge        bool
 }
 
 func (authority CompletionAuthority) completed(reference string) bool {
@@ -795,6 +800,7 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 			resolver.evidence[evidenceKey] = evidence
 			resolver.evidenceLoads++
 		}
+		evidence.merge = len(candidate.commit.parents) > 1
 		validatedCompletions[candidate.commit.hash] = true
 		if candidate.trailers.mergeProjection == MergeProjectionFirstParentTarget {
 			// A projected receipt is an authority boundary, not a promise that a
@@ -1440,6 +1446,7 @@ func requireCompletionEvidence(
 		codeManifest: trailers.codeManifest, attempt: attempt.ID, result: attempt.Result,
 		finalization: verification.Finalization.ID,
 		retiredItem:  !retainedItem,
+		owner:        contractSnapshot.Owner, dependencies: strings.Join(completedStep.DependsOn, "\n"),
 	}, nil
 }
 

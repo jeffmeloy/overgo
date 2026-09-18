@@ -228,12 +228,17 @@ func splitTestStep(step, measurement []string) (correctness, measurementRun []st
 
 // returns the step's own -run selection, or nil when it selects every test
 func stepRunPattern(step []string) *regexp.Regexp {
+	return stepTestPattern(step, "-run")
+}
+
+func stepTestPattern(step []string, flag string) *regexp.Regexp {
+	var selected *regexp.Regexp
 	for index, argument := range step {
-		if argument == "-run" && index+1 < len(step) {
+		if argument == flag && index+1 < len(step) {
 			if pattern, err := regexp.Compile(step[index+1]); err == nil {
-				return pattern
+				selected = pattern
 			}
 		}
 	}
-	return nil
+	return selected
 }

@@ -1,12 +1,14 @@
 package codeprofile
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 )
 
@@ -34,7 +36,8 @@ type StagedSurfaceEntry struct {
 	Package string `json:"package"`
 	Name    string `json:"name"`
 	Reason  string `json:"reason"`
-	// RetireWith is one exact open item/step in the canonical live plan.
+	// RetireWith names an exact canonical open step. A projected lane may keep
+	// an unchanged foreign step through the declaration's InheritedFrom proof.
 	RetireWith string `json:"retire_with,omitzero"`
 	// Retained is mutually exclusive with RetireWith.
 	Retained *stagedSurfaceRetention `json:"retained,omitempty"`
@@ -42,9 +45,12 @@ type StagedSurfaceEntry struct {
 
 // StagedSurfaceDeclaration is the versioned staged-surface file.
 type StagedSurfaceDeclaration struct {
-	Version uint16               `json:"version"`
-	Doc     string               `json:"doc,omitzero"`
-	Staged  []StagedSurfaceEntry `json:"staged"`
+	Version uint16 `json:"version"`
+	Doc     string `json:"doc,omitzero"`
+	// InheritedFrom pins unchanged foreign retirement declarations after a lane
+	// projects its queue. It grants no execution or completion authority.
+	InheritedFrom string               `json:"inherited_from,omitzero"`
+	Staged        []StagedSurfaceEntry `json:"staged"`
 }
 
 // LoadStagedSurface reads the declaration; an absent file declares
@@ -64,6 +70,9 @@ func LoadStagedSurface(path string) (StagedSurfaceDeclaration, error) {
 	}
 	if declaration.Version != artifact.SecondDocumentVersion {
 		return StagedSurfaceDeclaration{}, fmt.Errorf("codeprofile: unsupported staged-surface version %d", declaration.Version)
+	}
+	if declaration.InheritedFrom != "" && !gitauthority.ValidObjectID(declaration.InheritedFrom) {
+		return StagedSurfaceDeclaration{}, fmt.Errorf("codeprofile: inherited staged declarations require an exact commit")
 	}
 	needsPlan := false
 	seen := make(map[string]bool, len(declaration.Staged))
@@ -94,16 +103,7 @@ func LoadStagedSurface(path string) (StagedSurfaceDeclaration, error) {
 	if !needsPlan {
 		return declaration, nil
 	}
-	var live struct {
-		Items []struct {
-			ID     string `json:"id"`
-			Status string `json:"status"`
-			Steps  []struct {
-				ID     string `json:"id"`
-				Status string `json:"status"`
-			} `json:"steps"`
-		} `json:"items"`
-	}
+	var live stagedSurfacePlan
 	// Decode only the item/step/status projection. The plan owner performs
 	// strict whole-document validation; importing it here would cycle through
 	// its code-manifest census back into codeprofile.
@@ -111,31 +111,58 @@ func LoadStagedSurface(path string) (StagedSurfaceDeclaration, error) {
 	if err != nil {
 		return StagedSurfaceDeclaration{}, fmt.Errorf("codeprofile: load canonical plan for staged surface: %w", err)
 	}
-	open := make(map[string]bool)
+	open, err := live.openSteps()
+	if err != nil {
+		return StagedSurfaceDeclaration{}, err
+	}
+	var inherited *inheritedStagedSurface
+	for _, entry := range declaration.Staged {
+		_, present := open[entry.RetireWith]
+		if entry.RetireWith == "" || present {
+			continue
+		}
+		if live.Scope == "lane" && live.Lane != "" && declaration.InheritedFrom != "" {
+			if live.containsItem(entry.RetireWith) {
+				return StagedSurfaceDeclaration{}, fmt.Errorf("codeprofile: inherited retirement %s conflicts with the live queue", entry.RetireWith)
+			}
+			if inherited == nil {
+				source, err := loadInheritedStagedSurface(path, declaration.InheritedFrom)
+				if err != nil {
+					return StagedSurfaceDeclaration{}, err
+				}
+				inherited = &source
+			}
+			if err := inherited.verify(entry, live.Lane); err != nil {
+				return StagedSurfaceDeclaration{}, err
+			}
+			continue
+		}
+		return StagedSurfaceDeclaration{}, fmt.Errorf(
+			"codeprofile: staged entry %s.%s retire_with %q is not an exact canonical open plan step (it is missing, blocked, or historical)",
+			entry.Package, entry.Name, entry.RetireWith)
+	}
+	return declaration, nil
+}
+
+func (live stagedSurfacePlan) openSteps() (map[string]string, error) {
+	open := make(map[string]string)
 	seenPlanSteps := make(map[string]bool)
 	for _, item := range live.Items {
 		for _, step := range item.Steps {
 			reference := item.ID + "/" + step.ID
 			if !canonicalPlanStep(reference) || seenPlanSteps[reference] {
-				return StagedSurfaceDeclaration{}, fmt.Errorf("codeprofile: canonical plan has invalid or duplicate step %q", reference)
+				return nil, fmt.Errorf("codeprofile: canonical plan has invalid or duplicate step %q", reference)
 			}
 			seenPlanSteps[reference] = true
 			if item.Status != "open" {
 				continue
 			}
 			if step.Status == "open" {
-				open[reference] = true
+				open[reference] = cmp.Or(item.Owner, live.Lane)
 			}
 		}
 	}
-	for _, entry := range declaration.Staged {
-		if entry.RetireWith != "" && !open[entry.RetireWith] {
-			return StagedSurfaceDeclaration{}, fmt.Errorf(
-				"codeprofile: staged entry %s.%s retire_with %q is not an exact canonical open plan step (it is missing, blocked, or historical)",
-				entry.Package, entry.Name, entry.RetireWith)
-		}
-	}
-	return declaration, nil
+	return open, nil
 }
 
 func canonicalPlanStep(reference string) bool {

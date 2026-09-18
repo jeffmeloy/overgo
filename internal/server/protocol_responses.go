@@ -80,16 +80,37 @@ type responseUsage struct {
 }
 
 type responsesResponse struct {
-	CompletedAt int64                `json:"completed_at"`
-	CreatedAt   int64                `json:"created_at"`
-	ID          string               `json:"id"`
-	Model       string               `json:"model"`
-	Object      string               `json:"object"`
-	Output      []responseOutputItem `json:"output"`
-	Status      string               `json:"status"`
-	Usage       responseUsage        `json:"usage"`
-	Timings     *slotStatusTimings   `json:"timings,omitempty"`
-	Sampling    *responseSampling    `json:"sampling,omitempty"`
+	CompletedAt       *int64                     `json:"completed_at"`
+	CreatedAt         int64                      `json:"created_at"`
+	ID                string                     `json:"id"`
+	Model             string                     `json:"model"`
+	Object            string                     `json:"object"`
+	Output            []responseOutputItem       `json:"output"`
+	Status            string                     `json:"status"`
+	Usage             responseUsage              `json:"usage"`
+	Timings           *slotStatusTimings         `json:"timings,omitempty"`
+	Sampling          *responseSampling          `json:"sampling,omitempty"`
+	IncompleteDetails *responseIncompleteDetails `json:"incomplete_details,omitempty"`
+}
+
+type responseIncompleteDetails struct {
+	Reason string `json:"reason"`
+}
+
+func responseLimitDetails(reason runrecord.InteractionTerminalReason) *responseIncompleteDetails {
+	if reason == runrecord.InteractionOutputLimit {
+		return &responseIncompleteDetails{Reason: "max_output_tokens"}
+	}
+	return nil
+}
+
+// Match the common pump's stop precedence and the chat protocol's valid tool
+// completion precedence. Token counts alone cannot override a matched stop.
+func responseCompletion(pump *generationPump, maxTokens int, message inference.ChatMessage) (string, runrecord.InteractionTerminalReason) {
+	if len(message.ToolCalls) == 0 && pump.finishReason(maxTokens, "stop", "length") == "length" {
+		return "incomplete", runrecord.InteractionOutputLimit
+	}
+	return "completed", ""
 }
 
 // responseSampling is the chain and scalars the turn actually sampled with,
@@ -250,30 +271,36 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
 	h.assignResponseCallIDs(&message, idSuffix)
-	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary)
+	status, reason := responseCompletion(result.pump, plan.maxTokens, message)
+	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary, status)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message), runrecord.OutcomeSucceeded); err != nil {
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, message), runrecord.OutcomeSucceeded, reason); err != nil {
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
 		}
 	}
-	writeJSON(response, http.StatusOK, responsesResponse{
-		CompletedAt: now,
-		CreatedAt:   now,
-		ID:          responseID,
-		Model:       h.config.ModelID,
-		Object:      "response",
-		Output:      outputItems,
-		Status:      "completed",
+	final := responsesResponse{
+		CompletedAt:       new(now),
+		CreatedAt:         now,
+		ID:                responseID,
+		Model:             h.config.ModelID,
+		Object:            "response",
+		Output:            outputItems,
+		Status:            status,
+		IncompleteDetails: responseLimitDetails(reason),
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
 			OutputTokens:      result.outputTokens(),
 			TotalTokens:       promptTokens + result.outputTokens(),
-			InputTokenDetails: responseInputTokenDetails{},
+			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 		Sampling: resolvedSampling(plan.sampler),
-	})
+	}
+	if status == "incomplete" {
+		final.CompletedAt = nil
+	}
+	writeJSON(response, http.StatusOK, final)
 }
 
 func (h *Handler) streamResponses(
@@ -291,6 +318,7 @@ func (h *Handler) streamResponses(
 	var output strings.Builder
 	var turnBuffer *inflightTurn
 	finished := false
+	completionStatus := "completed"
 	var writeEvent func(string, any) error
 	fail := func(err error) {
 		status, outcome := "failed", runrecord.OutcomeFailed
@@ -301,7 +329,7 @@ func (h *Handler) streamResponses(
 		}
 		if turnBuffer != nil {
 			partial := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: output.String()}
-			if publishErr := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome); publishErr != nil {
+			if publishErr := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, partial), outcome, ""); publishErr != nil {
 				err = errors.Join(err, publishErr)
 				status = "failed"
 			}
@@ -327,7 +355,7 @@ func (h *Handler) streamResponses(
 		defer turnBuffer.stop()
 		// Reserve the response identity and prompt before the client can observe
 		// it. A restart leaves an inconclusive record, never a reused ID.
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive); err != nil {
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, turn, runrecord.OutcomeInconclusive, ""); err != nil {
 			turnBuffer.finish(responsesResponse{ID: responseID, Object: "response", Status: "failed"}, err.Error())
 			writeError(response, http.StatusInternalServerError, "response_not_durable", err.Error())
 			return
@@ -504,7 +532,7 @@ func (h *Handler) streamResponses(
 			return err
 		}
 		completed := responseOutputItem{
-			ID: itemID, Status: "completed", Summary: []responseReasoningSummary{part}, Type: "reasoning",
+			ID: itemID, Status: completionStatus, Summary: []responseReasoningSummary{part}, Type: "reasoning",
 		}
 		if err := writeEvent("response.output_item.done", responsesStreamEvent{
 			Type: "response.output_item.done", ResponseID: responseID,
@@ -537,6 +565,7 @@ func (h *Handler) streamResponses(
 		fail(err)
 		return
 	}
+	completionStatus, reason := responseCompletion(result.pump, plan.maxTokens, inference.ChatMessage{})
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
 		parsedMessage, err = toolStream.parse(parser, tools)
@@ -544,6 +573,7 @@ func (h *Handler) streamResponses(
 			fail(err)
 			return
 		}
+		completionStatus, reason = responseCompletion(result.pump, plan.maxTokens, parsedMessage)
 		if !toolStream.started {
 			if err := emitText(parsedMessage.Content); err != nil {
 				return
@@ -583,7 +613,7 @@ func (h *Handler) streamResponses(
 			Content: []responseOutputText{part},
 			ID:      messageID,
 			Role:    inference.ChatRoleAssistant,
-			Status:  "completed",
+			Status:  completionStatus,
 			Type:    "message",
 		}
 		if err := writeEvent("response.output_text.done", responsesStreamEvent{
@@ -613,6 +643,7 @@ func (h *Handler) streamResponses(
 		messageID,
 		idSuffix,
 		false,
+		completionStatus,
 	)
 	for _, item := range callItems {
 		outputIndex := len(outputItems)
@@ -664,19 +695,23 @@ func (h *Handler) streamResponses(
 	now := time.Now().Unix()
 	promptTokens := result.promptTokens()
 	final := responsesResponse{
-		CompletedAt: now,
-		CreatedAt:   now,
-		ID:          responseID,
-		Model:       h.config.ModelID,
-		Object:      "response",
-		Output:      outputItems,
-		Status:      "completed",
+		CompletedAt:       new(now),
+		CreatedAt:         now,
+		ID:                responseID,
+		Model:             h.config.ModelID,
+		Object:            "response",
+		Output:            outputItems,
+		Status:            completionStatus,
+		IncompleteDetails: responseLimitDetails(reason),
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
 			OutputTokens:      result.outputTokens(),
 			TotalTokens:       promptTokens + result.outputTokens(),
-			InputTokenDetails: responseInputTokenDetails{},
+			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
+	}
+	if completionStatus == "incomplete" {
+		final.CompletedAt = nil
 	}
 	timings := h.slotStats[plan.session.ID].metrics(true).Timings
 	final.Timings = &timings
@@ -686,15 +721,15 @@ func (h *Handler) streamResponses(
 		return
 	}
 	if store {
-		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage), runrecord.OutcomeSucceeded); err != nil {
+		if err := h.publishResponseInteraction(context.WithoutCancel(request.Context()), responseID, parent, append(turn, parsedMessage), runrecord.OutcomeSucceeded, reason); err != nil {
 			fail(err)
 			return
 		}
 		turnBuffer.finish(final, "")
 	}
 	finished = true
-	_ = writeEvent("response.completed", responsesStreamEvent{
-		Type: "response.completed", Response: final,
+	_ = writeEvent("response."+final.Status, responsesStreamEvent{
+		Type: "response." + final.Status, Response: final,
 	})
 }
 

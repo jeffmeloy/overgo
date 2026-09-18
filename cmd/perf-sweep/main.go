@@ -14,12 +14,12 @@ import (
 	"os"
 	"runtime"
 	"strings"
-	"time"
 
 	"overgo/internal/checked"
 	"overgo/internal/inference"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
@@ -131,7 +131,7 @@ func measure(modelPath, promptsPath string) (report, error) {
 	}
 	var text strings.Builder
 	promptTokens := 0
-	started := time.Now()
+	started := processmeasure.NewStopwatch()
 	ids, _, err := runner.Generate(context.Background(), fixture.Prompt, inference.GenerateOptions{
 		MaxNewTokens: fixture.MaxTokens, Sampler: greedy, DeviceGreedy: true,
 		OnToken: func(event inference.TokenEvent) error {
@@ -145,7 +145,10 @@ func measure(modelPath, promptsPath string) (report, error) {
 	if err != nil {
 		return report{}, err
 	}
-	wall := time.Since(started)
+	wall, err := started.Elapsed()
+	if err != nil {
+		return report{}, fmt.Errorf("generation measurement: %w", err)
+	}
 	stats, err := runner.DeviceMemoryStats(context.Background())
 	if err != nil {
 		return report{}, err
@@ -156,7 +159,7 @@ func measure(modelPath, promptsPath string) (report, error) {
 	}
 	return report{
 		ModelPath: modelPath, PromptTokens: promptTokens, GeneratedTokens: len(ids) - promptTokens,
-		WallNS: uint64(wall.Nanoseconds()), PeakDeviceBytes: stats.PeakBytes,
+		WallNS: wall, PeakDeviceBytes: stats.PeakBytes,
 		TextHead: head, FixtureSource: fixture.Source,
 		GoVersion: runtime.Version(), OSArch: runtime.GOOS + "/" + runtime.GOARCH,
 	}, nil

@@ -99,6 +99,7 @@ func (h *Handler) publishResponseInteraction(
 	parent artifact.ID,
 	messages []inference.ChatMessage,
 	terminal runrecord.Outcome,
+	reason runrecord.InteractionTerminalReason,
 ) error {
 	if h.repository == nil {
 		return nil
@@ -110,7 +111,7 @@ func (h *Handler) publishResponseInteraction(
 	}
 	_, err := runrecord.PublishInteraction(ctx, h.repository, runrecord.Interaction{
 		Response: responseID, Recipe: description.Identity.Recipe, Model: description.Identity.Model,
-		Node: description.Interaction.Node, Parent: parent,
+		Node: description.Interaction.Node, Parent: parent, TerminalReason: reason,
 	}, interactionMessages(messages), terminal)
 	if err != nil {
 		h.observationErrors.Add(counterStep)
@@ -210,6 +211,9 @@ func (h *Handler) responseTerminal(ctx context.Context, interaction runrecord.In
 	}
 	switch trace.Terminal {
 	case "", runrecord.OutcomeSucceeded:
+		if interaction.TerminalReason == runrecord.InteractionOutputLimit {
+			return "incomplete", ""
+		}
 		return "completed", ""
 	case runrecord.OutcomeCancelled:
 		return "cancelled", "Stopped"

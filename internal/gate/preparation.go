@@ -153,7 +153,7 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 		// of the device runtime: its full plan plus the packages the changed
 		// kernels' functions own.
 		if graphErr == nil {
-			devicePackages = slices.Clone(automationcheck.DeviceLanePackages[1:])
+			devicePackages = automationcheck.DeviceLanePackages()
 			if devicePlan, planErr := automationcheck.DevicePlan(root, g.paths); planErr == nil {
 				for _, packagePath := range devicePlan.Packages {
 					devicePackages = append(devicePackages, strings.TrimPrefix(packagePath, "./"))

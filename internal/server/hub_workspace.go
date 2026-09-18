@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
@@ -267,7 +268,7 @@ func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) er
 // admission, cancels every running transfer with the interruption
 // recorded on the job, and returns only after the last transfer
 // goroutine has unwound -- so close never races a write to disk. The
-// transfer path removes its own partial file when its context ends.
+// transfer path retains identity-bound progress when its context ends.
 func (r *downloadRegistry) shutdown() {
 	r.mu.Lock()
 	if r.closed {
@@ -323,6 +324,10 @@ type downloadRequestBody struct {
 	// Directory names the destination inside the configured download root;
 	// empty derives it from the repository name.
 	Directory string `json:"directory"`
+	// Timeout is an optional Go duration covering resolution and transfer.
+	// Empty or zero keeps the existing policy: run until completion, DELETE,
+	// or server shutdown. Browser disconnect alone does not cancel the job.
+	Timeout string `json:"timeout"`
 }
 
 // hubDownloads starts a download job (POST), lists jobs (GET), or
@@ -355,6 +360,15 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
+	var timeout time.Duration
+	if body.Timeout != "" {
+		var err error
+		timeout, err = time.ParseDuration(body.Timeout)
+		if err != nil || timeout < 0 {
+			writeError(response, http.StatusBadRequest, "invalid_request", "timeout must be a non-negative duration")
+			return
+		}
+	}
 	kind := hfhub.KindModel
 	if body.Kind == string(hfhub.KindDataset) {
 		kind = hfhub.KindDataset
@@ -376,7 +390,14 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 	// The transfer detaches from the request context deliberately --
 	// closing the browser tab must not abort a multi-gigabyte pull --
 	// but every job carries its own cancel, reachable over DELETE.
-	ctx, cancel := context.WithCancel(context.Background())
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeoutCause(context.Background(), timeout, fmt.Errorf("hub download caller budget: %w", context.DeadlineExceeded))
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	admitted := *job
 	if err := h.downloads.admit(job, cancel); err != nil {
 		cancel()
 		if errors.Is(err, errDownloadsShutDown) {
@@ -386,8 +407,11 @@ func (h *Handler) startHubDownload(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusTooManyRequests, "download_backlog", err.Error())
 		return
 	}
-	go h.runHubDownload(ctx, client, kind, body, destination, job)
-	writeJSON(response, http.StatusAccepted, *job)
+	go func() {
+		defer cancel()
+		h.runHubDownload(ctx, client, kind, body, destination, job)
+	}()
+	writeJSON(response, http.StatusAccepted, admitted)
 }
 
 func (h *Handler) cancelHubDownload(response http.ResponseWriter, request *http.Request) {

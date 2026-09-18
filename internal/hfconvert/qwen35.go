@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -115,16 +114,4 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	return Report{
 		Tensors: len(tensors), VocabSize: int(text.Vocabulary), OutputBytes: written.Size(),
 	}, nil
-}
-
-// chatTemplateMetadata: embed chat_template.jinja when present (llama.cpp key).
-func chatTemplateMetadata(directory string) ([]gguf.Metadata, error) {
-	encoded, err := os.ReadFile(filepath.Join(directory, "chat_template.jinja"))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("HF converter: read chat template: %w", err)
-	}
-	return []gguf.Metadata{gguf.StringMetadata("tokenizer.chat_template", string(encoded))}, nil
 }

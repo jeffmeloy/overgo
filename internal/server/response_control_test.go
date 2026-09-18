@@ -142,49 +142,54 @@ func (w *disconnectedResponseWriter) Write(p []byte) (int, error) {
 
 func TestStoredResponseDisconnectFinalization(t *testing.T) {
 	for _, event := range []string{"response.created", "response.output_item.added", "response.output_text.done"} {
-		t.Run(event, func(t *testing.T) {
-			store, err := overgodb.Open(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer store.Close()
-			handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
-			ctx, cancelCause := context.WithCancelCause(t.Context())
-			cancel := func() { cancelCause(io.ErrClosedPipe) }
-			defer cancel()
-			writer := &disconnectedResponseWriter{recorder: httptest.NewRecorder(), event: event, cancel: cancel}
-			request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/responses", strings.NewReader(`{"input":"Keep my prompt","stream":true,"store":true,"max_output_tokens":2}`))
-			handler.ServeHTTP(writer, request)
-			if !writer.dropped {
-				t.Fatalf("disconnect boundary was not exercised: %d %s", writer.recorder.Code, writer.recorder.Body)
-			}
-			listed := serveTestRequest(handler, http.MethodGet, "/interactions", "")
-			var list conversationListResponse
-			if err := json.Unmarshal(listed.Body.Bytes(), &list); err != nil || len(list.Conversations) != 1 {
-				t.Fatalf("durable conversations: %s (%v)", listed.Body, err)
-			}
-			id := list.Conversations[0].Latest
-			messages, _, found := handler.loadResponseInteraction(t.Context(), id)
-			if !found || len(messages) != 2 || messages[0].Content != "Keep my prompt" || messages[1].Content != "AB" {
-				t.Fatalf("disconnected transcript = %+v, found=%v", messages, found)
-			}
-			turn, found := handler.inflight.lookup(id)
-			if !found {
-				t.Fatal("response was not registered before delivery")
-			}
-			text, done, final, failed, _ := turn.snapshot()
-			if !done || text != "AB" || final.Status != "completed" || failed != "" {
-				t.Fatalf("terminal = %q %v %+v %q", text, done, final, failed)
-			}
-			if err := handler.Close(); err != nil {
-				t.Fatal(err)
-			}
-			restarted := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
-			follow := serveTestRequest(restarted, http.MethodGet, "/interactions/follow?response="+id, "")
-			if !strings.Contains(follow.Body.String(), "event: response.completed") || strings.Count(follow.Body.String(), `"delta":"AB"`) != 1 {
-				t.Fatalf("durable replay = %s", follow.Body)
-			}
-		})
+		for _, ending := range []struct{ tokens, status string }{{"2", "incomplete"}, {"3", "completed"}} {
+			t.Run(event+"/"+ending.status, func(t *testing.T) {
+				store, err := overgodb.Open(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer store.Close()
+				handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
+				ctx, cancelCause := context.WithCancelCause(t.Context())
+				cancel := func() { cancelCause(io.ErrClosedPipe) }
+				defer cancel()
+				writer := &disconnectedResponseWriter{recorder: httptest.NewRecorder(), event: event, cancel: cancel}
+				request := httptest.NewRequestWithContext(ctx, http.MethodPost, "/v1/responses", strings.NewReader(`{"input":"Keep my prompt","stream":true,"store":true,"max_output_tokens":`+ending.tokens+`}`))
+				handler.ServeHTTP(writer, request)
+				if !writer.dropped {
+					t.Fatalf("disconnect boundary was not exercised: %d %s", writer.recorder.Code, writer.recorder.Body)
+				}
+				listed := serveTestRequest(handler, http.MethodGet, "/interactions", "")
+				var list conversationListResponse
+				if err := json.Unmarshal(listed.Body.Bytes(), &list); err != nil || len(list.Conversations) != 1 {
+					t.Fatalf("durable conversations: %s (%v)", listed.Body, err)
+				}
+				id := list.Conversations[0].Latest
+				messages, _, found := handler.loadResponseInteraction(t.Context(), id)
+				if !found || len(messages) != 2 || messages[0].Content != "Keep my prompt" || messages[1].Content != "AB" {
+					t.Fatalf("disconnected transcript = %+v, found=%v", messages, found)
+				}
+				turn, found := handler.inflight.lookup(id)
+				if !found {
+					t.Fatal("response was not registered before delivery")
+				}
+				text, done, final, failed, _ := turn.snapshot()
+				if !done || text != "AB" || final.Status != ending.status || failed != "" {
+					t.Fatalf("terminal = %q %v %+v %q", text, done, final, failed)
+				}
+				if err := handler.Close(); err != nil {
+					t.Fatal(err)
+				}
+				restarted := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
+				follow := serveTestRequest(restarted, http.MethodGet, "/interactions/follow?response="+id, "")
+				if !strings.Contains(follow.Body.String(), "event: response."+ending.status) || strings.Count(follow.Body.String(), `"delta":"AB"`) != 1 {
+					t.Fatalf("durable replay = %s", follow.Body)
+				}
+				if ending.status == "incomplete" && (!strings.Contains(follow.Body.String(), `"reason":"max_output_tokens"`) || strings.Contains(follow.Body.String(), "event: response.completed")) {
+					t.Fatalf("disconnected limit lost its reason: %s", follow.Body)
+				}
+			})
+		}
 	}
 }
 
@@ -285,7 +290,7 @@ func TestStoredResponseUnconfirmedRestart(t *testing.T) {
 	defer store.Close()
 	handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
 	if err := handler.publishResponseInteraction(t.Context(), "resp_9", artifact.ID{},
-		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "private interrupted prompt"}}, runrecord.OutcomeInconclusive); err != nil {
+		[]inference.ChatMessage{{Role: inference.ChatRoleUser, Content: "private interrupted prompt"}}, runrecord.OutcomeInconclusive, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := handler.Close(); err != nil {

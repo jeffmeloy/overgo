@@ -98,7 +98,7 @@ func TestResponsesImageContentPartProjectsPrompt(t *testing.T) {
 		if response.Code != http.StatusOK {
 			t.Fatalf("stream %v status = %d body=%s", stream, response.Code, response.Body.String())
 		}
-		if stream && !strings.Contains(response.Body.String(), "event: response.completed") {
+		if stream && !strings.Contains(response.Body.String(), "event: response.incomplete") {
 			t.Fatalf("stream body = %s", response.Body.String())
 		}
 		if vision.before != "Look " || vision.after != " now" {
@@ -650,7 +650,7 @@ func TestStreamingResponsesLifecycle(t *testing.T) {
 		"event: response.output_text.done",
 		"event: response.content_part.done",
 		"event: response.output_item.done",
-		"event: response.completed",
+		"event: response.incomplete",
 	}
 	previous := -1
 	for _, event := range events {
@@ -800,7 +800,7 @@ func TestResponsesReasoningItemsBufferedAndStreaming(t *testing.T) {
 					"event: response.reasoning_summary_text.done",
 					"event: response.reasoning_summary_part.done",
 					`"text":"final answer"`,
-					"event: response.completed",
+					"event: response.incomplete",
 				}
 				previous := -1
 				for _, value := range want {

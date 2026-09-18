@@ -1,0 +1,243 @@
+{
+  "Version": 1,
+  "Scope": "Join previously accepted protocol scopes to current model and recipe identities. Preserve original producer sources and failed quality cases; this does not promote current implementation quality or performance.",
+  "Models": [
+    {
+      "Model": "model:sha256:2164ee6535ced88ef8f705243eecaad686de45521f7a33e84bff5ba7643587e8",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:0fc96840f0fec7ba76f8f4e8e04cb967d24c3280e845a9e820ae997012cddfca",
+          "Proofs": [
+            "modality-verification/resident-publication"
+          ],
+          "Scope": "Four native exact cases; two likelihood sequences and candidate ordering. Resource isolation and throughput are separate."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:5155b720ce15e6b05acf713a5f9c5bf86bf7e52963178c18503b03206578543c",
+          "Proofs": [
+            "modality-verification/retained-model-bundles",
+            "modality-verification/ifeval-parity-report"
+          ],
+          "Scope": "Four CPU and CUDA native text cases; full MMLU-Pro; BBH/MuSR generated-letter-opener; 541 IFEval prompts, 834 instructions and 1668 matched verdicts. Preserve capped and unsuccessful quality responses."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+          "Proofs": [
+            "modality-verification/qwen27-retained-publication"
+          ],
+          "Scope": "Retained declared text subsets. Full 27B MMLU-Pro remains operator-owned and is not accepted here."
+        },
+        {
+          "Task": "projection",
+          "Recipe": "recipe:sha256:3303271c18bc20af25ff6ab592e21922d2b4dd7472af479ce2526ac8de99a01e",
+          "Proofs": [
+            "modality-verification/qwen27-projection"
+          ],
+          "Scope": "Twenty grounded image/video cases match native CPU/CUDA and Go exactly. Retain the failed verbose protocol separately."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803",
+          "Proofs": [
+            "modality-verification/qwen4-native-reference",
+            "modality-verification/qwen4-verification-publication"
+          ],
+          "Scope": "Four native text cases; 12032 generated MMLU-Pro cases; 541 IFEval prompts and 1668 matched verdicts. No throughput claim."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84",
+          "Proofs": [
+            "modality-verification/qwen9-verification-publication"
+          ],
+          "Scope": "Full raw and generated MMLU-Pro; 541 IFEval prompts and 1668 matched verdicts. Numerical and performance findings remain separate."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+          "Proofs": [
+            "modality-verification/gemma12-mmlu-publication",
+            "modality-verification/gemma12-native-ifeval"
+          ],
+          "Scope": "12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. Instruction-model raw NLL is not a new defect."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "vqa",
+          "Recipe": "recipe:sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879",
+          "Proofs": [
+            "modality-verification/rxbrain-native-vqa"
+          ],
+          "Scope": "One frozen native image/question/text comparison. No broad VQA quality, hidden-state or performance claim."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
+          "Proofs": [
+            "modality-verification/gemma12-mmlu-publication"
+          ],
+          "Scope": "12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. BF16 artifact remains distinct from the native variant."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:fb09299dd00edd7ffdcf8cb48e475d2a9c9e30a22c51f79f6d4d793e983c557b",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+          "Proofs": [
+            "modality-verification/retained-model-bundles"
+          ],
+          "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open."
+        },
+        {
+          "Task": "projection",
+          "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+          "Proofs": [
+            "modality-verification/retained-model-bundles"
+          ],
+          "Scope": "Thirty E4B cells: 18 native protocol, six quality and six resource cells across text/audio/image/video, plus hidden-state mask causality. Separate performance findings remain open."
+        }
+      ]
+    }
+  ],
+  "Proofs": [
+    {
+      "Reference": "modality-verification/gemma12-mmlu-publication",
+      "Commit": "4487fe76c43ef3b0f03bc52008d5b40426429bf7",
+      "Verify": "go test ./cmd/compatibility -run '^TestRetainedModelPublications$' -count=1",
+      "Preparation": "evidence:sha256:c4a7daf42d69a5df5dda2fbbae02433c8d05d39fe8a2090bc240eef0d0834cbd",
+      "Result": "evidence:sha256:dd97a5efd308835f5cfc5040ba5eb89bcf88d96d70eab5937deb154d1ca04d7f"
+    },
+    {
+      "Reference": "modality-verification/gemma12-native-ifeval",
+      "Commit": "7df4f2c2b73150edeb3662436030798bb5b89438",
+      "Verify": "go test ./internal/evaluation -run '^TestGemmaNativeIFEvalAcceptance$' -count=1",
+      "Preparation": "evidence:sha256:dab776874cf73748130ef34b1cf90197b8370e391629c9e3e525fe3c4eb4292e",
+      "Result": "evidence:sha256:1eda3704f26c4696621b58982acd91292df27ce65d3c24ff8a555a758f6654e4"
+    },
+    {
+      "Reference": "modality-verification/ifeval-parity-report",
+      "Commit": "b3d6663f9643f25b9bf92305226194d86f634ea6",
+      "Verify": "go test ./cmd/compatibility -run '^(TestMiniCPMIFEvalGoParityAcceptance|TestMiniCPMIFEvalAcquisitionAcceptance|TestMiniCPMIFEvalNativeScoringAcceptance)$' -count=1",
+      "Preparation": "evidence:sha256:e92fbf6ddbe10312dfc7f663c4ab77d239d27579406d29c7e7dd2d0149a223a9",
+      "Result": "evidence:sha256:ebd5432ed591a31b28ae53f2e5ebf0dec4ee9aab1b34fd9a072a15121d364ca6"
+    },
+    {
+      "Reference": "modality-verification/qwen27-projection",
+      "Commit": "69ffcc7423fa498c5df1dd4aaee269838626fe27",
+      "Verify": "go test ./internal/evaluation -run '^(TestRetainedProjectionResults|TestResumeRejectsPartialOrForeignPlanResults)$' -count=1 \u0026\u0026 go test ./cmd/compatibility -run '^TestRetainedProjectionPublications$/^qwen-twentyseven$' -count=1 \u0026\u0026 go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1",
+      "Preparation": "evidence:sha256:ce587547ad1864cb2ceb938beebcb008da1fe2d8d4bf7ce8449bc25dafefb1ec",
+      "Result": "evidence:sha256:479f62f486a33e8985d0a70667bf711def7453678e06e0044de9d38ab37d95ab"
+    },
+    {
+      "Reference": "modality-verification/qwen27-retained-publication",
+      "Commit": "8233e312749cfba83d4c345f5c2c9d6235ba3683",
+      "Verify": "go test ./cmd/compatibility -run '^TestRetainedModelPublications/qwen-twentyseven$' -count=1",
+      "Preparation": "evidence:sha256:7c550439a3c86555a991a06cadad2a40a117a8b841c9f6ea92c1901d92b0595d",
+      "Result": "evidence:sha256:039e1dadfde1105b1f8db357828363dfc2eeb01405d5420b205fe8bb363aed5b"
+    },
+    {
+      "Reference": "modality-verification/qwen4-native-reference",
+      "Commit": "dffd8555e6aab632eaffd7e8e25be8cec22a96b2",
+      "Verify": "go test ./internal/hfgguf -run '^(TestQwen35RecurrentMetadataIncludesPredictionLayers|TestQwen35ConvolutionNativeStorage|TestValidateQwen35RepositoryUsesRuntimeCatalog)$' -count=1 \u0026\u0026 test -f cmd/compatibility/qwen4_native_reference_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestQwenFourNativeReferenceAcceptance|TestMiniCPMNativeContract|TestAcceptedMiniCPMNativeReference)$' -count=1",
+      "Preparation": "evidence:sha256:5b7f9bc3bdd8d8ebd1494c62790b2411c0298f8e13f4784a4adff87a525efb0e",
+      "Result": "evidence:sha256:fa70b1eca0c6818c2bd60b68a5158b674cf93c65174f9e09b8f632953f4a6ec7"
+    },
+    {
+      "Reference": "modality-verification/qwen4-verification-publication",
+      "Commit": "4efa1bfda72838ae80ce54a933fc81151f6109b5",
+      "Verify": "go test ./cmd/compatibility -run '^TestQwenFourVerificationPublication$' -count=1",
+      "Preparation": "evidence:sha256:93cc55e998e7317f3c3e309761f61c0cd6c529e17e36a6f5a0f0abb14e9de874",
+      "Result": "evidence:sha256:2b8a8e4c73ef5743dea0a4cbf0f621c6b68ac1ce4730478573db89d9700fa0fe"
+    },
+    {
+      "Reference": "modality-verification/qwen9-verification-publication",
+      "Commit": "d78c582b2ec59e25adf53b1c25e1888a1190f49c",
+      "Verify": "go test ./cmd/compatibility -run \"^TestRetainedModelPublications/qwen-nine$\" -count=1",
+      "Preparation": "evidence:sha256:cd35718aa5409a8173bab8ff32171af1e303375f71379b73e4a3404706307b53",
+      "Result": "evidence:sha256:b6738dd6c1f21f3d26fecabe059863fa4a2ca1fbd04e0fb7ca793d098cd70c66"
+    },
+    {
+      "Reference": "modality-verification/resident-publication",
+      "Commit": "363d434f754395ec77ae6c45f9466ed1697b803f",
+      "Verify": "go test ./internal/evaluation -run '^(TestResidentCampaignPublication|TestIsolatedModelPerformanceEvidence|TestResourceFitnessContract|TestResumeRejectsPartialOrForeignPlanResults|TestQwenSmallRetainedTextAcceptance|TestQwenFourRetainedBenchmarkAcceptance)$' -count=1 \u0026\u0026 go test ./internal/gate -run '^(TestGateStagesMechanicalRepairs|TestAdmissionStepsOverlap|TestCandidateCheckoutOwnsIndexRefresh|TestCandidateVerifierCannotMutateAcceptedTree|TestCandidateVerifierExcludesAmbientWorktreeInputs)$' -count=1",
+      "Preparation": "evidence:sha256:d13e69cedd01b225ad8d18146a398bec2c28e53a7de298d7cf61716f81f22f0d",
+      "Result": "evidence:sha256:19f94d2850e1b68cb9bfd16a50aee1be73687449826c2eb2ecf0a0d36bb2e4ec"
+    },
+    {
+      "Reference": "modality-verification/retained-model-bundles",
+      "Commit": "85c67e71c17dc0d72ae65571c6a2a9cf33372c83",
+      "Verify": "go test ./internal/evaluation -run '^TestMiniCPMRetainedChoiceAcceptance$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/compatibility -run '^(TestAcceptedMiniCPMNativeReference|TestMiniCPMNativeContract|TestMiniCPMIFEvalAcquisitionAcceptance|TestMiniCPMIFEvalNativeScoringAcceptance|TestMiniCPMIFEvalGoParityAcceptance|TestAcceptedE4BModalities)$' -count=1",
+      "Preparation": "evidence:sha256:4e6432d10050d8d28d52725999745abe75c6bde44ef7aac6e859536983d308d3",
+      "Result": "evidence:sha256:fc288ae5ba560ee6eaa8a11bbb0b6eebff0e524738029289028d871b0f7c066c"
+    },
+    {
+      "Reference": "modality-verification/rxbrain-native-vqa",
+      "Commit": "91201b26ce30eeede520c9804ddac4c4769c20e9",
+      "Verify": "go test ./cmd/compatibility -run '^TestAcceptedRxBrainVQA$' -count=1",
+      "Preparation": "evidence:sha256:3db4883b9319117176d0e4879ac37566ed472c8bdc2bddac14ed94f898c54a7c",
+      "Result": "evidence:sha256:bbc02608ddbb097d7078d572ad259c904104e810ecda63059d426e9f9e098bdf"
+    }
+  ],
+  "Inputs": {
+    "docs/verification/e4b-validation.json": "f5389b9111485ba8afcea713073251fe760f4f9de63a89e6eaef809a6b1eab6f",
+    "docs/verification/gemma-twelve-bf16-retained.json": "2d6d1b194f026768c0d56b7bc0d4cde6029552422b449a299de72ab0a9de8be8",
+    "docs/verification/gemma-twelve-native-retained.json": "c0f7366ebf23ba4addf9d54d4ba34ebd4afbc78eda8ff4b8920541d050feab41",
+    "docs/verification/qwen-twentyseven-retained.json": "96722949f2dc376aa3fd16e2ca3974ba82f6eb758336bff2dc589e294d220253",
+    "docs/verification/qwen35-4b-retained.json": "d22d7394e77a1d5a9407e697a655d75dbaa00621890eb13902b058bf3922c6e6",
+    "docs/verification/qwen35-9b-retained.json": "04bb3632ec2a0139d5fc07b11d21ff7b0758d32830938e18d0d13aacf66b5bd3",
+    "docs/verification/rxbrain-vqa-retained.json": "9410388415f20784dfbed90079f902e99d255013fb095f3a3988a716bf38f16e",
+    "docs/verification/smoke-qwen05-reference.json": "86a7eb02d634614aecc50de372aeac736329d74f56532972cd4165259a6d1573",
+    "fixtures/e4b_multimodal_golden.json": "c4d55e52daeda51ee9c2b632d5a1b5bf73394ff2d41c5c47312d6f72f8c4bcce",
+    "fixtures/e4b_vision/hidden_mask_golden.json": "5cd1b9c3c720e3664f88861a0169f04a71deeaa045228a31dc7fc2ab7bb3b91e",
+    "fixtures/qwen25_serving_golden.json": "b6d7d8c8f35aa9dce6ada81aca2ddafbdeefba5ff25305312c57d1fac9f02a1e"
+  }
+}

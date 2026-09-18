@@ -1,0 +1,280 @@
+{
+  "Version": 1,
+  "Scope": "Fifteen frozen generation cases accepted at their named producer commits. Exact output reproduction and native/lifecycle checks retain their own scopes. Historical visual reviews, resources and UI receipts retain original provenance; no broad quality, speedup or production composition-gain claim.",
+  "Models": [
+    {
+      "Model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "image-gen",
+          "Recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+          "Proofs": [
+            "modality-verification/sensenova-current-generation#"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "image-gen",
+          "Recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+          "Proofs": [
+            "modality-verification/un0-current-generation#"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        },
+        {
+          "Task": "video-gen",
+          "Recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+          "Proofs": [
+            "modality-verification/un0-current-generation#"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "image-gen",
+          "Recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+          "Proofs": [
+            "modality-verification/diffusion-current-generation#"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "video-gen",
+          "Recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+          "Proofs": [
+            "modality-verification/latent-video-current-generation#",
+            "modality-verification/latent-video-current-generation#acceptance-frozen-generation",
+            "modality-verification/latent-video-current-generation#acceptance-lifecycle"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "video-gen",
+          "Recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+          "Proofs": [
+            "modality-verification/latent-video-current-generation#",
+            "modality-verification/latent-video-current-generation#acceptance-frozen-generation",
+            "modality-verification/latent-video-current-generation#acceptance-lifecycle"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "image-gen",
+          "Recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+          "Proofs": [
+            "modality-verification/krea-current-generation#",
+            "modality-verification/krea-current-generation#acceptance-native-lifecycle"
+          ],
+          "Scope": "Frozen cases in the protocol only; exact reproduction, native and recovery criteria as bound by the producer verifier. Original visual limitations and resource provenance remain in the retained bundles."
+        }
+      ]
+    }
+  ],
+  "Proofs": [
+    {
+      "Reference": "modality-verification/diffusion-current-generation",
+      "Commit": "fcc70f110ab92af8713e6723fce0a92a5fa341c7",
+      "Verify": "go test ./internal/diffusionimage -tags=modeltest -run '^(TestTinyModelForwardMatchesTorch|TestRealCheckpointPublishesReferencePNG|TestHostSamplingCancellationRecovery)$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/diffusionimage -tags=modeltest -run '^(TestFrozenDiffusionGeneration|TestResidentSamplingDeviceAcceptance)$' -count=1",
+      "Preparation": "evidence:sha256:d3b220537a3accbffd4b423a112617fad74c194df903c2547be4c5b208b8a631",
+      "Result": "evidence:sha256:7f2b5027ab9055c49bfd8643cce52e391287fb312e07382f0dc120fe3d4cc5f3"
+    },
+    {
+      "Reference": "modality-verification/krea-current-generation",
+      "Commit": "51c87fce47fc9edeb3259b8a416f548b57405f8c",
+      "Verify": "OVERGO_CUDA_TEST=1 OVERGO_KREA_BASELINE=1 go test ./internal/mediacapability -run '^TestFrozenKreaGeneration$' -count=1 -timeout=20m",
+      "Preparation": "evidence:sha256:a72de549f4e685445415915520bf7bea1ce85779c369f6928dd34219a976081b",
+      "Result": "evidence:sha256:d941484c81333480003a463b83a61364be6dcb24df9955b27ad424dfc75266be"
+    },
+    {
+      "Reference": "modality-verification/krea-current-generation",
+      "Commit": "51c87fce47fc9edeb3259b8a416f548b57405f8c",
+      "Verify": "OVERGO_CUDA_TEST=1 go test ./internal/latentimage -run '^(TestFlowScheduleReproducesG2Exactly|TestDenoiserResidentG2Distribution|TestResidentLifetimeResourceAcceptance)$' -count=1 -timeout=20m",
+      "Preparation": "evidence:sha256:a72de549f4e685445415915520bf7bea1ce85779c369f6928dd34219a976081b",
+      "Result": "evidence:sha256:d941484c81333480003a463b83a61364be6dcb24df9955b27ad424dfc75266be",
+      "Check": "acceptance-native-lifecycle"
+    },
+    {
+      "Reference": "modality-verification/latent-video-current-generation",
+      "Commit": "91301d49604a81e2729a8cca29689928d6ce0bf7",
+      "Verify": "go test ./internal/latentvideo -run '^(TestWanRequestFormAdmitsPromptOrTensors|TestReferenceEditRequestFormAdmitsClipOrTensors)$' -count=1",
+      "Preparation": "evidence:sha256:c25d4c45063d2c630f3636d55090aa5de6aa781c775d1a9616ef3e4e687c1d6e",
+      "Result": "evidence:sha256:6a4c1e5ae55d9367526c716869d4075e90eaead74235dd18e0ada83fa802dbd3"
+    },
+    {
+      "Reference": "modality-verification/latent-video-current-generation",
+      "Commit": "91301d49604a81e2729a8cca29689928d6ce0bf7",
+      "Verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_FULL=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^TestFrozenLatentVideoGeneration$' -count=1 -timeout=40m",
+      "Preparation": "evidence:sha256:c25d4c45063d2c630f3636d55090aa5de6aa781c775d1a9616ef3e4e687c1d6e",
+      "Result": "evidence:sha256:6a4c1e5ae55d9367526c716869d4075e90eaead74235dd18e0ada83fa802dbd3",
+      "Check": "acceptance-frozen-generation"
+    },
+    {
+      "Reference": "modality-verification/latent-video-current-generation",
+      "Commit": "91301d49604a81e2729a8cca29689928d6ce0bf7",
+      "Verify": "OVERGO_CUDA_TEST=1 OVERGO_WAN_MODEL=C:/Users/jeffm/adaptive_new/models/Wan2.1-T2V-1.3B go test ./internal/latentvideo -tags=integration -run '^(TestWanLifecycleAcceptance|TestLiveEditDeviceRuntime|TestLiveEditCancellationRecovery)$' -count=1 -timeout=20m",
+      "Preparation": "evidence:sha256:c25d4c45063d2c630f3636d55090aa5de6aa781c775d1a9616ef3e4e687c1d6e",
+      "Result": "evidence:sha256:6a4c1e5ae55d9367526c716869d4075e90eaead74235dd18e0ada83fa802dbd3",
+      "Check": "acceptance-lifecycle"
+    },
+    {
+      "Reference": "modality-verification/media-evidence-binding",
+      "Commit": "a79742e867dd3573c6d690276bf40fcdfeb35644",
+      "Verify": "test -f cmd/compatibility/verification_workflow_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestMediaEvidenceBinding$' -count=1",
+      "Preparation": "evidence:sha256:563fb00de48e0a80953f2f2dbdb44666e95fb314ffe2dadc87ad166309928ba6",
+      "Result": "evidence:sha256:3a812e82bc5973c62c0b4f774cabf1a2d5b009029084ddc90f19bb15fc84fb19"
+    },
+    {
+      "Reference": "modality-verification/sensenova-current-generation",
+      "Commit": "bb529c7d93df669cb410559fb2c40aa817ddab66",
+      "Verify": "OVERGO_CUDA_TEST=1 OVERGO_SENSENOVA_FULL=1 go test ./internal/sensenovarecipe -run '^(TestFrozenSenseNovaGeneration|TestSenseNovaProductionImageGeneration|TestSenseNovaCancellationRecovery)$' -count=1 -timeout=20m",
+      "Preparation": "evidence:sha256:2df6662e12a21590c150a67af4673a018de1bdd9c5c1352441a19501f49107f3",
+      "Result": "evidence:sha256:7ce06725d852465f9ea289a78cad1ffe82e4f5f89d5022daf5ebe416bff40b09"
+    },
+    {
+      "Reference": "modality-verification/un0-current-generation",
+      "Commit": "ff4209e2b6e27bf93700e42fe31d950485f6aabf",
+      "Verify": "go test ./internal/oscillatorimage -run '^(TestFrozenUn0Modalities|TestDynamicsMatchesTorch|TestGeneratorMatchesTorch|TestArtifactPublishesReferencePNG|TestArtifactPublishesReferenceGIF|TestStagedCancellationKeepsOutputs|TestVideoCancellationKeepsOutputs)$' -count=1",
+      "Preparation": "evidence:sha256:70acbe4828fbe2fabe73963ddbd580cc61f0f560de6b4874a24ac14863ea6269",
+      "Result": "evidence:sha256:f32e17ef2526695da98098977697e59a3d5c5a093afc406bca10c7a89eec95e4"
+    }
+  ],
+  "Inputs": {
+    "docs/image_video_assertions.json": "7a19e004fd5284261d59d634e5f343e408ee692eb7f9391d69c61b69cb16be99",
+    "docs/image_video_composition.json": "e37a800e11ead860929e45d02da17791f0f8b52a2a29f43d310b45f0bf904526",
+    "docs/image_video_conditioned_videos.json": "9791f096542ea4e8c07e2da17e1e215881fd4bde3b3ca03c1e5d548328e4bc07",
+    "docs/image_video_latent_images.json": "c58d159ac35d60ca31f1e89d1c74a9a9d390409b2e5ed1398567892143b4d8cd",
+    "docs/image_video_lifecycle.json": "dba438ded7865942897efe73d41dac08e06e0ea37f8fa1fe8a9139008d65c111",
+    "docs/image_video_protocol.json": "def4f5e35c40adaa5b2c07bbd44c9e8ee8ca7c09e976195f4e2fc8cd1b73f932",
+    "docs/image_video_resources.json": "efd505cc4aa3cfcd932fbad40caf5b48ceddb4d985bf9ace53b57550ad344654",
+    "docs/image_video_routed_images.json": "70456dd2c5a3c7dbfd5800ed4f32b3b1bee1a78e65460569f0035c8043c0b7c7",
+    "docs/image_video_validation.json": "4e24d0e69802d2cbc4221fc3899836b9ceb8d06e35a505274fba647f0eeafd08",
+    "docs/image_video_wan.json": "559c811d0a7f10d6ca90c4088805250435d78eb57736a95175e7d86a0c68157a",
+    "internal/diffusionimage/frozen_generation_cuda_windows_test.go": "82c6a387330ea00c8bbb64622730c9b815813125d1c12e3ace68423aa539d10b",
+    "internal/latentvideo/frozen_generation_cuda_windows_test.go": "491443cba5c29308819488db4dccbd6423bebdbf65b95646cd6f518229671d30",
+    "internal/mediacapability/frozen_krea_cuda_windows_test.go": "4868f6151488f98d518d1687e7c5015169f195202a1e6686bb572d397e6f5254",
+    "internal/oscillatorimage/frozen_modalities_test.go": "18b376a50a7a2eb9a612ec4d22e64d7f33895cefc946027f2efac74498343dd0",
+    "internal/sensenovarecipe/frozen_generation_cuda_windows_test.go": "9edca8f7c9f287a715698ea1fb7322c5e365b3e7bc0e9ba40c234ce54fefb802"
+  },
+  "Cases": [
+    {
+      "Case": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/1",
+      "Run": "run:sha256:1b5d9694f11155d4d42a27b7845ef482c28cf0508df19b3bdbae1289c3ff5b42",
+      "Output": "output:sha256:e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d",
+      "Review": "evidence:sha256:601d4c1f752f69e54a1e7de18550dbe51894e1c1a41b2790adf00c1d97a77278"
+    },
+    {
+      "Case": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
+      "Run": "run:sha256:c71ee19cbc2dc5bfdba69ee809e0d072f8dd662d5e445454a766cb0daf8e98eb",
+      "Output": "output:sha256:5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68",
+      "Review": "evidence:sha256:f1d11f015bfe186d66af4e55d0fe29a0db75835257f9df19adcdb606f0d1b313"
+    },
+    {
+      "Case": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
+      "Run": "run:sha256:c40dd951984329bb3db5be28f1ac20fca3e6c115f346241987614bfafbfe25c6",
+      "Output": "output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637",
+      "Review": "evidence:sha256:0571948a357500562e0c4e643c89f5cbd6aa8eca9646decd353fec2a41811ba2"
+    },
+    {
+      "Case": "Un-0/image-gen/1",
+      "Run": "run:sha256:454185fd57242a50ff4b5e9e9d39fad4f4af101a56c4e4e145b3922426ff87c0",
+      "Output": "output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28",
+      "Review": "evidence:sha256:2d2bd09d77b3f7ba85502f7d1e7cef36f0385ea884d34bdfd0393ba9c1c06b71"
+    },
+    {
+      "Case": "Un-0/image-gen/2",
+      "Run": "run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343",
+      "Output": "output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3",
+      "Review": "evidence:sha256:b7c5d6bb5370dab94c51156bf9e84c7bb9a81b1319c6c1ab7eb8a91c6b40ba11"
+    },
+    {
+      "Case": "Un-0/video-gen/1",
+      "Run": "run:sha256:a9dc9487b4428fb7ed5bdf12747473984254a0726d9f1d326054d1b499ae1091",
+      "Output": "output:sha256:8998678c48f16a2d4e73a63e764c030acf022775ea8744836cdd6b1ec2cd4024",
+      "Review": "evidence:sha256:95d46943335beb16c1a73adec6cfa46eea703c74c90adc69b6d2b28365900d39"
+    },
+    {
+      "Case": "Un-0/video-gen/2",
+      "Run": "run:sha256:f5b8b33864e3746916a6d6e1aef33c94958883d3c281886c77564e37076ed523",
+      "Output": "output:sha256:5ce8cb116444a2bfbafbe9c8700a898c2e98ae1a20b7b6ca6ba7bcde0b954aee",
+      "Review": "evidence:sha256:312032c9c62e63066497af328a41b7d787dd173ce503872b88ee0f39e9d3ed41"
+    },
+    {
+      "Case": "SimpleDiffusion-TensorProductAttentionRope/image-gen/1",
+      "Run": "run:sha256:09150155593f97f3f61bcba2e902bd260f33450f8b873c88616b2112c6b06711",
+      "Output": "output:sha256:939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78",
+      "Review": "evidence:sha256:54bfb2dfd86ca6a6132f3af9fa56fb6ba4320ed0ab328c340f6d4a4d0018c760"
+    },
+    {
+      "Case": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
+      "Run": "run:sha256:a2a817b8a1084e91add8ebfef51d1fea96318b1d0a7e23e1704b39f1c74f1249",
+      "Output": "output:sha256:e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef",
+      "Review": "evidence:sha256:a168c78f333408ea1930afc016cd6984d750b786fc50242b7a26a05cb0a61387"
+    },
+    {
+      "Case": "LiveEdit/video-gen/1",
+      "Run": "run:sha256:f9f453c777286cd04d7e6b9cdfa2715debb92d1d32a8d9e59b73a210b0cb6ab1",
+      "Output": "output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21",
+      "Review": "evidence:sha256:580f78019409c89c0e79e7b287712aa23e9cd05a2f609b98f09190ee1475e509"
+    },
+    {
+      "Case": "LiveEdit/video-gen/2",
+      "Run": "run:sha256:2e3e28ec5b8d18cadd189f7cf4bb03dc67019c0cfa12158386f1d5a83f222ae0",
+      "Output": "output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21",
+      "Review": "evidence:sha256:5aa150a654f66962cd9addc5502a1daa286f48399441792582b1b62f4cc758e4"
+    },
+    {
+      "Case": "Wan2.1-T2V-1.3B/video-gen/1",
+      "Run": "run:sha256:27acd2d8d987d15a6dd68cb964cdfd2905f31a8dc74e7fb00ce24deebce399ed",
+      "Output": "output:sha256:31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240",
+      "Review": "evidence:sha256:a77aff424c589b2e0563f3b83db13f0a58b864af9ec96582b1210528ba2b5e67"
+    },
+    {
+      "Case": "Wan2.1-T2V-1.3B/video-gen/2",
+      "Run": "run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47",
+      "Output": "output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99",
+      "Review": "evidence:sha256:b0122203051c69739a3721ce1488913da5e346651d51f3098a9330004b3791f5"
+    },
+    {
+      "Case": "Wan2.1-T2V-1.3B/video-gen/3",
+      "Run": "run:sha256:ab252bb624d3ca3535fba2e862febd01a5df44823d6fca2012c43181a8a30066",
+      "Output": "output:sha256:d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9",
+      "Review": "evidence:sha256:2c19968723bfa234fac0fd3374fd9f55d2a868fe91fd12ffcccb437728a9e8c8"
+    },
+    {
+      "Case": "Krea-2-Turbo/image-gen/1",
+      "Run": "run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22",
+      "Output": "output:sha256:4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44",
+      "Review": "evidence:sha256:d16ec1d5d91dd506afca4a9f2a6067cae7e1e9c1ce7e522d215fe2d67d78f6a2"
+    }
+  ]
+}

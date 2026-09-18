@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -28,7 +29,7 @@ type textVisionCoverage struct {
 	Version uint16
 	Scope   string
 	Models  []textVisionModel
-	Proofs  []textVisionProof
+	Proofs  []acceptedGateProof
 	Inputs  map[string]string
 }
 
@@ -45,12 +46,13 @@ type textVisionCell struct {
 	Scope  string
 }
 
-type textVisionProof struct {
+type acceptedGateProof struct {
 	Reference, Commit, Verify string
 	Preparation, Result       artifact.ID
+	Check                     string `json:",omitzero"`
 }
 
-func checkTextVisionDenominator(ctx context.Context, store artifact.Reader, expected []textVisionModel, live []discovery.CatalogEntry) error {
+func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expected []textVisionModel, live []discovery.CatalogEntry) error {
 	type key struct {
 		model artifact.ID
 		task  recipe.Task
@@ -107,12 +109,12 @@ func checkTextVisionDenominator(ctx context.Context, store artifact.Reader, expe
 	return nil
 }
 
-func checkTextVisionGate(proof textVisionProof, gate runrecord.GateResult) error {
+func checkAcceptedGate(proof acceptedGateProof, gate runrecord.GateResult) error {
 	if gate.ID != proof.Result || gate.CodeCommit != proof.Commit || gate.Outcome != runrecord.OutcomeSucceeded {
 		return errors.New("text/vision: acceptance result failed or source changed")
 	}
 	for _, step := range gate.Steps {
-		if step.Name == "acceptance" && (step.Outcome == runrecord.StepSucceeded || step.Outcome == runrecord.StepReused) {
+		if step.Name == cmp.Or(proof.Check, "acceptance") && (step.Outcome == runrecord.StepSucceeded || step.Outcome == runrecord.StepReused) {
 			return runrecord.VerifyCompletionAcceptanceEvidence(step.Evidence, proof.Reference, proof.Verify)
 		}
 	}
@@ -163,7 +165,7 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 	if err != nil || truncated {
 		t.Fatalf("text/vision: live denominator unavailable or truncated: %v", err)
 	}
-	if err := checkTextVisionDenominator(t.Context(), store, coverage.Models, entries); err != nil {
+	if err := checkAcceptedDenominator(t.Context(), store, coverage.Models, entries); err != nil {
 		t.Fatal(err)
 	}
 	proofs := map[string]bool{}
@@ -172,40 +174,7 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 			t.Fatal("text/vision: duplicate acceptance proof")
 		}
 		proofs[proof.Reference] = true
-		finalized, found, err := runrecord.GateFinalizationForPreparation(t.Context(), store, proof.Preparation)
-		if err != nil || !found || finalized.CodeCommit != proof.Commit || finalized.Outcome != runrecord.OutcomeSucceeded || finalized.Result == nil || *finalized.Result != proof.Result {
-			t.Fatalf("text/vision: %s lacks unique successful finalization: %v", proof.Reference, err)
-		}
-		gate, err := runrecord.RequireGateResult(t.Context(), store, proof.Result)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := checkTextVisionGate(proof, gate); err != nil {
-			t.Fatalf("%s: %v", proof.Reference, err)
-		}
-		for _, mutation := range []string{"failed", "skipped", "wrong-source", "wrong-verifier", "missing"} {
-			t.Run(proof.Reference+"/"+mutation, func(t *testing.T) {
-				changed, changedProof := gate, proof
-				changed.Steps = slices.Clone(gate.Steps)
-				switch mutation {
-				case "failed":
-					changed.Outcome = runrecord.OutcomeFailed
-				case "skipped":
-					for i := range changed.Steps {
-						changed.Steps[i].Outcome = runrecord.StepSkipped
-					}
-				case "wrong-source":
-					changedProof.Commit = "foreign source"
-				case "wrong-verifier":
-					changedProof.Verify = "go test ./cmd/compatibility -run '^MissingAssertion$'"
-				case "missing":
-					changed.Steps = nil
-				}
-				if checkTextVisionGate(changedProof, changed) == nil {
-					t.Fatal("invalid acceptance received credit")
-				}
-			})
-		}
+		requireAcceptedGate(t, store, proof)
 	}
 	cells := 0
 	for _, model := range coverage.Models {
@@ -236,11 +205,51 @@ func TestAcceptedTextVisionEvidence(t *testing.T) {
 			case "inactive-registration":
 				changed = append(changed, discovery.CatalogEntry{Model: testutil.ArtifactID(t, artifact.KindModel, "inactive")})
 			}
-			err := checkTextVisionDenominator(t.Context(), store, coverage.Models, changed)
+			err := checkAcceptedDenominator(t.Context(), store, coverage.Models, changed)
 			if (err == nil) != (mutation == "inactive-registration") {
 				t.Fatalf("coverage verdict: %v", err)
 			}
 		})
 	}
 	t.Logf("%d models, %d activations, %d exact committed acceptance proofs; original protocol scopes retained; model executions=0", len(coverage.Models), cells, len(coverage.Proofs))
+}
+
+func requireAcceptedGate(t *testing.T, store *overgodb.Store, proof acceptedGateProof) {
+	t.Helper()
+	finalized, found, err := runrecord.GateFinalizationForPreparation(t.Context(), store, proof.Preparation)
+	if err != nil || !found || finalized.CodeCommit != proof.Commit || finalized.Outcome != runrecord.OutcomeSucceeded || finalized.Result == nil || *finalized.Result != proof.Result {
+		t.Fatalf("text/vision: %s lacks unique successful finalization: %v", proof.Reference, err)
+	}
+	gate, err := runrecord.RequireGateResult(t.Context(), store, proof.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := checkAcceptedGate(proof, gate); err != nil {
+		t.Fatalf("%s: %v", proof.Reference, err)
+	}
+	for _, mutation := range []string{"failed", "skipped", "wrong-source", "wrong-verifier", "wrong-check", "missing"} {
+		t.Run(proof.Reference+"/"+mutation, func(t *testing.T) {
+			changed, changedProof := gate, proof
+			changed.Steps = slices.Clone(gate.Steps)
+			switch mutation {
+			case "failed":
+				changed.Outcome = runrecord.OutcomeFailed
+			case "skipped":
+				for i := range changed.Steps {
+					changed.Steps[i].Outcome = runrecord.StepSkipped
+				}
+			case "wrong-source":
+				changedProof.Commit = "foreign source"
+			case "wrong-verifier":
+				changedProof.Verify = "go test ./cmd/compatibility -run '^MissingAssertion$'"
+			case "wrong-check":
+				changedProof.Check = "absent-check"
+			case "missing":
+				changed.Steps = nil
+			}
+			if checkAcceptedGate(changedProof, changed) == nil {
+				t.Fatal("invalid acceptance received credit")
+			}
+		})
+	}
 }

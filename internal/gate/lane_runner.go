@@ -1,7 +1,6 @@
 package gate
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -33,13 +32,13 @@ func (g *gateContext) runLaneCommand(ctx context.Context, root, name string, arg
 // path, so the tree's device claims end with the run. A child Windows
 // could not start is launched again, as the plain command runner does.
 func superviseLane(ctx context.Context, environment []string, root, name string, args ...string) (string, error) {
-	var output bytes.Buffer
+	output := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
 	var receipt processcontrol.Receipt
 	var err error
 	for range processStartAttempts {
 		output.Reset()
 		receipt, err = processcontrol.Run(ctx, processcontrol.Command{
-			Path: name, Args: args, Dir: root, Env: environment, Stdout: &output, Stderr: &output,
+			Path: name, Args: args, Dir: root, Env: environment, Stdout: output, Stderr: output,
 		})
 		if err != nil || receipt.ExitCode != windowsProcessStartFailure {
 			break
@@ -50,10 +49,10 @@ func superviseLane(ctx context.Context, environment []string, root, name string,
 		return "", fmt.Errorf("%s: lane tree terminated (exit=%d tree_terminated=%t): %w", command, receipt.ExitCode, receipt.TreeTerminated, cause)
 	}
 	if err != nil {
-		return "", fmt.Errorf("%s: %w: %s", command, err, clioptions.Tail(output.String(), clioptions.DiagnosticTailBytes))
+		return "", fmt.Errorf("%s: %w: %s", command, err, output.Tail())
 	}
 	if receipt.ExitCode != 0 {
-		return "", fmt.Errorf("%s: exit status %d: %s", command, receipt.ExitCode, clioptions.Tail(output.String(), clioptions.DiagnosticTailBytes))
+		return "", fmt.Errorf("%s: exit status %d: %s", command, receipt.ExitCode, output.Tail())
 	}
 	return laneReceipt(receipt), nil
 }

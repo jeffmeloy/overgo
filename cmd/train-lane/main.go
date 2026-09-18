@@ -6,7 +6,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -211,8 +210,8 @@ func denseArgv(store, recipeID, model, dataset, output string, steps, sequence i
 // trainer subprocess, supervised by the process owner; the trainer
 // itself records the session observation to the store.
 func trainStep(route trainerRoute) error {
-	var combined bytes.Buffer
-	visible := io.MultiWriter(os.Stdout, &combined)
+	combined := clioptions.NewTailWriter(clioptions.DiagnosticTailBytes)
+	visible := io.MultiWriter(os.Stdout, combined)
 	var env []string
 	if len(route.Env) > 0 {
 		env = append(os.Environ(), route.Env...)
@@ -224,10 +223,10 @@ func trainStep(route trainerRoute) error {
 		Stdout: visible, Stderr: visible,
 	})
 	if err != nil {
-		return fmt.Errorf("%v: %s", err, clioptions.Tail(combined.String(), 1200))
+		return fmt.Errorf("%v: %s", err, combined.Tail())
 	}
 	if receipt.ExitCode != 0 {
-		return fmt.Errorf("exit status %d: %s", receipt.ExitCode, clioptions.Tail(combined.String(), 1200))
+		return fmt.Errorf("exit status %d: %s", receipt.ExitCode, combined.Tail())
 	}
 	return nil
 }

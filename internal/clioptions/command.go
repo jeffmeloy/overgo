@@ -61,6 +61,54 @@ func Tail(text string, limit int) string {
 	return "..." + text[len(text)-limit:]
 }
 
+// TailWriter is an io.Writer that retains only the last limit bytes written to
+// it, so a supervised process whose output is reported only as a tail never
+// holds its whole stream in memory. Tail renders the retained bytes exactly as
+// Tail renders a full string.
+type TailWriter struct {
+	limit    int
+	buffer   []byte
+	overflow bool
+}
+
+// NewTailWriter returns a TailWriter bounded to limit retained bytes; callers
+// pass a positive diagnostic bound.
+func NewTailWriter(limit int) *TailWriter { return &TailWriter{limit: limit} }
+
+// Write appends data, keeping only the last limit bytes.
+func (w *TailWriter) Write(data []byte) (int, error) {
+	n := len(data)
+	if len(data) >= w.limit {
+		w.overflow = w.overflow || len(w.buffer) != 0 || len(data) > w.limit
+		w.buffer = append(w.buffer[:0], data[len(data)-w.limit:]...)
+		return n, nil
+	}
+	if len(w.buffer)+len(data) > w.limit {
+		w.buffer = append(w.buffer[:0], w.buffer[len(w.buffer)+len(data)-w.limit:]...)
+		w.overflow = true
+	}
+	w.buffer = append(w.buffer, data...)
+	return n, nil
+}
+
+// Reset discards the retained bytes for reuse across process launches.
+func (w *TailWriter) Reset() {
+	w.buffer, w.overflow = w.buffer[:0], false
+}
+
+// Len reports the retained byte count, which never exceeds the limit however
+// large the written stream is.
+func (w *TailWriter) Len() int { return len(w.buffer) }
+
+// Tail renders the retained bytes, prefixed with an ellipsis once anything was
+// dropped, matching Tail over the whole stream.
+func (w *TailWriter) Tail() string {
+	if w.overflow {
+		return "..." + string(w.buffer)
+	}
+	return string(w.buffer)
+}
+
 // CombinedOutputIn runs one command from an explicit working directory.
 func CombinedOutputIn(directory string, env []string, name string, args ...string) (string, error) {
 	command := exec.Command(name, args...)

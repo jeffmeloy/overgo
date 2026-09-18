@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "resource-baseline",
-          "title": "Remove one dominant retained buffer in the gate process tree, net-AST down",
-          "status": "open",
-          "verify": "test -f internal/gate/memory_reduction_test.go \u0026\u0026 go test ./internal/gate -run '^TestGateRetainedMemoryReduced$' -count=1",
-          "rationale": "Extend existing processcontrol receipts, gate batch-cost and runrecord projections only where required fields are absent. Begin with retained 964838b7 successful and failed attempts; do not rerun them. For one next naturally required gate, bind actual child lifetimes and measured process-tree memory to phases/packages, including compilation/linking, analysis, output buffering, model residency, snapshot/import and finalization. Separate per-process working set/private bytes, Go heap/allocation samples and device allocated/resident bytes; distinguish sampled peaks from exact high-water marks. Do not sum individual peaks as a simultaneous tree peak, double-count shared pages, attribute an unstarted package, or call a spot sample a peak. Report measurement scope, units, sampling/coverage gaps, queue time and concurrent external load; unavailable metrics are unknown. Cover overlap, child exit, failure/cancellation and resumed receipts with deterministic process-event fixtures. Select one repeated dominant allocation/retention source and a matched comparison workload before the following step; instrumentation must be bounded and materially cheaper than the work it measures. No new agent, daemon, metrics framework or recurring model benchmark."
-        },
-        {
           "id": "first-memory-reduction",
           "title": "Remove one dominant duplicate load or snapshot copy, net-AST down",
           "status": "open",

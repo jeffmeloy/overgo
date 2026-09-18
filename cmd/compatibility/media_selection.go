@@ -32,7 +32,7 @@ func loadMediaSampleSelection(ctx context.Context, root string, store *overgodb.
 		return nil, nil
 	}
 	var protocol imageVideoProtocol
-	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs", "image_video_protocol.json"), &protocol); err != nil {
+	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &protocol); err != nil {
 		return nil, err
 	}
 	if protocol.Version != 1 || len(protocol.Cases) == 0 || len(protocol.RequiredChecks) == 0 {

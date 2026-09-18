@@ -54,8 +54,7 @@ func (inputs Inputs) valid() bool {
 		return false
 	}
 	for _, digest := range []string{inputs.CorpusDigest, inputs.TokenDigest} {
-		decoded, err := hex.DecodeString(digest)
-		if err != nil || len(decoded) != sha256.Size {
+		if !artifact.ValidHexDigest(digest) {
 			return false
 		}
 	}

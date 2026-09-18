@@ -884,7 +884,8 @@
             "gate-resource-priority-replan/do",
             "gate-resource-efficiency/first-memory-reduction",
             "command-store-root-resolver/do",
-            "digest-validator-primitive/do"
+            "digest-validator-primitive/do",
+            "artifact-validation-primitives/do"
           ]
         }
       ]

@@ -608,7 +608,7 @@ func canonicalizeEpisodeKnowledgeProposal(value *EpisodeKnowledgeProposal) error
 	}); err != nil {
 		return err
 	}
-	if value.SourceShards, err = canonicalKnowledgeIDs(value.SourceShards, validKnowledgeRecordID); err != nil {
+	if value.SourceShards, err = canonicalKnowledgeIDs(value.SourceShards, dataset.IsContentArtifact); err != nil {
 		return err
 	}
 	value.Citations, err = canonicalKnowledgeIDs(value.Citations, func(id artifact.ID) bool {
@@ -671,7 +671,7 @@ func canonicalKnowledgeRecordIDs(values []artifact.ID, allowDuplicates bool) ([]
 	values = slices.Clone(values)
 	slices.SortFunc(values, artifact.CompareID)
 	for index, id := range values {
-		if !validKnowledgeRecordID(id) || !allowDuplicates && index > 0 && values[index-1] == id {
+		if !dataset.IsContentArtifact(id) || !allowDuplicates && index > 0 && values[index-1] == id {
 			return nil, errors.New("evaluation: invalid or duplicate knowledge record evidence")
 		}
 	}
@@ -687,15 +687,6 @@ func canonicalKnowledgeIDs(values []artifact.ID, valid func(artifact.ID) bool) (
 		}
 	}
 	return values, nil
-}
-
-func validKnowledgeRecordID(id artifact.ID) bool {
-	switch id.Kind() {
-	case artifact.KindDataset, artifact.KindDatasetShard, artifact.KindFile:
-		return true
-	default:
-		return false
-	}
 }
 
 func canonicalizeKnowledgePromotionEvidence(value *KnowledgePromotionEvidence) error {

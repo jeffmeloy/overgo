@@ -131,13 +131,13 @@ func canonicalizeTransform(value *transform) error {
 	slices.SortFunc(value.Outputs, artifact.CompareID)
 	seen := make(map[artifact.ID]bool, len(value.Inputs)+len(value.Outputs))
 	for _, input := range value.Inputs {
-		if !validTransformArtifact(input) || seen[input] {
+		if !IsContentArtifact(input) || seen[input] {
 			return errors.New("dataset: invalid or duplicate transform input")
 		}
 		seen[input] = true
 	}
 	for _, output := range value.Outputs {
-		if !validTransformArtifact(output) || seen[output] {
+		if !IsContentArtifact(output) || seen[output] {
 			return errors.New("dataset: invalid, duplicate, or identity transform output")
 		}
 		seen[output] = true
@@ -145,7 +145,10 @@ func canonicalizeTransform(value *transform) error {
 	return nil
 }
 
-func validTransformArtifact(id artifact.ID) bool {
+// IsContentArtifact reports whether id names dataset content: a dataset, a
+// shard of one, or a raw file. It is the shared predicate for the kinds a
+// dataset input or a record over dataset content may reference.
+func IsContentArtifact(id artifact.ID) bool {
 	switch id.Kind() {
 	case artifact.KindDataset, artifact.KindDatasetShard, artifact.KindFile:
 		return true

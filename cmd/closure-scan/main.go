@@ -1471,11 +1471,7 @@ func readClosureAliasEventHistory(
 // closure; those decisions require the structural history checks above.
 func closureOperationKey(key, prefix string) bool {
 	suffix := strings.TrimPrefix(key, prefix)
-	if suffix == key || len(suffix) != sha256.Size*2 {
-		return false
-	}
-	_, err := hex.DecodeString(suffix)
-	return err == nil
+	return suffix != key && artifact.ValidHexDigest(suffix)
 }
 
 func sameClosureDecision(left, right closureledger.Document) bool {

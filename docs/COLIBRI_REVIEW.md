@@ -265,8 +265,37 @@ resolve syntax once and withhold explicitly opened reasoning until closed.
 Tests cover every split boundary, unchanged plain bytes, declaration selection,
 completed malformed blocks, and actual tool deltas following reasoning.
 
+The chat completion API now uses the existing output stream for buffered and SSE
+responses when the generator provides prompt-aware parsing. Native Runner uses
+the actual prepared token IDs, rendered with control spellings, to establish a
+reasoning opener already supplied by the template; this also covers projected
+prompts whose token sequence differs from their original text. Formatting and
+output parsing share default/tool-use template selection. The legacy complete
+parser and providers without the new capability retain their existing paths.
+
+The channel splitter preserves partial markers and UTF-8, emits ordinary text
+and reasoning before generation finishes, and keeps tool examples in reasoning
+out of the tool scanner. No active tools, including `tool_choice: none`, leaves
+tool-like visible prose intact. Buffered and streamed results preserve the same
+visible prefix bytes before a tool call. Pure channel deltas create no empty
+tool events; finalization checks already-sent prefixes and sends only remaining
+text. Unfinished declared reasoning stays in its own field when a budget or stop
+ends generation. Eager final-output grammars keep their constrained result as
+visible content; lazy grammars can still carry declared reasoning.
+
+A native token-delivery regression found that control-typed channel markers
+were stripped before reaching the parser. A request-scoped token-event decoder
+now preserves only pieces of declared reasoning delimiters and active tool-call
+delimiters. Unrelated controls and EOG controls remain suppressed. The shared
+generation adapter applies this rendering to callbacks and stop filtering;
+token IDs, sampling and the returned detokenized sequence remain unchanged.
+
+Public HTTP checks cover buffered/SSE output at every split boundary, bytewise
+Unicode, prompt-opened/closed states, tool examples, budgets/stops, immediate
+progress, provider fallback and structured output. A cancellation regression
+also required checking context before routing each piece, preventing one extra
+content chunk after cancellation. Runner tests exercise actual prepared control
+tokens, named-template selection and native token delivery; these complement
+the existing parser, tool grammar, Jinja, Responses and Anthropic contracts.
 This does not claim general Jinja grammar inference, native tool syntax for
-every model, numerical model accuracy or throughput. No-tool chat API routing,
-prompt-aware initial streaming state and progressive reasoning deltas remain
-separate plan obligations. In particular, closing-tag inference in the legacy
-API cannot establish a prompt-opened reasoning mode before the close arrives.
+every model, numerical model accuracy or throughput.

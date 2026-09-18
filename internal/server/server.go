@@ -143,6 +143,13 @@ type ChatOutputStreamProvider interface {
 	) (inference.ChatOutputStream, error)
 }
 
+// PromptChatOutputStreamProvider separates output using the actual prepared
+// prompt, including projected token IDs. Providers without it retain their
+// existing content and tool parsing paths.
+type PromptChatOutputStreamProvider interface {
+	NewChatOutputStreamForPrompt(string, []tokenizer.TokenID, []inference.ChatTool) (inference.ChatOutputStream, error)
+}
+
 type ChatToolGrammarProvider interface {
 	ChatToolGrammar(
 		[]inference.ChatTool,

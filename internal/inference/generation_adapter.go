@@ -84,7 +84,13 @@ func (r *Runner) deliverGenerationToken(
 	generatedText *strings.Builder,
 ) (bool, error) {
 	if options.OnToken != nil || options.ShouldStop != nil || len(options.StopSequences) > 0 {
-		piece, err := r.vocab.DecodePiece(event.ID, false)
+		var piece string
+		var err error
+		if options.TokenEventDecoder != nil {
+			piece, err = options.TokenEventDecoder(event.ID)
+		} else {
+			piece, err = r.vocab.DecodePiece(event.ID, false)
+		}
 		if err != nil {
 			return false, err
 		}

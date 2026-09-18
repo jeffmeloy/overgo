@@ -326,15 +326,7 @@ func (r *Runner) FormatChatWithOptions(
 			return "", fmt.Errorf("inference: chat message %d requires multimodal projection", index)
 		}
 	}
-	source := metadataString(r.file, "tokenizer.chat_template")
-	if len(options.Tools) != 0 {
-		if toolSource := metadataString(
-			r.file,
-			"tokenizer.chat_template.tool_use",
-		); toolSource != "" {
-			source = toolSource
-		}
-	}
+	source := r.chatTemplateSource(options.Tools)
 	if source != "" {
 		return r.formatJinjaChatNative(source, messages, options)
 	}

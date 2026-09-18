@@ -26,6 +26,10 @@ func (r *Runner) ParseChatOutput(
 	if r == nil {
 		return ChatMessage{}, errRunnerNil
 	}
+	return parseChatOutput(r.chatTemplateSource(tools), output, tools)
+}
+
+func (r *Runner) chatTemplateSource(tools []ChatTool) string {
 	source := metadataString(r.file, "tokenizer.chat_template")
 	if len(tools) != 0 {
 		if toolSource := metadataString(
@@ -35,14 +39,13 @@ func (r *Runner) ParseChatOutput(
 			source = toolSource
 		}
 	}
-	return parseChatOutput(source, output, tools)
+	return source
 }
 
 func parseChatOutput(
 	template, output string,
 	tools []ChatTool,
 ) (ChatMessage, error) {
-	message := ChatMessage{Role: ChatRoleAssistant}
 	markers, err := chatReasoningMarkers(template)
 	if err != nil {
 		return ChatMessage{}, err
@@ -51,7 +54,19 @@ func parseChatOutput(
 	if err != nil {
 		return ChatMessage{}, err
 	}
+	message, err := parseChatToolOutput(template, body, tools)
+	if err != nil {
+		return ChatMessage{}, err
+	}
 	message.ReasoningContent = reasoning
+	if len(message.ToolCalls) != 0 {
+		message.Content = strings.TrimSpace(message.Content)
+	}
+	return message, nil
+}
+
+func parseChatToolOutput(template, body string, tools []ChatTool) (ChatMessage, error) {
+	message := ChatMessage{Role: ChatRoleAssistant}
 	firstCall := strings.Index(body, toolCallOpen)
 	if firstCall < 0 {
 		if strings.Contains(body, toolCallClose) {
@@ -62,7 +77,7 @@ func parseChatOutput(
 		message.Content = body
 		return message, nil
 	}
-	message.Content = strings.TrimSpace(body[:firstCall])
+	message.Content = body[:firstCall]
 	remainder := body[firstCall:]
 	hermes := strings.Contains(template, "<function=example_function_name>")
 	for len(remainder) != 0 {
@@ -83,6 +98,7 @@ func parseChatOutput(
 		}
 		payload := strings.TrimSpace(remainder[len(toolCallOpen):end])
 		var call ChatToolCall
+		var err error
 		if hermes {
 			call, err = parseHermesToolCall(payload, tools)
 		} else {

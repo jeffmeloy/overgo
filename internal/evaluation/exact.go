@@ -51,6 +51,8 @@ const (
 )
 
 var (
+	errExactMismatch = errors.New("evaluation: exact mismatch")
+
 	exactDatasetContract = artifact.DocumentContract{
 		Kind: artifact.KindDataset, MediaType: exactDatasetMediaType, Schema: exactDatasetSchema,
 	}
@@ -115,9 +117,9 @@ func evaluateExactCase(ctx context.Context, generator Generator, testCase ExactC
 	}
 	if result.PromptTokens != testCase.PromptTokens ||
 		result.GeneratedTokens != testCase.GeneratedTokens || result.Text != testCase.Text {
-		return ExactResult{}, fmt.Errorf(
-			"evaluation: exact case %q got tokens=%d/%d text=%q; want %d/%d %q",
-			testCase.Name, result.PromptTokens, result.GeneratedTokens, result.Text,
+		return result, fmt.Errorf(
+			"%w: case %q got tokens=%d/%d text=%q; want %d/%d %q",
+			errExactMismatch, testCase.Name, result.PromptTokens, result.GeneratedTokens, result.Text,
 			testCase.PromptTokens, testCase.GeneratedTokens, testCase.Text,
 		)
 	}

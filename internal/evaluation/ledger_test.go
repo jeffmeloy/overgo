@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -11,7 +12,8 @@ import (
 )
 
 type countingExactGenerator struct {
-	calls int
+	calls   int
+	results map[string]exactGenerator
 }
 
 func (g *countingExactGenerator) Generate(
@@ -20,7 +22,115 @@ func (g *countingExactGenerator) Generate(
 	options inference.GenerateOptions,
 ) ([]tokenizer.TokenID, string, error) {
 	g.calls++
+	if result, ok := g.results[prompt]; ok {
+		return result.Generate(ctx, prompt, options)
+	}
 	return (exactGenerator{pieces: []string{"o", "k"}}).Generate(ctx, prompt, options)
+}
+
+func TestExactFailureRetention(t *testing.T) {
+	for _, interruption := range []string{"none", "observer", "cancel", "generation"} {
+		t.Run(interruption, func(t *testing.T) {
+			suite := exactFixture()
+			second := suite.Cases[0]
+			second.Name, second.Prompt = "second", "second prompt"
+			suite.Cases = append(suite.Cases, second)
+			exact, err := CompileExact(suite)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, base := ledgerFixture(t, "retained-failure")
+			plan, err := BindExact(exact, ExactAuthorities{
+				ModelDefinition: base.body.ModelDefinition, RuntimeRecipe: base.body.RuntimeRecipe,
+				CodeCommit: base.body.CodeCommit, Environment: base.body.Environment,
+				Execution: ExecutionPolicy{Lifecycle: LifecycleResident},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			root := t.TempDir()
+			store, err := overgodb.Open(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { store.Close() }()
+			publishPlanFixtureAuthorities(t, store, plan)
+			generator := &countingExactGenerator{results: map[string]exactGenerator{
+				suite.Cases[0].Prompt: {pieces: []string{"n", "o"}},
+			}}
+			stop := errors.New("interrupted")
+			ctx, cancel := context.WithCancelCause(t.Context())
+			defer cancel(context.Canceled)
+			var observe func(ExactResult) error
+			switch interruption {
+			case "observer":
+				observe = func(ExactResult) error { return stop }
+			case "cancel":
+				observe = func(ExactResult) error { cancel(context.Canceled); return nil }
+			case "generation":
+				generator.results[second.Prompt] = exactGenerator{err: stop}
+			}
+			first, err := EvaluateExactSharded(ctx, store, generator, exact, plan, observe)
+			switch interruption {
+			case "none":
+				if !first.Valid() || !errors.Is(err, errExactMismatch) {
+					t.Fatalf("completed mismatch: %s %v", first, err)
+				}
+			case "cancel":
+				if first.Valid() || !errors.Is(err, context.Canceled) {
+					t.Fatalf("cancellation: %s %v", first, err)
+				}
+			default:
+				if first.Valid() || !errors.Is(err, stop) {
+					t.Fatalf("interruption: %s %v", first, err)
+				}
+			}
+			shards, err := compileExactShards(exact, plan)
+			if err != nil {
+				t.Fatal(err)
+			}
+			stored, err := loadShardReports(t.Context(), store, plan, shards)
+			if err != nil {
+				t.Fatal(err)
+			}
+			failed, ok := stored[0]
+			if !ok || failed.Observations[0].Passed || failed.Observations[0].Failure == "" || failed.Metrics[0].Sum != 0 || failed.Metrics[0].Count != 1 {
+				t.Fatalf("failed acquisition not retained: %+v", stored)
+			}
+			if interruption != "none" && len(stored) != 1 {
+				t.Fatalf("unfinished case cached: %+v", stored)
+			}
+			calls := generator.calls
+			if err := store.Close(); err != nil {
+				t.Fatal(err)
+			}
+			store, err = overgodb.Open(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			delete(generator.results, second.Prompt)
+			resumed, err := EvaluateExactSharded(t.Context(), store, generator, exact, plan, nil)
+			if !resumed.Valid() || !errors.Is(err, errExactMismatch) {
+				t.Fatalf("resume lost failure: %s %v", resumed, err)
+			}
+			missing := len(shards) - len(stored)
+			if generator.calls != calls+missing {
+				t.Fatalf("repeated acquisition: calls=%d want=%d", generator.calls, calls+missing)
+			}
+			stored, err = loadShardReports(t.Context(), store, plan, shards)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(stored) != len(shards) || !stored[1].Observations[0].Passed {
+				t.Fatalf("independent case did not finish: %+v", stored)
+			}
+			calls = generator.calls
+			replayed, err := EvaluateExactSharded(t.Context(), store, generator, exact, plan, nil)
+			if replayed != resumed || !errors.Is(err, errExactMismatch) || generator.calls != calls {
+				t.Fatalf("failed replay regenerated or passed: %s %v calls=%d", replayed, err, generator.calls)
+			}
+		})
+	}
 }
 
 func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {

@@ -1,0 +1,14 @@
+{
+  "base_commit": "abc40c153ca88b17b0ac8298069c0c093b1e167d",
+  "evidence": "evidence:sha256:490c26edae13564fe47082641a64714f3a54b1990f7179d2b062e5fd73b21252",
+  "findings": [
+    "Native CUDA offloads 66/66 language layers and evaluates the same 88-token prompt; it generates different greedy text from both native CPU and Overgo, correctly describing left red/right blue in this one case.",
+    "Last captured prefill layer (62) relative L2: native CPU versus native CUDA 0.1051684; Overgo versus native CPU 0.0911788; Overgo versus native CUDA 0.0620246. These are empirical comparisons, not derived acceptance tolerances or proof of all downstream correctness.",
+    "Independent first-projection F64 arithmetic on actual Overgo inputs differs from its F16 path by relative L2 0.0000606 to 0.0002601 across twelve cases; native Q8 activation quantization explains the larger native CPU first-projection deviations retained in the prior bundle.",
+    "The CPU exact contract remains failed. Retain each completed case, including mismatches, so an early numerical difference does not suppress image-pair/video acquisition or cause repeated work. Any future cross-backend numerical acceptance requires an independently evaluated contract; these observations must not become fitted pass thresholds."
+  ],
+  "native_source": "42fc243060709331ff9b158a9ed2cbe37219ae83",
+  "prior": "evidence:sha256:4627304a018829046f2cfefbbaa432bb1c419bdf65b1d424c2db34cf0f70710c",
+  "schema": "overgo/projection-backend-control-reference/v1",
+  "scope": "Single-image diagnostic; identical model, fixture, prompt, sampler and CPU projector; native language backend changes CPU to CUDA. No model acceptance or replacement of the frozen CPU exact oracle."
+}

@@ -15,11 +15,13 @@ const mediaProjectionPath = "docs/media_report.json"
 
 // A rebuildable view, never generation acceptance or another evidence ledger.
 type mediaProjection struct {
-	Version   uint16                `json:"version"`
-	Tasks     []recipe.Task         `json:"tasks"`
-	Truncated bool                  `json:"truncated"`
-	Counts    mediaProjectionCounts `json:"counts"`
-	Rows      []mediaProjectionRow  `json:"rows"`
+	Version    uint16                     `json:"version"`
+	Tasks      []recipe.Task              `json:"tasks"`
+	Truncated  bool                       `json:"truncated"`
+	Counts     mediaProjectionCounts      `json:"counts"`
+	Rows       []mediaProjectionRow       `json:"rows"`
+	Validation *mediaValidationProjection `json:"validation,omitempty"`
+	Protocol   *mediaProtocolProjection   `json:"generation_protocol,omitempty"`
 }
 
 type mediaProjectionCounts struct {

@@ -35,13 +35,13 @@ func TestMediaValidationRetainsFailures(t *testing.T) {
 	prefix := `{"Action":"start","Package":"fixture"}` + "\n" + `{"Action":"run","Package":"fixture","Test":"TestGeneration"}` + "\n"
 	for _, action := range []string{"pass", "fail", "skip"} {
 		data := prefix + `{"Action":"` + action + `","Package":"fixture","Test":"TestGeneration"}` + "\n" + `{"Action":"` + action + `","Package":"fixture"}` + "\n"
-		got := mediaValidationVerdict([]byte(data), map[string][]string{"fixture": {"TestGeneration"}})
-		if strings.HasPrefix(got, "Passed") != (action == "pass") {
+		passed, got := mediaValidationVerdict([]byte(data), map[string][]string{"fixture": {"TestGeneration"}})
+		if passed != (action == "pass") {
 			t.Fatalf("%s: %s", action, got)
 		}
 	}
 	for _, data := range []string{"", "malformed", prefix} {
-		if strings.HasPrefix(mediaValidationVerdict([]byte(data), map[string][]string{"fixture": {"TestGeneration"}}), "Passed") {
+		if passed, _ := mediaValidationVerdict([]byte(data), map[string][]string{"fixture": {"TestGeneration"}}); passed {
 			t.Fatalf("incomplete evidence passed: %q", data)
 		}
 	}
@@ -95,9 +95,11 @@ func TestMediaValidationProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := writeMediaValidation(t.Context(), &output, root, store); err != nil {
+	projection, err := projectMediaValidation(t.Context(), root, store)
+	if err != nil {
 		t.Fatal(err)
 	}
+	writeMediaValidation(&output, projection)
 	for _, want := range []string{"Not accepted:", "Unavailable: evidence content absent", "retained overlay sources:", "### Acquisition notes (historical)", "](image_video_protocol.json)", "`docs/original.go`", "](image_video_validation.json)", "](image_video_assertions.json)", content.Descriptor.ID.String(), missing.String()} {
 		if !strings.Contains(output.String(), want) {
 			t.Fatalf("missing %q in report: %s", want, output.String())

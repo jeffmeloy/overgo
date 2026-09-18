@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -22,21 +23,42 @@ const mediaAssertionsPath = "docs/image_video_assertions.json"
 // mediaValidationIndex locates acquired test output. Verdicts come from the
 // existing Go test evidence parser; scope descriptions are not acceptance.
 type mediaValidationIndex struct {
-	Version     uint16                 `json:"version"`
-	Source      string                 `json:"source_base"`
-	Environment string                 `json:"environment"`
-	Notes       []string               `json:"notes"`
-	Checks      []mediaValidationCheck `json:"checks"`
+	Version       uint16                 `json:"version"`
+	Source        string                 `json:"source_base"`
+	Environment   string                 `json:"environment"`
+	Notes         []string               `json:"notes"`
+	Checks        []mediaValidationCheck `json:"checks"`
+	PriorCapacity artifact.ID            `json:"prior_capacity_checkpoint,omitzero"`
 }
 
 type mediaValidationCheck struct {
-	Name        string                 `json:"name"`
-	Source      string                 `json:"source_base,omitzero"`
-	Evidence    artifact.ID            `json:"evidence"`
-	Command     string                 `json:"command"`
-	Scope       string                 `json:"scope"`
-	SourceFiles map[string]string      `json:"changed_source_sha256,omitempty"`
-	Harness     map[string]artifact.ID `json:"overlay_sources,omitempty"`
+	Name          string                 `json:"name"`
+	Source        string                 `json:"source_base,omitzero"`
+	Evidence      artifact.ID            `json:"evidence"`
+	Command       string                 `json:"command"`
+	Scope         string                 `json:"scope"`
+	SourceFiles   map[string]string      `json:"changed_source_sha256,omitempty"`
+	Harness       map[string]artifact.ID `json:"overlay_sources,omitempty"`
+	PriorEvidence artifact.ID            `json:"prior_evidence,omitzero"`
+}
+
+// Retained assertion outcomes remain distinct from current generation acceptance.
+type mediaValidationProjection struct {
+	Source        string                  `json:"source_base"`
+	Environment   string                  `json:"environment"`
+	Notes         []string                `json:"notes"`
+	Checks        []mediaValidationResult `json:"checks"`
+	Passed        int                     `json:"historical_passed"`
+	Unresolved    int                     `json:"unresolved"`
+	PriorCapacity artifact.ID             `json:"prior_capacity_checkpoint,omitzero"`
+}
+
+type mediaValidationResult struct {
+	mediaValidationCheck
+	Assertions  map[string][]string `json:"assertions"`
+	Passed      bool                `json:"historical_assertions_passed"`
+	Verdict     string              `json:"recorded_result"`
+	RepairOwner string              `json:"repair_owner"`
 }
 
 // Declared overlay paths describe the producer workspace. Resolve their
@@ -51,6 +73,12 @@ func checkMediaReceiptProvenance(ctx context.Context, reader artifact.Reader, ch
 		}
 	}
 	var ids []artifact.ID
+	if check.PriorEvidence.Valid() {
+		if check.PriorEvidence.Kind() != artifact.KindEvidence {
+			return errors.New("media validation: invalid prior evidence identity")
+		}
+		ids = append(ids, check.PriorEvidence)
+	}
 	for path, id := range check.Harness {
 		if strings.TrimSpace(path) == "" || id.Kind() != artifact.KindEvidence || !id.Valid() {
 			return fmt.Errorf("media validation: invalid overlay binding for %q", path)
@@ -97,59 +125,87 @@ func checkMediaTestReceipt(name string, data []byte, required map[string][]strin
 	return nil
 }
 
-func mediaValidationVerdict(data []byte, required map[string][]string) string {
+func mediaValidationVerdict(data []byte, required map[string][]string) (bool, string) {
 	if err := checkMediaTestReceipt("media validation", data, required); err != nil {
-		return "Not accepted: " + err.Error()
+		return false, "Not accepted: " + err.Error()
 	}
-	return "Passed declared assertions (historical; current scope unbound)"
+	return true, "Passed declared assertions (historical; current scope unbound)"
 }
 
-func writeMediaValidation(ctx context.Context, output *bytes.Buffer, root string, reader artifact.Reader) error {
-	output.WriteString("## Current validation checkpoint\n\n")
+func projectMediaValidation(ctx context.Context, root string, reader artifact.Reader) (*mediaValidationProjection, error) {
 	var index mediaValidationIndex
-	if err := jsonfile.Decode(filepath.Join(root, mediaValidationPath), &index); err != nil {
+	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaValidationPath), &index); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			output.WriteString("No current validation index is recorded.\n\n")
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
-	if index.Version != 1 || !gitauthority.ValidObjectID(index.Source) || index.Environment == "" || len(index.Checks) == 0 {
-		return errors.New("media validation: incomplete checkpoint identity")
+	if index.Version != artifact.InitialDocumentVersion || !gitauthority.ValidObjectID(index.Source) || index.Environment == "" || len(index.Checks) == 0 {
+		return nil, errors.New("media validation: incomplete checkpoint identity")
+	}
+	if index.PriorCapacity.Valid() && index.PriorCapacity.Kind() != artifact.KindEvidence {
+		return nil, errors.New("media validation: invalid prior capacity identity")
 	}
 	var assertions map[string]map[string][]string
 	if err := jsonfile.DecodeStrict(filepath.Join(root, mediaAssertionsPath), &assertions); err != nil {
-		return err
+		return nil, err
 	}
-	fmt.Fprintf(output, "The [validation index](%s) records each acquisition's source base and changed component hashes. The default base is `%s`; individual checks can identify a later base. Historical failures retain their original outcomes. This checkpoint does not complete the campaign.\n\n%s\n\n", filepath.Base(mediaValidationPath), index.Source, index.Environment)
-	fmt.Fprintf(output, "The [assertion contracts](%s) bind required test names to their packages. Passing these assertions alone does not establish current source, environment or model-quality acceptance.\n\n", filepath.Base(mediaAssertionsPath))
-	if len(index.Notes) != 0 {
-		output.WriteString("### Acquisition notes (historical)\n\n")
-	}
-	for _, note := range index.Notes {
-		fmt.Fprintf(output, "%s\n\n", strings.ReplaceAll(note, "](docs/", "]("))
-	}
-	output.WriteString("| Check | Recorded result | Scope and observations | Evidence |\n| --- | --- | --- | --- |\n")
+	projection := &mediaValidationProjection{Source: index.Source, Environment: index.Environment, Notes: index.Notes, PriorCapacity: index.PriorCapacity, Checks: []mediaValidationResult{}}
 	seen := map[string]bool{}
 	for _, check := range index.Checks {
 		if check.Name == "" || seen[check.Name] || check.Scope == "" || check.Command == "" || check.Evidence.Kind() != artifact.KindEvidence {
-			return errors.New("media validation: invalid or duplicate check")
+			return nil, errors.New("media validation: invalid or duplicate check")
 		}
 		seen[check.Name] = true
+		check.Source = cmp.Or(check.Source, index.Source)
+		result := mediaValidationResult{mediaValidationCheck: check, Assertions: assertions[check.Name], RepairOwner: "modality-verification/media-report"}
 		content, found, err := artifact.ReadContent(ctx, reader, check.Evidence)
-		verdict := "Unavailable: evidence content absent"
+		result.Verdict = "Unavailable: evidence content absent"
 		if err != nil {
-			verdict = "Invalid evidence: " + err.Error()
+			result.Verdict = "Invalid evidence: " + err.Error()
 		} else if found {
 			if err := checkMediaReceiptProvenance(ctx, reader, check); err != nil {
-				verdict = "Not accepted: " + err.Error()
+				result.Verdict = "Not accepted: " + err.Error()
 			} else {
-				verdict = mediaValidationVerdict(content.Data, assertions[check.Name])
+				result.Passed, result.Verdict = mediaValidationVerdict(content.Data, result.Assertions)
 			}
 		}
-		fmt.Fprintf(output, "| %s | %s | %s | `%s` |\n", escapeMarkdown(check.Name), escapeMarkdown(verdict), escapeMarkdown(check.Scope), check.Evidence)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if result.Passed {
+			projection.Passed++
+		} else {
+			projection.Unresolved++
+		}
+		projection.Checks = append(projection.Checks, result)
+	}
+	return projection, nil
+}
+
+func writeMediaValidation(output *bytes.Buffer, projection *mediaValidationProjection) {
+	output.WriteString("## Current validation checkpoint\n\n")
+	if projection == nil {
+		output.WriteString("No current validation index is recorded.\n\n")
+		return
+	}
+	fmt.Fprintf(output, "The [validation index](%s) records each acquisition's source base and changed component hashes. The default base is `%s`; individual checks can identify a later base. Historical failures retain their original outcomes. This checkpoint does not complete the campaign.\n\n%s\n\n", filepath.Base(mediaValidationPath), projection.Source, projection.Environment)
+	fmt.Fprintf(output, "The [assertion contracts](%s) bind required test names to their packages. Passing these assertions alone does not establish current source, environment or model-quality acceptance.\n\n", filepath.Base(mediaAssertionsPath))
+	fmt.Fprintf(output, "%d declared checks: %d historical passes; %d unresolved or unsuccessful. Current generation acceptance remains unbound.\n\n", len(projection.Checks), projection.Passed, projection.Unresolved)
+	if len(projection.Notes) != 0 {
+		output.WriteString("### Acquisition notes (historical)\n\n")
+	}
+	for _, note := range projection.Notes {
+		fmt.Fprintf(output, "%s\n\n", strings.ReplaceAll(note, "](docs/", "]("))
+	}
+	output.WriteString("| Check | Recorded result | Original source | Scope and observations | Evidence |\n| --- | --- | --- | --- | --- |\n")
+	for _, result := range projection.Checks {
+		evidence := fmt.Sprintf("`%s`", result.Evidence)
+		if result.PriorEvidence.Valid() {
+			evidence += fmt.Sprintf("; prior `%s`", result.PriorEvidence)
+		}
+		fmt.Fprintf(output, "| %s | %s | `%s` | %s | %s |\n", escapeMarkdown(result.Name), escapeMarkdown(result.Verdict), shortCommit(result.Source), escapeMarkdown(result.Scope), evidence)
 	}
 	output.WriteString("\nResults describe the selected tests, including failures, rather than all supported requests. Commands and retained overlay sources in the index identify each acquisition. Test output is stored by content identity in OvergoDB.\n\n")
 	output.WriteString("Samples below retain their original producing-run metadata. A newer validation can reproduce the same content, as noted above. Historical GIFs retain their original timing; they have not been regenerated by this checkpoint.\n\n")
-	return nil
 }

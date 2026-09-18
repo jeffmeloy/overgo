@@ -3,8 +3,11 @@
 package latentvideo
 
 import (
+	"cmp"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -45,7 +48,7 @@ func TestLiveEditSourceCodec(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := loadRealSourceCrops(t, filepath.Join(repo, "build", "latentvideo", "current_prod50", "frame_00.f32le"), plan.Source)
+	source := loadRealSourceCrops(t, plan.Source)
 	hostStarted := time.Now()
 	want, err := EncodeSourceVideo(checkpoint, graph, plan, source)
 	if err != nil {
@@ -95,14 +98,19 @@ func loadSourceCodecStats(t testing.TB) VAELatentStats {
 	return VAELatentStats{Mean: fixture.Stats.Mean, Std: fixture.Stats.Std}
 }
 
-func loadRealSourceCrops(t testing.TB, path string, shape SourceVideoShape) []float32 {
+func loadRealSourceCrops(t testing.TB, shape SourceVideoShape) []float32 {
 	t.Helper()
+	// The gate binds the original data root while source runs in a candidate.
+	// This retained capture is data, not an output to regenerate in that tree.
+	base := cmp.Or(os.Getenv(dataroot.Env), testutil.RepoRoot(t))
+	path := filepath.Join(base, "build", "latentvideo", "current_prod50", "frame_00.f32le")
 	raw, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		t.Skipf("UNAVAILABLE: retained real Wan frame: %v", err)
-	}
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("required Wan source capture at data root %s: %v", base, err)
+	}
+	// Identity of the original 832x480 production capture used by native oracles.
+	if fmt.Sprintf("%x", sha256.Sum256(raw)) != "ce3637bfb13020731b5158672e6100c9f2d936cc3588394a0f00040e50b516f6" {
+		t.Fatal("retained Wan source capture changed")
 	}
 	const frameHeight, frameWidth = 480, 832
 	if len(raw) != 3*frameHeight*frameWidth*4 {

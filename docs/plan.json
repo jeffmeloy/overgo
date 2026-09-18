@@ -35,7 +35,8 @@
             "modality-verification/media-evidence-binding",
             "modality-verification/un0-current-generation",
             "modality-verification/diffusion-current-generation",
-            "modality-verification/sensenova-current-generation"
+            "modality-verification/sensenova-current-generation",
+            "modality-verification/latent-video-current-generation"
           ]
         },
         {

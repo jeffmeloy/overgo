@@ -22,7 +22,8 @@ const (
 
 func newLiveEditRuntimeFixture(t *testing.T) (*ReferenceEditRuntime, []float32, []float32) {
 	t.Helper()
-	repo := testutil.RepoRoot(t)
+	sourceShape := SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 32}
+	source := loadRealSourceCrops(t, sourceShape)
 	wanDir := wanModelDir(t)
 	policy := DenoiserPolicy{
 		NumTrainTimesteps: 1000, SinusoidalPeriod: 10000, RotaryFrequencyBase: 10000,
@@ -43,7 +44,7 @@ func newLiveEditRuntimeFixture(t *testing.T) (*ReferenceEditRuntime, []float32, 
 	runtime, err := NewReferenceEditRuntime(ReferenceEditRuntimeConfig{
 		WanDirectory: wanDir, EditCheckpoint: filepath.Join(filepath.Dir(wanDir), "LiveEdit", "ar-forcing_002000.pt"),
 		Policy: policy, LatentStats: loadSourceCodecStats(t),
-		Source:         SourceVideoShape{Channels: 3, Frames: 5, Height: 16, Width: 32},
+		Source:         sourceShape,
 		FramesPerChunk: 1, LocalAttentionFrames: 1,
 		Timesteps: []int64{900}, Sigmas: sigmas, ContextTimestep: 0,
 		Layers: base.NumLayers, DeviceOrdinal: 0, TextContext: context,
@@ -56,16 +57,13 @@ func newLiveEditRuntimeFixture(t *testing.T) (*ReferenceEditRuntime, []float32, 
 			t.Error(err)
 		}
 	})
-	source := loadRealSourceCrops(t, filepath.Join(repo, "build", "latentvideo", "current_prod50", "frame_00.f32le"), runtime.sourcePlan.Source)
 	initial := loadRetainedDenoiserCurrent(t)
 	return runtime, source, initial
 }
 
 func TestLiveEditDeviceRuntime(t *testing.T) {
 	cudatest.Require(t)
-	if cudatest.MeasurementProcess(t, 0) {
-		return
-	}
+	// Exact outputs and owned counters need shared correctness admission only.
 	runtime, source, initial := newLiveEditRuntimeFixture(t)
 	var priorFrameHash string
 	for run := range 2 {

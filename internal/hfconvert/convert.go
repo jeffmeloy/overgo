@@ -25,18 +25,19 @@ import (
 )
 
 type modelConfig struct {
-	ModelType        string  `json:"model_type"`
-	HiddenSize       uint32  `json:"hidden_size"`
-	IntermediateSize uint32  `json:"intermediate_size"`
-	MaxPositions     uint32  `json:"max_position_embeddings"`
-	AttentionHeads   uint32  `json:"num_attention_heads"`
-	HiddenLayers     uint32  `json:"num_hidden_layers"`
-	KVHeads          uint32  `json:"num_key_value_heads"`
-	HeadDim          uint32  `json:"head_dim"`
-	RMSEpsilon       float32 `json:"rms_norm_eps"`
-	RopeTheta        float32 `json:"rope_theta"`
-	Vocabulary       uint32  `json:"vocab_size"`
-	TiedEmbeddings   bool    `json:"tie_word_embeddings"`
+	ModelType        string          `json:"model_type"`
+	HiddenSize       uint32          `json:"hidden_size"`
+	IntermediateSize uint32          `json:"intermediate_size"`
+	MaxPositions     uint32          `json:"max_position_embeddings"`
+	AttentionHeads   uint32          `json:"num_attention_heads"`
+	HiddenLayers     uint32          `json:"num_hidden_layers"`
+	KVHeads          uint32          `json:"num_key_value_heads"`
+	HeadDim          uint32          `json:"head_dim"`
+	RMSEpsilon       float32         `json:"rms_norm_eps"`
+	RopeTheta        float32         `json:"rope_theta"`
+	Vocabulary       uint32          `json:"vocab_size"`
+	TiedEmbeddings   bool            `json:"tie_word_embeddings"`
+	EOS              json.RawMessage `json:"eos_token_id"`
 }
 
 type tokenizerFile struct {
@@ -182,7 +183,7 @@ func modelMetadata(directory, name string, profile archProfile, config modelConf
 		gguf.Uint32Metadata(prefix+"rope.dimension_count", config.headDim()),
 		gguf.Uint32Metadata(prefix+"vocab_size", config.Vocabulary),
 	}
-	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary, noSpecialTokens())
+	tokenizerItems, err := tokenizerMetadata(directory, config.Vocabulary, config.EOS)
 	if err != nil {
 		return nil, err
 	}
@@ -198,8 +199,9 @@ func noSpecialTokens() specialTokenIDs {
 	return specialTokenIDs{bos: -1, eos: -1, unknown: -1, padding: -1}
 }
 
-// tokenizerMetadata: fallback IDs seed resolution; file-sourced IDs override.
-func tokenizerMetadata(directory string, vocabulary uint32, fallback specialTokenIDs) ([]gguf.Metadata, error) {
+// tokenizerMetadata retains the complete EOS declaration, with generation
+// configuration taking precedence over the model configuration.
+func tokenizerMetadata(directory string, vocabulary uint32, configuredEOS json.RawMessage) ([]gguf.Metadata, error) {
 	encoded, err := os.ReadFile(filepath.Join(directory, "tokenizer.json"))
 	if err != nil {
 		return nil, fmt.Errorf("HF converter: read tokenizer: %w", err)
@@ -244,7 +246,7 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 	if err != nil {
 		return nil, err
 	}
-	special, err := resolveSpecialTokens(directory, file, tokens, fallback)
+	special, err := resolveSpecialTokens(directory, file, tokens, configuredEOS)
 	if err != nil {
 		return nil, err
 	}
@@ -275,6 +277,9 @@ func tokenizerMetadata(directory string, vocabulary uint32, fallback specialToke
 		gguf.BoolMetadata("tokenizer.ggml.add_bos_token", postProcessorAddsBOS(file.PostProcessor)),
 		gguf.BoolMetadata("tokenizer.ggml.add_eos_token", false),
 	)
+	if len(special.eog) > 1 {
+		metadata = append(metadata, gguf.ArrayMetadata(tokenizer.MetadataEOSTokenIDs, gguf.ValueTypeUint32, special.eog))
+	}
 	extension, err := dnaTokenizerMetadata(directory, vocabulary)
 	if err != nil {
 		return nil, err
@@ -439,6 +444,7 @@ func mergeStrings(raw []json.RawMessage) ([]string, error) {
 
 type specialTokenIDs struct {
 	bos, eos, unknown, padding int
+	eog                        []uint32
 }
 
 type generationConfig struct {
@@ -454,11 +460,10 @@ type specialTokensMap struct {
 	PAD json.RawMessage `json:"pad_token"`
 }
 
-// resolveSpecialTokens: generation_config IDs win, then special_tokens_map
-// contents, then tokenizer.json model.unk_token, then caller fallback; -1 means
-// unresolved.
-func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string, fallback specialTokenIDs) (specialTokenIDs, error) {
-	result := fallback
+// resolveSpecialTokens: generation_config IDs win; EOS also falls back to its
+// model declaration. Token-content declarations resolve remaining IDs.
+func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string, configuredEOS json.RawMessage) (specialTokenIDs, error) {
+	result := noSpecialTokens()
 	tokenID := make(map[string]int, len(tokens))
 	for id, token := range tokens {
 		tokenID[token] = id
@@ -478,7 +483,6 @@ func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string,
 		fallback    *string
 	}{
 		{&result.bos, generation.BOS, special.BOS, nil},
-		{&result.eos, generation.EOS, special.EOS, nil},
 		{&result.unknown, nil, special.UNK, file.Model.UnknownToken},
 		{&result.padding, generation.PAD, special.PAD, nil},
 	}
@@ -491,6 +495,53 @@ func resolveSpecialTokens(directory string, file tokenizerFile, tokens []string,
 			*entry.destination = id
 		} else if id >= len(tokens) {
 			return result, fmt.Errorf("HF converter: special token ID %d is out of range", id)
+		}
+	}
+	eos := generation.EOS
+	if !strictjson.HasValue(eos) {
+		eos = configuredEOS
+	}
+	ids, err := declaredEOGTokens(eos, len(tokens))
+	if err != nil {
+		return result, err
+	}
+	if len(ids) > 0 {
+		result.eos, result.eog = int(ids[0]), ids
+	} else {
+		result.eos, err = firstTokenID(nil, special.EOS, nil, tokenID)
+		if err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+func declaredEOGTokens(raw json.RawMessage, vocabulary int) ([]uint32, error) {
+	if !strictjson.HasValue(raw) {
+		return nil, nil
+	}
+	entries := []json.RawMessage{raw}
+	if bytes.HasPrefix(bytes.TrimSpace(raw), []byte("[")) {
+		if err := json.Unmarshal(raw, &entries); err != nil {
+			return nil, fmt.Errorf("HF converter: eos_token_id must be an integer or integer array: %w", err)
+		}
+	}
+	var result []uint32
+	seen := make(map[uint32]bool)
+	for index, entry := range entries {
+		var id int
+		if !strictjson.HasValue(entry) {
+			return nil, fmt.Errorf("HF converter: EOS token ID at index %d is null", index)
+		}
+		if err := json.Unmarshal(entry, &id); err != nil {
+			return nil, fmt.Errorf("HF converter: EOS token ID at index %d must be an integer: %w", index, err)
+		}
+		if id < 0 || id >= vocabulary {
+			return nil, fmt.Errorf("HF converter: EOS token ID %d is out of range for vocabulary %d", id, vocabulary)
+		}
+		if !seen[uint32(id)] {
+			result = append(result, uint32(id))
+			seen[uint32(id)] = true
 		}
 	}
 	return result, nil

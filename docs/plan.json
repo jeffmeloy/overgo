@@ -12,17 +12,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "eog",
-          "title": "Preserve every declared end-of-generation token",
-          "status": "open",
-          "verify": "go test ./internal/hfconvert -run '^TestConvertedEOGTokenList$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestDeclaredEOGTokens$' -count=1",
-          "rationale": "Basic model semantics precede MoE. Reproduced truncation of generation EOS [1,2,3], absent dense model-config fallback and unchecked invalid trailing IDs. Preserve complete declared lists through HF conversion, GGUF and common tokenizer EOG checks; use generation_config's explicit EOS in preference to model config per Transformers loading contract, not a cross-source union. Reject null array entries, negative/fractional/out-of-range IDs; preserve scalar, known-token and token-encoding behavior, deduplicate valid IDs. Cover dense and nested Qwen config declarations with exact independent expected sets. Tiny conversion fixtures establish stop metadata, not real-model numerical accuracy or throughput. No MoE fixture prerequisite is needed for this ready shared correctness fix.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality"
-          ]
-        },
-        {
           "id": "do",
           "title": "Honor declared stop tokens, tokenization and reasoning channels",
           "status": "open",

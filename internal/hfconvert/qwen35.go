@@ -21,8 +21,8 @@ import (
 )
 
 type qwen35TokenConfig struct {
-	Vocabulary uint32 `json:"vocab_size"`
-	EOS        *int   `json:"eos_token_id"`
+	Vocabulary uint32          `json:"vocab_size"`
+	EOS        json.RawMessage `json:"eos_token_id"`
 }
 
 func convertQwen35(directory string, options Options) (Report, error) {
@@ -84,13 +84,7 @@ func writeQwen35Model(directory string, repository *hfrepo.Repository, options O
 	if text.Vocabulary == 0 {
 		return Report{}, errors.New("HF converter: qwen3_5 vocabulary size is missing")
 	}
-	// config.json eos_token_id is the only EOS source for this repo layout
-	// (no generation_config.json / special_tokens_map.json companions).
-	fallback := noSpecialTokens()
-	if text.EOS != nil && *text.EOS >= 0 && *text.EOS < int(text.Vocabulary) {
-		fallback.eos = *text.EOS
-	}
-	tokenizerItems, err := tokenizerMetadata(directory, text.Vocabulary, fallback)
+	tokenizerItems, err := tokenizerMetadata(directory, text.Vocabulary, text.EOS)
 	if err != nil {
 		return Report{}, err
 	}

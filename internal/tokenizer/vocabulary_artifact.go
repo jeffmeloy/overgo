@@ -244,6 +244,9 @@ func (v *Vocab) roles(id TokenID) []VocabularyRole {
 			roles = append(roles, binding.role)
 		}
 	}
+	if id != v.EOS && v.eog[id].declaredEOS {
+		roles = append(roles, VocabularyRoleEOS)
+	}
 	return roles
 }
 

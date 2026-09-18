@@ -221,3 +221,29 @@ blindly unioning model and generation sources. Master synchronization against
 `69ffcc7423fa498c5df1dd4aaee269838626fe27` could not prepare because Windows denied
 renaming the retained evidence snapshot; its evidence remains intact and the
 merge retry remains due. No master plan was imported.
+
+The stop-token transfer reread `c/colibri.c` at the same pinned Apache-2.0 source.
+Its complete-stop rationale is useful, but its cross-source union and eight-ID
+limit are not adopted. A non-null generation declaration takes precedence over
+model EOS; otherwise the existing unresolved-value fallback applies. The importer
+validates every integer and range, deduplicates without reordering the primary
+EOS, and retains the complete selected list in `overgo.tokenizer.eos_token_ids`.
+This is an Overgo extension; the usual scalar GGUF EOS remains the first ID.
+The runtime retains its existing recognized-name and FIM stopping conventions.
+The import concerns token identities rather than every Transformers generation
+setting, including its separate treatment of a generation config file.
+
+The existing end-marker map also retains which IDs were explicitly declared EOS.
+Semantic vocabulary artifacts preserve those EOS roles, and exact row mapping
+rejects differing roles. Existing scalar vocabularies and token encoding retain
+their behavior. Public dense conversion/reload tests include ten declared stop
+IDs, source precedence, scalar zero, null/unset fallback, duplicates, absent EOS
+and invalid trailing entries. Nested Qwen tests isolate configuration decoding
+and shared tokenizer metadata; they are not a full Qwen numerical execution.
+
+GGUF named variants now also publish `tokenizer.chat_templates`, the sorted
+non-default name index described by llama.cpp's `gguf_writer.py` at
+`42fc243060709331ff9b158a9ed2cbe37219ae83`. A negative test reproduced the missing
+index. Existing Overgo default/tool-use selection and template bytes are retained;
+exact rendering and pinned Jinja byte parity remain required. No additional
+renderer, artifact acquisition or numerical/throughput promotion is involved.

@@ -2291,6 +2291,12 @@
        "capability": "mmlu-recorded-raw-subset",
        "tier": "capability-measured",
        "commit": "0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a"
+      },
+      {
+       "capability": "projection-grounded-colors-positions",
+       "tier": "exact-golden",
+       "commit": "d2b6484a3323613b1d2c979bdf804957545726d4",
+       "wall_ns": 20961128100
       }
      ]
     }

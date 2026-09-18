@@ -41,6 +41,9 @@
   {
     "name": "qwen-twentyseven",
     "specification": "qwen-twentyseven-retained.json",
-    "record": "evidence:sha256:7c0a6df2dc565c13f08a2db443d88cb422eea1a887d5880a997e474f008e94c0"
+    "record": "evidence:sha256:2f2ab480a0149e6774671ae181ad6f4a75241d1422a9d13475851deb45fb8695",
+    "preserve": [
+      "evidence:sha256:7c0a6df2dc565c13f08a2db443d88cb422eea1a887d5880a997e474f008e94c0"
+    ]
   }
 ]

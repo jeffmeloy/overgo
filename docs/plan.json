@@ -36,21 +36,6 @@
           ]
         },
         {
-          "id": "qwen27-projection",
-          "title": "Validate Qwen27 image, image-pair and video execution in one bundle",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/projection_publication_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestRetainedProjectionPublications$/^qwen-twentyseven$' -count=1 \u0026\u0026 go test ./cmd/recipe -run '^TestProjectionVerificationRequiresExecution$' -count=1",
-          "rationale": "Remaining functional projection gap: registered model 73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6 and projector db5707757168251d43eb5ba8cb481b86b41324def89f5854667fff9736519d22 are present. The old activation's one-nanosecond, input-free verification is admission evidence, not measured generation. Use existing recipe verify, exact-suite, projection-session, run-record and compatibility owners. Freeze exact artifact identities, native source/build, processor settings, fixture bytes, prompt framing, sampler and required output/token contracts before the candidate acquisition. Cover each declared session mode: single image, multiple images and video frames; artifact declarations determine exclusions. Build the native reference from a clean isolated checkout, preserving the foreign mtmd.cpp edits. Reuse applicable pinned captures before making new ones. Group compatible cases in a residency, retain each result and all failures, and replay completed exact scopes without loading the model. Require actual projected generation and typed run/gate/report authority for every frozen case; reject missing/duplicate cases, changed inputs/protocol/source, compile-only records and missing/failed outputs. Publish one data-driven retained projection acceptance in the existing compatibility owner; do not create a new runner or per-model production path. Native comparison establishes only its declared functional/numerical scope, not broad VQA quality, throughput promotion or full-model acceptance. A short greedy match alone does not prove an attention mask. Preserve previously accepted text records, the original producer commits and historical activation. Full 27B MMLU-Pro remains operator-launched. If a runtime defect appears, retain the exact counterexample and commit the bounded source repair through its owning checks before clean-source publication; do not repeatedly reacquire settled cells.",
-          "depends_on": [
-            "surface-gate-execution/declaration-boundary",
-            "modality-verification/qwen27-retained-publication",
-            "modality-verification/projection-rotary-sections",
-            "modality-verification/projection-candidate-binding",
-            "modality-verification/projection-rotary-pairing",
-            "modality-verification/exact-failure-retention"
-          ]
-        },
-        {
           "id": "text-and-vision",
           "title": "Verify chat, embedding, rerank and vision-language activations",
           "status": "open",
@@ -240,7 +225,7 @@
           "title": "Resume one media acquisition through idempotent publication",
           "status": "open",
           "verify": "test -f internal/agentloop/verification_workflow_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestMediaExperimentResume$' -count=1",
-          "rationale": "Implement one bounded media acquisition-to-report slice through existing run-record, execution, candidate and compatibility owners. The typed protocol binds inputs, source/overlay, model/data identities, frozen assertions, units, budget and publication outputs. Discover completed acquisitions before loading a model; checkpoint each cell and make evidence/report publication idempotent. Force restart before and after acquisition, record commit and projection publication; recover the unfinished transition with no duplicate model load or mutation. Include rejected candidates, duplicate observations, exact result reuse, budget exhaustion and missing-resource waits with explicit resumption triggers. Measure total elapsed/compute/loading/verification/recovery/intervention cost against the current same-task workflow. Keep output generation in existing compatibility owners and migrate the concrete temporary publishers this slice replaces. Split at the first owning boundary if implementation cannot fit one bounded batch; no new general experiment framework and no prerequisite on the whole modality campaign.",
+          "rationale": "Implement one bounded media acquisition-to-report slice through existing run-record, execution, candidate and compatibility owners. The typed protocol binds inputs, source/overlay, model/data identities, frozen assertions, units, budget and publication outputs. Discover completed acquisitions before loading a model; checkpoint each cell and make evidence/report publication idempotent. Force restart before and after acquisition, record commit and projection publication; recover the unfinished transition with no duplicate model load or mutation. Include rejected candidates, duplicate observations, exact result reuse, budget exhaustion and missing-resource waits with explicit resumption triggers. Measure total elapsed/compute/loading/verification/recovery/intervention cost against the current same-task workflow. Keep output generation in existing compatibility owners and migrate the concrete temporary publishers this slice replaces. Split at the first owning boundary if implementation cannot fit one bounded batch; no new general experiment framework and no prerequisite on the whole modality campaign.\n\nFirst concrete reuse target: Qwen27 exact projection at d2b6484a. The complete 20-case run took 85.0753809s including 20.9611281s evaluation; evaluator replay took 1.5085ms, zero generation and zero writes. Recipe verification still prepares/opens the model before this reuse check. Move discovery before model acquisition through the existing exact plan/ledger owner, preserving full artifact/source/environment/protocol binding and both retained success and failure. Reuse the acquisition and read-only acceptance from qwen27-projection; do not reacquire it to benchmark a scheduler. Attribute store/identity/model-load startup separately before further caching. Split this first boundary from broader experiment orchestration if necessary.",
           "depends_on": [
             "modality-verification/media-evidence-binding",
             "modality-verification/verification-request-binding"
@@ -370,6 +355,13 @@
       "owner": "master-lead",
       "status": "open",
       "steps": [
+        {
+          "id": "authority-lifetime",
+          "title": "Limit deferred authority ownership to conflicting mutations",
+          "status": "open",
+          "verify": "test -f internal/gate/deferred_authority_test.go \u0026\u0026 go test ./internal/gate -run '^TestDeferredAuthorityLifetime$' -short -count=1",
+          "rationale": "Measured blocker: d2b6484a deferred lanes passed in 649.8s, but runDeferredLanes held the worktree authority lock throughout, refusing an independent plan dispatch while tests used a candidate worktree. Finding d698d73e82263c1ba660ccb98b9107ab635efc6d7858185d6a0720e1dad7ca09. Audit all lane input reads and mutation boundaries first. Permit independent dispatch only once the complete execution input closure is immutable and isolated; protect admission, obligation state and terminal publication through existing authority/transaction owners, with the existing live process lock preventing duplicate runners. Do not replace ownership with elapsed-time leases or create another scheduler. Test concurrent dispatch, source drift, duplicate launch, cancellation/process death, restart and simultaneous result publication; retain every owed check and exact candidate binding. Demonstrate dispatch during a held test without weakening mutation exclusion. This is separate from prepared-resume's selection reconstruction optimization."
+        },
         {
           "id": "prepared-resume",
           "title": "Carry immutable selections into the deferred runner",
@@ -930,7 +922,7 @@
           "id": "closeout",
           "title": "Verify the final release surface and publish evidence-bound campaign closure",
           "status": "open",
-          "verify": "go run ./cmd/preflight \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 go run ./cmd/compatibility -check",
+          "verify": "go run ./cmd/gate -preflight \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 go run ./cmd/compatibility -check",
           "rationale": "Run preflight and final host/race/device/browser/release checks appropriate to the actual final scope once, reusing only exact proven-independent evidence. Diagnose failures rather than accepting a package name without its output. Resolve high-priority findings; record explicit evidence-backed dispositions and reopen triggers for unavailable or deferred capability without calling it verified. Reconcile the census, accepted baseline, benchmark/media/capability reports and every task's terminal evidence at the closing commit; publish census authority via plan -bind-census. The gate owns pruning the final row. Acceptance asserts all required terminal branches/claims and no unresolved blocking finding, not merely plan -status. Keep the explicit operator stop in force until the operator resumes; campaign completion never clears it automatically.",
           "depends_on": [
             "simplify-capability-report/do",
@@ -1068,7 +1060,8 @@
             "surface-gate-scheduling/lane-overlap",
             "surface-gate-dependencies/bounded-reduction",
             "timing-media-reconciliation/do",
-            "surface-gate-execution/declaration-boundary"
+            "surface-gate-execution/declaration-boundary",
+            "surface-gate-deferred/authority-lifetime"
           ]
         }
       ]

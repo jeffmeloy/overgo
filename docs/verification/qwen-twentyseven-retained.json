@@ -37,6 +37,21 @@
       "evidence": [
         "evidence:sha256:ee988e366ab7f5d6c511ff691cb3f521a05fd7c1b7f21b1860f4ee0f0cf23dc4"
       ]
+    },
+    {
+      "capability": "projection-grounded-colors-positions",
+      "tier": "exact-golden",
+      "commit": "d2b6484a3323613b1d2c979bdf804957545726d4",
+      "wall_ns": 20961128100,
+      "evidence": [
+        "evidence:sha256:2012bb4c0c7329aaff2671c721ee2ac88e635f42351e247f6e4a48a978756ec2",
+        "evidence:sha256:67c27fa8e687a3da81b92ac2239b9e90fec699551bfda9d3f75e90c571ec3e13",
+        "evidence:sha256:6b68c4bc7f9ce5ab9df5b4e236fb9477c745ab469557732fbcdad1a12231f617",
+        "run:sha256:f86f0a94f8651b3bfdfb4448acb40f881302956373f99228cda059ae3a048544"
+      ]
     }
+  ],
+  "supersedes": [
+    "evidence:sha256:7c0a6df2dc565c13f08a2db443d88cb422eea1a887d5880a997e474f008e94c0"
   ]
 }

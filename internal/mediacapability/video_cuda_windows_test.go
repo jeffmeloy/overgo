@@ -4,6 +4,7 @@ package mediacapability
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
@@ -82,7 +83,7 @@ func TestVideoProductionActivation(t *testing.T) {
 			Timesteps: []int64{900}, Sigmas: sigmas, ContextTimestep: 0,
 		},
 		Source: latentvideo.SourceVideo{
-			Pixels:   loadVideoSourceCrops(t, filepath.Join(repo, "build", "latentvideo", "current_prod50", "frame_00.f32le"), 5, 16, 32),
+			Pixels:   loadVideoSourceCrops(t, filepath.Join(cmp.Or(os.Getenv(dataroot.Env), repo), "build", "latentvideo", "current_prod50", "frame_00.f32le"), 5, 16, 32),
 			Channels: 3, Frames: 5, Height: 16, Width: 32,
 		},
 	}

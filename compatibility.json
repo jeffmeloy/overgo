@@ -1130,7 +1130,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:888cb9e1aa28fc1cac9de9f37ed46776afd707b2a7e74d1187d093734bd93581"
+     "identity": "file:sha256:dcfd22d32bc8e1db06bf44276577886c4a81c6e7cbb3f20348511ff95c7cd453"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1151,7 +1151,7 @@
      "contains": "func (s *chatOutputStream) Accept(",
      "path": "internal/inference/chat_stream.go",
      "role": "source",
-     "identity": "file:sha256:3ef20354978e2077c8c5b83f7c74c651f3305405525c49ff09a41fbdc7ffde6f"
+     "identity": "file:sha256:9a9ed33fdb1048ceaeb2766ce0fce83b9f5d4873762825cb65a84076b6a7a746"
     },
     {
      "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
@@ -1172,7 +1172,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:b9ee5ada0b2d89d13d93e09014c665403f3aaceea7679d464097ad3b08371388"
+     "identity": "file:sha256:9698a55ce8b9976cd35e26f9da0f211ea660f6a37bef2cdf07f806603d0f13c7"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",

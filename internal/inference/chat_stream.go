@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"overgo/internal/tokenizer"
 )
 
 // ChatToolCallDelta: incremental function-call update.
@@ -23,12 +25,25 @@ type ChatOutputStream interface {
 	Finish() (ChatMessage, error)
 }
 
+// ChatOutputTokenDecoder preserves declared protocol controls in native token
+// events. Text-only providers may retain their existing event rendering.
+type ChatOutputTokenDecoder interface {
+	TokenEventDecoder() TokenEventDecoder
+}
+
 type chatOutputStream struct {
-	template   string
-	tools      []ChatTool
-	output     strings.Builder
-	snapshots  []chatToolSnapshot
-	prefixSent bool
+	template    string
+	tools       []ChatTool
+	output      strings.Builder
+	snapshots   []chatToolSnapshot
+	prefixSent  bool
+	markers     reasoningMarkers
+	markerErr   error
+	channel     *reasoningChannelStream
+	body        strings.Builder
+	reasoning   strings.Builder
+	contentSent int
+	decoder     TokenEventDecoder
 }
 
 type chatToolSnapshot struct {
@@ -41,9 +56,12 @@ func NewChatOutputStream(
 	template string,
 	tools []ChatTool,
 ) ChatOutputStream {
+	markers, err := chatReasoningMarkers(template)
 	return &chatOutputStream{
-		template: template,
-		tools:    slices.Clone(tools),
+		template:  template,
+		tools:     slices.Clone(tools),
+		markers:   markers,
+		markerErr: err,
 	}
 }
 
@@ -54,25 +72,95 @@ func (r *Runner) NewChatOutputStream(
 	if r == nil {
 		return nil, errRunnerNil
 	}
-	template := metadataString(r.file, "tokenizer.chat_template")
-	if len(tools) != 0 {
-		if toolTemplate := metadataString(
-			r.file,
-			"tokenizer.chat_template.tool_use",
-		); toolTemplate != "" {
-			template = toolTemplate
+	return NewChatOutputStream(r.chatTemplateSource(tools), tools), nil
+}
+
+// NewChatOutputStreamForPrompt emits declared reasoning and visible text as
+// they arrive. With no active tools, tool-like prose remains ordinary content.
+// An unfinished declared thought remains reasoning at EOF; generation owns its
+// token budget and stop reason. Legacy complete-output validation is unchanged.
+func NewChatOutputStreamForPrompt(template, prompt string, tools []ChatTool) (ChatOutputStream, error) {
+	channel, err := newReasoningChannelStream(template, prompt)
+	if err != nil {
+		return nil, err
+	}
+	return &chatOutputStream{template: template, tools: slices.Clone(tools), channel: channel, prefixSent: true}, nil
+}
+
+// NewChatOutputStreamForPrompt uses the actual prepared token sequence when
+// supplied, including a projected-media prompt that differs from its text.
+func (r *Runner) NewChatOutputStreamForPrompt(prompt string, ids []tokenizer.TokenID, tools []ChatTool) (ChatOutputStream, error) {
+	if r == nil {
+		return nil, errRunnerNil
+	}
+	if ids != nil {
+		var err error
+		prompt, err = r.Detokenize(ids, RenderPrompt)
+		if err != nil {
+			return nil, err
 		}
 	}
-	return NewChatOutputStream(template, tools), nil
+	template := r.chatTemplateSource(tools)
+	output, err := NewChatOutputStreamForPrompt(template, prompt, tools)
+	if err != nil {
+		return nil, err
+	}
+	// The package constructor owns this concrete stream; attach its native
+	// vocabulary decoder without changing text-only provider construction.
+	stream := output.(*chatOutputStream)
+	var delimiters []string
+	markers := stream.channel.markers
+	if strings.Contains(template, markers.open) && strings.Contains(template, markers.close) {
+		delimiters = append(delimiters, markers.open, markers.close)
+	}
+	if len(tools) != 0 {
+		delimiters = append(delimiters, toolCallOpen, toolCallClose)
+	}
+	stream.decoder = func(id tokenizer.TokenID) (string, error) {
+		text, err := r.vocab.DecodePiece(id, false)
+		if err != nil || text != "" || r.vocab.IsEOG(id) {
+			return text, err
+		}
+		control, err := r.vocab.DecodePiece(id, true)
+		if err != nil {
+			return "", err
+		}
+		if control != "" {
+			for _, delimiter := range delimiters {
+				if strings.Contains(delimiter, control) {
+					return control, nil
+				}
+			}
+		}
+		return "", nil
+	}
+	return stream, nil
 }
+
+// TokenEventDecoder preserves the selected template's delimiters in generation events.
+func (s *chatOutputStream) TokenEventDecoder() TokenEventDecoder { return s.decoder }
 
 func (s *chatOutputStream) Accept(
 	piece string,
 ) ([]ChatToolCallDelta, error) {
+	if s.channel != nil {
+		return s.acceptChannel(piece)
+	}
+	if s.markerErr != nil {
+		return nil, s.markerErr
+	}
 	s.output.WriteString(piece)
+	reasoning, body, ready, err := s.markers.split(s.output.String(), false)
+	if err != nil || !ready {
+		return nil, err
+	}
+	return s.toolDeltas(reasoning, body)
+}
+
+func (s *chatOutputStream) toolDeltas(reasoning, body string) ([]ChatToolCallDelta, error) {
 	snapshots, err := chatToolSnapshots(
 		s.template,
-		s.output.String(),
+		body,
 		s.tools,
 	)
 	if err != nil {
@@ -106,14 +194,8 @@ func (s *chatOutputStream) Accept(
 				Started:   started,
 			}
 			if started && !s.prefixSent {
-				prefix := s.output.String()
-				if beforeTool, _, ok := strings.Cut(prefix, toolCallOpen); ok {
-					var prefixErr error
-					delta.ReasoningContent, delta.Content, prefixErr =
-						splitChatReasoning(beforeTool)
-					if prefixErr != nil {
-						return nil, prefixErr
-					}
+				if beforeTool, _, ok := strings.Cut(body, toolCallOpen); ok {
+					delta.ReasoningContent, delta.Content = reasoning, beforeTool
 				}
 				s.prefixSent = true
 			}
@@ -125,7 +207,56 @@ func (s *chatOutputStream) Accept(
 }
 
 func (s *chatOutputStream) Finish() (ChatMessage, error) {
+	if s.channel != nil {
+		reasoning, content := s.channel.accept("", true)
+		s.reasoning.WriteString(reasoning)
+		s.body.WriteString(content)
+		message := ChatMessage{Role: ChatRoleAssistant, Content: s.body.String()}
+		if len(s.tools) != 0 {
+			var err error
+			message, err = parseChatToolOutput(s.template, s.body.String(), s.tools)
+			if err != nil {
+				return ChatMessage{}, err
+			}
+		}
+		message.ReasoningContent = s.reasoning.String()
+		return message, nil
+	}
 	return parseChatOutput(s.template, s.output.String(), s.tools)
+}
+
+func (s *chatOutputStream) acceptChannel(piece string) ([]ChatToolCallDelta, error) {
+	reasoning, content := s.channel.accept(piece, false)
+	s.reasoning.WriteString(reasoning)
+	s.body.WriteString(content)
+	body := s.body.String()
+	prefix := body
+	if len(s.tools) != 0 {
+		var found bool
+		prefix, _, found = strings.Cut(body, toolCallOpen)
+		if !found {
+			for size := min(len(prefix), len(toolCallOpen)-1); size > 0; size-- {
+				if strings.HasSuffix(prefix, toolCallOpen[:size]) {
+					prefix = prefix[:len(prefix)-size]
+					break
+				}
+			}
+		}
+	}
+	content = prefix[s.contentSent:]
+	s.contentSent = len(prefix)
+	var deltas []ChatToolCallDelta
+	if reasoning != "" || content != "" {
+		deltas = append(deltas, ChatToolCallDelta{ReasoningContent: reasoning, Content: content})
+	}
+	if len(s.tools) != 0 {
+		calls, err := s.toolDeltas("", body)
+		if err != nil {
+			return nil, err
+		}
+		deltas = append(deltas, calls...)
+	}
+	return deltas, nil
 }
 
 func chatToolSnapshots(

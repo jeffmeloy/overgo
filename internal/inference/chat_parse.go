@@ -26,6 +26,10 @@ func (r *Runner) ParseChatOutput(
 	if r == nil {
 		return ChatMessage{}, errRunnerNil
 	}
+	return parseChatOutput(r.chatTemplateSource(tools), output, tools)
+}
+
+func (r *Runner) chatTemplateSource(tools []ChatTool) string {
 	source := metadataString(r.file, "tokenizer.chat_template")
 	if len(tools) != 0 {
 		if toolSource := metadataString(
@@ -35,19 +39,34 @@ func (r *Runner) ParseChatOutput(
 			source = toolSource
 		}
 	}
-	return parseChatOutput(source, output, tools)
+	return source
 }
 
 func parseChatOutput(
 	template, output string,
 	tools []ChatTool,
 ) (ChatMessage, error) {
-	message := ChatMessage{Role: ChatRoleAssistant}
-	reasoning, body, err := splitChatReasoning(output)
+	markers, err := chatReasoningMarkers(template)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	reasoning, body, _, err := markers.split(output, true)
+	if err != nil {
+		return ChatMessage{}, err
+	}
+	message, err := parseChatToolOutput(template, body, tools)
 	if err != nil {
 		return ChatMessage{}, err
 	}
 	message.ReasoningContent = reasoning
+	if len(message.ToolCalls) != 0 {
+		message.Content = strings.TrimSpace(message.Content)
+	}
+	return message, nil
+}
+
+func parseChatToolOutput(template, body string, tools []ChatTool) (ChatMessage, error) {
+	message := ChatMessage{Role: ChatRoleAssistant}
 	firstCall := strings.Index(body, toolCallOpen)
 	if firstCall < 0 {
 		if strings.Contains(body, toolCallClose) {
@@ -58,7 +77,7 @@ func parseChatOutput(
 		message.Content = body
 		return message, nil
 	}
-	message.Content = strings.TrimSpace(body[:firstCall])
+	message.Content = body[:firstCall]
 	remainder := body[firstCall:]
 	hermes := strings.Contains(template, "<function=example_function_name>")
 	for len(remainder) != 0 {
@@ -79,6 +98,7 @@ func parseChatOutput(
 		}
 		payload := strings.TrimSpace(remainder[len(toolCallOpen):end])
 		var call ChatToolCall
+		var err error
 		if hermes {
 			call, err = parseHermesToolCall(payload, tools)
 		} else {
@@ -97,23 +117,54 @@ func parseChatOutput(
 	return message, nil
 }
 
-func splitChatReasoning(output string) (reasoning, content string, err error) {
-	const (
-		open  = "<think>"
-		close = "</think>"
-	)
+type reasoningMarkers struct {
+	open, close string
+}
+
+// These are wire syntaxes, selected by markers in the loaded template rather
+// than a model name. Thought channels are advertised by the retained Gemma
+// templates; content channels follow pinned Colibri's Inkling wire contract.
+// The legacy think syntax remains the fallback for existing callers.
+func chatReasoningMarkers(template string) (reasoningMarkers, error) {
+	legacy := reasoningMarkers{"<think>", "</think>"}
+	formats := [...]reasoningMarkers{
+		legacy,
+		{"<|channel>thought", "<channel|>"},
+		{"<|content_thinking|>", "<|content_text|>"},
+	}
+	selected := legacy
+	found := false
+	for _, format := range formats {
+		if !strings.Contains(template, format.open) || !strings.Contains(template, format.close) {
+			continue
+		}
+		if found {
+			return reasoningMarkers{}, errors.New("inference: chat template advertises ambiguous reasoning markers")
+		}
+		selected, found = format, true
+	}
+	return selected, nil
+}
+
+// split withholds an explicitly opened reasoning block until its closing marker
+// arrives. Only the following content is exposed to the tool scanner.
+func (markers reasoningMarkers) split(output string, complete bool) (reasoning, content string, ready bool, err error) {
+	open, close := markers.open, markers.close
 	openIndex := strings.Index(output, open)
 	closeIndex := strings.Index(output, close)
 	switch {
 	case openIndex >= 0:
+		if closeIndex < 0 && !complete {
+			return "", "", false, nil
+		}
 		if closeIndex < openIndex {
-			return "", "", errors.New(
-				"inference: reasoning output has an unterminated think block",
+			return "", "", false, errors.New(
+				"inference: reasoning output has an unterminated block",
 			)
 		}
 		prefix := output[:openIndex]
 		if strings.TrimSpace(prefix) != "" {
-			return "", "", errors.New(
+			return "", "", false, errors.New(
 				"inference: text before a reasoning block is not supported",
 			)
 		}
@@ -128,11 +179,11 @@ func splitChatReasoning(output string) (reasoning, content string, err error) {
 		content = output
 	}
 	if strings.Contains(content, open) || strings.Contains(content, close) {
-		return "", "", errors.New(
-			"inference: reasoning output contains unmatched think tags",
+		return "", "", false, errors.New(
+			"inference: reasoning output contains unmatched markers",
 		)
 	}
-	return reasoning, content, nil
+	return reasoning, content, true, nil
 }
 
 func parseJSONToolCall(

@@ -504,6 +504,8 @@ func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Re
 		return
 	}
 	defer plan.release()
+	plan.constrainedContent = len(toolSelection.active) == 0 &&
+		(len(body.GrammarChoices) != 0 || body.Grammar != "" && !body.GrammarLazy)
 	id := "chatcmpl-" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
 		h.streamChatCompletion(
@@ -670,6 +672,11 @@ func (h *Handler) completeChat(
 	cachedTokens := 0
 	totalCompletionTokens := 0
 	for choiceIndex := range n {
+		channel, err := newPromptChatDeltaStream(plan, tools)
+		if err != nil {
+			writeGenerationError(response, err)
+			return
+		}
 		result, err := plan.runChoice(choiceIndex, nil)
 		if err != nil {
 			writeGenerationError(response, err)
@@ -686,8 +693,15 @@ func (h *Handler) completeChat(
 			Role:    inference.ChatRoleAssistant,
 			Content: pump.text(),
 		}
-		if len(tools) != 0 {
-			message, err = parser.ParseChatOutput(pump.text(), tools)
+		if channel != nil || len(tools) != 0 {
+			if channel != nil {
+				_, err = channel.accept(pump.text())
+				if err == nil {
+					message, err = channel.parse(parser, tools)
+				}
+			} else {
+				message, err = parser.ParseChatOutput(pump.text(), tools)
+			}
 			if err != nil {
 				writeGenerationError(response, err)
 				return
@@ -801,7 +815,10 @@ func (h *Handler) streamChatCompletion(
 		if err := writeChunk(choiceIndex, chatStreamDelta{Role: inference.ChatRoleAssistant}, nil); err != nil {
 			return
 		}
-		toolStream, err := newToolDeltaStream(h.generator, tools)
+		toolStream, err := newPromptChatDeltaStream(plan, tools)
+		if err == nil && toolStream == nil {
+			toolStream, err = newToolDeltaStream(h.generator, tools)
+		}
 		if err != nil {
 			_ = emitGenerationError(stream.write, err)
 			break
@@ -840,8 +857,11 @@ func (h *Handler) streamChatCompletion(
 		result, err := plan.runChoice(
 			choiceIndex,
 			func(piece string) error {
+				if err := request.Context().Err(); err != nil {
+					return err
+				}
 				if piece != "" {
-					if len(tools) != 0 {
+					if toolStream.promptAware || len(tools) != 0 {
 						if streamErr := emitToolPiece(piece); streamErr != nil {
 							return streamErr
 						}
@@ -859,20 +879,25 @@ func (h *Handler) streamChatCompletion(
 			break
 		}
 		reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
-		if len(tools) != 0 {
+		if toolStream.promptAware || len(tools) != 0 {
 			message, parseErr := toolStream.parse(parser, tools)
 			if parseErr != nil {
 				_ = emitGenerationError(stream.write, parseErr)
 				break
 			}
-			if message.ReasoningContent != "" && !toolStream.started {
+			message, parseErr = toolStream.remaining(message)
+			if parseErr != nil {
+				_ = emitGenerationError(stream.write, parseErr)
+				break
+			}
+			if message.ReasoningContent != "" {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					ReasoningContent: message.ReasoningContent,
 				}, nil); err != nil {
 					return
 				}
 			}
-			if message.Content != "" && !toolStream.started {
+			if message.Content != "" {
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					Content: message.Content,
 				}, nil); err != nil {

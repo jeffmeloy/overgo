@@ -221,3 +221,94 @@ blindly unioning model and generation sources. Master synchronization against
 `69ffcc7423fa498c5df1dd4aaee269838626fe27` could not prepare because Windows denied
 renaming the retained evidence snapshot; its evidence remains intact and the
 merge retry remains due. No master plan was imported.
+
+The stop-token transfer reread `c/colibri.c` at the same pinned Apache-2.0 source.
+Its complete-stop rationale is useful, but its cross-source union and eight-ID
+limit are not adopted. A non-null generation declaration takes precedence over
+model EOS; otherwise the existing unresolved-value fallback applies. The importer
+validates every integer and range, deduplicates without reordering the primary
+EOS, and retains the complete selected list in `overgo.tokenizer.eos_token_ids`.
+This is an Overgo extension; the usual scalar GGUF EOS remains the first ID.
+The runtime retains its existing recognized-name and FIM stopping conventions.
+The import concerns token identities rather than every Transformers generation
+setting, including its separate treatment of a generation config file.
+
+The existing end-marker map also retains which IDs were explicitly declared EOS.
+Semantic vocabulary artifacts preserve those EOS roles, and exact row mapping
+rejects differing roles. Existing scalar vocabularies and token encoding retain
+their behavior. Public dense conversion/reload tests include ten declared stop
+IDs, source precedence, scalar zero, null/unset fallback, duplicates, absent EOS
+and invalid trailing entries. Nested Qwen tests isolate configuration decoding
+and shared tokenizer metadata; they are not a full Qwen numerical execution.
+
+GGUF named variants now also publish `tokenizer.chat_templates`, the sorted
+non-default name index described by llama.cpp's `gguf_writer.py` at
+`42fc243060709331ff9b158a9ed2cbe37219ae83`. A negative test reproduced the missing
+index. Existing Overgo default/tool-use selection and template bytes are retained;
+exact rendering and pinned Jinja byte parity remain required. No additional
+renderer, artifact acquisition or numerical/throughput promotion is involved.
+
+The reasoning parser transfer uses the existing buffered parser and tool stream.
+The retained Gemma Jinja template advertises `<|channel>thought` / `<channel|>`;
+Colibri's pinned `c/openai_server.py` advertises `<|content_thinking|>` /
+`<|content_text|>` for its content-channel wire. The source pin and Apache-2.0
+license above apply. The transferred facts are these delimiters and the need to
+retain split markers, rather than its Python layer, architecture switches or
+fixed prefix-length limit. Legacy `<think>` handling remains the fallback.
+
+Negative probes returned Gemma's thought channel as visible content in buffered
+and split-marker parsing, and made a tool example inside an explicitly opened
+think block fail as an unterminated block. Supported syntax is now selected
+from the loaded default or tool-use template, ambiguity refuses, and buffered
+parsing and tool-stream prefix scanning share the marker splitter. Streams
+resolve syntax once and withhold explicitly opened reasoning until closed.
+Tests cover every split boundary, unchanged plain bytes, declaration selection,
+completed malformed blocks, and actual tool deltas following reasoning.
+
+The chat completion API now uses the existing output stream for buffered and SSE
+responses when the generator provides prompt-aware parsing. Native Runner uses
+the actual prepared token IDs, rendered with control spellings, to establish a
+reasoning opener already supplied by the template; this also covers projected
+prompts whose token sequence differs from their original text. Formatting and
+output parsing share default/tool-use template selection. The legacy complete
+parser and providers without the new capability retain their existing paths.
+
+The channel splitter preserves partial markers and UTF-8, emits ordinary text
+and reasoning before generation finishes, and keeps tool examples in reasoning
+out of the tool scanner. No active tools, including `tool_choice: none`, leaves
+tool-like visible prose intact. Buffered and streamed results preserve the same
+visible prefix bytes before a tool call. Pure channel deltas create no empty
+tool events; finalization checks already-sent prefixes and sends only remaining
+text. Unfinished declared reasoning stays in its own field when a budget or stop
+ends generation. Eager final-output grammars keep their constrained result as
+visible content; lazy grammars can still carry declared reasoning.
+
+A native token-delivery regression found that control-typed channel markers
+were stripped before reaching the parser. A request-scoped token-event decoder
+now preserves only pieces of declared reasoning delimiters and active tool-call
+delimiters. Unrelated controls and EOG controls remain suppressed. The shared
+generation adapter applies this rendering to callbacks and stop filtering;
+token IDs, sampling and the returned detokenized sequence remain unchanged.
+
+Public HTTP checks cover buffered/SSE output at every split boundary, bytewise
+Unicode, prompt-opened/closed states, tool examples, budgets/stops, immediate
+progress, provider fallback and structured output. A cancellation regression
+also required checking context before routing each piece, preventing one extra
+content chunk after cancellation. Runner tests exercise actual prepared control
+tokens, named-template selection and native token delivery; these complement
+the existing parser, tool grammar, Jinja, Responses and Anthropic contracts.
+This does not claim general Jinja grammar inference, native tool syntax for
+every model, numerical model accuracy or throughput.
+
+## Master integration boundary
+
+The 6997b5feafaf integration excludes tokenizer activation from 3eac92e4 and
+b42e2993. The device gate exposed an RxBrain VQA regression: its declared
+empty normalization Sequence was refused before prompt encoding. Its ordered
+Split expressions also exceed the new compiler's supported syntax.
+
+Master retains its existing HF encoder. The NFC compiler, pre-tokenizer compiler,
+dependent tables and fixtures remain in Colibri pending complete deployed-consumer
+coverage and independent parity. Do not treat their presence in merge ancestry as
+activation or acceptance on master. EOS metadata, template indexes, reasoning
+channels and evaluation metadata checks are integrated independently.

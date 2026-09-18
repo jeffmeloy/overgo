@@ -33,6 +33,10 @@ type TokenEvent struct {
 	TopProbabilities    []sampling.TokenProbability
 }
 
+// TokenEventDecoder supplies protocol text for callbacks and stop filtering.
+// It does not change token IDs, sampling, or the returned detokenized sequence.
+type TokenEventDecoder func(tokenizer.TokenID) (string, error)
+
 type PromptEvaluation struct {
 	Tokens   int
 	Cached   int
@@ -64,8 +68,9 @@ type GenerateOptions struct {
 	// decode sessions amortize per-round graph compilation.
 	SpeculativeDecode bool
 	// DeviceTopK: exact bounded sampling; TokenEvent.Logits omitted.
-	DeviceTopK bool
-	OnToken    func(TokenEvent) error
+	DeviceTopK        bool
+	OnToken           func(TokenEvent) error
+	TokenEventDecoder TokenEventDecoder
 	// ShouldStop: evaluated after OnToken and after sampled piece has
 	// been appended to generated text; Returning true ends generation
 	// successfully while retaining that token

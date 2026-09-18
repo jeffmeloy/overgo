@@ -70,12 +70,17 @@ func chatTemplateMetadata(directory string) ([]gguf.Metadata, error) {
 	}
 	slices.Sort(names)
 	metadata := make([]gguf.Metadata, 0, len(names))
+	var variants []string
 	for _, name := range names {
 		key := "tokenizer.chat_template"
 		if name != "default" {
 			key += "." + name
+			variants = append(variants, name)
 		}
 		metadata = append(metadata, gguf.StringMetadata(key, templates[name]))
+	}
+	if len(variants) != 0 {
+		metadata = append(metadata, gguf.ArrayMetadata("tokenizer.chat_templates", gguf.ValueTypeString, variants))
 	}
 	return metadata, nil
 }

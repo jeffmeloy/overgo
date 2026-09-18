@@ -13,6 +13,10 @@ import (
 
 const NullToken TokenID = -1
 
+// MetadataEOSTokenIDs retains a model's complete declared EOS set when the
+// GGUF scalar EOS key cannot express it. It is an Overgo metadata extension.
+const MetadataEOSTokenIDs = "overgo.tokenizer.eos_token_ids"
+
 // TokenID: compatible with llama_token
 type TokenID int32
 
@@ -56,6 +60,12 @@ type pair struct {
 	right string
 }
 
+// generationEnd distinguishes explicit EOS declarations from recognized
+// terminal token names, retaining EOS roles in semantic vocabulary artifacts.
+type generationEnd struct {
+	declaredEOS bool
+}
+
 // Vocab: immutable supported vocabulary loaded from GGUF
 type Vocab struct {
 	Model string
@@ -88,7 +98,7 @@ type Vocab struct {
 	StripAccents bool
 
 	tokenToID   map[string]TokenID
-	eogByName   map[TokenID]bool
+	eog         map[TokenID]generationEnd
 	mergeRank   map[pair]int
 	special     []TokenID
 	ugmMaxLen   int
@@ -275,6 +285,16 @@ func Load(file *gguf.File) (*Vocab, error) {
 	}
 	vocab.fimDeclared = vocab.FIMPad != NullToken || vocab.FIMRep != NullToken || vocab.FIMSep != NullToken
 	vocab.markEndOfGenerationByName()
+	declaredEOG, err := optionalArray[uint32](values, MetadataEOSTokenIDs, gguf.ValueTypeUint32)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range declaredEOG {
+		if uint64(id) >= uint64(len(vocab.Tokens)) {
+			return nil, fmt.Errorf("tokenizer: metadata %q has out-of-range token ID %d", MetadataEOSTokenIDs, id)
+		}
+		vocab.eog[TokenID(id)] = generationEnd{declaredEOS: true}
+	}
 	if vocab.BOS >= TokenID(len(vocab.Tokens)) {
 		vocab.BOS = NullToken
 	}
@@ -496,10 +516,10 @@ func (v *Vocab) markEndOfGenerationByName() {
 	if v == nil {
 		return
 	}
-	v.eogByName = make(map[TokenID]bool)
+	v.eog = make(map[TokenID]generationEnd)
 	for id, token := range v.Tokens {
 		if endOfGenerationNames[token.Text] {
-			v.eogByName[TokenID(id)] = true
+			v.eog[TokenID(id)] = generationEnd{}
 		}
 	}
 	if v.EOT != NullToken {
@@ -523,7 +543,7 @@ func (v *Vocab) IsEOG(id TokenID) bool {
 			return true
 		}
 	}
-	if v.eogByName[id] {
+	if _, found := v.eog[id]; found {
 		return true
 	}
 	return v.fimDeclared && (id == v.FIMPad || id == v.FIMRep || id == v.FIMSep)

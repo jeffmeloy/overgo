@@ -332,3 +332,34 @@ remain byte-identical; that prompt is also the frozen Krea request
 `file:sha256:1d840594046f2981e9fb7c335808a4f3399101072ab0a8ab2768492642f9b6e2`.
 Other prompts whose IDs change still require affected output reacquisition;
 this slice makes no model-numerical or throughput claim.
+
+## Declared pre-tokenizer pipelines
+
+The HF encoder now compiles declared `Sequence`, `Digits`, recognized `Split`
+expressions and a final `ByteLevel` through the existing native GPT2, Qwen2
+and Llama3 splitters. It honors ordering, per-segment prefix spaces and regex
+selection. Unsupported declarations refuse encoding while valid decoding
+remains available. Absent/null declarations and `LoadSplit` retain their
+explicit legacy behavior. The BPE merge algorithm is unchanged in this slice.
+
+The independent pinned llama.cpp corpora exposed 1/46 Qwen2 and 12/46 GPT2
+token-ID mismatches before the change. All 92 cases now match, using fixtures
+that retain upstream expected IDs and a vocabulary projection independent of
+candidate split boundaries. Eight retained Krea, Fractale and Granite vectors
+also match; the actual Krea fox-prompt token and mask goldens remain unchanged.
+Source identities, licensing, projection method, semantics and limitations are
+recorded in [the pre-tokenizer contract](../internal/hfbpe/PRETOKENIZER.md).
+
+Granite numeric inputs can change under its declared three-digit split; those
+observations do not establish numerical model parity. Affected alignment,
+training and model outputs still require independent reacquisition. General
+normalization sequences, arbitrary regexes, normalized added-token matching,
+Kimi and broader model fixtures remain open.
+
+The next bounded step shares rank-based BPE merging: the HF path still scans
+all adjacent pairs repeatedly, while the native path has a heap. Retained
+operation counts motivate that work but establish no end-to-end speedup. The
+shared owner must preserve exact integer ranks, leftmost ties, SPM float-score
+semantics and each legacy wrapper's malformed-byte behavior before performance
+comparisons can support a claim. The live plan keeps this foundation ahead of
+the remaining model and MoE work.

@@ -13,8 +13,8 @@ import (
 // A byte-complete vocabulary exposes the normalized input directly as IDs;
 // fixed Unicode spellings provide the expected bytes independently of BPE.
 func TestDeclaredNFCNormalization(t *testing.T) {
-	nfc := loadNormalizationFixture(t, json.RawMessage(`{"type":"NFC"}`), nil)
-	plain := loadNormalizationFixture(t, nil, nil)
+	nfc := loadTokenizerFixture(t, json.RawMessage(`{"type":"NFC"}`), nil, nil)
+	plain := loadTokenizerFixture(t, nil, nil, nil)
 	for _, input := range []string{"caf\u00e9", "cafe\u0301"} {
 		got, err := nfc.Encode(input)
 		if err != nil || !slices.Equal(got, byteIDs("caf\u00e9")) {
@@ -33,7 +33,7 @@ func TestDeclaredNFCNormalization(t *testing.T) {
 	// tokens; composition must not cross their boundary.
 	for _, special := range []bool{false, true} {
 		added := []map[string]any{{"id": binaryschema.ByteValueCount, "content": "e", "special": special, "normalized": false}}
-		tokenizer := loadNormalizationFixture(t, json.RawMessage(`{"type":"NFC"}`), added)
+		tokenizer := loadTokenizerFixture(t, json.RawMessage(`{"type":"NFC"}`), nil, added)
 		want := append([]int{binaryschema.ByteValueCount}, byteIDs("\u0301")...)
 		got, err := tokenizer.Encode("e\u0301")
 		if err != nil || !slices.Equal(got, want) {
@@ -43,7 +43,7 @@ func TestDeclaredNFCNormalization(t *testing.T) {
 	for _, flag := range []string{"normalized", "single_word", "lstrip", "rstrip"} {
 		added := map[string]any{"id": binaryschema.ByteValueCount, "content": "token", "normalized": false}
 		added[flag] = true
-		tokenizer := loadNormalizationFixture(t, json.RawMessage(`{"type":"NFC"}`), []map[string]any{added})
+		tokenizer := loadTokenizerFixture(t, json.RawMessage(`{"type":"NFC"}`), nil, []map[string]any{added})
 		if _, err := tokenizer.Encode("token"); err == nil {
 			t.Fatalf("silently ignored NFC added-token %s", flag)
 		}
@@ -51,12 +51,12 @@ func TestDeclaredNFCNormalization(t *testing.T) {
 			t.Fatalf("decoding depended on encoding declaration: %q", got)
 		}
 	}
-	unspecified := loadNormalizationFixture(t, json.RawMessage(`{"type":"NFC"}`), []map[string]any{{"id": binaryschema.ByteValueCount, "content": "token"}})
+	unspecified := loadTokenizerFixture(t, json.RawMessage(`{"type":"NFC"}`), nil, []map[string]any{{"id": binaryschema.ByteValueCount, "content": "token"}})
 	if _, err := unspecified.Encode("token"); err == nil {
 		t.Fatal("NFC added-token matching accepted unspecified normalization")
 	}
 	for _, declaration := range []string{`{"type":"Lowercase"}`, `{"type":"UnknownNormalization"}`, `{"type":"Sequence","normalizers":[]}`, `{"type":"Replace","pattern":{"Regex":" +"},"content":"_"}`} {
-		tokenizer := loadNormalizationFixture(t, json.RawMessage(declaration), nil)
+		tokenizer := loadTokenizerFixture(t, json.RawMessage(declaration), nil, nil)
 		if _, err := tokenizer.Encode("A"); err == nil {
 			t.Fatalf("silently ignored %s", declaration)
 		}
@@ -87,7 +87,7 @@ func byteIDs(text string) []int {
 	return result
 }
 
-func loadNormalizationFixture(t *testing.T, normalizer json.RawMessage, added []map[string]any) *Tokenizer {
+func loadTokenizerFixture(t *testing.T, normalizer, pre any, added []map[string]any) *Tokenizer {
 	t.Helper()
 	var alphabet Tokenizer
 	alphabet.buildByteAlphabet()
@@ -97,7 +97,7 @@ func loadNormalizationFixture(t *testing.T, normalizer json.RawMessage, added []
 	}
 	fixture := map[string]any{
 		"model":      map[string]any{"type": "BPE", "vocab": vocabulary, "merges": []string{}},
-		"normalizer": normalizer, "added_tokens": added,
+		"normalizer": normalizer, "pre_tokenizer": pre, "added_tokens": added,
 	}
 	data, err := json.Marshal(fixture)
 	if err != nil {

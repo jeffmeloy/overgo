@@ -1,8 +1,6 @@
-// Package hfbpe is a Hugging Face tokenizer.json BPE encoder/decoder:
-// specials -> GPT-2 regex split -> byte alphabet -> BPE -> ids (byte-level
-// scheme), or specials -> U+2581 marker -> BPE -> byte fallback (the
-// sentencepiece-marker scheme, selected by the DECLARED normalizer).
-//
+// Package hfbpe implements Hugging Face BPE encoding and decoding. Declared
+// byte-level pipelines use shared native splitting; absent declarations retain
+// the established legacy byte-level or literal-space marker encoding contract.
 // Ported from adaptive_new go/extmodel tokenizer.go (BPE paths).
 package hfbpe
 
@@ -35,6 +33,8 @@ type Tokenizer struct {
 	omitSpecial       map[int]bool
 	normalizeNFC      bool
 	normalizerErr     error
+	preTokenize       preTokenizerStage
+	preTokenizerErr   error
 }
 
 type tokenizerJSON struct {
@@ -47,8 +47,9 @@ type tokenizerJSON struct {
 		LStrip     bool   `json:"lstrip"`
 		RStrip     bool   `json:"rstrip"`
 	} `json:"added_tokens"`
-	Normalizer json.RawMessage `json:"normalizer"`
-	Decoder    struct {
+	Normalizer   json.RawMessage `json:"normalizer"`
+	PreTokenizer json.RawMessage `json:"pre_tokenizer"`
+	Decoder      struct {
 		Type          string `json:"type"`
 		Replacement   string `json:"replacement"`
 		PrependScheme string `json:"prepend_scheme"`
@@ -86,6 +87,7 @@ func Load(dir string) (*Tokenizer, error) {
 		t.stripDecodePrefix = tj.Decoder.PrependScheme != "never"
 	}
 	t.configureNormalizer(tj.Normalizer)
+	t.configurePreTokenizer(tj.PreTokenizer)
 	for i, raw := range tj.Model.Merges {
 		var pair [2]string
 		if err := json.Unmarshal(raw, &pair); err == nil {
@@ -100,8 +102,8 @@ func Load(dir string) (*Tokenizer, error) {
 		return nil, fmt.Errorf("merges[%d]: unrecognized wire format", i)
 	}
 	for _, a := range tj.AddedTokens {
-		if t.normalizeNFC && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
-			t.normalizerErr = fmt.Errorf("NFC added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
+		if (t.normalizeNFC || t.preTokenize != nil) && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
+			t.normalizerErr = fmt.Errorf("declared tokenizer added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
 		}
 		t.special[a.Content] = a.ID
 		t.specials = append(t.specials, a.Content)
@@ -158,8 +160,11 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 	if t.normalizerErr != nil {
 		return nil, t.normalizerErr
 	}
-	if t.normalizeNFC && !utf8.ValidString(text) {
-		return nil, fmt.Errorf("declared NFC encoding requires valid UTF-8 input")
+	if t.preTokenizerErr != nil {
+		return nil, t.preTokenizerErr
+	}
+	if (t.normalizeNFC || t.preTokenize != nil) && !utf8.ValidString(text) {
+		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
 	}
 	var ids []int
 	for _, seg := range t.splitOnSpecials(text) {
@@ -178,7 +183,13 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 			ids = append(ids, segIDs...)
 			continue
 		}
-		for _, piece := range gpt2Pretokenize(seg) {
+		var pieces []string
+		if t.preTokenize == nil {
+			pieces = gpt2Pretokenize(seg)
+		} else {
+			pieces = t.preTokenize(seg)
+		}
+		for _, piece := range pieces {
 			var sb strings.Builder
 			for i := range len(piece) {
 				sb.WriteRune(t.b2u[piece[i]])
@@ -386,8 +397,9 @@ func (t *Tokenizer) bpe(word string) []string {
 	return parts
 }
 
-// gpt2Pretokenize: hand-written scanner reproducing the GPT-2/Qwen2 regex
-// alternation (Go RE2 cannot express the trailing-space lookahead).
+// gpt2Pretokenize preserves the historical undeclared/LoadSplit scanner.
+// Declared pipelines use the shared native scanners; this compatibility path
+// remains until its consumers have explicit declarations and reacquired IDs.
 func gpt2Pretokenize(s string) []string {
 	runes := []rune(s)
 	var out []string

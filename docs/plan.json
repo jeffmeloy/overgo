@@ -12,17 +12,34 @@
       "status": "open",
       "steps": [
         {
+          "id": "bpe-shared",
+          "title": "Share exact-ranked BPE merging and measure complete encoding cost",
+          "status": "open",
+          "verify": "go test ./internal/tokenizer -run '^TestSharedBPEExactRanks$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestSharedBPEMergeReference$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestSharedBPEWorkBound$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestApplyBPEHeapMatchesPairScan$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestApplyBPEHeapMatchesPairScanOnALongLine$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestSharedBPELegacyBoundaries$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredPipeline$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredPipelineOracle$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1",
+          "rationale": "Bounded follow-up to declared pre-tokenizer correctness. Finding evidence:sha256:f80aaa88633231c7c2c06cb093a1ab3395de8709551bee7d6f7ab78c26deb031 measures 6,292,479 HF pair lookups versus 8,189 native lookups on 4,096 repeated byte-alphabet space symbols, with equal 2,048-piece outputs; this establishes avoidable scan work, not elapsed-time speedup. Consolidate rank-based BPE through the existing native heap owner, migrate HF encoding, and delete its displaced pair scan. First resolve exact integer priority finding evidence:sha256:f9c140417833d7de5173bebdff9b765a29ef85bd00015949bfdaec784ef069bd: ranks 16,777,217 versus 16,777,216 must not collapse through float32. Preserve leftmost ties, native IgnoreMerges, SPM score ordering, empty inputs, and each wrapper's observed malformed-byte behavior. Do not broaden declarations or normalization. Freeze corpus/consumer vectors and benchmark workloads before candidate edits, compare with a simple exact integer reference across ordinary, Unicode, adversarial, long and boundary-rank cases, and prove lookup growth from input cardinality rather than a fitted time threshold. Run the independent 92-case token oracle and all affected consumer identity checks; changed outputs require independent reacquisition. Measure complete encoding time and allocations on identical ordinary and long inputs with the same vocabulary and environment, retain negative results, and report both ordinary-input costs and long-input gains. Operation counts alone grant no model-throughput or numerical promotion. Newly named tests are implementation obligations. Broader Kimi, normalization and numerical-fixture work remains in the original remainder. Every required test has its own exact command selector. Existing native heap tests cannot satisfy missing new shared-merger tests; each invocation must supply complete non-skipped evidence. This strengthens the declared acceptance before candidate implementation and does not change the frozen corpus or numerical criteria.",
+          "depends_on": [
+            "colibri-text-semantics/pretokenizer"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        },
+        {
           "id": "do",
           "title": "Honor declared stop tokens, tokenization and reasoning channels",
           "status": "open",
           "verify": "go test ./internal/hfconvert ./internal/tokenizer ./internal/inference -run 'TestConvertedEOGTokenList|TestChatReasoningDeclaredChannels|TestKimiK2' -count=1 \u0026\u0026 go test ./internal/hfbpe -run 'TestDeclaredPipeline|TestConsumerTokenIdentity' -count=1",
-          "rationale": "W0.3/W0.7/W0.8/W5.8. Reproduce per-consumer mismatches first; preserve complete declared EOS arrays with explicit generation-config precedence and model-config fallback, validate ranges, route reasoning via declared marker pairs including split chunks, and support declared tokenizer nodes through common algorithms. Preserve accepted consumers' IDs and output; changed media/speech tokenization requires affected reacquisition. Unsupported nodes refuse explicitly. Model identifiers belong in declarations, extend existing family-branch checks only for demonstrated holes. Reasoning parser and public API routing are separately executable prerequisites with their own acceptance; retain the original Kimi, tokenizer-pipeline, consumer-identity and model-fixture obligations here. Parser-only completion grants no credit for no-tool API streaming or numerical model accuracy. Declared NFC is a separately executable prerequisite grounded by a real consumer mismatch and an independent Unicode corpus; its completion does not close broader pre-tokenizer, Kimi, model-fixture or affected-consumer reacquisition obligations.",
+          "rationale": "W0.3/W0.7/W0.8/W5.8. Reproduce per-consumer mismatches first; preserve complete declared EOS arrays with explicit generation-config precedence and model-config fallback, validate ranges, route reasoning via declared marker pairs including split chunks, and support declared tokenizer nodes through common algorithms. Preserve accepted consumers' IDs and output; changed media/speech tokenization requires affected reacquisition. Unsupported nodes refuse explicitly. Model identifiers belong in declarations, extend existing family-branch checks only for demonstrated holes. Reasoning parser and public API routing are separately executable prerequisites with their own acceptance; retain the original Kimi, tokenizer-pipeline, consumer-identity and model-fixture obligations here. Parser-only completion grants no credit for no-tool API streaming or numerical model accuracy. Declared NFC is a separately executable prerequisite grounded by a real consumer mismatch and an independent Unicode corpus; its completion does not close broader pre-tokenizer, Kimi, model-fixture or affected-consumer reacquisition obligations. Declared byte-level pre-tokenizer compilation is a separate prerequisite backed by 92 independent corpus cases. Its completion preserves Kimi, unsupported normalizer pipelines, numerical fixture and affected-output reacquisition obligations.",
           "depends_on": [
             "colibri-fixtures/do",
             "colibri-text-semantics/eog",
             "colibri-text-semantics/reasoning-parser",
             "colibri-text-semantics/reasoning-api",
-            "colibri-text-semantics/nfc"
+            "colibri-text-semantics/nfc",
+            "colibri-text-semantics/pretokenizer",
+            "colibri-text-semantics/bpe-shared"
           ],
           "capabilities": [
             "shared-components",

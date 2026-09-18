@@ -46,7 +46,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 		t.Fatalf("UNAVAILABLE: LiveEdit checkpoint: %v", err)
 	}
 
-	source := encodeRetainedDenoiserSource(t, repo, roots.Models)
+	source := encodeRetainedDenoiserSource(t, roots.Models)
 	current := loadRetainedDenoiserCurrent(t)
 	geometry := LatentGeometry{
 		Channels: 2 * base.InDim, LatentFrames: 1, LatentHeight: 2, LatentWidth: 4,
@@ -234,7 +234,7 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	}
 }
 
-func encodeRetainedDenoiserSource(t testing.TB, repo, models string) []float32 {
+func encodeRetainedDenoiserSource(t testing.TB, models string) []float32 {
 	t.Helper()
 	checkpoint := filepath.Join(models, "Wan2.1-T2V-1.3B", "Wan2.1_VAE.pth")
 	catalog, err := pytorchzip.ReadCatalog(checkpoint)
@@ -250,7 +250,7 @@ func encodeRetainedDenoiserSource(t testing.TB, repo, models string) []float32 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := loadRealSourceCrops(t, filepath.Join(repo, "build", "latentvideo", "current_prod50", "frame_00.f32le"), plan.Source)
+	input := loadRealSourceCrops(t, plan.Source)
 	session, err := NewVAEEncoderCUDASession(checkpoint, graph, 0)
 	if err != nil {
 		t.Fatal(err)

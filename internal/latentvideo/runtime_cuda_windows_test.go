@@ -202,9 +202,7 @@ func TestWanDecodeCancellation(t *testing.T) {
 
 func TestWanLifecycleAcceptance(t *testing.T) {
 	cudatest.Require(t)
-	if cudatest.MeasurementProcess(t, 0) {
-		return
-	}
+	// Native parity and session residency do not require device exclusivity.
 	if testing.Short() {
 		t.Skip("integration excluded by -short: checks real Wan lifecycle and references")
 	}

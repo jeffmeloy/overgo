@@ -147,9 +147,10 @@ func (h *Handler) chainMessages(ctx context.Context, chain []runrecord.Interacti
 		if err != nil {
 			return nil, err
 		}
-		for _, message := range transcript.Messages {
+		for messageIndex, message := range transcript.Messages {
 			shown := conversationMessage{Role: message.Role, Content: message.Content, Response: interaction.Response, Media: message.Media, ToolCalls: message.ToolCalls}
-			if message.Role == "assistant" {
+			// Published transcripts end with the generated answer.
+			if messageIndex == len(transcript.Messages)-1 && message.Role == string(inference.ChatRoleAssistant) {
 				shown.IncompleteDetails = responseLimitDetails(interaction.TerminalReason)
 			}
 			result = append(result, shown)

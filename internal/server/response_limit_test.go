@@ -13,6 +13,11 @@ import (
 
 // Exercise the wire result and its durable projection with the same generation.
 func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
+	requestMessages := []map[string]string{
+		{"role": "user", "content": "previous question"},
+		{"role": "assistant", "content": "previous complete answer"},
+		{"role": "user", "content": "bounded answer"},
+	}
 	for _, tc := range []struct {
 		name, stop, status, text string
 		limit                    int
@@ -30,7 +35,7 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 					}
 					defer store.Close()
 					handler := newTestHandlerForRepository(t, store, responseRecipeGenerator(t, &fakeGenerator{}))
-					input := map[string]any{"input": "bounded answer", "max_output_tokens": tc.limit, "stream": stream, "store": stored}
+					input := map[string]any{"input": requestMessages, "max_output_tokens": tc.limit, "stream": stream, "store": stored}
 					if tc.stop != "" {
 						input["stop"] = tc.stop
 					}
@@ -118,9 +123,16 @@ func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
 								t.Fatalf("inspection: %s (%v)", inspect.Body, err)
 							}
 							checkDetails(record.IncompleteDetails)
-							if len(history.Messages) != 2 || history.Messages[1].Content != tc.text {
+							if len(history.Messages) != len(requestMessages)+1 || history.Messages[len(requestMessages)].Content != tc.text {
 								t.Fatalf("messages = %+v", history.Messages)
 							}
+							for index, input := range requestMessages {
+								message := history.Messages[index]
+								if message.Role != input["role"] || message.Content != input["content"] || message.IncompleteDetails != nil {
+									t.Fatalf("request message changed or inherited terminal reason: %+v", message)
+								}
+							}
+							checkDetails(history.Messages[len(requestMessages)].IncompleteDetails)
 						}
 						checkHistory(handler)
 						if err := handler.Close(); err != nil {

@@ -1,0 +1,335 @@
+{
+  "version": 1,
+  "tasks": [
+    "speech",
+    "image-gen",
+    "video-gen",
+    "vqa"
+  ],
+  "truncated": false,
+  "counts": {
+    "activations": 9,
+    "stale": 0,
+    "measured_verifiers": 9
+  },
+  "rows": [
+    {
+      "name": "Hy-Embodied-RxBrain-1.0",
+      "model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
+      "task": "vqa",
+      "recipe": "recipe:sha256:97d121be90fba86b42effe71d2a67c68095a7a74fadd2bb0b848a3c72ed38879",
+      "activation": "evidence:sha256:5ecc1c2350600ac42e687751bb48dce9cf48a17dfcd86d73b7c0be8db0e1f8a2",
+      "activation_tier": "parity",
+      "historical_verifier": {
+        "gate": "evidence:sha256:da6e3efbd0aedc4548eaaf5c50029d8ec2850b08e3ec8a1652041174ce09fc9c",
+        "run": "run:sha256:9d624ee2e95644abc39103913eefd97bff4e3682998e59d8a9827a0c48377c10",
+        "source": "6da9e6329fe7a3d78af483a04b5377699de150bc",
+        "environment": "evidence:sha256:d0edcef493e3fdb665583d278d1363d7e391b20147050cf35b8718b3d835bce1",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:da6e3efbd0aedc4548eaaf5c50029d8ec2850b08e3ec8a1652041174ce09fc9c"
+        ],
+        "wall_ns": 10113058200,
+        "phases": [
+          {
+            "phase": "generate",
+            "duration_ns": 10667648600
+          },
+          {
+            "phase": "prepare",
+            "duration_ns": 134636400
+          },
+          {
+            "phase": "test",
+            "duration_ns": 10113058200
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "Krea-2-Turbo",
+      "model": "model:sha256:e384ce5a7ff89dab915e5e636393f93e2a8f2cde2f0923e2e5df4363dda481c5",
+      "task": "image-gen",
+      "recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+      "activation": "evidence:sha256:ea4a3ef0afbdc7d2c482e8bfca244e93e8aaa3287b8d8fed703d58029a59b490",
+      "supersedes": "recipe:sha256:d931a95e3aa4d4c1cfbcb7dc67f349cefaea2b9186866e4b58e150516f6a7804",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:5b3a1c4bb7981dba814537a3bc55e9a7289f744e64884952417c56e48d8a9cba",
+        "run": "run:sha256:e4d68f9684123f97e07865a49641306cdf06410992e587608f7b75fb10f689a0",
+        "source": "05faa01ef333b7f2f1c93ba1c38d2f0779ff0e02",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:5b3a1c4bb7981dba814537a3bc55e9a7289f744e64884952417c56e48d8a9cba"
+        ],
+        "wall_ns": 14581471800,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 161904200
+          },
+          {
+            "phase": "integrate",
+            "duration_ns": 1416863400
+          },
+          {
+            "phase": "prepare",
+            "duration_ns": 9728573600
+          },
+          {
+            "phase": "test",
+            "duration_ns": 14581471800
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "LiveEdit",
+      "model": "model:sha256:67c7b0c56742b6f7477ec2c414ae8a337ace22e311b4f03f55860916706314df",
+      "task": "video-gen",
+      "recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+      "activation": "evidence:sha256:d06b545b25138c0d260ec9891c3d4dbb3fa28684cc34bb925c92234bbfb687de",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:9962cef18a9b42edc20d18d844dd23405b24d34fc4c730356921fffda97611f6",
+        "run": "run:sha256:b5479fb69973629fb55043eccafc748fe8701133f6f5bf8b72ed1177f63b6075",
+        "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:9962cef18a9b42edc20d18d844dd23405b24d34fc4c730356921fffda97611f6"
+        ],
+        "wall_ns": 5408733600,
+        "phases": [
+          {
+            "phase": "integrate",
+            "duration_ns": 671371000
+          },
+          {
+            "phase": "test",
+            "duration_ns": 5408733600
+          }
+        ],
+        "peak_step_device_bytes": 3260313344
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "SenseNova-U1-8B-MoT-Infographic-V3",
+      "model": "model:sha256:03a237541f9d21f2c0fd477e5f29b56fecaf5dfa26a8cadc8da69aa5e3a42476",
+      "task": "image-gen",
+      "recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+      "activation": "evidence:sha256:d8f96d90afc4910957dfae404e37b313d1fd2e6db43ad72ff037088950587252",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:3d0bc88bed1aadcc018add214916bcf8ee4018049a28d0169f6da8146668134e",
+        "run": "run:sha256:da178b2cfc4dbcde37a0b4e755c234281bb45132474b79642e7cd15372da4824",
+        "source": "73414af5ea9b21d5665226cf896f96e38dd3d265",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:3d0bc88bed1aadcc018add214916bcf8ee4018049a28d0169f6da8146668134e"
+        ],
+        "wall_ns": 137156447700,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 939066900
+          },
+          {
+            "phase": "integrate",
+            "duration_ns": 122434426800
+          },
+          {
+            "phase": "prepare",
+            "duration_ns": 13187145800
+          },
+          {
+            "phase": "test",
+            "duration_ns": 137156447700
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "SimpleDiffusion-TensorProductAttentionRope",
+      "model": "model:sha256:5641a228dd9f9991ede664f1988615c62839896e51016777d1d301766278b939",
+      "task": "image-gen",
+      "recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+      "activation": "evidence:sha256:5324fbeddc4d2345186951299288c54769bc1bae2a843afa6886975815cb5cb4",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:710bb24341b1d20ae6c714a49874f0358dee8672fa7388fe4aec3415062e7be0",
+        "run": "run:sha256:91d38d9a086504b06f65e47c89170632c86468d1de51eecbc1c915d86ad5d301",
+        "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:710bb24341b1d20ae6c714a49874f0358dee8672fa7388fe4aec3415062e7be0"
+        ],
+        "wall_ns": 1845098700,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 7658700
+          },
+          {
+            "phase": "integrate",
+            "duration_ns": 1413084600
+          },
+          {
+            "phase": "test",
+            "duration_ns": 1845098700
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "Un-0",
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "task": "image-gen",
+      "recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+      "activation": "evidence:sha256:4b67b736c0b36642e748b5e8fe3818d04dba3411b92a6b4ef460f9ede6e4e03d",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:033e4554d122101e25c8fb792fa30b65d317770980ad12d667526be64283e653",
+        "run": "run:sha256:4f87a73c4e38f7def792280c74310cc5be8b4e7889685ca17af869e942598fda",
+        "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:033e4554d122101e25c8fb792fa30b65d317770980ad12d667526be64283e653"
+        ],
+        "wall_ns": 54377100,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 1584200
+          },
+          {
+            "phase": "integrate",
+            "duration_ns": 504500
+          },
+          {
+            "phase": "test",
+            "duration_ns": 54377100
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "Un-0",
+      "model": "model:sha256:04097c8ba3345cdb75cb258c4424643da57dd649cb0b46fb1bad63640303bb81",
+      "task": "video-gen",
+      "recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+      "activation": "evidence:sha256:8d048445cf3f66f58b4da3651f375a4a79155620dbe3b0b9e8e5aa6bd38fbcf8",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:30d089f92a60ec236ad420b62624a41e6e2749f6901b7a19ef9ecd4ee838f20d",
+        "run": "run:sha256:65d0ca4450e8578ef4201da185cad7779217a11a9ffdfe6295abd8d0dc6c4c06",
+        "source": "f313f43d6c57190f72d04f8e76834ccd5784f921",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:30d089f92a60ec236ad420b62624a41e6e2749f6901b7a19ef9ecd4ee838f20d"
+        ],
+        "wall_ns": 40948700,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 17934200
+          },
+          {
+            "phase": "test",
+            "duration_ns": 40948700
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "Wan2.1-T2V-1.3B",
+      "model": "model:sha256:7bb7f43a42450222e958436862c219aa87806f0301c457a0d32043da4b46cce1",
+      "task": "video-gen",
+      "recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+      "activation": "evidence:sha256:a47bd15cad79c2e728fa501661e431534324b6bcc4b38aae640cc1c9ce675f82",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:d137ace0d95df805c9a270d99e332e91c4b979283196fe07365316914c56916f",
+        "run": "run:sha256:e12f8b3baf8c7d41858fc714cceec8ec60497643fbdf556af657a7151b49d416",
+        "source": "b862f3c902fbbce8d5d6c511ee53dfa0d82f7e4e",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:d137ace0d95df805c9a270d99e332e91c4b979283196fe07365316914c56916f"
+        ],
+        "wall_ns": 382361382500,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 4605600
+          },
+          {
+            "phase": "integrate",
+            "duration_ns": 376763850400
+          },
+          {
+            "phase": "test",
+            "duration_ns": 382361382500
+          }
+        ],
+        "peak_step_device_bytes": 10329897932
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    },
+    {
+      "name": "pocket-tts",
+      "model": "model:sha256:68ad1881ffcedc9ed797346b8ecd0784e59162a3de2db8daa92acb014c1251ee",
+      "task": "speech",
+      "recipe": "recipe:sha256:353213be1a91a29530711460da9a2cd8de4e44f43c97e824d029881a74d0f403",
+      "activation": "evidence:sha256:906a968a045d4755895076428e2cbf875dc3836f48a0a7b06c8d9dbe5e19a07b",
+      "activation_tier": "verified",
+      "historical_verifier": {
+        "gate": "evidence:sha256:9d1085218ce3b99d2d6cc79e9b9201c676c94ff03c4e09b0547b59be6fa39dfa",
+        "run": "run:sha256:d8e9b00f3c3694e066e17ea678548fec35382d74e3c3cbe6f14fe467347d34ec",
+        "source": "1f6efd8b7cdaee994f9e44ebc2f0023f4f97bf06",
+        "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+        "inputs": null,
+        "outputs": [
+          "evidence:sha256:9d1085218ce3b99d2d6cc79e9b9201c676c94ff03c4e09b0547b59be6fa39dfa"
+        ],
+        "wall_ns": 2087774600,
+        "phases": [
+          {
+            "phase": "decode",
+            "duration_ns": 1069925800
+          },
+          {
+            "phase": "generate",
+            "duration_ns": 774149500
+          },
+          {
+            "phase": "test",
+            "duration_ns": 2087774600
+          }
+        ]
+      },
+      "generation_gap": "Current generation protocol and source compatibility are not bound by activation evidence.",
+      "repair_owner": "modality-verification/media-report"
+    }
+  ]
+}

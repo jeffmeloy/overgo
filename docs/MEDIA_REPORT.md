@@ -181,6 +181,8 @@ Missing measurements remain unavailable; a reported zero requires an observation
 
 The selected tasks (speech, image-gen, video-gen, vqa) have 9 activations; 0 are stale and 9 healthy activations cite a readable measured verifier run. Measurements retain their original scope and source revision.
 
+[Typed projection](media_report.json) contains the same totals, exact integer measurements and original source identities. Activation and historical verification do not establish current generation acceptance.
+
 ## Public media surface
 
 Every media capability is exercised through the same task-generic recipe lifecycle; requests are typed JSON on standard input and outputs are typed store artifacts.
@@ -264,16 +266,16 @@ One row per healthy activation: the recipe artifact the active alias resolves, i
 
 One row per healthy activation: the verifier run the activation cites, exactly as recorded -- wall, measured phase decomposition, peak device bytes, verifying commit, and the output artifacts the run published. A dash means the activation stands without that measurement.
 
-| Model | Task | Verifier wall | Phases | Peak device | Commit | Run outputs |
+| Model | Task | Verifier wall | Phases | Maximum step device peak | Commit | Run outputs |
 | --- | --- | --- | --- | --- | --- | --- |
 | `Hy-Embodied-RxBrain-1.0` | `vqa` | 10.113s | generate 10.668s, prepare 135ms | - | `6da9e6329fe7` | `evidence:sha256:da6e3efbd0aedc45` |
 | `Krea-2-Turbo` | `image-gen` | 14.581s | decode 162ms, integrate 1.417s, prepare 9.729s | - | `05faa01ef333` | `evidence:sha256:5b3a1c4bb7981dba` |
-| `LiveEdit` | `video-gen` | 5.409s | integrate 671ms | 3260313344 B | `f313f43d6c57` | `evidence:sha256:9962cef18a9b42ed` |
+| `LiveEdit` | `video-gen` | 5.409s | integrate 671ms | 3260313344 B (3109.277 MiB; 3.036 GiB) | `f313f43d6c57` | `evidence:sha256:9962cef18a9b42ed` |
 | `SenseNova-U1-8B-MoT-Infographic-V3` | `image-gen` | 2m17.156s | decode 939ms, integrate 2m2.434s, prepare 13.187s | - | `73414af5ea9b` | `evidence:sha256:3d0bc88bed1aadcc` |
 | `SimpleDiffusion-TensorProductAttentionRope` | `image-gen` | 1.845s | decode 8ms, integrate 1.413s | - | `f313f43d6c57` | `evidence:sha256:710bb24341b1d20a` |
 | `Un-0` | `image-gen` | 54ms | decode 2ms, integrate 1ms | - | `f313f43d6c57` | `evidence:sha256:033e4554d122101e` |
 | `Un-0` | `video-gen` | 41ms | decode 18ms | - | `f313f43d6c57` | `evidence:sha256:30d089f92a60ec23` |
-| `Wan2.1-T2V-1.3B` | `video-gen` | 6m22.361s | decode 5ms, integrate 6m16.764s | 10329897932 B | `b862f3c902fb` | `evidence:sha256:d137ace0d95df805` |
+| `Wan2.1-T2V-1.3B` | `video-gen` | 6m22.361s | decode 5ms, integrate 6m16.764s | 10329897932 B (9851.358 MiB; 9.620 GiB) | `b862f3c902fb` | `evidence:sha256:d137ace0d95df805` |
 | `pocket-tts` | `speech` | 2.088s | decode 1.07s, generate 774ms | - | `1f6efd8b7cda` | `evidence:sha256:9d1085218ce3b99d` |
 
 ## Recorded run outcomes

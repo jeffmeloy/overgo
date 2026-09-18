@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -99,7 +100,7 @@ func generateMediaReport(root, repository string) (mediaReportOutput, error) {
 	if err != nil {
 		return mediaReportOutput{}, err
 	}
-	projection.Coverage, err = projectModalityCoverage(ctx, root, store)
+	projection.Coverage, err = projectModalityCoverage(ctx, root, store, namesByModel)
 	if err != nil {
 		return mediaReportOutput{}, err
 	}
@@ -378,6 +379,8 @@ func writeMediaSamplesSection(
 		for _, sample := range samples {
 			if sampleErr := validateMediaSampleFile(directory, sample.Name); sampleErr == nil {
 				present = append(present, sample)
+			} else if errors.Is(sampleErr, os.ErrNotExist) {
+				fmt.Fprintf(output, "Retained output `%s` from run `%s`; sample `%s` can be exported on demand.\n\n", sample.Output, sample.Run, sample.Name)
 			} else {
 				fmt.Fprintf(output, "Unavailable or invalid export `%s`: %s. Run `%s`; output `%s`.\n\n", sample.Name, escapeMarkdown(sampleErr.Error()), sample.Run, sample.Output)
 			}

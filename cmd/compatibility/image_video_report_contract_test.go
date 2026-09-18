@@ -223,8 +223,11 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(missing.Markdown), "Unavailable or invalid export") {
-		t.Fatal("missing export hidden")
+	if !strings.Contains(string(missing.Markdown), "can be exported on demand") || !strings.Contains(string(missing.Markdown), outputID.String()) {
+		t.Fatal("retained output lacks an export disposition")
+	}
+	if bytes.Contains(missing.Markdown, []byte(root)) {
+		t.Fatal("report embeds the local checkout path")
 	}
 	invalid := []byte("not a PNG")
 	if validateMediaSampleContent(hashName(invalid, "png"), invalid) == nil {

@@ -145,7 +145,7 @@ func TestSurfaceSelectionWitness(t *testing.T) {
 	if !missing.Obligation.Valid() || missing.Receipt.Valid() || missing.Passed {
 		t.Fatalf("initial obligation misreported: %+v", missing)
 	}
-	if err := ledger.record(t.Context(), target, true); err != nil {
+	if err := ledger.record(t.Context(), target, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	if ledger.prepared[target] != missing {
@@ -165,14 +165,14 @@ func TestSurfaceSelectionWitness(t *testing.T) {
 	if changedWitness.Obligation == passed.Obligation || changedWitness.Receipt.Valid() {
 		t.Fatalf("changed input reused old authority: %+v", changedWitness)
 	}
-	if err := ledger.record(t.Context(), target, false); err != nil {
+	if err := ledger.record(t.Context(), target, false, nil); err != nil {
 		t.Fatal(err)
 	}
 	failed := prepare("complete")
 	if failed.Obligation != changedWitness.Obligation || !failed.Receipt.Valid() || failed.Passed {
 		t.Fatalf("failed prior receipt misreported: %+v", failed)
 	}
-	if err := ledger.record(t.Context(), target, true); err != nil {
+	if err := ledger.record(t.Context(), target, true, nil); err != nil {
 		t.Fatal(err)
 	}
 	g.paths = []string{changed}

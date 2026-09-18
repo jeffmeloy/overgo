@@ -1581,8 +1581,8 @@
         ],
         "current_recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
@@ -1607,8 +1607,8 @@
         ],
         "current_recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
@@ -1633,8 +1633,8 @@
         ],
         "current_recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Un-0/image-gen/1",
@@ -1659,8 +1659,8 @@
         ],
         "current_recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Un-0/image-gen/2",
@@ -1685,8 +1685,8 @@
         ],
         "current_recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Un-0/video-gen/1",
@@ -1714,8 +1714,8 @@
         ],
         "current_recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Un-0/video-gen/2",
@@ -1743,8 +1743,8 @@
         ],
         "current_recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "SimpleDiffusion-TensorProductAttentionRope/image-gen/1",
@@ -1769,8 +1769,8 @@
         ],
         "current_recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
@@ -1795,8 +1795,8 @@
         ],
         "current_recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "LiveEdit/video-gen/1",
@@ -1824,8 +1824,8 @@
         ],
         "current_recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "LiveEdit/video-gen/2",
@@ -1853,8 +1853,8 @@
         ],
         "current_recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Wan2.1-T2V-1.3B/video-gen/1",
@@ -1881,8 +1881,8 @@
         ],
         "current_recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Wan2.1-T2V-1.3B/video-gen/2",
@@ -1909,8 +1909,8 @@
         ],
         "current_recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Wan2.1-T2V-1.3B/video-gen/3",
@@ -1937,8 +1937,8 @@
         ],
         "current_recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       },
       {
         "id": "Krea-2-Turbo/image-gen/1",
@@ -1963,8 +1963,8 @@
         ],
         "current_recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
         "retained_run_lineage": true,
-        "generation_gap": "Current source and protocol acceptance are unbound.",
-        "repair_owner": "modality-verification/image-and-video"
+        "generation_gap": "Historical run binding; accepted replacements and protocol scopes appear in the coverage tables.",
+        "repair_owner": "final-model-validation/do"
       }
     ],
     "retained_run_lineages": 15
@@ -1981,6 +1981,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -1991,6 +1992,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2001,6 +2003,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2054,6 +2057,59 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": [
+          {
+            "Name": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/1",
+            "InputMode": "declared request",
+            "Source": "f20d54190d8591d721bb38eb9cc9005d828cd86e",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+            "Evidence": [
+              "run:sha256:1b5d9694f11155d4d42a27b7845ef482c28cf0508df19b3bdbae1289c3ff5b42",
+              "output:sha256:e652ebc738f538475c2ce188ac4b2f4daca3e00fd0f9b1ee0b322d603c9c9a7d",
+              "evidence:sha256:601d4c1f752f69e54a1e7de18550dbe51894e1c1a41b2790adf00c1d97a77278"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/2",
+            "InputMode": "declared request",
+            "Source": "bb529c7d93df669cb410559fb2c40aa817ddab66",
+            "SourceKind": "acceptance gate; run source unrecorded",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+            "Evidence": [
+              "run:sha256:c71ee19cbc2dc5bfdba69ee809e0d072f8dd662d5e445454a766cb0daf8e98eb",
+              "output:sha256:5f3a56dff6b7a4a9e96d3d129082fdc349717357ff48d54454ff9535fb0cce68",
+              "evidence:sha256:f1d11f015bfe186d66af4e55d0fe29a0db75835257f9df19adcdb606f0d1b313"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "visual-review Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "SenseNova-U1-8B-MoT-Infographic-V3/image-gen/3",
+            "InputMode": "declared request",
+            "Source": "f20d54190d8591d721bb38eb9cc9005d828cd86e",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:5a729e98ef825033d4073d0d0046ef3e63cfb6a519f8076bda01a29d151569ee",
+            "Evidence": [
+              "run:sha256:c40dd951984329bb3db5be28f1ac20fca3e6c115f346241987614bfafbfe25c6",
+              "output:sha256:e8bf6ac4f2f33364f1852d807d7953acbe348c196cc76943552a8963a1811637",
+              "evidence:sha256:0571948a357500562e0c4e643c89f5cbd6aa8eca9646decd353fec2a41811ba2"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -2146,6 +2202,76 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "Un-0/image-gen/1",
+            "InputMode": "declared request",
+            "Source": "f20d54190d8591d721bb38eb9cc9005d828cd86e",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+            "Evidence": [
+              "run:sha256:454185fd57242a50ff4b5e9e9d39fad4f4af101a56c4e4e145b3922426ff87c0",
+              "output:sha256:cf5dcb195503d8c9ce318a0fc8997441466c0aa3f911ae772f0ab82c13448e28",
+              "evidence:sha256:2d2bd09d77b3f7ba85502f7d1e7cef36f0385ea884d34bdfd0393ba9c1c06b71"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "Un-0/image-gen/2",
+            "InputMode": "declared request",
+            "Source": "f20d54190d8591d721bb38eb9cc9005d828cd86e",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:213d890a8988e995e520dda1178fcbcc446e006f69b01316bde61300b11c1415",
+            "Evidence": [
+              "run:sha256:312b0523aa65904a015efbbdace877fed093260ed657abcb0ec1bfd73e79c343",
+              "output:sha256:a8bc7f12cb9a537b40bf150493a002251bbbc59620a69944e19778dd463da6f3",
+              "evidence:sha256:b7c5d6bb5370dab94c51156bf9e84c7bb9a81b1319c6c1ab7eb8a91c6b40ba11"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "Un-0/video-gen/1",
+            "InputMode": "declared request",
+            "Source": "23e0128b16654d64925c2fbd72af30a79fe82bce",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+            "Evidence": [
+              "run:sha256:a9dc9487b4428fb7ed5bdf12747473984254a0726d9f1d326054d1b499ae1091",
+              "output:sha256:8998678c48f16a2d4e73a63e764c030acf022775ea8744836cdd6b1ec2cd4024",
+              "evidence:sha256:95d46943335beb16c1a73adec6cfa46eea703c74c90adc69b6d2b28365900d39"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "Un-0/video-gen/2",
+            "InputMode": "declared request",
+            "Source": "23e0128b16654d64925c2fbd72af30a79fe82bce",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:4f6267a0ddb44c1357c11ec4229706cabdeabdd7d946fa9cfc90a9b9a9448e9e",
+            "Evidence": [
+              "run:sha256:f5b8b33864e3746916a6d6e1aef33c94958883d3c281886c77564e37076ed523",
+              "output:sha256:5ce8cb116444a2bfbafbe9c8700a898c2e98ae1a20b7b6ca6ba7bcde0b954aee",
+              "evidence:sha256:312032c9c62e63066497af328a41b7d787dd173ce503872b88ee0f39e9d3ed41"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -2156,6 +2282,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2166,6 +2293,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2176,6 +2304,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2218,6 +2347,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -2262,16 +2392,18 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
       {
         "Model": "model:sha256:08d12f90b68fe93f3c39da1bb9f4592a13085c2740716166d2baab708793d3e8",
-        "Name": "overgo-hfconvert",
+        "Name": "Carbon-500M",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2282,6 +2414,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2292,6 +2425,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2302,6 +2436,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2312,6 +2447,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2322,6 +2458,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2366,6 +2503,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -2376,6 +2514,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2386,6 +2525,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2396,6 +2536,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2406,6 +2547,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2416,6 +2558,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2426,6 +2569,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2436,6 +2580,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2446,6 +2591,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2456,6 +2602,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2500,6 +2647,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -2510,6 +2658,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2520,6 +2669,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2530,6 +2680,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2540,6 +2691,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2584,6 +2736,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -2594,6 +2747,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2604,6 +2758,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2614,6 +2769,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2624,6 +2780,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2669,6 +2826,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -2679,6 +2837,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2689,6 +2848,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2699,6 +2859,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2709,6 +2870,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2719,6 +2881,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2729,6 +2892,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2739,6 +2903,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2749,6 +2914,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2759,6 +2925,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2769,6 +2936,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2779,6 +2947,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2789,6 +2958,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2799,6 +2969,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2809,6 +2980,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2819,6 +2991,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2829,6 +3002,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2839,6 +3013,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2849,6 +3024,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2859,6 +3035,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2869,6 +3046,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2879,6 +3057,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2889,6 +3068,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2899,6 +3079,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2909,6 +3090,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2919,6 +3101,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2929,6 +3112,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2939,6 +3123,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2949,6 +3134,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2959,6 +3145,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2969,6 +3156,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2979,6 +3167,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2989,6 +3178,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -2999,6 +3189,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3009,6 +3200,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3019,6 +3211,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3071,6 +3264,42 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "SimpleDiffusion-TensorProductAttentionRope/image-gen/1",
+            "InputMode": "declared request",
+            "Source": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+            "Evidence": [
+              "run:sha256:09150155593f97f3f61bcba2e902bd260f33450f8b873c88616b2112c6b06711",
+              "output:sha256:939df8925ae33a2064243a201d85659fae13ab700799f4796df2241aedcbda78",
+              "evidence:sha256:54bfb2dfd86ca6a6132f3af9fa56fb6ba4320ed0ab328c340f6d4a4d0018c760"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "SimpleDiffusion-TensorProductAttentionRope/image-gen/2",
+            "InputMode": "declared request",
+            "Source": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:4f0b3b9dbad24278519b1a046195978ab0960c52c0b4b40a2d52e0bcec873e9d",
+            "Evidence": [
+              "run:sha256:a2a817b8a1084e91add8ebfef51d1fea96318b1d0a7e23e1704b39f1c74f1249",
+              "output:sha256:e5b51b334d49a1fb74d4169c3f832c874fc7221f820fae6a7f6d127566880aef",
+              "evidence:sha256:a168c78f333408ea1930afc016cd6984d750b786fc50242b7a26a05cb0a61387"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3081,6 +3310,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3091,6 +3321,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3101,6 +3332,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3111,6 +3343,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3121,6 +3354,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3131,6 +3365,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3141,6 +3376,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3151,6 +3387,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3161,6 +3398,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3171,6 +3409,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3181,16 +3420,18 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:64fb17f3c324dcbf9f83861e5d2ea1534a66ea0970223047e788a482b080853c",
-        "Name": "overgo-hfconvert",
+        "Name": "gemma-4-12B-it-fp8",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3239,6 +3480,42 @@
               "peak_step_device_bytes": 3260313344
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": [
+          {
+            "Name": "LiveEdit/video-gen/1",
+            "InputMode": "declared request",
+            "Source": "23e0128b16654d64925c2fbd72af30a79fe82bce",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+            "Evidence": [
+              "run:sha256:f9f453c777286cd04d7e6b9cdfa2715debb92d1d32a8d9e59b73a210b0cb6ab1",
+              "output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21",
+              "evidence:sha256:580f78019409c89c0e79e7b287712aa23e9cd05a2f609b98f09190ee1475e509"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "LiveEdit/video-gen/2",
+            "InputMode": "declared request",
+            "Source": "23e0128b16654d64925c2fbd72af30a79fe82bce",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:7cd66ed08ebee5e566dca3682e7d6d9f0b06f8384f19b1f1dfb416a272126965",
+            "Evidence": [
+              "run:sha256:2e3e28ec5b8d18cadd189f7cf4bb03dc67019c0cfa12158386f1d5a83f222ae0",
+              "output:sha256:a7b319f0c798b2ed42bbd68e4376c81c6dec00d33f9f78a7051704ded8c7fa21",
+              "evidence:sha256:5aa150a654f66962cd9addc5502a1daa286f48399441792582b1b62f4cc758e4"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -3294,6 +3571,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3304,6 +3582,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3314,6 +3593,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3324,6 +3604,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3334,6 +3615,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3344,6 +3626,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3354,6 +3637,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3431,6 +3715,97 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "bbh-recorded-raw",
+            "InputMode": "text",
+            "Source": "3e89a8977574952148a58c3d5a5428395f6f8190",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+            "Plan": "profile:sha256:c713507dfd5fdce824b5d03d844768d59b0b72d9aad7de2f21f0e772163d26d0",
+            "CaseProfile": "profile:sha256:15e6dbe88da49d3bd37f49542e2d4743528f7400e40e07f8330adf62d505c356",
+            "Report": "evaluation:sha256:74b8cd0e91768384a1824998b181f15b8c403d13b4f0b02246f49136ac5cbdff",
+            "Evidence": [
+              "evidence:sha256:abc958b4cf60325d30ddd71e28ba379487204533180b40a564cc28b94c0413e5"
+            ],
+            "Required": 5761,
+            "Recorded": 5761,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "ifeval-recorded-subset",
+            "InputMode": "text",
+            "Source": "3c3d09f32834ac605635c4eaa10be43e8b53e5c8",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+            "Plan": "profile:sha256:3f97f3380c7645859411f44064741df111aa9648ab4dbcb4b0538dd13fe938fd",
+            "CaseProfile": "profile:sha256:c0836449c605af32874ba2f95ddea72e4816721b4027323c601cd45e8feb093c",
+            "Report": "evaluation:sha256:2726c8eeeda472a1db45c71ba19bd5e2a1f0dbe33a1600b6f2c6bf5db7259be4",
+            "Evidence": [
+              "evidence:sha256:6440dcd58ce2a24dee41fc204437f3f6127ae0109ee2b0e6f997b6b9865369d7"
+            ],
+            "Required": 131,
+            "Recorded": 131,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-recorded-generated-chat-subset",
+            "InputMode": "text",
+            "Source": "d75d3554941482c31fe467853244d937c1b1b628",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+            "Plan": "profile:sha256:b85245565ae32fb7123e3ba4a3454d5d632f03a726a2a4ad2e238aa691e8a6e1",
+            "CaseProfile": "profile:sha256:d91bafbb74b407debc678e8223363182a8a07c12482627ee74c57e324c8ca4c7",
+            "Report": "evaluation:sha256:87448277f6964413498743576c0e0bdb1b5520cf86726492fb1599a161f64c66",
+            "Evidence": [
+              "evidence:sha256:25e96bb524f5555914cc97f91f684ab68c382fcb0567ea9d724697952d6ef6b2"
+            ],
+            "Required": 100,
+            "Recorded": 100,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-recorded-raw-subset",
+            "InputMode": "text",
+            "Source": "0c51e3d5f0a17a98eaf77754456ec0c5c6a53a0a",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:6595ed03c2b8ff87c5142946868cb841d9a685f77616f21a978ec93587546f1a",
+            "Plan": "profile:sha256:7ad740ec14981c4df7bf50ad221be46f1d7366e9db74a9e2731e2aed582c95b1",
+            "CaseProfile": "profile:sha256:d91bafbb74b407debc678e8223363182a8a07c12482627ee74c57e324c8ca4c7",
+            "Report": "evaluation:sha256:d0a848ebf35835449b7be165d625c2d72331b11a0af9fe114da3dc9864af9d3b",
+            "Evidence": [
+              "evidence:sha256:ee988e366ab7f5d6c511ff691cb3f521a05fd7c1b7f21b1860f4ee0f0cf23dc4"
+            ],
+            "Required": 100,
+            "Recorded": 100,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "projection-grounded-colors-positions",
+            "InputMode": "image+text",
+            "Source": "d2b6484a3323613b1d2c979bdf804957545726d4",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Evidence": [
+              "evidence:sha256:2012bb4c0c7329aaff2671c721ee2ac88e635f42351e247f6e4a48a978756ec2",
+              "evidence:sha256:67c27fa8e687a3da81b92ac2239b9e90fec699551bfda9d3f75e90c571ec3e13",
+              "evidence:sha256:6b68c4bc7f9ce5ab9df5b4e236fb9477c745ab469557732fbcdad1a12231f617",
+              "run:sha256:f86f0a94f8651b3bfdfb4448acb40f881302956373f99228cda059ae3a048544"
+            ],
+            "Required": null,
+            "Recorded": null,
+            "Gap": "Retained protocol; case counts are unavailable in the supported structured report. No current performance claim.",
+            "RepairOwner": "modality-verification/experiment-resume"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3441,6 +3816,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3451,16 +3827,18 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen2.5-0.5B",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3471,6 +3849,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3481,6 +3860,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3491,6 +3871,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3501,6 +3882,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3511,6 +3893,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3566,6 +3949,59 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "Wan2.1-T2V-1.3B/video-gen/1",
+            "InputMode": "declared request",
+            "Source": "cfcc9a405a3055c8666cc21892877024c4d0ef58",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+            "Evidence": [
+              "run:sha256:27acd2d8d987d15a6dd68cb964cdfd2905f31a8dc74e7fb00ce24deebce399ed",
+              "output:sha256:31ee8f128572912a720e68296c646f3dc0e3e0e413ef48392872e713e6152240",
+              "evidence:sha256:a77aff424c589b2e0563f3b83db13f0a58b864af9ec96582b1210528ba2b5e67"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "Wan2.1-T2V-1.3B/video-gen/2",
+            "InputMode": "declared request",
+            "Source": "cfcc9a405a3055c8666cc21892877024c4d0ef58",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+            "Evidence": [
+              "run:sha256:1ad233f05b73a4157e43c9e19e39e5628ee3158c8b121f3c3b097112f7276b47",
+              "output:sha256:c733846c0bcf7d0cfa24a43d06665f609f2ac399fe384e1cfe0ced8bb5c41b99",
+              "evidence:sha256:b0122203051c69739a3721ce1488913da5e346651d51f3098a9330004b3791f5"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "smoke Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "Wan2.1-T2V-1.3B/video-gen/3",
+            "InputMode": "declared request",
+            "Source": "fcda318afa6edecd9cdeed8b2d4a65f9be66c237",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:bff12bb8946afe0d8ca84d635e0ff275855c94a22a99df91e03d319c32ed54b4",
+            "Evidence": [
+              "run:sha256:ab252bb624d3ca3535fba2e862febd01a5df44823d6fca2012c43181a8a30066",
+              "output:sha256:d5c72f13e0bf07a1fb8268917b4da15f53e1343bfcdb3093a309591bb08f8ff9",
+              "evidence:sha256:2c19968723bfa234fac0fd3374fd9f55d2a868fe91fd12ffcccb437728a9e8c8"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "visual-review Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3576,6 +4012,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3586,6 +4023,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3596,12 +4034,13 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:809626574d0cb43d4becfa56169980da2bb448f2299270f7be443cb89d0a6ae4",
-        "Name": "models",
+        "Name": "Qwen3.5-9B-Q8",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -3638,6 +4077,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3648,6 +4088,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3658,6 +4099,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3668,6 +4110,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3678,6 +4121,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3688,6 +4132,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3698,12 +4143,13 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen3.5-4B",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -3743,12 +4189,62 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "ifeval-native",
+            "InputMode": "text",
+            "Source": "00188face63efba7c3466bb88ff00f88c8cf20be",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Evidence": [
+              "evidence:sha256:cb3c98ead452ad292b511e8d58dfb40f16f70b0c42e0cb096a0e8af960654257",
+              "evidence:sha256:33d1624efaa1477542ce33d197ef963dd31e9e4994ee0f42dfe44e9d99b86ad7",
+              "evidence:sha256:3c9e901ac82f9c148c5b67d0b1553ccbd7ea790371a73709a60f41396a4da2b8"
+            ],
+            "Required": null,
+            "Recorded": null,
+            "Gap": "Retained protocol; case counts are unavailable in the supported structured report. No current performance claim.",
+            "RepairOwner": "modality-verification/experiment-resume"
+          },
+          {
+            "Name": "mmlu-pro-generated-chat",
+            "InputMode": "text",
+            "Source": "8029e9096dcb5f17f05f74d870468ecaff2ae174",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:49d1ed7c41e45abcc9c10ff13ec247ab775f7054123d5507caa1f63c0a19f803",
+            "Plan": "profile:sha256:1a5524603870314745d909d5f78b32e636a51860af7f4e149ca8e909ced01595",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:e273e5f649e2de00562b6201b6cf22f401538a4f9487ee33bdd322e8f9c0cab8",
+            "Evidence": [
+              "evidence:sha256:c8cb148849f1c3d030094d7d1ed44c89529f4a910ca3a8ee69a6f8236341a43d"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "native-text",
+            "InputMode": "text",
+            "Source": "3abc5e1c2bd6e46e4d350bda88698fc2e1013b26",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Evidence": [
+              "evidence:sha256:0a4c2403d85cda517e4145d295552303b3a3a0414ff8f72abdb180d907132b2c"
+            ],
+            "Required": null,
+            "Recorded": null,
+            "Gap": "Retained protocol; case counts are unavailable in the supported structured report. No current performance claim.",
+            "RepairOwner": "modality-verification/experiment-resume"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
       {
         "Model": "model:sha256:88c142557820ccad55bb59756bfcfcf891de9cc6202816bd346445188a0ed342",
-        "Name": "Qwen2.5-0.5B",
+        "Name": "Qwen2.5-0.5B-HF",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -3785,12 +4281,13 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
       {
         "Model": "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4",
-        "Name": "models",
+        "Name": "Qwen3.5-9B",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -3829,6 +4326,63 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "ifeval-native",
+            "InputMode": "text",
+            "Source": "cc267157dd3e7c5680ab4eec982fb80b3e2c53c5",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84",
+            "Plan": "profile:sha256:ecabd685f9cd224a2267471eec1948a8da4c35c6f8b4d5857fe4f3144b2e8d80",
+            "CaseProfile": "profile:sha256:5eae7f0f28fb0081bc771f6869a6262cd3a2f72357fb962c7f6a2f1df61ebcc2",
+            "Report": "evaluation:sha256:938a9f157e8c3127bc599df7bf76b41434926a101a0d59d34bd64225498157d6",
+            "Evidence": [
+              "evidence:sha256:3951d521fe791e72c7cc510b703540681d846bae1a2f6eaab41b5459d36643d0",
+              "evidence:sha256:6e68996c8a2045d399ff0dca5b6f8aec993e3e8049f306abff4ee121096d8efa"
+            ],
+            "Required": 541,
+            "Recorded": 541,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-pro-generated-chat",
+            "InputMode": "text",
+            "Source": "8c2a60072839ae2640d76d9a275fd89f3fe4e5e5",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84",
+            "Plan": "profile:sha256:47bb185ca9f73725ad2d06261a50d05feedb6cfc99c33005e6e3620bb2e03414",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:7311fb2defedae8819b07d4de4c1f2b40a781a036ccc852e049a3d798628c521",
+            "Evidence": [
+              "evidence:sha256:044f718e8b3b438f916c7eac4da1d20fda37e7dfdcfcfc5debb88fa40a152b29"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-pro-raw",
+            "InputMode": "text",
+            "Source": "8c2a60072839ae2640d76d9a275fd89f3fe4e5e5",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:c753e314b7c50fe82d37361a99f1e46a2f95c9f9c7a0ff96890e4c2de507de84",
+            "Plan": "profile:sha256:154568e57a4722f5ed2a67ba4156be08de92c62c978daff566f15539484673a9",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:8c779ae66e6b6fde720ed637caa2c885a0939cd50c05a0a98001f0cb1e7af9db",
+            "Evidence": [
+              "evidence:sha256:22913e30a0848869972e0a3599cfa72e7396574a08fb32a08d0fdbceb1b51b0c"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3839,6 +4393,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3849,6 +4404,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3859,6 +4415,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3869,6 +4426,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3879,6 +4437,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3889,6 +4448,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3899,6 +4459,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3909,6 +4470,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3919,6 +4481,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3961,6 +4524,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -3971,6 +4535,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3981,6 +4546,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -3991,6 +4557,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4001,6 +4568,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4011,6 +4579,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4021,6 +4590,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4031,6 +4601,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4041,6 +4612,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4051,6 +4623,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4061,6 +4634,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4071,6 +4645,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4081,6 +4656,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4091,6 +4667,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4101,6 +4678,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4111,6 +4689,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4121,6 +4700,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4131,6 +4711,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4141,6 +4722,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4151,6 +4733,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4161,6 +4744,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4171,6 +4755,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4181,6 +4766,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4191,6 +4777,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4201,6 +4788,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4211,6 +4799,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4221,6 +4810,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4231,6 +4821,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4241,6 +4832,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4251,6 +4843,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4261,6 +4854,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4271,6 +4865,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4281,6 +4876,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4291,6 +4887,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4301,6 +4898,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4311,12 +4909,13 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:c4e8dc8f885d590f146d96919562960a5d040ccc366623e986df8656539419ec",
-        "Name": "overgo-hfconvert",
+        "Name": "Qwen3.5-4B",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -4353,6 +4952,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -4363,6 +4963,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4373,6 +4974,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4383,6 +4985,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4393,6 +4996,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4403,6 +5007,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4413,6 +5018,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4423,6 +5029,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4433,6 +5040,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4443,16 +5051,18 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:cd4ada4703c2b76a84a10da94f09b9199b6d4dad7e3dcabbe79d8cee745f4501",
-        "Name": "overgo-hfconvert",
+        "Name": "gemma-4-E4B-it-bf16-GGUF",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4463,6 +5073,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4473,12 +5084,13 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:d0be4bb0e24f72ee0589f422ef579115068a7602837bdb4a674f5baaacf030ba",
-        "Name": "overgo-hfconvert",
+        "Name": "gemma-4-12B-it-fp8-native",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -4518,6 +5130,63 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "ifeval-native",
+            "InputMode": "text",
+            "Source": "4487fe76c43ef3b0f03bc52008d5b40426429bf7",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+            "Plan": "profile:sha256:ec82fd5dcadf71f307e292115463d1e8bd38f3bee68b117fd37301078f0e4808",
+            "CaseProfile": "profile:sha256:5eae7f0f28fb0081bc771f6869a6262cd3a2f72357fb962c7f6a2f1df61ebcc2",
+            "Report": "evaluation:sha256:f3913066c22197db0ebafd9318502c826c6d90a85ac4016b672f828fe4d38bf3",
+            "Evidence": [
+              "evidence:sha256:584ddc7b0a2a0e9971a17fd931e88e87f571a9629b21ba90d0e992ab76594722",
+              "evidence:sha256:66754aacd8cbf119926c8dedb90ef398a5ad80112835aecbebed0cf4588d289f"
+            ],
+            "Required": 541,
+            "Recorded": 541,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-pro-generated-chat",
+            "InputMode": "text",
+            "Source": "f278ca230121df1d0bedf8fc58bf7881a9ebc475",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+            "Plan": "profile:sha256:95f9c952b4ff55d551c21fc4ceb0d058b04b746bd77c7c20b8c1954a0bd757df",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:592edec0d60b6a00bdf6fc6c088c736f70e5fd28bb492b67af9392cf427f3e6f",
+            "Evidence": [
+              "evidence:sha256:acbce9abc5492096c44be7f597e1acec5d108ef27a501f13eba04dfece8a96ac"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-pro-raw",
+            "InputMode": "text",
+            "Source": "8029e9096dcb5f17f05f74d870468ecaff2ae174",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:25268b97718fcd611d83280c93c66aaf9676a2063fb7fc767fb8f917131e6254",
+            "Plan": "profile:sha256:8cf31b81c0090f13ffcbb99ce8a072e6e45a96de7b33b3ed16ef703ae67b94a1",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:030f99c621444ab535a9a5824e2b586ec8edf1fc213368f606db962e0394ad96",
+            "Evidence": [
+              "evidence:sha256:4161f4a8010b3a8e5bd29c3cfbdcccacabff4f000f590a88f6885f679002f5c0"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -4528,6 +5197,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4538,6 +5208,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4548,6 +5219,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4558,6 +5230,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4568,6 +5241,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4578,6 +5252,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4588,6 +5263,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4598,6 +5274,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4608,6 +5285,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4618,6 +5296,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4628,6 +5307,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4638,6 +5318,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4648,6 +5329,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4692,6 +5374,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -4702,16 +5385,18 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:e37577c45aec2255ac437ae6e86518ea99745d6616dd8c59b1fe7e26a04606f7",
-        "Name": "overgo-hfconvert",
+        "Name": "MiniCPM5-1B",
         "Present": true,
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4722,6 +5407,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4779,6 +5465,25 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "Krea-2-Turbo/image-gen/1",
+            "InputMode": "declared request",
+            "Source": "4b9e86972fa6a3e8f24754c5b7f1d96fe2dd7e19",
+            "SourceKind": "run",
+            "Unit": "generation case",
+            "Recipe": "recipe:sha256:0b1bcc2fb9cf5f42cd2dd9c91a49dcce1a67c7b5a9afa0434aeddbe721d595d9",
+            "Evidence": [
+              "run:sha256:4efc558f87ef63b732b712ea09b67215649270f15f058f40595540c58d988c22",
+              "output:sha256:4508f19a532591c01d1c9c5b1e783b21f593484e7debf93e104e3f0df41ccb44",
+              "evidence:sha256:d16ec1d5d91dd506afca4a9f2a6067cae7e1e9c1ce7e522d215fe2d67d78f6a2"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "visual-review Native and lifecycle acceptance only; broader quality remains unestablished.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -4789,6 +5494,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4799,6 +5505,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4809,6 +5516,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4861,6 +5569,23 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "vqa-canonical-native-text",
+            "InputMode": "image+text",
+            "Source": "7f575035c14975a6fd06763e0e1f4a3e94bae674",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Evidence": [
+              "evidence:sha256:a980dfa8ba592d34c012b33a0a354dbe26edc70aa0a55eb7ca407f35668b6cfb",
+              "run:sha256:ee7e84adaaecd5681d2ee6406129875e798770fcfd52803394180cb83596b2bd"
+            ],
+            "Required": null,
+            "Recorded": null,
+            "Gap": "Retained protocol; case counts are unavailable in the supported structured report. No current performance claim.",
+            "RepairOwner": "modality-verification/experiment-resume"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -4871,6 +5596,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4881,6 +5607,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4891,6 +5618,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4901,6 +5629,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4911,6 +5640,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4921,6 +5651,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4931,12 +5662,13 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
       {
         "Model": "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401",
-        "Name": "overgo-hfconvert",
+        "Name": "gemma-4-12B-it-fp8",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -4975,6 +5707,63 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": [
+          {
+            "Name": "ifeval-native",
+            "InputMode": "text",
+            "Source": "4487fe76c43ef3b0f03bc52008d5b40426429bf7",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
+            "Plan": "profile:sha256:24b764bb828ab270175e548e1bea568fb259e98b961392d10c08b474d40e3ee6",
+            "CaseProfile": "profile:sha256:5eae7f0f28fb0081bc771f6869a6262cd3a2f72357fb962c7f6a2f1df61ebcc2",
+            "Report": "evaluation:sha256:b7e1866de081850c7c3fc016a07dbec4b1133cde7c3ffae350c7dc98d01ff06f",
+            "Evidence": [
+              "evidence:sha256:78d0624ce8d866c92ffd3a351ca421e75677c8d93cb9a1808ad0d2317957710d",
+              "evidence:sha256:5c6943769adafb93a9e59d7b47a8eb23c474d7a1897933c46e02f645d8240d94"
+            ],
+            "Required": 541,
+            "Recorded": 541,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-pro-generated-chat",
+            "InputMode": "text",
+            "Source": "8029e9096dcb5f17f05f74d870468ecaff2ae174",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
+            "Plan": "profile:sha256:11e5889a3c7f1b0dabb2406094423874f3f354835fe6bdc7451bf1be6b3695f8",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:b80a2f0a66de1349cbbcd13f3eb07417fd1591617011d6eaafd8cb0edff25279",
+            "Evidence": [
+              "evidence:sha256:b4fec62693b8891dad30273203f262b6bb94a3a53e80739a9d06f92966162603"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "mmlu-pro-raw",
+            "InputMode": "text",
+            "Source": "8029e9096dcb5f17f05f74d870468ecaff2ae174",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:2c889c2642ce5236e935dead92007c4f9baaea5e28cdc2e47b3e761364589ae4",
+            "Plan": "profile:sha256:dac7d7597eed321e991df8e078ab1ef3b4cef2154b1c83baf071b7292723a9e4",
+            "CaseProfile": "profile:sha256:2c723370f2466dbffa411641092140f429457100930ca182a6a624f357e98df4",
+            "Report": "evaluation:sha256:873e2640a35438d5c8e28508b5029229a8e20d1bf8ec67819e2317eaeb39cd0a",
+            "Evidence": [
+              "evidence:sha256:2ae28f4d6fe12047b53d08796f88851740b9ed178751e70efaa9353661ce6964"
+            ],
+            "Required": 12032,
+            "Recorded": 12032,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Gap": "",
         "RepairOwner": ""
       },
@@ -4985,6 +5774,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -4995,6 +5785,7 @@
         "Execution": "local",
         "Domains": null,
         "Cells": null,
+        "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
       },
@@ -5037,6 +5828,7 @@
             "RepairOwner": "final-model-validation/do"
           }
         ],
+        "Protocols": null,
         "Gap": "",
         "RepairOwner": ""
       },
@@ -5112,6 +5904,475 @@
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
             "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": [
+          {
+            "Name": "protocol/audio/chat",
+            "InputMode": "audio",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/audio/native",
+            "InputMode": "audio",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/audio/responses",
+            "InputMode": "audio",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/image/chat",
+            "InputMode": "image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/image/native",
+            "InputMode": "image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/image/responses",
+            "InputMode": "image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/mixed-history/chat",
+            "InputMode": "mixed-history",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/mixed-history/native",
+            "InputMode": "mixed-history",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/mixed-history/responses",
+            "InputMode": "mixed-history",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/multi-image/chat",
+            "InputMode": "multi-image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/multi-image/native",
+            "InputMode": "multi-image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/multi-image/responses",
+            "InputMode": "multi-image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/text/chat",
+            "InputMode": "text",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/text/native",
+            "InputMode": "text",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/text/responses",
+            "InputMode": "text",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/video/chat",
+            "InputMode": "video",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/video/native",
+            "InputMode": "video",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "protocol/video/responses",
+            "InputMode": "video",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "protocol case",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:50ba201be9f6e9dabac840661ab950ceb6d026af8720ecb5415b52a05d330056"
+            ],
+            "Required": 1,
+            "Recorded": 1,
+            "Gap": "Native protocol case accepted at the recorded source; no current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "quality/audio/native",
+            "InputMode": "audio",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Plan": "profile:sha256:014be2a94fb209a985996d1da714aafaefcc02fc5d9d22263045972d75903855",
+            "Report": "evaluation:sha256:69f0bfa7cfee6e1d1c35cc56ed193f03c034ae2f888cf21dd8ffaca1a967d980",
+            "Evidence": [
+              "evaluation:sha256:69f0bfa7cfee6e1d1c35cc56ed193f03c034ae2f888cf21dd8ffaca1a967d980"
+            ],
+            "Required": 32,
+            "Recorded": 32,
+            "Gap": "Recorded transcription examples match the frozen selection; WER and CER remain separate quality metrics.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "quality/image/native",
+            "InputMode": "image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Plan": "profile:sha256:125611c1c05504c5d7aeca95e2a8033129ffc80571af6fd453663061d108d42f",
+            "CaseProfile": "profile:sha256:f41f50450513edd5000a8b249b6bde7740396b60f490f8923d00c7e2a207d709",
+            "Report": "evaluation:sha256:61d4de93f5df89d51b2296e6bec99bcda2f91ae3092efd80c6e62529123295b0",
+            "Evidence": [
+              "evidence:sha256:ca4b8bd35340a0081c06b3ce739b5675d314e6377e7a178e1288fffcf0f77009"
+            ],
+            "Required": 16,
+            "Recorded": 16,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "quality/mixed-history/native",
+            "InputMode": "mixed-history",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Plan": "profile:sha256:d418d550c112e4463ddd45f974ab83fb064587a7665afb5317bede500225cb20",
+            "CaseProfile": "profile:sha256:96920520b4afe58f6259ee407c61adc6fe0b0d4bd0033320bbc0817777cd2aa8",
+            "Report": "evaluation:sha256:6221742872a9af56619c0f2dc71183e64b75f0fdf298bc3fdc087784bbe5f7da",
+            "Evidence": [
+              "evidence:sha256:83dfe486b49a50260fcf68b68e53f97a418870c84bbd914b9cb92dd792bc1505"
+            ],
+            "Required": 16,
+            "Recorded": 16,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "quality/multi-image/native",
+            "InputMode": "multi-image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Plan": "profile:sha256:d794ce14e54cbaefc383998791700ec792939434e72f6e02050c1fa0e51ff0c0",
+            "CaseProfile": "profile:sha256:bc01036f197763fbae9da21629ce505830f6338356d51e75b2f06c64acd8b171",
+            "Report": "evaluation:sha256:77b4e2be9d7cbb642de7deebfdf5758bff9a00d186bf4174ff7232ac2d73cf29",
+            "Evidence": [
+              "evidence:sha256:1ed69f80da34328997d85ec7790ae671481843388a00be026aad8091303d916f"
+            ],
+            "Required": 16,
+            "Recorded": 16,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "quality/text/native",
+            "InputMode": "text",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:d6ba6736fff6cba4ba0fec3b89c996a42105d6643f5e61b64370343a1915a39e",
+            "Plan": "profile:sha256:fde44f4a45a8f490d16e9ec10efce7e941cf3d7d52c4ac71c3e9b3dbc53a4555",
+            "CaseProfile": "profile:sha256:b039506eeed0af756876973aa58d16e683f405c7351319ee9527cfdd17cff42e",
+            "Report": "evaluation:sha256:3e78fb3d314b179bf1bd717bd11b4f0fd6ac5c739fd367fe6da3a742b32f7400",
+            "Evidence": [
+              "evidence:sha256:7544ec540abe193e9512a65f33c9af339f29f5105f771bd058fe12168c4ae2c1"
+            ],
+            "Required": 100,
+            "Recorded": 100,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "quality/video/native",
+            "InputMode": "video",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "examples",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Plan": "profile:sha256:aca2ade621994a03f781db2cc551c06414f6204fb5c70b8d2f7a51ac8b2876a7",
+            "CaseProfile": "profile:sha256:ea25488589bf660c48e6898d3426355eb544dcbe97210e8d658e648d89d2156e",
+            "Report": "evaluation:sha256:6b3d8dbf932991a5264eb623447b7634dde2c735a59034fce9bf5936beaa86ab",
+            "Evidence": [
+              "evidence:sha256:9d5d48141816733c6b7d8681b98ba484345b143527ac2826f9cf6ae774768160"
+            ],
+            "Required": 16,
+            "Recorded": 16,
+            "Gap": "Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim.",
+            "RepairOwner": "final-model-validation/do"
+          },
+          {
+            "Name": "resources/audio/native",
+            "InputMode": "audio",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "recovery action",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b"
+            ],
+            "Required": 45,
+            "Recorded": 45,
+            "Gap": "Original resource and recovery observations retained. Later lifecycle changes require a targeted current resource comparison; these counts do not reaccept current peaks.",
+            "RepairOwner": "device-memory-retention/do"
+          },
+          {
+            "Name": "resources/image/native",
+            "InputMode": "image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "recovery action",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b"
+            ],
+            "Required": 45,
+            "Recorded": 45,
+            "Gap": "Original resource and recovery observations retained. Later lifecycle changes require a targeted current resource comparison; these counts do not reaccept current peaks.",
+            "RepairOwner": "device-memory-retention/do"
+          },
+          {
+            "Name": "resources/mixed-history/native",
+            "InputMode": "mixed-history",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "recovery action",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b"
+            ],
+            "Required": 45,
+            "Recorded": 45,
+            "Gap": "Original resource and recovery observations retained. Later lifecycle changes require a targeted current resource comparison; these counts do not reaccept current peaks.",
+            "RepairOwner": "device-memory-retention/do"
+          },
+          {
+            "Name": "resources/multi-image/native",
+            "InputMode": "multi-image",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "recovery action",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b"
+            ],
+            "Required": 45,
+            "Recorded": 45,
+            "Gap": "Original resource and recovery observations retained. Later lifecycle changes require a targeted current resource comparison; these counts do not reaccept current peaks.",
+            "RepairOwner": "device-memory-retention/do"
+          },
+          {
+            "Name": "resources/text/native",
+            "InputMode": "text",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "recovery action",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b"
+            ],
+            "Required": 45,
+            "Recorded": 45,
+            "Gap": "Original resource and recovery observations retained. Later lifecycle changes require a targeted current resource comparison; these counts do not reaccept current peaks.",
+            "RepairOwner": "device-memory-retention/do"
+          },
+          {
+            "Name": "resources/video/native",
+            "InputMode": "video",
+            "Source": "1b7ac58150c36e83faaaf016cdd03d2a0aefd8ab",
+            "SourceKind": "frozen declaration",
+            "Unit": "recovery action",
+            "Recipe": "recipe:sha256:93a7a292326008703ddecd2c9290800b2d39778c976c5fa157e1a6a61aba378d",
+            "Evidence": [
+              "evidence:sha256:9d42ad4e15b1e13a7b64bf02f2274c2050aa08cdbd901a46542012ccbe8e9b9b"
+            ],
+            "Required": 45,
+            "Recorded": 45,
+            "Gap": "Original resource and recovery observations retained. Later lifecycle changes require a targeted current resource comparison; these counts do not reaccept current peaks.",
+            "RepairOwner": "device-memory-retention/do"
           }
         ],
         "Gap": "",

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -14,6 +16,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
@@ -22,6 +25,151 @@ import (
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
+
+func TestAcceptedModalityCoverage(t *testing.T) {
+	if testing.Short() {
+		t.Skip(testskip.ShortIntegration)
+	}
+	if os.Getenv(dataroot.Env) == "" {
+		t.Skip("integration: set OVERGO_DATA_ROOT for retained modality coverage")
+	}
+	t.Run("case-denominators", TestProtocolCaseProjection)
+	t.Run("resource-denominators", TestResourceCaseProjection)
+	output := acceptedProtocolCoverageProjection(t)
+	// Current resource admission stays separate; this checks the original source.
+	checkE4BResourceRefresh(t, false)
+	root := testutil.RepoRoot(t)
+	for path, want := range map[string][]byte{mediaReportPath: output.Markdown, mediaProjectionPath: output.JSON} {
+		got, err := os.ReadFile(filepath.Join(root, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got = bytes.ReplaceAll(got, []byte("\r\n"), []byte("\n"))
+		if !bytes.Equal(got, want) {
+			index := 0
+			for index < len(got) && index < len(want) && got[index] == want[index] {
+				index++
+			}
+			before, _, _ := bytes.Cut(got[index:], []byte("\n"))
+			after, _, _ := bytes.Cut(want[index:], []byte("\n"))
+			t.Fatalf("%s is stale at byte %d: stored line suffix=%q derived=%q; regenerate with compatibility -update-media", path, index, before, after)
+		}
+	}
+	var projection mediaProjection
+	if err := json.Unmarshal(output.JSON, &projection); err != nil {
+		t.Fatal(err)
+	}
+	var generation imageVideoProtocol
+	if err := jsonfile.DecodeStrict(filepath.Join(root, imageVideoProtocolPath), &generation); err != nil {
+		t.Fatal(err)
+	}
+	for _, declared := range generation.Cases {
+		matches := 0
+		for _, model := range projection.Coverage.Models {
+			for _, p := range model.Protocols {
+				if p.Name == declared.ID && model.Model == declared.Model && p.Recipe == declared.Recipe && p.Unit == "generation case" && p.Required != nil && *p.Required == 1 && p.Recorded != nil && *p.Recorded == 1 {
+					matches++
+				}
+			}
+		}
+		if matches != 1 {
+			t.Fatalf("generation case %s: projected %d times", declared.ID, matches)
+		}
+	}
+	var source modelValidationSpecification
+	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/verification/e4b-validation.json"), &source); err != nil {
+		t.Fatal(err)
+	}
+	index := slices.IndexFunc(projection.Coverage.Models, func(row modalityModelProjection) bool { return row.Model == source.Model })
+	if index < 0 {
+		t.Fatal("multimodal inference model omitted")
+	}
+	protocols := projection.Coverage.Models[index].Protocols
+	required := e4bValidationCells()
+	checkNames := func(values []modalityProtocolProjection) bool {
+		if len(values) != len(required) {
+			return false
+		}
+		seen := map[string]bool{}
+		for _, value := range values {
+			if seen[value.Name] || !slices.Contains(required, value.Name) {
+				return false
+			}
+			seen[value.Name] = true
+		}
+		return true
+	}
+	if !checkNames(protocols) || checkNames(protocols[1:]) {
+		t.Fatal("modality protocol denominator differs")
+	}
+	for _, value := range protocols {
+		if value.Required == nil || value.Recorded == nil || *value.Required != *value.Recorded {
+			t.Fatalf("case denominator unbound: %s", value.Name)
+		}
+		if strings.HasPrefix(value.Name, "resources/") && value.RepairOwner != "device-memory-retention/do" {
+			t.Fatal("current resource gap lost its owner")
+		}
+	}
+	for name, mutate := range map[string]func(*modalityProtocolProjection){
+		"missing-mode":        func(p *modalityProtocolProjection) { p.InputMode = "" },
+		"missing-source":      func(p *modalityProtocolProjection) { p.Source = "foreign" },
+		"missing-denominator": func(p *modalityProtocolProjection) { p.Required = nil },
+		"missing-repair":      func(p *modalityProtocolProjection) { p.RepairOwner = "" },
+		"contradictory-count": func(p *modalityProtocolProjection) { n := *p.Recorded + 1; p.Recorded = &n },
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := protocols[0]
+			mutate(&changed)
+			if checkModalityProtocols([]modalityProtocolProjection{changed}) == nil {
+				t.Fatal("invalid protocol received case credit")
+			}
+		})
+	}
+	t.Log("Current catalog and original protocol scopes reconciled; required examples, recorded examples, generation cases and recovery actions remain separate. No model acquisitions.")
+}
+
+func TestProtocolCaseProjection(t *testing.T) {
+	declared := []json.RawMessage{json.RawMessage(`{"name":"first"}`), json.RawMessage(`{"name":"second"}`)}
+	for name, observed := range map[string][]json.RawMessage{
+		"complete": {declared[1], declared[0]}, "omitted": {declared[0]}, "duplicate": {declared[0], declared[0]}, "foreign": {declared[0], json.RawMessage(`{"name":"third"}`)},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if (checkProtocolCaseNames(declared, observed) == nil) != (name == "complete") {
+				t.Fatal("case membership differs")
+			}
+		})
+	}
+}
+
+func TestResourceCaseProjection(t *testing.T) {
+	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "resource-recipe")
+	observation := testutil.ArtifactID(t, artifact.KindEvidence, "resource-observation")
+	gate := runrecord.GateResult{CodeCommit: "source", Recipe: recipeID, Outcome: runrecord.OutcomeSucceeded, Steps: []runrecord.GateStep{
+		{Name: "media-resource-contract", Outcome: runrecord.StepSucceeded, Evidence: "reloads=1;cycles=1;actions=1"},
+		{Name: "media-r0", Outcome: runrecord.StepSucceeded, Evidence: fmt.Sprintf(`{"Mode":"mixed","Observation":%q}`, observation)},
+	}}
+	for name, mutate := range map[string]func(*runrecord.GateResult){
+		"complete":        func(*runrecord.GateResult) {},
+		"omitted":         func(g *runrecord.GateResult) { g.Steps = g.Steps[:1] },
+		"duplicate":       func(g *runrecord.GateResult) { g.Steps = append(g.Steps, g.Steps[1]) },
+		"failed":          func(g *runrecord.GateResult) { g.Steps[1].Outcome = runrecord.StepFailed },
+		"failed-contract": func(g *runrecord.GateResult) { g.Steps[0].Outcome = runrecord.StepFailed },
+		"zero":            func(g *runrecord.GateResult) { g.Steps[0].Evidence = "reloads=0;cycles=1;actions=1" },
+		"overflow":        func(g *runrecord.GateResult) { g.Steps[0].Evidence = "reloads=18446744073709551615;cycles=2;actions=1" },
+		"duplicate-axis":  func(g *runrecord.GateResult) { g.Steps[0].Evidence += ";reloads=1" },
+		"changed-source":  func(g *runrecord.GateResult) { g.CodeCommit = "other" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			changed := gate
+			changed.Steps = slices.Clone(gate.Steps)
+			mutate(&changed)
+			value := modalityProtocolProjection{Source: gate.CodeCommit, Recipe: recipeID, InputMode: "mixed-history"}
+			if (projectResourceCaseCounts(&value, changed) == nil) != (name == "complete") {
+				t.Fatal("resource denominator verdict differs")
+			}
+		})
+	}
+}
 
 func TestAcceptedTextVisionEvidence(t *testing.T) {
 	if testing.Short() {

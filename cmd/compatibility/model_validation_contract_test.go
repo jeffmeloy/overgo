@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/sha1"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,41 +15,6 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
-
-// A validation specification selects exact existing evaluation evidence. It
-// neither runs a model nor supplies replacement observations for missing data.
-type modelValidationSpecification struct {
-	Model      artifact.ID           `json:"model"`
-	Projector  artifact.ID           `json:"projector"`
-	CodeCommit string                `json:"code_commit"`
-	MaskGate   artifact.ID           `json:"mask_gate"`
-	MaskRun    artifact.ID           `json:"mask_run"`
-	Cells      []modelValidationCell `json:"cells"`
-}
-
-type modelValidationCell struct {
-	Name            string                 `json:"name"`
-	Evidence        artifact.ID            `json:"evidence"`
-	Run             artifact.ID            `json:"run,omitzero"`
-	OracleSHA256    string                 `json:"oracle_sha256,omitzero"`
-	Plan            artifact.ID            `json:"plan"`
-	ModelDefinition artifact.ID            `json:"model_definition"`
-	Recipe          artifact.ID            `json:"recipe"`
-	Environment     artifact.ID            `json:"environment"`
-	Dataset         artifact.ID            `json:"dataset"`
-	Split           artifact.ID            `json:"split"`
-	Shards          []artifact.ID          `json:"shards"`
-	Cases           []string               `json:"cases,omitempty"`
-	Bounds          []modelValidationBound `json:"bounds"`
-}
-
-type modelValidationBound struct {
-	Metric    string              `json:"metric"`
-	Unit      string              `json:"unit"`
-	Direction runrecord.Direction `json:"direction"`
-	Minimum   float64             `json:"minimum"`
-	Maximum   float64             `json:"maximum"`
-}
 
 func checkModelValidation(ctx context.Context, store artifact.Reader, spec modelValidationSpecification, required []string) error {
 	if ctx == nil || store == nil || spec.Model.Kind() != artifact.KindModel || spec.Projector.Kind() != artifact.KindProjector ||
@@ -122,26 +86,6 @@ func checkModelValidation(ctx context.Context, store artifact.Reader, spec model
 				return fmt.Errorf("model validation %s: recipe projector differs", cell.Name)
 			}
 		}
-	}
-	return nil
-}
-
-func checkProtocolValidationCell(ctx context.Context, store artifact.Reader, spec modelValidationSpecification, cell modelValidationCell) error {
-	if cell.Plan.Valid() || cell.Dataset.Valid() || cell.Split.Valid() || len(cell.Shards) != 0 || len(cell.Cases) != 0 || len(cell.Bounds) != 0 ||
-		len(cell.OracleSHA256) != sha256.Size*2 || strings.Trim(cell.OracleSHA256, "0123456789abcdef") != "" {
-		return errors.New("model validation: HTTP protocol proof requires its native oracle, not a renamed dataset evaluation")
-	}
-	proof, err := runrecord.VerifyGateRun(ctx, store, cell.Recipe, cell.Evidence, cell.Run)
-	if err != nil {
-		return err
-	}
-	if proof.Gate.CodeCommit != spec.CodeCommit || proof.Gate.Environment != cell.Environment || len(proof.Gate.Steps) != 1 {
-		return errors.New("model validation: HTTP protocol producer authority differs")
-	}
-	step := proof.Gate.Steps[0]
-	want := fmt.Sprintf("contract=e4b-http-modalities;oracle_sha256=%s;model_definition=%s;cases=18", cell.OracleSHA256, cell.ModelDefinition)
-	if step.Name != "candidate-execution" || step.Phase != runrecord.PhaseTest || step.Outcome != runrecord.StepSucceeded || step.Evidence != want {
-		return errors.New("model validation: complete executed HTTP protocol proof is absent")
 	}
 	return nil
 }

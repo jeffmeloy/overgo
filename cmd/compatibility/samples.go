@@ -205,6 +205,9 @@ func validateMediaSampleFile(directory, name string) error {
 	}
 	data, err := os.ReadFile(filepath.Join(directory, name))
 	if err != nil {
+		if pathErr, ok := errors.AsType[*os.PathError](err); ok {
+			return fmt.Errorf("%s: %w", name, pathErr.Err)
+		}
 		return err
 	}
 	return validateMediaSampleContent(name, data)

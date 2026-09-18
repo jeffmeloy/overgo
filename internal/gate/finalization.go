@@ -19,14 +19,14 @@ import (
 	"overgo/internal/runrecord"
 )
 
-func (g *gateContext) packagePassObserver(ctx context.Context, ledger *packageEvidenceLedger, mode string, inputs map[string]artifact.ID) func(string, bool) error {
-	return func(packagePath string, passed bool) error {
+func (g *gateContext) packagePassObserver(ctx context.Context, ledger *packageEvidenceLedger, mode string, inputs map[string]artifact.ID) func(string, bool, map[string]string) error {
+	return func(packagePath string, passed bool, tests map[string]string) error {
 		input, found := inputs[packagePath]
 		if !found || !input.Valid() || g.retryCache == nil {
 			return errors.New("package evidence: terminal event lacks declared inputs")
 		}
 		// Flush observed terminal facts even when cancellation stops later work.
-		if err := ledger.record(context.WithoutCancel(ctx), packagePath, passed); err != nil {
+		if err := ledger.record(context.WithoutCancel(ctx), packagePath, passed, tests); err != nil {
 			return err
 		}
 		if passed {

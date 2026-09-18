@@ -84,7 +84,7 @@ func TestAbandonedGateAdmission(t *testing.T) {
 			if err := evidence.prepare(t.Context(), packages, "complete", inputs, ledger.retryCache); err != nil {
 				t.Fatal(err)
 			}
-			if err := evidence.record(t.Context(), "fixture/good", true); err != nil {
+			if err := evidence.record(t.Context(), "fixture/good", true, nil); err != nil {
 				t.Fatal(err)
 			}
 			if err := store.Refresh(t.Context()); err != nil {

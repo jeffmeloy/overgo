@@ -14,6 +14,11 @@ import (
 )
 
 func TestAcceptedProtocolCoverageProjection(t *testing.T) {
+	acceptedProtocolCoverageProjection(t)
+}
+
+func acceptedProtocolCoverageProjection(t *testing.T) mediaReportOutput {
+	t.Helper()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
@@ -35,7 +40,7 @@ func TestAcceptedProtocolCoverageProjection(t *testing.T) {
 	if err != nil || truncated {
 		t.Fatal("full denominator unavailable", err)
 	}
-	value, err := projectModalityCoverage(t.Context(), root, store)
+	value, err := projectModalityCoverage(t.Context(), root, store, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,4 +101,5 @@ func TestAcceptedProtocolCoverageProjection(t *testing.T) {
 		t.Fatal("human and structured reports disagree")
 	}
 	t.Logf("%d registrations; %d activations; %d accepted in original protocol scopes; no model acquisitions", value.Registered, value.Activations, value.AcceptedActivations)
+	return output
 }

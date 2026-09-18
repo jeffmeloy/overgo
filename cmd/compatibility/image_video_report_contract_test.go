@@ -159,10 +159,10 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(first, second) {
+	if !bytes.Equal(first.Markdown, second.Markdown) || !bytes.Equal(first.JSON, second.JSON) {
 		t.Fatal("report rendering is not deterministic")
 	}
-	text := string(first)
+	text := string(first.Markdown)
 	for _, required := range []string{"# Media capability report", "## Current validation checkpoint", "(image_video_protocol.json)", "failed: 1; cancelled: 1", "fixture-failure", successful.ID.String(), outputID.String(), "Source: unavailable", "Environment: unavailable", "](media_samples/", "`speech`"} {
 		if !strings.Contains(text, required) {
 			t.Fatalf("report omits %q:\n%s", required, text)
@@ -205,7 +205,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(damaged), "Unavailable or invalid export") || strings.Contains(string(damaged), "![") {
+	if !strings.Contains(string(damaged.Markdown), "Unavailable or invalid export") || strings.Contains(string(damaged.Markdown), "![") {
 		t.Fatal("damaged sample hidden or embedded")
 	}
 	if err := os.Remove(path); err != nil {
@@ -215,7 +215,7 @@ func TestImageVideoReportContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(missing), "Unavailable or invalid export") {
+	if !strings.Contains(string(missing.Markdown), "Unavailable or invalid export") {
 		t.Fatal("missing export hidden")
 	}
 	invalid := []byte("not a PNG")

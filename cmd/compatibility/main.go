@@ -116,7 +116,7 @@ func run() error {
 	updateTraining := flag.Bool("update-training", false, "write generated training matrix")
 	refresh := flag.Bool("refresh-identities", false, "refresh evidence identities and generated matrix")
 	updateModels := flag.Bool("update-models", false, "write the nested model compatibility report joined against the store")
-	updateMedia := flag.Bool("update-media", false, "write the media capability report from store activations and verification claims")
+	updateMedia := flag.Bool("update-media", false, "write JSON measurements and the media capability report from store activations and verification claims")
 	mediaScopeName := flag.String("media-scope", "all", "sample export tasks: all or image-video; the report always includes all media")
 	publishCensus := flag.Bool("publish-census", false, "publish the complete registered capability denominator from clean code")
 	checkCensus := flag.String("check-census", "", "check one exact immutable capability census against the live registered denominator")
@@ -184,10 +184,13 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaReportPath), data); err != nil {
+		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaProjectionPath), data.JSON); err != nil {
 			return err
 		}
-		fmt.Printf("wrote %s\n", mediaReportPath)
+		if err := clioptions.WriteOutputFile(filepath.FromSlash(mediaReportPath), data.Markdown); err != nil {
+			return err
+		}
+		fmt.Printf("wrote %s and %s\n", mediaProjectionPath, mediaReportPath)
 		return nil
 	}
 	if *updateModels {

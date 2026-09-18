@@ -16,6 +16,8 @@
 package dataroot
 
 import (
+	"cmp"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,8 +31,39 @@ const (
 	Env = "OVERGO_DATA_ROOT"
 	// ConfigFile is the per-checkout root override file (resolution step 2);
 	// gitignored, machine-local by design.
-	ConfigFile = "local-models.json"
+	ConfigFile       = "local-models.json"
+	boundEnvironment = "OVERGO_BOUND_DATA_ROOTS"
 )
+
+type environmentBinding struct {
+	Base  string `json:"base"`
+	Roots Roots  `json:"roots"`
+}
+
+// ResolveEnvironment freezes resolved roots for child processes while keeping
+// DATA_ROOT's directory semantics. An explicit base override starts a new scope.
+func ResolveEnvironment(workingDirectory string) (Roots, []string, error) {
+	roots, err := Resolve(workingDirectory)
+	if err != nil {
+		return Roots{}, nil, err
+	}
+	base := cmp.Or(strings.TrimSpace(os.Getenv(Env)), workingDirectory)
+	base, err = filepath.Abs(base)
+	if err != nil {
+		return Roots{}, nil, err
+	}
+	for _, value := range []*string{&roots.Store, &roots.Models, &roots.Datasets, &roots.Checkpoints, &roots.AudioReference} {
+		*value, err = filepath.Abs(*value)
+		if err != nil {
+			return Roots{}, nil, err
+		}
+	}
+	data, err := json.Marshal(environmentBinding{Base: base, Roots: roots})
+	if err != nil {
+		return Roots{}, nil, err
+	}
+	return roots, []string{Env + "=" + base, boundEnvironment + "=" + string(data)}, nil
+}
 
 // Roots: resolved data locations. Source names which resolution step won.
 type Roots struct {
@@ -62,6 +95,28 @@ func ResolveCurrent() (Roots, error) {
 // at data in another home resolves the same from any tree.
 func Resolve(workingDirectory string) (Roots, error) {
 	if base := strings.TrimSpace(os.Getenv(Env)); base != "" {
+		if raw := os.Getenv(boundEnvironment); raw != "" {
+			var binding environmentBinding
+			if err := strictjson.DecodeBytes([]byte(raw), &binding); err != nil {
+				return Roots{}, fmt.Errorf("dataroot: bound roots: %w", err)
+			}
+			if !filepath.IsAbs(binding.Base) {
+				return Roots{}, fmt.Errorf("dataroot: bound base must be absolute")
+			}
+			absolute, err := filepath.Abs(base)
+			if err != nil {
+				return Roots{}, err
+			}
+			if absolute == binding.Base {
+				for _, value := range []string{binding.Roots.Store, binding.Roots.Models, binding.Roots.Datasets, binding.Roots.Checkpoints, binding.Roots.AudioReference} {
+					if !filepath.IsAbs(value) {
+						return Roots{}, fmt.Errorf("dataroot: bound roots must be absolute")
+					}
+				}
+				binding.Roots.Source = Env
+				return binding.Roots, nil
+			}
+		}
 		info, err := os.Stat(base)
 		if err != nil || !info.IsDir() {
 			return Roots{}, fmt.Errorf("dataroot: %s=%q is not a directory", Env, base)

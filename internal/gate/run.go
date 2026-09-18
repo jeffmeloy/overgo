@@ -85,7 +85,7 @@ func Run(options Options) (runErr error) {
 		if err := requireCanonicalGateStore(cleanStore, true); err != nil {
 			return err
 		}
-		return runDeferredLanes(repo, cleanStore)
+		return runDeferredLanes(repo, cleanStore, (*gateContext).executeDeferredLanes)
 	}
 	if err := requireExclusiveGateMode(
 		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, readOnlyPlan, *merge,

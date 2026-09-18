@@ -16,6 +16,6 @@ func cloneGateContext(g *gateContext) *gateContext {
 		strategy: g.strategy, diff: g.diff, completionAuthority: g.completionAuthority, indexBefore: g.indexBefore,
 		mergeBefore: g.mergeBefore, planProjection: g.planProjection, mergeSourceStore: g.mergeSourceStore,
 		mergeAuthority: g.mergeAuthority, planHead: g.planHead, committedHead: g.committedHead,
-		commitInterrupted: g.commitInterrupted, acceptedTree: g.acceptedTree, runCommand: g.runCommand,
+		commitInterrupted: g.commitInterrupted, acceptedTree: g.acceptedTree, runCommand: g.runCommand, sourceEnv: g.sourceEnv,
 	}
 }

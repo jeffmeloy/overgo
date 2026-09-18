@@ -230,8 +230,19 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err := writeJSON(repo, gateLanesLocatorFile, locator, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "-lanes") {
+		t.Fatalf("stale locator with a live unrelated PID blocked recovery: %v", err)
+	}
+	guard, err := acquireLaneRunner(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer guard.Close()
 	if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "still running") {
 		t.Fatalf("pending obligation with a live runner: %v", err)
+	}
+	if err := guard.Close(); err != nil {
+		t.Fatal(err)
 	}
 	running, err := pending.Transition(runrecord.LaneObligationRunning, artifact.ID{}, now.Add(time.Second))
 	if err != nil {

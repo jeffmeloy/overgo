@@ -837,13 +837,13 @@ func (g *gateContext) phaseInputFingerprint(phase string) (artifact.ID, error) {
 	paths := g.cachePaths
 	var err error
 	if paths == nil {
-		paths, err = gitLines(g.repo, "ls-files", "-co", "--exclude-standard")
+		paths, err = gitLines(g.sourceRoot(), "ls-files", "-co", "--exclude-standard")
 		if err != nil {
 			return artifact.ID{}, err
 		}
 		g.cachePaths = paths
 	}
-	input, err := fingerprintPhaseInputs(g.repo, phase, paths)
+	input, err := fingerprintPhaseInputs(g.sourceRoot(), phase, paths)
 	if err != nil || phase != "architecture" {
 		return input, err
 	}
@@ -1867,10 +1867,13 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	}
 	g.candidateRoot, g.candidateTree = worktree, tree
 	g.packageGraph = nil
+	previousPaths := g.cachePaths
+	g.cachePaths = nil
 	defer func() {
 		g.captureSelectionCauses()
 		g.candidateRoot, g.candidateTree = "", ""
 		g.packageGraph = nil
+		g.cachePaths = previousPaths
 	}()
 	if g.modernInput != nil {
 		if _, err := g.refreshModernGoInput(); err != nil {
@@ -1887,14 +1890,14 @@ func (g *gateContext) sourceRoot() string {
 
 // Bind external data explicitly; never project ignored source into the candidate.
 func (g *gateContext) sourceEnvironment() ([]string, error) {
-	roots, err := dataroot.Resolve(g.repo)
+	if g.sourceEnv != nil {
+		return slices.Clone(g.sourceEnv), nil
+	}
+	roots, bindings, err := dataroot.ResolveEnvironment(g.repo)
 	if err != nil {
 		return nil, err
 	}
-	environment := gitauthority.RepositoryEnvironment()
-	if strings.TrimSpace(os.Getenv(dataroot.Env)) == "" {
-		environment = append(environment, dataroot.Env+"="+g.repo)
-	}
+	environment := append(gitauthority.RepositoryEnvironment(), bindings...)
 	if os.Getenv(audioReferenceEnv) == "" {
 		environment = append(environment, audioReferenceEnv+"="+audioReferenceStore(roots))
 	}

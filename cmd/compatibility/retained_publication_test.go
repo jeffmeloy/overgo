@@ -194,6 +194,13 @@ func checkRetainedModelPublication(t *testing.T, fixture retainedPublicationFixt
 	for _, id := range slices.Compact(seedIDs) {
 		seed.Artifacts = append(seed.Artifacts, artifact.Descriptor{ID: id})
 	}
+	for _, id := range record.Supersedes {
+		content, err := artifact.RequireTypedContent(t.Context(), store, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seed.Contents = append(seed.Contents, content)
+	}
 	_, seedErr := fixtureStore.Commit(t.Context(), seed)
 	if err := errors.Join(seedErr, fixtureStore.Close()); err != nil {
 		t.Fatal(err)

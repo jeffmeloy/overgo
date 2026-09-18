@@ -412,7 +412,7 @@ func (g *gateContext) manifestExternalInputs(candidate bool) ([]codemanifest.Ext
 		var found bool
 		var err error
 		if candidate {
-			digest, found, err = worktreeFileDigest(g.repo, name)
+			digest, found, err = worktreeFileDigest(g.sourceRoot(), name)
 		} else {
 			digest, found, err = revisionFileDigest(g.repo, "HEAD", name)
 		}

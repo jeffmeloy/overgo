@@ -247,3 +247,26 @@ non-default name index described by llama.cpp's `gguf_writer.py` at
 index. Existing Overgo default/tool-use selection and template bytes are retained;
 exact rendering and pinned Jinja byte parity remain required. No additional
 renderer, artifact acquisition or numerical/throughput promotion is involved.
+
+The reasoning parser transfer uses the existing buffered parser and tool stream.
+The retained Gemma Jinja template advertises `<|channel>thought` / `<channel|>`;
+Colibri's pinned `c/openai_server.py` advertises `<|content_thinking|>` /
+`<|content_text|>` for its content-channel wire. The source pin and Apache-2.0
+license above apply. The transferred facts are these delimiters and the need to
+retain split markers, rather than its Python layer, architecture switches or
+fixed prefix-length limit. Legacy `<think>` handling remains the fallback.
+
+Negative probes returned Gemma's thought channel as visible content in buffered
+and split-marker parsing, and made a tool example inside an explicitly opened
+think block fail as an unterminated block. Supported syntax is now selected
+from the loaded default or tool-use template, ambiguity refuses, and buffered
+parsing and tool-stream prefix scanning share the marker splitter. Streams
+resolve syntax once and withhold explicitly opened reasoning until closed.
+Tests cover every split boundary, unchanged plain bytes, declaration selection,
+completed malformed blocks, and actual tool deltas following reasoning.
+
+This does not claim general Jinja grammar inference, native tool syntax for
+every model, numerical model accuracy or throughput. No-tool chat API routing,
+prompt-aware initial streaming state and progressive reasoning deltas remain
+separate plan obligations. In particular, closing-tag inference in the legacy
+API cannot establish a prompt-opened reasoning mode before the close arrives.

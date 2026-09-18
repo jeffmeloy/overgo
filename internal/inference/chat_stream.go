@@ -29,6 +29,8 @@ type chatOutputStream struct {
 	output     strings.Builder
 	snapshots  []chatToolSnapshot
 	prefixSent bool
+	markers    reasoningMarkers
+	markerErr  error
 }
 
 type chatToolSnapshot struct {
@@ -41,9 +43,12 @@ func NewChatOutputStream(
 	template string,
 	tools []ChatTool,
 ) ChatOutputStream {
+	markers, err := chatReasoningMarkers(template)
 	return &chatOutputStream{
-		template: template,
-		tools:    slices.Clone(tools),
+		template:  template,
+		tools:     slices.Clone(tools),
+		markers:   markers,
+		markerErr: err,
 	}
 }
 
@@ -69,10 +74,17 @@ func (r *Runner) NewChatOutputStream(
 func (s *chatOutputStream) Accept(
 	piece string,
 ) ([]ChatToolCallDelta, error) {
+	if s.markerErr != nil {
+		return nil, s.markerErr
+	}
 	s.output.WriteString(piece)
+	reasoning, body, ready, err := s.markers.split(s.output.String(), false)
+	if err != nil || !ready {
+		return nil, err
+	}
 	snapshots, err := chatToolSnapshots(
 		s.template,
-		s.output.String(),
+		body,
 		s.tools,
 	)
 	if err != nil {
@@ -106,14 +118,8 @@ func (s *chatOutputStream) Accept(
 				Started:   started,
 			}
 			if started && !s.prefixSent {
-				prefix := s.output.String()
-				if beforeTool, _, ok := strings.Cut(prefix, toolCallOpen); ok {
-					var prefixErr error
-					delta.ReasoningContent, delta.Content, prefixErr =
-						splitChatReasoning(beforeTool)
-					if prefixErr != nil {
-						return nil, prefixErr
-					}
+				if beforeTool, _, ok := strings.Cut(body, toolCallOpen); ok {
+					delta.ReasoningContent, delta.Content = reasoning, beforeTool
 				}
 				s.prefixSent = true
 			}

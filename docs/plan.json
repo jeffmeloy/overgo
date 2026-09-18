@@ -6,6 +6,41 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "colibri-text-semantics",
+      "title": "Honor declared stop tokens, tokenization and reasoning channels",
+      "owner": "colibri",
+      "status": "open",
+      "steps": [
+        {
+          "id": "eog",
+          "title": "Preserve every declared end-of-generation token",
+          "status": "open",
+          "verify": "go test ./internal/hfconvert -run '^TestConvertedEOGTokenList$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestDeclaredEOGTokens$' -count=1",
+          "rationale": "Basic model semantics precede MoE. Reproduced truncation of generation EOS [1,2,3], absent dense model-config fallback and unchecked invalid trailing IDs. Preserve complete declared lists through HF conversion, GGUF and common tokenizer EOG checks; use generation_config's explicit EOS in preference to model config per Transformers loading contract, not a cross-source union. Reject null array entries, negative/fractional/out-of-range IDs; preserve scalar, known-token and token-encoding behavior, deduplicate valid IDs. Cover dense and nested Qwen config declarations with exact independent expected sets. Tiny conversion fixtures establish stop metadata, not real-model numerical accuracy or throughput. No MoE fixture prerequisite is needed for this ready shared correctness fix.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality"
+          ]
+        },
+        {
+          "id": "do",
+          "title": "Honor declared stop tokens, tokenization and reasoning channels",
+          "status": "open",
+          "verify": "go test ./internal/hfconvert ./internal/tokenizer ./internal/inference -run 'TestConvertedEOGTokenList|TestChatReasoningDeclaredChannels|TestKimiK2' -count=1 \u0026\u0026 go test ./internal/hfbpe -run 'TestDeclaredPipeline|TestConsumerTokenIdentity' -count=1",
+          "rationale": "W0.3/W0.7/W0.8/W5.8. Reproduce per-consumer mismatches first; preserve complete declared EOS arrays with explicit generation-config precedence and model-config fallback, validate ranges, route reasoning via declared marker pairs including split chunks, and support declared tokenizer nodes through common algorithms. Preserve accepted consumers' IDs and output; changed media/speech tokenization requires affected reacquisition. Unsupported nodes refuse explicitly. Model identifiers belong in declarations, extend existing family-branch checks only for demonstrated holes.",
+          "depends_on": [
+            "colibri-fixtures/do",
+            "colibri-text-semantics/eog"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
       "id": "colibri-grammar-binding",
       "title": "Reuse immutable vocabulary bindings across constrained generations",
       "owner": "colibri",
@@ -128,29 +163,6 @@
           "status": "open",
           "verify": "go test ./internal/parity ./internal/gguf -run 'TestParityFixtureAdmission|TestPendingFixtureTinyOracles' -count=1",
           "rationale": "W2.4/W2.5. Shared test-side tiny GGUF builders and pinned independent reference outputs, exact tensor inventory and no missing-fixture pass. Distinguish tiny structural proof from real-model validation. Existing pending capabilities first; avoid new fixture CLI or registry.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "colibri-text-semantics",
-      "title": "Honor declared stop tokens, tokenization and reasoning channels",
-      "owner": "colibri",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Honor declared stop tokens, tokenization and reasoning channels",
-          "status": "open",
-          "verify": "go test ./internal/hfconvert ./internal/tokenizer ./internal/inference -run 'TestConvertedEOGTokenList|TestChatReasoningDeclaredChannels|TestKimiK2' -count=1 \u0026\u0026 go test ./internal/hfbpe -run 'TestDeclaredPipeline|TestConsumerTokenIdentity' -count=1",
-          "rationale": "W0.3/W0.7/W0.8/W5.8. Reproduce per-consumer mismatches first; union declared EOS arrays, validate ranges, route reasoning via declared marker pairs including split chunks, and support declared tokenizer nodes through common algorithms. Preserve accepted consumers' IDs and output; changed media/speech tokenization requires affected reacquisition. Unsupported nodes refuse explicitly. Model identifiers belong in declarations, extend existing family-branch checks only for demonstrated holes.",
-          "depends_on": [
-            "colibri-fixtures/do"
-          ],
           "capabilities": [
             "shared-components",
             "correctness-and-quality",

@@ -187,3 +187,37 @@ first combined gate attempt failed evidence parsing: its selector scanner
 counted the browser lane's `-run` as a second direct Go test, while the lane
 reports its own checked browser verdict. The server test is now a required
 checkpoint and the unchanged browser command is the final integration check.
+
+The user reprioritized basic model correctness before further MoE work. At the
+pinned Apache-2.0 Colibri revision, `c/olmoe.c` documents the checkpoint's exact
+embedded chat template and unusual shared BOS/EOS token. This motivates preserving
+artifact declarations through common components, without translating Colibri's
+family-specific formatter. Overgo already executes GGUF Jinja in its bounded Go
+interpreter; the HF converter previously ignored `tokenizer_config.json` templates.
+
+The shared dense/Qwen importer now reads either an embedded string or a named
+template list. A standalone `chat_template.jinja` overrides the default while
+retaining named variants. Source bytes are preserved, metadata order is stable,
+and malformed, duplicate, empty or default-less declarations refuse conversion
+instead of falling through to an unrelated prompt format. `tool_use` maps to the
+existing GGUF runtime selector. Other names are retained as metadata; arbitrary
+named selection is not added. This follows the tokenizer loading precedence in
+[Transformers documentation](https://huggingface.co/docs/transformers/chat_templating_writing#storing-and-loading-chat-templates).
+Modern additional-template directories, legacy processor template JSON, and
+convergence of the separate Gemma converter remain outside this change.
+
+Negative source tests reproduced dropped embedded templates before the change.
+The public-conversion test uses the existing tiny dense safetensors builder,
+writes GGUF, reloads its tokenizer and checks exact rendered messages, tools,
+generation/reasoning flags and unchanged BOS/EOS IDs. Existing pinned Jinja byte
+parity remains a separate mandatory check. These prove metadata and prompt
+semantics, not numerical quality, full Python/Jinja compatibility or throughput.
+
+The next ready step preserves every declared end-of-generation token. Independent
+probes found truncated generation arrays, missing dense model-config fallback,
+unchecked invalid trailing IDs and Go's null-to-zero integer decoding pitfall.
+The corrected plan retains explicit generation-config precedence rather than
+blindly unioning model and generation sources. Master synchronization against
+`69ffcc7423fa498c5df1dd4aaee269838626fe27` could not prepare because Windows denied
+renaming the retained evidence snapshot; its evidence remains intact and the
+merge retry remains due. No master plan was imported.

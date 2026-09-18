@@ -134,3 +134,25 @@ merely to preserve the file count would not remove its complexity. This repo
 repair does not authorize restarting the Colibri supervisor: the user selected
 direct execution in the current task, and its background timer and campaign
 were stopped on 2026-09-17.
+
+Download integrity reread `c/download_fp8.py` at the same pinned Apache-2.0
+revision. Its curl fallback illustrates interrupted-file reuse but size-based
+publication is not a content-integrity oracle. The independent local HTTP
+regressions reproduced a corrupted ETag-only prefix being published and complete
+prefixes failing repeatedly with HTTP 416. A strong ETag validates the server
+representation, not retained local bytes. Overgo now requires a declared SHA-256
+for partial reuse; otherwise it restarts from the full remote representation.
+After rehashing, a complete matching digest avoids another content request while
+retaining the common cancellation, declared-size and publication checks.
+
+The exact-byte fixtures require one full transfer for ETag-only recovery and
+zero transfer requests for complete digest-verified content, including unknown
+size and empty content. Incorrect declared size still refuses publication.
+Malformed and wrong-total 416 cases use corrupt complete prefixes so the response
+validation actually executes; every range-response case asserts a request was
+made. Existing interrupted digest-backed transfers retain their served-byte
+comparison. Files without a digest pay the explicit cost of a full restart.
+These are integrity and transfer-count results, not a model-performance claim.
+Existing final-file caching without a digest still relies on declared size;
+staging inventory contamination, cross-revision reuse and transport timers are
+separate outstanding work. No Colibri source was translated.

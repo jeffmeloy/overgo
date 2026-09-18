@@ -25,6 +25,12 @@ func downloadFixture(t *testing.T, weights []byte, transfer http.HandlerFunc) (*
 	t.Helper()
 	digest := sha256.Sum256(weights)
 	file := RepoFile{Path: "weights.bin", Size: int64(len(weights)), SHA256: hex.EncodeToString(digest[:])}
+	client, request := downloadFixtureForFile(t, file, transfer)
+	return client, request, file
+}
+
+func downloadFixtureForFile(t *testing.T, file RepoFile, transfer http.HandlerFunc) (*Client, DownloadRequest) {
+	t.Helper()
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -44,7 +50,7 @@ func downloadFixture(t *testing.T, weights []byte, transfer http.HandlerFunc) (*
 	if err != nil {
 		t.Fatal(err)
 	}
-	return client, DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Revision: "main", Destination: t.TempDir()}, file
+	return client, DownloadRequest{Kind: KindModel, Repository: "acme/tiny", Revision: "main", Destination: t.TempDir()}
 }
 
 func seedDownloadPrefix(t *testing.T, client *Client, request DownloadRequest, file RepoFile, prefix []byte) string {
@@ -174,14 +180,15 @@ func TestDownloadRangeResponses(t *testing.T) {
 		{name: "oversized_suffix", prefix: "abcd", status: 206, contentRange: "bytes 4-7/8", body: "efghi", wantError: true, discard: true},
 		{name: "corrupt_prefix", prefix: "xxxx", status: 206, contentRange: "bytes 4-7/8", body: "efgh", wantError: true, discard: true},
 		{name: "corrupt_suffix", prefix: "abcd", status: 206, contentRange: "bytes 4-7/8", body: "xxxx", wantError: true, discard: true},
-		{name: "complete_416", prefix: "abcdefgh", status: 416, contentRange: "bytes */8"},
 		{name: "corrupt_complete_416", prefix: "xxxxxxxx", status: 416, contentRange: "bytes */8", wantError: true, discard: true},
 		{name: "incomplete_416", prefix: "abcd", status: 416, contentRange: "bytes */8", wantError: true},
-		{name: "malformed_416", prefix: "abcdefgh", status: 416, contentRange: "8", wantError: true},
-		{name: "wrong_total_416", prefix: "abcdefgh", status: 416, contentRange: "bytes */9", wantError: true},
+		{name: "malformed_416", prefix: "xxxxxxxx", status: 416, contentRange: "8", wantError: true, preserve: true},
+		{name: "wrong_total_416", prefix: "xxxxxxxx", status: 416, contentRange: "bytes */9", wantError: true, preserve: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			var transfers atomic.Int64
 			client, request, file := downloadFixture(t, weights, func(w http.ResponseWriter, r *http.Request) {
+				transfers.Add(1)
 				w.Header().Set("Content-Range", test.contentRange)
 				w.Header().Set("ETag", test.etag)
 				if test.length != "" {
@@ -193,6 +200,9 @@ func TestDownloadRangeResponses(t *testing.T) {
 			})
 			partial := seedDownloadPrefix(t, client, request, file, []byte(test.prefix))
 			_, err := client.Download(t.Context(), request)
+			if transfers.Load() != 1 {
+				t.Fatalf("response case did not execute its transfer: calls=%d", transfers.Load())
+			}
 			if (err != nil) != test.wantError {
 				t.Fatalf("error=%v wantError=%t", err, test.wantError)
 			}
@@ -219,17 +229,13 @@ func TestDownloadRangeResponses(t *testing.T) {
 	}
 }
 
-func TestDownloadWithoutDigestRequiresStrongResumeValidator(t *testing.T) {
+func TestDownloadWithoutDigestRestartsValidPrefix(t *testing.T) {
 	weights := []byte("abcdefgh")
 	for _, etag := range []string{"", `W/"weights-v1"`, `"weights-v1"`} {
 		t.Run(etag, func(t *testing.T) {
 			client, request, file := downloadFixture(t, weights, func(w http.ResponseWriter, r *http.Request) {
-				want := ""
-				if etag == `"weights-v1"` {
-					want = "bytes=4-"
-				}
-				if r.Header.Get("Range") != want {
-					t.Errorf("Range=%q want=%q", r.Header.Get("Range"), want)
+				if r.Header.Get("Range") != "" || r.Header.Get("If-Range") != "" {
+					t.Errorf("unverified prefix reused: %v", r.Header)
 				}
 				serveDownloadBytes(w, r, weights)
 			})

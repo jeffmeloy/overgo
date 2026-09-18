@@ -38,9 +38,10 @@ type DownloadRequest struct {
 
 // Download fetches a repository revision into the destination directory.
 // Every file downloads to an identity-bound partial sibling and is renamed into
-// place only after its declared size and, for LFS files, its sha256 match;
-// a partial or tampered download never lands under its final name. Files
-// already present with matching size and digest are not fetched again.
+// place only after its declared size and, for LFS files, its sha256 match.
+// Retained bytes are reused only with a declared digest; an ETag alone cannot
+// validate local content. Existing final files use the declared size and digest
+// when available, or size alone when no digest is declared.
 func (c *Client) Download(ctx context.Context, request DownloadRequest) (RepoRevision, error) {
 	if strings.TrimSpace(request.Destination) == "" {
 		return RepoRevision{}, errors.New("hfhub: download requires a destination directory")
@@ -93,35 +94,39 @@ func (c *Client) downloadFile(ctx context.Context, request DownloadRequest, revi
 		return err
 	}
 	defer partial.file.Close()
-	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		c.fileURL(request.Kind, request.Repository, revision, file.Path), nil)
-	if err != nil {
-		return err
-	}
-	httpRequest.Header.Set("Accept-Encoding", "identity")
-	if partial.received > 0 {
-		httpRequest.Header.Set("Range", fmt.Sprintf("bytes=%d-", partial.received))
-		if partial.etag != "" {
-			httpRequest.Header.Set("If-Range", partial.etag)
+	// A matching content digest proves completion even without a declared
+	// size. Keep the common cancellation, size and publication checks below.
+	if file.SHA256 == "" || !strings.EqualFold(hex.EncodeToString(partial.digest.Sum(nil)), file.SHA256) {
+		httpRequest, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			c.fileURL(request.Kind, request.Repository, revision, file.Path), nil)
+		if err != nil {
+			return err
 		}
-	}
-	c.authorize(httpRequest)
-	response, err := c.transfer.Do(httpRequest)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if err := partial.acceptResponse(response, &file); err != nil {
-		return err
-	}
-	if response.StatusCode != http.StatusRequestedRangeNotSatisfiable {
-		received, copyErr := observedCopy(ctx, io.MultiWriter(partial.file, partial.digest), response.Body, file, partial.received, request.Observe)
-		partial.received = received
-		if copyErr != nil {
-			if errors.Is(copyErr, errDownloadOversize) {
-				return errors.Join(copyErr, partial.discard())
+		httpRequest.Header.Set("Accept-Encoding", "identity")
+		if partial.received > 0 {
+			httpRequest.Header.Set("Range", fmt.Sprintf("bytes=%d-", partial.received))
+			if partial.etag != "" {
+				httpRequest.Header.Set("If-Range", partial.etag)
 			}
-			return copyErr
+		}
+		c.authorize(httpRequest)
+		response, err := c.transfer.Do(httpRequest)
+		if err != nil {
+			return err
+		}
+		defer response.Body.Close()
+		if err := partial.acceptResponse(response, &file); err != nil {
+			return err
+		}
+		if response.StatusCode != http.StatusRequestedRangeNotSatisfiable {
+			received, copyErr := observedCopy(ctx, io.MultiWriter(partial.file, partial.digest), response.Body, file, partial.received, request.Observe)
+			partial.received = received
+			if copyErr != nil {
+				if errors.Is(copyErr, errDownloadOversize) {
+					return errors.Join(copyErr, partial.discard())
+				}
+				return copyErr
+			}
 		}
 	}
 	if err := ctx.Err(); err != nil {

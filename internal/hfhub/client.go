@@ -5,8 +5,8 @@
 //
 // Every outbound request goes to one configured endpoint (the public hub by
 // default), and every downloaded file that declares a size or an LFS sha256
-// is verified against it before the file is surrendered to its final name --
-// a partial or tampered download never lands under the requested path.
+// is verified against it before publication. Retained partial bytes require a
+// declared digest for reuse; size alone cannot detect equal-length corruption.
 package hfhub
 
 import (

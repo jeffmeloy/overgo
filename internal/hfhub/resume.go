@@ -45,9 +45,9 @@ func (c *Client) openPartial(ctx context.Context, local string, request Download
 		return nil, err
 	}
 	partial.etag = strongETag(string(raw))
-	// Without either an end-to-end digest or a strong If-Range validator,
-	// restarting is the only defensible response to an interrupted body.
-	if file.SHA256 == "" && partial.etag == "" {
+	// An ETag validates the remote representation, not the retained local
+	// bytes. Reuse requires an end-to-end digest to check before publication.
+	if file.SHA256 == "" {
 		err = partial.restart()
 	} else {
 		partial.received, err = observedCopy(ctx, partial.digest, handle, file, 0, nil)

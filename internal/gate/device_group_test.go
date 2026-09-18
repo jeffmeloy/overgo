@@ -72,9 +72,9 @@ func TestDeviceGroupRatchet(t *testing.T) {
 	// group only by importing the device runtime on purpose.
 	const ceiling = 106
 	if len(device) > ceiling {
-		t.Fatalf("device group regrew to %d of %d packages, ceiling %d", len(device), total, ceiling)
+		t.Errorf("device group regrew to %d of %d packages, ceiling %d", len(device), total, ceiling)
 	}
-	for _, host := range []string{"internal/hostoptimizer", "internal/model", "internal/trainingprogram", "internal/runrecord", "internal/plan", "internal/testevidence"} {
+	for _, host := range []string{"cmd/compatibility", "internal/hostoptimizer", "internal/model", "internal/trainingprogram", "internal/runrecord", "internal/plan", "internal/testevidence"} {
 		if slices.Contains(device, host) {
 			t.Errorf("%s links the device runtime", host)
 		}

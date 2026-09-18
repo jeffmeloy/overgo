@@ -14,6 +14,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/operation"
 	"overgo/internal/overgodb"
@@ -128,7 +129,7 @@ func NewEvaluationWorkspace(
 		if err != nil {
 			return nil, fmt.Errorf("evaluation workspace: derive store suites: %w", err)
 		}
-		domains, declared, err := evaluation.EvalDomains(context.Background(), repository, identity.Model)
+		domains, declared, err := modelartifact.EvalDomains(context.Background(), repository, identity.Model)
 		if err != nil {
 			return nil, err
 		}

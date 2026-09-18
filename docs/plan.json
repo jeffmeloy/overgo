@@ -40,7 +40,8 @@
             "modality-verification/e4b-final-resource-refresh",
             "validation-census-stability/do",
             "modality-verification/report-projection",
-            "modality-verification/coverage-publication"
+            "modality-verification/coverage-publication",
+            "modality-verification/coverage-host-metadata"
           ]
         },
         {

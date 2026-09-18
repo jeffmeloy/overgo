@@ -14,6 +14,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/inference"
+	"overgo/internal/modelartifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/sampling"
@@ -201,7 +202,7 @@ func soakModelPath(t *testing.T, ctx context.Context, store *overgodb.Store) str
 		if !entry.Present || entry.Stale != "" || entry.Location == "" {
 			continue
 		}
-		domains, declared, err := evaluation.EvalDomains(ctx, store, entry.Model)
+		domains, declared, err := modelartifact.EvalDomains(ctx, store, entry.Model)
 		if err != nil {
 			t.Fatal(err)
 		}

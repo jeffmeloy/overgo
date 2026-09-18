@@ -14,6 +14,7 @@ import (
 	"overgo/internal/evaluation"
 	"overgo/internal/finding"
 	"overgo/internal/jsonfile"
+	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testskip"
@@ -87,7 +88,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 			if activation.Task != recipe.TaskInference {
 				continue
 			}
-			domains, declared, err := evaluation.EvalDomains(t.Context(), store, model.Model)
+			domains, declared, err := modelartifact.EvalDomains(t.Context(), store, model.Model)
 			if err != nil {
 				t.Fatal(err)
 			}

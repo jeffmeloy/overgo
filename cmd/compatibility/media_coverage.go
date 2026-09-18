@@ -14,8 +14,8 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/discovery"
-	"overgo/internal/evaluation"
 	"overgo/internal/jsonfile"
+	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
@@ -163,7 +163,7 @@ func projectModalityCoverage(ctx context.Context, root string, store *overgodb.S
 		if entry.KeyEnvironment != "" {
 			row.Execution = "hosted"
 		}
-		row.Domains, _, err = evaluation.EvalDomains(ctx, store, entry.Model)
+		row.Domains, _, err = modelartifact.EvalDomains(ctx, store, entry.Model)
 		if err != nil {
 			return nil, err
 		}

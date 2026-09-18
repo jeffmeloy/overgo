@@ -44,9 +44,8 @@ func samplingHostBoundary(ctx context.Context, forward *ResidentForward, steps i
 
 func TestResidentSamplingDeviceAcceptance(t *testing.T) {
 	cudatest.Require(t)
-	if cudatest.MeasurementProcess(t, 0) {
-		return
-	}
+	// Correctness uses session-owned counters; other GPU users cannot change
+	// them. Shared admission suffices. Sequence timing remains isolated below.
 	model, err := Load(artifactDir(t))
 	if err != nil {
 		t.Fatalf("required sampling artifact: %v", err)

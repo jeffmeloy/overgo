@@ -33,7 +33,8 @@
           "depends_on": [
             "modality-verification/declared-smoke-expectations",
             "modality-verification/media-evidence-binding",
-            "modality-verification/un0-current-generation"
+            "modality-verification/un0-current-generation",
+            "modality-verification/diffusion-current-generation"
           ]
         },
         {

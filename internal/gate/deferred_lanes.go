@@ -176,6 +176,11 @@ func (g *gateContext) spawnLaneRunner(storePath string) error {
 	if err != nil {
 		return fmt.Errorf("gate: retain lane executable: %w", err)
 	}
+	// Leave the composed selection before the detached runner starts, so it
+	// resumes from retained work rather than recomposing the manifest.
+	if err := g.persistPreparedSelection(); err != nil {
+		return fmt.Errorf("gate: retain prepared selection: %w", err)
+	}
 	log, err := os.OpenFile(filepath.Join(g.repo, filepath.FromSlash(gateLanesLogFile)), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, clioptions.OutputFileMode)
 	if err != nil {
 		return err
@@ -390,10 +395,15 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 	g.laneDebt = &obligation
 	var steps []runrecord.GateStep
 	outcome, failure := runrecord.OutcomeSucceeded, ""
-	err := g.withCandidateWorktree(g.fixedTree, func(string) error {
-		planned, err := g.planPipeline()
+	err := g.withCandidateWorktree(g.fixedTree, func(root string) error {
+		planned, reused, err := g.reusePreparedPipeline(obligation, root)
 		if err != nil {
 			return err
+		}
+		if !reused {
+			if planned, err = g.planPipeline(); err != nil {
+				return err
+			}
 		}
 		g.manifestPlan = planned.manifest
 		if planned.manifest == nil {

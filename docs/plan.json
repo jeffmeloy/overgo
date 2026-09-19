@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-gate-deferred",
-      "title": "Resume deferred verification from retained prepared work",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "prepared-resume",
-          "title": "Carry immutable selections into the deferred runner",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestDeferredLaneSelectionSurvivesPublication|TestDeferredLaneResolutionFailurePersists|TestDeferredLaneObligations|TestBatchEvidenceRetainsReplanObligations|TestLaneExecutableLifetime)$' -short -count=1",
-          "rationale": "Combined-plan boundary: persist already-composed selections for restart, without changing scheduler policy or cross-recipe receipt eligibility. 430431e8 ran lanes inline; plan-only a674e353 still spent 41.2s resolving a deferred lane with no test execution. First prove that redundant reconstruction can be removed for that bounded case while preserving all obligations.\n\nOwners: deferred_lanes and existing runrecord/automationcheck evidence. The runner repeats planPipeline and stepTestPlan. fd153b33 deferred result evidence:sha256:2b8d3d0c010ce97aa77b9a5f04e2340d5b048f5732443aea9f50f8c3e3dec49d cost 361.2s; do not attribute all of it to reconstruction. Extend the existing obligation/manifest with minimal prepared execution inputs, not a second graph. Prove the mapping between pre-publication and committed trees, including plan advancement and generated documents. Recheck live environment, policy, resources, source drift and evidence availability. Missing/incompatible prepared data uses conservative reconstruction. Counterexamples: death around commit/result writes, changed checkout/plan, corrupt selection, lost cache, analyzer changes and concurrent terminal publication. Demonstrate one restart avoids discovery while preserving every owed lane and exact executable lifetime.\n\nMemory boundary: retain compact source-bound selections and artifact references, not duplicate AST/type graphs, inventories or raw result streams in parent and child. Load only selected obligations; release preparation state before expensive execution when it is no longer used. Compare cold and resumed whole-process-tree peaks and full completion wall. Reuse the gate-resource-efficiency accounting; this row owns prepared-state lifetime, not another memory governor."
-        }
-      ]
-    },
-    {
       "id": "surface-gate-scheduling",
       "title": "Overlap eligible checks without extending next-gate waiting",
       "owner": "master-lead",

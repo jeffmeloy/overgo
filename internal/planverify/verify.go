@@ -42,7 +42,10 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	if err != nil {
 		detail := clioptions.Tail(first, clioptions.DiagnosticTailBytes)
 		if failures := testevidence.FailureSummary(first); failures != "" {
-			detail = "failed tests/packages: " + failures + "\n" + detail
+			// The structured summary names the failed tests and their assertion
+			// tails; it replaces the raw output wall, and the exit cause above
+			// stays the authority.
+			detail = "failed tests/packages: " + failures
 		}
 		return "", fmt.Errorf("FAILED: %w: %s", err, detail)
 	}

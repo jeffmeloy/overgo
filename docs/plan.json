@@ -72,13 +72,6 @@
           ]
         },
         {
-          "id": "verification-failure-summary",
-          "title": "Show failing tests and assertion tails while retaining raw evidence",
-          "status": "open",
-          "verify": "test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestVerifyFailureSummary$' -count=1",
-          "rationale": "Use the existing testevidence parser and process runner to summarize plan -verify failures: package/test name, final assertion lines, exit or cancellation cause, missing fixture and the retained raw-output location/record identity. Keep raw Go JSON as evidence or explicit detailed output, not the default wall of failure text. Preserve exact verifier and exit semantics, skips, subtests, build failures without test names, truncated/malformed output and multiple failures; do not select only the last failing test or discard successful sibling records. Test real parser-to-command handoff with bounded fixtures and no expensive suite reacquisition. No parallel log format or test runner.\n\nUse existing execution events to show active package/test, queue/resource owner, completed and remaining stages, execution versus admission time and cancellation/release state. Emit meaningful transitions and bounded silence diagnostics, not per-poll status messages. Preserve raw evidence references and avoid adding another monitor loop.\n\nConsume bounded failure/receipt data from surface-gate-diagnostics/complete-findings. Do not introduce another output buffer, parser, raw-log copy or device-lane implementation. Preserve full raw output only by explicit streaming-to-artifact capture with deduplicated references; bounded diagnostics are the default."
-        },
-        {
           "id": "scratch-probe-path",
           "title": "Expose and verify the existing scratch-module workflow",
           "status": "open",

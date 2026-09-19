@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/clioptions"
 	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 	"overgo/internal/testskip"
@@ -333,14 +334,27 @@ func (tail diagnosticTail) text() string {
 	return tail.tail
 }
 
-// FailureSummary names failed tests and packages from a mixed verifier stream.
-// It is diagnostic only: callers still use the process exit code as authority.
+// FailureSummary names failed tests and packages from a mixed verifier stream
+// and appends each failed name's retained assertion tail, so a caller shows the
+// final failing lines rather than the whole output wall. It is diagnostic only:
+// callers still use the process exit code as authority, and keep the raw stream
+// (its digest is report.StreamDigest) as the evidence of record.
 func FailureSummary(out string) string {
-	report, err := goTestJSONReport(out, false, true)
+	report, err := readGoTestJSON(strings.NewReader(out), false, true, clioptions.DiagnosticTailBytes, nil, nil)
 	if err != nil || len(report.Failed) == 0 {
 		return ""
 	}
-	return strings.Join(report.Failed, ", ")
+	failed := make(map[string]bool, len(report.Failed))
+	for _, name := range report.Failed {
+		failed[name] = true
+	}
+	summary := []string{strings.Join(report.Failed, ", ")}
+	for _, diagnostic := range report.Diagnostics {
+		if name, _, ok := strings.Cut(diagnostic, ":\n"); ok && failed[name] {
+			summary = append(summary, diagnostic)
+		}
+	}
+	return strings.Join(summary, "\n")
 }
 
 var goTestShortFlag = regexp.MustCompile(`(?:^|[ \t])-short(?:=true)?(?:[ \t;&|]|$)`)

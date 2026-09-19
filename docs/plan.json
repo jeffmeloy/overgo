@@ -565,7 +565,8 @@
             "plan-consolidation-replan/do",
             "sequence-replan/do",
             "publication-priority-replan/do",
-            "end-to-end-validation/do"
+            "end-to-end-validation/do",
+            "validation-run-execution/do"
           ]
         }
       ]

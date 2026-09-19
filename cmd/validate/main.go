@@ -89,7 +89,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 
 	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered})
 	if *execute {
-		return fmt.Errorf("validate: -run is not wired yet; dry run prints the plan for %d cells", len(registered))
+		return executeRun(ctx, output, *root, plan)
 	}
 	return clioptions.WritePrettyJSON(output, plan)
 }

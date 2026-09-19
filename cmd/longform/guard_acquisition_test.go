@@ -106,12 +106,19 @@ func selectedGuardCohorts(t *testing.T, selected guardCatalog) []guardCohort {
 		{name: "E4B", historical: "evidence:sha256:4d51503d37ae7b10d80a3cb939777390473324d59a814383fcfdb48cc7af635a"},
 		{name: "MiniCPM 1B", initialModel: "model:sha256:3007c05b8ece556726a37980069cf6c0f1f966a48572b1c130c5643810c23a32"},
 		{name: "MiniCPM 1B retired template-less", historical: "evidence:sha256:4a9aeeabfe52471cd86826b4857b2ece592b6f6c7eb75334a5b203387a1a5d5f", retired: true},
-		{name: "Qwen 3.5 4B", historical: "evidence:sha256:198df790d9f4ff6179087f8a823115448eb45c7c51739625fd7388e71a19b160"},
-		{name: "Qwen 3.5 9B", historical: "evidence:sha256:b0977a1f38b87d56459e389a68dc315a2a76a0e38c3a71afa320d4943c6af7fe"},
+		// Rotary-corrected hybrids: abc40c15 fixed Qwen3.5 multi-axis rotary
+		// pairing to the declared NeoX channel layout, which changed their greedy
+		// prefixes at lower NLL. The pre-fix references no longer apply, so these
+		// readmit on exact model identity and self-consistent current-surface
+		// repeats, like the template-corrected MiniCPM.
+		{name: "Qwen 3.5 4B", initialModel: "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b"},
+		{name: "Qwen 3.5 9B", initialModel: "model:sha256:896a878974e5de3ba5d60acbe0029ecbb025b8e499d51bbbebb5437818cbf8f4"},
 		{name: "Gemma 12B FP8", historical: "evidence:sha256:e28cc3d5a6f8d19d984063e8f3f7c9893a582a85e31d770115f406a713422bf4"},
-		// Legacy admission records lack the full-budget protocol. These exact
-		// models need an initial complete cohort, not a relabeled old pass.
+		// Gemma 12B BF16's legacy admission records lack the full-budget protocol,
+		// so it needs an initial complete cohort against its retained prior, not a
+		// relabeled old pass.
 		{name: "Gemma 12B BF16", initialModel: "model:sha256:f5e632cd3f6050ab8ae06df55766de5737282689d211f3e2f172db52ff671401"},
+		// Qwen 27B is the same rotary-corrected hybrid, admitted on identity.
 		{name: "Qwen 27B quantized", initialModel: "model:sha256:73dc8d6fd4500f7b9bb76b801e4de3c0e8df971c86163e3cd348e64e2bc74ea6"},
 	}
 	if len(selected.Cohorts) != len(fixtures) {
@@ -129,10 +136,11 @@ func selectedGuardCohorts(t *testing.T, selected guardCatalog) []guardCohort {
 		}
 		fixture.repeats = [3]string(records)
 		previous := selected.Prior.Cohorts[fixture.name]
-		if fixture.name == "MiniCPM 1B" {
-			if len(previous) != 0 {
-				t.Fatal("corrected MiniCPM had no accepted prior cohort")
-			}
+		// A corrected model's output legitimately changed under a landed fix, so
+		// it has no valid pre-fix prior cohort: it readmits on its exact identity
+		// and self-consistent current repeats. Template-corrected MiniCPM and the
+		// rotary-corrected Qwen3.5 hybrids leave their prior cohort empty.
+		if fixture.initialModel != "" && len(previous) == 0 {
 			continue
 		}
 		if len(previous) != len(fixture.prior) {

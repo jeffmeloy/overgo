@@ -1,24 +1,24 @@
 {
   "cohorts": {
     "E4B": [
-      "evidence:sha256:a6a61a600047cf979e4ac459bc22ea7e4e7959a4afa53316e3473237a7e2c1d6",
-      "evidence:sha256:a44f936578b03e7db6bd8f04f2666e441bed137ba70b63f2b8a2e76c5908344f",
-      "evidence:sha256:ab661ee0a4f3b855a5a3807f1cd49d950d3eaead967ba432ff55f6a44c234567"
+      "evidence:sha256:69ae68bc2d9a6579596882f8bb989ebc1bdcbf571e28bd7f0e7758ad4d0a15cb",
+      "evidence:sha256:0603be8c32b145da6c299e0e0311c0db0beb7a63ce9ad4653601ff781a3d8984",
+      "evidence:sha256:97dd5e839ac333301fb86a2e4cacf3ec4cb703cb3bd3ab54a67d890c5fe1fbff"
     ],
     "Gemma 12B BF16": [
-      "evidence:sha256:2b4b4755c9566afaea246a7a176ea9fc9019eeb1a011c3275557a1a1a2d2b1d7",
-      "evidence:sha256:1fb2043e344db4955d593b6e83ba09da8d283df83f9f1ce4b608e7b7e71d38a5",
-      "evidence:sha256:c81452ed95f24f22131e2e5d680e18de58c5a5806aedd518a32f5856a7ea5b84"
+      "evidence:sha256:5ebeee994725b540d689da136099d010780c0cb8ca616e02198d2f5d001ac56f",
+      "evidence:sha256:d5bedf98cacba108fae10a493fbb2adc9437a9472ca69a6199b29f8ae6d1d963",
+      "evidence:sha256:e3f737122225828f6baae7723e9b111089e561da3eee976cf32b651abfb330c3"
     ],
     "Gemma 12B FP8": [
-      "evidence:sha256:2f0d8e652e756fc1f395da752a3dfe53c47bc3a48aa54874eae48f534065032c",
-      "evidence:sha256:55bea822aaad8045225fa6f0a3b7b7ea4464286b0b90f89f76114afc06fe4c29",
-      "evidence:sha256:4b5f09fedb8cd5433533f720bfc8c3c310f30e2aa5f70b9802fc8f394897e5ce"
+      "evidence:sha256:3ef2e9c3be258629d46c5e422615aa3675ee5d199d7a5f01a0f165f857556f2b",
+      "evidence:sha256:7320822ce319ef2b57044488cda8e1589595804f3bd66363c91332e1bdd9886d",
+      "evidence:sha256:66edf11557228a6809f766011e5bdf8f88ff2627869c16286e55a8a9cd8a3956"
     ],
     "MiniCPM 1B": [
-      "evidence:sha256:36d5b822b381db31cdfadef071542b0dcebc09f4a07c0641fcb188db3769ccc8",
-      "evidence:sha256:27955bc0022994502e21c9634d22c345698371f109a9853e6a6fac6612f3c854",
-      "evidence:sha256:1e0009d78eb64d5377a60ffcc73ae025055c5c9996d1702cf90bf258b7ecb909"
+      "evidence:sha256:75bcdf50c3e0dea65a1a3804500970969ed6fe8235d583b4c15068a36fbe363e",
+      "evidence:sha256:c87ac90a7cac85368cd5715d58119df16dde7e03de61a15298a928a97fdd23d1",
+      "evidence:sha256:cae9dc7be1699b56d47849cfcf41b71c373c59ccaff0fb8ae46b5489332dbfc6"
     ],
     "MiniCPM 1B retired template-less": [
       "evidence:sha256:24e738830d4b5ed6b03918ea83bbe681c774eb8a7179f8f078e9f7d26990377f",
@@ -26,31 +26,25 @@
       "evidence:sha256:61f5dc7d32ce6747fffb27f8d575a2ee23a63d986e7e57746135c2b4d551f021"
     ],
     "Qwen 0.5B": [
-      "evidence:sha256:2fb1faa6a2f8ce00f77f0a233b78c2c2bfb3e0f8a0da3798a540bb31df2c355e",
-      "evidence:sha256:c8ed42fffbae72410032652e5da334d759a75bf704a1d221ee2803e60057c573",
-      "evidence:sha256:9f39c9979f08413a47b4d6c8e09f6a993f86fdfb7624a82c099455c831875eff"
+      "evidence:sha256:83f6b65376caded0b390a4106e407464123a488b025e8178e0ad336cf3abf8cf",
+      "evidence:sha256:72ab64ad04c15ec222f8b7b4878879adf62bf814193010553ab6444a5403c3f4",
+      "evidence:sha256:4486d0257f68a355f54acb481c69b3b413cb8a64f0c4bc9f405fffcde39f68a1"
     ],
     "Qwen 27B quantized": [
-      "evidence:sha256:f3ff87f5769ebf398cdb2e7b31dac73d70c8467895d9c145a0b2330d5278272a",
-      "evidence:sha256:8e2b38c9c83e88d31a209d2d88a74b327c86dc96a6c14dc391993a4b8752fa4c",
-      "evidence:sha256:053db93412166e02e60fd9b38c5cff001bfadb13d3eb51b326bbf4744ee91eb3"
+      "evidence:sha256:b0c332557e11b3a1d47c90276f6204987b407b13364962e5717cd15c10b0ab29",
+      "evidence:sha256:c599abee96c154d14232a3fa27a10cccab6859c3d466bf96c1439c0693973fea",
+      "evidence:sha256:573889ebc001f101742fdc62fa9c8046d25a57b88d4a23ebd27fd270b9fbf04c"
     ],
     "Qwen 3.5 4B": [
-      "evidence:sha256:2e1ce0c2fab6d1c26de0247d21c7bd0b1787e1832284e37f9c257f5ff57be2fc",
-      "evidence:sha256:4d78b858ab59dbcc08afa584e9ecba6422c8398af2f4c060a4613ee5aed1b255",
-      "evidence:sha256:5618158bd446a318bde174cf8ebf45804cae9690363a46b775c6e39b0dca8917"
+      "evidence:sha256:543316ca285cbbc272b895d78d2b593a693940c153a3b5ec3e4ea6ee4fcc42cb",
+      "evidence:sha256:5cd41a73b3400208b1903e2e80e8bce061f3f63e3ac6e18446d91f8b20bbe050",
+      "evidence:sha256:af84fa15827807dd537fbfd73a2b6371a475009d24f37fd9fcffbab7c45b5897"
     ],
     "Qwen 3.5 9B": [
-      "evidence:sha256:6a36a9d7b45d26cb634a9776498ed80fca98d5c0d3075a17992d57757cad73fa",
-      "evidence:sha256:d73d685457a979284dd6a3f40bc31e28d1ddf6a3d00c34ea051cf98fb844d0ab",
-      "evidence:sha256:92bdca6e79cc36021df4f8c148b20569cf27969167a45114513db6c9e729e31e"
+      "evidence:sha256:097074e82b76a21cfa286a7372bc493ad996f39e14ad780d4f23628e22c25d66",
+      "evidence:sha256:2f33698acbe22925dc870ddb622a2755331c26074f704d053db9955205107a4c",
+      "evidence:sha256:29d88c808cd51cae507910dc053546989f96268788f75ad6d907ee57ce50a29d"
     ]
-  },
-  "pending": {
-    "Qwen 0.5B": {
-      "record": "evidence:sha256:ae452b31fbf6b55365f91881746c35e2f5ad0a275a6063b8b59be8195b5bf2f9",
-      "finding": "evidence:sha256:7ff7c0b6406545604fa20777966f7baf30e043b66ebf92180f1043c6fb1c2d92"
-    }
   },
   "prior": {
     "producer": "43a2c7aa9858294d16367af109a8c248bcd6498c",
@@ -76,21 +70,9 @@
         "evidence:sha256:79e771518f8cb8d0128c330a07941035002da456a5d5e0694fb5348ef5acc09f",
         "evidence:sha256:bfc8754f7193deea78caabee851b3f26c7efd51f9669d97f928bc9929dfd190b"
       ],
-      "Qwen 27B quantized": [
-        "evidence:sha256:05e758f423350574f152fd9b8b63b7f2db487f5d358dda6a45d6e68a71e6ecb6",
-        "evidence:sha256:8e4d4132955146dd86496514c355f0a9d16c7fb90fb6cd6db3717ddd97548424",
-        "evidence:sha256:654d63571b8551824ec370431638a505ad6ea1a3413c29f93a4e93cd5cabd5d2"
-      ],
-      "Qwen 3.5 4B": [
-        "evidence:sha256:f1b09f974472d4d4e76f2e20c9fb68c8a8ed80275373c1bbd09670da7b4abc78",
-        "evidence:sha256:cb88b539457d4ea6513261823474575d0c16f487bbb9f43c4844e42cc27e429b",
-        "evidence:sha256:246369571fbed386bc8b3b359372dff4e777cc0c11ca2ed26a59b01a77d1e9bf"
-      ],
-      "Qwen 3.5 9B": [
-        "evidence:sha256:e382b7504644a127cc5de0f96d85372889a4e4692909efb4a5cc7a1ae2156f96",
-        "evidence:sha256:c10c8b84f26a96b6a70f06bef57f07a9bd8d02d37c41ccfe0dad6df2d6138970",
-        "evidence:sha256:a3f9fb17b82a3c0a4946f0fc9851380c9aa12651c0a65b6ea4438d85c664ff1e"
-      ],
+      "Qwen 27B quantized": [],
+      "Qwen 3.5 4B": [],
+      "Qwen 3.5 9B": [],
       "MiniCPM 1B retired template-less": [
         "evidence:sha256:24e738830d4b5ed6b03918ea83bbe681c774eb8a7179f8f078e9f7d26990377f",
         "evidence:sha256:333afd6de9d45d20803e476851afe91d5095419b8c2b8a10d4295828291cb5bd",
@@ -98,9 +80,5 @@
       ]
     }
   },
-  "producer": "2ef953fab346b607d003f06734a70ea73e41a4c9",
-  "producers": {
-    "E4B": "bf765bc077cd073ff9a545f92e063a8128ffd069",
-    "Qwen 0.5B": "bf765bc077cd073ff9a545f92e063a8128ffd069"
-  }
+  "producer": "43c27eab4ef613b344a3720979ffe1b4e303f2c5"
 }

@@ -4,24 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "validation-gate-selection",
-      "title": "Determine unnecessary testing and deliver one measured gate reduction",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "deterministic-lifecycle",
-          "title": "Replace one costly lifecycle fixture group with deterministic Go checks",
-          "status": "open",
-          "verify": "test -f internal/processcontrol/resource_wait_test.go \u0026\u0026 go test ./internal/processcontrol -run '^TestDeterministicCancellationContracts$' -count=1",
-          "rationale": "After the first selection gain, choose one measured expensive in-process cancellation/wait group in the existing processcontrol owner. Extend the existing testing/synctest example in resource_wait_test.go; use t.Context, t.Cleanup, channels and explicit operation state instead of sleeps, global environment/chdir and duplicate polling helpers. Cover cancellation before admission, during waiting and after grant, duplicate cleanup, sibling completion and no surviving owned goroutine. Retain process-death/Windows handle, filesystem and device integration where actual external effects matter. Virtual time is not a scheduler-interleaving proof; retain applicable race checks. Rebind the acceptance to another existing owner before implementation if the retained cost shows a better bounded target. Delete displaced scaffolding and migrate all callers; do not create a general simulator or clock abstraction. Compare original and replacement against fixed independent failure cases, wall/flake/retry cost and cancellation semantics. Use built-in fuzzing only for a pure bounded transition model with an independent oracle; replay retained corpus cases in normal tests and budget exploration separately. Adopt only measured net savings with preserved required behavior; report refusal and remove the experiment if the chosen replacement does not pay back.",
-          "depends_on": [
-            "validation-gate-selection/measured-adoption"
-          ]
-        }
-      ]
-    },
-    {
       "id": "surface-gate-deferred",
       "title": "Resume deferred verification from retained prepared work",
       "owner": "master-lead",

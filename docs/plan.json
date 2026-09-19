@@ -4,51 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "modality-verification",
-      "title": "Declare the denominator and validate existing modality capabilities",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "experiment-resume",
-          "title": "Resume one media acquisition through idempotent publication",
-          "status": "open",
-          "verify": "go test ./internal/loop -run '^TestMediaExperimentResume$' -count=1",
-          "rationale": "Implement one bounded media acquisition-to-report slice through existing run-record, execution, candidate and compatibility owners. The typed protocol binds inputs, source/overlay, model/data identities, frozen assertions, units, budget and publication outputs. Discover completed acquisitions before loading a model; checkpoint each cell and make evidence/report publication idempotent. Force restart before and after acquisition, record commit and projection publication; recover the unfinished transition with no duplicate model load or mutation. Include rejected candidates, duplicate observations, exact result reuse, budget exhaustion and missing-resource waits with explicit resumption triggers. Measure total elapsed/compute/loading/verification/recovery/intervention cost against the current same-task workflow. Keep output generation in existing compatibility owners and migrate the concrete temporary publishers this slice replaces. Split at the first owning boundary if implementation cannot fit one bounded batch; no new general experiment framework and no prerequisite on the whole modality campaign.\n\nFirst concrete reuse target: Qwen27 exact projection at d2b6484a. The complete 20-case run took 85.0753809s including 20.9611281s evaluation; evaluator replay took 1.5085ms, zero generation and zero writes. Recipe verification still prepares/opens the model before this reuse check. Move discovery before model acquisition through the existing exact plan/ledger owner, preserving full artifact/source/environment/protocol binding and both retained success and failure. Reuse the acquisition and read-only acceptance from qwen27-projection; do not reacquire it to benchmark a scheduler. Attribute store/identity/model-load startup separately before further caching. Split this first boundary from broader experiment orchestration if necessary.\n\nFirst acquisition boundary is split into exact-replay-before-open. Continue the remaining publication/restart workflow through existing internal/loop and execution owners, not a new internal/agentloop package. Retain publication idempotency, rejected candidates, duplicate observations, budgets and resumption triggers here; the child does not complete these obligations.",
-          "depends_on": [
-            "modality-verification/media-evidence-binding",
-            "modality-verification/verification-request-binding",
-            "modality-verification/exact-replay-before-open"
-          ]
-        },
-        {
-          "id": "decode-guard-readmission",
-          "title": "Complete outstanding text performance evidence independently of modality validation",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1",
-          "rationale": "Retain accepted functional evidence for unchanged execution dependencies. Do not require E4B performance readmission before progressing other models or independent modality rows. Preserve E4B's completed quality/protocol/resource evidence and performance finding evidence:sha256:403bfd8bd2a023ffcace7f8d036a5cf1736409210555d7990d3a2acb4c7ec3bd. Record evidence:sha256:3563a7f4941d6051ae67167c7e1d58726472a6582109159644b70378c952a2f8 missed decode floors; diagnostic evidence:sha256:6074d0903b6363ac97e86d11f6e5679c2c9c0ed4e8bc04766705ffa9a2144d27 did not establish cause. No new E4B run solely to obtain a passing speed. A future diagnostic must distinguish a quantified mechanism; missing historical telemetry cannot be reconstructed by favorable reruns.\n\nThis row closes only with the existing full performance-catalog assertion: eight live models, retained retired history, matching immutable identities and protocols, complete required cohorts and unchanged quality/rate/resource bounds. Functional acceptance and performance acceptance are separate claims. Reuse unaffected evidence; never relabel a failed speed result as accepted.\n\nHistory evidence:sha256:f2066497888061234f5dbe53aaa36aac08e8006f40c933d88e3e851b42c1611e preserves both 43a2c7aa and 2ef953fa selections and all 49 referenced records/findings. Bind it before replacing guard-catalog.json; retain the producer experiment and retired MiniCPM. Compare corrected MiniCPM only against its own accepted 2ef953fa identity. Historical tests bind their historical surface and grant no current-model credit.\n\nKeep latency findings 7ff7c0b6406545604fa20777966f7baf30e043b66ebf92180f1043c6fb1c2d92 and b5d8dbb56cbad0ef0ba10abb2a72f2bb5cc5e6d3821d3add4a2c846e991dddf9 separate from clock finding 0efdd1e7844ddb6900e97d6fbb9b76ef554b3f0ea3aae878ca90a92a1a9bc04c. Close MiniCPM identity 8584276e4b1e44ebcbfc7ac0886b097720049eaddc0c681587bf2f903db1cf28 and decode-order 5f3f75ea0d8cf6727bc79e9f4c054d7242e2f0b81ae17a8fa454065158c216ee only after their full readmission. Scheduling finding e8c0bcf9fd76671c85d9707e4d5da908dc7bd24b3a71734ca9c7887f115e87df stays Hatchet-owned. No unrelated implementation or lane merge during acquisition.\n\nDispatch review at a37a6119: the opted-in assertion refuses immediately on the retained pending Qwen incident; no model executes. The source digest is now 0e9d9c8b53df7271a5cab6f9fe4897957325a610dde801b693e419a980c6d10e, while refreshed Qwen/E4B controls bind c256ae3a and the other retained cohorts bind older producers. Preserve every measurement and existing floor. This row follows independent modality and experiment-reuse work; it must not recapture all models merely to refresh a broad digest. Before new acquisition, identify changed reachable execution/measurement code and a discriminating causal hypothesis. The historical 14.054ms Qwen prefill versus roughly 8.98ms controls remains unattributed; unchanged work counts and later passing repeats do not prove either an implementation regression or environmental cause. Missing historical traces cannot be recovered by new repeats. Keep the finding explicit and resume its diagnostic when an affected execution change or a captured slow interval supplies new evidence. Store acceptance is explicitly enabled so this bound verifier cannot silently skip.",
-          "depends_on": [
-            "modality-verification/minicpm-guard-repair",
-            "modality-verification/decode-order-repair",
-            "modality-verification/decode-completed-cohorts",
-            "modality-verification/measurement-clock",
-            "modality-verification/short-initialization"
-          ]
-        },
-        {
-          "id": "media-capacity-plan",
-          "title": "Choose media execution from measured request capacity",
-          "status": "open",
-          "verify": "test -f internal/sensenovarecipe/verification_workflow_test.go \u0026\u0026 go test ./internal/sensenovarecipe -run '^TestMediaRequestCapacity$' -count=1",
-          "rationale": "Start with SenseNova reported approximately 33 GB cumulative Go allocations per request; distinguish allocation traffic from retained and peak host RAM. Attribute costs to actual loader/prefix/denoise/decode code before choosing one bounded fix. Use existing resource admission and recipe owners to derive whole-request RAM/VRAM demand, concurrency and residency from declared geometry and measured phase demand. Preserve requested output, native equality, cancellation/recovery and explicit acceptance. Do not silently reduce resolution/steps or invent an arbitrary memory ceiling. Correctness shares available capacity; performance comparison records competing load and uses isolation only when its protocol requires it. Acceptance covers sufficient/insufficient capacity, a second GPU process, cancellation/release and exact subsequent reuse; report peak/retained RAM and VRAM, allocation traffic and full request cost. Coordinate lane ownership; adopt only a measured net improvement.",
-          "depends_on": [
-            "modality-verification/media-evidence-binding",
-            "modality-verification/experiment-resume"
-          ]
-        }
-      ]
-    },
-    {
       "id": "plan-publication-cost",
       "title": "Reduce recurring build and gate cost, then simplify dispatch and publication",
       "owner": "master-lead",
@@ -129,6 +84,51 @@
           "status": "open",
           "verify": "test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestScratchModuleWorkflow$' -count=1",
           "rationale": "Owner: cmd/plan developer workflow; no new responsibility in cmd/preflight and no new probe runner. Current tmp/go.mod declares module overgo/tmp, requires overgo and replaces it with ..; a named Go file importing overgo/internal/plan runs without an overlay from either repository root or tmp. This session verified both commands: from root go run ./tmp/plan_import_discovery_probe.go, and from tmp go run ./plan_import_discovery_probe.go. Expose the same supported invocation and active module/root resolution in existing cmd/plan developer-workflow help/diagnostics, with a small reproducible example; do not add a probe executable, overlay wrapper or another module mechanism. Acceptance generates an isolated temporary fixture with the same parent/nested module contract, proves internal import legality from both working directories, and proves scratch packages remain outside the production ./... package set. Mark exploratory outputs as diagnostic, with exact source identity; publishing acceptance still uses declared tracked tests and immutable candidate sources. Existing developer guidance may reference the command; no generated Markdown instructions or stray handoff files."
+        }
+      ]
+    },
+    {
+      "id": "modality-verification",
+      "title": "Declare the denominator and validate existing modality capabilities",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "experiment-resume",
+          "title": "Resume one media acquisition through idempotent publication",
+          "status": "open",
+          "verify": "go test ./internal/loop -run '^TestMediaExperimentResume$' -count=1",
+          "rationale": "Implement one bounded media acquisition-to-report slice through existing run-record, execution, candidate and compatibility owners. The typed protocol binds inputs, source/overlay, model/data identities, frozen assertions, units, budget and publication outputs. Discover completed acquisitions before loading a model; checkpoint each cell and make evidence/report publication idempotent. Force restart before and after acquisition, record commit and projection publication; recover the unfinished transition with no duplicate model load or mutation. Include rejected candidates, duplicate observations, exact result reuse, budget exhaustion and missing-resource waits with explicit resumption triggers. Measure total elapsed/compute/loading/verification/recovery/intervention cost against the current same-task workflow. Keep output generation in existing compatibility owners and migrate the concrete temporary publishers this slice replaces. Split at the first owning boundary if implementation cannot fit one bounded batch; no new general experiment framework and no prerequisite on the whole modality campaign.\n\nFirst concrete reuse target: Qwen27 exact projection at d2b6484a. The complete 20-case run took 85.0753809s including 20.9611281s evaluation; evaluator replay took 1.5085ms, zero generation and zero writes. Recipe verification still prepares/opens the model before this reuse check. Move discovery before model acquisition through the existing exact plan/ledger owner, preserving full artifact/source/environment/protocol binding and both retained success and failure. Reuse the acquisition and read-only acceptance from qwen27-projection; do not reacquire it to benchmark a scheduler. Attribute store/identity/model-load startup separately before further caching. Split this first boundary from broader experiment orchestration if necessary.\n\nFirst acquisition boundary is split into exact-replay-before-open. Continue the remaining publication/restart workflow through existing internal/loop and execution owners, not a new internal/agentloop package. Retain publication idempotency, rejected candidates, duplicate observations, budgets and resumption triggers here; the child does not complete these obligations.",
+          "depends_on": [
+            "modality-verification/media-evidence-binding",
+            "modality-verification/verification-request-binding",
+            "modality-verification/exact-replay-before-open"
+          ]
+        },
+        {
+          "id": "decode-guard-readmission",
+          "title": "Complete outstanding text performance evidence independently of modality validation",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_STORE_ACCEPTANCE=1 go test ./cmd/longform -run '^TestAcceptedGuardCatalog$' -count=1",
+          "rationale": "Retain accepted functional evidence for unchanged execution dependencies. Do not require E4B performance readmission before progressing other models or independent modality rows. Preserve E4B's completed quality/protocol/resource evidence and performance finding evidence:sha256:403bfd8bd2a023ffcace7f8d036a5cf1736409210555d7990d3a2acb4c7ec3bd. Record evidence:sha256:3563a7f4941d6051ae67167c7e1d58726472a6582109159644b70378c952a2f8 missed decode floors; diagnostic evidence:sha256:6074d0903b6363ac97e86d11f6e5679c2c9c0ed4e8bc04766705ffa9a2144d27 did not establish cause. No new E4B run solely to obtain a passing speed. A future diagnostic must distinguish a quantified mechanism; missing historical telemetry cannot be reconstructed by favorable reruns.\n\nThis row closes only with the existing full performance-catalog assertion: eight live models, retained retired history, matching immutable identities and protocols, complete required cohorts and unchanged quality/rate/resource bounds. Functional acceptance and performance acceptance are separate claims. Reuse unaffected evidence; never relabel a failed speed result as accepted.\n\nHistory evidence:sha256:f2066497888061234f5dbe53aaa36aac08e8006f40c933d88e3e851b42c1611e preserves both 43a2c7aa and 2ef953fa selections and all 49 referenced records/findings. Bind it before replacing guard-catalog.json; retain the producer experiment and retired MiniCPM. Compare corrected MiniCPM only against its own accepted 2ef953fa identity. Historical tests bind their historical surface and grant no current-model credit.\n\nKeep latency findings 7ff7c0b6406545604fa20777966f7baf30e043b66ebf92180f1043c6fb1c2d92 and b5d8dbb56cbad0ef0ba10abb2a72f2bb5cc5e6d3821d3add4a2c846e991dddf9 separate from clock finding 0efdd1e7844ddb6900e97d6fbb9b76ef554b3f0ea3aae878ca90a92a1a9bc04c. Close MiniCPM identity 8584276e4b1e44ebcbfc7ac0886b097720049eaddc0c681587bf2f903db1cf28 and decode-order 5f3f75ea0d8cf6727bc79e9f4c054d7242e2f0b81ae17a8fa454065158c216ee only after their full readmission. Scheduling finding e8c0bcf9fd76671c85d9707e4d5da908dc7bd24b3a71734ca9c7887f115e87df stays Hatchet-owned. No unrelated implementation or lane merge during acquisition.\n\nDispatch review at a37a6119: the opted-in assertion refuses immediately on the retained pending Qwen incident; no model executes. The source digest is now 0e9d9c8b53df7271a5cab6f9fe4897957325a610dde801b693e419a980c6d10e, while refreshed Qwen/E4B controls bind c256ae3a and the other retained cohorts bind older producers. Preserve every measurement and existing floor. This row follows independent modality and experiment-reuse work; it must not recapture all models merely to refresh a broad digest. Before new acquisition, identify changed reachable execution/measurement code and a discriminating causal hypothesis. The historical 14.054ms Qwen prefill versus roughly 8.98ms controls remains unattributed; unchanged work counts and later passing repeats do not prove either an implementation regression or environmental cause. Missing historical traces cannot be recovered by new repeats. Keep the finding explicit and resume its diagnostic when an affected execution change or a captured slow interval supplies new evidence. Store acceptance is explicitly enabled so this bound verifier cannot silently skip.",
+          "depends_on": [
+            "modality-verification/minicpm-guard-repair",
+            "modality-verification/decode-order-repair",
+            "modality-verification/decode-completed-cohorts",
+            "modality-verification/measurement-clock",
+            "modality-verification/short-initialization"
+          ]
+        },
+        {
+          "id": "media-capacity-plan",
+          "title": "Choose media execution from measured request capacity",
+          "status": "open",
+          "verify": "test -f internal/sensenovarecipe/verification_workflow_test.go \u0026\u0026 go test ./internal/sensenovarecipe -run '^TestMediaRequestCapacity$' -count=1",
+          "rationale": "Start with SenseNova reported approximately 33 GB cumulative Go allocations per request; distinguish allocation traffic from retained and peak host RAM. Attribute costs to actual loader/prefix/denoise/decode code before choosing one bounded fix. Use existing resource admission and recipe owners to derive whole-request RAM/VRAM demand, concurrency and residency from declared geometry and measured phase demand. Preserve requested output, native equality, cancellation/recovery and explicit acceptance. Do not silently reduce resolution/steps or invent an arbitrary memory ceiling. Correctness shares available capacity; performance comparison records competing load and uses isolation only when its protocol requires it. Acceptance covers sufficient/insufficient capacity, a second GPU process, cancellation/release and exact subsequent reuse; report peak/retained RAM and VRAM, allocation traffic and full request cost. Coordinate lane ownership; adopt only a measured net improvement.",
+          "depends_on": [
+            "modality-verification/media-evidence-binding",
+            "modality-verification/experiment-resume"
+          ]
         }
       ]
     },
@@ -723,7 +723,8 @@
             "digest-validator-primitive/do",
             "artifact-validation-primitives/do",
             "plan-consolidation-replan/do",
-            "sequence-replan/do"
+            "sequence-replan/do",
+            "publication-priority-replan/do"
           ]
         }
       ]

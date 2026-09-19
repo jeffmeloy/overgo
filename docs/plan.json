@@ -4,25 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "modality-verification",
-      "title": "Declare the denominator and validate existing modality capabilities",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "media-capacity-plan",
-          "title": "Choose media execution from measured request capacity",
-          "status": "open",
-          "verify": "test -f internal/sensenovarecipe/verification_workflow_test.go \u0026\u0026 go test ./internal/sensenovarecipe -run '^TestMediaRequestCapacity$' -count=1",
-          "rationale": "Start with SenseNova reported approximately 33 GB cumulative Go allocations per request; distinguish allocation traffic from retained and peak host RAM. Attribute costs to actual loader/prefix/denoise/decode code before choosing one bounded fix. Use existing resource admission and recipe owners to derive whole-request RAM/VRAM demand, concurrency and residency from declared geometry and measured phase demand. Preserve requested output, native equality, cancellation/recovery and explicit acceptance. Do not silently reduce resolution/steps or invent an arbitrary memory ceiling. Correctness shares available capacity; performance comparison records competing load and uses isolation only when its protocol requires it. Acceptance covers sufficient/insufficient capacity, a second GPU process, cancellation/release and exact subsequent reuse; report peak/retained RAM and VRAM, allocation traffic and full request cost. Coordinate lane ownership; adopt only a measured net improvement.",
-          "depends_on": [
-            "modality-verification/media-evidence-binding",
-            "modality-verification/experiment-resume"
-          ]
-        }
-      ]
-    },
-    {
       "id": "speech-document-admission",
       "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
       "owner": "professional_overgo_gui",

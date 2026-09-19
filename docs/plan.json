@@ -10,17 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "verification-sequence",
-          "title": "Construct verification DAGs from resolved impact obligations",
-          "status": "open",
-          "verify": "test -f internal/gate/verification_workflow_test.go \u0026\u0026 go test ./internal/gate -run '^TestAnalysisComposedVerification$' -count=1",
-          "rationale": "Combined-plan boundary: compose existing check obligations and edges; do not reimplement the shared-census product, receipt reuse or lane scheduler. Freeze one real mutation matrix and derive the graph and diagrams from the same facts. Expand composition only for a demonstrated remaining selection error or cost.\n\nExtend existing ManifestPlan/ExecuteDAG and gate selection; no new recipe engine, command or policy registry. Consume the first adopted impact boundary and compile stable obligation IDs plus current dependencies, acceptance, environment and resource demands into a deterministic DAG. Deduplicate the same obligation requested by multiple rows; never equate different assertions merely because coverage overlaps. Order ready cheap refusal/static/contract checks ahead of expensive work using recorded execution cost; overlap independent work within capacity and retain required critical escalation. Current scope, claims, stops, store and candidate identity are live admission, not cacheable decisions. Failed nodes block their dependents while unrelated authorized work remains eligible. Generate optional sequence views from these exact edges and events, distinguishing possible branches, observed calls and concurrent order; no handwritten diagram facts or Markdown artifacts. Acceptance covers deterministic composition, graph/recipe tampering, independent duplicate obligations, changed/unaffected tests, unknown effects, cycles, resource contention, cancellation/restart, successor-recipe reuse with original provenance, and a real commit whose long checks survive an unrelated late static repair. Use recipe-node-reuse output if available; do not implement a second cache. If measured-adoption refused, replan a supported boundary before this row dispatches.\n\nUse Colibri integration 25889dac as an additional execution case: result evidence:sha256:a7edbffb3bd71c5552576d1ce7f68e9dfa8768678a1ab25b148cb7cd3225d587; costs evidence:sha256:676991388b3568387e433f830bb1b633abb4d5f4250c4f74ec6f3f69d94db44f; selection evidence:sha256:f2cada1dc4a63c547d1555e1a2b0ac6beaf75b191181c56acb54fb6f8dd0bb44. The gate selected 163 packages, with 191 opaque readers. Audio parity passed in 7m17.785s; one observed process working set was 67494998016 bytes while real baseline and training acceptance ran concurrently. This is an observation, not an isolated memory peak or a regression claim. Before excluding any audio acceptance, resolve its actual changed run-record, inference and protocol dependencies. Compare exact receipt reuse, narrower proven assertion scope and shared immutable fixtures with scheduling changes; preserve native correctness, caller isolation and all outstanding checks. Do not repeat the acquisition solely to refresh this cost example.",
-          "depends_on": [
-            "validation-gate-selection/measured-adoption",
-            "validation-gate-selection/recipe-node-reuse"
-          ]
-        },
-        {
           "id": "static-analysis-sharing",
           "title": "Reuse shared static analysis with rule-specific invalidation",
           "status": "open",

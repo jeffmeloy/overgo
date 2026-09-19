@@ -25,7 +25,6 @@ func run() error { return runArgs(os.Args[1:], os.Stdout) }
 
 func runArgs(args []string, output io.Writer) error {
 	flags := flag.NewFlagSet("finding", flag.ContinueOnError)
-	flags.SetOutput(io.Discard)
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves via the data-root contract")
 	title := flags.String("title", "", "concise observation")
 	severity := flags.String("severity", "", "low, medium, or high")
@@ -37,7 +36,20 @@ func runArgs(args []string, output io.Writer) error {
 	var owners, evidence []string
 	flags.Func("owner", "repeatable owner surface", func(value string) error { owners = append(owners, value); return nil })
 	flags.Func("evidence", "repeatable observed evidence", func(value string) error { evidence = append(evidence, value); return nil })
-	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+	command := clioptions.Command{
+		Name:     "finding",
+		Purpose:  "park an out-of-scope observation in the typed OvergoDB finding register, then dispose it once fixed, refuted, or deferred",
+		Audience: "an agent that must record a finding without growing prompt state, and the owner who later disposes it",
+		Constraints: []string{
+			"create requires -title, -severity, at least one -owner and -evidence, -closure and -check",
+			"disposition requires -close <finding-id> and -resolution, with -status closed|refuted|deferred",
+			"help opens no store and writes no finding",
+		},
+	}
+	if handled, err := command.ParseForHelp(flags, args, output); err != nil || handled {
+		return err
+	}
+	if flags.NArg() != 0 {
 		return errors.New("usage: finding -title <text> -severity <low|medium|high> -owner <surface> -evidence <observation> -closure <path> -check <failable-check> [-repo <path>] | finding -close <finding-id> -resolution <text> [-status closed|refuted|deferred] [-repo <path>]")
 	}
 	root, err := dataroot.StoreRoot(*repository)

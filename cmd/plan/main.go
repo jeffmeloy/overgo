@@ -18,6 +18,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
+	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -35,6 +36,7 @@ const noLegacyLeaseRetirement = -1
 const commandWorktree = "."
 
 func main() {
+	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
 	edit := flag.String("edit", "", "apply a strict JSON StepEdit file; expected_plan is plan_digest from -context; create/replace never executes verification")
 	publish := flag.Bool("publish", false, "with -edit: apply the edit and publish docs/plan.json through the gate in one command: -edit <f> -publish -vehicle <item>/<step> -message-file <f>")
 	vehicle := flag.String("vehicle", "", "with -publish: the item/step commit row the plan edit is published on")
@@ -91,8 +93,21 @@ func main() {
 	worker := flag.String("worker", "", "stable session identity for dispatch claims (default OVERGO_AUTOMATION_WORKER); inherit the same identity in gate subprocesses")
 	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
-	flag.Parse()
-	if err := run(cli{edit: *edit, publish: *publish, vehicle: *vehicle, messageFile: *messageFile, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	command := clioptions.Command{
+		Name:     "plan",
+		Purpose:  "edit and dispatch the validated campaign in docs/plan.json; dispatch claims work while the gate verifies, publishes and advances it",
+		Audience: "the master-lead session and its unattended driver working one dispatched row at a time",
+		Constraints: []string{
+			"-add takes the step's verify command through -vcmd; boolean -verify runs the top open step's verify",
+			"one operation per invocation; committing and advancing a row belong to cmd/gate, not plan",
+			"help opens no store and mutates no plan",
+		},
+	}
+	handled, err := command.ParseCommandLine(flag.CommandLine, os.Stdout)
+	if err == nil && !handled {
+		err = run(cli{edit: *edit, publish: *publish, vehicle: *vehicle, messageFile: *messageFile, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+	}
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}

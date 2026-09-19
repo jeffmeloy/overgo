@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "command-help",
-          "title": "Expose actual flags and correct conflicting usage",
-          "status": "open",
-          "verify": "test -f cmd/overgodb-query/help_test.go \u0026\u0026 go test ./cmd/overgodb-query -run '^TestQueryHelpContract$' -count=1 \u0026\u0026 test -f cmd/plan/command_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPlanHelpContract$' -count=1 \u0026\u0026 test -f cmd/finding/help_test.go \u0026\u0026 go test ./cmd/finding -run '^TestFindingHelpContract$' -count=1",
-          "rationale": "Fix the demonstrated existing commands first. overgodb-query discards FlagSet output and propagates ErrHelp as failure; plan -add advertises -verify while parsing -vcmd and reserving boolean -verify for execution. Render help from the same registered FlagSet used by execution through existing clioptions support. Explicit help prints purpose, actual flags/types/defaults and operation constraints, exits successfully and performs no store open, model load or mutation; invalid arguments still fail with usable guidance. Define purpose and intended audience once in the command owner, because a FlagSet cannot infer them. Remove copied usage signatures that disagree with registered flags. Acceptance exercises -h, -help, missing/unknown flags, -content discovery and -add/-vcmd versus boolean -verify. Test the printed command forms through the real parser. No generic CLI framework or migration of every binary before these fixes land.\n\nInclude cmd/finding, whose help currently discards the FlagSet output too. The dispatch contract must expose one parser-verified create/disposition invocation with required owner, evidence, closure and check inputs, using the same owner declarations. Naming a command without a discoverable invocation is insufficient; help inspection performs no finding writes."
-        },
-        {
           "id": "dispatch-readiness",
           "title": "Show cheap admission diagnostics with the task before costly preparation",
           "status": "open",

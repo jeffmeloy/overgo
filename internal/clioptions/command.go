@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"overgo/internal/processcontrol"
 )
@@ -41,6 +43,60 @@ func Main(run func() error) {
 		}
 		os.Exit(1)
 	}
+}
+
+// Command declares the help identity a FlagSet cannot infer: a command's
+// purpose, its intended audience, and the operation constraints that shape valid
+// invocations. The owner declares them once so explicit help and the executed
+// flags stay the same source.
+type Command struct {
+	Name        string
+	Purpose     string
+	Audience    string
+	Constraints []string
+}
+
+// ParseCommandLine parses the process arguments against flags with the same
+// help handling as ParseForHelp, so a command with no separately testable
+// argument slice keeps the os.Args boundary in one place.
+func (c Command) ParseCommandLine(flags *flag.FlagSet, out io.Writer) (handled bool, err error) {
+	return c.ParseForHelp(flags, os.Args[1:], out)
+}
+
+// ParseForHelp parses args against flags, which must use flag.ContinueOnError,
+// rendering help from the registered flags. On -h or -help it reports
+// handled=true so the caller returns successfully without opening a store,
+// loading a model, or mutating anything; a genuine parse error is returned with
+// the same usage guidance already written to out so the caller exits non-zero.
+func (c Command) ParseForHelp(flags *flag.FlagSet, args []string, out io.Writer) (handled bool, err error) {
+	flags.SetOutput(out)
+	flags.Usage = func() { c.WriteUsage(flags, out) }
+	switch err := flags.Parse(args); {
+	case err == nil:
+		return false, nil
+	case errors.Is(err, flag.ErrHelp):
+		return true, nil
+	default:
+		return false, err
+	}
+}
+
+// WriteUsage renders the command purpose, audience, operation constraints, and
+// the registered flags with their types and defaults, so help reflects exactly
+// what execution parses.
+func (c Command) WriteUsage(flags *flag.FlagSet, out io.Writer) {
+	fmt.Fprintf(out, "%s: %s\n", c.Name, c.Purpose)
+	if strings.TrimSpace(c.Audience) != "" {
+		fmt.Fprintf(out, "audience: %s\n", c.Audience)
+	}
+	for _, constraint := range c.Constraints {
+		fmt.Fprintf(out, "constraint: %s\n", constraint)
+	}
+	fmt.Fprintln(out, "flags:")
+	previous := flags.Output()
+	flags.SetOutput(out)
+	flags.PrintDefaults()
+	flags.SetOutput(previous)
 }
 
 // MainNamed preserves the command prefix while sharing exit mechanics.

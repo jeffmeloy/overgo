@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -26,8 +27,8 @@ type closureEvidenceSnapshot struct {
 	backup   *overgodb.BackupReport
 }
 
-func captureClosureEvidence(ctx context.Context, root, gitSource, gitSnapshot string) (closureEvidenceSnapshot, error) {
-	source, err := sourceOvergoDB(root, gitSource, gitSnapshot)
+func captureClosureEvidence(ctx context.Context, root, gitSource, gitSnapshot, selector string) (closureEvidenceSnapshot, error) {
+	source, err := sourceOvergoDB(root, gitSource, gitSnapshot, selector)
 	if err != nil || source == "" {
 		return closureEvidenceSnapshot{}, err
 	}
@@ -78,7 +79,7 @@ func captureClosureEvidence(ctx context.Context, root, gitSource, gitSnapshot st
 	}, nil
 }
 
-func sourceOvergoDB(root, source, snapshot string) (string, error) {
+func sourceOvergoDB(root, source, snapshot, selector string) (string, error) {
 	raw, err := gitOutput(root, "worktree", "list", "--porcelain", "-z")
 	if err != nil {
 		return "", err
@@ -87,16 +88,24 @@ func sourceOvergoDB(root, source, snapshot string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return sourceOvergoDBFromPorcelain(raw, snapshot, strings.TrimSpace(string(branchRaw)), func(candidate string) bool {
+	return sourceOvergoDBFromPorcelain(raw, snapshot, strings.TrimSpace(string(branchRaw)), selector, func(candidate string) bool {
 		info, err := os.Stat(candidate)
 		return err == nil && info.IsDir()
 	})
 }
 
+// sourceOvergoDBFromPorcelain resolves the source worktree's OvergoDB store from
+// a `git worktree list` porcelain listing. Registered checkouts at the exact
+// snapshot are candidates; a caller-supplied selector names one of them
+// directly, so a prepared merge is portable across worktrees. Multiple
+// checkouts at one commit are normal but can hold genuinely different store
+// authorities, so without a unique branch match or selector the ambiguity is
+// reported rather than silently resolved.
 func sourceOvergoDBFromPorcelain(
 	raw []byte,
 	snapshot string,
 	preferredBranch string,
+	selector string,
 	usable func(string) bool,
 ) (string, error) {
 	type storeCandidate struct {
@@ -147,6 +156,14 @@ func sourceOvergoDBFromPorcelain(
 	if err := flush(); err != nil {
 		return "", err
 	}
+	if selector != "" {
+		for _, candidate := range candidates {
+			if sameStorePath(candidate.store, selector) {
+				return candidate.store, nil
+			}
+		}
+		return "", fmt.Errorf("prepare-merge: -merge-source-store %s is not a registered OvergoDB worktree at %s", selector, snapshot)
+	}
 	if preferredBranch != "" {
 		var preferred []storeCandidate
 		for _, candidate := range candidates {
@@ -158,14 +175,29 @@ func sourceOvergoDBFromPorcelain(
 			return preferred[0].store, nil
 		}
 		if len(preferred) > 1 {
-			return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match branch %s", preferredBranch)
+			return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match branch %s; select one with -merge-source-store <path>", preferredBranch)
 		}
 	}
 	if len(candidates) > 1 {
-		return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s", snapshot)
+		return "", fmt.Errorf("prepare-merge: multiple OvergoDB worktrees match %s; select one with -merge-source-store <path>", snapshot)
 	}
 	if len(candidates) == 1 {
 		return candidates[0].store, nil
 	}
 	return "", nil
+}
+
+// sameStorePath compares two OvergoDB store paths as the filesystem resolves
+// them, case-insensitively on Windows, so a selector matches a candidate
+// regardless of separators or casing.
+func sameStorePath(left, right string) bool {
+	leftAbs, leftErr := filepath.Abs(filepath.Clean(left))
+	rightAbs, rightErr := filepath.Abs(filepath.Clean(right))
+	if leftErr != nil || rightErr != nil {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(leftAbs, rightAbs)
+	}
+	return leftAbs == rightAbs
 }

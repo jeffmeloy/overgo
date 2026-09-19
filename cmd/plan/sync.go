@@ -29,12 +29,13 @@ const (
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
-	return prepareMergeWithProjection(root, source, plan.MergeProjectionSemanticUnion, output)
+	return prepareMergeWithProjection(root, source, plan.MergeProjectionSemanticUnion, "", output)
 }
 
 func prepareMergeWithProjection(
 	root, source string,
 	projection plan.MergeProjection,
+	sourceStoreSelector string,
 	output io.Writer,
 ) error {
 	parsedProjection, err := plan.ParseMergeProjection(string(projection))
@@ -98,7 +99,7 @@ func prepareMergeWithProjection(
 		if err := preflightMergeConflicts(root, localRevision, snapshot); err != nil {
 			return err
 		}
-		closureSnapshot, err := captureClosureEvidence(ctx, root, source, snapshot)
+		closureSnapshot, err := captureClosureEvidence(ctx, root, source, snapshot, sourceStoreSelector)
 		if err != nil {
 			return err
 		}

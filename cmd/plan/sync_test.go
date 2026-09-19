@@ -205,7 +205,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 		t.Fatalf("seed source = %s, %v, close=%v", first, err, closeErr)
 	}
 
-	frozen, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot)
+	frozen, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 		t.Fatalf("frozen snapshot advanced = %s@%d, close=%v", head, sequence, err)
 	}
 	frozen.cleanup()
-	advanced, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot)
+	advanced, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func TestPrepareMergeSnapshotEvidence(t *testing.T) {
 		t.Fatalf("workspace/extent not reused: %+v", advanced)
 	}
 	advanced.cleanup()
-	reused, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot)
+	reused, err := captureClosureEvidence(t.Context(), root, "HEAD", snapshot, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -36,6 +36,9 @@ const commandWorktree = "."
 
 func main() {
 	edit := flag.String("edit", "", "apply a strict JSON StepEdit file; expected_plan is plan_digest from -context; create/replace never executes verification")
+	publish := flag.Bool("publish", false, "with -edit: apply the edit and publish docs/plan.json through the gate in one command: -edit <f> -publish -vehicle <item>/<step> -message-file <f>")
+	vehicle := flag.String("vehicle", "", "with -publish: the item/step commit row the plan edit is published on")
+	messageFile := flag.String("message-file", "", "with -publish: the gate commit message file (never inline -m: the shell eats backticks)")
 	next := flag.Bool("next", false, "print the top open action")
 	frontier := flag.Bool("frontier", false, "print every dispatchable row (the ready frontier) and validate live worktree leases against it")
 	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
@@ -88,14 +91,15 @@ func main() {
 	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	flag.Parse()
-	if err := run(cli{edit: *edit, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
+	if err := run(cli{edit: *edit, publish: *publish, vehicle: *vehicle, messageFile: *messageFile, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, stop: *stop, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args()); err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 type cli struct {
-	edit                                                                             string
+	edit, vehicle, messageFile                                                       string
+	publish                                                                          bool
 	resumeStop, maintenanceStop, stopMode, mode                                      string
 	phases                                                                           bool
 	historyCommit, historyResult                                                     string
@@ -123,9 +127,12 @@ type cli struct {
 
 func run(c cli, args []string) error {
 	if c.edit != "" {
-		allowed := cli{edit: c.edit, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
+		allowed := cli{edit: c.edit, publish: c.publish, vehicle: c.vehicle, messageFile: c.messageFile, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
 		if c != allowed || len(args) != 0 {
-			return errors.New("plan: -edit accepts only its file, -role, -worker and -json")
+			return errors.New("plan: -edit accepts only its file, -role, -worker, -json and optionally -publish -vehicle <item>/<step> -message-file <file>")
+		}
+		if c.publish {
+			return publishPlanEdit(commandWorktree, c.edit, c.vehicle, c.messageFile, execGate, os.Stdout)
 		}
 		return editPlanStep(commandWorktree, c.edit, os.Stdout)
 	}

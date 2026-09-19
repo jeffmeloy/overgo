@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"overgo/internal/plan"
 	"overgo/internal/worklease"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -189,6 +191,118 @@ func TestRetainedGatePhaseReport(t *testing.T) {
 			t.Fatalf("history accepted a mixed operation: %v", err)
 		}
 	}
+}
+
+// TestPlanPublishCommand drives the production publishPlanEdit directly, with
+// only the gate subprocess boundary substituted, so it proves the one-command
+// composition, not a reimplementation: a valid publish applies the edit and
+// then invokes the gate exactly once on the vehicle row committing only the
+// plan document; the cheap vehicle and message checks refuse before any
+// mutation; and a gate failure surfaces the error with the edit preserved for a
+// bare gate retry.
+func TestPlanPublishCommand(t *testing.T) {
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
+	t.Setenv(plan.AutomationWorkerEnvironment, "")
+	census := testutil.ArtifactID(t, artifact.KindEvidence, "publish census")
+	document := plan.Plan{Census: &census, Items: []plan.Item{
+		{ID: "row", Title: "Target", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./cmd/plan"}}},
+		{ID: "vehicle", Title: "Publish vehicle", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./internal/plan"}}},
+	}}
+	newEditFixture := func(t *testing.T) (root, editPath, messagePath string) {
+		t.Helper()
+		root = initializePlanTestRepository(t, document)
+		editPath = filepath.Join(root, "edit.json")
+		edit := plan.StepEdit{ExpectedPlan: document.Digest(), Item: "row", Create: true, Step: plan.Step{ID: "second", Title: "Review second", Status: plan.StatusOpen, Verify: "go test ./internal/plan", DependsOn: []string{"row/do"}, Rationale: "Keep an explicit prerequisite."}}
+		data, err := json.Marshal(edit)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(editPath, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		messagePath = filepath.Join(root, "msg.txt")
+		if err := os.WriteFile(messagePath, []byte("Publish plan edit"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return root, editPath, messagePath
+	}
+	edited := func(t *testing.T, root string) bool {
+		t.Helper()
+		updated, err := plan.Load(filepath.Join(root, plan.Path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(updated.Items[0].Steps) == 2
+	}
+
+	t.Run("applies then gates once", func(t *testing.T) {
+		root, editPath, messagePath := newEditFixture(t)
+		var captured [][]string
+		gate := func(gateRoot string, gateArgs ...string) ([]byte, error) {
+			if gateRoot != root {
+				t.Fatalf("gate root %q != %q", gateRoot, root)
+			}
+			captured = append(captured, gateArgs)
+			return []byte("GATE SUCCEEDED\n"), nil
+		}
+		var out bytes.Buffer
+		if err := publishPlanEdit(root, editPath, "vehicle/do", messagePath, gate, &out); err != nil {
+			t.Fatal(err)
+		}
+		if !edited(t, root) {
+			t.Fatal("edit not applied before publication")
+		}
+		want := []string{"-plan", "vehicle/do", "-message-file", messagePath, "-paths", plan.Path}
+		if len(captured) != 1 || !slices.Equal(captured[0], want) {
+			t.Fatalf("gate invocations = %v, want one of %v", captured, want)
+		}
+		if !strings.Contains(out.String(), "GATE SUCCEEDED") {
+			t.Fatalf("gate output not surfaced: %s", out.String())
+		}
+	})
+
+	t.Run("refuses before mutating", func(t *testing.T) {
+		for name, invalid := range map[string]struct{ vehicle, message string }{
+			"no vehicle step": {"vehicle", "set"},
+			"empty message":   {"vehicle/do", ""},
+		} {
+			t.Run(name, func(t *testing.T) {
+				root, editPath, messagePath := newEditFixture(t)
+				message := messagePath
+				if invalid.message == "" {
+					message = ""
+				}
+				called := false
+				gate := func(string, ...string) ([]byte, error) { called = true; return nil, nil }
+				if err := publishPlanEdit(root, editPath, invalid.vehicle, message, gate, &bytes.Buffer{}); err == nil {
+					t.Fatal("invalid publish accepted")
+				}
+				if called {
+					t.Fatal("gate invoked on a refused publish")
+				}
+				if edited(t, root) {
+					t.Fatal("refused publish mutated the plan")
+				}
+			})
+		}
+	})
+
+	t.Run("gate failure preserves the applied edit", func(t *testing.T) {
+		root, editPath, messagePath := newEditFixture(t)
+		gate := func(string, ...string) ([]byte, error) {
+			return []byte("acceptance failed\n"), errors.New("gate refused")
+		}
+		var out bytes.Buffer
+		if err := publishPlanEdit(root, editPath, "vehicle/do", messagePath, gate, &out); err == nil {
+			t.Fatal("gate failure not surfaced")
+		}
+		if !edited(t, root) {
+			t.Fatal("gate failure discarded the applied edit; a bare gate retry is impossible")
+		}
+		if !strings.Contains(out.String(), "acceptance failed") {
+			t.Fatalf("gate diagnostics not surfaced: %s", out.String())
+		}
+	})
 }
 
 func testRetainedGateResultIntegrity(t *testing.T) {

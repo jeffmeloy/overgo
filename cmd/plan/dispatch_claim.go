@@ -282,3 +282,35 @@ func editPlanStep(root, path string, output io.Writer) error {
 		}{plan.Ref{Item: edit.Item, Step: edit.Step.ID}, document.Digest(), updated.Digest(), edit.Create, string(previousAcceptance) != string(nextAcceptance), true})
 	})
 }
+
+// gateRunner publishes committed paths through the gate on a vehicle row.
+// Production execs the gate as a subprocess so cmd/plan never imports
+// internal/gate, keeping every plan change's dependency closure narrow; a test
+// substitutes this one boundary and drives the real composition.
+type gateRunner func(root string, gateArgs ...string) ([]byte, error)
+
+func execGate(root string, gateArgs ...string) ([]byte, error) {
+	return commandOutput(root, "go", append([]string{"run", "./cmd/gate"}, gateArgs...)...)
+}
+
+// publishPlanEdit applies a StepEdit and publishes docs/plan.json through the
+// gate on the vehicle commit row in one command, so a plan edit is never left
+// applied but unpublished on the success path. The cheap vehicle and message
+// checks run before the mutation; the only committed path is the plan document.
+// A gate failure returns its error with the edit preserved for a bare gate
+// retry, exactly as the gate leaves its own working tree on failure.
+func publishPlanEdit(root, editPath, vehicle, messageFile string, gate gateRunner, output io.Writer) error {
+	item, step, found := strings.Cut(vehicle, "/")
+	if !found || !worklease.ValidPlanID(item) || !worklease.ValidPlanID(step) {
+		return errors.New("plan: -publish requires a vehicle <item>/<step>")
+	}
+	if messageFile == "" {
+		return errors.New("plan: -publish requires -message-file")
+	}
+	if err := editPlanStep(root, editPath, output); err != nil {
+		return err
+	}
+	gateOutput, gateErr := gate(root, "-plan", vehicle, "-message-file", messageFile, "-paths", plan.Path)
+	_, writeErr := output.Write(gateOutput)
+	return errors.Join(gateErr, writeErr)
+}

@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/authoritylock"
+	"overgo/internal/dispatchreadiness"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
@@ -222,6 +223,13 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 		fmt.Fprintln(output, dispatch.Stop.String())
 	}
 	printPromptStep(it, st, output)
+	// The readiness snapshot is a read-only advisory: it never blocks the task
+	// display, so an unresolved cheap fact prints as advice rather than a refusal.
+	if readiness, err := dispatchreadiness.Resolve(commandWorktree, nil); err != nil {
+		fmt.Fprintln(output, "readiness: unavailable: "+err.Error())
+	} else {
+		fmt.Fprintln(output, "readiness: "+readiness.String())
+	}
 	return nil
 }
 

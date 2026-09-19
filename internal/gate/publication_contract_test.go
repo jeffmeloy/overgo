@@ -3,15 +3,66 @@ package gate
 import (
 	"encoding/json"
 	"flag"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/dispatchreadiness"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
 )
+
+// TestCheapAdmissionReadiness drives the cheap admission projection the gate
+// resolves before any repair, replay, or analysis: it reports branch and HEAD,
+// classifies a dirty input outside the declared scope while leaving one inside
+// it uncounted, opens no store, and marks an undeclared scope provisional rather
+// than inventing an out-of-scope refusal.
+func TestCheapAdmissionReadiness(t *testing.T) {
+	repo := t.TempDir()
+	runGitFixture(t, repo, "init", "-q")
+	runGitFixture(t, repo, "config", "user.email", "gate@test")
+	runGitFixture(t, repo, "config", "user.name", "gate")
+	if err := os.WriteFile(filepath.Join(repo, "seed.go"), []byte("package seed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, repo, "add", "-A")
+	runGitFixture(t, repo, "commit", "-q", "-m", "baseline")
+	for _, path := range []string{"in/changed.go", "out/stray.go"} {
+		if err := os.MkdirAll(filepath.Join(repo, filepath.Dir(path)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(repo, path), []byte("package p\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	readiness, err := dispatchreadiness.Resolve(repo, []string{"in"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if readiness.Branch == "" || readiness.Head == "" {
+		t.Fatalf("cheap facts missing: %+v", readiness)
+	}
+	if readiness.Provisional {
+		t.Fatal("a declared scope was reported provisional")
+	}
+	if !slices.Contains(readiness.OutOfScope, "out/stray.go") || slices.Contains(readiness.OutOfScope, "in/changed.go") {
+		t.Fatalf("dirty scope classification wrong: %+v", readiness.OutOfScope)
+	}
+
+	provisional, err := dispatchreadiness.Resolve(repo, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !provisional.Provisional || len(provisional.OutOfScope) != 0 {
+		t.Fatalf("undeclared scope must be provisional without an out-of-scope refusal: %+v", provisional)
+	}
+}
 
 // Explicit campaign acceptance reads retained records; ordinary package tests
 // exercise accounting without depending on an operator's evidence store.

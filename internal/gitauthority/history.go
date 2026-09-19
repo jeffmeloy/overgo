@@ -124,6 +124,13 @@ func ReaderEnvironment() []string {
 	return append(RepositoryEnvironment(), "GIT_OPTIONAL_LOCKS=0")
 }
 
+// Query runs one read-only git command at repository and returns its stdout,
+// routing through the process owner with the non-mutating reader environment so
+// callers inspect a repository without reimplementing git execution.
+func Query(ctx context.Context, repository string, arguments ...string) ([]byte, error) {
+	return output(ctx, repository, arguments...)
+}
+
 func output(ctx context.Context, repository string, arguments ...string) ([]byte, error) {
 	gitArguments := append([]string{"--no-replace-objects"}, arguments...)
 	var stdout, stderr bytes.Buffer

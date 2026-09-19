@@ -13,6 +13,28 @@ import (
 	"overgo/internal/worklease"
 )
 
+// TestPromptAdmissionReadiness drives the real prompt path: a read-only prompt
+// shows the claimed task and then its cheap readiness snapshot, which is
+// provisional because prompt declares no write scope, distinguishing an advisory
+// fact from the executable claim.
+func TestPromptAdmissionReadiness(t *testing.T) {
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
+	t.Setenv(plan.AutomationWorkerEnvironment, "")
+	root := initializePlanTestRepository(t, mutationPlan(t, "Readiness task"))
+	t.Chdir(root)
+	out := captureStdout(t, func() {
+		if err := run(cli{prompt: true, worker: "readiness-worker", retireLegacyLeases: noLegacyLeaseRetirement}, nil); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !strings.Contains(out, "TASK row/do") {
+		t.Fatalf("prompt did not project the task:\n%s", out)
+	}
+	if !strings.Contains(out, "readiness: branch=") || !strings.Contains(out, "scope=provisional") {
+		t.Fatalf("prompt did not project a read-only readiness snapshot:\n%s", out)
+	}
+}
+
 func TestDispatchClaimProjection(t *testing.T) {
 	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
 	t.Setenv(plan.AutomationWorkerEnvironment, "")

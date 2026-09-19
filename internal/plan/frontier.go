@@ -76,7 +76,7 @@ func ValidateFrontierLeases(frontier []Ref, leases []worklease.Lease) error {
 		}
 		roleOwners[role] = lease.Worktree
 		for _, other := range leases[:index] {
-			overlap := frontierClaimsOverlap(lease.Claims, other.Claims)
+			overlap := FrontierClaimsOverlap(lease.Claims, other.Claims)
 			if lease.Worker != "" && other.Worker != "" {
 				overlap = worklease.WorkspaceClaimsConflict(lease, other)
 			}
@@ -90,10 +90,10 @@ func ValidateFrontierLeases(frontier []Ref, leases []worklease.Lease) error {
 	return nil
 }
 
-// frontierClaimsOverlap compares repo-relative claims across lanes: distinct
+// FrontierClaimsOverlap compares repo-relative claims across lanes: distinct
 // worktrees still collide when they claim the same relative surface, because
 // their gated commits meet again at merge time.
-func frontierClaimsOverlap(left, right worklease.WorkspaceClaims) bool {
+func FrontierClaimsOverlap(left, right worklease.WorkspaceClaims) bool {
 	if left.WholeWorktree || right.WholeWorktree {
 		return true
 	}

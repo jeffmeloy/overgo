@@ -245,6 +245,77 @@ func judgeInteractionEfficiency(inputPath string, output io.Writer) error {
 	return nil
 }
 
+// leaseDiagnostic is one advisory or blocking observation about a worktree
+// lease measured against the ready frontier. A blocking diagnostic is a live
+// ownership conflict on an admittable row; an advisory diagnostic is a stale or
+// out-of-frontier lease that must never hide the frontier from a driver.
+type leaseDiagnostic struct {
+	worktree string
+	task     string
+	claims   worklease.WorkspaceClaims
+	reason   string
+	blocking bool
+}
+
+// frontierLeaseDiagnostics classifies every lease against the ready frontier
+// without hiding it: a lease claiming a row outside the frontier, or one past
+// its expiry, is advisory; two leases on one ready row, one role holding two
+// rows, or overlapping workspace claims among live leases are blocking live
+// conflicts. It reports every lease, never stopping at the first, so a stale
+// lease masks neither the valid ready rows nor a real conflict elsewhere.
+func frontierLeaseDiagnostics(frontier []plan.Ref, leases []worklease.Lease, now time.Time) []leaseDiagnostic {
+	ready := make(map[string]bool, len(frontier))
+	for _, ref := range frontier {
+		ready[ref.String()] = true
+	}
+	var diagnostics []leaseDiagnostic
+	taskOwners := make(map[string]string, len(leases))
+	roleOwners := make(map[string]string, len(leases))
+	for index, lease := range leases {
+		switch {
+		case !ready[lease.Task]:
+			diagnostics = append(diagnostics, leaseDiagnostic{lease.Worktree, lease.Task, lease.Claims, "claims row " + lease.Task + " outside the ready frontier", false})
+			continue
+		case leaseExpired(lease, now):
+			diagnostics = append(diagnostics, leaseDiagnostic{lease.Worktree, lease.Task, lease.Claims, "expired at " + lease.ExpiresAt, false})
+			continue
+		}
+		if owner, taken := taskOwners[lease.Task]; taken {
+			diagnostics = append(diagnostics, leaseDiagnostic{lease.Worktree, lease.Task, lease.Claims, "shares ready row " + lease.Task + " with " + owner, true})
+		}
+		taskOwners[lease.Task] = lease.Worktree
+		role := "role:" + strings.TrimSpace(lease.Role)
+		if lease.Worker != "" {
+			role = "worker:" + lease.Worker
+		}
+		if owner, taken := roleOwners[role]; taken {
+			diagnostics = append(diagnostics, leaseDiagnostic{lease.Worktree, lease.Task, lease.Claims, role + " already holds " + owner, true})
+		}
+		roleOwners[role] = lease.Worktree
+		for _, other := range leases[:index] {
+			if !ready[other.Task] || leaseExpired(other, now) {
+				continue
+			}
+			overlap := plan.FrontierClaimsOverlap(lease.Claims, other.Claims)
+			if lease.Worker != "" && other.Worker != "" {
+				overlap = worklease.WorkspaceClaimsConflict(lease, other)
+			}
+			if overlap {
+				diagnostics = append(diagnostics, leaseDiagnostic{lease.Worktree, lease.Task, lease.Claims, "overlapping workspace claims with " + other.Worktree, true})
+			}
+		}
+	}
+	return diagnostics
+}
+
+func leaseExpired(lease worklease.Lease, now time.Time) bool {
+	if lease.ExpiresAt == "" {
+		return false
+	}
+	expires, err := time.Parse(time.RFC3339Nano, lease.ExpiresAt)
+	return err == nil && !expires.After(now)
+}
+
 // printReadyFrontier prints every dispatchable row and refuses when the live
 // worktree leases violate frontier isolation, so a driver reads dispatchable
 // work and lease health in one call.
@@ -281,9 +352,9 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 	if err != nil {
 		return err
 	}
-	if err := plan.ValidateFrontierLeases(frontier, leases); err != nil {
-		fmt.Fprintf(output, "warning: %v; ownership needs review, not timeout retirement\n", err)
-	}
+	// The ready frontier is authoritative and printed first; lease diagnostics
+	// are advisory and never hide it. A stale or out-of-frontier lease is a
+	// warning; a live ownership conflict is a blocker on the affected admission.
 	if len(frontier) != 0 {
 		fmt.Fprintln(output, plan.FormatFrontier(frontier))
 	}
@@ -294,11 +365,26 @@ func printReadyFrontier(root string, document plan.Plan, output io.Writer) error
 		}
 		fmt.Fprintf(output, "claim=%s task=%s worker=%s role=%s worktree=%s scope=%s\n", lease.ID, lease.Task, lease.Worker, lease.Role, lease.Worktree, claims)
 	}
+	blocking := 0
+	for _, diagnostic := range frontierLeaseDiagnostics(frontier, leases, time.Now()) {
+		claims, err := json.Marshal(diagnostic.claims)
+		if err != nil {
+			return err
+		}
+		if diagnostic.blocking {
+			blocking++
+			fmt.Fprintf(output, "blocked: live ownership conflict worktree=%s task=%s claims=%s: %s; resolve the conflicting owner before admission\n",
+				diagnostic.worktree, diagnostic.task, claims, diagnostic.reason)
+			continue
+		}
+		fmt.Fprintf(output, "warning: stale lease worktree=%s task=%s claims=%s: %s; release its exact claim with go run ./cmd/plan -release-claim <lease-id> -release-reason cancelled\n",
+			diagnostic.worktree, diagnostic.task, claims, diagnostic.reason)
+	}
 	if legacyUnreadable != 0 {
 		fmt.Fprintf(output, "warning: review %d legacy unreadable lease(s), then retire with go run ./cmd/plan -retire-legacy-leases %d\n", legacyUnreadable, legacyUnreadable)
 	}
-	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d legacy unreadable lease(s)\n",
-		len(frontier), len(leases), legacyUnreadable)
+	fmt.Fprintf(output, "frontier: %d dispatchable row(s), %d isolated lease(s), %d blocking conflict(s), %d legacy unreadable lease(s)\n",
+		len(frontier), len(leases), blocking, legacyUnreadable)
 	return nil
 }
 

@@ -91,6 +91,7 @@ func run(args []string) error {
 	efficiencyTraceSpecPath := flags.String("publish-efficiency-trace", "", "publish one measured interaction-work trace from this spec")
 	directionSpecPath := flags.String("publish-direction", "", "publish one extracted residual-direction claim from this spec")
 	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
+	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -104,6 +105,8 @@ func run(args []string) error {
 		return publishStrategy(*repoPath, *publishStrategySpec, os.Stdout)
 	case *experimentSpec != "":
 		return compareStrategies(*repoPath, *experimentSpec, os.Stdout)
+	case *resumeMediaExperimentSpec != "":
+		return resumeMediaExperiment(*repoPath, *resumeMediaExperimentSpec, os.Stdout)
 	case *publishFitnessSpec != "":
 		return publishFitness(*repoPath, *publishFitnessSpec, os.Stdout)
 	case *resourceLanesSpec != "":

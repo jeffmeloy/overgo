@@ -113,6 +113,51 @@ func compareStrategies(root, specPath string, output io.Writer) error {
 	return err
 }
 
+// mediaExperimentSpec binds one media experiment: the model and data
+// identities, the budget authority, and the per-cell acquisition requests.
+type mediaExperimentSpec struct {
+	Model  artifact.ID      `json:"model"`
+	Data   artifact.ID      `json:"data"`
+	Budget artifact.ID      `json:"budget"`
+	Cells  []loop.MediaCell `json:"cells"`
+}
+
+// resumeMediaExperiment resumes one media experiment from this spec, reusing
+// every retained acquisition and publishing the idempotent report without
+// opening a model. It acquires nothing: a missing cell is reported as an error
+// directing acquisition, so this door never loads a model.
+func resumeMediaExperiment(root, specPath string, output io.Writer) error {
+	var spec mediaExperimentSpec
+	if err := jsonfile.DecodeStrict(specPath, &spec); err != nil {
+		return err
+	}
+	experiment, err := loop.NewMediaExperiment(spec.Model, spec.Data, spec.Budget, spec.Cells)
+	if err != nil {
+		return err
+	}
+	store, err := overgodb.Open(root)
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+	report, err := loop.ResumeMediaExperiment(context.Background(), store, experiment, nil)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(struct {
+		Report       artifact.ID   `json:"report"`
+		Experiment   artifact.ID   `json:"experiment"`
+		Acquisitions []artifact.ID `json:"acquisitions"`
+		Reused       int           `json:"reused"`
+		Acquired     int           `json:"acquired"`
+	}{report.ID, report.Experiment, report.Acquisitions, report.Reused, report.Acquired}, "", " ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(output, "%s\n", encoded)
+	return err
+}
+
 // publishFitness commits one pairwise improvement-fitness proof against the
 // exact journal head its coverage projection observed.
 func publishFitness(root, specPath string, output io.Writer) error {

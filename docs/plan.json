@@ -115,26 +115,6 @@
       ]
     },
     {
-      "id": "model-regression-gate",
-      "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Enforce cheap execution-coverage regression checks before device-wide work",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck -run 'ModelRegress' -count=1",
-          "rationale": "Use the code/kernel manifest and typed recipe/operator facts to select a small deterministic model set covering affected weight types, operator paths, head geometry, attention/cache policy and modality; weight type alone is insufficient. Minimize measured run cost subject to coverage, and widen scope when independence is unproven. Compare against the accepted immutable baseline. Sequence the quick model check before broader device work under an exclusive timing lease; host-only changes are explicitly inapplicable. Keep structure-budget checking in the cheap gate phase. Negative tests must reject a missing coverage class, stale/mismatched baseline, untested device path and a reproduced throughput/memory/quality regression. Bind an integration assertion proving the real gate selection and rejection path, alongside the host selector tests; use existing CI/protection ownership to prevent required device evidence being replaced by manual-workflow assumptions. Land the small guard before independent execution fixes; do not wait for media-report or full-catalog expansion. Widen accepted references when the full baseline lands.",
-          "depends_on": [
-            "model-regression-baseline/do",
-            "model-regression-gate/coverage-selection",
-            "model-regression-gate/coverage-acquisition",
-            "modality-verification/decode-guard-readmission"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-regression-baseline",
       "title": "Publish an accepted, immutable baseline before simplification",
       "status": "open",

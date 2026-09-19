@@ -4,24 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-gate-scheduling",
-      "title": "Overlap eligible checks without extending next-gate waiting",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "lane-overlap",
-          "title": "Schedule lanes against the same frozen candidate",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestSharedLanesCoSchedule|TestDeferredLaneObligations|TestDeferredLaneSelectionSurvivesPublication|TestStaticFailurePreventsAcceptance|TestLaneServerEndsWithRun)$' -short -count=1",
-          "rationale": "Owners: existing gate DAG, deferred execution, resource and lifecycle paths. After prepared resume, compare post-commit launch with eligible lanes starting after required static/owner checks while independent host tests run. Model data, failure-order and resource dependencies; no blanket dependency removal or new scheduler. Bind the same immutable candidate and preserve obligations across publication and late failures. Ordinary correctness uses shared GPU admission; declared performance measurements retain exclusivity. Shorten worktree/store lock scope only when existing snapshots and CAS publication prove safety. Cover host failure with active lanes, cancellation, contention, concurrent publishers, process death and obsolete results. Measure all-check completion, repeated work and next-gate waiting; an earlier commit alone is not a win.\n\nConcurrency must fit measured whole-request RAM and VRAM demand including resident models, transient allocations and child processes. Use gate-resource-efficiency measurements and existing resource admission to bound concurrency from available capacity; do not assume parallelism reduces total cost. Shared correctness work remains eligible when it fits; exclusive GPU access is reserved for declared isolation requirements. Unknown demand permits a conservative explainable schedule, never unlimited fan-out or false acceptance. Test release-triggered waiting, cancellation, holder exit and normal parallel-worktree contention; compare peak memory, queue time and all-check completion. No new scheduler or arbitrary fixed worker/memory ceiling.",
-          "depends_on": [
-            "surface-gate-deferred/prepared-resume"
-          ]
-        }
-      ]
-    },
-    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "owner": "master-lead",

@@ -161,17 +161,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "mmlu-pro-pass",
-          "title": "Complete MMLU-Pro for the smaller text models under both protocols",
-          "status": "open",
-          "verify": "test -f cmd/benchmark-report/accepted_coverage_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedSmallModelMMLUPro$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "Retain the completed DNA-pass and long-form-verification authority. First republish only missing/stale passing long-form admission records at the current inference surface, then run the missing fp8/small-model suite records immediately. No future refactor, memory optimization or measurement-contract implementation is a prerequisite. Query committed suite coverage and run only missing or invalidated model/protocol/case records on the current landed execution surface. Preserve the full 12032-case MMLU-Pro denominator and both declared protocols; exclude the 27B from this step and keep MATH excluded. Use measured cost and explicit evaluate -budget for bounded batches, smallest first. Acceptance asserts expected cases, distinct cases, protocol, model/recipe/data/code identities and completed outcomes; a regenerated report with missing cells does not pass. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.\n\nRequired read-only acceptance: TestAcceptedSmallModelMMLUPro in cmd/benchmark-report/accepted_coverage_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.",
-          "depends_on": [
-            "benchmark-completion/dna-pass",
-            "long-form-verification/do"
-          ]
-        },
-        {
           "id": "published-comparison",
           "title": "Publish benchmark results with matched references and complete coverage",
           "status": "open",

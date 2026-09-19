@@ -10,17 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "runtime-value-flow",
-          "title": "Resolve runtime paths and commands across one real call boundary",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestRuntimeInputsUnsafeClassifications|TestRuntimeInputsPropagateThroughCallers|TestRuntimeInputsIndirectAndConditional|TestRuntimeReachBindingsAcceptance|TestChangeSelectionRequiredMatrix)$' -count=1 \u0026\u0026 test -f internal/gate/runtime_value_flow_test.go \u0026\u0026 go test ./internal/gate -run '^TestRuntimeValueFlowAcceptance$' -count=1",
-          "rationale": "Optional follow-on after the first adopted reduction. Dispatch only for a named unresolved effect whose expected saved work exceeds the added analysis and verification cost; it is not an admission prerequisite for the first reduction. Extend the same dependency result only where the first live boundary still loses information. Follow path and command values through parameters, returns, receiver fields and bound callbacks; propagate conservative unions at conditional/loop joins. Distinguish temporary/external fixture roots from candidate repository inputs, including subprocess working directories and constructed argv. Resolve interfaces/function values only with supported target evidence; reflection, escaped callbacks and native libraries retain explicit required effects. No name-based exemptions or package-wide annotations as proof. Bound acceptance to caller-supplied repository fixtures, temporary paths, reassignment/shadowing, aliases, returned closures, callback invocation, subprocess cwd/argv, renames/deletions and unknown targets. Relevant mutations must select the failing check and invalidate reuse; unrelated inputs must preserve the same check identity. Include the chosen real expensive consumer, not only synthetic examples. Reuse retained generic/callback probe findings; do not repeat unproductive whole-program feasibility. Keep analysis local to affected summaries and record its cost. Model/native/driver identities remain bound even when Go calls are resolved.\n\nUse the same typed graph and input identities for dependency resolution, selection explanations and receipt certificates. Preserve edge provenance, relevant execution-profile assumptions and unresolved callbacks or dynamic input origins. Certificates must fail closed when a relevant edge, profile, toolchain, protocol or input changes. Retain the original acceptance matrix independently; test graph and certificate mutation as well as seeded consumer failures.",
-          "depends_on": [
-            "validation-gate-selection/call-reach",
-            "validation-gate-selection/measured-adoption"
-          ]
-        },
-        {
           "id": "deterministic-lifecycle",
           "title": "Replace one costly lifecycle fixture group with deterministic Go checks",
           "status": "open",

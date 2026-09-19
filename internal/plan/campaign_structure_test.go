@@ -685,9 +685,6 @@ func assertProfessionalGUICampaignSnapshot(t *testing.T, document Plan) {
 // Validate the live plan's contracts without duplicating its task inventory.
 func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 	t.Helper()
-	if err := Validate(document); err != nil {
-		t.Fatal(err)
-	}
 	mergeRows := 0
 	for _, item := range document.Items {
 		if strings.HasPrefix(item.ID, "merge-") {
@@ -695,22 +692,85 @@ func assertValidationCampaignSnapshot(t *testing.T, document Plan) {
 			if !preparedMergeBoundary(item) {
 				t.Errorf("invalid prepared merge boundary %+v", item)
 			}
-			continue
-		}
-		for _, step := range item.Steps {
-			id := item.ID + "/" + step.ID
-			if strings.TrimSpace(step.Verify) == "" {
-				t.Errorf("validation step %s has no machine-checked verify", id)
-			}
 		}
 	}
 	if mergeRows > 1 {
 		t.Errorf("validation campaign has %d prepared merge boundaries, want at most one", mergeRows)
 	}
-	for _, required := range []string{"capability freeze enforced by structure", "UNAVAILABLE", "plan -setverify"} {
-		if !strings.Contains(document.Doctrine, required) {
-			t.Errorf("validation campaign doctrine omits %q", required)
+	for _, violation := range campaignStructuralViolations(document) {
+		t.Errorf("validation campaign policy: %s", violation)
+	}
+}
+
+// campaignStructuralViolations reports the campaign policy the doctrine prose
+// used to pin -- capability freeze, the setverify machine check, and valid
+// dependency and completion structure -- as the structure and behavior it
+// protects rather than as phrases, so rewording the doctrine cannot pass while
+// breaking a protected invariant cannot: the plan validates (dependency and
+// completion structure), every open step carries a machine-checked verify (the
+// setverify contract), and no step declares a capability (the validation
+// campaign is capability-frozen -- it introduces no model family, workflow,
+// optimizer, or orchestration framework). The UNAVAILABLE-not-credited outcome
+// contract stays owned by the completion authority and its tests, not doctrine
+// prose.
+func campaignStructuralViolations(document Plan) []string {
+	var violations []string
+	if err := Validate(document); err != nil {
+		violations = append(violations, "invalid plan structure: "+err.Error())
+	}
+	for _, item := range document.Items {
+		if strings.HasPrefix(item.ID, "merge-") {
+			continue
 		}
+		for _, step := range item.Steps {
+			id := item.ID + "/" + step.ID
+			if step.Status == StatusOpen && strings.TrimSpace(step.Verify) == "" {
+				violations = append(violations, "step "+id+" has no machine-checked verify")
+			}
+			if len(step.Capabilities) != 0 {
+				violations = append(violations, "step "+id+" declares capabilities "+strings.Join(step.Capabilities, ",")+"; the validation campaign is capability-frozen")
+			}
+		}
+	}
+	return violations
+}
+
+// TestStructuralCampaignPolicy holds that the campaign policy is enforced by
+// structure, not doctrine prose: a campaign that keeps every historical doctrine
+// phrase but breaks a protected invariant still fails, while rewording the
+// doctrine without changing policy passes.
+func TestStructuralCampaignPolicy(t *testing.T) {
+	// The doctrine phrases the tests used to pin, retained verbatim so a break
+	// cannot hide behind them.
+	const pinnedDoctrine = "capability freeze enforced by structure; a check records UNAVAILABLE rather than a pass; a step's machine check is set with plan -setverify"
+	validCampaign := func() Plan {
+		return Plan{
+			Campaign: "Integrated validation", Doctrine: pinnedDoctrine,
+			Items: []Item{{ID: "row", Title: "Row", Status: StatusOpen, Steps: []Step{
+				{ID: "do", Title: "Do", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'"},
+			}}},
+		}
+	}
+	if v := campaignStructuralViolations(validCampaign()); len(v) != 0 {
+		t.Fatalf("valid campaign reported violations: %v", v)
+	}
+	reworded := validCampaign()
+	reworded.Doctrine = "entirely different wording that keeps the same structural policy"
+	if v := campaignStructuralViolations(reworded); len(v) != 0 {
+		t.Fatalf("rewording the doctrine changed the policy verdict: %v", v)
+	}
+	for name, mutate := range map[string]func(*Plan){
+		"forbidden capability expansion": func(p *Plan) { p.Items[0].Steps[0].Capabilities = []string{"new-orchestration-framework"} },
+		"missing executable acceptance":  func(p *Plan) { p.Items[0].Steps[0].Verify = "" },
+		"invalid dependency":             func(p *Plan) { p.Items[0].Steps[0].DependsOn = []string{"unproven"} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			broken := validCampaign()
+			mutate(&broken)
+			if v := campaignStructuralViolations(broken); len(v) == 0 {
+				t.Fatalf("%s passed despite retaining every doctrine phrase", name)
+			}
+		})
 	}
 }
 

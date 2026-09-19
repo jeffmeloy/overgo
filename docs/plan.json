@@ -564,7 +564,8 @@
             "artifact-validation-primitives/do",
             "plan-consolidation-replan/do",
             "sequence-replan/do",
-            "publication-priority-replan/do"
+            "publication-priority-replan/do",
+            "end-to-end-validation/do"
           ]
         }
       ]

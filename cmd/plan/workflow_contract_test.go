@@ -13,6 +13,29 @@ import (
 	"overgo/internal/worklease"
 )
 
+// TestPromptContractProjection holds that the prompt renders the bounded
+// actionable contract -- title, verifier, prerequisites, commit scope, a usable
+// self-describing cmd/finding invocation, and the stop conditions -- while the
+// rationale history stays out of the task prompt, available by reference.
+func TestPromptContractProjection(t *testing.T) {
+	item := plan.Item{ID: "work", Title: "Work item"}
+	step := plan.Step{
+		ID: "do", Title: "Bounded change", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestX$'",
+		DependsOn: []string{"base/do"}, Rationale: strings.Repeat("buried history prose ", 20),
+	}
+	var out bytes.Buffer
+	printPromptStep(item, step, &out)
+	text := out.String()
+	for _, want := range []string{"TASK work/do", "VERIFY go test", "PREREQUISITES base/do", "COMMIT go run ./cmd/gate", "go run ./cmd/finding -h", "STOP ", "plan -history"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("contract prompt missing %q:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "buried history prose") {
+		t.Fatalf("rationale history leaked into the task prompt:\n%s", text)
+	}
+}
+
 // TestPromptAdmissionReadiness drives the real prompt path: a read-only prompt
 // shows the claimed task and then its cheap readiness snapshot, which is
 // provisional because prompt declares no write scope, distinguishing an advisory

@@ -34,6 +34,7 @@ type TaskContext struct {
 	StepID            string             `json:"step_id"`
 	StepTitle         string             `json:"step_title"`
 	Verify            string             `json:"verify,omitzero"`
+	Prerequisites     []string           `json:"prerequisites,omitempty"`
 	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
 }
 
@@ -110,6 +111,7 @@ func BuildAutomationContext(document Plan, facts ContextFacts, completions Compl
 		ctx.CurrentTask = &TaskContext{
 			ItemID: item.ID, ItemTitle: item.Title,
 			StepID: step.ID, StepTitle: step.Title, Verify: step.Verify,
+			Prerequisites:     step.DependsOn,
 			VerificationBatch: step.VerificationBatch,
 		}
 	}

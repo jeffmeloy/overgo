@@ -57,6 +57,62 @@ func recordClaim(t *testing.T, store *overgodb.Store, lease worklease.Lease) (wo
 	return worklease.Record(t.Context(), store, content.Data)
 }
 
+// TestDispatchContractBinding holds the bounded contract projection: the
+// current-task contract carries the prerequisites and verifier while the
+// rationale history stays out of it and retained in the plan document, and a
+// legacy row without prerequisites projects a contract that simply omits them.
+func TestDispatchContractBinding(t *testing.T) {
+	// base/do is a completed, pruned prerequisite proven by the authority, not a
+	// retained row: the plan holds only open work.
+	document := Plan{Items: []Item{
+		{ID: "work", Title: "Work item", Status: StatusOpen, Steps: []Step{{
+			ID: "do", Title: "Bounded change", Status: StatusOpen, Verify: "go test ./x -run '^TestX$'",
+			DependsOn: []string{"base/do"}, Rationale: strings.Repeat("buried history prose ", 30),
+		}}},
+	}}
+	facts := ContextFacts{
+		Head: orchestrationHead, Branch: "codex/automation", Worktree: "C:/repo",
+		EvidenceDebt: EvidenceDebt{State: "none_observed", Source: "overgodb:overgodb-store"},
+		Workflow:     WorkflowContext{Phase: "implementation", Source: "git:HEAD+overgodb:overgodb-store"},
+	}
+	ctx, err := BuildAutomationContext(document, facts, testCompletionAuthorityAt(t, document, facts.Worktree, facts.Head, "base/do"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	task := ctx.CurrentTask
+	if task == nil || task.ItemID != "work" || task.StepID != "do" || task.Verify == "" {
+		t.Fatalf("contract missing bounded fields: %+v", task)
+	}
+	if !slices.Equal(task.Prerequisites, []string{"base/do"}) {
+		t.Fatalf("contract prerequisites = %v", task.Prerequisites)
+	}
+	contract, err := json.Marshal(task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(contract), "prerequisites") || !strings.Contains(string(contract), "base/do") {
+		t.Fatalf("contract omits prerequisites: %s", contract)
+	}
+	if strings.Contains(string(contract), "rationale") || strings.Contains(string(contract), "buried history prose") {
+		t.Fatalf("history leaked into the contract: %s", contract)
+	}
+	if !strings.Contains(document.Items[0].Steps[0].Rationale, "buried history prose") {
+		t.Fatal("plan document lost the row rationale history")
+	}
+	legacy := Plan{Items: []Item{{ID: "legacy", Title: "Legacy", Status: StatusOpen, Steps: []Step{{ID: "do", Title: "Old", Status: StatusOpen, Verify: "go test ./x -run '^TestLegacy$'"}}}}}
+	legacyCtx, err := BuildAutomationContext(legacy, facts, testCompletionAuthorityAt(t, legacy, facts.Worktree, facts.Head))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedLegacy, err := json.Marshal(legacyCtx.CurrentTask)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if legacyCtx.CurrentTask == nil || len(legacyCtx.CurrentTask.Prerequisites) != 0 || strings.Contains(string(encodedLegacy), "prerequisites") {
+		t.Fatalf("legacy contract invented prerequisites: %s", encodedLegacy)
+	}
+}
+
 func TestAtomicDispatchClaim(t *testing.T) {
 	t.Run("legacy retirement cannot see dispatch claims", func(t *testing.T) {
 		store, err := overgodb.Open(t.TempDir())
@@ -321,9 +377,6 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		otherTree := dispatchLeaseFixture(t, "beta/one", "C:/repo/second", "worker-two", "head")
 		if _, err := recordClaim(t, store, otherTree); err != nil {
 			t.Fatalf("independent claim refused: %v", err)
-		}
-		if err := ValidateFrontierLeases([]Ref{{Item: "alpha", Step: "one"}, {Item: "beta", Step: "one"}}, []worklease.Lease{next, otherTree}); err != nil {
-			t.Fatalf("distinct workers sharing unassigned role were serialized: %v", err)
 		}
 	})
 }

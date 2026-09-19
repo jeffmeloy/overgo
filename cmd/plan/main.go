@@ -784,12 +784,15 @@ func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
 	if strings.TrimSpace(verify) == "" {
 		verify = "MISSING -- add a runnable step.verify before implementation"
 	}
-	fmt.Fprintf(output, `TASK %s/%s
-%s
-VERIFY %s
-COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
-RULES skill.md; only this task; port-first; park off-scope findings with cmd/finding; gate advances atomically; then rerun plan -prompt.
-`, it.ID, st.ID, st.Title, verify, it.ID, st.ID)
+	fmt.Fprintf(output, "TASK %s/%s\n%s\nVERIFY %s\n", it.ID, st.ID, st.Title, verify)
+	if len(st.DependsOn) != 0 {
+		fmt.Fprintf(output, "PREREQUISITES %s\n", strings.Join(st.DependsOn, commandWordSeparator))
+	}
+	fmt.Fprintf(output, `COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
+FINDINGS park off-scope work: go run ./cmd/finding -h
+RULES skill.md; only this task; port-first; gate advances atomically; then rerun plan -prompt.
+STOP only a user stop pauses the loop (plan -stop <reason>); rationale and history stay in docs/plan.json and plan -history.
+`, it.ID, st.ID)
 	if st.VerificationBatch != nil {
 		for _, checkpoint := range st.VerificationBatch.Checkpoints {
 			fmt.Fprintf(output, "BATCH ACCEPTANCE %s: %s\n", checkpoint.ID, checkpoint.Verify)

@@ -10,13 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "dispatch-contract",
-          "title": "Show a concise actionable contract and retain history by reference",
-          "status": "open",
-          "verify": "test -f internal/plan/workflow_contract_test.go \u0026\u0026 go test ./internal/plan -run '^TestDispatchContractBinding$' -count=1 \u0026\u0026 test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestPromptContractProjection$' -count=1",
-          "rationale": "Extend the existing Step/AutomationContext schema with a bounded actionable contract and separate history/evidence references. Render the contract with the title, exact verifier, prerequisites, scope, frozen acceptance and stop conditions in prompt/context. Keep history available by explicit reference or history request, outside the normal task prompt. Do not heuristically truncate rationale and discard constraints. Migrate touched rows explicitly, preserving old schema readers or declaring a tested version transition, semantic merge and completion-authority binding. Contract changes invalidate dependent dispatch/acceptance; history-only edits do not authorize new work or erase obligations. Acceptance covers a constraint previously buried after a long rationale, legacy row migration, history omission from normal prompt, explicit history retrieval, contract tampering, and no duplicated operational state. Start with call-reach and publication rows; a whole-plan prose rewrite is not required.\n\nInclude claimant, execution mode, stop and readiness state plus a usable cmd/finding invocation from the shared command metadata. Do not hard-code a second usage signature in the prompt."
-        },
-        {
           "id": "structural-plan-policy",
           "title": "Replace doctrine substring gates with semantic contract checks",
           "status": "open",

@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"overgo/internal/worklease"
 	"strings"
 	"testing"
 )
@@ -21,26 +20,12 @@ func frontierTestPlan() Plan {
 	}}
 }
 
-func frontierLease(t *testing.T, task, worktree, role string, claims worklease.WorkspaceClaims) worklease.Lease {
-	t.Helper()
-	lease, err := worklease.New(worklease.Lease{
-		Task: task, Worktree: worktree, Branch: "lane/" + role, Role: role,
-		TargetHead: strings.Repeat("a", 40), ConflictsWith: []string{},
-		Resources: worklease.Resources{CPUThreads: 2, HostRAMGiB: 4},
-		Claims:    claims, ExpiresAt: "2026-09-01T00:00:00Z",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return lease
-}
-
-// TestReadyFrontierLeaseIsolation pins the complete ordered ready frontier
-// and its lease admission: dependencies gate frontier membership through the
-// completion authority, Current stays a member of the frontier, and leases
-// must own distinct frontier rows and roles with non-overlapping
-// repo-relative claims whatever worktree each lease runs in.
-func TestReadyFrontierLeaseIsolation(t *testing.T) {
+// TestReadyFrontierMembership pins the complete ordered ready frontier:
+// dependencies gate frontier membership through the completion authority,
+// Current stays the first member of the frontier, and gated completion evidence
+// widens it. Lease-isolation is now the reporting concern of
+// frontierLeaseDiagnostics, not a frontier refusal.
+func TestReadyFrontierMembership(t *testing.T) {
 	document := frontierTestPlan()
 	if _, err := ReadyFrontier(document, CompletionAuthority{}); err == nil {
 		t.Fatal("frontier without a resolved completion authority was served")
@@ -64,43 +49,6 @@ func TestReadyFrontierLeaseIsolation(t *testing.T) {
 	}
 	if len(frontier) != 3 || frontier[2].String() != "beta/after" {
 		t.Fatalf("evidence-widened frontier = %v", frontier)
-	}
-
-	alphaLease := frontierLease(t, "alpha/one", "lane-alpha", "builder",
-		worklease.WorkspaceClaims{Write: []string{"internal/plan"}})
-	betaLease := frontierLease(t, "beta/solo", "lane-beta", "verifier",
-		worklease.WorkspaceClaims{Write: []string{"internal/overgodb"}})
-	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, betaLease}); err != nil {
-		t.Fatalf("isolated leases refused: %v", err)
-	}
-	offFrontier := frontierLease(t, "alpha/two", "lane-early", "eager",
-		worklease.WorkspaceClaims{Write: []string{"cmd/plan"}})
-	if err := ValidateFrontierLeases(frontier[:2], []worklease.Lease{offFrontier}); err == nil ||
-		!strings.Contains(err.Error(), "outside the ready frontier") {
-		t.Fatalf("off-frontier lease admitted: %v", err)
-	}
-	duplicate := frontierLease(t, "alpha/one", "lane-dup", "shadow",
-		worklease.WorkspaceClaims{Write: []string{"cmd/gate"}})
-	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, duplicate}); err == nil ||
-		!strings.Contains(err.Error(), "both own frontier row") {
-		t.Fatalf("duplicate row ownership admitted: %v", err)
-	}
-	sameRole := frontierLease(t, "beta/solo", "lane-role", "builder",
-		worklease.WorkspaceClaims{Write: []string{"internal/loop"}})
-	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, sameRole}); err == nil ||
-		!strings.Contains(err.Error(), "one role owns one row at a time") {
-		t.Fatalf("duplicate role admitted: %v", err)
-	}
-	overlapping := frontierLease(t, "beta/solo", "lane-clash", "verifier",
-		worklease.WorkspaceClaims{Write: []string{"internal/plan/sync.go"}})
-	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, overlapping}); err == nil ||
-		!strings.Contains(err.Error(), "overlapping workspace claims") {
-		t.Fatalf("cross-worktree claim overlap admitted: %v", err)
-	}
-	whole := frontierLease(t, "beta/solo", "lane-whole", "verifier", worklease.WorkspaceClaims{WholeWorktree: true})
-	if err := ValidateFrontierLeases(frontier, []worklease.Lease{alphaLease, whole}); err == nil ||
-		!strings.Contains(err.Error(), "overlapping workspace claims") {
-		t.Fatalf("whole-worktree overlap admitted: %v", err)
 	}
 }
 

@@ -2,7 +2,6 @@ package plan
 
 import (
 	"errors"
-	"fmt"
 	"overgo/internal/worklease"
 	"slices"
 	"strings"
@@ -42,52 +41,6 @@ func ReadyFrontier(d Plan, authority CompletionAuthority) ([]Ref, error) {
 		}
 	}
 	return frontier, nil
-}
-
-// ValidateFrontierLeases requires distinct ready rows and isolated ownership.
-// Worker claims allow shared roles across worktrees. Legacy advisory leases
-// retain their conservative role and repository-relative overlap checks.
-func ValidateFrontierLeases(frontier []Ref, leases []worklease.Lease) error {
-	ready := make(map[string]bool, len(frontier))
-	for _, ref := range frontier {
-		ready[ref.String()] = true
-	}
-	taskOwners := make(map[string]string, len(leases))
-	roleOwners := make(map[string]string, len(leases))
-	for index, lease := range leases {
-		if err := lease.ValidateIdentity(); err != nil {
-			return fmt.Errorf("plan: frontier lease %q: %w", lease.Worktree, err)
-		}
-		if !ready[lease.Task] {
-			return fmt.Errorf("plan: lease %q claims %q outside the ready frontier", lease.Worktree, lease.Task)
-		}
-		if owner, taken := taskOwners[lease.Task]; taken {
-			return fmt.Errorf("plan: leases %q and %q both own frontier row %q", owner, lease.Worktree, lease.Task)
-		}
-		taskOwners[lease.Task] = lease.Worktree
-		role := normalizedRole(lease.Role)
-		if lease.Worker != "" {
-			role = "worker:" + lease.Worker
-		} else {
-			role = "role:" + role
-		}
-		if owner, taken := roleOwners[role]; taken {
-			return fmt.Errorf("plan: role %q holds leases %q and %q; one role owns one row at a time", role, owner, lease.Worktree)
-		}
-		roleOwners[role] = lease.Worktree
-		for _, other := range leases[:index] {
-			overlap := FrontierClaimsOverlap(lease.Claims, other.Claims)
-			if lease.Worker != "" && other.Worker != "" {
-				overlap = worklease.WorkspaceClaimsConflict(lease, other)
-			}
-			if overlap {
-				return fmt.Errorf(
-					"plan: leases %q and %q hold overlapping workspace claims", other.Worktree, lease.Worktree,
-				)
-			}
-		}
-	}
-	return nil
 }
 
 // FrontierClaimsOverlap compares repo-relative claims across lanes: distinct

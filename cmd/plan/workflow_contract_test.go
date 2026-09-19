@@ -13,6 +13,50 @@ import (
 	"overgo/internal/worklease"
 )
 
+// TestScratchModuleWorkflow proves the supported scratch-module developer
+// workflow on an isolated fixture with the same parent/nested-module contract as
+// tmp: a nested module that replaces the parent lets a scratch file import the
+// parent's internal package and run without an overlay from either the parent
+// root or the nested directory, and the scratch package stays outside the
+// parent's production ./... package set. No probe executable, overlay wrapper, or
+// second module mechanism is introduced.
+func TestScratchModuleWorkflow(t *testing.T) {
+	parent := t.TempDir()
+	write := func(rel, content string) {
+		t.Helper()
+		full := filepath.Join(parent, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const marker = "scratch-linked-internal"
+	write("go.mod", "module fixtureparent\n\ngo 1.26\n")
+	write("internal/probe/probe.go", "package probe\n\n// Marker proves the scratch file linked the parent's internal package.\nconst Marker = \""+marker+"\"\n")
+	write("tmp/go.mod", "module fixtureparent/tmp\n\ngo 1.26\n\nrequire fixtureparent v0.0.0\n\nreplace fixtureparent => ..\n")
+	write("tmp/scratch.go", "package main\n\nimport (\n\t\"fmt\"\n\n\t\"fixtureparent/internal/probe\"\n)\n\nfunc main() { fmt.Print(probe.Marker) }\n")
+
+	for _, invocation := range []struct{ dir, file string }{
+		{parent, "./tmp/scratch.go"},
+		{filepath.Join(parent, "tmp"), "./scratch.go"},
+	} {
+		out, err := commandOutput(invocation.dir, "go", "run", invocation.file)
+		if err != nil || !strings.Contains(string(out), marker) {
+			t.Fatalf("scratch run in %s: %v\n%s", invocation.dir, err, out)
+		}
+	}
+
+	listed, err := commandOutput(parent, "go", "list", "./...")
+	if err != nil {
+		t.Fatalf("go list ./...: %v\n%s", err, listed)
+	}
+	if strings.Contains(string(listed), "fixtureparent/tmp") {
+		t.Fatalf("scratch module leaked into the production package set:\n%s", listed)
+	}
+}
+
 // TestPromptContractProjection holds that the prompt renders the bounded
 // actionable contract -- title, verifier, prerequisites, commit scope, a usable
 // self-describing cmd/finding invocation, and the stop conditions -- while the

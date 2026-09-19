@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "plan-publication-cost",
-      "title": "Reduce recurring build and gate cost, then simplify dispatch and publication",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "scratch-probe-path",
-          "title": "Expose and verify the existing scratch-module workflow",
-          "status": "open",
-          "verify": "test -f cmd/plan/workflow_contract_test.go \u0026\u0026 go test ./cmd/plan -run '^TestScratchModuleWorkflow$' -count=1",
-          "rationale": "Owner: cmd/plan developer workflow; no new responsibility in cmd/preflight and no new probe runner. Current tmp/go.mod declares module overgo/tmp, requires overgo and replaces it with ..; a named Go file importing overgo/internal/plan runs without an overlay from either repository root or tmp. This session verified both commands: from root go run ./tmp/plan_import_discovery_probe.go, and from tmp go run ./plan_import_discovery_probe.go. Expose the same supported invocation and active module/root resolution in existing cmd/plan developer-workflow help/diagnostics, with a small reproducible example; do not add a probe executable, overlay wrapper or another module mechanism. Acceptance generates an isolated temporary fixture with the same parent/nested module contract, proves internal import legality from both working directories, and proves scratch packages remain outside the production ./... package set. Mark exploratory outputs as diagnostic, with exact source identity; publishing acceptance still uses declared tracked tests and immutable candidate sources. Existing developer guidance may reference the command; no generated Markdown instructions or stray handoff files."
-        }
-      ]
-    },
-    {
       "id": "modality-verification",
       "title": "Declare the denominator and validate existing modality capabilities",
       "owner": "master-lead",

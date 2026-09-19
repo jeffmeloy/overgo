@@ -17,6 +17,7 @@ import (
 	"overgo/internal/clioptions"
 	"overgo/internal/closurescan"
 	"overgo/internal/codemanifest"
+	"overgo/internal/commanddoc"
 	"overgo/internal/composition"
 	"overgo/internal/dataset"
 	"overgo/internal/discovery"
@@ -65,17 +66,7 @@ func run(args []string, output io.Writer) error {
 	contentDump := flags.Bool("content", false, "print the raw committed content bytes of the artifact named by -id")
 	magicClosures := flags.Bool("magic-closures", false, "list magic census history, owner pressure, and unresolved bindings")
 	manifestSummary := flags.String("manifest-summary", "", "print a bounded summary for one code-manifest ID")
-	command := clioptions.Command{
-		Name:     "overgodb-query",
-		Purpose:  "read the catalog: filtered artifact listings, lineage traversals, and the derived operational ledgers",
-		Audience: "an operator or agent inspecting committed OvergoDB state without mutating it",
-		Constraints: []string{
-			"-repo names the store (or empty for the data-root contract) and -limit is a positive result bound",
-			"-content prints the raw committed bytes of the artifact named by -id",
-			"help opens no store and reads nothing",
-		},
-	}
-	if handled, err := command.ParseForHelp(flags, args, output); err != nil || handled {
+	if handled, err := commanddoc.OvergodbQuery.Command.ParseForHelp(flags, args, output); err != nil || handled {
 		return err
 	}
 	var emptyResultBound int

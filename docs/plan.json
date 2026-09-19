@@ -10,16 +10,6 @@
       "status": "open",
       "steps": [
         {
-          "id": "command-discovery",
-          "title": "Project command purpose, audience and flags into the API manifest",
-          "status": "open",
-          "verify": "test -f internal/apimanifest/command_discovery_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestCommandDiscoveryProjection$' -count=1",
-          "rationale": "Extend existing command metadata, clioptions and apimanifest owners. The Binary schema already has flags but lacks purpose/audience; populate the existing projection from the execution FlagSet and minimal owner-declared purpose/audience metadata, including flag descriptions and relevant operation constraints. Help and JSON share that declaration; no hand-maintained parallel flag registry. Classify operator-facing, automation-internal or both by actual callers and contracts, not name suffixes. Derive the shipped binary denominator from the build/release inventory rather than hard-code 102. Bind build context and flag registration; test added/removed/renamed flags, defaults, descriptions, conditional registrations and missing classifications. Metadata inspection must not execute workloads or arbitrary command init side effects. Unknown conditional flags remain explicitly unresolved until bound; do not advertise an incomplete command as complete. Start with plan and overgodb-query; roll remaining commands into existing command-surface consolidation by owner. Preserve manifest compatibility and existing consumers. Classification improves discovery and identifies removal candidates; it alone proves no API or binary consolidation.",
-          "depends_on": [
-            "plan-publication-cost/command-help"
-          ]
-        },
-        {
           "id": "scratch-probe-path",
           "title": "Expose and verify the existing scratch-module workflow",
           "status": "open",

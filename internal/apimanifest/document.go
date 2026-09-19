@@ -45,14 +45,17 @@ type Parameter struct {
 // Binary describes one shipped executable: its package, build contexts,
 // parameters, exit codes, and input and output document contracts.
 type Binary struct {
-	Name          string        `json:"name"`
-	Package       string        `json:"package"`
-	BuildContexts []string      `json:"build_contexts"`
-	Flags         []Parameter   `json:"flags,omitempty"`
-	Environment   []Parameter   `json:"environment,omitempty"`
-	Input         []ContractRef `json:"input,omitempty"`
-	Output        []ContractRef `json:"output,omitempty"`
-	ExitCodes     []int         `json:"exit_codes,omitempty"`
+	Name           string        `json:"name"`
+	Package        string        `json:"package"`
+	BuildContexts  []string      `json:"build_contexts"`
+	Purpose        string        `json:"purpose,omitzero"`
+	Audience       string        `json:"audience,omitzero"`
+	Classification string        `json:"classification,omitzero"`
+	Flags          []Parameter   `json:"flags,omitempty"`
+	Environment    []Parameter   `json:"environment,omitempty"`
+	Input          []ContractRef `json:"input,omitempty"`
+	Output         []ContractRef `json:"output,omitempty"`
+	ExitCodes      []int         `json:"exit_codes,omitempty"`
 }
 
 // Route describes one HTTP endpoint contract: method, path, authentication,
@@ -283,6 +286,9 @@ func validateBinaries(values []Binary, contexts, documents map[string]bool) erro
 	for _, value := range values {
 		if !validText(value.Name) || !validText(value.Package) || seen[value.Name] || len(value.BuildContexts) == 0 || !knownContexts(value.BuildContexts, contexts) || duplicateParameters(value.Flags) || duplicateParameters(value.Environment) || duplicateInts(value.ExitCodes) || !knownContracts(value.Input, documents) || !knownContracts(value.Output, documents) {
 			return errors.New("API manifest binary is invalid")
+		}
+		if value.Classification != "" && !validClassification(Classification(value.Classification)) {
+			return errors.New("API manifest binary classification is invalid")
 		}
 		seen[value.Name] = true
 	}

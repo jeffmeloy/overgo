@@ -16,6 +16,7 @@ import (
 	"overgo/internal/apimanifest"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
+	"overgo/internal/commanddoc"
 	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/server"
@@ -156,14 +157,34 @@ func commandBinaries(root, context string) ([]apimanifest.Binary, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The declared commands project their single owner-declared help identity and
+	// caller classification into the manifest; the rest are named until their
+	// owner rolls them in.
+	declared := map[string]commanddoc.Descriptor{
+		"plan":           commanddoc.Plan,
+		"overgodb-query": commanddoc.OvergodbQuery,
+	}
 	binaries := make([]apimanifest.Binary, 0, len(entries))
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
+		name := entry.Name()
+		if descriptor, discovered := declared[name]; discovered {
+			binary, err := apimanifest.ProjectCommandBinary(apimanifest.CommandDescriptor{
+				Name: name, Package: "overgo/cmd/" + name, BuildContexts: []string{context},
+				Purpose: descriptor.Command.Purpose, Audience: descriptor.Command.Audience,
+				Classification: apimanifest.Classification(descriptor.Classification),
+			})
+			if err != nil {
+				return nil, err
+			}
+			binaries = append(binaries, binary)
+			continue
+		}
 		binaries = append(binaries, apimanifest.Binary{
-			Name:          entry.Name(),
-			Package:       "overgo/cmd/" + entry.Name(),
+			Name:          name,
+			Package:       "overgo/cmd/" + name,
 			BuildContexts: []string{context},
 		})
 	}

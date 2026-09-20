@@ -125,12 +125,14 @@ type blobReader struct {
 	done      bool
 }
 
-// Read streams the blob and closes the file at end of stream.
+// Read streams the expected bytes and closes the file at end of stream. A
+// blob's file ends with its content; a sealed segment runs on past inline
+// content, so no read asks for more than is still expected.
 func (r *blobReader) Read(buffer []byte) (int, error) {
 	if r.done {
 		return 0, io.EOF
 	}
-	count, err := r.file.Read(buffer)
+	count, err := r.file.Read(buffer[:min(int64(len(buffer)), r.remaining)])
 	r.remaining -= int64(count)
 	if (errors.Is(err, io.EOF) || r.remaining <= 0) && !r.done {
 		r.done = true

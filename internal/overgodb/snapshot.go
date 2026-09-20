@@ -77,6 +77,7 @@ type snapshotContent struct {
 	Sequence uint64      `json:"sequence"`
 	Blob     bool        `json:"blob,omitzero"`
 	Released uint64      `json:"released,omitzero"`
+	Segment  uint64      `json:"segment,omitzero"`
 }
 
 type snapshotArtifact struct {
@@ -103,8 +104,8 @@ type snapshotDocument struct {
 // Snapshot writes one immutable, versioned state segment. On a
 // blob-era store the snapshot boundary is also the rotation boundary:
 // the active journal seals first, so recovery from the fresh anchor
-// replays only the tail written after this maintenance point. A store
-// still carrying inline legacy content snapshots without sealing.
+// replays only the tail written after this maintenance point. Inline
+// legacy content seals with its frames and is read from the segment.
 func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 	var info SnapshotInfo
 	err := s.writeTransaction(ctx, func() error {
@@ -133,12 +134,11 @@ func (s *Store) Snapshot(ctx context.Context) (SnapshotInfo, error) {
 }
 
 // isSealRefusal reports the sanctioned reasons a snapshot proceeds
-// without rotating: inline legacy content, an empty journal, or a
-// read-only handle asking for a snapshot (which ready refuses next).
+// without rotating: an empty journal, or a read-only handle asking for a
+// snapshot (which ready refuses next).
 func isSealRefusal(err error) bool {
 	message := err.Error()
-	return strings.Contains(message, "inline in the journal") ||
-		strings.Contains(message, "cannot seal an empty journal") ||
+	return strings.Contains(message, "cannot seal an empty journal") ||
 		strings.Contains(message, "nothing to seal") ||
 		errors.Is(err, ErrReadOnly) || errors.Is(err, ErrClosed)
 }
@@ -196,7 +196,7 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 		}
 		state.contents.set(
 			content.Artifact,
-			contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob, released: content.Released},
+			contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob, released: content.Released, segment: content.Segment},
 			content.Sequence,
 		)
 	}
@@ -332,7 +332,7 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 		locator, _ := state.contents.locator(id)
 		stream.value(snapshotContent{
 			Artifact: id, Offset: locator.offset, Size: locator.size, Sequence: locator.sequence, Blob: locator.blob,
-			Released: locator.released,
+			Released: locator.released, Segment: locator.segment,
 		})
 	})
 	manifestIDs := snapshotArtifactIDs(state, func(_ artifact.ID, record *artifactRecord) bool { return record.hasManifest })

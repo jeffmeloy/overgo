@@ -4,16 +4,44 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-package-receipts-redundancy",
-      "title": "Stop writing a gate package receipt per package per gate when nothing about the package changed: the census found 27,459 receipts in 12.3 MB, 24,292 of them exactly 123 bytes, each its own blob file; keep the per-package reuse lookup the ledger needs and write only what differs from the receipt already current",
+      "id": "store-access-census",
+      "title": "Census who touches the store before consolidating it: report per package how many sites construct batches, commit, resolve aliases, query and read content directly, and which domain each belongs to (models and recipes, datasets, runs and evidence, control plane, store tools), extending the ownership census that already counts owner and recurrence sites per mechanic family, so the consolidation rows are cut and ranked from measured scatter -- the storage audit alone lists over fifty direct commit sites in about twenty-five files",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop writing a gate package receipt per package per gate when nothing about the package changed: the census found 27,459 receipts in 12.3 MB, 24,292 of them exactly 123 bytes, each its own blob file; keep the per-package reuse lookup the ledger needs and write only what differs from the receipt already current",
+          "title": "Census who touches the store before consolidating it: report per package how many sites construct batches, commit, resolve aliases, query and read content directly, and which domain each belongs to (models and recipes, datasets, runs and evidence, control plane, store tools), extending the ownership census that already counts owner and recurrence sites per mechanic family, so the consolidation rows are cut and ranked from measured scatter -- the storage audit alone lists over fifty direct commit sites in about twenty-five files",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestPackageReceiptsWriteOnlyChanges' -count=1"
+          "verify": "go test ./internal/repoanalysis -run '^TestStoreAccessCensus' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-access-consolidation",
+      "title": "Consolidate database interaction and isolate model, dataset and system behaviour from storage and retrieval (owner directive 2026-09-20): move each domain's store access behind one owner per domain -- models and recipes, datasets, runs and evidence, the control plane -- whose API speaks that domain's types and hides artifact.Batch construction, aliases, lineage, queries and content reads, so a domain package states what it records or asks for and never how it is stored; land one domain per row in the order the access census ranks them, and shrink the storage authority audit's direct-commit allowances with each",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consolidate database interaction and isolate model, dataset and system behaviour from storage and retrieval (owner directive 2026-09-20): move each domain's store access behind one owner per domain -- models and recipes, datasets, runs and evidence, the control plane -- whose API speaks that domain's types and hides artifact.Batch construction, aliases, lineage, queries and content reads, so a domain package states what it records or asks for and never how it is stored; land one domain per row in the order the access census ranks them, and shrink the storage authority audit's direct-commit allowances with each",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestStoreAccessIsOwnedPerDomain' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-package-receipts-redundancy",
+      "title": "Store contents smaller than a page inline in the journal frame again instead of one blob file each: the frame format and the catalog's offset locators already carry inline content (the legacy path), so the journal and its sealed segments are the pack file and no new format is needed; the census found four claim schemas at 132,477 records in 83 MB, and the premise that package receipts repeat was measured false (at most 3,167 of 27,459 can be repeats), so the cardinality is inherent and the remedy is where the bytes live; caches stay blobs because only a blob can be released; requires journal-seal-inline-locators first so a journal holding inline content can still seal",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store contents smaller than a page inline in the journal frame again instead of one blob file each: the frame format and the catalog's offset locators already carry inline content (the legacy path), so the journal and its sealed segments are the pack file and no new format is needed; the census found four claim schemas at 132,477 records in 83 MB, and the premise that package receipts repeat was measured false (at most 3,167 of 27,459 can be repeats), so the cardinality is inherent and the remedy is where the bytes live; caches stay blobs because only a blob can be released; requires journal-seal-inline-locators first so a journal holding inline content can still seal",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestSmallContentIsInline' -count=1"
         }
       ]
     },
@@ -112,20 +140,6 @@
           "title": "Cut the 3.7 s a bare store open costs: measure which facet checkpoints and catalog structures dominate loading 140k artifacts and their locators, and load lazily or restructure what a read-only consumer that resolves one alias never touches, because every plan, gate and query command pays the open before it does anything",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestReadOnlyOpenCost' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "journal-seal-inline-locators",
-      "title": "Give inline legacy content locators a segment coordinate so the journal can seal while inline content exists, then seal the 565 MB active journal into a segment",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give inline legacy content locators a segment coordinate so the journal can seal while inline content exists, then seal the 565 MB active journal into a segment",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestSealWithInlineContent' -count=1"
         }
       ]
     },
@@ -905,7 +919,9 @@
             "store-package-receipts-redundancy/do",
             "store-agent-obligation-redundancy/do",
             "store-closure-rebind-redundancy/do",
-            "store-benchmark-record-redundancy/do"
+            "store-benchmark-record-redundancy/do",
+            "store-access-consolidation/do",
+            "store-access-census/do"
           ]
         }
       ]

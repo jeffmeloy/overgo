@@ -81,6 +81,10 @@ type contentLocator struct {
 	// blob marks content whose bytes live in the content-addressed
 	// blob store rather than inline in the journal frame.
 	blob bool
+	// segment names the sealed segment holding inline bytes; activeSegment
+	// while they are still in the journal. A seal copies the journal whole,
+	// so the offset holds in the segment it becomes.
+	segment uint64
 	// released is the commit sequence that released the bytes; zero
 	// while they are durable. The introduction sequence stays put so
 	// the commit that first made the bytes durable remains answerable.
@@ -408,11 +412,6 @@ func (s *Store) sealLocked() error {
 	if s.replayEnd <= storeHeaderBytes {
 		return errors.New("overgodb: nothing to seal: the active segment holds no frames")
 	}
-	for id, locator := range s.state.contents.locators {
-		if !locator.blob {
-			return fmt.Errorf("overgodb: cannot seal: content %s is inline in the journal; migrate with Rebuild first", id)
-		}
-	}
 	directory := filepath.Join(s.root, segmentDirectory)
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
 		return fmt.Errorf("overgodb: create segment directory: %w", err)
@@ -456,6 +455,14 @@ func (s *Store) sealLocked() error {
 		commit := &s.state.commits.ordered[index]
 		if commit.coordinate.segment == activeSegment && commit.coordinate.valid() {
 			commit.coordinate.segment = s.sequence
+		}
+	}
+	// Inline bytes leave the journal with their frames: the locator follows
+	// them into the segment before the journal shrinks under it.
+	for id, locator := range s.state.contents.locators {
+		if !locator.blob && locator.segment == activeSegment {
+			locator.segment = s.sequence
+			s.state.contents.locators[id] = locator
 		}
 	}
 	if err := s.log.file.Truncate(storeHeaderBytes); err != nil {
@@ -681,8 +688,20 @@ func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func
 // for referenced content, the journal frame for legacy inline frames.
 // An absent required blob is exact evidence, never a silent degrade.
 func (s *Store) openLocator(id artifact.ID, locator contentLocator) (io.Reader, error) {
-	if !locator.blob {
+	if !locator.blob && locator.segment == activeSegment {
 		return s.log.openContent(locator), nil
+	}
+	if !locator.blob {
+		sealed, err := os.Open(filepath.Join(s.root, segmentDirectory, fmt.Sprintf("%020d%s", locator.segment, segmentExtension)))
+		if err != nil {
+			return nil, fmt.Errorf("overgodb: inline content %s requires an absent segment: %w", id, err)
+		}
+		if _, err := sealed.Seek(locator.offset, io.SeekStart); err != nil {
+			return nil, errors.Join(err, sealed.Close())
+		}
+		// The blob reader's contract fits: it closes its file with the last
+		// expected byte, so a caller holding a bare reader leaks no handle.
+		return &blobReader{file: sealed, remaining: locator.size}, nil
 	}
 	reader, err := s.blobs.open(id, uint64(locator.size))
 	if err != nil {
@@ -917,13 +936,18 @@ func decodeRecord(record logRecord) (artifact.Batch, [sha256.Size]byte, map[arti
 	if dataOffset != len(record.payload) {
 		return artifact.Batch{}, [sha256.Size]byte{}, nil, errors.New("overgodb: trailing transaction content")
 	}
-	bindContentLocators(locators, record.offset)
+	bindContentLocators(locators, record.offset, record.segment)
 	return normalized, transaction.Request, locators, nil
 }
 
-func bindContentLocators(locators map[artifact.ID]contentLocator, payloadOffset int64) {
+// bindContentLocators places a frame's locators where the frame lies: at its
+// payload offset, and for inline bytes in the segment that holds it.
+func bindContentLocators(locators map[artifact.ID]contentLocator, payloadOffset int64, segment uint64) {
 	for id, locator := range locators {
 		locator.offset += payloadOffset
+		if !locator.blob {
+			locator.segment = segment
+		}
 		locators[id] = locator
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -125,18 +126,79 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 	if _, err := OpenReadOnly(corruptRoot); err == nil || !strings.Contains(err.Error(), filepath.Base(sealed[1])) {
 		t.Fatalf("corrupt sealed segment opened: %v", err)
 	}
+}
 
-	// Inline legacy content refuses to seal.
-	legacyRoot := t.TempDir()
-	writeLegacyInlineStore(t, legacyRoot, scaleAliasStride)
-	legacy, err := Open(legacyRoot)
+// TestSealWithInlineContent seals a journal that holds inline content, which
+// used to refuse: the bytes leave the journal with their frames, so every
+// content must read back identically from the segment -- straight after the
+// seal, from a store reopened at the snapshot the seal wrote, from one
+// reopened with no snapshot or checkpoint at all, where replay binds each
+// locator to the segment its frame lies in, and after a second seal, which
+// must leave the first segment's locators where they are.
+func TestSealWithInlineContent(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	ids := writeLegacyInlineStore(t, root, scaleAliasStride)
+	read := func(store *Store, when string) []string {
+		t.Helper()
+		bodies := make([]string, 0, len(ids))
+		for _, id := range ids {
+			content, found, err := artifact.ReadContent(ctx, store, id)
+			if err != nil || !found {
+				t.Fatalf("%s: inline content %s found=%v: %v", when, id, found, err)
+			}
+			bodies = append(bodies, string(content.Data))
+		}
+		return bodies
+	}
+	store, err := Open(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer legacy.Close()
-	if err := legacy.sealActiveSegment(t.Context()); err == nil || !strings.Contains(err.Error(), "inline") {
-		t.Fatalf("legacy inline store sealed: %v", err)
+	want := read(store, "before the seal")
+	if !strings.HasPrefix(want[0], "legacy-inline/0/") {
+		t.Fatalf("fixture content = %q", want[0])
 	}
+	seal := func(when string) {
+		t.Helper()
+		if _, err := store.Snapshot(ctx); err != nil {
+			t.Fatalf("%s: %v", when, err)
+		}
+		if info, err := os.Stat(filepath.Join(root, storeFilename)); err != nil || info.Size() != storeHeaderBytes {
+			t.Fatalf("%s left the journal at %v bytes: %v", when, info, err)
+		}
+		if got := read(store, when); !slices.Equal(got, want) {
+			t.Fatalf("%s changed inline content", when)
+		}
+	}
+	seal("the first seal")
+	later := retentionContent(t, artifact.KindOutput, map[string]any{"after": "the seal"})
+	if _, err := store.Commit(ctx, artifact.Batch{Key: "inline/after-seal", Contents: []artifact.Content{later}}); err != nil {
+		t.Fatal(err)
+	}
+	seal("the second seal")
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopen := func(when string) {
+		t.Helper()
+		reopened, err := OpenReadOnly(root)
+		if err != nil {
+			t.Fatalf("%s: %v", when, err)
+		}
+		defer reopened.Close()
+		if got := read(reopened, when); !slices.Equal(got, want) {
+			t.Fatalf("%s changed inline content", when)
+		}
+	}
+	reopen("a reopen at the snapshot")
+	for _, derived := range []string{snapshotDirectory, checkpointDirectory} {
+		if err := os.RemoveAll(filepath.Join(root, derived)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reopen("a reopen by full replay")
 }
 
 // querySurfaceDigestBounded is querySurfaceDigest with the corpus

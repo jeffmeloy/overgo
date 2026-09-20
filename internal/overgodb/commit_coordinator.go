@@ -102,7 +102,7 @@ func (c commitCoordinator) commit(
 	if err != nil {
 		return commitAdvance{id: id}, false, appendFault{cause: err}
 	}
-	bindContentLocators(locators, payloadOffset)
+	bindContentLocators(locators, payloadOffset, activeSegment)
 	c.state.apply(delta, locators, next)
 	coordinate := commitCoordinate{
 		offset: payloadOffset - frameHeaderBytes,

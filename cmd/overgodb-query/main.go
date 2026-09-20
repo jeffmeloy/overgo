@@ -51,6 +51,7 @@ func run(args []string, output io.Writer) error {
 	generations := flags.Bool("generations", false, "list generation records with descendant depth derived from the committed graph")
 	refusals := flags.Bool("refusals", false, "list refused decisions with their measured evidence (the refusal ledger)")
 	findings := flags.Bool("findings", false, "list live findings: parked findings without a disposition, plus the gate's one active advisory finding (the findings ledger)")
+	census := flags.Bool("census", false, "census the store's records by schema from the catalog: records and bytes catalogued, records and bytes still held on disk, records smaller than a page, and the most common record size with its population; -limit is the page of the walk")
 	budgets := flags.Bool("budgets", false, "list split partitions and query-budget grants with balances derived from committed charges")
 	experiments := flags.Bool("experiments", false, "reconcile experiment lifecycle chains to their current state, flagging expired leases and runners")
 	components := flags.Bool("components", false, "list committed component decompositions with per-role counts (classification ledger)")
@@ -84,6 +85,9 @@ func run(args []string, output io.Writer) error {
 	}
 	if *findings {
 		return writeFindings(output, *repository)
+	}
+	if *census {
+		return writeCensus(output, *repository, *limit)
 	}
 	if *budgets {
 		return writeBudgets(output, *repository, *limit)

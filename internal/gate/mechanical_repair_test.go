@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"overgo/internal/closurescan"
+	"overgo/internal/plan"
 	"overgo/internal/repoanalysis"
 )
 
@@ -135,7 +136,19 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if read(harnessSurfaceBaselineFile) != string(encoded)+"\n" {
 		t.Fatal("a refused harness repair rewrote the baseline")
 	}
-	write(harnessSurfaceBaselineFile, string(mustIndent(t, surface))+"\n")
+	// The same raise is the gate's to write once the row's budget names an
+	// open row that pays it down.
+	write(plan.Path, `{"campaign":"c","doctrine":"d","items":[`+
+		`{"id":"raiser","title":"t","status":"open","budget":{"nodes":9,"paydown":"payer","reason":"r"},"steps":[]},`+
+		`{"id":"payer","title":"t","status":"open","steps":[]}]}`)
+	g.planRef, g.paths = "raiser/do", g.paths[:1]
+	if err := g.stageMechanicalRepairs(); err != nil || read(harnessSurfaceBaselineFile) != string(mustIndent(t, surface))+"\n" {
+		t.Fatalf("a raise owed to an open paydown row = %v, baseline %s", err, read(harnessSurfaceBaselineFile))
+	}
+	if debt := compactAudit(g.audit); len(debt) == 0 || !strings.Contains(debt[len(debt)-1], "advisory: debt: harness surface raised against paydown row payer") {
+		t.Fatalf("the raise was not printed as debt: %q", debt)
+	}
+	g.planRef = ""
 
 	write("internal/plan/a.go", "package x\nfunc A(value, other string) string { if value == \"\" { value = other }; return value }\n")
 	err = g.stageMechanicalRepairs()

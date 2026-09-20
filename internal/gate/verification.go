@@ -530,6 +530,9 @@ func (g *gateContext) stepProfile() (bool, error) {
 		len(profile.Clones), len(profile.Functions), profile.ExportedDeclarations, profile.PackageImportEdges,
 	))
 	g.note(surfaceDeltaAudit(base, profile))
+	if err := g.admitScopeBudget(base, profile); err != nil {
+		return false, err
+	}
 	baseline, ratcheted, err := codeprofile.LoadCloneBaseline(filepath.Join(g.repo, filepath.FromSlash(codeprofile.CloneBaselineFile)))
 	if err != nil {
 		return false, err

@@ -59,13 +59,24 @@ type Step struct {
 	VerificationBatch *VerificationBatch `json:"verification_batch,omitempty"`
 }
 
+// Budget is the scope a row declared through the plan. A row without one
+// maintains: it may not grow production nodes at all. Nodes bounds the
+// growth, Paydown names the open row that pays for a harness baseline raise,
+// and Reason records why.
+type Budget struct {
+	Nodes   int    `json:"nodes"`
+	Paydown string `json:"paydown,omitzero"`
+	Reason  string `json:"reason"`
+}
+
 // Item is one rung of the ladder.
 type Item struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Owner  string `json:"owner,omitzero"`
-	Status string `json:"status"`
-	Steps  []Step `json:"steps"`
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
+	Owner  string  `json:"owner,omitzero"`
+	Status string  `json:"status"`
+	Budget *Budget `json:"budget,omitzero"`
+	Steps  []Step  `json:"steps"`
 }
 
 // Plan is the whole campaign surface.

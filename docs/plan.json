@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "row-scope-budget-forces-replan",
-      "title": "Refuse at preflight a row whose touched surface outgrows its declared surface or the production-node budget: the refusal names re-scope or split, and a harness baseline raise is accepted only when the commit message cites an open paydown row, so a pivot goes through the plan instead of riding the row in flight",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse at preflight a row whose touched surface outgrows its declared surface or the production-node budget: the refusal names re-scope or split, and a harness baseline raise is accepted only when the commit message cites an open paydown row, so a pivot goes through the plan instead of riding the row in flight",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestScopeBudgetForcesReplan' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-producer-guards-gate-evidence",
       "title": "Extend the store's producer table from the suite-cost record to every gate evidence kind (lifecycle, result, attempt, finalization, lane obligation) and the alias names they are discovered through, sweeping the fixtures that mint them through the plain door, so no gate claim or its discovery path is written without the gate's capability",
       "owner": "master-lead",
@@ -28,6 +14,20 @@
           "title": "Extend the store's producer table from the suite-cost record to every gate evidence kind (lifecycle, result, attempt, finalization, lane obligation) and the alias names they are discovered through, sweeping the fixtures that mint them through the plain door, so no gate claim or its discovery path is written without the gate's capability",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestWriteAdmission' -count=1 \u0026\u0026 go test ./internal/gate -run '^TestGateEvidenceNeedsTheGateProducer' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "row-scope-budget-surface",
+      "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestScopeBudgetSurface' -count=1"
         }
       ]
     },
@@ -823,7 +823,8 @@
             "store-producer-guards-gate-evidence/do",
             "automation-land-regenerates-derived-docs/do",
             "automation-land-reports-lane-obligation/do",
-            "gate-prints-operation-class/do"
+            "gate-prints-operation-class/do",
+            "row-scope-budget-surface/do"
           ]
         }
       ]

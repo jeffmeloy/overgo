@@ -164,7 +164,8 @@ func mergeItem(base, local, upstream Item, completed func(string) bool) (Item, e
 	}
 	stepID := func(step Step) string { return step.ID }
 	baseSteps, localSteps, upstreamSteps := indexByID(base.Steps, stepID), indexByID(local.Steps, stepID), indexByID(upstream.Steps, stepID)
-	merged := Item{ID: base.ID, Title: title, Owner: owner, Status: status}
+	// A budget is the working declaration of the lane that holds the row.
+	merged := Item{ID: base.ID, Title: title, Owner: owner, Status: status, Budget: cmp.Or(local.Budget, upstream.Budget)}
 	for _, id := range unionOrder(stepID, base.Steps, local.Steps, upstream.Steps) {
 		baseStep, inBase := baseSteps[id]
 		localStep, inLocal := localSteps[id]

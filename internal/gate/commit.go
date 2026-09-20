@@ -393,7 +393,7 @@ func buildAcceptedCompletionIndex(repo, acceptedTree string, planAfter []byte) (
 	if !validGitObjectID(acceptedTree) {
 		return gateIndexSnapshot{}, errors.New("commit admission: accepted tree identity is invalid")
 	}
-	temporary, err := os.MkdirTemp("", "overgo-gate-commit-index-*")
+	temporary, err := gateTemporary("commit-index-*")
 	if err != nil {
 		return gateIndexSnapshot{}, err
 	}
@@ -437,7 +437,7 @@ func buildGateIndexForTree(repo, tree string) (gateIndexSnapshot, error) {
 	if !validGitObjectID(tree) {
 		return gateIndexSnapshot{}, errors.New("gate: exact recovery index tree is invalid")
 	}
-	temporary, err := os.MkdirTemp("", "overgo-gate-recovery-index-*")
+	temporary, err := gateTemporary("recovery-index-*")
 	if err != nil {
 		return gateIndexSnapshot{}, err
 	}
@@ -530,7 +530,7 @@ func indexTreeForBytes(repo string, data []byte) (string, error) {
 	if len(data) == 0 {
 		return "", errors.New("gate: Git index bytes are absent")
 	}
-	temporary, err := os.MkdirTemp("", "overgo-gate-index-verify-*")
+	temporary, err := gateTemporary("index-verify-*")
 	if err != nil {
 		return "", err
 	}

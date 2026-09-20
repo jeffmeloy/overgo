@@ -208,6 +208,11 @@ func Run(options Options) (runErr error) {
 			fmt.Fprintf(os.Stderr, "gate: recovered %s; new verification=0 new commits=0\n", recoveredPlan)
 			return nil
 		}
+		if err := reportGateAdmissionPhase("sweep orphaned temporaries", func() error {
+			return sweepOrphanedTemporaries(repo)
+		}); err != nil {
+			return err
+		}
 		if err := reportGateAdmissionPhase("validate deferred lanes", func() error {
 			laneDebt, err = requireLaneObligationsResolved(repo, admissionStore)
 			return err

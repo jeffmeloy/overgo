@@ -1826,7 +1826,7 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 		}
 		return use(g.candidateRoot)
 	}
-	temporary, err := os.MkdirTemp("", "overgo-gate-acceptance-*")
+	temporary, err := gateTemporary("acceptance-*")
 	if err != nil {
 		return err
 	}

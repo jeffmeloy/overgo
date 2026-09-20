@@ -82,7 +82,7 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 				}
 				_ = child.Wait()
 				// Remove only the exact fixture worktree returned by this child.
-				if filepath.Base(candidate) != "candidate" || !strings.HasPrefix(filepath.Base(filepath.Dir(candidate)), "overgo-gate-acceptance-") {
+				if filepath.Base(candidate) != "candidate" || !strings.HasPrefix(filepath.Base(filepath.Dir(candidate)), "acceptance-") {
 					t.Fatalf("unexpected fixture worktree %q", candidate)
 				}
 				runGitFixture(t, repo, "worktree", "remove", "--force", candidate)

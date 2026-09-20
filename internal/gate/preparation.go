@@ -547,7 +547,7 @@ func (g *gateContext) plannedFingerprint() (string, error) {
 }
 
 func (g *gateContext) buildPlannedTree() (string, error) {
-	temporary, err := os.MkdirTemp("", "overgo-gate-index-*")
+	temporary, err := gateTemporary("index-*")
 	if err != nil {
 		return "", err
 	}

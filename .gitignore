@@ -6,6 +6,10 @@
 /*.exe
 /repodb-store-v3-archive/
 **/overgodb-store/
+# store-precheck builds its candidate beside the store in service and keeps
+# the store a swap superseded there, named after the head it held.
+**/overgodb-store.candidate/
+**/overgodb-store.superseded-*/
 /models/
 /datasets/
 /checkpoints/

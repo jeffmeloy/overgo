@@ -2,6 +2,7 @@ package storepolicy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -12,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
+	"overgo/internal/plan"
 )
 
 // identityPattern matches a content-addressed identity as committed
@@ -20,10 +22,11 @@ var identityPattern = regexp.MustCompile(`[a-z][a-z0-9-]*:sha256:[0-9a-f]{64}`)
 
 // CheckoutRoots collects every store identity a checkout pins without an
 // alias: the ones its committed JSON documents name (docs/**/*.json and the
-// root compatibility.json) and the ones its commit messages name -- the
-// gate's Overgo-* trailers and any identity a body cites. The plan
-// completion authority proves every landed commit from the latter, so both
-// root a store's live set. The counts report each source before the union.
+// root compatibility.json) and the ones named by its commit messages after
+// the proof horizon -- the gate's Overgo-* trailers and any identity a body
+// cites. The plan completion authority proves every landing after the
+// horizon from the latter, so both root a store's live set. The counts
+// report each source before the union.
 func CheckoutRoots(ctx context.Context, checkout string) (roots []artifact.ID, documents, messages int, err error) {
 	var files []string
 	if err := filepath.WalkDir(filepath.Join(checkout, "docs"), func(path string, entry fs.DirEntry, err error) error {
@@ -45,7 +48,17 @@ func CheckoutRoots(ctx context.Context, checkout string) (roots []artifact.ID, d
 		}
 		committed = append(append(committed, data...), '\n')
 	}
-	history, err := gitauthority.Query(ctx, checkout, "log", "--format=%B")
+	// At or before a committed proof horizon the completion authority takes
+	// landings from Git alone, so their messages pin nothing: only the
+	// history after it roots evidence. The receipt is read from HEAD's tree,
+	// as the authority reads it, so an uncommitted one releases nothing; no
+	// receipt means the whole history.
+	revisions := "HEAD"
+	var horizon plan.ProofHorizon
+	if receipt, err := gitauthority.Query(ctx, checkout, "show", "HEAD:"+plan.ProofHorizonPath); err == nil && json.Unmarshal(receipt, &horizon) == nil {
+		revisions = horizon.Commit + "..HEAD"
+	}
+	history, err := gitauthority.Query(ctx, checkout, "log", "--format=%B", revisions)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("git log for commit-message roots: %w", err)
 	}

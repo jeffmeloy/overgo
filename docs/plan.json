@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-release-pre-horizon-evidence",
-      "title": "Release the store evidence the proof horizon retired: retention roots stop pinning the identities named by commit-message trailers at or before the horizon, which makes the landed attempts' manifest analyses and code profiles releasable (about 1.3 MB per landing), then prove the release on a candidate with store-precheck and swap it into service",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Release the store evidence the proof horizon retired: retention roots stop pinning the identities named by commit-message trailers at or before the horizon, which makes the landed attempts' manifest analyses and code profiles releasable (about 1.3 MB per landing), then prove the release on a candidate with store-precheck and swap it into service",
-          "status": "open",
-          "verify": "go test ./internal/storepolicy -run '^TestCheckoutRootsHonorTheProofHorizon' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-open-cost",
       "title": "Cut the 3.7 s a bare store open costs: measure which facet checkpoints and catalog structures dominate loading 140k artifacts and their locators, and load lazily or restructure what a read-only consumer that resolves one alias never touches, because every plan, gate and query command pays the open before it does anything",
       "owner": "master-lead",

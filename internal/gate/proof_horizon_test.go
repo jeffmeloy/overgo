@@ -10,10 +10,11 @@ import (
 )
 
 // TestProofHorizonMovesOnlyToTheProvedRevision holds a landing's horizon to
-// what its gate proved: a landing that does not ship the receipt, or ships
-// its removal, is admitted; one that ships exactly the authority's own seal
-// is admitted; and any other commit or count is refused with the command
-// that produces the right one.
+// what its gate proved: a landing that does not ship the receipt is
+// admitted, and so is one that ships exactly the authority's own seal; any
+// other commit or count, and the removal of a committed receipt -- which a
+// release of pre-horizon evidence would leave the authority unable to
+// survive -- are refused with the command that produces the right one.
 func TestProofHorizonMovesOnlyToTheProvedRevision(t *testing.T) {
 	t.Parallel()
 	repo := t.TempDir()
@@ -29,7 +30,7 @@ func TestProofHorizonMovesOnlyToTheProvedRevision(t *testing.T) {
 		refused       bool
 	}{
 		{name: "a landing that does not touch the receipt", shipped: `{"commit":"abc","completions":9}`, paths: []string{plan.Path}},
-		{name: "a landing that removes the receipt", paths: []string{plan.ProofHorizonPath}},
+		{name: "a landing that removes the receipt", paths: []string{plan.ProofHorizonPath}, refused: true},
 		{name: "the authority's own seal", shipped: sealed, paths: []string{plan.ProofHorizonPath}},
 		{name: "another commit", shipped: `{"commit":"abc","completions":0}`, paths: []string{plan.ProofHorizonPath}, refused: true},
 		{name: "another count", shipped: `{"commit":"","completions":1}`, paths: []string{plan.ProofHorizonPath}, refused: true},

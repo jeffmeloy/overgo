@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/fsatomic"
@@ -94,59 +96,72 @@ func writeProjectionCheckpoints(
 // with the reason; the caller falls back to an earlier verified anchor.
 func loadProjectionCheckpoints(root string) (catalogState, replayAnchor, bool, string) {
 	directory := filepath.Join(root, checkpointDirectory)
+	return loadCheckpointSet(func(name string) ([]byte, error) {
+		return os.ReadFile(filepath.Join(directory, name+checkpointExtension))
+	})
+}
+
+// loadCheckpointSet loads every member at once: each restores a facet of its
+// own, and decoding them is nearly all an open costs. The members are judged
+// in registration order, so the reason named never depends on which finished
+// first.
+func loadCheckpointSet(read func(name string) ([]byte, error)) (catalogState, replayAnchor, bool, string) {
 	state := newCatalogState()
-	var anchor replayAnchor
-	anchored := false
-	for _, registered := range projections(&state) {
-		document, err := os.ReadFile(filepath.Join(directory, registered.name+checkpointExtension))
-		if err != nil {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s unreadable", registered.name)
-		}
-		newline := -1
-		for index, b := range document {
-			if b == '\n' {
-				newline = index
-				break
-			}
-		}
-		if newline < 0 {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s has no header", registered.name)
-		}
-		var header checkpointHeader
-		if err := strictjson.DecodeBytes(document[:newline], &header); err != nil {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s header: %v", registered.name, err)
-		}
-		if header.Name != registered.name || header.Version != registered.version {
-			return catalogState{}, replayAnchor{}, false,
-				fmt.Sprintf("checkpoint %s names %s version %d; this reader speaks version %d",
-					registered.name, header.Name, header.Version, registered.version)
-		}
-		payload := document[newline+1:]
-		digest := sha256.Sum256(payload)
-		if hex.EncodeToString(digest[:]) != header.PayloadDigest {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s payload digest differs", registered.name)
-		}
-		anchorDigest, err := hex.DecodeString(header.LogAnchor)
-		if err != nil || len(anchorDigest) != sha256.Size {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s anchor digest invalid", registered.name)
-		}
-		memberAnchor := replayAnchor{sequence: header.Sequence, head: header.Head, offset: header.LogOffset}
-		copy(memberAnchor.digest[:], anchorDigest)
-		if !anchored {
-			anchor, anchored = memberAnchor, true
-		} else if memberAnchor != anchor {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s anchors a different head", registered.name)
-		}
-		if err := registered.view.restore(payload); err != nil {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s restore: %v", registered.name, err)
-		}
-		canonical, err := registered.view.checkpoint()
-		if err != nil || string(canonical) != string(payload) {
-			return catalogState{}, replayAnchor{}, false, fmt.Sprintf("checkpoint %s is non-canonical", registered.name)
-		}
+	members := projections(&state)
+	anchors := make([]replayAnchor, len(members))
+	defects := make([]string, len(members))
+	var loading sync.WaitGroup
+	for index, registered := range members {
+		loading.Go(func() { anchors[index], defects[index] = loadCheckpoint(registered, read) })
 	}
-	if !anchored {
-		return catalogState{}, replayAnchor{}, false, "checkpoint set is empty"
+	loading.Wait()
+	anchor := anchors[0]
+	for index, registered := range members {
+		if defects[index] == "" && anchors[index] != anchor {
+			defects[index] = fmt.Sprintf("checkpoint %s anchors a different head", registered.name)
+		}
+		if defects[index] != "" {
+			return catalogState{}, replayAnchor{}, false, defects[index]
+		}
 	}
 	return state, anchor, true, ""
+}
+
+// loadCheckpoint verifies one member against its header, restores its facet
+// and holds the body to the bytes this reader would write back.
+func loadCheckpoint(registered registeredProjection, read func(name string) ([]byte, error)) (replayAnchor, string) {
+	document, err := read(registered.name)
+	if err != nil {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s unreadable", registered.name)
+	}
+	line, payload, found := bytes.Cut(document, []byte{'\n'})
+	if !found {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s has no header", registered.name)
+	}
+	var header checkpointHeader
+	if err := strictjson.DecodeBytes(line, &header); err != nil {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s header: %v", registered.name, err)
+	}
+	if header.Name != registered.name || header.Version != registered.version {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s names %s version %d; this reader speaks version %d",
+			registered.name, header.Name, header.Version, registered.version)
+	}
+	digest := sha256.Sum256(payload)
+	if hex.EncodeToString(digest[:]) != header.PayloadDigest {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s payload digest differs", registered.name)
+	}
+	anchorDigest, err := hex.DecodeString(header.LogAnchor)
+	if err != nil || len(anchorDigest) != sha256.Size {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s anchor digest invalid", registered.name)
+	}
+	anchor := replayAnchor{sequence: header.Sequence, head: header.Head, offset: header.LogOffset}
+	copy(anchor.digest[:], anchorDigest)
+	if err := registered.view.restore(payload); err != nil {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s restore: %v", registered.name, err)
+	}
+	canonical, err := registered.view.checkpoint()
+	if err != nil || !bytes.Equal(canonical, payload) {
+		return replayAnchor{}, fmt.Sprintf("checkpoint %s is non-canonical", registered.name)
+	}
+	return anchor, ""
 }

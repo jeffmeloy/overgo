@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-open-cost",
-      "title": "Cut the 3.7 s a bare store open costs: measure which facet checkpoints and catalog structures dominate loading 140k artifacts and their locators, and load lazily or restructure what a read-only consumer that resolves one alias never touches, because every plan, gate and query command pays the open before it does anything",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cut the 3.7 s a bare store open costs: measure which facet checkpoints and catalog structures dominate loading 140k artifacts and their locators, and load lazily or restructure what a read-only consumer that resolves one alias never touches, because every plan, gate and query command pays the open before it does anything",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestReadOnlyOpenCost' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-access-consolidation",
       "title": "Consolidate database interaction and isolate model, dataset and system behaviour from storage and retrieval (owner directive 2026-09-20): move each domain's store access behind one owner per domain -- models and recipes, datasets, runs and evidence, the control plane -- whose API speaks that domain's types and hides artifact.Batch construction, aliases, lineage, queries and content reads, so a domain package states what it records or asks for and never how it is stored; land one domain per row in the order the access census ranks them, and shrink the storage authority audit's direct-commit allowances with each",
       "owner": "master-lead",

@@ -179,10 +179,7 @@ func (authority AgentAuthority) publish(
 		parents = append(parents, prior)
 	}
 	lineage = append(lineage, artifact.DependencyLineage(activation.ID, parents...)...)
-	alias := artifact.AliasBinding{Name: AgentActiveAliasRoot + definition.Name, Target: activation.ID}
-	if prior.Valid() {
-		alias.Previous = artifact.IDPointer(prior)
-	}
+	alias := artifact.AliasMove(AgentActiveAliasRoot+definition.Name, activation.ID, prior)
 	batch, err := artifact.NewDocumentBatch(key, []artifact.Content{definitionContent, activationContent}, lineage, []artifact.AliasBinding{
 		alias, {Name: AgentAuthorityAliasRoot + decision.String(), Target: activation.ID},
 	})

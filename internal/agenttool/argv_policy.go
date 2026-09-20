@@ -66,20 +66,17 @@ func PublishArgvPolicy(ctx context.Context, repository artifact.Repository, prog
 	if err != nil {
 		return ArgvPolicy{}, err
 	}
-	batch := artifact.Batch{
-		Contents: []artifact.Content{content},
-		Aliases:  []artifact.AliasBinding{{Name: ArgvPolicyAlias, Target: policy.ID}},
-	}
+	batch := artifact.Batch{Contents: []artifact.Content{content}}
 	supersedes := "initial"
-	if current, bound, err := repository.ResolveAlias(ctx, ArgvPolicyAlias); err != nil {
+	move, moved, err := artifact.MoveAlias(ctx, repository, ArgvPolicyAlias, policy.ID)
+	if err != nil {
 		return ArgvPolicy{}, err
-	} else if bound {
-		if current == policy.ID {
-			batch.Aliases = nil
-		} else {
-			batch.Aliases[0].Previous = artifact.IDPointer(current)
-			supersedes = current.String()
-		}
+	}
+	if moved {
+		batch.Aliases = []artifact.AliasBinding{move}
+	}
+	if move.Previous != nil && moved {
+		supersedes = move.Previous.String()
 	}
 	// The batch key names the TRANSITION, not just the document: the
 	// same policy content can rebind the alias from different

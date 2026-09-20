@@ -149,12 +149,7 @@ func (authority AutomationDeliveryAuthority) publish(
 		return err
 	}
 	contents := append(slices.Clone(extra), content)
-	binding := artifact.AliasBinding{
-		Name: AutomationDeliveryAttemptAliasRoot + value.Idempotency.String(), Target: value.ID,
-	}
-	if value.Prior.Valid() {
-		binding.Previous = artifact.IDPointer(value.Prior)
-	}
+	binding := artifact.AliasMove(AutomationDeliveryAttemptAliasRoot+value.Idempotency.String(), value.ID, value.Prior)
 	parents := []artifact.ID{value.Plan, value.Tool}
 	parents = append(parents, value.Outputs...)
 	if value.Prior.Valid() {

@@ -327,3 +327,26 @@ func ResolveAlias(ctx context.Context, reader Reader, name string) (ID, bool, er
 	}
 	return reader.ResolveAlias(ctx, name)
 }
+
+// AliasMove binds name to target and names the target it held, which the
+// store holds the move to; an invalid previous is a first binding.
+func AliasMove(name string, target, previous ID) AliasBinding {
+	binding := AliasBinding{Name: name, Target: target}
+	if previous.Valid() {
+		binding.Previous = IDPointer(previous)
+	}
+	return binding
+}
+
+// AliasRemoval unbinds name, which the store allows only while it still
+// holds target.
+func AliasRemoval(name string, target ID) AliasBinding {
+	return AliasBinding{Name: name, Target: target, Previous: IDPointer(target), Remove: true}
+}
+
+// MoveAlias resolves what name is bound to and returns the move to target;
+// moved is false when it is bound there already and nothing need be written.
+func MoveAlias(ctx context.Context, reader Reader, name string, target ID) (binding AliasBinding, moved bool, err error) {
+	current, _, err := ResolveAlias(ctx, reader, name)
+	return AliasMove(name, target, current), err == nil && current != target, err
+}

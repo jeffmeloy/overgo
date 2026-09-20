@@ -202,9 +202,7 @@ func PublishPeerState(
 	batch, err := artifact.NewDocumentBatch(
 		"peer/state/"+value.ID.String(), []artifact.Content{content},
 		artifact.DependencyLineage(value.ID, peer, previous.ID),
-		[]artifact.AliasBinding{{
-			Name: PeerStateAliasRoot + peer.String(), Target: value.ID, Previous: artifact.IDPointer(previous.ID),
-		}},
+		[]artifact.AliasBinding{artifact.AliasMove(PeerStateAliasRoot+peer.String(), value.ID, previous.ID)},
 	)
 	if err != nil {
 		return PeerState{}, err
@@ -255,10 +253,7 @@ func PublishPeerHeartbeat(
 	if err != nil {
 		return PeerHeartbeat{}, err
 	}
-	alias := artifact.AliasBinding{Name: PeerHeartbeatAliasRoot + value.Peer.String(), Target: value.ID}
-	if hadPrevious {
-		alias.Previous = artifact.IDPointer(previous.ID)
-	}
+	alias := artifact.AliasMove(PeerHeartbeatAliasRoot+value.Peer.String(), value.ID, previous.ID)
 	parents := []artifact.ID{value.Peer, value.Capability, value.Previous}
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
 	batch, err := artifact.NewDocumentBatch(

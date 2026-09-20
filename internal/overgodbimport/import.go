@@ -275,15 +275,11 @@ func importRecords(
 			if !ok || record.Name == "" {
 				return Result{}, errors.New("repodb import: invalid alias record")
 			}
-			binding := artifact.AliasBinding{Name: record.Name, Target: target}
-			if record.Previous != "" {
-				previous, ok := names[record.Previous]
-				if !ok {
-					return Result{}, errors.New("repodb import: alias previous target is unknown")
-				}
-				binding.Previous = artifact.IDPointer(previous)
+			previous, known := names[record.Previous]
+			if record.Previous != "" && !known {
+				return Result{}, errors.New("repodb import: alias previous target is unknown")
 			}
-			batch.Aliases = append(batch.Aliases, binding)
+			batch.Aliases = append(batch.Aliases, artifact.AliasMove(record.Name, target, previous))
 		}
 	}
 	sourceContent, sourceID, err := importSource(header, raw)

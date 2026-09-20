@@ -116,12 +116,7 @@ func PublishPeerReplicaReceipt(
 	if err != nil {
 		return PeerReplicaReceipt{}, err
 	}
-	alias := artifact.AliasBinding{
-		Name: peerReplicaReceiptAlias(value.Operation, value.Target, value.Phase), Target: value.ID,
-	}
-	if found {
-		alias.Previous = artifact.IDPointer(previous.ID)
-	}
+	alias := artifact.AliasMove(peerReplicaReceiptAlias(value.Operation, value.Target, value.Phase), value.ID, previous.ID)
 	parents := append([]artifact.ID{value.Plan, value.Operation, value.Target}, value.Artifacts...)
 	if value.Previous.Valid() {
 		parents = append(parents, value.Previous)

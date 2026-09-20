@@ -18,20 +18,6 @@
       ]
     },
     {
-      "id": "store-access-consolidation",
-      "title": "Consolidate database interaction and isolate model, dataset and system behaviour from storage and retrieval (owner directive 2026-09-20): move each domain's store access behind one owner per domain -- models and recipes, datasets, runs and evidence, the control plane -- whose API speaks that domain's types and hides artifact.Batch construction, aliases, lineage, queries and content reads, so a domain package states what it records or asks for and never how it is stored; land one domain per row in the order the access census ranks them, and shrink the storage authority audit's direct-commit allowances with each",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Consolidate database interaction and isolate model, dataset and system behaviour from storage and retrieval (owner directive 2026-09-20): move each domain's store access behind one owner per domain -- models and recipes, datasets, runs and evidence, the control plane -- whose API speaks that domain's types and hides artifact.Batch construction, aliases, lineage, queries and content reads, so a domain package states what it records or asks for and never how it is stored; land one domain per row in the order the access census ranks them, and shrink the storage authority audit's direct-commit allowances with each",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestStoreAccessIsOwnedPerDomain' -count=1"
-        }
-      ]
-    },
-    {
       "id": "repoanalysis-suite-wall",
       "title": "Discover the repository once for the repoanalysis suite: its tests each walk and parse the whole tree again (the suite measured 66 s in test-owners after the store access census added one more), so share one source snapshot across the tests that only read it and record the suite wall before and after",
       "owner": "master-lead",

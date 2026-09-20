@@ -140,10 +140,7 @@ func PublishPeerCapability(
 	if err != nil {
 		return PeerCapabilityPublication{}, RemotePeerCapability{}, err
 	}
-	alias := artifact.AliasBinding{Name: PeerCapabilityPublicationAliasRoot + peer.String(), Target: publication.ID}
-	if hadPrevious {
-		alias.Previous = artifact.IDPointer(previous.ID)
-	}
+	alias := artifact.AliasMove(PeerCapabilityPublicationAliasRoot+peer.String(), publication.ID, previous.ID)
 	parents := []artifact.ID{peer, capability.Environment, capability.ID}
 	if publication.Previous.Valid() {
 		parents = append(parents, publication.Previous)

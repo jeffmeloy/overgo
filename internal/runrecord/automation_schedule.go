@@ -109,10 +109,7 @@ func (authority AutomationScheduleAuthority) Claim(
 	if prior.Valid() {
 		lineageParents = append(lineageParents, prior)
 	}
-	binding := artifact.AliasBinding{Name: AutomationScheduleClaimAliasRoot + name, Target: claim.ID}
-	if found {
-		binding.Previous = artifact.IDPointer(prior)
-	}
+	binding := artifact.AliasMove(AutomationScheduleClaimAliasRoot+name, claim.ID, prior)
 	key, err := uniquePublicationKey("automation/schedule/claim/", claim.ID)
 	if err != nil {
 		return AutomationScheduleClaim{}, false, err

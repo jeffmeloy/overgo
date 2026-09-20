@@ -364,12 +364,7 @@ func BindObservationChunk(
 	if err != nil {
 		return ObservationChunkSummary{}, err
 	}
-	alias := artifact.AliasBinding{
-		Name: ObservationChunkAlias(value.Scope.Attempt), Target: summary.ID,
-	}
-	if hasHead {
-		alias.Previous = artifact.IDPointer(head.ID)
-	}
+	alias := artifact.AliasMove(ObservationChunkAlias(value.Scope.Attempt), summary.ID, head.ID)
 	candidate := *batch
 	candidate.Artifacts = slices.Clone(batch.Artifacts)
 	candidate.Contents = append(slices.Clone(batch.Contents), rawContent, summaryContent)

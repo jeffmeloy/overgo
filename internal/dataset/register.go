@@ -269,19 +269,17 @@ func registerBatch(
 		{registeredAlias(name), version.ID},
 		{CatalogAlias, catalog.ID},
 	} {
-		current, bound, err := repository.ResolveAlias(ctx, binding.alias)
+		aliasBinding, moved, err := artifact.MoveAlias(ctx, repository, binding.alias, binding.target)
 		if err != nil {
 			return artifact.Batch{}, false, err
 		}
 		fmt.Fprintf(digest, "%s\x00%s\x00", binding.alias, binding.target)
-		if bound && current == binding.target {
+		if !moved {
 			continue
 		}
 		changed = true
-		aliasBinding := artifact.AliasBinding{Name: binding.alias, Target: binding.target}
-		if bound {
-			aliasBinding.Previous = artifact.IDPointer(current)
-			fmt.Fprintf(digest, "previous=%s\x00", current)
+		if aliasBinding.Previous != nil {
+			fmt.Fprintf(digest, "previous=%s\x00", *aliasBinding.Previous)
 		}
 		batch.Aliases = append(batch.Aliases, aliasBinding)
 	}

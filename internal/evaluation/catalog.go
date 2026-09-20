@@ -148,10 +148,7 @@ func catalogBenchmarkDeclarations(
 			parents = append(parents, entry.Parameters)
 		}
 	}
-	alias := artifact.AliasBinding{Name: benchmarkCatalogAlias, Target: catalog.ID}
-	if exists {
-		alias.Previous = artifact.IDPointer(previous)
-	}
+	alias := artifact.AliasMove(benchmarkCatalogAlias, catalog.ID, previous)
 	batch, err := benchmarkCatalogCodec.Batch(
 		"evaluation/catalog/"+catalog.ID.String(), catalog,
 		artifact.DependencyLineage(catalog.ID, parents...), []artifact.AliasBinding{alias},

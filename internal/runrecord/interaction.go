@@ -311,7 +311,7 @@ func PublishInteraction(ctx context.Context, repository artifact.Repository, val
 			previous.Node != value.Node || previous.Parent != value.Parent || previous.Operation != value.Operation {
 			return Interaction{}, errors.New("run record: response identity is already committed")
 		}
-		aliases[0].Previous = artifact.IDPointer(previous.ID)
+		aliases[0] = artifact.AliasMove(aliases[0].Name, value.ID, previous.ID)
 		lineage = append(lineage, artifact.DependencyLineage(value.ID, previous.ID)...)
 	}
 	if value.Operation.Valid() {

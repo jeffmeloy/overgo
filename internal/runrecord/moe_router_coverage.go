@@ -270,13 +270,9 @@ func (value MoERouterObservationCoverage) Batch(ctx context.Context, reader arti
 	if err != nil {
 		return artifact.Batch{}, err
 	}
-	alias := artifact.AliasBinding{Name: MoERouterObservationCoverageAlias, Target: value.ID}
-	previous, found, err := artifact.ResolveAlias(ctx, reader, MoERouterObservationCoverageAlias)
+	alias, _, err := artifact.MoveAlias(ctx, reader, MoERouterObservationCoverageAlias, value.ID)
 	if err != nil {
 		return artifact.Batch{}, err
-	}
-	if found {
-		alias.Previous = artifact.IDPointer(previous)
 	}
 	return artifact.NewDocumentBatch("observation/moe-router/coverage/"+value.ID.String(),
 		[]artifact.Content{raw, summary}, value.Lineage(), []artifact.AliasBinding{alias})

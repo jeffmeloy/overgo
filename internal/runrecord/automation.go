@@ -146,10 +146,7 @@ func publishAutomationActivation(
 		parents = append(parents, activation.Prior)
 	}
 	lineage = append(lineage, artifact.DependencyLineage(activation.ID, parents...)...)
-	alias := artifact.AliasBinding{Name: AutomationActiveAliasRoot + definition.Name, Target: activation.ID}
-	if found {
-		alias.Previous = artifact.IDPointer(current.Activation.ID)
-	}
+	alias := artifact.AliasMove(AutomationActiveAliasRoot+definition.Name, activation.ID, current.Activation.ID)
 	batch, err := artifact.NewDocumentBatch(
 		key, []artifact.Content{definitionContent, activationContent}, lineage, []artifact.AliasBinding{alias},
 	)

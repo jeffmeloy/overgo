@@ -498,18 +498,16 @@ func catalogBatch(ctx context.Context, repository artifact.Repository, bundle Co
 		fmt.Fprintf(digest, "location\x00%s\x00%d\x00%s\x00", location.Artifact, location.Kind, location.Value)
 	}
 	for _, binding := range bindings {
-		current, found, err := repository.ResolveAlias(ctx, binding.name)
+		alias, moved, err := artifact.MoveAlias(ctx, repository, binding.name, binding.target)
 		if err != nil {
 			return artifact.Batch{}, err
 		}
 		fmt.Fprintf(digest, "%s\x00%s\x00", binding.name, binding.target)
-		if found && current == binding.target {
+		if !moved {
 			continue
 		}
-		alias := artifact.AliasBinding{Name: binding.name, Target: binding.target}
-		if found {
-			alias.Previous = artifact.IDPointer(current)
-			fmt.Fprintf(digest, "previous=%s\x00", current)
+		if alias.Previous != nil {
+			fmt.Fprintf(digest, "previous=%s\x00", *alias.Previous)
 		}
 		batch.Aliases = append(batch.Aliases, alias)
 	}

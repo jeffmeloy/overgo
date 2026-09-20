@@ -30,9 +30,7 @@ func RetireLegacyLeases(ctx context.Context, store *overgodb.Store, expected int
 		}
 		target := view.Content.Descriptor.ID
 		for _, alias := range view.Aliases {
-			retirements = append(retirements, artifact.AliasBinding{
-				Name: alias, Target: target, Previous: artifact.IDPointer(target), Remove: true,
-			})
+			retirements = append(retirements, artifact.AliasRemoval(alias, target))
 			retired = append(retired, alias)
 		}
 		return nil

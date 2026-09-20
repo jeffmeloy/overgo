@@ -235,9 +235,7 @@ func authenticateClosureReactivationRemediation(
 			return false, nil
 		}
 		target := candidate.CurrentDocument
-		removals = append(removals, artifact.AliasBinding{
-			Name: candidate.Alias, Target: target, Previous: artifact.IDPointer(target), Remove: true,
-		})
+		removals = append(removals, artifact.AliasRemoval(candidate.Alias, target))
 	}
 	if requiresConfirmation && !record.ConfirmUnverifiedRecovery ||
 		!slices.Equal(record.ReviewedAliases, closureRemediationReviewedAliases(selected)) ||

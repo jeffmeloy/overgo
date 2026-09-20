@@ -782,7 +782,7 @@ func importClosureDocumentsWith(
 		for _, retry := range projection.pending {
 			document, previousAlias := retry.document, retry.previousAlias
 			if !retired[previousAlias] {
-				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: artifact.IDPointer(document.ID), Remove: true})
+				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasRemoval(previousAlias, document.ID))
 				retired[previousAlias] = true
 				aliases.Retired++
 				aliases.Preserved--

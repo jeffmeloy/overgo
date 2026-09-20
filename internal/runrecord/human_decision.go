@@ -87,10 +87,7 @@ func PublishHumanDecision(
 	if err != nil {
 		return err
 	}
-	alias := artifact.AliasBinding{Name: HumanDecisionAliasRoot + request.Operation.String(), Target: decision.ID}
-	if found {
-		alias.Previous = artifact.IDPointer(prior.ID)
-	}
+	alias := artifact.AliasMove(HumanDecisionAliasRoot+request.Operation.String(), decision.ID, prior.ID)
 	parents := []artifact.ID{request.ID}
 	if request.Prior.Valid() {
 		parents = append(parents, request.Prior)

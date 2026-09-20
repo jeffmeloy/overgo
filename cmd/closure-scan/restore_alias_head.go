@@ -308,13 +308,9 @@ func closureAliasDelta(current, desired map[string]artifact.ID) []artifact.Alias
 		case hadBefore && hasAfter && before == after:
 			continue
 		case hadBefore && !hasAfter:
-			changes = append(changes, artifact.AliasBinding{
-				Name: name, Target: before, Previous: artifact.IDPointer(before), Remove: true,
-			})
+			changes = append(changes, artifact.AliasRemoval(name, before))
 		case hadBefore:
-			changes = append(changes, artifact.AliasBinding{
-				Name: name, Target: after, Previous: artifact.IDPointer(before),
-			})
+			changes = append(changes, artifact.AliasMove(name, after, before))
 		default:
 			changes = append(changes, artifact.AliasBinding{Name: name, Target: after})
 		}

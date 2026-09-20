@@ -150,10 +150,7 @@ func PrepareStageReceipt(
 		parents = append(parents, value.Invocation.Parents()...)
 	}
 	parents = slices.DeleteFunc(parents, func(id artifact.ID) bool { return !id.Valid() })
-	alias := artifact.AliasBinding{Name: stageReceiptAlias(value.Operation, value.Node), Target: value.ID}
-	if found {
-		alias.Previous = artifact.IDPointer(previous.ID)
-	}
+	alias := artifact.AliasMove(stageReceiptAlias(value.Operation, value.Node), value.ID, previous.ID)
 	batch, err := artifact.NewDocumentBatch(
 		"stage-receipt/"+value.ID.String(), contents,
 		artifact.DependencyLineage(value.ID, parents...),

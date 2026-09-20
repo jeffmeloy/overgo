@@ -203,9 +203,7 @@ func remediateClosureReactivations(
 			return result, fmt.Errorf("closure-scan: selected reactivation %s active tuple changed", reactivation.Alias)
 		}
 		target := latest.Binding.Target
-		removals = append(removals, artifact.AliasBinding{
-			Name: reactivation.Alias, Target: target, Previous: artifact.IDPointer(target), Remove: true,
-		})
+		removals = append(removals, artifact.AliasRemoval(reactivation.Alias, target))
 	}
 	result.Reviewed = len(removals)
 	evidence := closureRemediationEvidence{

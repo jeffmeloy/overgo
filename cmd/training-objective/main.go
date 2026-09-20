@@ -221,18 +221,12 @@ func publishObjective(
 			{ID: splitID}, {ID: processorID}, {ID: lossID}, {ID: evaluationID}, {ID: evidenceID},
 		},
 		Contents: []artifact.Content{content},
-		Aliases: []artifact.AliasBinding{{
-			Name: "objective.registered." + string(request.Input) + "-" + string(request.Output), Target: objective.ID,
-		}},
 	}
-	if current, bound, err := store.ResolveAlias(ctx, batch.Aliases[0].Name); err != nil {
+	registered := "objective.registered." + string(request.Input) + "-" + string(request.Output)
+	if move, moved, err := artifact.MoveAlias(ctx, store, registered, objective.ID); err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
-	} else if bound {
-		if current == objective.ID {
-			batch.Aliases = nil
-		} else {
-			batch.Aliases[0].Previous = artifact.IDPointer(current)
-		}
+	} else if moved {
+		batch.Aliases = []artifact.AliasBinding{move}
 	}
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return trainingprogram.ObjectiveDocument{}, err

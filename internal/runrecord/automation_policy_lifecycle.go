@@ -96,21 +96,16 @@ func PublishAutomationPolicyTransition(ctx context.Context, repository artifact.
 	if err != nil {
 		return AutomationPolicyLifecycle{}, err
 	}
-	lifecycleAlias := artifact.AliasBinding{Name: AutomationPolicyLifecycleAliasRoot + value.Name, Target: value.ID}
-	if found {
-		lifecycleAlias.Previous = artifact.IDPointer(prior.ID)
-	}
+	lifecycleAlias := artifact.AliasMove(AutomationPolicyLifecycleAliasRoot+value.Name, value.ID, prior.ID)
 	aliases := []artifact.AliasBinding{lifecycleAlias}
 	if value.State == AutomationPolicyActive || value.State == AutomationPolicyRolledBack {
 		target := value.Policy
 		if value.State == AutomationPolicyRolledBack {
 			target = value.Rollback
 		}
-		active := artifact.AliasBinding{Name: AutomationPolicyActiveAliasRoot + value.Name, Target: target}
-		if current, activeFound, resolveErr := repository.ResolveAlias(ctx, active.Name); resolveErr != nil {
+		active, _, resolveErr := artifact.MoveAlias(ctx, repository, AutomationPolicyActiveAliasRoot+value.Name, target)
+		if resolveErr != nil {
 			return AutomationPolicyLifecycle{}, resolveErr
-		} else if activeFound {
-			active.Previous = artifact.IDPointer(current)
 		}
 		aliases = append(aliases, active)
 	}

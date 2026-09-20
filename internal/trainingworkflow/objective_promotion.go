@@ -85,9 +85,7 @@ func PromoteObjectiveAdaptive(
 	batch := artifact.Batch{
 		Key:      "training-objective-promotion/" + promoted.ID.String(),
 		Contents: []artifact.Content{content},
-		Aliases: []artifact.AliasBinding{{
-			Name: aliasName, Target: promoted.ID, Previous: artifact.IDPointer(current.ID),
-		}},
+		Aliases:  []artifact.AliasBinding{artifact.AliasMove(aliasName, promoted.ID, current.ID)},
 	}
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return trainingprogram.ObjectiveDocument{}, err
@@ -157,9 +155,7 @@ func PromoteObjectiveApproved(
 	batch := artifact.Batch{
 		Key:      "training-objective-approval/" + promoted.ID.String(),
 		Contents: []artifact.Content{content},
-		Aliases: []artifact.AliasBinding{{
-			Name: aliasName, Target: promoted.ID, Previous: artifact.IDPointer(current.ID),
-		}},
+		Aliases:  []artifact.AliasBinding{artifact.AliasMove(aliasName, promoted.ID, current.ID)},
 	}
 	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 		return trainingprogram.ObjectiveDocument{}, err

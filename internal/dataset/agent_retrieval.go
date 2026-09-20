@@ -573,10 +573,7 @@ func (builder AgentRetrievalBuilder) BuildWithWork(ctx context.Context, request 
 		}
 		return AgentRetrievalBuildResult{Projection: projection, Budget: budget, Work: work}, nil
 	}
-	alias := artifact.AliasBinding{Name: aliasName, Target: projection.ID}
-	if found {
-		alias.Previous = artifact.IDPointer(current)
-	}
+	alias := artifact.AliasMove(aliasName, projection.ID, current)
 	descriptors := make([]artifact.Descriptor, 0, len(parents))
 	for _, id := range parents {
 		descriptor, present, descriptorErr := builder.Repository.Artifact(ctx, id)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"overgo/internal/artifact"
+	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 )
 
@@ -24,7 +25,10 @@ type packageExecutionBatch struct {
 	Executions   []testevidence.PackageExecution `json:"executions"`
 	Unobserved   []string                        `json:"unobserved"`
 	StreamDigest string                          `json:"stream_digest,omitzero"`
-	TestCosts    []suiteTestCost                 `json:"-"`
+	// Skipped names the fixture tests this invocation skipped, so the
+	// uncredited evidence is a durable fact the review can act on.
+	Skipped   []string        `json:"skipped,omitempty"`
+	TestCosts []suiteTestCost `json:"-"`
 }
 
 // Costs retain one stream identity per invocation. No raw test output is copied.
@@ -72,8 +76,8 @@ func suiteCostRanking(report testevidence.GoTestReport) []suiteTestCost {
 
 var suiteCostContract = artifact.DocumentContract{
 	Kind:      artifact.KindEvidence,
-	MediaType: "application/vnd.overgo.gate-suite-cost+json",
-	Schema:    "overgo/gate-suite-cost/v2",
+	MediaType: runrecord.SuiteCostMediaType,
+	Schema:    runrecord.SuiteCostSchema,
 }
 
 // Retain compact costs in the gate's final atomic batch, including recovery debt.
@@ -112,7 +116,7 @@ func (g *gateContext) recordPackageExecution(packages []string, short bool, wall
 	batch := packageExecutionBatch{
 		Short: short, WallNS: uint64(wall.Nanoseconds()), Failed: err != nil,
 		Requested: slices.Clone(packages), Executions: slices.Clone(report.Executions),
-		StreamDigest: report.StreamDigest, TestCosts: suiteCostRanking(report),
+		StreamDigest: report.StreamDigest, Skipped: slices.Clone(report.Skipped), TestCosts: suiteCostRanking(report),
 	}
 	g.auditMutex.Lock()
 	defer g.auditMutex.Unlock()

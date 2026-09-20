@@ -79,6 +79,10 @@ type Plan struct {
 	Scope  string       `json:"scope,omitzero"`
 	Census *artifact.ID `json:"census_evidence,omitempty"`
 	Items  []Item       `json:"items"`
+	// Reviews records the re-plan's answer to every optimization candidate
+	// a landed row's gate evidence named: the row that addresses it or the
+	// reason none is filed. Dispatch refuses while a candidate has neither.
+	Reviews []OptimizationDisposition `json:"optimization_reviews,omitempty"`
 }
 
 // Load reads the plan from path (Path when empty).
@@ -148,6 +152,9 @@ func validatePlanGraph(d Plan) error {
 	}
 	if d.Lane != "" && !worklease.ValidAutomationText(d.Lane) {
 		return errors.New("plan: invalid lane")
+	}
+	if err := validateReviews(d.Reviews); err != nil {
+		return err
 	}
 	items := map[string]bool{}
 	for _, item := range d.Items {

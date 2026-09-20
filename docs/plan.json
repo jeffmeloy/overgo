@@ -4,28 +4,112 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "post-row-optimization-review",
-      "title": "After every landed row, derive typed related robustness and efficiency optimization candidates from the gate's measured evidence (suite cost, store growth, surface moves, skipped fixture credit) and require the re-plan step to file a row or record a reason for each, so optimization happens as you go",
+      "id": "completion-proof-horizon",
+      "title": "Bound the plan completion authority to a proof horizon: completions before a committed receipt boundary are accepted from git alone, their store evidence becomes releasable, and plan dispatch stops re-proving every landed commit from the store",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "After every landed row, derive typed related robustness and efficiency optimization candidates from the gate's measured evidence (suite cost, store growth, surface moves, skipped fixture credit) and require the re-plan step to file a row or record a reason for each, so optimization happens as you go",
+          "title": "Bound the plan completion authority to a proof horizon: completions before a committed receipt boundary are accepted from git alone, their store evidence becomes releasable, and plan dispatch stops re-proving every landed commit from the store",
           "status": "open",
-          "verify": "test -f internal/plan/optimization_review_test.go \u0026\u0026 go test ./internal/plan -run '^TestPostRowOptimizationReview' -count=1"
+          "verify": "go test ./internal/plan -run '^TestCompletionProofHorizon' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-precheck-candidate",
+      "title": "Promote the hard-link clone, swap and precheck into cmd/store-precheck: clone the sealed backup, apply the release to the candidate, run the plan completion authority, store-check and the closure ledger against it, and swap into service only on a clean verdict",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promote the hard-link clone, swap and precheck into cmd/store-precheck: clone the sealed backup, apply the release to the candidate, run the plan completion authority, store-check and the closure ledger against it, and swap into service only on a clean verdict",
+          "status": "open",
+          "verify": "go test ./cmd/store-precheck -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-blob-pack-and-split",
+      "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+          "status": "open",
+          "verify": "test -f internal/overgodb/blob_pack_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestBlobPackAndSplit' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "journal-seal-inline-locators",
+      "title": "Give inline legacy content locators a segment coordinate so the journal can seal while inline content exists, then seal the 565 MB active journal into a segment",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give inline legacy content locators a segment coordinate so the journal can seal while inline content exists, then seal the 565 MB active journal into a segment",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestSealWithInlineContent' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "projection-generation-pruning",
+      "title": "Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestSnapshotPrunesSuperseded' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "audioparity-suite-wall",
+      "title": "Bound the internal/audioparity test wall (6m34s per gate that selects it, the costliest package of the compaction landing) by sharing its model and reference fixtures across tests and moving real-model captures behind the device lease, with the bound proven from the suite-cost evidence",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound the internal/audioparity test wall (6m34s per gate that selects it, the costliest package of the compaction landing) by sharing its model and reference fixtures across tests and moving real-model captures behind the device lease, with the bound proven from the suite-cost evidence",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestParitySuiteWallBudget' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "operator-probes-into-commands",
+      "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestAddOwnsCloseoutDependency' -count=1 \u0026\u0026 go test ./cmd/overgodb-compact -run '^TestReleaseEmitsReceipt' -count=1"
         }
       ]
     },
     {
       "id": "surface-move-preflight",
-      "title": "Refuse a commit that moves a pinned runtime identity (media runtime, guard surface, compatibility claim) unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight",
+      "title": "Refuse a commit that moves a pinned runtime identity (media runtime, guard surface, compatibility claim) unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight; and hold the harness production-node surface: a landing that grows it names its paydown, and the surface is reduced or maintained as you go rather than republished with a reason",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refuse a commit that moves a pinned runtime identity (media runtime, guard surface, compatibility claim) unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight",
+          "title": "Refuse a commit that moves a pinned runtime identity (media runtime, guard surface, compatibility claim) unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight; and hold the harness production-node surface: a landing that grows it names its paydown, and the surface is reduced or maintained as you go rather than republished with a reason",
           "status": "open",
           "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1"
         }
@@ -47,13 +131,13 @@
     },
     {
       "id": "store-growth-ratchet",
-      "title": "Classify store artifact kinds as durable claim or re-derivable cache, garbage-collect the re-derivable, and ratchet store growth per gate so bloat is a finding not a surprise",
+      "title": "Declare each document schema's retention class (claim, derived cache, operational) and discovery mode at its JSONContract so the commit coordinator refuses an unclassed schema and the release policy is derived from declarations rather than an allowlist; garbage-collect the derived class and ratchet store growth per gate so bloat is a finding, not a surprise",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Classify store artifact kinds as durable claim or re-derivable cache, garbage-collect the re-derivable, and ratchet store growth per gate so bloat is a finding not a surprise",
+          "title": "Declare each document schema's retention class (claim, derived cache, operational) and discovery mode at its JSONContract so the commit coordinator refuses an unclassed schema and the release policy is derived from declarations rather than an allowlist; garbage-collect the derived class and ratchet store growth per gate so bloat is a finding, not a surprise",
           "status": "open",
           "verify": "test -f internal/overgodb/growth_ratchet_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestStoreGrowthRatchet' -count=1"
         }
@@ -112,20 +196,6 @@
           "title": "Replace the per-change media reconciliation layers with one reviewed output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels",
           "status": "open",
           "verify": "test -f cmd/compatibility/reviewed_delta_registry_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestReviewedDeltaRegistry' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-blob-pack-and-split",
-      "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
-          "status": "open",
-          "verify": "test -f internal/overgodb/blob_pack_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestBlobPackAndSplit' -count=1"
         }
       ]
     },
@@ -558,10 +628,38 @@
             "overgodb-compaction-cadence/do",
             "model-inventory-dryrun/do",
             "reviewed-delta-registry/do",
-            "store-blob-pack-and-split/do"
+            "store-blob-pack-and-split/do",
+            "completion-proof-horizon/do",
+            "store-precheck-candidate/do",
+            "journal-seal-inline-locators/do",
+            "projection-generation-pruning/do",
+            "audioparity-suite-wall/do",
+            "operator-probes-into-commands/do"
           ]
         }
       ]
+    }
+  ],
+  "optimization_reviews": [
+    {
+      "key": "store-growth:bytes:overgo/modern-go-computation/v1",
+      "row": "store-growth-ratchet"
+    },
+    {
+      "key": "store-growth:count:overgo/agent-obligation/v1",
+      "row": "store-growth-ratchet"
+    },
+    {
+      "key": "suite-cost:overgo/internal/audioparity",
+      "row": "audioparity-suite-wall"
+    },
+    {
+      "key": "surface-move:harness-production-nodes",
+      "row": "surface-move-preflight"
+    },
+    {
+      "key": "surface-move:production-nodes:8527831950fae6a042d4e30b0da80b96b9940dfb",
+      "row": "surface-move-preflight"
     }
   ]
 }

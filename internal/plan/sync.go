@@ -43,10 +43,14 @@ func mergeDocuments(base, local, upstream Plan, validate func(Plan) error, compl
 	if err != nil {
 		return Plan{}, err
 	}
+	reviews, err := mergeReviews(base.Reviews, local.Reviews, upstream.Reviews)
+	if err != nil {
+		return Plan{}, err
+	}
 	itemID := func(item Item) string { return item.ID }
 	baseItems, localItems, upstreamItems := indexByID(base.Items, itemID), indexByID(local.Items, itemID), indexByID(upstream.Items, itemID)
 	// The lane is the local plan's: a lane plan never takes another lane's identity.
-	merged := Plan{Campaign: campaign, Doctrine: doctrine, Lane: cmp.Or(local.Lane, upstream.Lane), Scope: local.Scope, Census: census}
+	merged := Plan{Campaign: campaign, Doctrine: doctrine, Lane: cmp.Or(local.Lane, upstream.Lane), Scope: local.Scope, Census: census, Reviews: reviews}
 	for _, id := range unionOrder(itemID, base.Items, local.Items, upstream.Items) {
 		baseItem, inBase := baseItems[id]
 		localItem, inLocal := localItems[id]

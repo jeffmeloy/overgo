@@ -195,6 +195,13 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// A landed row's measured evidence must be answered before the next row
+	// is dispatched; a stop or an empty plan needs no answer.
+	if c.next && dispatch.Waiting == "" && !dispatch.Complete {
+		if err := requireOptimizationReview(document, !c.json, output); err != nil {
+			return err
+		}
+	}
 	if c.json && !c.verify {
 		return json.NewEncoder(output).Encode(dispatch)
 	}

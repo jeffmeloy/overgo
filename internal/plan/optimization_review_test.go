@@ -40,7 +40,7 @@ func TestPostRowOptimizationReview(t *testing.T) {
 			{"step": "test-rest", "wall_ns": 2, "executions": []map[string]any{
 				{"package": "overgo/internal/slow", "action": "pass", "started": true, "elapsed_seconds": slow},
 				{"package": "overgo/internal/unmeasured", "action": "pass", "started": true},
-			}, "skipped": []string{"overgo/cmd/generate: TestDecodeVideoFileFFmpeg", "overgo/cmd/generate: TestDecodeVideoFileFFmpeg"}},
+			}, "skipped": []string{"overgo/cmd/generate: TestDecodeVideoFileFFmpeg", "overgo/cmd/generate: TestEncodeVideoFileFFmpeg"}},
 		},
 	})
 	if err != nil {
@@ -52,7 +52,7 @@ func TestPostRowOptimizationReview(t *testing.T) {
 	}
 	if len(fromCost) != 2 || fromCost[0].Key != "suite-cost:overgo/internal/slow" || !strings.Contains(fromCost[0].Measure, "40.25s") ||
 		!strings.Contains(fromCost[0].Measure, "test-rest") || fromCost[0].Evidence != evidence ||
-		fromCost[1].Key != "skipped-fixture:overgo/cmd/generate: TestDecodeVideoFileFFmpeg" {
+		fromCost[1].Key != "skipped-fixture:test-rest:overgo/cmd/generate" || !strings.HasPrefix(fromCost[1].Measure, "2 fixtures") {
 		t.Fatalf("suite cost candidates = %+v", fromCost)
 	}
 
@@ -77,8 +77,10 @@ func TestPostRowOptimizationReview(t *testing.T) {
 	if err != nil || len(moves) != 1 || moves[0].Key != "surface-move:production-nodes:8527831950fa" || moves[0].Measure != "+77 production nodes (181732 -> 181809)" {
 		t.Fatalf("surface move candidates = (%+v, %v)", moves, err)
 	}
-	if same, err := SurfaceMoveCandidates([]byte(`{"production_nodes":5}`), []byte(`{"production_nodes":5}`), "8527831950fa"); err != nil || same != nil {
-		t.Fatalf("unmoved surface = (%+v, %v)", same, err)
+	for _, after := range []string{`{"production_nodes":5}`, `{"production_nodes":4}`} {
+		if held, err := SurfaceMoveCandidates([]byte(`{"production_nodes":5}`), []byte(after), "8527831950fa"); err != nil || held != nil {
+			t.Fatalf("held or reduced surface %s = (%+v, %v)", after, held, err)
+		}
 	}
 
 	document := Plan{Items: []Item{{ID: "slow-suite-split", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}}}}
@@ -112,6 +114,49 @@ func TestPostRowOptimizationReview(t *testing.T) {
 	}
 	if err := validateReviews(append(slices.Clone(document.Reviews), document.Reviews[0])); err == nil {
 		t.Fatal("repeated disposition key validated")
+	}
+}
+
+// TestReviewKeysAreAnswerable holds a lane that skips hundreds of fixtures to
+// one candidate per step and package, carrying the count as its measure, in
+// a deterministic order after the costliest package.
+func TestReviewKeysAreAnswerable(t *testing.T) {
+	var deviceSkips []string
+	for index := range 302 {
+		deviceSkips = append(deviceSkips, "overgo/internal/cuda/executor: TestKernel"+strings.Repeat("x", index%7)+string(rune('A'+index%26)))
+	}
+	deviceSkips = append(deviceSkips, "overgo/internal/inference: TestDecodeDevice", "overgo/internal/inference: TestPrefillDevice")
+	elapsed := 3.5
+	record, err := json.Marshal(map[string]any{
+		"result": reviewID(t, artifact.KindEvidence, "gate result").String(),
+		"invocations": []map[string]any{
+			{"step": "test-device", "executions": []map[string]any{
+				{"package": "overgo/internal/cuda/executor", "action": "pass", "started": true, "elapsed_seconds": elapsed},
+			}, "skipped": deviceSkips},
+			{"step": "test", "skipped": []string{"overgo/cmd/generate: TestDecodeVideoFileFFmpeg"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := SuiteCostCandidates(record, reviewID(t, artifact.KindEvidence, "suite cost"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var keys, measures []string
+	for _, candidate := range candidates {
+		keys = append(keys, candidate.Key)
+		measures = append(measures, candidate.Measure)
+	}
+	wantKeys := []string{
+		"suite-cost:overgo/internal/cuda/executor",
+		"skipped-fixture:test-device:overgo/internal/cuda/executor",
+		"skipped-fixture:test-device:overgo/internal/inference",
+		"skipped-fixture:test:overgo/cmd/generate",
+	}
+	if !slices.Equal(keys, wantKeys) || !strings.HasPrefix(measures[1], "302 fixtures") ||
+		!strings.HasPrefix(measures[2], "2 fixtures") || !strings.HasPrefix(measures[3], "1 fixtures") {
+		t.Fatalf("grouped candidates = %v / %v", keys, measures)
 	}
 }
 

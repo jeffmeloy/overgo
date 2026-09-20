@@ -215,13 +215,13 @@
     },
     {
       "id": "skipped-fixture-classification",
-      "title": "Classify the environment-gated fixtures that run without evidence credit (ffmpeg decode, RxBrain production parity, native ASR microphone journey) so each is credited by the lane that provides its environment or declared inapplicable with its reason, and the review stops re-listing them",
+      "title": "Classify the fixtures that run without evidence credit: the environment-gated ones (ffmpeg decode, RxBrain production parity, native ASR microphone journey) are credited by the lane that provides their environment or declared inapplicable with a reason, and the device lane's 556 Require-gated kernel tests across 20 packages (302 in internal/cuda/executor) actually run -- the lane has never exercised a kernel because it does not set the CUDA test environment -- so the review stops re-listing them",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Classify the environment-gated fixtures that run without evidence credit (ffmpeg decode, RxBrain production parity, native ASR microphone journey) so each is credited by the lane that provides its environment or declared inapplicable with its reason, and the review stops re-listing them",
+          "title": "Classify the fixtures that run without evidence credit: the environment-gated ones (ffmpeg decode, RxBrain production parity, native ASR microphone journey) are credited by the lane that provides their environment or declared inapplicable with a reason, and the device lane's 556 Require-gated kernel tests across 20 packages (302 in internal/cuda/executor) actually run -- the lane has never exercised a kernel because it does not set the CUDA test environment -- so the review stops re-listing them",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSkippedFixtureClassification' -count=1"
         }
@@ -801,7 +801,8 @@
             "harness-surface-paydown/do",
             "evaluation-suite-wall/do",
             "generated-doc-write-under-readers/do",
-            "automation-harness-surface-remainder/do"
+            "automation-harness-surface-remainder/do",
+            "review-key-granularity/do"
           ]
         }
       ]
@@ -818,6 +819,134 @@
     },
     {
       "key": "skipped-fixture:overgo/internal/audioparity: TestModelJourneyNativeASRMicrophone",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/cmd/composite-generation-lane",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/cmd/evaluate",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/cmd/longform",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/cmd/recipe",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/adaptiveparity",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/controllertrain",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/cuda/cublas",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/cuda/device",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/cuda/driver",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/cuda/executor",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/cuda/kernel",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/densecausal",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/devicemath",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/diffusionimage",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/hybridtrain",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/inference",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/latentimage",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/latentvideo",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/longform",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/mediacapability",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/modeldevice",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/optimizer",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/projector",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/routedlm",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/scratchmodel",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/sensenovarecipe",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/server",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/torchrng",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/trainingprogram",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test:overgo/cmd/generate",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test:overgo/cmd/vqaparity",
+      "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test:overgo/internal/audioparity",
       "row": "skipped-fixture-classification"
     },
     {

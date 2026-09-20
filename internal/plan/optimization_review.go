@@ -9,7 +9,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
@@ -97,12 +96,8 @@ func mergeReviews(base, local, upstream []OptimizationDisposition) ([]Optimizati
 // UnreviewedCandidates returns the candidates whose key the plan has not
 // dispositioned.
 func UnreviewedCandidates(candidates []OptimizationCandidate, document Plan) []OptimizationCandidate {
-	reviewed := map[string]bool{}
-	for _, review := range document.Reviews {
-		reviewed[review.Key] = true
-	}
 	return slices.DeleteFunc(slices.Clone(candidates), func(candidate OptimizationCandidate) bool {
-		return reviewed[candidate.Key]
+		return slices.ContainsFunc(document.Reviews, func(review OptimizationDisposition) bool { return review.Key == candidate.Key })
 	})
 }
 
@@ -135,7 +130,7 @@ type suiteCostRecord struct {
 }
 
 // SuiteCostCandidates names the costliest measured package of the landing
-// and every fixture the landing skipped without credit.
+// and, per step and package, the fixtures that ran without credit.
 func SuiteCostCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandidate, error) {
 	var record suiteCostRecord
 	if err := json.Unmarshal(data, &record); err != nil {
@@ -145,8 +140,9 @@ func SuiteCostCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandi
 	// costliest wins deterministically without a tie-break.
 	var costliest testevidence.PackageExecution
 	costliestStep := ""
-	var candidates []OptimizationCandidate
-	skipped := map[string]bool{}
+	// Skipped fixtures group by step and package: a lane that skips
+	// hundreds of tests is a handful of answerable subjects, not hundreds.
+	skipped := map[string]int{}
 	for _, invocation := range record.Invocations {
 		step := cmp.Or(invocation.Step, "the test phase")
 		for _, execution := range invocation.Executions {
@@ -158,22 +154,23 @@ func SuiteCostCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandi
 			}
 		}
 		for _, fixture := range invocation.Skipped {
-			if skipped[fixture] {
-				continue
-			}
-			skipped[fixture] = true
-			candidates = append(candidates, OptimizationCandidate{
-				Kind: CandidateSkippedFixture, Key: CandidateSkippedFixture + ":" + fixture,
-				Measure: "skipped without evidence credit in " + step, Evidence: evidence,
-			})
+			owner, _, _ := strings.Cut(fixture, ": ")
+			skipped[step+":"+owner]++
 		}
 	}
+	var candidates []OptimizationCandidate
 	if costliest.Elapsed != nil {
-		candidates = append([]OptimizationCandidate{{
+		candidates = append(candidates, OptimizationCandidate{
 			Kind: CandidateSuiteCost, Key: CandidateSuiteCost + ":" + costliest.Package,
-			Measure:  fmt.Sprintf("%s in %s", (time.Duration(*costliest.Elapsed * float64(time.Second))).Round(time.Millisecond), costliestStep),
+			Measure:  fmt.Sprintf("%gs in %s", *costliest.Elapsed, costliestStep),
 			Evidence: evidence,
-		}}, candidates...)
+		})
+	}
+	for _, group := range slices.Sorted(maps.Keys(skipped)) {
+		candidates = append(candidates, OptimizationCandidate{
+			Kind: CandidateSkippedFixture, Key: CandidateSkippedFixture + ":" + group,
+			Measure: fmt.Sprintf("%d fixtures skipped without evidence credit", skipped[group]), Evidence: evidence,
+		})
 	}
 	return candidates, nil
 }
@@ -218,26 +215,26 @@ func StoreGrowthCandidates(delta overgodb.HeadBoundDelta) []OptimizationCandidat
 const harnessSurfaceBaselinePath = "docs/harness_surface_baseline.json"
 
 // SurfaceMoveCandidates compares the harness surface baseline before and
-// after a landing and names a moved production surface. The key carries the
+// after a landing and names a grown production surface. The key carries the
 // landing, so growth is answered every time it happens: the surface is to be
 // reduced or held, and a landing that grows it names the paydown.
 func SurfaceMoveCandidates(before, after []byte, commit string) ([]OptimizationCandidate, error) {
-	type baseline struct {
-		ProductionNodes int64 `json:"production_nodes"`
+	var nodes [2]struct {
+		Count int64 `json:"production_nodes"`
 	}
-	var previous, current baseline
-	if err := json.Unmarshal(before, &previous); err != nil {
-		return nil, fmt.Errorf("plan: decode harness baseline before the landing: %w", err)
+	for index, data := range [][]byte{before, after} {
+		if err := json.Unmarshal(data, &nodes[index]); err != nil {
+			return nil, fmt.Errorf("plan: decode harness baseline around the landing: %w", err)
+		}
 	}
-	if err := json.Unmarshal(after, &current); err != nil {
-		return nil, fmt.Errorf("plan: decode harness baseline after the landing: %w", err)
-	}
-	if previous.ProductionNodes == current.ProductionNodes {
+	previous, current := nodes[0].Count, nodes[1].Count
+	// Only growth asks for an answer: the surface is to be reduced or held.
+	if current <= previous {
 		return nil, nil
 	}
 	return []OptimizationCandidate{{
 		Kind: CandidateSurfaceMove, Key: CandidateSurfaceMove + ":production-nodes:" + commit,
-		Measure: fmt.Sprintf("%+d production nodes (%d -> %d)", current.ProductionNodes-previous.ProductionNodes, previous.ProductionNodes, current.ProductionNodes),
+		Measure: fmt.Sprintf("%+d production nodes (%d -> %d)", current-previous, previous, current),
 	}}, nil
 }
 

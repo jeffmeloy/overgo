@@ -152,6 +152,9 @@ func (g *gateContext) stepCommit() (bool, error) {
 		return false, fmt.Errorf("commit admission: plan authority moved from %.12s to %.12s", g.planHead, planHead)
 	}
 	g.completionAuthority = completionAuthority
+	if err := g.admitProofHorizon(completionAuthority); err != nil {
+		return false, err
+	}
 	planAfter, err := advancedPlanBytes(planBefore, g.planRef)
 	if err != nil {
 		return false, err

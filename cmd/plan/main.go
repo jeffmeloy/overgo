@@ -20,6 +20,7 @@ import (
 	"overgo/internal/authoritylock"
 	"overgo/internal/closurescan"
 	"overgo/internal/commanddoc"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -70,6 +71,7 @@ func main() {
 	add := flag.Bool("add", false, "inject a new top-priority task owned by -role: -add <item-id> -title <t> [-before <id>] [-vcmd <cmd>]")
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
+	sealHorizon := flag.Bool("seal-horizon", false, "write docs/plan_proof_horizon.json at HEAD with the completions the authority just proved; land it with the row in flight, after which completions at or before it are accepted from Git alone")
 	budget := flag.Bool("budget", false, "declare an open item's scope: -budget <item-id> -nodes <n> -reason <why> [-paydown <open item>]; an undeclared row may not grow production nodes")
 	// The default is the zero budget: a row that declares no growth maintains.
 	var nodes int
@@ -104,7 +106,7 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{edit: *edit, publish: *publish, vehicle: *vehicle, messageFile: *messageFile, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+		err = run(cli{edit: *edit, publish: *publish, vehicle: *vehicle, messageFile: *messageFile, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
@@ -127,7 +129,7 @@ type cli struct {
 	pruneDone                                                                        bool
 	title, before, verifyCmd, role, recordLease, recordLeaseOutcome, contain, lane   string
 	review, reviewKind, reviewRow, reviewReason                                      string
-	budget                                                                           bool
+	budget, sealHorizon                                                              bool
 	nodes                                                                            int
 	paydown                                                                          string
 	assign                                                                           bool
@@ -241,6 +243,8 @@ func run(c cli, args []string) error {
 		return printLocalitySchedule(commandWorktree, c.localitySchedule, os.Stdout)
 	case c.bindCensus:
 		return bindCampaignCensus(commandWorktree, os.Stdout)
+	case c.sealHorizon:
+		return sealProofHorizon(commandWorktree, os.Stdout)
 	case c.pruneDone:
 		return errors.New("plan: direct pruning is retired; cmd/gate atomically commits and prunes the current row")
 	case c.budget:
@@ -313,6 +317,31 @@ func resolveCompletionAuthority(root string, document plan.Plan) (plan.Completio
 	}
 	defer store.Close()
 	return plan.ResolveCompletionAuthority(context.Background(), root, "HEAD", document, store)
+}
+
+// sealProofHorizon writes the one horizon the authority can vouch for: HEAD,
+// with the completions it has just proved. The receipt takes the plan file's
+// mode and lands through the gate, which admits no other value.
+func sealProofHorizon(root string, output io.Writer) error {
+	planPath := filepath.Join(root, filepath.FromSlash(plan.Path))
+	document, err := plan.Load(planPath)
+	if err != nil {
+		return err
+	}
+	authority, err := resolveCompletionAuthority(root, document)
+	if err != nil {
+		return err
+	}
+	info, err := os.Stat(planPath)
+	if err != nil {
+		return err
+	}
+	horizon := authority.SealProofHorizon()
+	if err := jsonfile.Write(filepath.Join(root, filepath.FromSlash(plan.ProofHorizonPath)), horizon, info.Mode().Perm()); err != nil {
+		return err
+	}
+	fmt.Fprintf(output, "sealed proof horizon %s completions=%d in %s\n", horizon.Commit, horizon.Completions, plan.ProofHorizonPath)
+	return nil
 }
 
 func bindCampaignCensus(root string, output io.Writer) error {

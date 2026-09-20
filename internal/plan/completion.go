@@ -184,6 +184,15 @@ type CompletionAuthority struct {
 	storeSequence       uint64
 	completedReferences map[string]completionEvidence
 	retiredItems        map[string]completionEvidence
+	// preparedCompletions counts the prepared completions this authority
+	// accepted at its revision, from the store or from the horizon below it.
+	preparedCompletions int
+}
+
+// SealProofHorizon is the only horizon this authority can vouch for: its own
+// revision, with the count it just proved. A gate admits no other.
+func (authority CompletionAuthority) SealProofHorizon() ProofHorizon {
+	return ProofHorizon{Commit: authority.revision, Completions: authority.preparedCompletions}
 }
 
 // ProtectsRevision reports whether this opaque authority resolved an exact
@@ -703,6 +712,11 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 	if err != nil {
 		return CompletionAuthority{}, err
 	}
+	horizon, proven, err := provenCompletionCommits(ctx, repository, revision, commits)
+	if err != nil {
+		return CompletionAuthority{}, err
+	}
+	provenCompletions := 0
 	parsed := make([]completionMessageParse, 0, len(commits))
 	preparedSeeds := make(map[string]bool)
 	for _, commit := range commits {
@@ -786,10 +800,21 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 			repository: repository, revision: candidate.commit.hash, store: store,
 			coordinate: CompletionStoreCoordinate{Commit: storeHead, Sequence: storeSequence},
 		}
+		// At or before the horizon the store has nothing left to prove.
+		evidenceStore := store
+		if proven[candidate.commit.hash] {
+			evidenceStore = nil
+		}
+		if candidate.trailers.preparation.Valid() {
+			authority.preparedCompletions++
+			if evidenceStore == nil {
+				provenCompletions++
+			}
+		}
 		evidence, found := resolver.evidence[evidenceKey]
 		if !found {
 			evidence, err = requireCompletionEvidence(
-				ctx, candidate.commit.hash, transition.baseline, transition.child, candidate.trailers, store,
+				ctx, candidate.commit.hash, transition.baseline, transition.child, candidate.trailers, evidenceStore,
 			)
 			if err != nil {
 				return CompletionAuthority{}, fmt.Errorf("plan: completion %s at %.12s: %w", reference, candidate.commit.hash, err)
@@ -802,7 +827,7 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 		}
 		evidence.merge = len(candidate.commit.parents) > 1
 		validatedCompletions[candidate.commit.hash] = true
-		if candidate.trailers.mergeProjection == MergeProjectionFirstParentTarget {
+		if candidate.trailers.mergeProjection == MergeProjectionFirstParentTarget && evidenceStore != nil {
 			// A projected receipt is an authority boundary, not a promise that a
 			// matching completion will appear somewhere later in the descendant
 			// graph. Resolve exactly parent[0]; the graph cut in
@@ -853,6 +878,12 @@ func (resolver *completionAuthorityResolver) resolveRevision(ctx context.Context
 			}
 			authority.retiredItems[candidate.trailers.item] = evidence
 		}
+	}
+	if provenCompletions != horizon.Completions {
+		return CompletionAuthority{}, fmt.Errorf(
+			"plan: proof horizon %.12s sealed %d prepared completions and this history holds %d at or before it",
+			horizon.Commit, horizon.Completions, provenCompletions,
+		)
 	}
 	for _, commit := range protected {
 		if validatedCompletions[commit.hash] {
@@ -1385,6 +1416,22 @@ func requireCompletionEvidence(
 	if err != nil {
 		return completionEvidence{}, err
 	}
+	completedStep, found := exactPlanStep(Plan{Items: []Item{contractSnapshot}}, trailers.item, trailers.step)
+	if !found {
+		return completionEvidence{}, errors.New("completion contract lacks the exact step")
+	}
+	_, retainedItem := exactPlanItem(child, trailers.item)
+	evidence := completionEvidence{
+		commit: commit, verify: trailers.verify, contract: contract, manifest: trailers.manifest,
+		codeManifest: trailers.codeManifest, retiredItem: !retainedItem,
+		owner: contractSnapshot.Owner, dependencies: strings.Join(completedStep.DependsOn, "\n"),
+	}
+	// Everything above is Git's: the exact plan transition and the identity
+	// it retired. A completion at or before the proof horizon stops here; the
+	// store proved the rest when the horizon was sealed.
+	if store == nil {
+		return evidence, nil
+	}
 
 	var attempts []runrecord.AttemptRecord
 	if trailers.preparation.Valid() {
@@ -1423,10 +1470,6 @@ func requireCompletionEvidence(
 	if err != nil {
 		return completionEvidence{}, fmt.Errorf("verify attempt gate: %w", err)
 	}
-	completedStep, found := exactPlanStep(Plan{Items: []Item{contractSnapshot}}, trailers.item, trailers.step)
-	if !found {
-		return completionEvidence{}, errors.New("completion contract lacks the exact step")
-	}
 	if completedStep.VerificationBatch != nil {
 		if !trailers.preparation.Valid() {
 			return completionEvidence{}, errors.New("verification batch completion requires prepared manifest authority")
@@ -1440,14 +1483,8 @@ func requireCompletionEvidence(
 			return completionEvidence{}, err
 		}
 	}
-	_, retainedItem := exactPlanItem(child, trailers.item)
-	return completionEvidence{
-		commit: commit, verify: trailers.verify, contract: contract, manifest: trailers.manifest,
-		codeManifest: trailers.codeManifest, attempt: attempt.ID, result: attempt.Result,
-		finalization: verification.Finalization.ID,
-		retiredItem:  !retainedItem,
-		owner:        contractSnapshot.Owner, dependencies: strings.Join(completedStep.DependsOn, "\n"),
-	}, nil
+	evidence.attempt, evidence.result, evidence.finalization = attempt.ID, attempt.Result, verification.Finalization.ID
+	return evidence, nil
 }
 
 // completionContractDigest binds the exact canonical item snapshot that was

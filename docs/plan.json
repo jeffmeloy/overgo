@@ -4,30 +4,44 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "completion-proof-horizon",
-      "title": "Bound the plan completion authority to a proof horizon: completions before a committed receipt boundary are accepted from git alone, their store evidence becomes releasable, and plan dispatch stops re-proving every landed commit from the store",
+      "id": "completion-proof-horizon-first-seal",
+      "title": "Seal the first proof horizon, proved before it is committed: plan -seal-horizon builds the commit that would carry the receipt as an unreferenced Git object (no ref, index or working tree moves), resolves the completion authority at it against the store in service, and writes the receipt only if that resolution succeeds, because a wrong receipt would refuse every gate including the one that fixes it; then land the seal and record the measured plan -next wall before (about 8.5 s over 921 completions) and after",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Bound the plan completion authority to a proof horizon: completions before a committed receipt boundary are accepted from git alone, their store evidence becomes releasable, and plan dispatch stops re-proving every landed commit from the store",
+          "title": "Seal the first proof horizon, proved before it is committed: plan -seal-horizon builds the commit that would carry the receipt as an unreferenced Git object (no ref, index or working tree moves), resolves the completion authority at it against the store in service, and writes the receipt only if that resolution succeeds, because a wrong receipt would refuse every gate including the one that fixes it; then land the seal and record the measured plan -next wall before (about 8.5 s over 921 completions) and after",
           "status": "open",
-          "verify": "go test ./internal/plan -run '^TestCompletionProofHorizon' -count=1"
+          "verify": "go test ./cmd/plan -run '^TestSealHorizonProvesBeforeItWrites' -count=1 \u0026\u0026 test -f docs/plan_proof_horizon.json"
         }
       ]
     },
     {
       "id": "store-blob-pack-and-split",
-      "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+      "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, and remove the redundancy found on the way instead of packing it: measure first which records repeat what another already holds (each closure-ledger rebind republishing near-identical documents, a fresh environment document per gate, descriptors held in both the journal frame and the blob, superseded checkpoint and snapshot generations) and stop writing or release what is redundant before choosing a pack format for what remains, continuing the RSI storage-blob-split step",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+          "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, and remove the redundancy found on the way instead of packing it: measure first which records repeat what another already holds (each closure-ledger rebind republishing near-identical documents, a fresh environment document per gate, descriptors held in both the journal frame and the blob, superseded checkpoint and snapshot generations) and stop writing or release what is redundant before choosing a pack format for what remains, continuing the RSI storage-blob-split step",
           "status": "open",
           "verify": "test -f internal/overgodb/blob_pack_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestBlobPackAndSplit' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-release-pre-horizon-evidence",
+      "title": "Release the store evidence the proof horizon retired: retention roots stop pinning the identities named by commit-message trailers at or before the horizon, which makes the landed attempts' manifest analyses and code profiles releasable (about 1.3 MB per landing), then prove the release on a candidate with store-precheck and swap it into service",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Release the store evidence the proof horizon retired: retention roots stop pinning the identities named by commit-message trailers at or before the horizon, which makes the landed attempts' manifest analyses and code profiles releasable (about 1.3 MB per landing), then prove the release on a candidate with store-precheck and swap it into service",
+          "status": "open",
+          "verify": "go test ./internal/storepolicy -run '^TestCheckoutRootsHonorTheProofHorizon' -count=1"
         }
       ]
     },
@@ -811,7 +825,9 @@
             "automation-land-reports-lane-obligation/do",
             "gate-prints-operation-class/do",
             "row-scope-budget-surface/do",
-            "store-producer-guards-shared-kinds/do"
+            "store-producer-guards-shared-kinds/do",
+            "store-release-pre-horizon-evidence/do",
+            "completion-proof-horizon-first-seal/do"
           ]
         }
       ]

@@ -17,6 +17,8 @@ import (
 	"path/filepath"
 
 	"overgo/internal/clioptions"
+	"overgo/internal/closurescan"
+	"overgo/internal/jsonfile"
 	"overgo/internal/repoanalysis"
 )
 
@@ -42,6 +44,19 @@ func run() error {
 		fmt.Printf("%-12s sites=%-4d owner=%-40s owner_sites=%-4d recurrence=%-4d consumers=%d\n",
 			finding.Family, finding.Sites, finding.Owner, finding.OwnerSites,
 			finding.Recurrence, len(finding.Consumers))
+	}
+	// The agent harness surface against its reviewed baseline: read it here
+	// before and after a change instead of from a throwaway program.
+	var baseline closurescan.HarnessSurface
+	if err := jsonfile.DecodeStrict("docs/harness_surface_baseline.json", &baseline); err != nil {
+		return err
+	}
+	surface, err := closurescan.BuildAgentHarnessSurface(snapshot)
+	if err != nil {
+		return err
+	}
+	for _, metric := range closurescan.HarnessSurfaceReport(baseline, surface) {
+		fmt.Printf("harness %-24s %d -> %d (%+d)\n", metric.Metric, metric.Base, metric.Value, metric.Value-metric.Base)
 	}
 	access, err := repoanalysis.StoreAccessCensus(snapshot)
 	if err != nil {

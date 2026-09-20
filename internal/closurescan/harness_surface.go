@@ -136,29 +136,26 @@ func BuildAgentHarnessSurface(snapshot repoanalysis.SourceSnapshot) (HarnessSurf
 	return result, nil
 }
 
+// HarnessSurfaceReport pairs every surface metric's reviewed baseline with
+// its measure, moved or not: what an operator reads before and after a change.
+func HarnessSurfaceReport(base, candidate HarnessSurface) []HarnessSurfaceRegression {
+	return []HarnessSurfaceRegression{
+		{"production_files", base.ProductionFiles, candidate.ProductionFiles, ""},
+		{"production_nodes", base.ProductionNodes, candidate.ProductionNodes, ""},
+		{"max_file_nodes", base.MaxFileNodes, candidate.MaxFileNodes, ""},
+		{"max_function_nodes", base.MaxFunctionNodes, candidate.MaxFunctionNodes, ""},
+		{"guarded_scalar_fields", base.GuardedScalarFields, candidate.GuardedScalarFields, ""},
+		{"repeated_policy_groups", base.RepeatedPolicyGroups, candidate.RepeatedPolicyGroups, ""},
+		{"repeated_policy_sites", base.RepeatedPolicySites, candidate.RepeatedPolicySites, ""},
+	}
+}
+
 // AgentHarnessSurfaceRegressions compares candidate against base and returns
 // every grown metric and every new layer violation.
 func AgentHarnessSurfaceRegressions(base, candidate HarnessSurface) []HarnessSurfaceRegression {
-	metrics := []struct {
-		name        string
-		base, value int
-	}{
-		{"production_files", base.ProductionFiles, candidate.ProductionFiles},
-		{"production_nodes", base.ProductionNodes, candidate.ProductionNodes},
-		{"max_file_nodes", base.MaxFileNodes, candidate.MaxFileNodes},
-		{"max_function_nodes", base.MaxFunctionNodes, candidate.MaxFunctionNodes},
-		{"guarded_scalar_fields", base.GuardedScalarFields, candidate.GuardedScalarFields},
-		{"repeated_policy_groups", base.RepeatedPolicyGroups, candidate.RepeatedPolicyGroups},
-		{"repeated_policy_sites", base.RepeatedPolicySites, candidate.RepeatedPolicySites},
-	}
-	var regressions []HarnessSurfaceRegression
-	for _, metric := range metrics {
-		if metric.value > metric.base {
-			regressions = append(regressions, HarnessSurfaceRegression{
-				Metric: metric.name, Base: metric.base, Value: metric.value,
-			})
-		}
-	}
+	regressions := slices.DeleteFunc(HarnessSurfaceReport(base, candidate), func(metric HarnessSurfaceRegression) bool {
+		return metric.Value <= metric.Base
+	})
 	known := make(map[HarnessLayerViolation]bool, len(base.LayerViolations))
 	for _, violation := range base.LayerViolations {
 		known[violation] = true

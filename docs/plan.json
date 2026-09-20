@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "operator-probes-into-commands",
-      "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, retire ad-hoc redirected log files in favour of results read through commands, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, retire ad-hoc redirected log files in favour of results read through commands, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestAddOwnsCloseoutDependency' -count=1 \u0026\u0026 go test ./cmd/store-precheck -run '^TestProofCommitsUnderThisCommandsCapability' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gate-message-structured",
       "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
       "owner": "master-lead",

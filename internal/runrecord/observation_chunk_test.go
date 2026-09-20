@@ -319,29 +319,25 @@ func TestObservationChunkPublication(t *testing.T) {
 		t.Fatal("stored summary/raw mismatch verified")
 	}
 
-	compactedRoot := filepath.Join(root, "compacted")
-	if _, err := overgodb.Compact(ctx, store, compactedRoot, nil); err != nil {
+	// Releasing everything the live set does not reach keeps the stream's
+	// summaries and raw chunks and lets the unrooted forgery go.
+	if _, err := overgodb.Release(ctx, store, nil, overgodb.RetentionPolicy{}, func(artifact.Descriptor) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
-	compacted, err := overgodb.OpenReadOnly(compactedRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
 	for _, summary := range []ObservationChunkSummary{firstSummary, secondSummary} {
-		if _, err := RequireObservationChunkSummary(ctx, compacted, summary.ID); err != nil {
-			t.Fatalf("compaction lost summary %s: %v", summary.ID, err)
+		if _, err := RequireObservationChunkSummary(ctx, store, summary.ID); err != nil {
+			t.Fatalf("release lost summary %s: %v", summary.ID, err)
 		}
-		if _, err := RequireObservationChunk(ctx, compacted, summary.Chunk); err != nil {
-			t.Fatalf("compaction lost raw chunk %s: %v", summary.Chunk, err)
+		if _, err := RequireObservationChunk(ctx, store, summary.Chunk); err != nil {
+			t.Fatalf("release lost raw chunk %s: %v", summary.Chunk, err)
 		}
 	}
-	current, found, err = resolveObservationChunkSummary(ctx, compacted, scope.Attempt)
+	current, found, err = resolveObservationChunkSummary(ctx, store, scope.Attempt)
 	if err != nil || !found || current.ID != secondSummary.ID {
-		t.Fatalf("compacted stream head = (%+v, %v, %v)", current, found, err)
+		t.Fatalf("released stream head = (%+v, %v, %v)", current, found, err)
 	}
-	if _, found, err := compacted.Artifact(ctx, forged.ID); err != nil || found {
-		t.Fatalf("unrooted forged summary retained = (%v, %v)", found, err)
+	if has, err := store.HasContent(ctx, forged.ID); err != nil || has {
+		t.Fatalf("unrooted forged summary retained = (%v, %v)", has, err)
 	}
 
 	refusalSample := func(ordinal uint32, elapsed uint64) ObservationSample {

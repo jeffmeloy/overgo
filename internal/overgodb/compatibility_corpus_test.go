@@ -216,30 +216,24 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		requireHead(t, restored)
 	})
 
-	t.Run("retention compaction preserves the reachable catalog", func(t *testing.T) {
+	t.Run("retention release preserves the reachable catalog", func(t *testing.T) {
 		store, err := Open(copyCorpus(t, false))
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer store.Close()
-		destination := filepath.Join(t.TempDir(), "compacted")
-		if _, err := Compact(t.Context(), store, destination, nil); err != nil {
-			t.Fatal(err)
-		}
-		compacted, err := OpenReadOnly(destination)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer compacted.Close()
 		ctx := t.Context()
+		if _, err := Release(ctx, store, nil, RetentionPolicy{}, releaseEverything); err != nil {
+			t.Fatal(err)
+		}
 		for ordinal := 0; ordinal < scaleCorpusCommits; ordinal += scaleAliasStride {
 			id, err := artifact.IdentifyBytes(artifact.KindRun, scaleContent(ordinal))
 			if err != nil {
 				t.Fatal(err)
 			}
-			target, found, err := compacted.ResolveAlias(ctx, aliasName(ordinal))
-			if err != nil || !found || target != id {
-				t.Fatalf("compacted alias %d: found=%v err=%v", ordinal, found, err)
+			target, found, err := store.ResolveAlias(ctx, aliasName(ordinal))
+			if has, hasErr := store.HasContent(ctx, id); err != nil || hasErr != nil || !found || target != id || !has {
+				t.Fatalf("released alias %d: found=%v has=%v err=%v/%v", ordinal, found, has, err, hasErr)
 			}
 		}
 	})

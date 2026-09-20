@@ -176,28 +176,22 @@ func TestRouterObservationCoverageAndRetentionFailClosed(t *testing.T) {
 	if err != nil || !found || current != second.RouterObservationCoverage {
 		t.Fatalf("current coverage alias = (%s, %t, %v)", current, found, err)
 	}
-	destination := filepath.Join(root, "compacted-observations")
-	if _, err := overgodb.Compact(t.Context(), store, destination, nil); err != nil {
+	if _, err := overgodb.Release(t.Context(), store, nil, overgodb.RetentionPolicy{}, func(artifact.Descriptor) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
-	compacted, err := overgodb.OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
-	if found, err := compacted.HasContent(t.Context(), second.RouterObservationCoverage); err != nil || !found {
+	if found, err := store.HasContent(t.Context(), second.RouterObservationCoverage); err != nil || !found {
 		t.Fatalf("current coverage retained = (%t, %v)", found, err)
 	}
 	for _, id := range second.RouterObservations {
-		if found, err := compacted.HasContent(t.Context(), id); err != nil || !found {
+		if found, err := store.HasContent(t.Context(), id); err != nil || !found {
 			t.Fatalf("current router observation %s retained = (%t, %v)", id, found, err)
 		}
 	}
-	if found, err := compacted.HasContent(t.Context(), first.RouterObservationCoverage); err != nil || found {
+	if found, err := store.HasContent(t.Context(), first.RouterObservationCoverage); err != nil || found {
 		t.Fatalf("superseded coverage retained = (%t, %v)", found, err)
 	}
 	for _, id := range first.RouterObservations {
-		if found, err := compacted.HasContent(t.Context(), id); err != nil || found {
+		if found, err := store.HasContent(t.Context(), id); err != nil || found {
 			t.Fatalf("superseded router observation %s retained = (%t, %v)", id, found, err)
 		}
 	}

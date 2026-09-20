@@ -63,13 +63,18 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	if err != nil || rebuildReport.CausalLinks != len(links) {
 		t.Fatalf("rebuild report = (%+v, %v)", rebuildReport, err)
 	}
-	compactedRoot := t.TempDir()
-	compactionReport, err := Compact(ctx, checkpointed, compactedRoot, nil)
-	if err != nil || compactionReport.Causality != 3 {
-		t.Fatalf("compaction report = (%+v, %v)", compactionReport, err)
-	}
 	if err := checkpointed.Close(); err != nil {
 		t.Fatal(err)
+	}
+	// The live set follows causal roots, subjects and motivations from the
+	// aliased evaluation: every execution but the unreferenced replay.
+	writable, err := Open(storeRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseReport, err := Release(ctx, writable, nil, RetentionPolicy{}, releaseEverything)
+	if closeErr := writable.Close(); err != nil || closeErr != nil || releaseReport.Retained != len(all)-1 {
+		t.Fatalf("release report = (%+v, %v, %v)", releaseReport, err, closeErr)
 	}
 	rebuilt, err := OpenReadOnly(rebuiltRoot)
 	if err != nil {
@@ -78,15 +83,6 @@ func TestCausalityProjectionRebuild(t *testing.T) {
 	defer rebuilt.Close()
 	rebuiltHead, rebuiltSequence := rebuilt.Head()
 	assertCausalityProjection(t, rebuilt, rebuiltHead, rebuiltSequence, root, motivation, attempt, retry, replay, evaluation)
-	compacted, err := OpenReadOnly(compactedRoot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
-	compactedResult, err := compacted.QueryCausality(ctx, CausalityQuery{Root: &root, MaxResults: 8})
-	if err != nil || compactedResult.Matched != 3 || !containsCausalExecutions(compactedResult.Links, attempt, retry, evaluation) {
-		t.Fatalf("compacted causality = (%+v, %v)", compactedResult, err)
-	}
 
 	refusal, err := Open(t.TempDir())
 	if err != nil {

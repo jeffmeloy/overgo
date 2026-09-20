@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -9,13 +10,11 @@ import (
 	"overgo/internal/artifact"
 )
 
-// TestSegmentedRetentionPreservesAuthorityClosure holds retention on
-// the segmented layout to its contract: the destination rebuild
-// retains the alias-rooted authority closure with every referenced
-// blob readable, drops what nothing reaches, and the report names the
-// reclaimable source material -- unreachable blobs by count and bytes,
-// and checkpoint files that no longer form a valid set -- without
-// deleting anything in place.
+// TestSegmentedRetentionPreservesAuthorityClosure holds the in-place release
+// on the segmented layout to its contract: the alias-rooted authority closure
+// keeps every referenced blob readable, what nothing reaches loses its blob,
+// and the closing snapshot replaces a checkpoint set that no longer forms a
+// valid anchored set.
 func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
@@ -54,7 +53,7 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Invalidate the checkpoint set so its files count as obsolete.
+	// Invalidate the checkpoint set; the release's snapshot must replace it.
 	victim := filepath.Join(root, checkpointDirectory, "aliases"+checkpointExtension)
 	data, err := os.ReadFile(victim)
 	if err != nil {
@@ -64,44 +63,39 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	if err := os.WriteFile(victim, data, storeFileMode); err != nil {
 		t.Fatal(err)
 	}
+	if _, _, valid, _ := loadProjectionCheckpoints(root); valid {
+		t.Fatal("corrupted checkpoint set still loads")
+	}
 
-	destination := filepath.Join(t.TempDir(), "retained")
-	report, err := Compact(ctx, store, destination, nil)
+	report, err := Release(ctx, store, nil, RetentionPolicy{}, releaseEverything)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.ReclaimableBlobs < 1 || report.ReclaimableBlobBytes < int64(len(orphanPayload)) {
-		t.Fatalf("unreachable blob not reported: %+v", report)
+	if report.Released != 1 || report.BlobsRemoved != 1 || report.ReleasedBytes != int64(len(orphanPayload)) {
+		t.Fatalf("unreachable blob not released: %+v", report)
 	}
-	if report.ObsoleteCheckpoints == 0 {
-		t.Fatalf("invalid checkpoint set not reported: %+v", report)
-	}
-	if blob, err := store.blobs.path(orphanID); err != nil {
-		t.Fatal(err)
-	} else if _, statErr := os.Stat(blob); statErr != nil {
-		t.Fatal("retention deleted source material in place")
-	}
-
-	retained, err := OpenReadOnly(destination)
+	blob, err := store.blobs.path(orphanID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer retained.Close()
-	target, found, err := retained.ResolveAlias(ctx, "retention/root")
+	if _, statErr := os.Stat(blob); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("unreachable blob stayed on disk: %v", statErr)
+	}
+	if _, _, valid, _ := loadProjectionCheckpoints(root); !valid {
+		t.Fatal("release left an invalid checkpoint set")
+	}
+	target, found, err := store.ResolveAlias(ctx, "retention/root")
 	if err != nil || !found || target != rootedID {
 		t.Fatalf("alias closure lost: (%s, %v, %v)", target, found, err)
 	}
-	_, reader, found, err := retained.OpenContent(ctx, rootedID)
+	_, reader, found, err := store.OpenContent(ctx, rootedID)
 	if err != nil || !found {
 		t.Fatalf("retained content = (%v, %v)", found, err)
 	}
 	if data, err := io.ReadAll(reader); err != nil || string(data) != string(rootedPayload) {
 		t.Fatalf("retained content bytes = (%q, %v)", data, err)
 	}
-	if _, found, err := retained.Artifact(ctx, orphanID); err != nil || found {
-		t.Fatalf("unreachable artifact survived retention: found=%v err=%v", found, err)
-	}
-	if retained.blobs.has(orphanID) {
-		t.Fatal("unreachable blob copied into the destination")
+	if has, err := store.HasContent(ctx, orphanID); err != nil || has {
+		t.Fatalf("unreachable content survived the release: has=%v err=%v", has, err)
 	}
 }

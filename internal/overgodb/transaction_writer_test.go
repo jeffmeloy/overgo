@@ -246,32 +246,36 @@ func TestTransactionWriter(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	t.Run("compaction refuses an interleaved destination write", func(t *testing.T) {
+	t.Run("release refuses an interleaved write", func(t *testing.T) {
 		root := t.TempDir()
-		destination, err := Open(root)
+		store, err := Open(root)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer destination.Close()
+		defer store.Close()
 		other, err := Open(root)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer other.Close()
-		writer := compactionWriter{ctx: t.Context(), destination: destination}
-		first := artifact.Batch{Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "compaction first")}}
-		if err := writer.commit([]artifact.Batch{first}); err != nil {
+		first := retentionContent(t, artifact.KindOutput, map[string]any{"release": "first"})
+		second := retentionContent(t, artifact.KindOutput, map[string]any{"release": "second"})
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "release/seed", Contents: []artifact.Content{first, second}}); err != nil {
+			t.Fatal(err)
+		}
+		head, sequence := store.Head()
+		writer := releaseWriter{ctx: t.Context(), store: store, head: head, sequence: sequence}
+		if err := writer.commit([]artifact.ID{first.Descriptor.ID}); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := other.Commit(t.Context(), artifact.Batch{Key: "interleaved", Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "interleaved")}}); err != nil {
 			t.Fatal(err)
 		}
-		second := artifact.Batch{Artifacts: []artifact.Descriptor{fixtureDescriptor(t, artifact.KindOutput, "compaction second")}}
-		if err := writer.commit([]artifact.Batch{second}); !errors.Is(err, ErrHeadConflict) {
-			t.Fatalf("interleaved compaction = %v", err)
+		if err := writer.commit([]artifact.ID{second.Descriptor.ID}); !errors.Is(err, ErrHeadConflict) {
+			t.Fatalf("interleaved release = %v", err)
 		}
-		if _, found, err := destination.Artifact(t.Context(), second.Artifacts[0].ID); err != nil || found {
-			t.Fatalf("refused compaction published: %v, %v", found, err)
+		if has, err := store.HasContent(t.Context(), second.Descriptor.ID); err != nil || !has {
+			t.Fatalf("refused release published: %v, %v", has, err)
 		}
 	})
 	t.Run("idle handles refresh before publication", func(t *testing.T) {

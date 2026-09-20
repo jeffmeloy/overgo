@@ -147,18 +147,20 @@ func TestRSIStoreMigrationDrill(t *testing.T) {
 		t.Fatal("restored backup answers a different query surface")
 	}
 
-	// Retention: compaction preserves the live surface in a fresh root.
-	compactRoot := filepath.Join(base, "compacted")
-	if _, err := Compact(ctx, source, compactRoot, nil); err != nil {
-		t.Fatal(err)
-	}
-	compacted, err := OpenReadOnly(compactRoot)
+	// Retention: releasing everything unreachable in a copy preserves the
+	// live surface, and the source is still never written.
+	releaseRoot := filepath.Join(base, "released")
+	drillCopyStore(t, rebuiltRoot, releaseRoot)
+	released, err := Open(releaseRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer compacted.Close()
-	if drillSurfaceDigest(t, compacted) != digest {
-		t.Fatal("compacted store answers a different query surface")
+	defer released.Close()
+	if _, err := Release(ctx, released, nil, RetentionPolicy{}, releaseEverything); err != nil {
+		t.Fatal(err)
+	}
+	if drillSurfaceDigest(t, released) != digest {
+		t.Fatal("released store answers a different query surface")
 	}
 
 	// Interruption: truncating the active journal at arbitrary publication

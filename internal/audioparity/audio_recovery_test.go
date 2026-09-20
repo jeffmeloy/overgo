@@ -356,20 +356,16 @@ func TestAudioPublicationRecoveryAcceptance(t *testing.T) {
 		}
 	}
 	assertCheckpoint(recovered)
-	compacted := filepath.Join(t.TempDir(), "compacted")
-	report, err := overgodb.Compact(t.Context(), recovered, compacted, nil)
-	if err != nil || report.RetainedArtifacts == 0 {
-		t.Fatalf("audio store compaction: %v", err)
+	// Releasing everything the recovered store's live set does not reach
+	// proves the checkpoint and the candidate need nothing outside it.
+	report, err := overgodb.Release(t.Context(), recovered, nil, overgodb.RetentionPolicy{}, func(artifact.Descriptor) bool { return true })
+	if err != nil || report.Retained == 0 {
+		t.Fatalf("audio store release: %v", err)
 	}
-	retained, err := overgodb.OpenReadOnly(compacted)
+	assertCheckpoint(recovered)
+	loaded, err := speechrecognition.LoadSession(t.Context(), recovered, candidate.ID, adapterAcceptanceMemory)
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer retained.Close()
-	assertCheckpoint(retained)
-	loaded, err := speechrecognition.LoadSession(t.Context(), retained, candidate.ID, adapterAcceptanceMemory)
-	if err != nil {
-		t.Fatalf("compacted audio candidate cannot reload: %v", err)
+		t.Fatalf("released audio candidate cannot reload: %v", err)
 	}
 	if err := loaded.Close(t.Context()); err != nil {
 		t.Fatal(err)

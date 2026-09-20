@@ -3,7 +3,6 @@ package overgodb_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -165,8 +164,9 @@ func TestCompactionReceipt(t *testing.T) {
 		}
 	}
 	// Live check: the store in service must carry the pre-release chain
-	// exactly and the blob tree the release left. Later commits extend the
-	// chain, so its bounds are the recorded coordinates, never the head.
+	// exactly. Later commits extend the chain, so its bounds are the recorded
+	// coordinates, never the head; the store's size is no bound at all -- it
+	// regrows with every gate, and the growth ratchet owns that measure.
 	if os.Getenv(dataroot.Env) == "" {
 		return
 	}
@@ -191,20 +191,5 @@ func TestCompactionReceipt(t *testing.T) {
 	if err != nil || !found || introduction.Commit.String() != probe.Commit || introduction.Sequence != probe.Sequence {
 		t.Fatalf("live introduction of %s = (%+v, %v, %v), want %s at %d",
 			probe.Artifact, introduction, found, err, probe.Commit, probe.Sequence)
-	}
-	var blobFiles int64
-	if err := filepath.WalkDir(filepath.Join(roots.Store, "blobs"), func(_ string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !entry.IsDir() {
-			blobFiles++
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if blobFiles >= before.BlobFiles {
-		t.Fatalf("live blob count %d is not below the pre-release %d", blobFiles, before.BlobFiles)
 	}
 }

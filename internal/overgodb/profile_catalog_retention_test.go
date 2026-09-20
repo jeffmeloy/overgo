@@ -5,39 +5,34 @@ import (
 	"path/filepath"
 	"testing"
 
+	"overgo/internal/artifact"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 )
 
-func TestProfileCatalogCompactionRetainsArchitectureAuthority(t *testing.T) {
+// releaseEverything admits every class: a consumer that still works after it
+// needs nothing outside the live set.
+func releaseEverything(artifact.Descriptor) bool { return true }
+
+func TestProfileCatalogReleaseRetainsArchitectureAuthority(t *testing.T) {
 	ctx := t.Context()
-	root := t.TempDir()
-	source, err := overgodb.Open(filepath.Join(root, "source"))
+	source, err := overgodb.Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer source.Close()
 	publication, err := modelrecipe.PublishArchitectureProfileCatalog(ctx, source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	destination := filepath.Join(root, "compact")
-	if _, err := overgodb.Compact(ctx, source, destination, nil); err != nil {
+	if _, err := overgodb.Release(ctx, source, nil, overgodb.RetentionPolicy{}, releaseEverything); err != nil {
 		t.Fatal(err)
 	}
-	if err := source.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	compacted, err := overgodb.OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
-	coverage, err := modelrecipe.InspectArchitectureProfileCatalog(ctx, compacted)
+	coverage, err := modelrecipe.InspectArchitectureProfileCatalog(ctx, source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !coverage.Complete || coverage.Published != publication.Coverage.Registered {
-		t.Fatalf("compacted coverage = %+v", coverage)
+		t.Fatalf("released coverage = %+v", coverage)
 	}
 }

@@ -2,8 +2,6 @@ package overgodb
 
 import (
 	"encoding/json"
-	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -27,10 +25,15 @@ func retentionContent(t *testing.T, kind artifact.Kind, body any) artifact.Conte
 	}
 }
 
+// releaseEverything admits every class: a test that releases with it proves
+// its consumer needs nothing outside the live set.
+func releaseEverything(artifact.Descriptor) bool { return true }
+
+// TestRetentionTypedLineage keeps what typed lineage reaches and releases
+// what only an untyped reference inside a document names.
 func TestRetentionTypedLineage(t *testing.T) {
 	ctx := t.Context()
-	root := t.TempDir()
-	source, err := Open(filepath.Join(root, "source"))
+	source, err := Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,109 +64,30 @@ func TestRetentionTypedLineage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	report, err := Compact(ctx, source, filepath.Join(root, "compact"), nil)
+	report, err := Release(ctx, source, nil, RetentionPolicy{}, releaseEverything)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.DroppedArtifacts != 1 {
+	if report.Released != 1 || report.Retained != 2 {
 		t.Fatalf("report = %+v", report)
 	}
-	compacted, err := OpenReadOnly(filepath.Join(root, "compact"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
-	if target, ok, err := compacted.ResolveAlias(ctx, "test/active"); err != nil || !ok || target != current.Descriptor.ID {
+	if target, ok, err := source.ResolveAlias(ctx, "test/active"); err != nil || !ok || target != current.Descriptor.ID {
 		t.Fatalf("alias = %v %v %v", target, ok, err)
 	}
-	if ok, err := compacted.HasContent(ctx, evidence.Descriptor.ID); err != nil || !ok {
-		t.Fatalf("typed parent dropped: %v %v", ok, err)
+	if ok, err := source.HasContent(ctx, evidence.Descriptor.ID); err != nil || !ok {
+		t.Fatalf("typed parent released: %v %v", ok, err)
 	}
-	if ok, err := compacted.HasContent(ctx, superseded.Descriptor.ID); err != nil || ok {
-		t.Fatalf("superseded document survived compaction: %v %v", ok, err)
-	}
-	if ok, err := source.HasContent(ctx, superseded.Descriptor.ID); err != nil || !ok {
-		t.Fatalf("source archive lost the superseded document: %v %v", ok, err)
-	}
-}
-
-func TestExactCompactionFrames(t *testing.T) {
-	ctx := t.Context()
-	root := t.TempDir()
-	source, err := Open(filepath.Join(root, "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer source.Close()
-	parent := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "parent"})
-	child := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "child"})
-	if _, err := source.Commit(ctx, artifact.Batch{
-		Key: "test/retention/exact", Contents: []artifact.Content{parent, child},
-		Lineage: []artifact.Lineage{{
-			Child: child.Descriptor.ID, Parent: parent.Descriptor.ID, Relation: artifact.RelationDependsOn,
-		}},
-		Aliases: []artifact.AliasBinding{{Name: "test/exact", Target: child.Descriptor.ID}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	destination := filepath.Join(root, "compact")
-	if _, err := Compact(ctx, source, destination, nil); err != nil {
-		t.Fatal(err)
-	}
-	compacted, err := OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
-	if _, sequence := compacted.Head(); sequence == 0 {
-		t.Fatal("compaction emitted no exact-sized frame")
-	}
-	parents, err := compacted.Parents(ctx, child.Descriptor.ID)
-	if err != nil || len(parents) != 1 || parents[0].Parent != parent.Descriptor.ID {
-		t.Fatalf("typed lineage = (%v, %v)", parents, err)
-	}
-}
-
-// TestRetentionRefusesExistingDestination keeps compaction from writing into
-// a store that already holds anything.
-func TestRetentionRefusesExistingDestination(t *testing.T) {
-	ctx := t.Context()
-	root := t.TempDir()
-	source, err := Open(filepath.Join(root, "source"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer source.Close()
-	seeded := retentionContent(t, artifact.KindEvidence, map[string]any{"seed": true})
-	if _, err := source.Commit(ctx, artifact.Batch{
-		Key: "test/seed", Contents: []artifact.Content{seeded},
-		Aliases: []artifact.AliasBinding{{Name: "seed", Target: seeded.Descriptor.ID}},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	occupied, err := Open(filepath.Join(root, "occupied"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	other := retentionContent(t, artifact.KindEvidence, map[string]any{"other": true})
-	if _, err := occupied.Commit(ctx, artifact.Batch{Key: "test/other", Contents: []artifact.Content{other}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := occupied.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Compact(ctx, source, filepath.Join(root, "occupied"), nil); err == nil {
-		t.Fatal("compaction wrote into an occupied store")
+	if ok, err := source.HasContent(ctx, superseded.Descriptor.ID); err != nil || ok {
+		t.Fatalf("superseded document survived the release: %v %v", ok, err)
 	}
 }
 
 // TestRetentionPinnedRootsSurvive keeps alias-less content the repository's
-// committed documents pin: dropped without a root, retained when pinned, and a
-// pinned identity the store lacks is counted missing rather than invented.
+// committed documents pin: retained when pinned with a missing pin counted,
+// never invented, and released once nothing pins it.
 func TestRetentionPinnedRootsSurvive(t *testing.T) {
 	ctx := t.Context()
-	root := t.TempDir()
-	source, err := Open(filepath.Join(root, "source"))
+	source, err := Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,42 +100,30 @@ func TestRetentionPinnedRootsSurvive(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	present := func(destination string) bool {
-		t.Helper()
-		compacted, err := OpenReadOnly(destination)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer compacted.Close()
-		_, found, err := artifact.ReadContent(ctx, compacted, pinned.Descriptor.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return found
-	}
-	if _, err := Compact(ctx, source, filepath.Join(root, "unpinned"), nil); err != nil {
-		t.Fatal(err)
-	}
-	if present(filepath.Join(root, "unpinned")) {
-		t.Fatal("alias-less content survived compaction without a root")
-	}
 	missing := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "absent"}).Descriptor.ID
-	report, err := CompactWithRoots(ctx, source, filepath.Join(root, "pinned"), nil, []artifact.ID{pinned.Descriptor.ID, missing})
+	report, err := Release(ctx, source, nil, RetentionPolicy{Roots: []artifact.ID{pinned.Descriptor.ID, missing}}, releaseEverything)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !present(filepath.Join(root, "pinned")) {
-		t.Fatal("pinned content was dropped")
+	if report.PinnedRoots != 2 || report.PinnedMissing != 1 || report.Released != 0 {
+		t.Fatalf("pinned accounting = %+v", report)
 	}
-	if report.PinnedRoots != 2 || report.PinnedMissing != 1 {
-		t.Fatalf("pinned accounting = roots %d missing %d", report.PinnedRoots, report.PinnedMissing)
+	if ok, err := source.HasContent(ctx, pinned.Descriptor.ID); err != nil || !ok {
+		t.Fatalf("pinned content was released: %v %v", ok, err)
+	}
+	if report, err = Release(ctx, source, nil, RetentionPolicy{}, releaseEverything); err != nil || report.Released != 1 {
+		t.Fatalf("unpinned release = (%+v, %v)", report, err)
+	}
+	if ok, err := source.HasContent(ctx, pinned.Descriptor.ID); err != nil || ok {
+		t.Fatalf("alias-less content survived a release without a root: %v %v", ok, err)
 	}
 }
 
+// TestRetentionRefusesLiveStoreLocalAlias refuses a release while a
+// store-local authority is live, and such an alias can never be retired.
 func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	ctx := t.Context()
-	root := t.TempDir()
-	source, err := Open(filepath.Join(root, "source"))
+	source, err := Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,13 +139,10 @@ func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	destination := filepath.Join(root, "compact")
-	if _, err := Compact(ctx, source, destination, nil); err == nil ||
+	_, sequence := source.Head()
+	if _, err := Release(ctx, source, nil, RetentionPolicy{}, releaseEverything); err == nil ||
 		!strings.Contains(err.Error(), localAlias) {
-		t.Fatalf("store-local compaction error = %v", err)
-	}
-	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("refused compaction created destination: %v", err)
+		t.Fatalf("store-local release error = %v", err)
 	}
 	if _, err := source.Commit(ctx, artifact.Batch{
 		Key: "test/retention/retire-store-local",
@@ -244,8 +153,7 @@ func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	}); err == nil || !strings.Contains(err.Error(), "cannot be retired") {
 		t.Fatalf("store-local retirement error = %v", err)
 	}
-	if _, err := Compact(ctx, source, destination, nil); err == nil ||
-		!strings.Contains(err.Error(), localAlias) {
-		t.Fatalf("irrevocable store-local compaction error = %v", err)
+	if _, after := source.Head(); after != sequence {
+		t.Fatalf("refused operations advanced the chain %d -> %d", sequence, after)
 	}
 }

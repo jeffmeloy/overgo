@@ -2,9 +2,13 @@ package overgodb
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -311,6 +315,40 @@ func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
 	}
 	if report.Unreachable != 1 || report.Released != 1 || report.Commits != 1 {
 		t.Fatalf("release without followed children = %+v", report)
+	}
+}
+
+// TestReleaseIsTheOnlyRetentionWriter parses retention.go and holds its
+// surface: Release is the only exported operation and the release writer the
+// only function that commits, so a rewrite path that starts a new commit
+// chain cannot return unnoticed.
+func TestReleaseIsTheOnlyRetentionWriter(t *testing.T) {
+	file, err := parser.ParseFile(token.NewFileSet(), "retention.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var operations, committers []string
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if function.Recv == nil && function.Name.IsExported() {
+			operations = append(operations, function.Name.Name)
+		}
+		ast.Inspect(function, func(node ast.Node) bool {
+			call, isCall := node.(*ast.CallExpr)
+			if !isCall {
+				return true
+			}
+			if selector, isSelector := call.Fun.(*ast.SelectorExpr); isSelector && selector.Sel.Name == "Commit" {
+				committers = append(committers, function.Name.Name)
+			}
+			return true
+		})
+	}
+	if !slices.Equal(operations, []string{"Release"}) || !slices.Equal(committers, []string{"commit"}) {
+		t.Fatalf("retention surface: operations=%v committers=%v", operations, committers)
 	}
 }
 

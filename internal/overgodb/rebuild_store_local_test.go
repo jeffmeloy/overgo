@@ -71,8 +71,8 @@ func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
 		t.Fatalf("rebuilt store-local alias = (%s, %v, %v)", target, found, err)
 	}
 
-	compacted := filepath.Join(root, "compacted")
-	if _, err := Compact(ctx, source, compacted, func(string, artifact.ID) error { return nil }); err != nil {
+	// The same at-rest admission lets a release proceed in place.
+	if _, err := Release(ctx, source, func(string, artifact.ID) error { return nil }, RetentionPolicy{}, releaseEverything); err != nil {
 		t.Fatal(err)
 	}
 }

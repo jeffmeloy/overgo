@@ -1,14 +1,9 @@
 package overgodb
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"io"
-	"maps"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -16,21 +11,21 @@ import (
 )
 
 // StoreLocalAliasPrefix marks live authorities whose meaning depends on this
-// store's physical commit history. Compaction must refuse these aliases because
-// rebuilding logical facts cannot preserve their original commit receipts.
+// store's physical commit history. Retention must refuse these aliases unless
+// the caller judges them at rest, because a physical operation cannot
+// preserve a receipt that is still being written.
 const StoreLocalAliasPrefix = "store-local/"
 
 // StoreLocalAdmission decides whether one store-local alias may cross a
-// rebuild or compaction. The storage layer cannot judge a store-local
+// rebuild or a release. The storage layer cannot judge a store-local
 // authority's rest state -- the document schemas live above it -- so the
-// caller supplies the judgment: return nil to admit the alias into the
-// destination, or an error naming why the authority is still live. A nil
-// admission keeps the historical behavior of refusing every store-local
-// alias.
+// caller supplies the judgment: return nil to admit the alias, or an error
+// naming why the authority is still live. A nil admission refuses every
+// store-local alias.
 type StoreLocalAdmission func(name string, target artifact.ID) error
 
 // admitStoreLocalAliases applies one admission to every store-local alias
-// view, returning the refusal that stops the physical rewrite.
+// view, returning the refusal that stops the physical operation.
 func admitStoreLocalAliases(operation string, aliases []AliasView, admit StoreLocalAdmission) error {
 	for _, alias := range aliases {
 		if !strings.HasPrefix(alias.Name, StoreLocalAliasPrefix) {
@@ -44,30 +39,6 @@ func admitStoreLocalAliases(operation string, aliases []AliasView, admit StoreLo
 		}
 	}
 	return nil
-}
-
-// RetentionReport counts one compaction.
-type RetentionReport struct {
-	RetainedArtifacts int
-	RetainedManifests int
-	RetainedContents  int
-	Aliases           int
-	Lineage           int
-	Causality         int
-	DroppedArtifacts  int
-	// ReclaimableBlobs and ReclaimableBlobBytes report source blob
-	// files no retained content references; retention rebuilds a
-	// destination and reports reclaimable material, it never deletes.
-	ReclaimableBlobs     int
-	ReclaimableBlobBytes int64
-	// ObsoleteCheckpoints counts source checkpoint files that no
-	// longer form a valid anchored set.
-	ObsoleteCheckpoints int
-	// PinnedRoots counts identities the caller named as roots beyond the
-	// aliases (committed documents that pin store evidence); PinnedMissing
-	// counts pinned identities the source store does not hold.
-	PinnedRoots   int
-	PinnedMissing int
 }
 
 // RetentionPolicy names what a live set is rooted at beyond the aliases and
@@ -90,9 +61,7 @@ type liveSet struct {
 	contents      map[artifact.ID]bool
 	parents       map[artifact.ID][]relationKey
 	children      map[artifact.ID][]relationKey
-	locations     map[artifact.ID][]artifact.Location
 	causality     map[artifact.ID]artifact.CausalLink
-	aliases       []AliasView
 	retained      map[artifact.ID]bool
 	pinnedRoots   int
 	pinnedMissing int
@@ -107,7 +76,6 @@ func collectLiveSet(ctx context.Context, source *Store, operation string, admit 
 		contents:    map[artifact.ID]bool{},
 		parents:     map[artifact.ID][]relationKey{},
 		children:    map[artifact.ID][]relationKey{},
-		locations:   map[artifact.ID][]artifact.Location{},
 		causality:   map[artifact.ID]artifact.CausalLink{},
 		retained:    map[artifact.ID]bool{},
 	}
@@ -119,8 +87,8 @@ func collectLiveSet(ctx context.Context, source *Store, operation string, admit 
 		source.mu.RUnlock()
 		return live, err
 	}
-	live.aliases = source.state.aliasViews("")
-	if err := admitStoreLocalAliases(operation, live.aliases, admit); err != nil {
+	aliases := source.state.aliasViews("")
+	if err := admitStoreLocalAliases(operation, aliases, admit); err != nil {
 		source.mu.RUnlock()
 		return live, err
 	}
@@ -133,7 +101,6 @@ func collectLiveSet(ctx context.Context, source *Store, operation string, admit 
 		if policy.FollowChildren != nil && policy.FollowChildren(record.descriptor) {
 			live.children[id] = slices.Clone(source.state.lineage.childrenOf(id))
 		}
-		live.locations[id] = slices.Clone(source.state.locations.of(id))
 		if source.state.contents.has(id) {
 			live.contents[id] = true
 		}
@@ -173,7 +140,7 @@ func collectLiveSet(ctx context.Context, source *Store, operation string, admit 
 			}
 		}
 	}
-	for _, alias := range live.aliases {
+	for _, alias := range aliases {
 		retain(alias.Target)
 	}
 	for _, root := range policy.Roots {
@@ -185,162 +152,6 @@ func collectLiveSet(ctx context.Context, source *Store, operation string, admit 
 		retain(root)
 	}
 	return live, nil
-}
-
-// Compact writes alias-rooted parent closure to a new store.
-//
-// A rewrite starts a new commit chain: every commit-coordinate binding
-// outside the store -- gate trailers, merge receipts, census sequences --
-// names commits the destination does not have. Compact is a lineage
-// migration, not a compaction of a store in service; ReleaseUnreachable is.
-func Compact(ctx context.Context, source *Store, destinationRoot string, admit StoreLocalAdmission) (RetentionReport, error) {
-	return CompactWithRoots(ctx, source, destinationRoot, admit, nil)
-}
-
-// CompactWithRoots is Compact with extra roots: identities the repository's
-// committed documents pin without an alias survive retention when named here,
-// and a pinned identity the source lacks is counted, never invented.
-func CompactWithRoots(ctx context.Context, source *Store, destinationRoot string, admit StoreLocalAdmission, roots []artifact.ID) (RetentionReport, error) {
-	report := RetentionReport{}
-	if source == nil {
-		return report, errors.New("overgodb retention: nil source store")
-	}
-	live, err := collectLiveSet(ctx, source, "compaction", admit, RetentionPolicy{Roots: roots})
-	if err != nil {
-		return report, err
-	}
-	report.PinnedRoots, report.PinnedMissing = live.pinnedRoots, live.pinnedMissing
-	descriptors, manifests, contents := live.descriptors, live.manifests, live.contents
-	parents, locations, causality := live.parents, live.locations, live.causality
-	aliases, retained := live.aliases, live.retained
-	ids := slices.SortedFunc(maps.Keys(retained), artifact.CompareID)
-	switch {
-	case ids == nil:
-		ids = []artifact.ID{}
-	}
-
-	destination, err := Open(destinationRoot)
-	if err != nil {
-		return report, err
-	}
-	defer destination.Close()
-	if _, sequence := destination.Head(); sequence != 0 {
-		return report, fmt.Errorf("overgodb retention: destination %s already holds %d commit(s)", destinationRoot, sequence)
-	}
-	writer := compactionWriter{ctx: ctx, destination: destination}
-	contentIDs := make([]artifact.ID, 0, len(contents))
-	for _, id := range ids {
-		if _, manifest := manifests[id]; manifest {
-			continue
-		}
-		if contents[id] {
-			contentIDs = append(contentIDs, id)
-			continue
-		}
-		item := artifact.Batch{Artifacts: []artifact.Descriptor{descriptors[id]}}
-		for _, location := range locations[id] {
-			item.Locations = append(item.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
-		}
-		if err := writer.add(item); err != nil {
-			return report, err
-		}
-		report.RetainedArtifacts++
-	}
-	if err := source.VisitContents(ctx, contentIDs, func(descriptor artifact.Descriptor, reader io.Reader) error {
-		data, err := io.ReadAll(reader)
-		if err != nil {
-			return err
-		}
-		item := artifact.Batch{Contents: []artifact.Content{{Descriptor: descriptor, Data: data}}}
-		for _, location := range locations[descriptor.ID] {
-			item.Locations = append(item.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
-		}
-		if err := writer.add(item); err != nil {
-			return err
-		}
-		report.RetainedArtifacts++
-		report.RetainedContents++
-		return nil
-	}); err != nil {
-		return report, err
-	}
-	if err := writer.flush(); err != nil {
-		return report, err
-	}
-	for _, id := range ids {
-		manifest, ok := manifests[id]
-		if !ok {
-			continue
-		}
-		item := artifact.Batch{Manifests: []artifact.Manifest{manifest}}
-		for _, location := range locations[id] {
-			item.Locations = append(item.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
-		}
-		if err := writer.add(item); err != nil {
-			return report, err
-		}
-		report.RetainedManifests++
-	}
-	if err := writer.flush(); err != nil {
-		return report, err
-	}
-	manifestLineage := map[relationKey]struct{}{}
-	for _, manifest := range manifests {
-		for _, edge := range manifest.Lineage() {
-			manifestLineage[relationKey{child: edge.Child, parent: edge.Parent, relation: edge.Relation}] = struct{}{}
-		}
-	}
-	for _, id := range ids {
-		for _, edge := range parents[id] {
-			if !retained[edge.parent] {
-				continue
-			}
-			if _, materialized := manifestLineage[edge]; materialized {
-				report.Lineage++
-				continue
-			}
-			if err := writer.add(artifact.Batch{Lineage: []artifact.Lineage{{
-				Child: edge.child, Parent: edge.parent, Relation: edge.relation,
-			}}}); err != nil {
-				return report, err
-			}
-			report.Lineage++
-		}
-	}
-	if err := writer.flush(); err != nil {
-		return report, err
-	}
-	for _, id := range ids {
-		if link, found := causality[id]; found {
-			if err := writer.add(artifact.Batch{Causality: []artifact.CausalLink{link}}); err != nil {
-				return report, err
-			}
-			report.Causality++
-		}
-	}
-	if err := writer.flush(); err != nil {
-		return report, err
-	}
-	for _, alias := range aliases {
-		if !retained[alias.Target] {
-			continue
-		}
-		if err := writer.add(artifact.Batch{Aliases: []artifact.AliasBinding{{
-			Name: alias.Name, Target: alias.Target,
-		}}}); err != nil {
-			return report, err
-		}
-		report.Aliases++
-	}
-	if err := writer.flush(); err != nil {
-		return report, err
-	}
-	if _, err := destination.Snapshot(ctx); err != nil {
-		return report, err
-	}
-	report.DroppedArtifacts = len(descriptors) - report.RetainedArtifacts - report.RetainedManifests
-	reportReclaimable(source, retained, contents, &report)
-	return report, nil
 }
 
 // ReleaseReport counts one in-place release of content bytes.
@@ -385,7 +196,9 @@ type ReleaseReport struct {
 // commit-coordinate binding outside the store stays exact: the release is
 // appended as commits, blob files go only once the journal says their bytes
 // are released, and a snapshot then refreshes the checkpoints. A second run
-// over the same store releases nothing and appends nothing.
+// over the same store releases nothing and appends nothing. A store is never
+// rewritten into a fresh journal to compact it: a rewrite is a new commit
+// chain, and Rebuild owns that migration.
 func Release(ctx context.Context, store *Store, admit StoreLocalAdmission, policy RetentionPolicy, releasable func(artifact.Descriptor) bool) (ReleaseReport, error) {
 	report := ReleaseReport{}
 	if store == nil || releasable == nil {
@@ -414,20 +227,11 @@ func Release(ctx context.Context, store *Store, admit StoreLocalAdmission, polic
 	if len(releases) == 0 {
 		return report, nil
 	}
-	// One item per release lets the writer bisect to what a frame admits,
-	// so no chunk size is chosen; the key names the chain length released.
-	items := make([]artifact.Batch, len(releases))
-	for index, id := range releases {
-		items[index] = artifact.Batch{Releases: []artifact.ID{id}}
-	}
-	writer := compactionWriter{
-		ctx: ctx, destination: store, head: report.HeadBefore,
-		keyPrefix: fmt.Sprintf("retention/release/%d", report.SequenceBefore),
-	}
-	if err := writer.commit(items); err != nil {
+	writer := releaseWriter{ctx: ctx, store: store, head: report.HeadBefore, sequence: report.SequenceBefore}
+	if err := writer.commit(releases); err != nil {
 		return report, err
 	}
-	report.Commits = writer.chunk
+	report.Commits = writer.commits
 	if err := sweepReleasedBlobs(store, &report); err != nil {
 		return report, err
 	}
@@ -436,6 +240,48 @@ func Release(ctx context.Context, store *Store, admit StoreLocalAdmission, polic
 	}
 	report.HeadAfter, report.SequenceAfter = store.Head()
 	return report, nil
+}
+
+// releaseWriter appends release facts onto the store's own chain. The key
+// names the chain length released, so reruns never collide.
+type releaseWriter struct {
+	ctx      context.Context
+	store    *Store
+	head     artifact.CommitID
+	sequence uint64
+	commits  int
+}
+
+// commit appends the releases as one commit when a frame admits them and
+// bisects otherwise, so no chunk size is chosen. The expected head refuses
+// an interleaved writer.
+func (writer *releaseWriter) commit(releases []artifact.ID) error {
+	batch := artifact.Batch{
+		Key:          fmt.Sprintf("retention/release/%d/%d", writer.sequence, writer.commits+1),
+		ExpectedHead: &writer.head,
+		Releases:     releases,
+	}
+	fits, err := writer.store.transactionFits(batch)
+	if err != nil {
+		return err
+	}
+	if fits {
+		head, err := writer.store.Commit(writer.ctx, batch)
+		if err != nil {
+			return err
+		}
+		writer.head = head
+		writer.commits++
+		return nil
+	}
+	if len(releases) == 1 {
+		return errors.New("overgodb retention: one release exceeds the frame limit")
+	}
+	middle := len(releases) / 2
+	if err := writer.commit(releases[:middle]); err != nil {
+		return err
+	}
+	return writer.commit(releases[middle:])
 }
 
 // sweepReleasedBlobs deletes the blob file of every released content, this
@@ -476,156 +322,4 @@ func (report ReleaseReport) String() string {
 	return fmt.Sprintf("retained=%d pinned_roots=%d pinned_missing=%d unreachable=%d released=%d released_bytes=%d commits=%d inline=%d blobs_removed=%d blobs_absent=%d sequence %d -> %d",
 		report.Retained, report.PinnedRoots, report.PinnedMissing, report.Unreachable, report.Released, report.ReleasedBytes,
 		report.Commits, report.Inline, report.BlobsRemoved, report.BlobsAbsent, report.SequenceBefore, report.SequenceAfter)
-}
-
-// reportReclaimable names the source material canonical reachability
-// no longer requires: blob files no retained content references and
-// checkpoint files that no longer form a valid anchored set. Retention
-// reports; it never deletes in place.
-func reportReclaimable(source *Store, retained map[artifact.ID]bool, contents map[artifact.ID]bool, report *RetentionReport) {
-	referenced := map[string]bool{}
-	for id, hasContent := range contents {
-		if hasContent && retained[id] {
-			referenced[id.DigestHex()] = true
-		}
-	}
-	root := filepath.Join(source.root, blobDirectory)
-	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil || entry.IsDir() {
-			return nil
-		}
-		if !referenced[filepath.Base(path)] {
-			report.ReclaimableBlobs++
-			if info, infoErr := entry.Info(); infoErr == nil {
-				report.ReclaimableBlobBytes += info.Size()
-			}
-		}
-		return nil
-	})
-	if _, _, valid, _ := loadProjectionCheckpoints(source.root); !valid {
-		entries, err := os.ReadDir(filepath.Join(source.root, checkpointDirectory))
-		if err == nil {
-			report.ObsoleteCheckpoints = len(entries)
-		}
-	}
-}
-
-// compactionWriter commits retention facts to a store in frame-sized
-// chunks: compaction's rebuilt facts into a fresh store, or release facts
-// onto the store's own chain. keyPrefix names the operation; empty means
-// compaction.
-type compactionWriter struct {
-	ctx         context.Context
-	destination *Store
-	items       []artifact.Batch
-	content     int
-	chunk       int
-	head        artifact.CommitID
-	keyPrefix   string
-}
-
-func (writer *compactionWriter) add(item artifact.Batch) error {
-	content := 0
-	for _, value := range item.Contents {
-		content += len(value.Data)
-	}
-	if content > maxFramePayload {
-		return errors.New("overgodb retention: one compacted fact exceeds the frame limit")
-	}
-	if writer.content > maxFramePayload-content {
-		if err := writer.flush(); err != nil {
-			return err
-		}
-	}
-	writer.items = append(writer.items, item)
-	writer.content += content
-	return nil
-}
-
-func (writer *compactionWriter) flush() error {
-	if len(writer.items) == 0 {
-		return nil
-	}
-	if err := writer.commit(writer.items); err != nil {
-		return err
-	}
-	clear(writer.items)
-	writer.items = writer.items[:0]
-	writer.content = len(writer.items)
-	return nil
-}
-
-func (writer *compactionWriter) commit(items []artifact.Batch) error {
-	batch := mergeCompactionItems(items)
-	batch.Key = writer.nextKey()
-	batch.ExpectedHead = &writer.head
-	fits, err := writer.destination.transactionFits(batch)
-	if err != nil {
-		return err
-	}
-	if fits {
-		head, err := writer.destination.Commit(writer.ctx, batch)
-		if err != nil {
-			return err
-		}
-		writer.head = head
-		writer.chunk++
-		return nil
-	}
-	if len(items) == 1 {
-		return errors.New("overgodb retention: one compacted fact exceeds the frame limit")
-	}
-	middle := len(items) / 2
-	if err := writer.commit(items[:middle]); err != nil {
-		return err
-	}
-	return writer.commit(items[middle:])
-}
-
-func (writer *compactionWriter) nextKey() string {
-	return fmt.Sprintf("%s/%d", cmp.Or(writer.keyPrefix, "retention/compact"), writer.chunk+1)
-}
-
-func mergeCompactionItems(items []artifact.Batch) artifact.Batch {
-	var artifacts, contents, manifests, lineage, causality, aliases, locations, releases int
-	for _, item := range items {
-		artifacts += len(item.Artifacts)
-		contents += len(item.Contents)
-		manifests += len(item.Manifests)
-		lineage += len(item.Lineage)
-		causality += len(item.Causality)
-		aliases += len(item.Aliases)
-		locations += len(item.Locations)
-		releases += len(item.Releases)
-	}
-	merged := artifact.Batch{
-		Artifacts: make([]artifact.Descriptor, artifacts),
-		Contents:  make([]artifact.Content, contents),
-		Manifests: make([]artifact.Manifest, manifests),
-		Lineage:   make([]artifact.Lineage, lineage),
-		Causality: make([]artifact.CausalLink, causality),
-		Aliases:   make([]artifact.AliasBinding, aliases),
-		Locations: make([]artifact.LocationEvent, locations),
-		Releases:  make([]artifact.ID, releases),
-	}
-	var artifactAt, contentAt, manifestAt, lineageAt, causalityAt, aliasAt, locationAt, releaseAt int
-	for _, item := range items {
-		artifactAt += copy(merged.Artifacts[artifactAt:], item.Artifacts)
-		contentAt += copy(merged.Contents[contentAt:], item.Contents)
-		manifestAt += copy(merged.Manifests[manifestAt:], item.Manifests)
-		lineageAt += copy(merged.Lineage[lineageAt:], item.Lineage)
-		causalityAt += copy(merged.Causality[causalityAt:], item.Causality)
-		aliasAt += copy(merged.Aliases[aliasAt:], item.Aliases)
-		locationAt += copy(merged.Locations[locationAt:], item.Locations)
-		releaseAt += copy(merged.Releases[releaseAt:], item.Releases)
-	}
-	return merged
-}
-
-// String renders the report.
-func (report RetentionReport) String() string {
-	return fmt.Sprintf("retained artifacts=%d manifests=%d contents=%d aliases=%d lineage=%d causality=%d; dropped=%d reclaimable_blobs=%d reclaimable_blob_bytes=%d obsolete_checkpoints=%d",
-		report.RetainedArtifacts, report.RetainedManifests, report.RetainedContents,
-		report.Aliases, report.Lineage, report.Causality, report.DroppedArtifacts,
-		report.ReclaimableBlobs, report.ReclaimableBlobBytes, report.ObsoleteCheckpoints)
 }

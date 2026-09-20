@@ -81,9 +81,11 @@ func BenchmarkCompaction(b *testing.B) {
 	}
 	b.ReportAllocs()
 	b.ResetTimer()
+	// Every content is alias-reachable, so each pass measures the live-set
+	// closure and releases nothing.
 	for b.Loop() {
-		if _, err := Compact(ctx, source, b.TempDir(), nil); err != nil {
-			b.Fatal(err)
+		if report, err := Release(ctx, source, nil, RetentionPolicy{}, releaseEverything); err != nil || report.Released != 0 {
+			b.Fatalf("release = (%+v, %v)", report, err)
 		}
 	}
 }

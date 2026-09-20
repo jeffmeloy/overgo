@@ -47,19 +47,11 @@ func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	destination := filepath.Join(root, "compact")
-	if _, err := overgodb.Compact(ctx, source, destination, nil); err != nil {
+	defer source.Close()
+	if _, err := overgodb.Release(ctx, source, nil, overgodb.RetentionPolicy{}, releaseEverything); err != nil {
 		t.Fatal(err)
 	}
-	if err := source.Close(); err != nil {
-		t.Fatal(err)
-	}
-	compacted, err := overgodb.OpenReadOnly(destination)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer compacted.Close()
-	coverage, err := dataset.InspectCatalog(ctx, compacted)
+	coverage, err := dataset.InspectCatalog(ctx, source)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,9 +20,11 @@ import (
 // transaction authority: each file carries one projection's canonical
 // body anchored to the journal head, sequence, log offset, anchor
 // digest, and the projection's schema version, with a payload digest
-// over the body. A corrupt, stale, unknown-version, or non-canonical
-// member discards the whole set and open falls back to the next
-// verified anchor -- the monolithic snapshot, then full replay.
+// over the body. A corrupt, stale or unknown-version member discards
+// the whole set and open falls back to the next verified anchor -- the
+// monolithic snapshot, then full replay. Canonical form is proved where
+// the set is written; a projection whose checkpoint shape changes
+// advances its version, which TestCheckpointShapeIsVersioned enforces.
 
 const (
 	checkpointDirectory = "checkpoints"
@@ -54,10 +56,19 @@ func writeProjectionCheckpoints(
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
 		return fmt.Errorf("overgodb: create checkpoint directory: %w", err)
 	}
-	for _, registered := range projections(state) {
+	for index, registered := range projections(state) {
 		payload, err := registered.view.checkpoint()
 		if err != nil {
 			return fmt.Errorf("overgodb: checkpoint %s: %w", registered.name, err)
+		}
+		// An open trusts digest and version, so the body is held here, once,
+		// to restoring into the bytes it was written from.
+		proof := projections(new(catalogState))[index].view
+		if err := proof.restore(payload); err != nil {
+			return fmt.Errorf("overgodb: checkpoint %s does not restore: %w", registered.name, err)
+		}
+		if canonical, err := proof.checkpoint(); err != nil || !bytes.Equal(canonical, payload) {
+			return fmt.Errorf("overgodb: checkpoint %s is non-canonical", registered.name)
 		}
 		digest := sha256.Sum256(payload)
 		header, err := json.Marshal(checkpointHeader{
@@ -127,8 +138,8 @@ func loadCheckpointSet(read func(name string) ([]byte, error)) (catalogState, re
 	return state, anchor, true, ""
 }
 
-// loadCheckpoint verifies one member against its header, restores its facet
-// and holds the body to the bytes this reader would write back.
+// loadCheckpoint verifies one member against its header and restores its
+// facet.
 func loadCheckpoint(registered registeredProjection, read func(name string) ([]byte, error)) (replayAnchor, string) {
 	document, err := read(registered.name)
 	if err != nil {
@@ -158,10 +169,6 @@ func loadCheckpoint(registered registeredProjection, read func(name string) ([]b
 	copy(anchor.digest[:], anchorDigest)
 	if err := registered.view.restore(payload); err != nil {
 		return replayAnchor{}, fmt.Sprintf("checkpoint %s restore: %v", registered.name, err)
-	}
-	canonical, err := registered.view.checkpoint()
-	if err != nil || !bytes.Equal(canonical, payload) {
-		return replayAnchor{}, fmt.Sprintf("checkpoint %s is non-canonical", registered.name)
 	}
 	return anchor, ""
 }

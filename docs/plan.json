@@ -74,6 +74,20 @@
       ]
     },
     {
+      "id": "store-open-lineage-cost",
+      "title": "Cut what the two largest checkpoints cost an open, re-measured after the redundancy rows: with the members loading at once and canonical form proved at the writer, an open is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s; bare open 1.4 s. Re-measure first, since the agent-obligation, closure-rebind and benchmark-record rows shrink both, then split what remains so one member's decode uses the cores or give it an encoding that does not parse text, keeping the digest, version and anchor checks",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cut what the two largest checkpoints cost an open, re-measured after the redundancy rows: with the members loading at once and canonical form proved at the writer, an open is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s; bare open 1.4 s. Re-measure first, since the agent-obligation, closure-rebind and benchmark-record rows shrink both, then split what remains so one member's decode uses the cores or give it an encoding that does not parse text, keeping the digest, version and anchor checks",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1"
+        }
+      ]
+    },
+    {
       "id": "store-blob-pack-and-split",
       "title": "Pack what remains once the redundancy rows have stopped the four tiny schemas at their writers (the census found them at 132,477 records in 83 MB, 77 percent of held records): split retained claims from ephemeral evidence physically and pack the small blobs that are still written, choosing the format from a fresh census so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
       "owner": "master-lead",
@@ -839,7 +853,9 @@
             "store-access-consolidation/do",
             "store-access-census/do",
             "automation-add-owns-closeout-dependency/do",
-            "repoanalysis-suite-wall/do"
+            "repoanalysis-suite-wall/do",
+            "store-open-canonical-at-writer/do",
+            "store-open-lineage-cost/do"
           ]
         }
       ]

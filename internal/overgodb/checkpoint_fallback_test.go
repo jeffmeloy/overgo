@@ -10,11 +10,10 @@ import (
 
 // TestProjectionCheckpointAnchorAndFallback holds the checkpoint set
 // to its contract: a complete set restores state anchored to the
-// journal head; a corrupt payload, an unknown projection version, a
-// member anchored to a different head, or a non-canonical body each
-// discard the set with a named reason and open falls back to the next
-// verified anchor with identical answers. Checkpoints accelerate;
-// they are never authority.
+// journal head; a corrupt payload, an unknown projection version or a
+// member anchored to a different head each discard the set with a named
+// reason and open falls back to the next verified anchor with identical
+// answers. Checkpoints accelerate; they are never authority.
 func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 	root := t.TempDir()
 	head, _, _ := copyScaleCorpus(t, root)

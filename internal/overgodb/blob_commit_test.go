@@ -80,7 +80,8 @@ func TestExternalBlobCommitAtomicity(t *testing.T) {
 	}
 
 	store.log.writer = &faultWriter{file: store.log.file, remaining: frameHeaderBytes / 2}
-	orphanPayload := []byte("orphaned by append fault")
+	// Blob-sized: smaller content rides in the frame and has no blob to orphan.
+	orphanPayload := []byte(strings.Repeat("orphaned by append fault ", inlineContentLimit))
 	orphanID, err := artifact.IdentifyBytes(artifact.KindTensorSet, orphanPayload)
 	if err != nil {
 		t.Fatal(err)

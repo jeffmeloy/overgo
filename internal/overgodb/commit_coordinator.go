@@ -92,8 +92,11 @@ func (c commitCoordinator) commit(
 	}
 	// Blob bytes become durable BEFORE the journal frame that references
 	// them: a crash here leaves an unreachable blob, never a committed
-	// descriptor whose bytes are missing.
+	// descriptor whose bytes are missing. Inline bytes are the frame's own.
 	for _, content := range delta.Contents {
+		if !locators[content.Descriptor.ID].blob {
+			continue
+		}
 		if err := c.blobs.prepare(content.Descriptor.ID, content.Data); err != nil {
 			return commitAdvance{}, false, err
 		}

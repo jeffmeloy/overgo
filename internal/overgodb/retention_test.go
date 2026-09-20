@@ -9,9 +9,12 @@ import (
 	"overgo/internal/artifact"
 )
 
+// retentionContent is a document large enough to be a blob: retention,
+// release and cloning are about blob files, and content under
+// inlineContentLimit rides in its frame and has none.
 func retentionContent(t *testing.T, kind artifact.Kind, body any) artifact.Content {
 	t.Helper()
-	data, err := json.Marshal(body)
+	data, err := json.Marshal(map[string]any{"body": body, "padding": strings.Repeat("-", inlineContentLimit)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,6 +1,7 @@
 package overgodb
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -37,7 +38,9 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	orphanPayload := []byte("segmented-retention unreachable content")
+	// Blob-sized: the release below must remove a blob file, and smaller
+	// content rides in its frame and has none.
+	orphanPayload := bytes.Repeat([]byte("segmented-retention unreachable content "), inlineContentLimit)
 	orphanID, err := artifact.IdentifyBytes(artifact.KindOutput, orphanPayload)
 	if err != nil {
 		t.Fatal(err)

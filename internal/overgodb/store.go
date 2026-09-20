@@ -860,17 +860,32 @@ func encodeBatch(batch artifact.Batch) (artifact.Batch, [sha256.Size]byte, error
 	return normalized, sha256.Sum256(payload), nil
 }
 
-// encodeTransaction persists a small commit envelope: ordering,
-// identities, descriptors, and transaction intent. Content bytes are
-// referenced through the blob store, never embedded.
+// inlineContentLimit is the size below which content rides in its frame
+// instead of a blob file of its own. A file costs a whole filesystem
+// allocation and a directory entry however few bytes it holds, and the record
+// census found 96 % of the store's records under one 4 KiB allocation -- four
+// claim schemas alone were 132,000 files holding 83 MB. The frame already
+// carries inline content and the journal and its segments already index it,
+// so they are the pack file. Larger content stays a blob: only a blob's bytes
+// can be released.
+const inlineContentLimit = 4096
+
+// encodeTransaction persists a commit envelope -- ordering, identities,
+// descriptors and transaction intent -- followed by the bytes of its small
+// contents, in descriptor order, as the decoder reads them. Larger content
+// is referenced through the blob store, never embedded.
 func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte, map[artifact.ID]contentLocator, error) {
 	contents := delta.Contents
 	delta.Contents = nil
-	descriptors := make([]artifact.Descriptor, len(contents))
-	for index := range contents {
-		descriptors[index] = contents[index].Descriptor
+	transaction := persistedTransaction{Request: request, Delta: delta}
+	for _, content := range contents {
+		if len(content.Data) < inlineContentLimit {
+			transaction.Content = append(transaction.Content, content.Descriptor)
+		} else {
+			transaction.BlobContent = append(transaction.BlobContent, content.Descriptor)
+		}
 	}
-	metadata, err := json.Marshal(persistedTransaction{Request: request, Delta: delta, BlobContent: descriptors})
+	metadata, err := json.Marshal(transaction)
 	if err != nil {
 		return nil, nil, fmt.Errorf("overgodb: encode transaction: %w", err)
 	}
@@ -878,7 +893,12 @@ func encodeTransaction(request [sha256.Size]byte, delta artifact.Batch) ([]byte,
 	payload = append(payload, metadata...)
 	locators := make(map[artifact.ID]contentLocator, len(contents))
 	for _, content := range contents {
-		locators[content.Descriptor.ID] = contentLocator{size: int64(len(content.Data)), blob: true}
+		locator := contentLocator{size: int64(len(content.Data)), blob: len(content.Data) >= inlineContentLimit}
+		if !locator.blob {
+			locator.offset = int64(len(payload))
+			payload = append(payload, content.Data...)
+		}
+		locators[content.Descriptor.ID] = locator
 	}
 	if len(payload) > maxFramePayload {
 		return nil, nil, fmt.Errorf("%w: transaction", errPayloadLimit)

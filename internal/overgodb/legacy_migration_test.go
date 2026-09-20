@@ -78,12 +78,12 @@ func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.I
 	return ids
 }
 
-// TestLegacyInlineToBlobRebuildRoundTrip pins the read-only legacy
-// exception: a store of inline frames opens and answers reads; a new
-// commit onto it writes only the external-blob format; and rebuild
-// migrates the corpus into a destination whose journal carries no
-// inline content while artifact, content, alias, and lineage semantics
-// match the source exactly.
+// TestLegacyInlineToBlobRebuildRoundTrip pins the two content forms across
+// a store's history: a store of inline frames opens and answers reads; a
+// new commit of large content onto it is a blob and leaves its bytes out of
+// the journal; and rebuild migrates the corpus into a destination that
+// places each content by the size rule while artifact, content, alias, and
+// lineage semantics match the source exactly.
 func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()
@@ -150,8 +150,8 @@ func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
 		if err != nil || !found || content.Descriptor != descriptor {
 			t.Fatalf("migrated content %d = (%v, %v)", ordinal, found, err)
 		}
-		if !migrated.blobs.has(id) {
-			t.Fatalf("migrated content %d is not blob-backed", ordinal)
+		if migrated.blobs.has(id) != (descriptor.Size >= inlineContentLimit) {
+			t.Fatalf("migrated content %d of %d bytes is not placed by the size rule", ordinal, descriptor.Size)
 		}
 		if ordinal%scaleAliasStride == 0 {
 			target, found, err := migrated.ResolveAlias(ctx, aliasName(ordinal))

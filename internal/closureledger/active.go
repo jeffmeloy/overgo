@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"overgo/internal/artifact"
+	"overgo/internal/overgodb"
 )
 
 // ActiveAliasPrefix scopes current closure bindings.
@@ -23,6 +24,32 @@ func ActiveAlias(binding SourceBinding) (string, error) {
 	}
 	digest := sha256.Sum256([]byte(bindingDeclarationKey(binding)))
 	return ActiveAliasPrefix + hex.EncodeToString(digest[:]), nil
+}
+
+// ActiveBindings loads every closure document an active alias names, with
+// the aliases that name it: the ledger a store holds, read the same way for
+// the store in service and for a candidate before it goes into service.
+func ActiveBindings(ctx context.Context, store *overgodb.Store) ([]Document, map[string]artifact.ID, error) {
+	var documents []Document
+	aliases := map[string]artifact.ID{}
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindEvidence, MediaType: MediaType, Schema: Schema,
+		}}, AliasPrefixes: []string{ActiveAliasPrefix}, Order: overgodb.DocumentOldestFirst,
+	}, Parse, func(view overgodb.DocumentView, document Document) error {
+		if document.ID != view.Content.Descriptor.ID {
+			return errors.New("closure ledger: active document identity mismatch")
+		}
+		documents = append(documents, document)
+		for _, alias := range view.Aliases {
+			aliases[alias] = document.ID
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return documents, aliases, nil
 }
 
 func activeAliasForKey(key string) string {

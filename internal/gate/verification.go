@@ -1609,26 +1609,7 @@ func activeMagicBindings(repo, storePath string) ([]closureledger.Document, map[
 		return nil, nil, err
 	}
 	defer store.Close()
-	var documents []closureledger.Document
-	aliases := map[string]artifact.ID{}
-	_, err = overgodb.VisitDecodedDocuments(context.Background(), store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindEvidence, MediaType: closureledger.MediaType, Schema: closureledger.Schema,
-		}}, AliasPrefixes: []string{closureledger.ActiveAliasPrefix}, Order: overgodb.DocumentOldestFirst,
-	}, closureledger.Parse, func(view overgodb.DocumentView, document closureledger.Document) error {
-		if document.ID != view.Content.Descriptor.ID {
-			return errors.New("magic scan: active document identity mismatch")
-		}
-		documents = append(documents, document)
-		for _, alias := range view.Aliases {
-			aliases[alias] = document.ID
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	return documents, aliases, nil
+	return closureledger.ActiveBindings(context.Background(), store)
 }
 
 // stepArchitecture is the permanent entry-authority ratchet. Unlike magics it

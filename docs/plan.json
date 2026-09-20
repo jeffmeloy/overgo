@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "store-write-admission-boundary",
+      "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
+          "status": "open",
+          "verify": "test -f internal/overgodb/write_admission_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestWriteAdmission' -count=1"
+        }
+      ]
+    },
+    {
       "id": "row-operation-class-prechecks",
       "title": "Give every row an operation class (code change, store mutation, evidence acquisition, plan edit) whose mandatory prechecks the class owns and the gate enforces: a store mutation runs on a candidate clone against the completion authority, store-check and closure ledger before service, and a receipt is admissible only when a registered command emitted it, never typed by hand",
       "owner": "master-lead",
@@ -42,20 +56,6 @@
           "title": "Bound the plan completion authority to a proof horizon: completions before a committed receipt boundary are accepted from git alone, their store evidence becomes releasable, and plan dispatch stops re-proving every landed commit from the store",
           "status": "open",
           "verify": "go test ./internal/plan -run '^TestCompletionProofHorizon' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-precheck-candidate",
-      "title": "Promote the hard-link clone, swap and precheck into cmd/store-precheck: clone the sealed backup, apply the release to the candidate, run the plan completion authority, store-check and the closure ledger against it, and swap into service only on a clean verdict",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Promote the hard-link clone, swap and precheck into cmd/store-precheck: clone the sealed backup, apply the release to the candidate, run the plan completion authority, store-check and the closure ledger against it, and swap into service only on a clean verdict",
-          "status": "open",
-          "verify": "go test ./cmd/store-precheck -count=1"
         }
       ]
     },
@@ -308,20 +308,6 @@
           "title": "Declare each document schema's retention class (claim, derived cache, operational) and discovery mode at its JSONContract so the commit coordinator refuses an unclassed schema and the release policy is derived from declarations rather than an allowlist; garbage-collect the derived class and ratchet store growth per gate so bloat is a finding, not a surprise",
           "status": "open",
           "verify": "test -f internal/overgodb/growth_ratchet_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestStoreGrowthRatchet' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-write-admission-boundary",
-      "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
-          "status": "open",
-          "verify": "test -f internal/overgodb/write_admission_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestWriteAdmission' -count=1"
         }
       ]
     },

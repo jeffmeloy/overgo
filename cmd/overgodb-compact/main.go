@@ -38,16 +38,12 @@ func run() error {
 	}
 	var roots []artifact.ID
 	if *pinRoot != "" {
-		pinned, err := pinnedRoots(*pinRoot)
-		if err != nil {
+		var documents, messages int
+		var err error
+		if roots, documents, messages, err = storepolicy.CheckoutRoots(context.Background(), *pinRoot); err != nil {
 			return err
 		}
-		trailers, err := trailerRoots(*pinRoot)
-		if err != nil {
-			return err
-		}
-		roots = mergeRoots(pinned, trailers)
-		fmt.Printf("roots: documents=%d trailers=%d union=%d\n", len(pinned), len(trailers), len(roots))
+		fmt.Printf("roots: documents=%d commit-messages=%d union=%d\n", documents, messages, len(roots))
 	}
 	seal, err := overgodb.ReadBackupSeal(*backup)
 	if err != nil {

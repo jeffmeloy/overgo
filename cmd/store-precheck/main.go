@@ -33,34 +33,20 @@ import (
 	"overgo/internal/storepolicy"
 )
 
-// check is one consumer's verdict on the candidate.
-type check struct {
-	Name   string `json:"name"`
-	Passed bool   `json:"passed"`
-	Detail string `json:"detail,omitzero"`
-}
+type check = overgodb.ConsumerCheck
 
-// receipt is what the operation did and what the consumers said, emitted by
-// the command that did it.
+// producer is this command's capability to commit a store operation proof:
+// the store admits that kind from nothing else, so the gate never reads a
+// proof someone typed.
+var producer = overgodb.NewProducer("store-precheck")
+
+// receipt is the proof the candidate carries plus what became of the
+// candidate, emitted by the command that did it.
 type receipt struct {
-	Backup         string  `json:"backup"`
-	Candidate      string  `json:"candidate"`
-	HeadBefore     string  `json:"head_before"`
-	SequenceBefore uint64  `json:"sequence_before"`
-	HeadAfter      string  `json:"head_after"`
-	SequenceAfter  uint64  `json:"sequence_after"`
-	LinkedBlobs    int     `json:"linked_blobs"`
-	Roots          int     `json:"roots"`
-	RootsMissing   int     `json:"roots_missing"`
-	Retained       int     `json:"retained"`
-	Unreachable    int     `json:"unreachable"`
-	Released       int     `json:"released"`
-	ReleasedBytes  int64   `json:"released_bytes"`
-	BlobsRemoved   int     `json:"blobs_removed"`
-	Checks         []check `json:"checks"`
-	Passed         bool    `json:"passed"`
-	Swapped        bool    `json:"swapped"`
-	Superseded     string  `json:"superseded,omitzero"`
+	overgodb.OperationProof
+	Candidate  string `json:"candidate"`
+	Swapped    bool   `json:"swapped"`
+	Superseded string `json:"superseded,omitzero"`
 }
 
 func main() {
@@ -90,7 +76,7 @@ func run() error {
 
 // precheck builds the candidate and collects every consumer's verdict.
 func precheck(ctx context.Context, repository, backup, checkout, candidate string) (receipt, error) {
-	result := receipt{Backup: backup, Candidate: candidate}
+	result := receipt{OperationProof: overgodb.OperationProof{Backup: backup}, Candidate: candidate}
 	seal, err := overgodb.ReadBackupSeal(backup)
 	if err != nil {
 		return result, err
@@ -136,7 +122,17 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, candidate) }},
 		{"closure-ledger", func() error { return checkClosureLedger(ctx, checkout, store) }},
 	})
-	return result, nil
+	// A candidate that passed carries its proof into service; one that did
+	// not is discarded, so nothing is written to it.
+	if !result.Verdict() {
+		return result, nil
+	}
+	batch, err := result.Batch(ctx, store)
+	if err != nil {
+		return result, err
+	}
+	_, err = store.CommitAs(ctx, producer, batch)
+	return result, err
 }
 
 type namedCheck struct {
@@ -159,11 +155,7 @@ func runChecks(checks []namedCheck) []check {
 
 // conclude settles the verdict and swaps only on a clean one.
 func conclude(result *receipt, swap bool, swapStores func() (string, error)) error {
-	result.Passed = len(result.Checks) != 0
-	for _, verdict := range result.Checks {
-		result.Passed = result.Passed && verdict.Passed
-	}
-	if !result.Passed {
+	if !result.Verdict() {
 		return errors.New("store-precheck: the candidate failed a consumer check; nothing was swapped")
 	}
 	if !swap {

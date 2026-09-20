@@ -716,6 +716,9 @@ func (g *gateContext) prepareWithStore(store *overgodb.Store) error {
 	if store == nil {
 		return errors.New("gate: lifecycle preparation requires the admission store")
 	}
+	if err := g.requireOperationPrechecks(context.Background(), store); err != nil {
+		return err
+	}
 	treeKey, err := g.treeStateKey()
 	if err != nil {
 		return err

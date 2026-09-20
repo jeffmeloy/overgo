@@ -34,6 +34,7 @@ func NewProducer(name string) Producer { return Producer{name: name} }
 // an owner is held to it all the same.
 var producerKinds = []struct{ prefix, producer string }{
 	{"overgo/gate-suite-cost/", "gate"},
+	{operationProofKind, "store-precheck"},
 }
 
 // admitProducer holds a delta to the table. It reads the delta, not the

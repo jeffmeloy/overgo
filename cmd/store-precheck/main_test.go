@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"overgo/internal/overgodb"
 )
 
 // TestFailedCheckNeverSwaps holds the verdict to its rule: every check runs
@@ -22,17 +24,41 @@ func TestFailedCheckNeverSwaps(t *testing.T) {
 	swaps := 0
 	swap := func() (string, error) { swaps++; return "superseded", nil }
 	for _, refused := range [][]check{verdicts, nil} {
-		result := receipt{Checks: refused}
+		result := receipt{OperationProof: overgodb.OperationProof{Checks: refused}}
 		if err := conclude(&result, true, swap); err == nil || result.Passed || result.Swapped || swaps != 0 {
 			t.Fatalf("refused verdict %+v: err=%v result=%+v swaps=%d", refused, err, result, swaps)
 		}
 	}
-	clean := receipt{Checks: []check{{Name: "only", Passed: true}}}
+	clean := receipt{OperationProof: overgodb.OperationProof{Checks: []check{{Name: "only", Passed: true}}}}
 	if err := conclude(&clean, false, swap); err != nil || !clean.Passed || clean.Swapped || swaps != 0 {
 		t.Fatalf("clean verdict without -swap: err=%v result=%+v swaps=%d", err, clean, swaps)
 	}
 	if err := conclude(&clean, true, swap); err != nil || !clean.Swapped || clean.Superseded != "superseded" || swaps != 1 {
 		t.Fatalf("clean verdict with -swap: err=%v result=%+v swaps=%d", err, clean, swaps)
+	}
+}
+
+// TestProofCommitsUnderThisCommandsCapability binds the command's producer
+// to the store's table: the proof it builds is admitted through its own
+// capability and refused to the plain door, so a mismatch between the two
+// names cannot wait for a real candidate to surface.
+func TestProofCommitsUnderThisCommandsCapability(t *testing.T) {
+	store, err := overgodb.Open(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	proof := overgodb.OperationProof{Checks: []check{{Name: "only", Passed: true}}}
+	proof.Verdict()
+	batch, err := proof.Batch(t.Context(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Commit(t.Context(), batch); !errors.Is(err, overgodb.ErrProducerRefused) {
+		t.Fatalf("the plain door admitted a proof: %v", err)
+	}
+	if _, err := store.CommitAs(t.Context(), producer, batch); err != nil {
+		t.Fatalf("this command's capability was refused its own proof: %v", err)
 	}
 }
 

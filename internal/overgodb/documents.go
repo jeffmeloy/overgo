@@ -91,7 +91,7 @@ func (s *Store) VisitDocuments(
 		id := ordered[index]
 		record, _ := s.state.artifacts.record(id)
 		locator, hasContent := s.state.contents.locator(id)
-		if !hasContent || !matchesDocumentContract(record.descriptor, query.Contracts) {
+		if !hasContent || locator.released != 0 || !matchesDocumentContract(record.descriptor, query.Contracts) {
 			continue
 		}
 		names, selected := aliases[id]

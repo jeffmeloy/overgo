@@ -16,19 +16,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
+	"overgo/internal/storepolicy"
 )
-
-// strippedSchemas are derived-cache document schemas: recomputable
-// from git at their recorded source identity, never model knowledge.
-var strippedSchemas = map[string]bool{
-	"overgo/code-manifest/v1":          true,
-	"overgo/code-profile/v4":           true,
-	"overgo/code-manifest-analysis/v1": true,
-}
 
 func main() {
 	clioptions.MainNamed("overgodb-rebuild", run)
@@ -56,9 +48,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	report, err := overgodb.Rebuild(context.Background(), source, *destination, func(descriptor artifact.Descriptor) bool {
-		return strippedSchemas[descriptor.Schema]
-	}, runrecord.GateLifecycleAtRest(source))
+	report, err := overgodb.Rebuild(context.Background(), source, *destination, storepolicy.DerivedCache, runrecord.GateLifecycleAtRest(source))
 	closeErr := source.Close()
 	if err != nil {
 		return errors.Join(err, closeErr)

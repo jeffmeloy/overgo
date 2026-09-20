@@ -113,7 +113,9 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 		report.Artifacts++
 		batch.Artifacts = append(batch.Artifacts, descriptor)
 		if hasContent {
-			if strip(descriptor) {
+			// Released bytes are already gone; the rebuild carries the
+			// identity as it does for a stripped one.
+			if locator.released != 0 || strip(descriptor) {
 				report.ContentsDropped++
 				report.BytesDropped += descriptor.Size
 			} else {

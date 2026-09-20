@@ -173,6 +173,23 @@ func (b blobStore) verify(id artifact.ID) error {
 	return nil
 }
 
+// remove deletes the published blob for id and reports whether a file
+// went; an absent blob is not an error, since a release is idempotent.
+func (b blobStore) remove(id artifact.ID) (bool, error) {
+	destination, err := b.path(id)
+	if err != nil {
+		return false, err
+	}
+	err = os.Remove(destination)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return false, nil
+	case err != nil:
+		return false, fmt.Errorf("overgodb: remove blob %s: %w", id, err)
+	}
+	return true, nil
+}
+
 // has reports whether a published blob exists for id; staging files
 // are invisible, so an interrupted prepare can never look published.
 func (b blobStore) has(id artifact.ID) bool {

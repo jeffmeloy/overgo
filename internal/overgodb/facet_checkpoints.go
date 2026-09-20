@@ -59,6 +59,7 @@ type contentCheckpointEntry struct {
 	Size     int64       `json:"size"`
 	Sequence uint64      `json:"sequence"`
 	Blob     bool        `json:"blob,omitzero"`
+	Released uint64      `json:"released,omitzero"`
 }
 
 func (f *contentFacet) checkpoint() ([]byte, error) {
@@ -66,6 +67,7 @@ func (f *contentFacet) checkpoint() ([]byte, error) {
 	for id, locator := range f.locators {
 		entries = append(entries, contentCheckpointEntry{
 			Artifact: id, Offset: locator.offset, Size: locator.size, Sequence: locator.sequence, Blob: locator.blob,
+			Released: locator.released,
 		})
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -84,7 +86,10 @@ func (f *contentFacet) restore(data []byte) error {
 		if entry.Sequence == 0 {
 			return errors.New("contents checkpoint: invalid introduction sequence")
 		}
-		f.set(entry.Artifact, contentLocator{offset: entry.Offset, size: entry.Size, blob: entry.Blob}, entry.Sequence)
+		if entry.Released != 0 && entry.Released <= entry.Sequence {
+			return errors.New("contents checkpoint: release precedes introduction")
+		}
+		f.set(entry.Artifact, contentLocator{offset: entry.Offset, size: entry.Size, blob: entry.Blob, released: entry.Released}, entry.Sequence)
 	}
 	return nil
 }

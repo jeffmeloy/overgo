@@ -129,6 +129,9 @@ func (s *Store) commitDeltaAt(ctx context.Context, sequence uint64, materialize 
 		if !materialize {
 			continue
 		}
+		if locator.released != 0 {
+			return CommitDelta{}, false, fmt.Errorf("%w: %s at sequence %d", ErrContentReleased, id, locator.released)
+		}
 		data, err := s.materializeContent(id, locator)
 		if err != nil {
 			return CommitDelta{}, false, err

@@ -46,6 +46,8 @@ var (
 	errPayloadLimit   = errors.New("overgodb: payload limit exceeded")
 	// ErrNoChange reports a batch that leaves catalog state unchanged.
 	ErrNoChange = artifact.ErrNoChange
+	// ErrContentReleased reports content whose bytes a later commit released.
+	ErrContentReleased = errors.New("overgodb: content bytes released")
 )
 
 type relationKey struct {
@@ -79,6 +81,10 @@ type contentLocator struct {
 	// blob marks content whose bytes live in the content-addressed
 	// blob store rather than inline in the journal frame.
 	blob bool
+	// released is the commit sequence that released the bytes; zero
+	// while they are durable. The introduction sequence stays put so
+	// the commit that first made the bytes durable remains answerable.
+	released uint64
 }
 
 // catalogState is the aggregate transaction view over the six
@@ -115,7 +121,34 @@ func (s catalogState) validate(batch artifact.Batch) error {
 	if err := s.causality.validate(batch, hasArtifact); err != nil {
 		return err
 	}
-	return s.locations.validate(batch, hasArtifact)
+	if err := s.locations.validate(batch, hasArtifact); err != nil {
+		return err
+	}
+	return s.validateReleases(batch)
+}
+
+// validateReleases refuses a release of bytes that were never durable and
+// a release of a current alias target: an alias is a live claim on its
+// target, so releasing the target's bytes would break a resolvable chain.
+func (s catalogState) validateReleases(batch artifact.Batch) error {
+	if len(batch.Releases) == 0 {
+		return nil
+	}
+	bound := map[artifact.ID]string{}
+	s.aliases.each(func(name string, target artifact.ID) {
+		if current, taken := bound[target]; !taken || name < current {
+			bound[target] = name
+		}
+	})
+	for _, release := range batch.Releases {
+		if _, recorded := s.contents.locator(release); !recorded {
+			return fmt.Errorf("overgodb: release names content that was never durable: %s", release)
+		}
+		if name, aliased := bound[release]; aliased {
+			return fmt.Errorf("overgodb: release names alias target %s (%q)", release, name)
+		}
+	}
+	return nil
 }
 
 func (s catalogState) hasArtifact(id artifact.ID, added map[artifact.ID]struct{}) bool {
@@ -551,7 +584,7 @@ func (s *Store) OpenContent(ctx context.Context, id artifact.ID) (artifact.Descr
 	}
 	record, ok := s.state.artifacts.record(id)
 	locator, hasContent := s.state.contents.locator(id)
-	if !ok || !hasContent {
+	if !ok || !hasContent || locator.released != 0 {
 		return artifact.Descriptor{}, nil, false, nil
 	}
 	reader, err := s.openLocator(id, locator)
@@ -610,6 +643,9 @@ func (s *Store) VisitContents(ctx context.Context, ids []artifact.ID, visit func
 		locator, hasContent := s.state.contents.locator(id)
 		if !found || !hasContent {
 			return fmt.Errorf("overgodb: content is absent: %s", id)
+		}
+		if locator.released != 0 {
+			return fmt.Errorf("%w: %s at sequence %d", ErrContentReleased, id, locator.released)
 		}
 		entries = append(entries, entry{id: id, descriptor: record.descriptor, locator: locator})
 	}
@@ -898,6 +934,7 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		Causality:    cloneValues(batch.Causality),
 		Aliases:      artifact.CloneAliasBindings(batch.Aliases),
 		Locations:    slices.Clone(batch.Locations),
+		Releases:     slices.Clone(batch.Releases),
 	}
 	for _, content := range result.Contents {
 		result.Artifacts = append(result.Artifacts, content.Descriptor)
@@ -1006,6 +1043,12 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		return false
 	}); found {
 		return artifact.Batch{}, fmt.Errorf("overgodb: duplicate location mutation %q", duplicate.Value)
+	}
+	slices.SortFunc(result.Releases, artifact.CompareID)
+	if duplicate, found := adjacentDuplicate(result.Releases, func(left, right artifact.ID) bool {
+		return left == right
+	}); found {
+		return artifact.Batch{}, fmt.Errorf("overgodb: duplicate release %s", duplicate)
 	}
 	return result, nil
 }

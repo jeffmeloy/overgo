@@ -1,0 +1,98 @@
+{
+ "version": 2,
+ "commit": "043805ef7f349dd94c1d2e6a7224fe0ccef34ef8",
+ "store": "overgodb-store",
+ "backup": {
+  "destination": "C:/Users/jeffm/overgo-backups/overgodb-043805ef-20260919",
+  "head": "bfc908c35167e34af16250f9de527212134302c203b4bd53443bddb9e0fc61e0",
+  "sequence": 45264,
+  "extent": 565092028,
+  "bytes_copied": 3716850730,
+  "files_copied": 124227
+ },
+ "before": {
+  "bytes": 3779627360,
+  "files": 124228,
+  "journal_bytes": 565092028,
+  "blob_bytes": 3088979643,
+  "blob_files": 124219,
+  "snapshot_bytes": 62776630,
+  "checkpoint_bytes": 62779059,
+  "segment_bytes": 0,
+  "object_bytes": 0
+ },
+ "release": {
+  "classes": [
+   "overgo/code-manifest/v1",
+   "overgo/code-profile/v4",
+   "overgo/code-manifest-analysis/v1"
+  ],
+  "retained": 138742,
+  "pinned_roots": 4544,
+  "pinned_missing": 1633,
+  "unreachable": 60641,
+  "released_contents": 810,
+  "released_bytes": 984434123,
+  "commits": 1,
+  "inline": 123,
+  "blobs_removed": 687,
+  "blobs_absent": 0
+ },
+ "chain": {
+  "head_before": "bfc908c35167e34af16250f9de527212134302c203b4bd53443bddb9e0fc61e0",
+  "sequence_before": 45264,
+  "head_after": "b792992fbcb9458b3e44cea035b09f3dbb5883bdbd58651c8c99768fe1f00c8b",
+  "sequence_after": 45265
+ },
+ "authority_probe": {
+  "artifact": "evidence:sha256:a7a72f26b786bbb81b23e63073c108eb76e25e1dcf55e62ef7a5f2f4aa7c9a91",
+  "commit": "f51b7354ba30aa1a4c68b65976a7e1923f780c9b6934b709d31ea6aa3454c26a",
+  "sequence": 45131
+ },
+ "after": {
+  "bytes": 3174857538,
+  "files": 123541,
+  "journal_bytes": 565159666,
+  "blob_bytes": 2238946447,
+  "blob_files": 123532,
+  "snapshot_bytes": 185373576,
+  "checkpoint_bytes": 185377849,
+  "segment_bytes": 0,
+  "object_bytes": 0
+ },
+ "open_seconds": {
+  "before": 5.78,
+  "after": 3.6
+ },
+ "store_check": "passed",
+ "superseded_attempts": [
+  {
+   "operation": "rewrite into a fresh store (CompactWithRoots)",
+   "destination": "C:/Users/jeffm/overgo-store-compact-043805ef-pinned",
+   "outcome": "taken out of service: a fresh journal is a new commit chain, so ArtifactIntroduction answered new coordinates and the 907 Overgo-Gate-Preparation-Commit trailers no longer matched; plan -next refused although store-check and the media acceptances passed"
+  },
+  {
+   "operation": "in-place release of every unreachable content",
+   "destination": "C:/Users/jeffm/overgo-store-released-sweep-043805ef",
+   "outcome": "restored from the sealed backup: 64,948 contents swept including 1,302 gate attempts, 1,658 gate results, 3,090 lifecycles and 1,698 runs that the completion authority discovers through lineage children; plan -next found no successful gate attempt"
+  },
+  {
+   "operation": "in-place release of unreachable derived-cache classes rooted at aliases and documents",
+   "destination": "C:/Users/jeffm/overgo-store-classsweep-043805ef",
+   "outcome": "restored from the sealed backup: 1,632 documents released including the manifest analyses the completion proof reads as parents of each gate result; plan -next found no manifest analysis. Trailer identities as roots and downward expansion along the gate-lifecycle chain fixed the live set"
+  }
+ ],
+ "commands": [
+  "go run ./cmd/overgodb-backup -repo overgodb-store -dest C:/Users/jeffm/overgo-backups/overgodb-043805ef-20260919",
+  "go run ./tmp/measure_store.go C:/Users/jeffm/overgo/overgodb-store",
+  "go run ./tmp/open_time.go C:/Users/jeffm/overgo/overgodb-store",
+  "go run ./tmp/clone_store.go C:/Users/jeffm/overgo-backups/overgodb-043805ef-20260919 C:/Users/jeffm/overgo-store-candidate-043805ef",
+  "go run ./cmd/overgodb-compact -repo C:/Users/jeffm/overgo-store-candidate-043805ef -pin-root C:/Users/jeffm/overgo -backup C:/Users/jeffm/overgo-backups/overgodb-043805ef-20260919",
+  "go run ./tmp/swap_store.go C:/Users/jeffm/overgo/overgodb-store C:/Users/jeffm/overgo-store-candidate-043805ef C:/Users/jeffm/overgo-store-classsweep-043805ef",
+  "go run ./cmd/plan -next",
+  "go run ./cmd/store-check -repo overgodb-store",
+  "go run ./tmp/measure_store.go C:/Users/jeffm/overgo/overgodb-store",
+  "go run ./tmp/introduction_probe.go C:/Users/jeffm/overgo/overgodb-store evidence:sha256:a7a72f26b786bbb81b23e63073c108eb76e25e1dcf55e62ef7a5f2f4aa7c9a91",
+  "go run ./tmp/open_time.go C:/Users/jeffm/overgo/overgodb-store"
+ ]
+}

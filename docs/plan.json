@@ -4,6 +4,132 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "post-row-optimization-review",
+      "title": "After every landed row, derive typed related robustness and efficiency optimization candidates from the gate's measured evidence (suite cost, store growth, surface moves, skipped fixture credit) and require the re-plan step to file a row or record a reason for each, so optimization happens as you go",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "After every landed row, derive typed related robustness and efficiency optimization candidates from the gate's measured evidence (suite cost, store growth, surface moves, skipped fixture credit) and require the re-plan step to file a row or record a reason for each, so optimization happens as you go",
+          "status": "open",
+          "verify": "test -f internal/plan/optimization_review_test.go \u0026\u0026 go test ./internal/plan -run '^TestPostRowOptimizationReview' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "surface-move-preflight",
+      "title": "Refuse a commit that moves a pinned runtime identity (media runtime, guard surface, compatibility claim) unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a commit that moves a pinned runtime identity (media runtime, guard surface, compatibility claim) unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight",
+          "status": "open",
+          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "surface-aware-dispatch",
+      "title": "Tag rows with the surfaces they move and dispatch all movers of a surface contiguously before any evidence or validation row on that surface, so re-validation runs once per batch",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Tag rows with the surfaces they move and dispatch all movers of a surface contiguously before any evidence or validation row on that surface, so re-validation runs once per batch",
+          "status": "open",
+          "verify": "test -f internal/plan/surface_dispatch_test.go \u0026\u0026 go test ./internal/plan -run '^TestSurfaceAwareDispatch' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-growth-ratchet",
+      "title": "Classify store artifact kinds as durable claim or re-derivable cache, garbage-collect the re-derivable, and ratchet store growth per gate so bloat is a finding not a surprise",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify store artifact kinds as durable claim or re-derivable cache, garbage-collect the re-derivable, and ratchet store growth per gate so bloat is a finding not a surprise",
+          "status": "open",
+          "verify": "test -f internal/overgodb/growth_ratchet_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestStoreGrowthRatchet' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-write-admission-boundary",
+      "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
+          "status": "open",
+          "verify": "test -f internal/overgodb/write_admission_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestWriteAdmission' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "overgodb-compaction-cadence",
+      "title": "Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding",
+          "status": "open",
+          "verify": "test -f internal/overgodb/compaction_cadence_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestCompactionCadence' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "model-inventory-dryrun",
+      "title": "Report each model directory as registered, recipe-supported, validated at which surface by which evidence, and its validation command, as a cmd/validate dry-run mode",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Report each model directory as registered, recipe-supported, validated at which surface by which evidence, and its validation command, as a cmd/validate dry-run mode",
+          "status": "open",
+          "verify": "test -f cmd/validate/inventory_test.go \u0026\u0026 go test ./cmd/validate -run '^TestModelInventory' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "reviewed-delta-registry",
+      "title": "Replace the per-change media reconciliation layers with one reviewed output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace the per-change media reconciliation layers with one reviewed output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels",
+          "status": "open",
+          "verify": "test -f cmd/compatibility/reviewed_delta_registry_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestReviewedDeltaRegistry' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-blob-pack-and-split",
+      "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+          "status": "open",
+          "verify": "test -f internal/overgodb/blob_pack_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestBlobPackAndSplit' -count=1"
+        }
+      ]
+    },
+    {
       "id": "speech-document-admission",
       "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
       "owner": "professional_overgo_gui",
@@ -422,7 +548,17 @@
             "sequence-replan/do",
             "publication-priority-replan/do",
             "end-to-end-validation/do",
-            "validation-run-execution/do"
+            "validation-run-execution/do",
+            "overgodb-compact-window/do",
+            "post-row-optimization-review/do",
+            "surface-move-preflight/do",
+            "surface-aware-dispatch/do",
+            "store-growth-ratchet/do",
+            "store-write-admission-boundary/do",
+            "overgodb-compaction-cadence/do",
+            "model-inventory-dryrun/do",
+            "reviewed-delta-registry/do",
+            "store-blob-pack-and-split/do"
           ]
         }
       ]

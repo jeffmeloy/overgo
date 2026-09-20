@@ -76,6 +76,7 @@ type snapshotContent struct {
 	Size     int64       `json:"size"`
 	Sequence uint64      `json:"sequence"`
 	Blob     bool        `json:"blob,omitzero"`
+	Released uint64      `json:"released,omitzero"`
 }
 
 type snapshotArtifact struct {
@@ -189,12 +190,13 @@ func stateFromSnapshot(document snapshotDocument) (catalogState, error) {
 		record, ok := state.artifacts.record(content.Artifact)
 		if !ok || content.Size <= 0 || uint64(content.Size) != record.descriptor.Size ||
 			content.Sequence < record.sequence || content.Sequence > document.Sequence ||
-			!content.Blob && content.Offset < storeHeaderBytes {
+			!content.Blob && content.Offset < storeHeaderBytes ||
+			content.Released != 0 && (content.Released <= content.Sequence || content.Released > document.Sequence) {
 			return catalogState{}, errors.New("overgodb: invalid snapshot content locator")
 		}
 		state.contents.set(
 			content.Artifact,
-			contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob},
+			contentLocator{offset: content.Offset, size: content.Size, blob: content.Blob, released: content.Released},
 			content.Sequence,
 		)
 	}
@@ -319,12 +321,18 @@ func writeSnapshotPayload(writer io.Writer, state catalogState, sequence uint64,
 		stream.value(snapshotArtifact{Descriptor: record.descriptor, Sequence: record.sequence})
 	})
 	artifactIDs := snapshotArtifactIDs(state, func(artifact.ID, *artifactRecord) bool { return true })
-	contentIDs := snapshotArtifactIDs(state, func(id artifact.ID, _ *artifactRecord) bool { return state.contents.has(id) })
+	// Released locators are carried too: the introduction stays answerable
+	// and exact commit reads can tell released from corrupt.
+	contentIDs := snapshotArtifactIDs(state, func(id artifact.ID, _ *artifactRecord) bool {
+		_, recorded := state.contents.locator(id)
+		return recorded
+	})
 	stream.array("contents", len(contentIDs), true, func(index int) {
 		id := contentIDs[index]
 		locator, _ := state.contents.locator(id)
 		stream.value(snapshotContent{
 			Artifact: id, Offset: locator.offset, Size: locator.size, Sequence: locator.sequence, Blob: locator.blob,
+			Released: locator.released,
 		})
 	})
 	manifestIDs := snapshotArtifactIDs(state, func(_ artifact.ID, record *artifactRecord) bool { return record.hasManifest })

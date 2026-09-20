@@ -157,6 +157,57 @@ func TestRetentionRefusesExistingDestination(t *testing.T) {
 	}
 }
 
+// TestRetentionPinnedRootsSurvive keeps alias-less content the repository's
+// committed documents pin: dropped without a root, retained when pinned, and a
+// pinned identity the store lacks is counted missing rather than invented.
+func TestRetentionPinnedRootsSurvive(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	source, err := Open(filepath.Join(root, "source"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	aliased := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "aliased"})
+	pinned := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "pinned"})
+	if _, err := source.Commit(ctx, artifact.Batch{
+		Key: "test/retention/pinned", Contents: []artifact.Content{aliased, pinned},
+		Aliases: []artifact.AliasBinding{{Name: "test/aliased", Target: aliased.Descriptor.ID}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	present := func(destination string) bool {
+		t.Helper()
+		compacted, err := OpenReadOnly(destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer compacted.Close()
+		_, found, err := artifact.ReadContent(ctx, compacted, pinned.Descriptor.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return found
+	}
+	if _, err := Compact(ctx, source, filepath.Join(root, "unpinned"), nil); err != nil {
+		t.Fatal(err)
+	}
+	if present(filepath.Join(root, "unpinned")) {
+		t.Fatal("alias-less content survived compaction without a root")
+	}
+	missing := retentionContent(t, artifact.KindEvidence, map[string]any{"stage": "absent"}).Descriptor.ID
+	report, err := CompactWithRoots(ctx, source, filepath.Join(root, "pinned"), nil, []artifact.ID{pinned.Descriptor.ID, missing})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !present(filepath.Join(root, "pinned")) {
+		t.Fatal("pinned content was dropped")
+	}
+	if report.PinnedRoots != 2 || report.PinnedMissing != 1 {
+		t.Fatalf("pinned accounting = roots %d missing %d", report.PinnedRoots, report.PinnedMissing)
+	}
+}
+
 func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
 	ctx := t.Context()
 	root := t.TempDir()

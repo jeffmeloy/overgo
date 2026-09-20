@@ -95,7 +95,7 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 	report.Head, report.Sequence, report.Extent = s.head, s.sequence, s.replayEnd
 	requiredBlobs := make([]artifact.ID, 0, len(s.state.contents.locators))
 	for id, locator := range s.state.contents.locators {
-		if locator.blob {
+		if locator.blob && locator.released == 0 {
 			requiredBlobs = append(requiredBlobs, id)
 		}
 	}
@@ -107,8 +107,8 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 	if err := backupDirectory(partial); err != nil {
 		return report, err
 	}
-	sealPath := filepath.Join(partial, "backup-seal.json")
-	var seal backupSeal
+	sealPath := filepath.Join(partial, backupSealFilename)
+	var seal BackupSeal
 	durable := jsonfile.DecodeStrict(sealPath, &seal) == nil && seal.Source == sourceRoot && seal.Head.Valid() && seal.Sequence != 0 && seal.Extent > 0
 	// Invalidate durability before changing any file. A crash requires resync.
 	if err := fsatomic.Remove(sealPath); err != nil {
@@ -183,7 +183,7 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 	if err := ctx.Err(); err != nil {
 		return report, err
 	}
-	if err := jsonfile.Write(sealPath, backupSeal{sourceRoot, report.Head, report.Sequence, report.Extent}, storeFileMode); err != nil {
+	if err := jsonfile.Write(sealPath, BackupSeal{sourceRoot, report.Head, report.Sequence, report.Extent}, storeFileMode); err != nil {
 		return report, err
 	}
 	if err := ctx.Err(); err != nil {
@@ -377,10 +377,25 @@ func replayedHead(root string) (artifact.CommitID, uint64, error) {
 	return head, sequence, store.Close()
 }
 
-// A seal attests completed file syncs, never substitutes for byte verification.
-type backupSeal struct {
+const backupSealFilename = "backup-seal.json"
+
+// BackupSeal names the captured head of one published backup. A seal
+// attests completed file syncs, never substitutes for byte verification.
+type BackupSeal struct {
 	Source   string            `json:"source"`
 	Head     artifact.CommitID `json:"head"`
 	Sequence uint64            `json:"sequence"`
 	Extent   int64             `json:"extent"`
+}
+
+// ReadBackupSeal reads the seal a published backup carries.
+func ReadBackupSeal(backupRoot string) (BackupSeal, error) {
+	var seal BackupSeal
+	if err := jsonfile.DecodeStrict(filepath.Join(backupRoot, backupSealFilename), &seal); err != nil {
+		return BackupSeal{}, err
+	}
+	if !seal.Head.Valid() || seal.Sequence == 0 || seal.Extent <= 0 {
+		return BackupSeal{}, fmt.Errorf("overgodb: backup %s carries an incomplete seal", backupRoot)
+	}
+	return seal, nil
 }

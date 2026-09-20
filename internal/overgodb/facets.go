@@ -53,8 +53,8 @@ const initialProjectionVersion uint16 = 1
 
 // contentProjectionVersion advances when the content projection gains a new
 // persisted fact. Older checkpoints remain acceleration hints and fall back to
-// snapshot or journal replay.
-const contentProjectionVersion = initialProjectionVersion + 1
+// snapshot or journal replay. Version 3 added the release sequence.
+const contentProjectionVersion = initialProjectionVersion + 2
 
 // commitProjectionVersion advances when exact journal coordinates become a
 // durable part of the commit projection.
@@ -174,7 +174,9 @@ func (f artifactFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	}
 }
 
-// contentFacet owns the journal locator of every stored content blob.
+// contentFacet owns the journal locator of every stored content blob,
+// released ones included: a released locator keeps the introduction
+// sequence and records the release sequence.
 type contentFacet struct {
 	locators map[artifact.ID]contentLocator
 }
@@ -183,11 +185,14 @@ func newContentFacet() contentFacet {
 	return contentFacet{locators: map[artifact.ID]contentLocator{}}
 }
 
+// has reports durable, unreleased bytes.
 func (f contentFacet) has(id artifact.ID) bool {
-	_, ok := f.locators[id]
-	return ok
+	locator, ok := f.locators[id]
+	return ok && locator.released == 0
 }
 
+// locator returns the recorded locator whether or not its bytes were
+// released; callers that need bytes check released.
 func (f contentFacet) locator(id artifact.ID) (contentLocator, bool) {
 	locator, ok := f.locators[id]
 	return locator, ok
@@ -199,9 +204,10 @@ func (f *contentFacet) set(id artifact.ID, locator contentLocator, sequence uint
 }
 
 // accept refuses a commit whose content lacks a bound locator: bytes
-// that never became durable must not gain a committed descriptor.
+// that never became durable must not gain a committed descriptor. A
+// release must name bytes that are durable at this sequence.
 func (f *contentFacet) accept(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) error {
-	if len(delta.Contents) != 0 && sequence == 0 {
+	if (len(delta.Contents) != 0 || len(delta.Releases) != 0) && sequence == 0 {
 		return errors.New("overgodb: durable content requires a commit sequence")
 	}
 	for _, content := range delta.Contents {
@@ -209,13 +215,24 @@ func (f *contentFacet) accept(delta artifact.Batch, locators map[artifact.ID]con
 			return fmt.Errorf("overgodb: content %s has no durable locator", content.Descriptor.ID)
 		}
 	}
+	for _, release := range delta.Releases {
+		if !f.has(release) {
+			return fmt.Errorf("overgodb: release names content that is not durable: %s", release)
+		}
+	}
 	return nil
 }
 
-// applyCommit binds each committed content to its locator.
+// applyCommit binds each committed content to its locator and stamps
+// each release on the locator it names.
 func (f *contentFacet) applyCommit(delta artifact.Batch, locators map[artifact.ID]contentLocator, sequence uint64) {
 	for _, content := range delta.Contents {
 		f.set(content.Descriptor.ID, locators[content.Descriptor.ID], sequence)
+	}
+	for _, release := range delta.Releases {
+		locator := f.locators[release]
+		locator.released = sequence
+		f.locators[release] = locator
 	}
 }
 
@@ -223,6 +240,11 @@ func (f contentFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, content := range batch.Contents {
 		if !f.has(content.Descriptor.ID) {
 			delta.Contents = append(delta.Contents, content)
+		}
+	}
+	for _, release := range batch.Releases {
+		if f.has(release) {
+			delta.Releases = append(delta.Releases, release)
 		}
 	}
 }

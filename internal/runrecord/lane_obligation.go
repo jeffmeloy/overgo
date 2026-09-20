@@ -121,6 +121,11 @@ func CurrentGateLaneObligation(ctx context.Context, reader artifact.Reader) (Gat
 	return gateLaneObligationCodec.Resolve(ctx, reader, GateLaneObligationAlias)
 }
 
+// RequireGateLaneObligation reads one obligation state by its identity.
+func RequireGateLaneObligation(ctx context.Context, reader artifact.Reader, id artifact.ID) (GateLaneObligation, error) {
+	return gateLaneObligationCodec.Require(ctx, reader, id)
+}
+
 func laneObligationTransition(from, to LaneObligationState) bool {
 	switch from {
 	case LaneObligationPending:

@@ -206,11 +206,16 @@ type Batch struct {
 	Causality    []CausalLink    `json:"causality,omitempty"`
 	Aliases      []AliasBinding  `json:"aliases,omitempty"`
 	Locations    []LocationEvent `json:"locations,omitempty"`
+	// Releases names artifacts whose content bytes leave durable storage.
+	// The descriptor, lineage, locations and the commit that introduced the
+	// bytes remain; only the bytes are gone, and the release is itself a
+	// commit in the chain.
+	Releases []ID `json:"releases,omitempty"`
 }
 
 // Empty reports whether the batch carries no catalog mutation.
 func (b Batch) Empty() bool {
-	return len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Causality)+len(b.Aliases)+len(b.Locations) == 0
+	return len(b.Artifacts)+len(b.Contents)+len(b.Manifests)+len(b.Lineage)+len(b.Causality)+len(b.Aliases)+len(b.Locations)+len(b.Releases) == 0
 }
 
 func (b Batch) Validate() error {
@@ -253,6 +258,14 @@ func (b Batch) Validate() error {
 	for _, location := range b.Locations {
 		if err := location.Validate(); err != nil {
 			return err
+		}
+	}
+	for _, release := range b.Releases {
+		if !release.Valid() {
+			return errors.New("artifact: invalid release identity")
+		}
+		if slices.ContainsFunc(b.Contents, func(content Content) bool { return content.Descriptor.ID == release }) {
+			return fmt.Errorf("artifact: batch both introduces and releases %s", release)
 		}
 	}
 	return nil

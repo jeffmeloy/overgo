@@ -501,14 +501,6 @@ func (r *Runtime) prepareStage(
 	return execution, err
 }
 
-func (r *Runtime) publishExecutionAuthority(
-	ctx context.Context,
-	definition recipe.Definition,
-	operation artifact.ID,
-) error {
-	return r.publishExecutionAuthorityCausal(ctx, definition, operation, nil)
-}
-
 func (r *Runtime) publishExecutionAuthorityCausal(
 	ctx context.Context,
 	definition recipe.Definition,

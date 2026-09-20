@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -75,35 +76,19 @@ func validateReviews(reviews []OptimizationDisposition) error {
 	return nil
 }
 
-// mergeReviews unions dispositions by key: a side that changed a key wins
-// over one that kept it, a key both sides changed differently conflicts,
-// and a key one side dropped while the other kept it unchanged is dropped.
+// mergeReviews unions dispositions by key under the plan's three-way rule;
+// an absent disposition is the zero value, so a drop merges like an edit.
 func mergeReviews(base, local, upstream []OptimizationDisposition) ([]OptimizationDisposition, error) {
 	key := func(review OptimizationDisposition) string { return review.Key }
 	baseByKey, localByKey, upstreamByKey := indexByID(base, key), indexByID(local, key), indexByID(upstream, key)
 	var merged []OptimizationDisposition
 	for _, id := range unionOrder(key, base, local, upstream) {
-		baseReview, inBase := baseByKey[id]
-		localReview, inLocal := localByKey[id]
-		upstreamReview, inUpstream := upstreamByKey[id]
-		switch {
-		case inLocal && inUpstream:
-			switch {
-			case localReview == upstreamReview, inBase && upstreamReview == baseReview:
-				merged = append(merged, localReview)
-			case inBase && localReview == baseReview:
-				merged = append(merged, upstreamReview)
-			default:
-				return nil, fmt.Errorf("plan projection: optimization review %q edited on both sides", id)
-			}
-		case inLocal:
-			if !inBase || localReview != baseReview {
-				merged = append(merged, localReview)
-			}
-		case inUpstream:
-			if !inBase || upstreamReview != baseReview {
-				merged = append(merged, upstreamReview)
-			}
+		review, err := mergeText("optimization review "+id, baseByKey[id], localByKey[id], upstreamByKey[id])
+		if err != nil {
+			return nil, err
+		}
+		if review != (OptimizationDisposition{}) {
+			merged = append(merged, review)
 		}
 	}
 	return merged, nil
@@ -211,31 +196,18 @@ func StoreGrowthCandidates(delta overgodb.HeadBoundDelta) []OptimizationCandidat
 	if len(countBySchema) == 0 {
 		return nil
 	}
-	top := func(better func(left, right string) bool) string {
-		selected := ""
-		first := true
-		for schema := range countBySchema {
-			if first || better(schema, selected) {
-				selected, first = schema, false
-			}
-		}
-		return selected
-	}
-	byBytes := top(func(left, right string) bool {
-		return bytesBySchema[left] > bytesBySchema[right] || bytesBySchema[left] == bytesBySchema[right] && left < right
-	})
-	byCount := top(func(left, right string) bool {
-		return countBySchema[left] > countBySchema[right] || countBySchema[left] == countBySchema[right] && left < right
-	})
+	// Sorted schemas make the first maximum the deterministic winner.
+	schemas := slices.Sorted(maps.Keys(countBySchema))
+	byBytes := slices.MaxFunc(schemas, func(left, right string) int { return cmp.Compare(bytesBySchema[left], bytesBySchema[right]) })
+	byCount := slices.MaxFunc(schemas, func(left, right string) int { return cmp.Compare(countBySchema[left], countBySchema[right]) })
 	window := fmt.Sprintf("store commits %d..%d", delta.PreviousSequence+1, delta.Sequence)
-	label := func(schema string) string { return cmp.Or(schema, "(schemaless)") }
 	candidates := []OptimizationCandidate{{
-		Kind: CandidateStoreGrowth, Key: CandidateStoreGrowth + ":bytes:" + label(byBytes),
+		Kind: CandidateStoreGrowth, Key: CandidateStoreGrowth + ":bytes:" + cmp.Or(byBytes, "(schemaless)"),
 		Measure: fmt.Sprintf("%d bytes over %d documents, %s", bytesBySchema[byBytes], countBySchema[byBytes], window),
 	}}
 	if byCount != byBytes {
 		candidates = append(candidates, OptimizationCandidate{
-			Kind: CandidateStoreGrowth, Key: CandidateStoreGrowth + ":count:" + label(byCount),
+			Kind: CandidateStoreGrowth, Key: CandidateStoreGrowth + ":count:" + cmp.Or(byCount, "(schemaless)"),
 			Measure: fmt.Sprintf("%d documents, %d bytes, %s", countBySchema[byCount], bytesBySchema[byCount], window),
 		})
 	}
@@ -362,13 +334,4 @@ func storeGrowthOfCompletion(ctx context.Context, store *overgodb.Store, prepara
 		return nil, err
 	}
 	return StoreGrowthCandidates(delta), nil
-}
-
-// FormatCandidates renders candidates one per line for the dispatcher.
-func FormatCandidates(candidates []OptimizationCandidate) []string {
-	lines := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		lines = append(lines, fmt.Sprintf("review pending: %s %s: %s", candidate.Kind, candidate.Key, candidate.Measure))
-	}
-	return lines
 }

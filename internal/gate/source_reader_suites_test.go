@@ -195,6 +195,42 @@ func workspaceHandlerReceiver(function *ast.FuncDecl) bool {
 	return ok && ident.Name == "Handler"
 }
 
+// TestReleaseIsTheOnlyRetentionWriter holds overgodb's retention surface to
+// one exported operation and one committing function, so a rewrite path that
+// starts a new commit chain cannot return unnoticed.
+func TestReleaseIsTheOnlyRetentionWriter(t *testing.T) {
+	t.Parallel()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, "internal", "overgodb", "retention.go"), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var operations, committers []string
+	for _, declaration := range parsed.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if function.Recv == nil && function.Name.IsExported() {
+			operations = append(operations, function.Name.Name)
+		}
+		ast.Inspect(function, func(node ast.Node) bool {
+			if call, isCall := node.(*ast.CallExpr); isCall {
+				if selector, isSelector := call.Fun.(*ast.SelectorExpr); isSelector && selector.Sel.Name == "Commit" {
+					committers = append(committers, function.Name.Name)
+				}
+			}
+			return true
+		})
+	}
+	if !slices.Equal(operations, []string{"Release"}) || !slices.Equal(committers, []string{"commit"}) {
+		t.Fatalf("retention surface: operations=%v committers=%v", operations, committers)
+	}
+}
+
 // TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode holds the peer
 // capability files of capabilityruntime to no runtime import.
 func TestCrossLaneCapabilityReuseDoesNotImportRuntimeCode(t *testing.T) {

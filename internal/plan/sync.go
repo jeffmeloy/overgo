@@ -232,14 +232,18 @@ func mergeItem(base, local, upstream Item, completed func(string) bool) (Item, e
 	return merged, nil
 }
 
-func mergeText(name, base, local, upstream string) (string, error) {
+// mergeText is the three-way rule for one comparable value: the side that
+// changed it wins, and two different changes conflict. The zero value stands
+// for absence, so a value one side dropped and the other kept is dropped.
+func mergeText[T comparable](name string, base, local, upstream T) (T, error) {
 	switch {
 	case local == upstream || upstream == base:
 		return local, nil
 	case local == base:
 		return upstream, nil
 	default:
-		return "", fmt.Errorf("plan projection: concurrent %s edits conflict", name)
+		var zero T
+		return zero, fmt.Errorf("plan projection: concurrent %s edits conflict", name)
 	}
 }
 

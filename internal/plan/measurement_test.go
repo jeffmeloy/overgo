@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
 	"overgo/internal/worklease"
 )
@@ -34,8 +35,12 @@ func TestLeaseOutcomeMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parsed, ok, err := ReadLeaseOutcome(t.Context(), store, outcome.ID)
-	if err != nil || !ok || parsed.ActualWallNS != 120 || parsed.RecoveryNS != 5 {
-		t.Fatalf("lease outcome = (%+v, %v, %v)", parsed, ok, err)
+	content, ok, err := artifact.ReadContent(t.Context(), store, outcome.ID)
+	if err != nil || !ok {
+		t.Fatalf("lease outcome content = (%v, %v)", ok, err)
+	}
+	parsed, err := ParseLeaseOutcome(content.Data)
+	if err != nil || parsed.ActualWallNS != 120 || parsed.RecoveryNS != 5 {
+		t.Fatalf("lease outcome = (%+v, %v)", parsed, err)
 	}
 }

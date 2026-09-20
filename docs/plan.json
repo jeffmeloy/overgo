@@ -4,16 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "harness-surface-paydown",
-      "title": "Pay down the +2,091 production nodes the release and review rows added to the nine-package agent harness surface: expose the gate's consumer census as a command that lists test-only and zero-consumer production functions per harness package, retire what it names in internal/plan and internal/runrecord, and ratchet docs/harness_surface_baseline.json down to at most its value before those rows (181,732)",
+      "id": "automation-harness-surface-remainder",
+      "title": "Remove the remaining +427 production nodes over the pre-session agent harness baseline (181,732) by simplifying live control-plane code in internal/plan and internal/runrecord -- the consumer census finds no dead code left there -- so the session nets to reduce-or-maintain; the gate's automation admission refuses this row unless its production AST is net-negative",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Pay down the +2,091 production nodes the release and review rows added to the nine-package agent harness surface: expose the gate's consumer census as a command that lists test-only and zero-consumer production functions per harness package, retire what it names in internal/plan and internal/runrecord, and ratchet docs/harness_surface_baseline.json down to at most its value before those rows (181,732)",
+          "title": "Remove the remaining +427 production nodes over the pre-session agent harness baseline (181,732) by simplifying live control-plane code in internal/plan and internal/runrecord -- the consumer census finds no dead code left there -- so the session nets to reduce-or-maintain; the gate's automation admission refuses this row unless its production AST is net-negative",
           "status": "open",
-          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfacePaydown' -count=1"
+          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceAtPreSessionBaseline' -count=1"
         }
       ]
     },
@@ -224,6 +224,34 @@
           "title": "Classify the environment-gated fixtures that run without evidence credit (ffmpeg decode, RxBrain production parity, native ASR microphone journey) so each is credited by the lane that provides its environment or declared inapplicable with its reason, and the review stops re-listing them",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSkippedFixtureClassification' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "evaluation-suite-wall",
+      "title": "Bound the internal/evaluation test wall (2m21s in the test phase, the costliest package of the rewrite-retirement landing after audioparity) by sharing its store and catalog fixtures across tests, with the bound proven from the suite-cost evidence",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound the internal/evaluation test wall (2m21s in the test phase, the costliest package of the rewrite-retirement landing after audioparity) by sharing its store and catalog fixtures across tests, with the bound proven from the suite-cost evidence",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestEvaluationSuiteWallBudget' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "generated-doc-write-under-readers",
+      "title": "Make the gate's generated-document writers survive a concurrent reader on Windows: a background git status memory-maps dirty worktree files while hashing them and the compatibility repair then fails admission with a user-mapped-section sharing violation; wait on that specific violation until the holder releases, never on a fixed timer, and refuse with the holder named otherwise",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the gate's generated-document writers survive a concurrent reader on Windows: a background git status memory-maps dirty worktree files while hashing them and the compatibility repair then fails admission with a user-mapped-section sharing violation; wait on that specific violation until the holder releases, never on a fixed timer, and refuse with the holder named otherwise",
+          "status": "open",
+          "verify": "go test ./internal/fsatomic -run '^TestWriteWaitsOnMappedReader' -count=1"
         }
       ]
     },
@@ -770,7 +798,10 @@
             "gate-message-structured/do",
             "prompt-intake-files-rows/do",
             "skipped-fixture-classification/do",
-            "harness-surface-paydown/do"
+            "harness-surface-paydown/do",
+            "evaluation-suite-wall/do",
+            "generated-doc-write-under-readers/do",
+            "automation-harness-surface-remainder/do"
           ]
         }
       ]
@@ -798,8 +829,16 @@
       "row": "store-growth-ratchet"
     },
     {
+      "key": "store-growth:count:overgo/gate-package-receipt/v1",
+      "row": "store-growth-ratchet"
+    },
+    {
       "key": "suite-cost:overgo/internal/audioparity",
       "row": "audioparity-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/internal/evaluation",
+      "row": "evaluation-suite-wall"
     },
     {
       "key": "surface-move:harness-production-nodes",

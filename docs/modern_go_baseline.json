@@ -4,12 +4,12 @@
   "target_go": "1.26",
   "catalog_commit": "40781f167719913666fe2a7dc1c77ea6f256df0a",
   "catalog_sha256": "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5",
-  "source_identity": "23923a226612705b5343b15a60c82cd6708e03a6f3d1685c3d75d013fc3d1d53",
+  "source_identity": "f31b4f9181b1a47fbebe771744e3b6e1dcc9b614e132fa9f158d5d105e6f1451",
   "coverage": {
     "applicable": 48,
     "measured": 48,
-    "inspected_files": 3613,
-    "typed_files": 3549
+    "inspected_files": 3608,
+    "typed_files": 3544
   },
   "guidelines": [
     {
@@ -3600,17 +3600,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/recipe/authority.go",
-      "symbol": "canonicalizeAuthoritySubject",
-      "owner": "overgo/internal/recipe",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/recipe -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/recipe/automation.go",
       "symbol": "canonicalizeAutomationIDs",
       "owner": "overgo/internal/recipe",
@@ -4864,5 +4853,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "823a0de57a42056ca6384b2cf08f4fb09b946926ce1f53a985515b216e96bf89"
+  "exceptions_sha256": "de2c0dc06b1a55869944d0b2bfb77c34935d4200bbfab4fe6905b47407091153"
 }

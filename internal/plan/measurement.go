@@ -60,10 +60,6 @@ func ParseLeaseOutcome(content []byte) (LeaseOutcome, error) {
 	return leaseOutcomeCodec.Parse(content)
 }
 
-func ReadLeaseOutcome(ctx context.Context, reader artifact.Reader, id artifact.ID) (LeaseOutcome, bool, error) {
-	return worklease.ReadTypedDocument(ctx, reader, id, leaseOutcomeCodec.Contract, leaseOutcomeCodec.Read)
-}
-
 func canonicalizeLeaseOutcome(value *LeaseOutcome) error {
 	if value == nil || value.Version != leaseOutcomeVersion || value.Lease.Kind() != artifact.KindEvidence ||
 		!worklease.ValidResources(value.Predicted) || !worklease.ValidResources(value.Actual) ||

@@ -30,8 +30,8 @@ func requireOptimizationReview(document plan.Plan, printLines bool, output io.Wr
 		return nil
 	}
 	if printLines {
-		for _, line := range plan.FormatCandidates(pending) {
-			fmt.Fprintln(output, line)
+		for _, candidate := range pending {
+			fmt.Fprintf(output, "review pending: %s %s: %s\n", candidate.Kind, candidate.Key, candidate.Measure)
 		}
 	}
 	return fmt.Errorf("plan: optimization review pending for %d candidate(s) of the landed completion; record each with plan -review <key> -row <item-id> or plan -review <key> -reason <text>", len(pending))

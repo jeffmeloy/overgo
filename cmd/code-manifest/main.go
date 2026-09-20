@@ -3,15 +3,20 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/codemanifest"
+	"overgo/internal/codeprofile"
 	"overgo/internal/gosource"
 	"overgo/internal/repoanalysis"
 )
@@ -25,6 +30,7 @@ func run() error {
 	basePath := flag.String("base", "", "canonical base manifest to compare")
 	closure := flag.Bool("closure", false, "with -base: emit reverse-reachable impact instead of the raw delta")
 	ownershipSurface := flag.Bool("ownership-surface", false, "with -base and -closure: emit the automation ownership surface")
+	unconsumed := flag.String("unconsumed", "", "instead of the manifest, list the production declarations under these comma-separated package prefixes that no production code references and no dispatch boundary explains, costliest first")
 	flag.Parse()
 	resolved, err := filepath.Abs(*root)
 	if err != nil {
@@ -37,6 +43,9 @@ func run() error {
 	selection, err := gosource.HostBuildSelection(resolved, "./internal/...", "./cmd/...")
 	if err != nil {
 		return err
+	}
+	if *unconsumed != "" {
+		return listUnconsumed(snapshot, selection, strings.Split(*unconsumed, ","))
 	}
 	manifest, err := codemanifest.Generate(snapshot, []gosource.BuildSelection{selection}, nil)
 	if err != nil {
@@ -68,6 +77,55 @@ func run() error {
 		return json.NewEncoder(os.Stdout).Encode(impact)
 	}
 	return json.NewEncoder(os.Stdout).Encode(manifest)
+}
+
+// listUnconsumed prints the declarations under the prefixes that only tests
+// or nothing reference, with their node counts, costliest first: the ranked
+// paydown list for a surface that must be reduced or held.
+func listUnconsumed(snapshot repoanalysis.SourceSnapshot, selection gosource.BuildSelection, prefixes []string) error {
+	declarations, _, err := codeprofile.ProductionConsumerCensus(snapshot, selection, nil)
+	if err != nil {
+		return err
+	}
+	profile, err := codeprofile.Build(snapshot)
+	if err != nil {
+		return err
+	}
+	nodes := map[string]int{}
+	for _, function := range profile.Functions {
+		nodes[function.File+":"+function.Name] = function.Nodes
+	}
+	type row struct {
+		name, class string
+		nodes       int
+	}
+	var rows []row
+	total := 0
+	for _, declaration := range declarations {
+		if declaration.ProductionReferences > 0 || declaration.Boundary != "" ||
+			!slices.ContainsFunc(prefixes, func(prefix string) bool { return strings.HasPrefix(declaration.File, strings.TrimSpace(prefix)+"/") }) {
+			continue
+		}
+		name := declaration.Name
+		if declaration.Receiver != "" {
+			name = declaration.Receiver + "." + name
+		}
+		class := "unreferenced"
+		if declaration.TestReferences > 0 {
+			class = "test-only"
+		}
+		entry := row{name: declaration.File + ":" + name, class: class, nodes: nodes[declaration.File+":"+name]}
+		rows = append(rows, entry)
+		total += entry.nodes
+	}
+	slices.SortFunc(rows, func(left, right row) int {
+		return cmp.Or(cmp.Compare(right.nodes, left.nodes), strings.Compare(left.name, right.name))
+	})
+	for _, entry := range rows {
+		fmt.Printf("%6d %-12s %s\n", entry.nodes, entry.class, entry.name)
+	}
+	fmt.Printf("unconsumed=%d nodes=%d\n", len(rows), total)
+	return nil
 }
 
 func readManifestFile(path string) ([]byte, error) {

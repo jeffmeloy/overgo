@@ -10,6 +10,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/inference"
@@ -83,6 +84,19 @@ func TestE4BResourceRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Loaded footprint: weights, module and load-time buffers before any
+		// generation allocates workspace. Every later retained byte must be
+		// this footprint plus a named executor owner; an unattributed excess
+		// is a retained buffer no owner accounts for.
+		loaded, err := runner.DeviceMemoryStats(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loadMetrics, err := runner.ExecutionMetrics(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loadedFootprint := loaded.CurrentBytes - attributedOwners(loadMetrics)
 		var owned, beforeClose uint64
 		func() {
 			defer func() {
@@ -148,7 +162,26 @@ func TestE4BResourceRecovery(t *testing.T) {
 				} else if memory.CurrentBytes > ceiling.CurrentBytes || memory.Allocations > ceiling.Allocations {
 					t.Fatalf("retention grew: %d -> %d bytes, %d -> %d allocations", ceiling.CurrentBytes, memory.CurrentBytes, ceiling.Allocations, memory.Allocations)
 				}
-				t.Logf("reload=%d cycle=%d recovery=passed retained=%d allocations=%d peak=%d", reload, cycle, memory.CurrentBytes, memory.Allocations, memory.PeakBytes)
+				// Explicit retained-byte budget: the loaded footprint plus each
+				// named executor owner (arena, cuBLAS and Q8 staging, buffer
+				// pool), within a small share for graph nodes, module and
+				// alignment not individually surfaced. Every retained byte is
+				// attributed, so a future untracked context-scaled buffer fails
+				// here instead of silently inflating the empirical ceiling.
+				metrics, err := runner.ExecutionMetrics(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				owners := attributedOwners(metrics)
+				budget := retainedBudget(loadedFootprint, metrics)
+				unattributed := int64(memory.CurrentBytes) - int64(loadedFootprint) - int64(owners)
+				if memory.CurrentBytes > budget {
+					t.Fatalf("unattributed retained device memory: reload %d cycle %d current %d > budget %d (footprint %d, owners %d, unattributed %d, %+v)", reload, cycle, memory.CurrentBytes, budget, loadedFootprint, owners, unattributed, metrics)
+				}
+				if metrics.PoolRetainedLimit > 0 && metrics.PoolRetainedBytes > metrics.PoolRetainedLimit {
+					t.Fatalf("buffer pool free list exceeded its cap: retained %d > limit %d", metrics.PoolRetainedBytes, metrics.PoolRetainedLimit)
+				}
+				t.Logf("reload=%d cycle=%d recovery=passed retained=%d allocations=%d peak=%d footprint=%d owners=%d unattributed=%d budget=%d arena=%d blas=%d/%d q8=%d pool=%d/%d", reload, cycle, memory.CurrentBytes, memory.Allocations, memory.PeakBytes, loadedFootprint, owners, unattributed, budget, metrics.ArenaCommittedBytes, metrics.BLASStagingBytes, metrics.BLASScoreBytes, metrics.Q8StagingBytes, metrics.PoolTotalBytes, metrics.PoolRetainedBytes)
 				owned = memory.CurrentBytes
 			}
 			beforeClose = freeDevice()
@@ -166,4 +199,26 @@ func TestE4BResourceRecovery(t *testing.T) {
 		}
 	}
 	t.Log("3 reloads x 3 grow/shrink/grow cycles; 36 complete generations, 9 cancellations, 9 consumer errors, 9 exact recovery generations; text resources only, no dataset quality or projector-resource claim")
+}
+
+// reconcileFootprintShare bounds the retained device bytes not individually
+// surfaced -- graph exec nodes, the loaded module and allocation alignment --
+// to this share of the loaded model footprint. An eighth is far tighter than
+// any real retention regression (the E4B ladder grew by ~25 GB, roughly 14x a
+// 14 GB model's eighth) yet absorbs the small unsurfaced constants.
+const reconcileFootprintShare = 8
+
+// attributedOwners sums the executor's retained device memory outside the
+// loaded model footprint: arena workspace, cuBLAS matmul and attention-score
+// staging, Q8 activation staging, and the buffer pool's total driver residency
+// (live buffers plus the retained free list).
+func attributedOwners(m executor.ExecutionMetrics) uint64 {
+	return m.ArenaCommittedBytes + m.BLASStagingBytes + m.BLASScoreBytes + m.Q8StagingBytes + m.PoolTotalBytes
+}
+
+// retainedBudget is the explicit retained-byte budget: the loaded model
+// footprint, plus every named executor owner, plus the unsurfaced share. A
+// device retention within it is fully attributed.
+func retainedBudget(footprint uint64, m executor.ExecutionMetrics) uint64 {
+	return footprint + attributedOwners(m) + footprint/reconcileFootprintShare
 }

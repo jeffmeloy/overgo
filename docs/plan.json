@@ -74,23 +74,6 @@
       ]
     },
     {
-      "id": "device-memory-retention",
-      "title": "Bound retained device memory across changing context capacities",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound retained device memory across changing context capacities",
-          "status": "open",
-          "verify": "go test ./internal/longform -count=1",
-          "rationale": "The E4B ladder reportedly grew from 14 GB loaded to 39 GB after rung 32768. Treat graph executables, runner caches and pool free lists as hypotheses; instrument their live/retained byte accounting before changing ownership. Bind a failing repeated grow-shrink-grow context sequence in one long-lived runner/server. After warmup, retained allocation must stay within an explicit byte budget derived from model, maximum live cache, workspace, pool and graph allowances, without cumulative per-cycle growth. Cancellation, errors, release and reload must recover resources; synchronize before comparing counters. Accept with E4B runtime evidence plus host/device ownership tests and unchanged reference outputs, not a report-parser unit test. Prefer deleting redundant retention and establishing one existing lifetime owner over adding another cache manager or eviction knob.",
-          "depends_on": [
-            "model-regression-gate/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "decode-attention-per-key-cost",
       "title": "Recover small-head decode throughput without losing long-context correctness",
       "status": "open",

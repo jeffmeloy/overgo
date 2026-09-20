@@ -871,7 +871,7 @@
      "contains": "func Compile(",
      "path": "internal/cuda/executor/executor.go",
      "role": "source",
-     "identity": "file:sha256:8c85f0abb1de9ce95160122f138010c9c3187a554ecd2da063f4fe4d0f2c9bd9"
+     "identity": "file:sha256:11ce180ce820178c4f6023e9b4899e087f7bb86ffa2886aa4312fbb0387d862c"
     },
     {
      "contains": "func TestIndexedGraphOwnsCompilation(",

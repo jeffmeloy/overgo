@@ -64,6 +64,17 @@ type ExecutionMetrics struct {
 	ArenaCommittedBytes    uint64 `json:"arenaCommittedBytes"`
 	ArenaUnusedBytes       uint64 `json:"arenaUnusedBytes"`
 	ArenaGrowths           uint64 `json:"arenaGrowths"`
+	// Non-arena device-memory owners, so retained device bytes are fully
+	// attributed: cuBLAS matmul staging and attention-score staging, the
+	// Q8 activation staging, and the buffer pool's total driver residency
+	// with the retained free-list share and its cap. Every context-scaled
+	// device buffer the executor holds outside the arena appears here.
+	BLASStagingBytes  uint64 `json:"blasStagingBytes"`
+	BLASScoreBytes    uint64 `json:"blasScoreBytes"`
+	Q8StagingBytes    uint64 `json:"q8StagingBytes"`
+	PoolTotalBytes    uint64 `json:"poolTotalBytes"`
+	PoolRetainedBytes uint64 `json:"poolRetainedBytes"`
+	PoolRetainedLimit uint64 `json:"poolRetainedLimit"`
 }
 
 type arenaMetrics struct {
@@ -1369,6 +1380,11 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 	err := e.worker.Do(ctx, func(_ *device.State) error {
 		cache := &e.resources.graphExecs
 		arena := e.resources.arenaUse
+		pool := &e.resources.buffers
+		var poolTotal uint64
+		for _, lease := range pool.allocations {
+			poolTotal += lease.size
+		}
 		metrics = ExecutionMetrics{
 			GraphCacheHits:         cache.hits,
 			GraphCacheMisses:       cache.misses,
@@ -1384,6 +1400,14 @@ func (e *Executor) Metrics(ctx context.Context) (ExecutionMetrics, error) {
 			ArenaPeakRequiredBytes: arena.peakRequiredBytes,
 			ArenaCommittedBytes:    e.resources.arenaSize,
 			ArenaGrowths:           arena.growths,
+			Q8StagingBytes:         e.resources.q8Input.stagingBytes,
+			PoolTotalBytes:         poolTotal,
+			PoolRetainedBytes:      pool.freeBytes,
+			PoolRetainedLimit:      pool.freeLimit,
+		}
+		if blas := e.resources.blas; blas != nil {
+			metrics.BLASStagingBytes = blas.stagingBytes
+			metrics.BLASScoreBytes = blas.scoreBytes
 		}
 		if metrics.ArenaCommittedBytes >= metrics.ArenaRequiredBytes {
 			metrics.ArenaUnusedBytes = metrics.ArenaCommittedBytes - metrics.ArenaRequiredBytes

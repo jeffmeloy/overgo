@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/cuda/executor"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -15,6 +16,16 @@ func (r *Runner) DeviceMemoryStats(ctx context.Context) (driver.MemoryStats, err
 		return driver.MemoryStats{}, errRunnerNil
 	}
 	return r.worker.MemoryStats(ctx)
+}
+
+// ExecutionMetrics reports the executor's device-memory attribution: arena,
+// cuBLAS and Q8 staging, and buffer-pool residency. Callers bound retained
+// device bytes against the model's loaded footprint plus these owners.
+func (r *Runner) ExecutionMetrics(ctx context.Context) (executor.ExecutionMetrics, error) {
+	if r == nil || r.cuda == nil {
+		return executor.ExecutionMetrics{}, errRunnerNil
+	}
+	return r.cuda.Metrics(ctx)
 }
 
 // ResetDeviceMemoryPeak starts an allocation high-water window at the current

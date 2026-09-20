@@ -42,6 +42,8 @@ type CensusFamily struct {
 	ScopedImport string
 	// Literals mark composite literals of an imported type: the package
 	// builds the mechanic's value itself instead of asking an owner for it.
+	// The empty literal returned beside an error builds nothing and is not
+	// a site; one that is assigned and then filled is.
 	Literals []CensusCall
 }
 
@@ -140,8 +142,11 @@ func countFamilySites(family CensusFamily, file *ast.File, imports map[string]st
 		}
 	}
 	count := 0
+	var returned []ast.Expr
 	ast.Inspect(file, func(node ast.Node) bool {
 		switch typed := node.(type) {
+		case *ast.ReturnStmt:
+			returned = typed.Results
 		case *ast.CallExpr:
 			selector, ok := typed.Fun.(*ast.SelectorExpr)
 			if !ok {
@@ -173,7 +178,7 @@ func countFamilySites(family CensusFamily, file *ast.File, imports map[string]st
 			}
 		case *ast.CompositeLit:
 			selector, _ := typed.Type.(*ast.SelectorExpr)
-			if selector == nil {
+			if selector == nil || len(typed.Elts) == 0 && slices.Contains(returned, ast.Expr(typed)) {
 				return true
 			}
 			if base, ok := selector.X.(*ast.Ident); ok && slices.Contains(family.Literals, CensusCall{imports[base.Name], selector.Sel.Name}) {

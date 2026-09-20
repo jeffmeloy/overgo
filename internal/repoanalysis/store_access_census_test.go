@@ -12,7 +12,9 @@ import (
 // package that reaches the store in every way and imports two domains'
 // records, and holds the census to counting each kind once, ignoring the
 // package's test file, and naming both domains -- so the numbers are
-// computed, and a package that straddles domains says so.
+// computed, and a package that straddles domains says so. The one batch it
+// counts is an empty literal that is assigned and then filled; the empty
+// literal the package returns as a zero value builds nothing and is no site.
 func TestStoreAccessCensus(t *testing.T) {
 	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
@@ -49,12 +51,15 @@ var _ = runrecord.GateSchema
 
 func touch(root string) {
 	store, _ := overgodb.OpenReadOnly(root)
-	batch := artifact.Batch{Key: "k"}
+	batch := artifact.Batch{}
+	batch.Key = "k"
 	_, _ = store.Commit(nil, batch)
 	_, _, _ = artifact.ResolveAlias(nil, store, "a")
 	_, _, _ = artifact.ReadContent(nil, store, artifact.ID{})
 	_, _ = store.Query(nil, overgodb.Query{})
 }
+
+func refuse() (artifact.Batch, error) { return artifact.Batch{}, nil }
 `
 	overlaid, err := snapshot.Overlay(map[string][]byte{
 		"internal/straddler/straddler.go":      []byte(straddler),

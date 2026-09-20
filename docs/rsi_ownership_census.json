@@ -260,28 +260,12 @@
       ],
       "sites": {
         "alias": 14,
-        "batch": 27,
+        "batch": 21,
         "commit": 28,
         "query": 5,
         "read": 28
       },
-      "total": 102
-    },
-    {
-      "package": "internal/runrecord",
-      "domains": [
-        "datasets",
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "alias": 7,
-        "batch": 42,
-        "commit": 23,
-        "query": 5,
-        "read": 8
-      },
-      "total": 85
+      "total": 96
     },
     {
       "package": "internal/server",
@@ -300,6 +284,22 @@
       "total": 66
     },
     {
+      "package": "internal/runrecord",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 7,
+        "batch": 22,
+        "commit": 23,
+        "query": 5,
+        "read": 8
+      },
+      "total": 65
+    },
+    {
       "package": "internal/modelrecipe",
       "domains": [
         "datasets",
@@ -308,34 +308,12 @@
       ],
       "sites": {
         "alias": 15,
-        "batch": 18,
+        "batch": 10,
         "commit": 16,
         "query": 2,
         "read": 11
       },
-      "total": 62
-    },
-    {
-      "package": "internal/dataset",
-      "domains": [
-        "datasets"
-      ],
-      "sites": {
-        "alias": 2,
-        "batch": 39,
-        "commit": 8
-      },
-      "total": 49
-    },
-    {
-      "package": "internal/overgodb",
-      "sites": {
-        "alias": 2,
-        "batch": 37,
-        "commit": 6,
-        "read": 1
-      },
-      "total": 46
+      "total": 54
     },
     {
       "package": "cmd/plan",
@@ -382,21 +360,6 @@
         "read": 6
       },
       "total": 36
-    },
-    {
-      "package": "internal/composition",
-      "domains": [
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "alias": 1,
-        "batch": 22,
-        "commit": 6,
-        "query": 3,
-        "read": 3
-      },
-      "total": 35
     },
     {
       "package": "cmd/loop",
@@ -455,6 +418,28 @@
       "total": 25
     },
     {
+      "package": "internal/overgodb",
+      "sites": {
+        "alias": 2,
+        "batch": 12,
+        "commit": 6,
+        "read": 1
+      },
+      "total": 21
+    },
+    {
+      "package": "internal/dataset",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "alias": 2,
+        "batch": 10,
+        "commit": 8
+      },
+      "total": 20
+    },
+    {
       "package": "internal/loop",
       "domains": [
         "control",
@@ -484,6 +469,21 @@
       "total": 20
     },
     {
+      "package": "internal/composition",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "batch": 6,
+        "commit": 6,
+        "query": 3,
+        "read": 3
+      },
+      "total": 19
+    },
+    {
       "package": "internal/trainingworkflow",
       "domains": [
         "datasets",
@@ -491,10 +491,10 @@
         "models"
       ],
       "sites": {
-        "batch": 11,
+        "batch": 9,
         "commit": 9
       },
-      "total": 20
+      "total": 18
     },
     {
       "package": "cmd/evaluate",
@@ -509,27 +509,6 @@
         "open": 11
       },
       "total": 17
-    },
-    {
-      "package": "internal/finding",
-      "sites": {
-        "alias": 2,
-        "batch": 13,
-        "read": 1
-      },
-      "total": 16
-    },
-    {
-      "package": "internal/modelartifact",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "alias": 2,
-        "batch": 11,
-        "commit": 2
-      },
-      "total": 15
     },
     {
       "package": "internal/plan",
@@ -561,58 +540,9 @@
         "models"
       ],
       "sites": {
-        "batch": 6,
+        "batch": 4,
         "commit": 5,
         "read": 1
-      },
-      "total": 12
-    },
-    {
-      "package": "internal/controlleraction",
-      "domains": [
-        "control",
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "batch": 11,
-        "commit": 1
-      },
-      "total": 12
-    },
-    {
-      "package": "internal/workflowruntime",
-      "domains": [
-        "evidence",
-        "models"
-      ],
-      "sites": {
-        "batch": 7,
-        "commit": 3,
-        "read": 2
-      },
-      "total": 12
-    },
-    {
-      "package": "cmd/finding",
-      "sites": {
-        "batch": 7,
-        "commit": 1,
-        "open": 1,
-        "read": 1
-      },
-      "total": 10
-    },
-    {
-      "package": "internal/lanestore",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "batch": 3,
-        "commit": 1,
-        "query": 4,
-        "read": 2
       },
       "total": 10
     },
@@ -660,6 +590,19 @@
       "total": 8
     },
     {
+      "package": "internal/lanestore",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "query": 4,
+        "read": 2
+      },
+      "total": 8
+    },
+    {
       "package": "internal/speechactivity",
       "domains": [
         "models"
@@ -668,17 +611,6 @@
         "batch": 2,
         "commit": 2,
         "read": 4
-      },
-      "total": 8
-    },
-    {
-      "package": "internal/trainingprogram",
-      "domains": [
-        "models"
-      ],
-      "sites": {
-        "batch": 7,
-        "read": 1
       },
       "total": 8
     },
@@ -726,14 +658,15 @@
       "total": 7
     },
     {
-      "package": "internal/worklease",
+      "package": "internal/workflowruntime",
       "domains": [
-        "control"
+        "evidence",
+        "models"
       ],
       "sites": {
-        "alias": 1,
-        "batch": 4,
-        "commit": 2
+        "batch": 2,
+        "commit": 3,
+        "read": 2
       },
       "total": 7
     },
@@ -761,13 +694,14 @@
       "total": 6
     },
     {
-      "package": "internal/audioparity",
+      "package": "internal/modelartifact",
       "domains": [
         "models"
       ],
       "sites": {
-        "batch": 5,
-        "commit": 1
+        "alias": 2,
+        "batch": 2,
+        "commit": 2
       },
       "total": 6
     },
@@ -821,6 +755,19 @@
       "total": 5
     },
     {
+      "package": "internal/controlleraction",
+      "domains": [
+        "control",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 4,
+        "commit": 1
+      },
+      "total": 5
+    },
+    {
       "package": "internal/discovery",
       "domains": [
         "models"
@@ -829,6 +776,15 @@
         "alias": 1,
         "commit": 1,
         "query": 3
+      },
+      "total": 5
+    },
+    {
+      "package": "internal/finding",
+      "sites": {
+        "alias": 2,
+        "batch": 2,
+        "read": 1
       },
       "total": 5
     },
@@ -905,23 +861,14 @@
       "total": 4
     },
     {
-      "package": "internal/capabilityruntime",
+      "package": "internal/worklease",
       "domains": [
-        "evidence",
-        "models"
+        "control"
       ],
       "sites": {
-        "batch": 3,
-        "commit": 1
-      },
-      "total": 4
-    },
-    {
-      "package": "internal/closureledger",
-      "sites": {
-        "alias": 2,
+        "alias": 1,
         "batch": 1,
-        "query": 1
+        "commit": 2
       },
       "total": 4
     },
@@ -943,6 +890,15 @@
       ],
       "sites": {
         "open": 3
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/finding",
+      "sites": {
+        "commit": 1,
+        "open": 1,
+        "read": 1
       },
       "total": 3
     },
@@ -1021,6 +977,25 @@
       "sites": {
         "commit": 2,
         "open": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "internal/audioparity",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 2,
+        "commit": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "internal/closureledger",
+      "sites": {
+        "alias": 2,
+        "query": 1
       },
       "total": 3
     },
@@ -1111,6 +1086,18 @@
       "total": 2
     },
     {
+      "package": "internal/capabilityruntime",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
       "package": "internal/inference",
       "domains": [
         "evidence",
@@ -1175,6 +1162,17 @@
       "sites": {
         "batch": 1,
         "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/trainingprogram",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "read": 1
       },
       "total": 2
     },

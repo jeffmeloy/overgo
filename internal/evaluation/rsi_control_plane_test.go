@@ -64,7 +64,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 		if err := runrecord.BindCausality(&batch, record.ID, record.Causal); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Commit(ctx, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}

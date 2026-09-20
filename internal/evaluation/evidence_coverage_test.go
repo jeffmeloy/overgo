@@ -137,14 +137,14 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	for index, value := range all {
 		descriptors[index] = artifact.Descriptor{ID: value}
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "coverage/authorities", Artifacts: descriptors}); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{Key: "coverage/authorities", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
 	typedAttemptContent, err := typedAttempt.Content()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "coverage/attempt/typed-causal", Artifacts: []artifact.Descriptor{typedAttemptContent.Descriptor},
 		Contents: []artifact.Content{typedAttemptContent}, Lineage: typedAttempt.Lineage(),
 	}); err != nil {
@@ -173,11 +173,11 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 		if err := runrecord.BindCausality(&batch, publication.record.ID, publication.record.Causal); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Commit(ctx, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "coverage/attempt/split-brain-causal-facet",
 		Causality: []artifact.CausalLink{{
 			Execution: splitBrainAttempt.ID, Root: causalRoot,
@@ -214,7 +214,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, receiptCapabilityBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, receiptCapabilityBatch); err != nil {
 		t.Fatal(err)
 	}
 	for _, publication := range []struct {
@@ -230,7 +230,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -343,7 +343,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, evaluationBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, evaluationBatch); err != nil {
 		t.Fatal(err)
 	}
 
@@ -486,7 +486,7 @@ func TestEvidenceCoverageProjection(t *testing.T) {
 	}
 	foreignContractContent.Descriptor.MediaType = "application/vnd.overgo.foreign-evaluation-evidence+json"
 	foreignContractContent.Descriptor.Schema = "overgo/foreign-evaluation-evidence/v1"
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key:       "coverage/selected-evaluation/foreign-contract",
 		Artifacts: []artifact.Descriptor{foreignContractContent.Descriptor},
 		Contents:  []artifact.Content{foreignContractContent},
@@ -826,7 +826,7 @@ func publishCoverageChunk(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	raw, rawErr := runrecord.RequireObservationChunk(ctx, store, summary.Chunk)
@@ -891,13 +891,13 @@ func publishCoverageSelectedEvaluation(
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
 	selectedRoot := testutil.ArtifactID(t, artifact.KindEvidence, "coverage selected evaluation root")
 	untypedRoot := testutil.ArtifactID(t, artifact.KindEvidence, "coverage untyped evaluation root")
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key:       "coverage/selected-evaluation/causal-authorities",
 		Artifacts: []artifact.Descriptor{{ID: selectedRoot}, {ID: untypedRoot}},
 	}); err != nil {
@@ -915,7 +915,7 @@ func publishCoverageSelectedEvaluation(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "coverage/selected-evaluation/untyped-causal-facet",
 		Causality: []artifact.CausalLink{{
 			Execution: untyped.ID, Root: untypedRoot, Trigger: string(runrecord.TriggerManual),

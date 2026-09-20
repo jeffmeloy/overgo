@@ -51,7 +51,7 @@ func commitAttempt(t *testing.T, store *overgodb.Store, item, step string, outco
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = store.Commit(t.Context(), artifact.Batch{Key: "fixture/attempt/" + published.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
+	if _, err = store.CommitAs(t.Context(), gateDoor, artifact.Batch{Key: "fixture/attempt/" + published.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
 	return published
@@ -97,7 +97,7 @@ func TestAttemptHistoryQueriesAndAggregates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "fixture/attempt/" + published.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{Key: "fixture/attempt/" + published.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}}); err != nil {
 		t.Fatal(err)
 	}
 	byStrategy, err := LoadAttemptHistory(ctx, store, AttemptFilter{Strategy: "sonnet-baseline"})

@@ -45,7 +45,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	for index, dependency := range dependencies {
 		descriptors[index] = artifact.Descriptor{ID: dependency}
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "improvement/authorities", Artifacts: descriptors}); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{Key: "improvement/authorities", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
 	publishRecipe := func(name string, task recipe.Task) recipe.Definition {
@@ -87,7 +87,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, environmentBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, environmentBatch); err != nil {
 		t.Fatal(err)
 	}
 	basePlan, err := BindExact(exact, ExactAuthorities{
@@ -102,7 +102,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	}
 	providerImplementation := id(artifact.KindFile, "provider implementation")
 	providerSchema := id(artifact.KindProfile, "provider schema")
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "improvement/provider-parents",
 		Artifacts: []artifact.Descriptor{
 			{ID: providerImplementation},
@@ -233,7 +233,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := artifact.CommitBatch(ctx, store, gateBatch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, gateBatch); err != nil {
 			t.Fatal(err)
 		}
 		current.attempt, err = runrecord.NewAttemptRecord(runrecord.AttemptRecord{
@@ -431,7 +431,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	descriptorDataset := id(artifact.KindDataset, "descriptor dataset")
 	descriptorSplit := id(artifact.KindDatasetShard, "descriptor split")
 	descriptorModelDefinition := id(artifact.KindModelDefinition, "descriptor model definition")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "improvement/descriptor-only-authorities", Artifacts: []artifact.Descriptor{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{Key: "improvement/descriptor-only-authorities", Artifacts: []artifact.Descriptor{
 		{ID: descriptorRecipe}, {ID: descriptorEnvironment}, {ID: descriptorDataset}, {ID: descriptorSplit},
 		{ID: descriptorModelDefinition},
 	}}); err != nil {
@@ -450,7 +450,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		t.Fatal("improvement accepted a descriptor-only model definition")
 	}
 	foreignModel := id(artifact.KindModel, "foreign model")
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "improvement/foreign-model", Artifacts: []artifact.Descriptor{{ID: foreignModel}},
 	}); err != nil {
 		t.Fatal(err)
@@ -484,7 +484,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, foreignDatasetBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, foreignDatasetBatch); err != nil {
 		t.Fatal(err)
 	}
 	if err := requireImprovementDatasetSplit(ctx, store, exact.dataset, foreignSplitContent.Descriptor.ID); err == nil {
@@ -503,7 +503,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, lineageStore, withoutLineage); err != nil {
+	if _, err := lineageStore.CommitAs(ctx, gateDoor, withoutLineage); err != nil {
 		t.Fatal(err)
 	}
 	if err := requireImprovementDatasetSplit(ctx, lineageStore, exact.dataset, exact.split); err == nil {
@@ -529,7 +529,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 			t.Fatal(err)
 		}
 		batch.ExpectedHead = &journalHead
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := RequireImprovementFitness(ctx, store, forged.ID); err == nil {
@@ -570,7 +570,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch.ExpectedHead = &journalHead
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RequireImprovementFitness(ctx, store, forged.ID); err == nil {
@@ -598,7 +598,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		ExpectedHead: &journalHead,
 		Artifacts:    []artifact.Descriptor{forgedContent.Descriptor},
 	}
-	if _, err := artifact.CommitBatch(ctx, store, reserved); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, reserved); err != nil {
 		t.Fatal(err)
 	}
 	lateBatch, err := improvementFitnessCodec.Batch(
@@ -607,7 +607,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, lateBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, lateBatch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RequireImprovementFitness(ctx, store, forged.ID); err == nil {
@@ -649,7 +649,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 		t.Fatal(err)
 	}
 	forgedBatch.ExpectedHead = &journalHead
-	if _, err := artifact.CommitBatch(ctx, store, forgedBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, forgedBatch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RequireImprovementFitness(ctx, store, forged.ID); err == nil {
@@ -711,7 +711,7 @@ func TestImprovementFitnessRejectsTransferredCost(t *testing.T) {
 	// connecting it to either strategy. It must not manufacture improvement.
 	foreignAttempts := []artifact.ID{id(artifact.KindEvidence, "foreign baseline"), id(artifact.KindEvidence, "foreign candidate")}
 	foreignWorkload := id(artifact.KindProfile, "foreign workload")
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "improvement/foreign-authorities", Artifacts: []artifact.Descriptor{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{Key: "improvement/foreign-authorities", Artifacts: []artifact.Descriptor{
 		{ID: foreignAttempts[0]}, {ID: foreignAttempts[1]}, {ID: foreignWorkload},
 	}}); err != nil {
 		t.Fatal(err)
@@ -781,7 +781,7 @@ func publishImprovementEvaluation(
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -859,7 +859,7 @@ func publishImprovementResources(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	return comparison
@@ -878,7 +878,7 @@ func commitFitnessDocument(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 }

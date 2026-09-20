@@ -51,7 +51,7 @@ func TestDeterministicRSIControlPlane(t *testing.T) {
 	}
 	defer store.Close()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "promotion-model")
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "rsi-control-plane/facts",
 		Artifacts: []artifact.Descriptor{
 			{ID: modelID, Size: 4096},
@@ -218,7 +218,7 @@ func buildPlanAfterQuarantine(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	return plan.ID

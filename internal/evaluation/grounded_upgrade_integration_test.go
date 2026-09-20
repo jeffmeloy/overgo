@@ -24,7 +24,7 @@ func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
 
 	tokenizer := testutil.ArtifactID(t, artifact.KindTokenizer, "grounded-replay-tokenizer")
 	counter := testutil.ArtifactID(t, artifact.KindProfile, "grounded-replay-token-counter")
-	if _, err := artifact.CommitBatch(t.Context(), store, artifact.Batch{
+	if _, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key:       "evaluation/grounded-replay/measurement-authorities",
 		Artifacts: []artifact.Descriptor{{ID: tokenizer}, {ID: counter}},
 	}); err != nil {
@@ -146,7 +146,7 @@ func publishGroundedReplayEpisodeSource(
 		t.Fatal(err)
 	}
 	batch.Artifacts = []artifact.Descriptor{{ID: gateRecipe}, {ID: environment}}
-	if _, err := artifact.CommitBatch(t.Context(), store, batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	return runrecord.CapabilityEpisodeAuthoritySource{Attempt: attempt.ID, Trajectory: trace.ID}

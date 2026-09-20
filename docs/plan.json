@@ -4,34 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "row-scope-budget-surface",
-      "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestScopeBudgetSurface' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-producer-guards-shared-kinds",
-      "title": "Decide who may mint gate results and attempts: model intake, the remote provider, vqaparity and the recipe test harness construct runrecord gate records for their own verification runs, so the kind is shared and one producer cannot guard it -- either the producer table admits a named set per kind or those producers get kinds of their own, and then the kinds are guarded",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Decide who may mint gate results and attempts: model intake, the remote provider, vqaparity and the recipe test harness construct runrecord gate records for their own verification runs, so the kind is shared and one producer cannot guard it -- either the producer table admits a named set per kind or those producers get kinds of their own, and then the kinds are guarded",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestWriteAdmissionSharedKinds' -count=1"
-        }
-      ]
-    },
-    {
       "id": "completion-proof-horizon",
       "title": "Bound the plan completion authority to a proof horizon: completions before a committed receipt boundary are accepted from git alone, their store evidence becomes releasable, and plan dispatch stops re-proving every landed commit from the store",
       "owner": "master-lead",
@@ -350,6 +322,20 @@
           "title": "Report each model directory as registered, recipe-supported, validated at which surface by which evidence, and its validation command, as a cmd/validate dry-run mode",
           "status": "open",
           "verify": "test -f cmd/validate/inventory_test.go \u0026\u0026 go test ./cmd/validate -run '^TestModelInventory' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "row-scope-budget-surface",
+      "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestScopeBudgetSurface' -count=1"
         }
       ]
     },

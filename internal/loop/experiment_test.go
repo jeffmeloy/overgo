@@ -274,7 +274,7 @@ func TestStrategyComparisonRequiresIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.store.Commit(fixture.ctx, artifact.Batch{
+	if _, err := fixture.store.CommitAs(fixture.ctx, gateDoor, artifact.Batch{
 		Key:       "identity-attempt/detached-authority",
 		Artifacts: []artifact.Descriptor{{ID: detached.Trajectory}},
 	}); err != nil {
@@ -489,7 +489,7 @@ func newStrategyExperimentTestFixtureWithOptions(
 		seen[value] = struct{}{}
 		descriptors = append(descriptors, artifact.Descriptor{ID: value})
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{Key: "loop/experiment/static", Artifacts: descriptors}); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{Key: "loop/experiment/static", Artifacts: descriptors}); err != nil {
 		t.Fatal(err)
 	}
 	resolvedModelDefinition, err := modelrecipetest.PublishModelDefinition(
@@ -613,7 +613,7 @@ func newStrategyExperimentTestFixtureWithOptions(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, documentBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, documentBatch); err != nil {
 		t.Fatal(err)
 	}
 
@@ -674,7 +674,7 @@ func (fixture *strategyExperimentTestFixture) publishFitness(t *testing.T, basel
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(fixture.ctx, fixture.store, resourceBatch); err != nil {
+	if _, err := fixture.store.CommitAs(fixture.ctx, gateDoor, resourceBatch); err != nil {
 		t.Fatal(err)
 	}
 	requirements := []evaluation.CoverageRequirement{
@@ -804,14 +804,14 @@ func (fixture *strategyExperimentTestFixture) publishEvaluation(
 	if _, err := runrecord.BindObservationChunk(fixture.ctx, fixture.store, &runBatch, chunk); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(fixture.ctx, fixture.store, runBatch); err != nil {
+	if _, err := fixture.store.CommitAs(fixture.ctx, gateDoor, runBatch); err != nil {
 		t.Fatal(err)
 	}
 	evaluationBatch, err := evaluationRecord.Batch("loop/experiment/evaluation/record/" + name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(fixture.ctx, fixture.store, evaluationBatch); err != nil {
+	if _, err := fixture.store.CommitAs(fixture.ctx, gateDoor, evaluationBatch); err != nil {
 		t.Fatal(err)
 	}
 	evidence, err := evaluation.PublishEvaluationEvidence(
@@ -849,7 +849,7 @@ func (fixture *strategyExperimentTestFixture) publishObservation(
 	if _, err := runrecord.BindObservationChunk(fixture.ctx, fixture.store, &batch, chunk); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(fixture.ctx, fixture.store, batch); err != nil {
+	if _, err := fixture.store.CommitAs(fixture.ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	stream, found, err := runrecord.LoadObservationStream(
@@ -877,7 +877,7 @@ func (fixture *strategyExperimentTestFixture) publishDocument(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(fixture.ctx, fixture.store, batch); err != nil {
+	if _, err := fixture.store.CommitAs(fixture.ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -630,7 +630,7 @@ func commitSupervisedBatch(
 	aliases []artifact.AliasBinding,
 ) (artifact.CommitID, error) {
 	t.Helper()
-	return store.Commit(t.Context(), artifact.Batch{
+	return store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key: "supervised-composite/" + key, Contents: contents, Lineage: lineage,
 		Artifacts: descriptors, Aliases: aliases,
 	})

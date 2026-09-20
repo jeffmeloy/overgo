@@ -34,8 +34,13 @@ func NewProducer(name string) Producer { return Producer{name: name} }
 // an owner is held to it all the same.
 var producerKinds = []struct{ prefix, producer string }{
 	// The kinds only the gate mints. The lifecycle is what the plan
-	// completion authority discovers a landing through. Gate results and
-	// attempts are absent: other verifiers mint them for their own runs.
+	// completion authority discovers a landing through, and an attempt is
+	// what it counts: exactly one, so a forged second would wedge it. Gate
+	// results are absent on purpose. Model intake, the remote provider and
+	// vqaparity mint them for their own verification runs, and that is safe:
+	// the authority accepts a result only through a lifecycle finalization
+	// introduced atomically with it, which no other producer can write.
+	{"overgo/gate-attempt/", "gate"},
 	{"overgo/gate-batch-evidence/", "gate"},
 	{"overgo/gate-lane-obligation/", "gate"},
 	{"overgo/gate-lifecycle/", "gate"},

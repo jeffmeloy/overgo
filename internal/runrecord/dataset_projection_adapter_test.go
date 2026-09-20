@@ -84,7 +84,7 @@ func TestCapabilityEpisodeProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	stored, err := RequireCapabilityEpisodeProjection(t.Context(), store, one.ID)
@@ -196,7 +196,7 @@ func TestInteractionArcProjectionPreservesAtomicEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	stored, storedArcs, err := RequireInteractionArcProjection(t.Context(), store, projection.ID)
@@ -262,7 +262,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), projectionBatch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, projectionBatch); err != nil {
 		t.Fatal(err)
 	}
 	tokenizer := testutil.ArtifactID(t, artifact.KindTokenizer, "selection-tokenizer")
@@ -276,7 +276,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 		t.Fatal(err)
 	}
 	policyBatch.Artifacts = append(policyBatch.Artifacts, artifact.Descriptor{ID: tokenizer}, artifact.Descriptor{ID: counter})
-	if _, err := store.Commit(t.Context(), policyBatch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, policyBatch); err != nil {
 		t.Fatal(err)
 	}
 	bounds := dataset.InteractionSelectionBounds{
@@ -317,7 +317,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), missingBatch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, missingBatch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := SelectInteractionArcs(
@@ -356,7 +356,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 		t.Fatal(err)
 	}
 	forgedBatch.ExpectedHead = &forgedHead
-	if _, err := store.Commit(t.Context(), forgedBatch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, forgedBatch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RequireInteractionArcSelection(t.Context(), store, forgedSelection.ID); err == nil ||
@@ -379,7 +379,7 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	lineageBatch.Artifacts = append(lineageBatch.Artifacts, artifact.Descriptor{ID: extraAuthority})
 	lineageBatch.Lineage = append(lineageBatch.Lineage, artifact.DependencyLineage(lineageSelection.ID, extraAuthority)...)
 	lineageBatch.ExpectedHead = &lineageHead
-	if _, err := store.Commit(t.Context(), lineageBatch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, lineageBatch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := RequireInteractionArcSelection(t.Context(), store, lineageSelection.ID); err == nil ||
@@ -400,12 +400,12 @@ func TestInteractionArcSelectionIsHeadBound(t *testing.T) {
 	}
 	staleBatch.ExpectedHead = &staleHead
 	newHeadArtifact := testutil.ArtifactID(t, artifact.KindEvidence, "selection-new-head")
-	if _, err := store.Commit(t.Context(), artifact.Batch{
+	if _, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key: "interaction-arc/selection-new-head", Artifacts: []artifact.Descriptor{{ID: newHeadArtifact}},
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), staleBatch); err == nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, staleBatch); err == nil {
 		t.Fatal("interaction selection publication accepted a stale source head")
 	}
 	second, err := SelectInteractionArcs(t.Context(), store, projection.ID, "candidate/a", bounds, policy.ID)
@@ -603,7 +603,7 @@ func commitProjectionAuthorities(t *testing.T, store *overgodb.Store, key string
 		descriptors = append(descriptors, artifact.Descriptor{ID: id})
 	}
 	slices.SortFunc(descriptors, func(left, right artifact.Descriptor) int { return artifact.CompareID(left.ID, right.ID) })
-	if _, err := store.Commit(t.Context(), artifact.Batch{
+	if _, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key: key, Artifacts: descriptors, Contents: contents, Lineage: lineage,
 	}); err != nil {
 		t.Fatal(err)

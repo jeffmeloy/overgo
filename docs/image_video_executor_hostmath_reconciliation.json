@@ -1,0 +1,28 @@
+{
+  "base": "7abbfa4e29c343f897e56f8eb167c19e0ccae1d4",
+  "source_changes": {
+    "internal/cuda/executor/executor.go": {
+      "before_sha256": "8c85f0abb1de9ce95160122f138010c9c3187a554ecd2da063f4fe4d0f2c9bd9",
+      "after_sha256": "11ce180ce820178c4f6023e9b4899e087f7bb86ffa2886aa4312fbb0387d862c",
+      "reason": "device-memory-retention adds read-only ExecutionMetrics device-byte accounting fields and a pool-accounting read in Metrics(); no execution or allocation path changes, so generation output is unchanged."
+    },
+    "internal/hostmath/hostmath.go": {
+      "before_sha256": "0afdd492d482e5c3bee080df29dc273d7cec36a652035582ec53afcd4e92dbf3",
+      "after_sha256": "85129c7ac0df1ae890d26ea7b233811c97dc832a60aeec838ec090dedc6d020f",
+      "reason": "linearCols iterates output columns outermost so each weight row streams once against every input row while inputs stay cached; the inner dot keeps the ascending serial accumulation order, so every result is bit-identical."
+    }
+  },
+  "evidence": "evidence:sha256:4361d31522dadff1a3f71814237f7ffdbeaaae9ed878050a526f971170a1ba08",
+  "required_tests": {
+    "overgo/internal/hostmath": [
+      "TestLinearBF16MatchesPromotedLinear",
+      "TestLinearBF16BackwardInput",
+      "TestLinearBackwardWeightOnly",
+      "TestLinearGradientKernelsMatchLinearBackward"
+    ],
+    "overgo/internal/sensenovarecipe": [
+      "TestSenseNovaVariableRequestResources"
+    ]
+  },
+  "scope": "Output-neutral runtime reconciliation of the two production files that drifted the media runtime identity past the rotary base. executor.go (internal/cuda) adds device-byte attribution to ExecutionMetrics; hostmath.go (internal/hostmath) reorders the serial host Linear kernel preserving accumulation order. Both leave every image and video generation output byte-identical; the bound receipt re-observes the hostmath Linear kernels and the SenseNova native device-resource acquisition at master's current surface."
+}

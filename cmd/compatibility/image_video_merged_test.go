@@ -72,6 +72,14 @@ func compareMediaRuntimeIdentity(expected, actual string) error {
 // production file and every other byte of the corrected file must still match.
 // An empty revision checks the working tree before gate publication.
 func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected string) error {
+	// Peel the newest reviewed output-neutral deltas (executor device-byte
+	// accounting and the host linear-column reorder) first, then reconcile the
+	// pre-delta base through the existing chain.
+	if peeledBase, peeled, err := checkMediaExecutorHostmathSource(root, revision, paths); err != nil {
+		return err
+	} else if peeled {
+		revision = peeledBase
+	}
 	prior := checkMediaRuntimeBeforeLifecycle(root, revision, paths, expected)
 	if prior == nil {
 		return nil

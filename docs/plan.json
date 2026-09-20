@@ -19,20 +19,6 @@
       ]
     },
     {
-      "id": "host-linear-kernel-reacquisition",
-      "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Read each host linear weight row once per input row in hostmath and re-acquire the image and video evidence whose runtime identity pins it",
-          "status": "open",
-          "verify": "go test ./internal/hostmath -run '^TestLinear' -count=1 \u0026\u0026 go run ./cmd/compatibility -check"
-        }
-      ]
-    },
-    {
       "id": "model-regression-baseline",
       "title": "Publish an accepted, immutable baseline before simplification",
       "status": "open",

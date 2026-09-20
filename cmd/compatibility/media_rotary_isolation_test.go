@@ -314,6 +314,14 @@ func checkMediaRotaryConsumers(root string, paths []string) error {
 }
 
 func checkMediaRotarySource(root, revision string, paths []string) (string, error) {
+	// Peel the newer output-neutral executor and host-linear deltas first so the
+	// rotary proof reconciles the source at the pre-delta base; they are not
+	// rotary changes and carry their own reviewed reconciliation and receipt.
+	if peeledBase, peeled, err := checkMediaExecutorHostmathSource(root, revision, paths); err != nil {
+		return "", err
+	} else if peeled {
+		revision = peeledBase
+	}
 	changed, err := mediaRuntimeChanges(root, mediaRotaryBase, revision, paths)
 	if err != nil {
 		return "", err

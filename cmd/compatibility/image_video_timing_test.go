@@ -24,6 +24,14 @@ const mediaTimingSHA256 = "1a1ebaf1e98a84e3c4fa0da0ae39b7d00825643e6c8c2c326466b
 // Bind the entire numerical scope and the newly used measurement owner. Old
 // resource measurements retain their original source; this proves output reuse.
 func checkMediaTimingSource(root, revision string, paths []string) (string, error) {
+	// Peel the newer output-neutral executor and host-linear deltas first so the
+	// timing reconciliation sees only its own scope; they carry their own
+	// reviewed reconciliation and receipt.
+	if peeledBase, peeled, err := checkMediaExecutorHostmathSource(root, revision, paths); err != nil {
+		return "", err
+	} else if peeled {
+		revision = peeledBase
+	}
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_timing_reconciliation.json"))
 	if err != nil {
 		return "", err

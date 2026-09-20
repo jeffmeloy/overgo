@@ -267,18 +267,20 @@ func LinearBF16BackwardInput(dx, dy []float32, w []uint16, rows, inDim, outDim i
 }
 
 // linearCols: output columns [oStart,oEnd) of Linear — the serial kernel the
-// dispatch calibration times.
+// dispatch calibration times. Output columns are outermost so each weight row
+// streams once against every input row while the inputs stay cached, instead of
+// re-streaming the whole output weight once per input row; every dot keeps the
+// ascending serial order, so the result is identical.
 func linearCols(dst, x, w []float32, rows, inDim, outDim, oStart, oEnd int) {
-	for r := range rows {
-		xRow := x[r*inDim : (r+1)*inDim]
-		dRow := dst[r*outDim : (r+1)*outDim]
-		for o := oStart; o < oEnd; o++ {
-			wRow := w[o*inDim : (o+1)*inDim]
+	for o := oStart; o < oEnd; o++ {
+		wRow := w[o*inDim : (o+1)*inDim]
+		for r := range rows {
+			xRow := x[r*inDim : (r+1)*inDim]
 			var sum float32
 			for c := range wRow {
 				sum += wRow[c] * xRow[c]
 			}
-			dRow[o] = sum
+			dst[r*outDim+o] = sum
 		}
 	}
 }

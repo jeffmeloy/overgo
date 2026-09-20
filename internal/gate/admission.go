@@ -248,6 +248,24 @@ func unplannedVerificationInput(path string) bool {
 			!strings.HasSuffix(path, ".md")
 }
 
+// deriveShipPaths is the ship set of a run that names no -paths: every dirty
+// path, sorted, or the plan alone when nothing is dirty. A dirty path under a
+// top-level entry HEAD does not track is refused until it is named, so a
+// stray directory beside the sources can never ride a derived commit.
+func deriveShipPaths(dirty []repoanalysis.DirtyPath, tracked []string) ([]string, error) {
+	_, paths := scopeDirty(nil, dirty)
+	slices.Sort(paths)
+	for _, candidate := range paths {
+		if top, _, _ := strings.Cut(candidate, "/"); !slices.Contains(tracked, top) {
+			return nil, fmt.Errorf("gate: the derived ship set would add untracked top-level entry %q; name it with -paths to ship it", top)
+		}
+	}
+	if len(paths) == 0 {
+		paths = []string{plan.Path}
+	}
+	return paths, nil
+}
+
 func scopeDirty(planned []string, dirty []repoanalysis.DirtyPath) (map[string]bool, []string) {
 	visible := map[string]bool{}
 	var unplanned []string

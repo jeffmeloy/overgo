@@ -12,7 +12,8 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
  2. Build it. "Done" is machine-checked: ` + "`go run ./cmd/plan -verify`" + ` exits 0,
     NOT a prose summary of what you did.
  3. Commit through the plan-bound gate (never raw git commit during a campaign):
-      go run ./cmd/gate -plan <item>/<step> -message-file <f> -paths <csv>
+      go run ./cmd/gate -plan <item>/<step> -message-file <f>
+    (the ship set is the dirty tree; name -paths <csv> only to ship less)
     Merges: git merge --no-ff --no-commit <branch> then go run ./cmd/gate -merge
     -plan <item>/<step> -message-file <f>. Read the exit code UNPIPED. Gate runs
     go in the background; confirm from git, not the notification.

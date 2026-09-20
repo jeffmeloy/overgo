@@ -16,7 +16,7 @@ func main() {
 
 func run() error {
 	messageFile := flag.String("message-file", "", "commit message file (required; never -m: the shell eats backticks)")
-	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships (required unless -merge)")
+	pathsCSV := flag.String("paths", "", "comma-separated repo-relative paths this commit ships; empty derives the dirty tree, sorted, refusing an untracked top-level entry (-merge ships the staged set)")
 	storePath := flag.String("store", gate.StorePath, "canonical OvergoDB store directory")
 	merge := flag.Bool("merge", false, "finalize an in-progress merge: derive the shipped paths from the staged merge set and let the commit record both parents (stage it first with git merge --no-ff --no-commit <branch>)")
 	planProjection := flag.String("plan-projection", "", "with -merge only: explicit target-plan projection (first-parent-target); empty keeps semantic union")

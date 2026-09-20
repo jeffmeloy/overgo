@@ -170,8 +170,8 @@ func Run(options Options) (runErr error) {
 	if checkpoint != "" && (readOnlyPlan || *merge || *planRef == "" || *pathsCSV == "") {
 		return errors.New("gate: -checkpoint publishes one checkpoint of -plan <item>/<step> over explicit -paths and cannot merge, inspect or preflight")
 	}
-	if (*pathsCSV == "" && !*merge && !*preflight) || (!readOnlyPlan && checkpoint == "" && *messageFile == "") {
-		return fmt.Errorf("usage: gate -message-file <path> (-paths <csv> | -merge) -plan <item>/<step> [-store <dir>]")
+	if !readOnlyPlan && checkpoint == "" && *messageFile == "" {
+		return fmt.Errorf("usage: gate -message-file <path> [-paths <csv> | -merge] -plan <item>/<step> [-store <dir>]; without -paths the ship set is the dirty tree")
 	}
 	// Every commit -- including a merge finalize -- is bound to the plan's current
 	// open step. Merges are no longer exempt: a sync/merge is a first-class plan
@@ -300,15 +300,19 @@ func Run(options Options) (runErr error) {
 			}
 		}
 	}
-	if *preflight && len(g.paths) == 0 {
+	if !*merge && len(g.paths) == 0 {
 		dirty, err := g.dirtyStatus()
 		if err != nil {
 			return err
 		}
-		_, g.paths = scopeDirty(nil, dirty)
-		if len(g.paths) == 0 {
-			g.paths = []string{plan.Path}
+		tracked, err := gitLines(repo, "ls-tree", "--name-only", "HEAD")
+		if err != nil {
+			return err
 		}
+		if g.paths, err = deriveShipPaths(dirty, tracked); err != nil {
+			return err
+		}
+		fmt.Printf("gate: ship set derived from the dirty tree: %s\n", strings.Join(g.paths, ","))
 	}
 	if err := validatePlannedPaths(g.paths); err != nil {
 		return err

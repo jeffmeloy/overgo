@@ -4,34 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-harness-surface-remainder",
-      "title": "Remove the remaining +427 production nodes over the pre-session agent harness baseline (181,732) by simplifying live control-plane code in internal/plan and internal/runrecord -- the consumer census finds no dead code left there -- so the session nets to reduce-or-maintain; the gate's automation admission refuses this row unless its production AST is net-negative",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove the remaining +427 production nodes over the pre-session agent harness baseline (181,732) by simplifying live control-plane code in internal/plan and internal/runrecord -- the consumer census finds no dead code left there -- so the session nets to reduce-or-maintain; the gate's automation admission refuses this row unless its production AST is net-negative",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceAtPreSessionBaseline' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gate-inputs-derived",
-      "title": "Derive the gate's inputs from state instead of a hand-typed command line: the ship set is the dirty tree through the existing scopeDirty owner (sorted, unplanned dirt refused by name), worker, role, data root and reference store come from the row claim's recorded state, and preflight and gate consume one derived input so they cannot disagree",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Derive the gate's inputs from state instead of a hand-typed command line: the ship set is the dirty tree through the existing scopeDirty owner (sorted, unplanned dirt refused by name), worker, role, data root and reference store come from the row claim's recorded state, and preflight and gate consume one derived input so they cannot disagree",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestDerivedShipPaths' -count=1"
-        }
-      ]
-    },
-    {
       "id": "loop-owns-row-sequence",
       "title": "Make cmd/loop run the deterministic row sequence as a typed state machine -- claim, derived preflight, gate, landing confirmed from git, review candidates -- so the agent only authors; results are read through commands (plan -history -phases), never ad-hoc redirected logs, and a missed claim or skipped step is impossible rather than remembered",
       "owner": "master-lead",
@@ -172,6 +144,20 @@
       ]
     },
     {
+      "id": "automation-harness-surface-remainder",
+      "title": "Net the agent harness surface of the control-plane batch back to its pre-session baseline (181,732 production nodes; 182,150 after the dead-code paydown) once gate-inputs-derived, loop-owns-row-sequence, row-operation-class-prechecks and row-scope-budget-forces-replan have landed, by simplifying live control-plane code -- first by driving the optimization review from the completion authority's resolved evidence instead of its own trailer walk; the gate's automation admission refuses this row unless its production AST is net-negative",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Net the agent harness surface of the control-plane batch back to its pre-session baseline (181,732 production nodes; 182,150 after the dead-code paydown) once gate-inputs-derived, loop-owns-row-sequence, row-operation-class-prechecks and row-scope-budget-forces-replan have landed, by simplifying live control-plane code -- first by driving the optimization review from the completion authority's resolved evidence instead of its own trailer walk; the gate's automation admission refuses this row unless its production AST is net-negative",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceAtPreSessionBaseline' -count=1"
+        }
+      ]
+    },
+    {
       "id": "closure-reconcile-single-command",
       "title": "Replace the hand-ordered closure ledger sequence (import-store, retire-unmatched, hand-edited tmp/closure_proposals.json, triage) with one reconcile operation that rebinds drift, retires ambiguous bindings and catalogues new sites from reviewed flags in a single store transaction",
       "owner": "master-lead",
@@ -252,6 +238,20 @@
           "title": "Make the gate's generated-document writers survive a concurrent reader on Windows: a background git status memory-maps dirty worktree files while hashing them and the compatibility repair then fails admission with a user-mapped-section sharing violation; wait on that specific violation until the holder releases, never on a fixed timer, and refuse with the holder named otherwise",
           "status": "open",
           "verify": "go test ./internal/fsatomic -run '^TestWriteWaitsOnMappedReader' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "plan-suite-wall",
+      "title": "Bound the internal/plan test wall (55 s in the owner phase, a quarter of a short gate, selected by every control-plane row) by sharing its git and store fixtures across tests and running them in parallel, the lever that took the gate suite from 938 s to 214 s, with the bound proven from the suite-cost evidence",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound the internal/plan test wall (55 s in the owner phase, a quarter of a short gate, selected by every control-plane row) by sharing its git and store fixtures across tests and running them in parallel, the lever that took the gate suite from 938 s to 214 s, with the bound proven from the suite-cost evidence",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestPlanSuiteWallBudget' -count=1"
         }
       ]
     },
@@ -802,7 +802,8 @@
             "evaluation-suite-wall/do",
             "generated-doc-write-under-readers/do",
             "automation-harness-surface-remainder/do",
-            "review-key-granularity/do"
+            "review-key-granularity/do",
+            "plan-suite-wall/do"
           ]
         }
       ]
@@ -968,6 +969,10 @@
     {
       "key": "suite-cost:overgo/internal/evaluation",
       "row": "evaluation-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/internal/plan",
+      "row": "plan-suite-wall"
     },
     {
       "key": "surface-move:harness-production-nodes",

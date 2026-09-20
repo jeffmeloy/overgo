@@ -791,7 +791,7 @@ func printPromptStep(it plan.Item, st plan.Step, output io.Writer) {
 	if len(st.DependsOn) != 0 {
 		fmt.Fprintf(output, "PREREQUISITES %s\n", strings.Join(st.DependsOn, commandWordSeparator))
 	}
-	fmt.Fprintf(output, `COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> -paths <csv>
+	fmt.Fprintf(output, `COMMIT go run ./cmd/gate -plan %s/%s -message-file <msg> (ship set: the dirty tree; -paths <csv> ships less)
 FINDINGS park off-scope work: go run ./cmd/finding -h
 RULES skill.md; only this task; port-first; gate advances atomically; then rerun plan -prompt.
 STOP only a user stop pauses the loop (plan -stop <reason>); rationale and history stay in docs/plan.json and plan -history.

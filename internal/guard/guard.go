@@ -189,7 +189,7 @@ func ruleVerdict(command, root string) string {
 	}
 	if os.Getenv(GateEnv) != "1" && !mergeInProgress(root) && rawCommit.MatchString(stripped) {
 		return "raw git commit bypasses cmd/gate (hygiene + derived-scope tests + store record); run " +
-			"'go run ./cmd/gate -message-file <path> -paths <csv>' instead. --no-verify does not help: the gate is " +
+			"'go run ./cmd/gate -plan <item>/<step> -message-file <path>' instead. --no-verify does not help: the gate is " +
 			"the thing being skipped, not a hook"
 	}
 	if heredoc.MatchString(raw) && strings.Contains(raw, `\`) && sourcePath.MatchString(raw) && writeSink.MatchString(raw) {

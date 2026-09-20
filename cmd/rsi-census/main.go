@@ -43,15 +43,23 @@ func run() error {
 			finding.Family, finding.Sites, finding.Owner, finding.OwnerSites,
 			finding.Recurrence, len(finding.Consumers))
 	}
+	access, err := repoanalysis.StoreAccessCensus(snapshot)
+	if err != nil {
+		return err
+	}
+	for _, reach := range access {
+		fmt.Printf("store access %-44s total=%-4d %v domains=%v\n", reach.Package, reach.Total, reach.Sites, reach.Domains)
+	}
 	document := struct {
-		Version  int                          `json:"version"`
-		Doc      string                       `json:"doc"`
-		Findings []repoanalysis.CensusFinding `json:"findings"`
+		Version     int                          `json:"version"`
+		Doc         string                       `json:"doc"`
+		Findings    []repoanalysis.CensusFinding `json:"findings"`
+		StoreAccess []repoanalysis.StoreAccess   `json:"store_access"`
 	}{
 		Version: 1,
 		Doc: "Computed RSI ownership census; regenerate with go run ./cmd/rsi-census -update. " +
 			"Owners and recurrence are derived from repository syntax, never hand-listed.",
-		Findings: findings,
+		Findings: findings, StoreAccess: access,
 	}
 	encoded, err := json.MarshalIndent(document, "", "  ")
 	if err != nil {

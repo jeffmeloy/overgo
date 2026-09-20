@@ -4,16 +4,44 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-access-census",
-      "title": "Census who touches the store before consolidating it: report per package how many sites construct batches, commit, resolve aliases, query and read content directly, and which domain each belongs to (models and recipes, datasets, runs and evidence, control plane, store tools), extending the ownership census that already counts owner and recurrence sites per mechanic family, so the consolidation rows are cut and ranked from measured scatter -- the storage audit alone lists over fifty direct commit sites in about twenty-five files",
+      "id": "automation-add-owns-closeout-dependency",
+      "title": "Make plan -add own the campaign-closeout dependency: every new row is appended to campaign-closeout's depends_on by the command that creates it, because the structure policy is enforced today by a tmp probe run by hand after each add -- about fifteen times in one day -- and then retire tmp/closeout_deps.go",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Census who touches the store before consolidating it: report per package how many sites construct batches, commit, resolve aliases, query and read content directly, and which domain each belongs to (models and recipes, datasets, runs and evidence, control plane, store tools), extending the ownership census that already counts owner and recurrence sites per mechanic family, so the consolidation rows are cut and ranked from measured scatter -- the storage audit alone lists over fifty direct commit sites in about twenty-five files",
+          "title": "Make plan -add own the campaign-closeout dependency: every new row is appended to campaign-closeout's depends_on by the command that creates it, because the structure policy is enforced today by a tmp probe run by hand after each add -- about fifteen times in one day -- and then retire tmp/closeout_deps.go",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestStoreAccessCensus' -count=1"
+          "verify": "go test ./cmd/plan -run '^TestAddOwnsCloseoutDependency' -count=1 \u0026\u0026 test ! -f tmp/closeout_deps.go"
+        }
+      ]
+    },
+    {
+      "id": "operator-probes-into-commands",
+      "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, retire ad-hoc redirected log files in favour of results read through commands, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, retire ad-hoc redirected log files in favour of results read through commands, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestAddOwnsCloseoutDependency' -count=1 \u0026\u0026 go test ./cmd/store-precheck -run '^TestProofCommitsUnderThisCommandsCapability' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-message-structured",
+      "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestStructuredCommitMessage' -count=1"
         }
       ]
     },
@@ -172,20 +200,6 @@
       ]
     },
     {
-      "id": "operator-probes-into-commands",
-      "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, retire ad-hoc redirected log files in favour of results read through commands, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Promote the ad-hoc tmp/ operator probes (store footprint, open cost, introduction probe, release histogram, hard-link clone, swap, closeout dependencies, harness baseline republish) into tested cmd/ subcommands, make each store operation emit its own receipt document instead of hand-typed JSON, retire ad-hoc redirected log files in favour of results read through commands, and make plan -add own the campaign-closeout dependency so the structure policy is enforced by the tool that could violate it",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestAddOwnsCloseoutDependency' -count=1 \u0026\u0026 go test ./cmd/store-precheck -run '^TestProofCommitsUnderThisCommandsCapability' -count=1"
-        }
-      ]
-    },
-    {
       "id": "automation-harness-surface-remainder",
       "title": "Net the agent harness surface of the control-plane batch back to its pre-session baseline (181,732 production nodes; 182,150 after the dead-code paydown) once gate-inputs-derived, loop-owns-row-sequence, row-operation-class-prechecks and row-scope-budget-forces-replan have landed, by simplifying live control-plane code -- first by driving the optimization review from the completion authority's resolved evidence instead of its own trailer walk; the gate's automation admission refuses this row unless its production AST is net-negative",
       "owner": "master-lead",
@@ -252,20 +266,6 @@
           "title": "Replace the hand-ordered closure ledger sequence (import-store, retire-unmatched, hand-edited tmp/closure_proposals.json, triage) with one reconcile operation that rebinds drift, retires ambiguous bindings and catalogues new sites from reviewed flags in a single store transaction",
           "status": "open",
           "verify": "go test ./cmd/closure-scan -run '^TestReconcileSingleCommand' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gate-message-structured",
-      "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestStructuredCommitMessage' -count=1"
         }
       ]
     },
@@ -921,7 +921,8 @@
             "store-closure-rebind-redundancy/do",
             "store-benchmark-record-redundancy/do",
             "store-access-consolidation/do",
-            "store-access-census/do"
+            "store-access-census/do",
+            "automation-add-owns-closeout-dependency/do"
           ]
         }
       ]

@@ -40,6 +40,9 @@ type CensusFamily struct {
 	// parser cannot type-resolve).
 	ScopedCalls  []string
 	ScopedImport string
+	// Literals mark composite literals of an imported type: the package
+	// builds the mechanic's value itself instead of asking an owner for it.
+	Literals []CensusCall
 }
 
 // CensusFinding reports one family's computed ownership.
@@ -167,6 +170,14 @@ func countFamilySites(family CensusFamily, file *ast.File, imports map[string]st
 					count++
 					return true
 				}
+			}
+		case *ast.CompositeLit:
+			selector, _ := typed.Type.(*ast.SelectorExpr)
+			if selector == nil {
+				return true
+			}
+			if base, ok := selector.X.(*ast.Ident); ok && slices.Contains(family.Literals, CensusCall{imports[base.Name], selector.Sel.Name}) {
+				count++
 			}
 		case *ast.ForStmt, *ast.RangeStmt:
 			if family.SleepLoops && loopSleeps(node, imports) {

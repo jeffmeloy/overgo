@@ -5,9 +5,9 @@
     {
       "family": "storage",
       "owner": "cmd/plan",
-      "sites": 205,
+      "sites": 206,
       "owner_sites": 26,
-      "recurrence": 179,
+      "recurrence": 180,
       "consumers": [
         "cmd/activation-cases",
         "cmd/admission",
@@ -234,9 +234,9 @@
     {
       "family": "query",
       "owner": "internal/server",
-      "sites": 42,
+      "sites": 43,
       "owner_sites": 25,
-      "recurrence": 17,
+      "recurrence": 18,
       "consumers": [
         "cmd/closure-scan",
         "cmd/loop",
@@ -248,6 +248,1210 @@
         "internal/remoteprovider",
         "internal/runrecord"
       ]
+    }
+  ],
+  "store_access": [
+    {
+      "package": "internal/evaluation",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 14,
+        "batch": 27,
+        "commit": 28,
+        "query": 5,
+        "read": 28
+      },
+      "total": 102
+    },
+    {
+      "package": "internal/runrecord",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 7,
+        "batch": 42,
+        "commit": 23,
+        "query": 5,
+        "read": 8
+      },
+      "total": 85
+    },
+    {
+      "package": "internal/server",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 8,
+        "commit": 16,
+        "open": 1,
+        "query": 35,
+        "read": 6
+      },
+      "total": 66
+    },
+    {
+      "package": "internal/modelrecipe",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 15,
+        "batch": 18,
+        "commit": 16,
+        "query": 2,
+        "read": 11
+      },
+      "total": 62
+    },
+    {
+      "package": "internal/dataset",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "alias": 2,
+        "batch": 39,
+        "commit": 8
+      },
+      "total": 49
+    },
+    {
+      "package": "internal/overgodb",
+      "sites": {
+        "alias": 2,
+        "batch": 37,
+        "commit": 6,
+        "read": 1
+      },
+      "total": 46
+    },
+    {
+      "package": "cmd/plan",
+      "domains": [
+        "control",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "batch": 3,
+        "commit": 4,
+        "open": 26,
+        "query": 8,
+        "read": 2
+      },
+      "total": 44
+    },
+    {
+      "package": "internal/gate",
+      "domains": [
+        "control",
+        "evidence"
+      ],
+      "sites": {
+        "alias": 8,
+        "batch": 7,
+        "commit": 12,
+        "open": 13,
+        "read": 3
+      },
+      "total": 43
+    },
+    {
+      "package": "cmd/recipe",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 5,
+        "open": 24,
+        "read": 6
+      },
+      "total": 36
+    },
+    {
+      "package": "internal/composition",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "batch": 22,
+        "commit": 6,
+        "query": 3,
+        "read": 3
+      },
+      "total": 35
+    },
+    {
+      "package": "cmd/loop",
+      "domains": [
+        "control",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 5,
+        "commit": 5,
+        "open": 18,
+        "query": 2,
+        "read": 2
+      },
+      "total": 32
+    },
+    {
+      "package": "cmd/closure-scan",
+      "sites": {
+        "alias": 2,
+        "batch": 4,
+        "commit": 6,
+        "open": 11,
+        "query": 7
+      },
+      "total": 30
+    },
+    {
+      "package": "cmd/overgodb-query",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "open": 21,
+        "query": 3,
+        "read": 1
+      },
+      "total": 26
+    },
+    {
+      "package": "cmd/compatibility",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 4,
+        "open": 7,
+        "query": 3,
+        "read": 11
+      },
+      "total": 25
+    },
+    {
+      "package": "internal/loop",
+      "domains": [
+        "control",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 2,
+        "batch": 5,
+        "commit": 5,
+        "read": 8
+      },
+      "total": 20
+    },
+    {
+      "package": "internal/speechrecognition",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 5,
+        "commit": 6,
+        "read": 9
+      },
+      "total": 20
+    },
+    {
+      "package": "internal/trainingworkflow",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 11,
+        "commit": 9
+      },
+      "total": 20
+    },
+    {
+      "package": "cmd/evaluate",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 4,
+        "commit": 2,
+        "open": 11
+      },
+      "total": 17
+    },
+    {
+      "package": "internal/finding",
+      "sites": {
+        "alias": 2,
+        "batch": 13,
+        "read": 1
+      },
+      "total": 16
+    },
+    {
+      "package": "internal/modelartifact",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "alias": 2,
+        "batch": 11,
+        "commit": 2
+      },
+      "total": 15
+    },
+    {
+      "package": "internal/plan",
+      "domains": [
+        "control",
+        "evidence"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 6,
+        "open": 1,
+        "query": 4,
+        "read": 3
+      },
+      "total": 15
+    },
+    {
+      "package": "internal/artifact/repositorytest",
+      "sites": {
+        "batch": 2,
+        "commit": 11
+      },
+      "total": 13
+    },
+    {
+      "package": "internal/agenttool",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 6,
+        "commit": 5,
+        "read": 1
+      },
+      "total": 12
+    },
+    {
+      "package": "internal/controlleraction",
+      "domains": [
+        "control",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 11,
+        "commit": 1
+      },
+      "total": 12
+    },
+    {
+      "package": "internal/workflowruntime",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 7,
+        "commit": 3,
+        "read": 2
+      },
+      "total": 12
+    },
+    {
+      "package": "cmd/finding",
+      "sites": {
+        "batch": 7,
+        "commit": 1,
+        "open": 1,
+        "read": 1
+      },
+      "total": 10
+    },
+    {
+      "package": "internal/lanestore",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 3,
+        "commit": 1,
+        "query": 4,
+        "read": 2
+      },
+      "total": 10
+    },
+    {
+      "package": "cmd/advisories",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "alias": 2,
+        "batch": 1,
+        "commit": 3,
+        "open": 1,
+        "query": 1,
+        "read": 1
+      },
+      "total": 9
+    },
+    {
+      "package": "cmd/composite-generation-lane",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "batch": 2,
+        "commit": 5,
+        "open": 1
+      },
+      "total": 9
+    },
+    {
+      "package": "cmd/admission",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 2,
+        "commit": 2,
+        "open": 3,
+        "read": 1
+      },
+      "total": 8
+    },
+    {
+      "package": "internal/speechactivity",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 2,
+        "commit": 2,
+        "read": 4
+      },
+      "total": 8
+    },
+    {
+      "package": "internal/trainingprogram",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 7,
+        "read": 1
+      },
+      "total": 8
+    },
+    {
+      "package": "cmd/agent-tool",
+      "sites": {
+        "open": 7
+      },
+      "total": 7
+    },
+    {
+      "package": "cmd/graft-probe",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 4,
+        "read": 1
+      },
+      "total": 7
+    },
+    {
+      "package": "cmd/mechanism-census",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "batch": 3,
+        "commit": 3,
+        "open": 1
+      },
+      "total": 7
+    },
+    {
+      "package": "internal/codemanifest",
+      "sites": {
+        "alias": 1,
+        "batch": 2,
+        "commit": 2,
+        "read": 2
+      },
+      "total": 7
+    },
+    {
+      "package": "internal/worklease",
+      "domains": [
+        "control"
+      ],
+      "sites": {
+        "alias": 1,
+        "batch": 4,
+        "commit": 2
+      },
+      "total": 7
+    },
+    {
+      "package": "cmd/longform",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "open": 5,
+        "query": 1
+      },
+      "total": 6
+    },
+    {
+      "package": "cmd/server",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "open": 6
+      },
+      "total": 6
+    },
+    {
+      "package": "internal/audioparity",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "batch": 5,
+        "commit": 1
+      },
+      "total": 6
+    },
+    {
+      "package": "internal/remoteprovider",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 3,
+        "query": 1,
+        "read": 1
+      },
+      "total": 6
+    },
+    {
+      "package": "cmd/audio-inspect",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "batch": 2,
+        "commit": 2,
+        "open": 1
+      },
+      "total": 5
+    },
+    {
+      "package": "cmd/seam-align",
+      "sites": {
+        "commit": 2,
+        "open": 3
+      },
+      "total": 5
+    },
+    {
+      "package": "internal/agentloop",
+      "domains": [
+        "control",
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 2,
+        "commit": 2,
+        "read": 1
+      },
+      "total": 5
+    },
+    {
+      "package": "internal/discovery",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "alias": 1,
+        "commit": 1,
+        "query": 3
+      },
+      "total": 5
+    },
+    {
+      "package": "internal/longform",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 1,
+        "query": 1,
+        "read": 3
+      },
+      "total": 5
+    },
+    {
+      "package": "internal/modelrecipetest",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 3,
+        "open": 1
+      },
+      "total": 5
+    },
+    {
+      "package": "internal/speechrecognitiontest",
+      "domains": [
+        "datasets",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 2,
+        "open": 1,
+        "read": 1
+      },
+      "total": 5
+    },
+    {
+      "package": "cmd/activation-cases",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 4
+      },
+      "total": 4
+    },
+    {
+      "package": "cmd/smoke-lane",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 2
+      },
+      "total": 4
+    },
+    {
+      "package": "cmd/training-objective",
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 2
+      },
+      "total": 4
+    },
+    {
+      "package": "internal/capabilityruntime",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 3,
+        "commit": 1
+      },
+      "total": 4
+    },
+    {
+      "package": "internal/closureledger",
+      "sites": {
+        "alias": 2,
+        "batch": 1,
+        "query": 1
+      },
+      "total": 4
+    },
+    {
+      "package": "cmd/audio-oracle",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "commit": 1,
+        "open": 2
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/dataset-catalog",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "open": 3
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/lora-extract",
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/model-characterize",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "commit": 2,
+        "open": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/offline-artifact-validate",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/train",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1,
+        "open": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/train-lane",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "open": 3
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/validate",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1,
+        "query": 2
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/vqaparity",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 2,
+        "open": 1
+      },
+      "total": 3
+    },
+    {
+      "package": "internal/modelbuilder",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 2
+      },
+      "total": 3
+    },
+    {
+      "package": "cmd/agent-loop",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1,
+        "read": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/benchmark",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 1,
+        "open": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/controller-action",
+      "sites": {
+        "commit": 1,
+        "open": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/eval-lane",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1,
+        "query": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/router-observation",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "commit": 1,
+        "open": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/store-check",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1,
+        "query": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/store-precheck",
+      "domains": [
+        "control",
+        "evidence"
+      ],
+      "sites": {
+        "open": 2
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/inference",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/modelintake",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 2
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/objectstore",
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/overgodbimport",
+      "domains": [
+        "datasets",
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/protection",
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/scratchmodel",
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "internal/testutil",
+      "sites": {
+        "batch": 1,
+        "commit": 1
+      },
+      "total": 2
+    },
+    {
+      "package": "cmd/benchmark-report",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/dit-train-probe",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/generate",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/hf-gguf-convert",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/hybrid-stack-train-probe",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/model-build",
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/model-config",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/mot-train-probe",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/overgodb-backup",
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/overgodb-import",
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/overgodb-rebuild",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/overgodb-repair",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/profile-catalog",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/remote-provider",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/sealed-authority",
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/swap",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "cmd/tool-workflow",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/bridgetrain",
+      "domains": [
+        "evidence"
+      ],
+      "sites": {
+        "batch": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/controllertrain",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "batch": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/latentvideo",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "read": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/modelcli",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/operation",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "commit": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/projector",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "read": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/representation",
+      "sites": {
+        "read": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/scratchmodeltest",
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/servingtest",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "open": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/trainingdata",
+      "domains": [
+        "datasets"
+      ],
+      "sites": {
+        "read": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/vqaserve",
+      "domains": [
+        "models"
+      ],
+      "sites": {
+        "read": 1
+      },
+      "total": 1
+    },
+    {
+      "package": "internal/workflowcontract",
+      "domains": [
+        "evidence",
+        "models"
+      ],
+      "sites": {
+        "alias": 1
+      },
+      "total": 1
     }
   ]
 }

@@ -11,12 +11,14 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
  1. #1 is ` + "`go run ./cmd/plan -next`" + `. Do ONLY that step.
  2. Build it. "Done" is machine-checked: ` + "`go run ./cmd/plan -verify`" + ` exits 0,
     NOT a prose summary of what you did.
- 3. Commit through the plan-bound gate (never raw git commit during a campaign):
-      go run ./cmd/gate -plan <item>/<step> -message-file <f>
-    (the ship set is the dirty tree; name -paths <csv> only to ship less)
+ 3. Land the row with the one sequence that cannot skip a step (never raw git
+    commit during a campaign):
+      go run ./cmd/loop -land <item>/<step> -message-file <f>
+    It claims the row, preflights, gates (the ship set is the dirty tree),
+    confirms the landing from git, waits for the deferred lanes' verdict and
+    lists the landing's review candidates, ending in one typed outcome.
     Merges: git merge --no-ff --no-commit <branch> then go run ./cmd/gate -merge
-    -plan <item>/<step> -message-file <f>. Read the exit code UNPIPED. Gate runs
-    go in the background; confirm from git, not the notification.
+    -plan <item>/<step> -message-file <f>. Read the exit code UNPIPED.
  4. The successful gate atomically removes the completed row. Do not run a
     separate plan advance. Set a step's verify with -setverify; inject a task
     with -add (flags BEFORE the positional id for both).

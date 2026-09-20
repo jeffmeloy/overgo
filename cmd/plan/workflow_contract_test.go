@@ -70,7 +70,7 @@ func TestPromptContractProjection(t *testing.T) {
 	var out bytes.Buffer
 	printPromptStep(item, step, &out)
 	text := out.String()
-	for _, want := range []string{"TASK work/do", "VERIFY go test", "PREREQUISITES base/do", "COMMIT go run ./cmd/gate", "go run ./cmd/finding -h", "STOP ", "plan -history"} {
+	for _, want := range []string{"TASK work/do", "VERIFY go test", "PREREQUISITES base/do", "COMMIT go run ./cmd/loop -land", "go run ./cmd/finding -h", "STOP ", "plan -history"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("contract prompt missing %q:\n%s", want, text)
 		}

@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "loop-owns-row-sequence",
-      "title": "Make cmd/loop run the deterministic row sequence as a typed state machine -- claim, derived preflight, gate, landing confirmed from git, review candidates -- so the agent only authors; results are read through commands (plan -history -phases), never ad-hoc redirected logs, and a missed claim or skipped step is impossible rather than remembered",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make cmd/loop run the deterministic row sequence as a typed state machine -- claim, derived preflight, gate, landing confirmed from git, review candidates -- so the agent only authors; results are read through commands (plan -history -phases), never ad-hoc redirected logs, and a missed claim or skipped step is impossible rather than remembered",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestRowSequenceStateMachine' -count=1"
-        }
-      ]
-    },
-    {
       "id": "row-operation-class-prechecks",
       "title": "Give every row an operation class (code change, store mutation, evidence acquisition, plan edit) whose mandatory prechecks the class owns and the gate enforces: a store mutation runs on a candidate clone against the completion authority, store-check and closure ledger before service, and a receipt is admissible only when a registered command emitted it, never typed by hand",
       "owner": "master-lead",
@@ -158,6 +144,20 @@
       ]
     },
     {
+      "id": "automation-review-suite-cost-regression",
+      "title": "Make suite cost an optimization candidate only when a package's wall regresses against its own retained gate history, instead of naming whichever package ranks first: a ranking always has a first, so every landing files another per-package row (audioparity, evaluation, plan, gate so far); net-negative in the harness surface",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make suite cost an optimization candidate only when a package's wall regresses against its own retained gate history, instead of naming whichever package ranks first: a ranking always has a first, so every landing files another per-package row (audioparity, evaluation, plan, gate so far); net-negative in the harness surface",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestSuiteCostCandidateNeedsRegression' -count=1"
+        }
+      ]
+    },
+    {
       "id": "closure-reconcile-single-command",
       "title": "Replace the hand-ordered closure ledger sequence (import-store, retire-unmatched, hand-edited tmp/closure_proposals.json, triage) with one reconcile operation that rebinds drift, retires ambiguous bindings and catalogues new sites from reviewed flags in a single store transaction",
       "owner": "master-lead",
@@ -252,6 +252,20 @@
           "title": "Bound the internal/plan test wall (55 s in the owner phase, a quarter of a short gate, selected by every control-plane row) by sharing its git and store fixtures across tests and running them in parallel, the lever that took the gate suite from 938 s to 214 s, with the bound proven from the suite-cost evidence",
           "status": "open",
           "verify": "go test ./internal/plan -run '^TestPlanSuiteWallBudget' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-suite-serial-floor",
+      "title": "Bound the internal/gate test wall (157 s in the owner phase, paid by every control-plane row; 938 s before the shared live-checkout fixture and parallel tests) through the two levers that work left open: the serial floor of tests that cannot share the fixture, and the device-lane projector reach that pulls device packages into a host suite",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound the internal/gate test wall (157 s in the owner phase, paid by every control-plane row; 938 s before the shared live-checkout fixture and parallel tests) through the two levers that work left open: the serial floor of tests that cannot share the fixture, and the device-lane projector reach that pulls device packages into a host suite",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateSuiteSerialFloorBudget' -count=1"
         }
       ]
     },
@@ -803,7 +817,9 @@
             "generated-doc-write-under-readers/do",
             "automation-harness-surface-remainder/do",
             "review-key-granularity/do",
-            "plan-suite-wall/do"
+            "plan-suite-wall/do",
+            "gate-suite-serial-floor/do",
+            "automation-review-suite-cost-regression/do"
           ]
         }
       ]
@@ -969,6 +985,10 @@
     {
       "key": "suite-cost:overgo/internal/evaluation",
       "row": "evaluation-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/internal/gate",
+      "row": "gate-suite-serial-floor"
     },
     {
       "key": "suite-cost:overgo/internal/plan",

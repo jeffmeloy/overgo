@@ -21,7 +21,7 @@ func TestCompactAgentOutput(t *testing.T) {
 	var output bytes.Buffer
 	printPrompt(document, worklease.UnassignedRole, &output, authority)
 	text := output.String()
-	if len(text) > 700 || !strings.Contains(text, "TASK item/do") || !strings.Contains(text, "VERIFY go test") || !strings.Contains(text, "COMMIT go run ./cmd/gate") {
+	if len(text) > 700 || !strings.Contains(text, "TASK item/do") || !strings.Contains(text, "VERIFY go test") || !strings.Contains(text, "COMMIT go run ./cmd/loop -land") {
 		t.Fatalf("prompt is not compact and decision-complete (%d bytes):\n%s", len(text), text)
 	}
 	if strings.Contains(text, "PROTOCOL") || strings.Contains(text, "long doctrine") {

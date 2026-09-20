@@ -614,12 +614,7 @@ func addItem(root, id, title, before, verifyCmd, role string) error {
 			return err
 		}
 		if role != worklease.UnassignedRole {
-			for index := range updated.Items {
-				if updated.Items[index].ID == id {
-					updated.Items[index].Owner = role
-					break
-				}
-			}
+			updated.Items[slices.IndexFunc(updated.Items, itemNamed(id))].Owner = role
 		}
 		updatedAuthority, err := resolveCompletionAuthority(root, updated)
 		if err != nil {
@@ -714,94 +709,79 @@ func declareBudget(document plan.Plan, id string, budget plan.Budget) (plan.Plan
 // rescopeItem is the pure core of retitleItem. No I/O.
 func rescopeItem(document plan.Plan, id, title string) (plan.Plan, error) {
 	title = strings.TrimSpace(title)
-	if title == "" {
+	index := slices.IndexFunc(document.Items, itemNamed(id))
+	switch {
+	case title == "":
 		return plan.Plan{}, errors.New("retitle: the title is empty")
+	case index < 0:
+		return plan.Plan{}, fmt.Errorf("item %q: no such item", id)
 	}
-	for index := range document.Items {
-		if document.Items[index].ID != id {
-			continue
-		}
-		document.Items[index].Title = title
-		if steps := document.Items[index].Steps; len(steps) == 1 && steps[0].ID == "do" {
-			document.Items[index].Steps[0].Title = title
-		}
-		return document, nil
+	document.Items[index].Title = title
+	if steps := document.Items[index].Steps; len(steps) == 1 && steps[0].ID == "do" {
+		steps[0].Title = title
 	}
-	return plan.Plan{}, fmt.Errorf("item %q: no such item", id)
+	return document, nil
+}
+
+// itemNamed matches a plan item by id.
+func itemNamed(id string) func(plan.Item) bool {
+	return func(item plan.Item) bool { return item.ID == id }
+}
+
+// positionBefore is where an item lands among items: before `before`, or at
+// the top when empty.
+func positionBefore(items []plan.Item, before string) (top int, err error) {
+	if before == "" {
+		return top, nil
+	}
+	if pos := slices.IndexFunc(items, itemNamed(before)); pos >= top {
+		return pos, nil
+	}
+	return top, fmt.Errorf("-before %q: no such item", before)
 }
 
 // relocateItem is the pure core of moveItem: returns a plan with the item
 // removed from its position and reinserted before `before` (or at the top
 // when empty). Moving an item before itself is the identity. No I/O.
 func relocateItem(document plan.Plan, id, before string) (plan.Plan, error) {
-	if id == before {
+	from := slices.IndexFunc(document.Items, itemNamed(id))
+	switch {
+	case id == before:
 		return document, nil
-	}
-	from := -1
-	for index, it := range document.Items {
-		if it.ID == id {
-			from = index
-			break
-		}
-	}
-	if from < 0 {
+	case from < 0:
 		return plan.Plan{}, fmt.Errorf("item %q: no such item", id)
 	}
-	item := document.Items[from]
-	rest := make([]plan.Item, 0, len(document.Items))
-	rest = append(rest, document.Items[:from]...)
-	rest = append(rest, document.Items[from+1:]...)
-	pos := 0
-	if before != "" {
-		pos = -1
-		for index, it := range rest {
-			if it.ID == before {
-				pos = index
-				break
-			}
-		}
-		if pos < 0 {
-			return plan.Plan{}, fmt.Errorf("-before %q: no such item", before)
-		}
+	rest := slices.DeleteFunc(slices.Clone(document.Items), itemNamed(id))
+	pos, err := positionBefore(rest, before)
+	if err != nil {
+		return plan.Plan{}, err
 	}
-	out := make([]plan.Item, 0, len(document.Items))
-	out = append(out, rest[:pos]...)
-	out = append(out, item)
-	out = append(out, rest[pos:]...)
-	document.Items = out
+	document.Items = slices.Insert(rest, pos, document.Items[from])
 	return document, nil
 }
 
 // insertItem is the pure core of addItem: returns a plan with a new open item
-// (one step "do") inserted before `before` (or at the top when empty). No I/O.
+// (one step "do") inserted before `before` (or at the top when empty), and the
+// campaign closeout waiting for it, as the structure policy requires. No I/O.
 func insertItem(document plan.Plan, id, title, before, verifyCmd string) (plan.Plan, error) {
-	for _, it := range document.Items {
-		if it.ID == id {
-			return plan.Plan{}, fmt.Errorf("item %q already exists", id)
-		}
+	pos, err := positionBefore(document.Items, before)
+	switch {
+	case slices.ContainsFunc(document.Items, itemNamed(id)):
+		return plan.Plan{}, fmt.Errorf("item %q already exists", id)
+	case err != nil:
+		return plan.Plan{}, err
 	}
-	item := plan.Item{
+	document.Items = slices.Insert(slices.Clone(document.Items), pos, plan.Item{
 		ID: id, Title: title, Status: "open",
 		Steps: []plan.Step{{ID: "do", Title: title, Status: "open", Verify: verifyCmd}},
-	}
-	pos := 0
-	if before != "" {
-		pos = -1
-		for i, it := range document.Items {
-			if it.ID == before {
-				pos = i
-				break
-			}
+	})
+	if closeout := slices.IndexFunc(document.Items, itemNamed("campaign-closeout")); closeout >= 0 {
+		steps := slices.Clone(document.Items[closeout].Steps)
+		for index := range steps {
+			steps[index].DependsOn = append(slices.Clone(steps[index].DependsOn), id+"/do")
 		}
-		if pos < 0 {
-			return plan.Plan{}, fmt.Errorf("-before %q: no such item", before)
-		}
+		document.Items[closeout].Steps = steps
 	}
-	out := make([]plan.Item, 0, len(document.Items)+1)
-	out = append(out, document.Items[:pos]...)
-	out = append(out, item)
-	out = append(out, document.Items[pos:]...)
-	document.Items = out
 	return document, nil
 }
 

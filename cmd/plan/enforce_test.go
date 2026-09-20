@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/plan"
@@ -40,6 +41,25 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	}
 	if _, err := insertItem(base, "z", "t", "nope", ""); err == nil {
 		t.Fatal("unknown -before must be rejected")
+	}
+}
+
+// TestAddOwnsCloseoutDependency holds -add to the structure policy: the closeout
+// waits for the new row and what it already waited for, the caller's plan is
+// untouched, and a plan with no closeout still takes a row or refuses -before.
+func TestAddOwnsCloseoutDependency(t *testing.T) {
+	waits := []plan.Step{{ID: "do", Status: "open", DependsOn: []string{"earlier/do"}}}
+	base := plan.Plan{Items: []plan.Item{{ID: "earlier", Status: "open"}, {ID: "campaign-closeout", Status: "open", Steps: waits}}}
+	added, err := insertItem(base, "new-row", "title", "campaign-closeout", "go test ./...")
+	if err != nil || !slices.Equal(added.Items[2].Steps[0].DependsOn, []string{"earlier/do", "new-row/do"}) {
+		t.Fatalf("closeout after adding a row = %+v, %v", added.Items, err)
+	}
+	if len(base.Items) != 2 || !slices.Equal(waits[0].DependsOn, []string{"earlier/do"}) {
+		t.Fatalf("adding a row rewrote the caller's plan: %+v", base.Items)
+	}
+	grown, err := insertItem(plan.Plan{}, "lone", "title", "", "")
+	if _, refused := insertItem(plan.Plan{}, "lone", "title", "absent", ""); err != nil || len(grown.Items) != 1 || refused == nil {
+		t.Fatalf("an empty plan took a row: %v; refused -before an absent row: %v", err, refused)
 	}
 }
 

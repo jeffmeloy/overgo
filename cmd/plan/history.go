@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"overgo/internal/artifact"
@@ -41,10 +42,8 @@ func admitProposal(root, specPath string, output io.Writer) error {
 		if proposal.Slug == "" || proposal.Goal == "" || proposal.Verify == "" {
 			return fmt.Errorf("plan: proposal requires slug, goal, and verify")
 		}
-		for _, item := range document.Items {
-			if item.ID == proposal.Slug {
-				return fmt.Errorf("plan: proposal slug %q collides with an open item", proposal.Slug)
-			}
+		if slices.ContainsFunc(document.Items, itemNamed(proposal.Slug)) {
+			return fmt.Errorf("plan: proposal slug %q collides with an open item", proposal.Slug)
 		}
 		store, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
 		if err != nil {

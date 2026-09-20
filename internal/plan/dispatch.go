@@ -58,6 +58,9 @@ type DispatchRequest struct {
 	Worker      string
 	Acquire     bool
 	Reference   string
+	// Store is the caller's open store; dispatch opens and closes its own
+	// when absent. An open costs seconds, so a command opens once.
+	Store *overgodb.Store
 }
 
 // AutomationWorkerEnvironment is inherited by a driver and its gate subprocesses.
@@ -159,11 +162,14 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	if request.Acquire {
 		openStore = overgodb.Open
 	}
-	store, err := openStore(filepath.Join(repository, gitauthority.CanonicalOvergoDBDirectory))
-	if err != nil {
-		return Dispatch{}, err
+	store := request.Store
+	if store == nil {
+		store, err = openStore(filepath.Join(repository, gitauthority.CanonicalOvergoDBDirectory))
+		if err != nil {
+			return Dispatch{}, err
+		}
+		defer func() { err = errors.Join(err, store.Close()) }()
 	}
-	defer func() { err = errors.Join(err, store.Close()) }()
 	if request.Acquire {
 		if _, err := gitauthority.RequireRegisteredWorktreeStore(ctx, repository, filepath.Join(repository, gitauthority.CanonicalOvergoDBDirectory), head); err != nil {
 			return Dispatch{}, err

@@ -116,20 +116,6 @@
       ]
     },
     {
-      "id": "plan-dispatch-opens-store-once",
-      "title": "Open the store once per plan command: plan -next opens it read-only for the optimization review and again for dispatch, and a bare open measures 3.7 s, so two opens are 7.4 of dispatch's 8.0 s while the completion proofs the proof horizon retired were under a second all along; share one handle across the command and record the measured wall before and after",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Open the store once per plan command: plan -next opens it read-only for the optimization review and again for dispatch, and a bare open measures 3.7 s, so two opens are 7.4 of dispatch's 8.0 s while the completion proofs the proof horizon retired were under a second all along; share one handle across the command and record the measured wall before and after",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestDispatchOpensTheStoreOnce' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-release-pre-horizon-evidence",
       "title": "Release the store evidence the proof horizon retired: retention roots stop pinning the identities named by commit-message trailers at or before the horizon, which makes the landed attempts' manifest analyses and code profiles releasable (about 1.3 MB per landing), then prove the release on a candidate with store-precheck and swap it into service",
       "owner": "master-lead",

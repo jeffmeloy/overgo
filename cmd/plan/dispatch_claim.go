@@ -190,17 +190,23 @@ func printDispatch(c cli, args []string, output io.Writer) error {
 		dispatch = plan.Dispatch{Stop: &stop, Waiting: stop.String(), Line: "plan waiting: " + stop.String()}
 		err = nil
 	} else {
-		dispatch, err = plan.ResolveDispatch(context.Background(), commandWorktree, plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Acquire: c.prompt || c.verify, Reference: reference})
+		request := plan.DispatchRequest{Role: c.role, Worker: c.worker, Mode: c.mode, Acquire: c.prompt || c.verify, Reference: reference}
+		// plan -next dispatches and then reviews: one open serves both.
+		if c.next {
+			if request.Store, err = openPlanStore(); err != nil {
+				return err
+			}
+			defer request.Store.Close()
+		}
+		dispatch, err = plan.ResolveDispatch(context.Background(), commandWorktree, request)
+		// A landed row's measured evidence must be answered before the next
+		// row is dispatched; a stop or an empty plan needs no answer.
+		if err == nil && c.next && dispatch.Waiting == "" && !dispatch.Complete {
+			err = requireOptimizationReview(document, request.Store, !c.json, output)
+		}
 	}
 	if err != nil {
 		return err
-	}
-	// A landed row's measured evidence must be answered before the next row
-	// is dispatched; a stop or an empty plan needs no answer.
-	if c.next && dispatch.Waiting == "" && !dispatch.Complete {
-		if err := requireOptimizationReview(document, !c.json, output); err != nil {
-			return err
-		}
 	}
 	if c.json && !c.verify {
 		return json.NewEncoder(output).Encode(dispatch)

@@ -13,14 +13,16 @@ import (
 	"overgo/internal/plan"
 )
 
+// openPlanStore opens the store a plan command reads. An open costs seconds
+// (3.7 s measured on the store in service), so a command opens once and
+// shares the handle between dispatch and the review.
+var openPlanStore = func() (*overgodb.Store, error) {
+	return overgodb.OpenReadOnly(filepath.Join(commandWorktree, gitauthority.CanonicalOvergoDBDirectory))
+}
+
 // pendingOptimizationCandidates derives the landed completion's candidates
 // and keeps those the plan has not answered.
-func pendingOptimizationCandidates(document plan.Plan) ([]plan.OptimizationCandidate, error) {
-	store, err := overgodb.OpenReadOnly(filepath.Join(commandWorktree, gitauthority.CanonicalOvergoDBDirectory))
-	if err != nil {
-		return nil, err
-	}
-	defer store.Close()
+func pendingOptimizationCandidates(document plan.Plan, store *overgodb.Store) ([]plan.OptimizationCandidate, error) {
 	candidates, err := plan.ReviewLandedCompletion(context.Background(), store, commandWorktree, "HEAD")
 	if err != nil {
 		return nil, err
@@ -31,8 +33,8 @@ func pendingOptimizationCandidates(document plan.Plan) ([]plan.OptimizationCandi
 // requireOptimizationReview refuses dispatch while the last landed
 // completion's optimization candidates lack a disposition, printing each so
 // the re-plan can answer it.
-func requireOptimizationReview(document plan.Plan, printLines bool, output io.Writer) error {
-	pending, err := pendingOptimizationCandidates(document)
+func requireOptimizationReview(document plan.Plan, store *overgodb.Store, printLines bool, output io.Writer) error {
+	pending, err := pendingOptimizationCandidates(document, store)
 	if err != nil || len(pending) == 0 {
 		return err
 	}
@@ -51,7 +53,12 @@ func recordOptimizationReview(root, role, key, kind, row, reason string) error {
 	return mutatePlan(root, role, "recorded optimization review "+cmp.Or(key, kind), func(document plan.Plan) (plan.Plan, error) {
 		keys := []string{strings.TrimSpace(key)}
 		if kind != "" {
-			pending, err := pendingOptimizationCandidates(document)
+			store, err := openPlanStore()
+			if err != nil {
+				return plan.Plan{}, err
+			}
+			defer store.Close()
+			pending, err := pendingOptimizationCandidates(document, store)
 			if err != nil {
 				return plan.Plan{}, err
 			}

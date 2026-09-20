@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "completion-proof-horizon-first-seal",
-      "title": "Seal the first proof horizon, proved before it is committed: plan -seal-horizon builds the commit that would carry the receipt as an unreferenced Git object (no ref, index or working tree moves), resolves the completion authority at it against the store in service, and writes the receipt only if that resolution succeeds, because a wrong receipt would refuse every gate including the one that fixes it; then land the seal and record the measured plan -next wall before (about 8.5 s over 921 completions) and after",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Seal the first proof horizon, proved before it is committed: plan -seal-horizon builds the commit that would carry the receipt as an unreferenced Git object (no ref, index or working tree moves), resolves the completion authority at it against the store in service, and writes the receipt only if that resolution succeeds, because a wrong receipt would refuse every gate including the one that fixes it; then land the seal and record the measured plan -next wall before (about 8.5 s over 921 completions) and after",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestSealHorizonProvesBeforeItWrites' -count=1 \u0026\u0026 test -f docs/plan_proof_horizon.json"
-        }
-      ]
-    },
-    {
       "id": "store-blob-pack-and-split",
       "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, and remove the redundancy found on the way instead of packing it: measure first which records repeat what another already holds (each closure-ledger rebind republishing near-identical documents, a fresh environment document per gate, descriptors held in both the journal frame and the blob, superseded checkpoint and snapshot generations) and stop writing or release what is redundant before choosing a pack format for what remains, continuing the RSI storage-blob-split step",
       "owner": "master-lead",
@@ -1025,6 +1011,10 @@
     {
       "key": "surface-move:production-nodes:cbcf21c3eecfd844819d21b999f8ce6f492a2a6c",
       "row": "harness-surface-paydown"
+    },
+    {
+      "key": "surface-move:production-nodes:cec8650046f910a364e4ec6d4ac753d4b3439b17",
+      "row": "automation-harness-surface-remainder"
     }
   ]
 }

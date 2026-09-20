@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -311,16 +312,22 @@ func run(c cli, args []string) error {
 }
 
 func resolveCompletionAuthority(root string, document plan.Plan) (plan.CompletionAuthority, error) {
+	return resolveCompletionAuthorityAt(root, "HEAD", document)
+}
+
+func resolveCompletionAuthorityAt(root, revision string, document plan.Plan) (plan.CompletionAuthority, error) {
 	store, err := overgodb.OpenReadOnly(filepath.Join(root, "overgodb-store"))
 	if err != nil {
 		return plan.CompletionAuthority{}, err
 	}
 	defer store.Close()
-	return plan.ResolveCompletionAuthority(context.Background(), root, "HEAD", document, store)
+	return plan.ResolveCompletionAuthority(context.Background(), root, revision, document, store)
 }
 
 // sealProofHorizon writes the one horizon the authority can vouch for: HEAD,
-// with the completions it has just proved. The receipt takes the plan file's
+// with the completions it has just proved. It proves the receipt before it
+// writes it, because a wrong receipt, once landed, refuses every gate
+// including the one that would fix it. The receipt takes the plan file's
 // mode and lands through the gate, which admits no other value.
 func sealProofHorizon(root string, output io.Writer) error {
 	planPath := filepath.Join(root, filepath.FromSlash(plan.Path))
@@ -337,11 +344,63 @@ func sealProofHorizon(root string, output io.Writer) error {
 		return err
 	}
 	horizon := authority.SealProofHorizon()
+	receipt, err := json.Marshal(horizon)
+	if err != nil {
+		return err
+	}
+	if err := proveProofHorizon(root, document, receipt); err != nil {
+		return fmt.Errorf("plan: the proof horizon did not survive its own dry run and was not written: %w", err)
+	}
 	if err := jsonfile.Write(filepath.Join(root, filepath.FromSlash(plan.ProofHorizonPath)), horizon, info.Mode().Perm()); err != nil {
 		return err
 	}
 	fmt.Fprintf(output, "sealed proof horizon %s completions=%d in %s\n", horizon.Commit, horizon.Completions, plan.ProofHorizonPath)
 	return nil
+}
+
+// proveProofHorizon builds the commit that would carry receipt on top of
+// HEAD as unreferenced Git objects -- no ref, index or working tree moves --
+// and resolves the completion authority at it against the store in service:
+// the state every later gate will see, tried before it exists.
+func proveProofHorizon(root string, document plan.Plan, receipt []byte) error {
+	blob, err := commandInput(root, receipt, "git", "hash-object", "-w", "--stdin")
+	if err != nil {
+		return err
+	}
+	directory, name := path.Split(plan.ProofHorizonPath)
+	directory = strings.TrimSuffix(directory, "/")
+	docs, err := treeWithEntry(root, "HEAD:"+directory, "100644 blob "+strings.TrimSpace(string(blob))+"\t"+name)
+	if err != nil {
+		return err
+	}
+	tree, err := treeWithEntry(root, "HEAD", "040000 tree "+docs+"\t"+directory)
+	if err != nil {
+		return err
+	}
+	commit, err := gitOutput(root, "commit-tree", tree, "-p", "HEAD", "-m", "proof horizon dry run")
+	if err != nil {
+		return err
+	}
+	_, err = resolveCompletionAuthorityAt(root, strings.TrimSpace(string(commit)), document)
+	return err
+}
+
+// treeWithEntry writes the tree at treeish with entry replacing, or joining,
+// the entry of its name; mktree orders what it is given.
+func treeWithEntry(root, treeish, entry string) (string, error) {
+	listed, err := gitOutput(root, "ls-tree", treeish)
+	if err != nil {
+		return "", err
+	}
+	_, name, _ := strings.Cut(entry, "\t")
+	lines := []string{entry}
+	for line := range strings.SplitSeq(strings.TrimRight(string(listed), "\n"), "\n") {
+		if !strings.HasSuffix(line, "\t"+name) {
+			lines = append(lines, line)
+		}
+	}
+	written, err := commandInput(root, []byte(strings.Join(lines, "\n")+"\n"), "git", "mktree")
+	return strings.TrimSpace(string(written)), err
 }
 
 func bindCampaignCensus(root string, output io.Writer) error {

@@ -926,6 +926,12 @@ func (g *gateContext) completionMessageFile(document plan.Plan) (string, error) 
 	if err != nil {
 		return "", err
 	}
+	g.auditMutex.Lock()
+	message, err = structuredMessage(message, g.audit)
+	g.auditMutex.Unlock()
+	if err != nil {
+		return "", err
+	}
 	itemID, stepID, _ := strings.Cut(g.planRef, "/")
 	if g.manifestPlan == nil || g.candidateManifest == nil {
 		return "", errors.New("completion message: manifest authorities are absent")

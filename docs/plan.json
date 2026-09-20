@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-message-structured",
-      "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the commit message a structured document (cause, predicted effect, decisions with their rejected alternatives, measured, tests) whose measured block is generated from the row's tool-emitted receipts and gate evidence and validated by the gate, replacing the free-text message file",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestStructuredCommitMessage' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-access-consolidation",
       "title": "Consolidate database interaction and isolate model, dataset and system behaviour from storage and retrieval (owner directive 2026-09-20): move each domain's store access behind one owner per domain -- models and recipes, datasets, runs and evidence, the control plane -- whose API speaks that domain's types and hides artifact.Batch construction, aliases, lineage, queries and content reads, so a domain package states what it records or asks for and never how it is stored; land one domain per row in the order the access census ranks them, and shrink the storage authority audit's direct-commit allowances with each",
       "owner": "master-lead",
@@ -1085,6 +1071,10 @@
     {
       "key": "surface-move:harness-production-nodes",
       "row": "surface-move-preflight"
+    },
+    {
+      "key": "surface-move:production-nodes:00b49160532265a7eea191429073651bff3be82a",
+      "row": "automation-harness-surface-remainder"
     },
     {
       "key": "surface-move:production-nodes:4e87eb1e0a20f326a18e5e7f4cc95eec7b5357ad",

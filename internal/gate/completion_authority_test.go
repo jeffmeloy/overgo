@@ -34,7 +34,7 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 		t.Fatal(err)
 	}
 	messagePath := filepath.Join(repository, "message.txt")
-	if err := os.WriteFile(messagePath, []byte("subject\n\nOvergo-Plan-Item: reused\n"), 0o600); err != nil {
+	if err := os.WriteFile(messagePath, []byte("subject\n\nCause: a fixture.\nPredicted effect: none.\n\nOvergo-Plan-Item: reused\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	manifest := testutil.ArtifactID(t, artifact.KindRecipe, "completion-plan")
@@ -59,7 +59,8 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "reserved trailer Overgo-Plan-Item") {
 		t.Fatalf("completion identity refused for the wrong reason: %v", err)
 	}
-	if err := os.WriteFile(messagePath, []byte("subject\n"), 0o600); err != nil {
+	authored := []byte("subject\n\nCause: a fixture.\nPredicted effect: none.\n")
+	if err := os.WriteFile(messagePath, authored, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	mutated := document
@@ -79,7 +80,7 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 		t.Fatal(err)
 	}
 	expected, err := plan.CompletionCommitMessageWithMergeAuthority(
-		[]byte("subject\n"), document, "item", "step", manifest, codeManifest, preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
+		authored, document, "item", "step", manifest, codeManifest, preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +89,7 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 		t.Fatal("gate completion message differs from the canonical pre-advance message")
 	}
 	mutatedExpected, err := plan.CompletionCommitMessageWithMergeAuthority(
-		[]byte("subject\n"), mutated, "item", "step", manifest, codeManifest, preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
+		authored, mutated, "item", "step", manifest, codeManifest, preparation, preparationCommit, plan.MergeProjectionSemanticUnion, artifact.ID{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -208,7 +209,7 @@ func TestGateCompletionMessageBindsFirstParentTarget(t *testing.T) {
 	repository := t.TempDir()
 	document := completionAuthorityPlan()
 	messagePath := filepath.Join(repository, "message.txt")
-	if err := os.WriteFile(messagePath, []byte("target merge\n"), 0o600); err != nil {
+	if err := os.WriteFile(messagePath, []byte("target merge\n\nCause: a fixture.\nPredicted effect: none.\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	manifest := testutil.ArtifactID(t, artifact.KindRecipe, "target-gate-plan")

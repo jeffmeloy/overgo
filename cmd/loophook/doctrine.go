@@ -17,6 +17,8 @@ THE LOOP (do #1 -> complete -> refactor -> do #1, until the plan is complete):
     It claims the row, preflights, gates (the ship set is the dirty tree),
     confirms the landing from git, waits for the deferred lanes' verdict and
     lists the landing's review candidates, ending in one typed outcome.
+    The message states "Cause:" and "Predicted effect:"; the gate refuses one
+    without them and writes what it measured itself, so type no numbers.
     Merges: git merge --no-ff --no-commit <branch> then go run ./cmd/gate -merge
     -plan <item>/<step> -message-file <f>. Read the exit code UNPIPED.
  4. The successful gate atomically removes the completed row. Do not run a

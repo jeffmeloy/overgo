@@ -238,6 +238,17 @@ func Run(options Options) (runErr error) {
 		if err != nil {
 			return err
 		}
+		// Recovery and admission come first; a message missing a section is
+		// still refused here, before the tests and not after them.
+		if *messageFile != "" {
+			authored, err := os.ReadFile(*messageFile)
+			if err == nil {
+				_, err = structuredMessage(authored, nil)
+			}
+			if err != nil {
+				return err
+			}
+		}
 	}
 	g := &gateContext{
 		repo: repo, planRef: *planRef, checkpoint: checkpoint, messageFile: *messageFile, storePath: cleanStore, start: time.Now(), clock: processmeasure.NewStopwatch(),

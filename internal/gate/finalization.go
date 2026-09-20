@@ -14,6 +14,7 @@ import (
 	"overgo/internal/codeprofile"
 	"overgo/internal/fsatomic"
 	"overgo/internal/loop"
+	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
@@ -67,6 +68,10 @@ func (g *gateContext) manifestAnalysisContent() (artifact.Content, error) {
 	}
 	return analysis.Content()
 }
+
+// gateProducer is the gate's capability to commit the artifact kinds the
+// store records under its name: the final batch and the debt that owes it.
+var gateProducer = overgodb.NewProducer("gate")
 
 func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	// A checkpoint publication records at the plan head it verified: it
@@ -233,7 +238,7 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 	if err := appendGateAdvisoryFinding(context.Background(), store, &batch, g.paths, g.audit); err != nil {
 		return g.oweRecord(batch, err)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.CommitAs(context.Background(), gateProducer, batch); err != nil {
 		return g.oweRecord(batch, err)
 	}
 	_ = fsatomic.Remove(filepath.Join(g.repo, filepath.FromSlash(gateDebtFile)))

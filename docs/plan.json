@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-write-admission-boundary",
-      "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit store writes through one boundary that records which producer may commit which artifact kinds, with producer identity in lineage, so a durable claim cannot be minted by any caller holding the API",
-          "status": "open",
-          "verify": "test -f internal/overgodb/write_admission_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestWriteAdmission' -count=1"
-        }
-      ]
-    },
-    {
       "id": "row-operation-class-prechecks",
       "title": "Give every row an operation class (code change, store mutation, evidence acquisition, plan edit) whose mandatory prechecks the class owns and the gate enforces: a store mutation runs on a candidate clone against the completion authority, store-check and closure ledger before service, and a receipt is admissible only when a registered command emitted it, never typed by hand",
       "owner": "master-lead",

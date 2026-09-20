@@ -3,6 +3,7 @@ package gate
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -89,7 +90,10 @@ func TestSuiteCostRanking(t *testing.T) {
 			t.Fatal("unbound or duplicated cost record")
 		}
 		content := batch.Contents[0]
-		mustGateValue(store.Commit(t.Context(), batch))
+		if _, err := store.Commit(t.Context(), batch); !errors.Is(err, overgodb.ErrProducerRefused) {
+			t.Fatalf("suite cost committed without the gate's capability: %v", err)
+		}
+		mustGateValue(store.CommitAs(t.Context(), gateProducer, batch))
 		if err := store.Close(); err != nil {
 			t.Fatal(err)
 		}

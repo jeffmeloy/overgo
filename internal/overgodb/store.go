@@ -177,7 +177,7 @@ func (s *catalogState) apply(batch artifact.Batch, locators map[artifact.ID]cont
 }
 
 func (s catalogState) delta(batch artifact.Batch) artifact.Batch {
-	delta := artifact.Batch{Key: batch.Key, ExpectedHead: artifact.ClonePointer(batch.ExpectedHead)}
+	delta := artifact.Batch{Key: batch.Key, ExpectedHead: artifact.ClonePointer(batch.ExpectedHead), Producer: batch.Producer}
 	s.artifacts.delta(batch, &delta)
 	s.contents.delta(batch, &delta)
 	s.aliases.delta(batch, &delta)
@@ -472,25 +472,31 @@ func (s *Store) sealLocked() error {
 	return nil
 }
 
-// Commit appends one effective transaction: the batch is normalized,
-// reduced to its delta against current state, and chained onto the head.
+// Commit appends one effective transaction under no producer: the batch is
+// normalized, reduced to its delta against current state, and chained onto
+// the head. A delta that introduces a guarded artifact kind is refused.
 func (s *Store) Commit(ctx context.Context, batch artifact.Batch) (artifact.CommitID, error) {
-	id, _, err := s.commitPublished(ctx, batch)
-	return id, err
+	return s.CommitAs(ctx, Producer{}, batch)
 }
 
-func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (artifact.CommitID, bool, error) {
+// CommitAs is Commit under a producer capability, the only door for the
+// artifact kinds recorded under its name. The frame records the name; the
+// request digest does not carry it, because who asked is no part of what was
+// asked: a repeat of a committed batch replays through either door and mints
+// nothing.
+func (s *Store) CommitAs(ctx context.Context, producer Producer, batch artifact.Batch) (artifact.CommitID, error) {
 	if err := contextError(ctx); err != nil {
-		return artifact.CommitID{}, false, err
+		return artifact.CommitID{}, err
 	}
+	batch.Producer = ""
 	normalized, payloadHash, err := encodeBatch(batch)
 	if err != nil {
-		return artifact.CommitID{}, false, err
+		return artifact.CommitID{}, err
 	}
+	normalized.Producer = producer.name
 	var id artifact.CommitID
-	var published bool
 	err = s.writeTransaction(ctx, func() error {
-		coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs}
+		coordinator := commitCoordinator{state: &s.state, log: s.log, blobs: s.blobs, transplant: producer.transplant}
 		advance, replayed, err := coordinator.commit(normalized, payloadHash, s.head, s.sequence)
 		if err != nil {
 			if fault, ok := errors.AsType[appendFault](err); ok {
@@ -503,11 +509,10 @@ func (s *Store) commitPublished(ctx context.Context, batch artifact.Batch) (arti
 		id = advance.id
 		if !replayed {
 			s.sequence, s.head, s.replayEnd = advance.sequence, advance.id, advance.replayEnd
-			published = true
 		}
 		return nil
 	})
-	return id, published, err
+	return id, err
 }
 
 func (s *Store) transactionFits(batch artifact.Batch) (bool, error) {
@@ -935,6 +940,7 @@ func normalizeBatch(batch artifact.Batch) (artifact.Batch, error) {
 		Aliases:      artifact.CloneAliasBindings(batch.Aliases),
 		Locations:    slices.Clone(batch.Locations),
 		Releases:     slices.Clone(batch.Releases),
+		Producer:     batch.Producer,
 	}
 	for _, content := range result.Contents {
 		result.Artifacts = append(result.Artifacts, content.Descriptor)

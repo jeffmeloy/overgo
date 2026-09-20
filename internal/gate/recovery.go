@@ -864,7 +864,7 @@ func reconcileGateDebt(repo, storePath string) (artifact.ID, error) {
 			return artifact.ID{}, errors.Join(err, store.Close())
 		}
 	}
-	if _, err := store.Commit(ctx, debt.Batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateProducer, debt.Batch); err != nil {
 		return artifact.ID{}, errors.Join(err, store.Close())
 	}
 	if err := store.Close(); err != nil {

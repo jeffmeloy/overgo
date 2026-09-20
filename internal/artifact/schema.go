@@ -211,6 +211,10 @@ type Batch struct {
 	// bytes remain; only the bytes are gone, and the release is itself a
 	// commit in the chain.
 	Releases []ID `json:"releases,omitempty"`
+	// Producer names the capability the batch was committed under. The store
+	// writes it at its commit door -- empty through Commit, the capability's
+	// name through CommitAs -- so a caller's own value never reaches a frame.
+	Producer string `json:"producer,omitzero"`
 }
 
 // Empty reports whether the batch carries no catalog mutation.

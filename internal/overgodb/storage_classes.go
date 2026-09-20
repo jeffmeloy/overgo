@@ -99,16 +99,12 @@ func LayoutStorageClass(path string) StorageClass {
 // refuseOperationalSignals is the transition boundary's teeth: a
 // batch carrying a coordination-shaped schema cannot advance the
 // artifact head. A signal that matters converts into a typed
-// transition record first; the raw signal never commits.
+// transition record first; the raw signal never commits. The batch is
+// normalized, so its artifacts already carry every content descriptor.
 func refuseOperationalSignals(batch artifact.Batch) error {
 	for _, descriptor := range batch.Artifacts {
 		if IsOperationalSignalSchema(descriptor.Schema) {
 			return fmt.Errorf("overgodb: operational signal %s cannot become canonical; publish a typed transition instead", descriptor.ID)
-		}
-	}
-	for _, content := range batch.Contents {
-		if IsOperationalSignalSchema(content.Descriptor.Schema) {
-			return fmt.Errorf("overgodb: operational signal %s cannot become canonical; publish a typed transition instead", content.Descriptor.ID)
 		}
 	}
 	return nil

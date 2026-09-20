@@ -18,6 +18,8 @@ type commitCoordinator struct {
 	state *catalogState
 	log   *recordLog
 	blobs blobStore
+	// transplant lifts producer admission for Rebuild's re-batched history.
+	transplant bool
 }
 
 // commitAdvance is the head movement a successful commit produces.
@@ -74,6 +76,11 @@ func (c commitCoordinator) commit(
 	delta, err = normalizeBatch(delta)
 	if err != nil {
 		return commitAdvance{}, false, err
+	}
+	if !c.transplant {
+		if err := admitProducer(delta); err != nil {
+			return commitAdvance{}, false, err
+		}
 	}
 	payload, locators, err := encodeTransaction(payloadHash, delta)
 	if err != nil {

@@ -5,7 +5,8 @@ import "go/ast"
 func auditStorageAndProcessAuthorities(sources []productionAuthoritySource, report *ProductionAuthorityReport) {
 	requireAuthorityOwners(sources, report,
 		authorityOwnerRule{Family: "storage", Kind: "method", Symbol: "Commit", Owner: "internal/overgodb", Receiver: "Store"},
-		authorityOwnerRule{Family: "storage", Kind: "method", Symbol: "commitPublished", Owner: "internal/overgodb", Receiver: "Store"},
+		authorityOwnerRule{Family: "storage", Kind: "method", Symbol: "CommitAs", Owner: "internal/overgodb", Receiver: "Store"},
+		authorityOwnerRule{Family: "storage", Kind: "func", Symbol: "NewProducer", Owner: "internal/overgodb"},
 		authorityOwnerRule{Family: "storage", Kind: "type", Symbol: "commitCoordinator", Owner: "internal/overgodb"},
 		authorityOwnerRule{Family: "storage", Kind: "method", Symbol: "commit", Owner: "internal/overgodb", Receiver: "commitCoordinator"},
 		authorityOwnerRule{Family: "storage", Kind: "method", Symbol: "append", Owner: "internal/overgodb", Receiver: "recordLog"},
@@ -20,19 +21,23 @@ func auditStorageAndProcessAuthorities(sources []productionAuthoritySource, repo
 	)
 
 	commitSites := map[authoritySiteKey][]int{}
-	commitPublishedSites := map[authoritySiteKey][]int{}
+	producerCommitSites := map[authoritySiteKey][]int{}
+	producerMintSites := map[authoritySiteKey][]int{}
 	appendSites := map[authoritySiteKey][]int{}
 	prepareSites := map[authoritySiteKey][]int{}
 	processSites := map[authoritySiteKey][]int{}
 	for _, source := range sources {
 		visitProductionAuthorityCalls(source, func(function string, call *ast.CallExpr, selector *ast.SelectorExpr) {
-			if selector.Sel.Name == "Commit" {
+			switch selector.Sel.Name {
+			case "Commit":
 				recordAuthoritySite(commitSites, source, function, call.Pos())
+			case "CommitAs":
+				recordAuthoritySite(producerCommitSites, source, function, call.Pos())
+			case "NewProducer":
+				recordAuthoritySite(producerMintSites, source, function, call.Pos())
 			}
 			if source.Package == "internal/overgodb" {
 				switch selector.Sel.Name {
-				case "commitPublished":
-					recordAuthoritySite(commitPublishedSites, source, function, call.Pos())
 				case "append":
 					recordAuthoritySite(appendSites, source, function, call.Pos())
 				case "prepare":
@@ -52,8 +57,16 @@ func auditStorageAndProcessAuthorities(sources []productionAuthoritySource, repo
 	}
 
 	verifyAuthoritySites(report, "storage", ".Commit", commitSites, directCommitAllowances)
-	verifyAuthoritySites(report, "storage", "Store.commitPublished", commitPublishedSites, []authorityAllowance{{
-		File: "internal/overgodb/store.go", Function: "Store.Commit", Count: oneAuthoritySite,
+	// A producer's door and its mint are the capability to commit a guarded
+	// kind: each site is a reviewed entry here, never a caller's choice.
+	verifyAuthoritySites(report, "storage", ".CommitAs", producerCommitSites, []authorityAllowance{
+		{File: "internal/gate/finalization.go", Count: oneAuthoritySite},
+		{File: "internal/gate/recovery.go", Count: oneAuthoritySite},
+		{File: "internal/overgodb/rebuild.go", Count: oneAuthoritySite},
+		{File: "internal/overgodb/store.go", Function: "Store.Commit", Count: oneAuthoritySite},
+	})
+	verifyAuthoritySites(report, "storage", "overgodb.NewProducer", producerMintSites, []authorityAllowance{{
+		File: "internal/gate/finalization.go", Count: oneAuthoritySite,
 	}})
 	verifyAuthoritySites(report, "storage", "recordLog.append", appendSites, []authorityAllowance{{
 		File: "internal/overgodb/commit_coordinator.go", Function: "commitCoordinator.commit", Count: oneAuthoritySite,
@@ -123,9 +136,8 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "cmd/composite-generation-lane/run_windows.go", Count: fourAuthoritySites},
 	{File: "cmd/finding/main.go", Count: oneAuthoritySite},
 	{File: "internal/gate/deferred_lanes.go", Count: twoAuthoritySites},
-	{File: "internal/gate/finalization.go", Count: oneAuthoritySite},
 	{File: "internal/gate/preparation.go", Count: oneAuthoritySite},
-	{File: "internal/gate/recovery.go", Count: twoAuthoritySites},
+	{File: "internal/gate/recovery.go", Count: oneAuthoritySite},
 	{File: "cmd/graft-probe/main.go", Count: oneAuthoritySite},
 	{File: "cmd/lora-extract/main.go", Count: oneAuthoritySite},
 	{File: "cmd/model-characterize/main.go", Count: twoAuthoritySites},
@@ -137,7 +149,6 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "internal/artifact/schema.go", Count: oneAuthoritySite},
 	{File: "internal/codemanifest/repository.go", Count: twoAuthoritySites},
 	{File: "internal/composition/record.go", Count: fourAuthoritySites},
-	{File: "internal/overgodb/rebuild.go", Count: oneAuthoritySite},
 	{File: "internal/overgodb/retention.go", Count: oneAuthoritySite},
 	{File: "internal/runrecord/claim_commit.go", Count: oneAuthoritySite},
 	{File: "internal/scratchmodel/derivation_profile.go", Count: oneAuthoritySite},

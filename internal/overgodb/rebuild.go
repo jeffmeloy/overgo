@@ -86,7 +86,7 @@ func Rebuild(ctx context.Context, source *Store, destination string, strip func(
 			return nil
 		}
 		batch.Key = fmt.Sprintf("rebuild/%06d", report.Batches)
-		if _, err := target.Commit(ctx, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		if _, err := target.CommitAs(ctx, Producer{name: "overgodb-rebuild", transplant: true}, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
 			return fmt.Errorf("overgodb: rebuild batch %d: %w", report.Batches, err)
 		}
 		report.Batches++

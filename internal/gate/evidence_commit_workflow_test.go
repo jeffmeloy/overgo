@@ -93,7 +93,7 @@ func TestEvidenceCommitWorkflow(t *testing.T) {
 	attempt, batch := successfulInterruptedAttemptBatch(t, fixture, true, "gate/final/"+fixture.preparation.ID.String())
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	before, sequence := store.Head()

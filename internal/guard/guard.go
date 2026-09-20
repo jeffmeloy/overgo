@@ -39,7 +39,11 @@ var (
 	forceDelete  = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item)\b[^\n;|&]*(?:-rf|-fr|-force|--force|-recurse\s+-force|-fdx)`)
 	rmForce      = regexp.MustCompile("(?i)" + commandBoundary + `rm\b[^\n;|&]*\s-[a-z]*f`)
 	protected    = regexp.MustCompile("(?i)" + commandBoundary + `(?:rm|rmdir|del|rd|remove-item|unlink|shred|mv|move-item|move|chmod|attrib|icacls|takeown)\b[^\n;|&]*(?:models[\\/]|datasets[\\/]|checkpoints[\\/]|docs[\\/]repodb|repodb-store|overgodb-store)`)
-	worktreeRm   = regexp.MustCompile("(?i)" + commandBoundary + `git\s+worktree\s+remove\b`)
+	// A landing's output goes to the terminal or a filter, never a file: the
+	// sinks that keep nothing are removed before the rule looks for one.
+	harmlessSink   = regexp.MustCompile(`\d?>>?\s*(?:/dev/null\b|&\d)`)
+	landTranscript = regexp.MustCompile(`(?i)\./cmd/(?:loop|gate)\b[^\n;&]*(?:>|\|\s*tee\b)`)
+	worktreeRm     = regexp.MustCompile("(?i)" + commandBoundary + `git\s+worktree\s+remove\b`)
 	// find's delete verb receives the substituted {} as its target, so the
 	// protected path lives in find's OWN argument and no verb-scoped rule can
 	// see it; judge the pair (protected traversal root, -exec delete verb).
@@ -191,6 +195,11 @@ func ruleVerdict(command, root string) string {
 		return "raw git commit bypasses cmd/gate (hygiene + derived-scope tests + store record); run " +
 			"'go run ./cmd/gate -plan <item>/<step> -message-file <path>' instead. --no-verify does not help: the gate is " +
 			"the thing being skipped, not a hook"
+	}
+	if landTranscript.MatchString(harmlessSink.ReplaceAllString(stripped, "")) {
+		return "a landing's output is not kept in a file: loop -land prints the lines that decide the outcome and the " +
+			"store holds the rest -- 'go run ./cmd/plan -history <item> -phases' for phases and costs, the " +
+			"store-local/gate-lanes/current alias for the lanes; give the message on standard input with -message-file -"
 	}
 	if heredoc.MatchString(raw) && strings.Contains(raw, `\`) && sourcePath.MatchString(raw) && writeSink.MatchString(raw) {
 		return "a Bash heredoc EATS one level of backslash escaping and will write mangled content; use the Write or " +

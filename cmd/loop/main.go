@@ -93,12 +93,12 @@ func run(args []string) error {
 	attemptReceiptSpecPath := flags.String("attempt-receipt", "", "resolve and print one terminal attempt receipt from this spec")
 	resumeMediaExperimentSpec := flags.String("resume-media-experiment", "", "resume one media experiment from this spec, reusing retained acquisitions and publishing the report without opening a model")
 	landReference := flags.String("land", "", "land one authored row: claim, preflight, gate, confirm the landing from git, await the deferred lanes and list its review candidates: -land <item>/<step> -message-file <file>")
-	landMessage := flags.String("message-file", "", "with -land: the gate commit message file")
+	landMessage := flags.String("message-file", "", "with -land: the gate commit message file; - reads the message from standard input")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *landReference != "" {
-		return landCommand(*landReference, *landMessage, os.Stdout)
+		return landCommand(*landReference, *landMessage, os.Stdin, os.Stdout)
 	}
 	resolved, err := dataroot.StoreRoot(*repoPath)
 	if err != nil {
@@ -482,18 +482,19 @@ func planCommand(verbs ...string) (string, error) {
 // runTool supervises one repository tool invocation and returns its
 // combined output.
 func runTool(arguments ...string) (string, error) {
-	return runToolEnv(loopEnvironment(), io.Discard, arguments...)
+	return runToolEnv(loopEnvironment(), nil, io.Discard, arguments...)
 }
 
 // runToolEnv is runTool under the caller's chosen environment, echoing the
 // tool's output to echo as it is captured.
-func runToolEnv(environment []string, echo io.Writer, arguments ...string) (string, error) {
+func runToolEnv(environment []string, input io.Reader, echo io.Writer, arguments ...string) (string, error) {
 	var combined bytes.Buffer
 	captured := io.MultiWriter(&combined, echo)
 	receipt, err := processcontrol.Run(context.Background(), processcontrol.Command{
 		Path:   arguments[0],
 		Env:    environment,
 		Args:   arguments[1:],
+		Stdin:  input,
 		Stdout: captured,
 		Stderr: captured,
 	})

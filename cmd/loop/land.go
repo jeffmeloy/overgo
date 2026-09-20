@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 
 	"overgo/internal/gitauthority"
@@ -103,26 +106,58 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 
 // execRowWorld runs the sequence against the repository's real owners. Its
 // subprocesses keep the caller's execution mode: an interactive worker lands
-// an interactive row.
-type execRowWorld struct{ store *overgodb.Store }
+// an interactive row. The message is the gate's standard input when the worker
+// gave it on the landing's; a tool that reads none ignores it.
+type execRowWorld struct {
+	store   *overgodb.Store
+	message []byte
+}
 
 func (w execRowWorld) tool(arguments ...string) (string, error) {
-	return runToolEnv(os.Environ(), os.Stderr, arguments...)
+	return runToolEnv(os.Environ(), bytes.NewReader(w.message), &verdictLines{out: os.Stderr}, arguments...)
+}
+
+// verdictLines passes on the lines of a tool's output that decide or explain
+// the outcome: a refusal, a failing test with the detail indented under it,
+// the gate's verdict and what it measured. Everything else a landing prints
+// -- selection lists, a line per package -- is a record in the store already,
+// so a worker has no transcript worth saving to a file.
+type verdictLines struct {
+	out     io.Writer
+	partial []byte
+	failing bool
+}
+
+var verdictLine = regexp.MustCompile(`FAIL|result=fail|blocker:|refused|^(?:plan:|gate: gate:|GATE |advisory: (?:class|delta|debt|warning):|preflight: .*finding)`)
+
+// Write echoes the whole lines completed by data that the verdict keeps.
+func (v *verdictLines) Write(data []byte) (int, error) {
+	v.partial = append(v.partial, data...)
+	for {
+		line, rest, whole := bytes.Cut(v.partial, []byte{'\n'})
+		if !whole {
+			return len(data), nil
+		}
+		v.partial = rest
+		if v.keeps(string(line)) {
+			if _, err := fmt.Fprintf(v.out, "%s\n", line); err != nil {
+				return len(data), err
+			}
+		}
+	}
+}
+
+func (v *verdictLines) keeps(line string) bool {
+	detail := v.failing && strings.TrimLeft(line, " \t") != line
+	v.failing = detail || strings.Contains(line, "--- FAIL")
+	return detail || verdictLine.MatchString(line)
 }
 
 // refusalOf keeps the lines of a failed tool run that say why.
 func refusalOf(output string) string {
-	var kept []string
-	for line := range strings.SplitSeq(output, "\n") {
-		if strings.Contains(line, "FAIL") || strings.Contains(line, "blocker:") || strings.Contains(line, "refused") ||
-			strings.HasPrefix(line, "plan:") || strings.HasPrefix(line, "gate: gate:") || strings.HasPrefix(line, "preflight: ") && strings.Contains(line, "finding") {
-			kept = append(kept, strings.TrimSpace(line))
-		}
-	}
-	if len(kept) == 0 {
-		return strings.TrimSpace(output)
-	}
-	return strings.Join(kept, "\n")
+	var kept strings.Builder
+	_, _ = (&verdictLines{out: &kept}).Write([]byte(output + "\n"))
+	return strings.TrimSpace(cmp.Or(kept.String(), output))
 }
 
 // Claim dispatches the row to this worker; the holder re-claims idempotently.
@@ -193,18 +228,27 @@ func (w execRowWorld) PendingReview() ([]string, error) {
 	return pending, nil
 }
 
+// standardInput names the landing's own input as the message file.
+const standardInput = "-"
+
 // landCommand runs the row sequence and prints its typed outcome; anything
 // short of a validated landing is a failure exit.
-func landCommand(reference, messageFile string, output io.Writer) error {
+func landCommand(reference, messageFile string, input io.Reader, output io.Writer) error {
 	if strings.Count(reference, "/") != 1 || strings.TrimSpace(messageFile) == "" {
-		return fmt.Errorf("usage: loop -land <item>/<step> -message-file <file>")
+		return fmt.Errorf("usage: loop -land <item>/<step> -message-file <file, or - for standard input>")
 	}
 	store, err := overgodb.OpenReadOnly(gitauthority.CanonicalOvergoDBDirectory)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
-	outcome, err := landRow(execRowWorld{store: store}, reference, messageFile)
+	var message []byte
+	if messageFile == standardInput {
+		if message, err = io.ReadAll(input); err != nil {
+			return err
+		}
+	}
+	outcome, err := landRow(execRowWorld{store: store, message: message}, reference, messageFile)
 	if encodeErr := json.NewEncoder(output).Encode(outcome); err == nil {
 		err = encodeErr
 	}

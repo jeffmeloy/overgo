@@ -922,7 +922,10 @@ func validateManifestCommitAdmission(manifest automationcheck.ManifestPlan, term
 // and step this commit completes, and the verify command that gated
 // it. Git carries completion history; the plan keeps only open work.
 func (g *gateContext) completionMessageFile(document plan.Plan) (string, error) {
-	message, err := os.ReadFile(g.messageFile)
+	message, err := g.authored, error(nil)
+	if message == nil {
+		message, err = os.ReadFile(g.messageFile)
+	}
 	if err != nil {
 		return "", err
 	}

@@ -93,6 +93,7 @@ type gateContext struct {
 	// refused exclusive claim waits on that device's holders.
 	deviceResource      string
 	messageFile         string
+	authored            []byte
 	storePath           string
 	steps               []runrecord.GateStep
 	audit               []string

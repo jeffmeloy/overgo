@@ -855,7 +855,8 @@
             "automation-add-owns-closeout-dependency/do",
             "repoanalysis-suite-wall/do",
             "store-open-canonical-at-writer/do",
-            "store-open-lineage-cost/do"
+            "store-open-lineage-cost/do",
+            "land-leaves-no-manual-log/do"
           ]
         }
       ]

@@ -2,6 +2,8 @@ package gate
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"slices"
 	"strings"
 )
@@ -31,4 +33,16 @@ func structuredMessage(authored []byte, audit []string) ([]byte, error) {
 		text += "\n\nMeasured by the gate:\n  " + strings.Join(measured, "\n  ")
 	}
 	return []byte(text + "\n"), nil
+}
+
+// standardInput names the gate's own input as the message file.
+const standardInput = "-"
+
+// authoredMessage reads the operator's message, once: standard input cannot
+// be read again at the commit, so the gate keeps what admission read.
+func authoredMessage(path string, input io.Reader) ([]byte, error) {
+	if path == standardInput {
+		return io.ReadAll(input)
+	}
+	return os.ReadFile(path)
 }

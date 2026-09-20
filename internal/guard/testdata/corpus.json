@@ -263,6 +263,36 @@
       "rule": "baseline"
     },
     {
+      "name": "land-output-redirected-to-a-scratch-log",
+      "command": "go run ./cmd/loop -land row/do -message-file msg.txt > scratchpad/land.log 2>&1",
+      "expect": "DENY",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "gate-output-teed-to-a-log",
+      "command": "go run ./cmd/gate -plan row/do -message-file msg.txt 2>&1 | tee gate.log",
+      "expect": "DENY",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "land-output-filtered-then-saved",
+      "command": "go run ./cmd/loop -land row/do -message-file msg.txt 2>&1 | grep GATE > verdict.txt",
+      "expect": "DENY",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "land-output-piped-to-a-filter",
+      "command": "go run ./cmd/loop -land row/do -message-file - 2>&1 | tail -3",
+      "expect": "ALLOW",
+      "rule": "land-transcript"
+    },
+    {
+      "name": "preflight-output-discarded",
+      "command": "go run ./cmd/gate -preflight -plan row/do >/dev/null 2>&1 && echo clean > status.txt",
+      "expect": "ALLOW",
+      "rule": "land-transcript"
+    },
+    {
       "name": "ordinary-read",
       "command": "tail -20 /tmp/gate.log",
       "expect": "ALLOW",

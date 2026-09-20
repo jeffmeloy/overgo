@@ -183,6 +183,7 @@ func Run(options Options) (runErr error) {
 	var mergeBefore *gateMergeIntent
 	var admissionStore *overgodb.Store
 	var laneDebt *runrecord.GateLaneObligation
+	var authored []byte
 	defer func() {
 		if admissionStore != nil {
 			runErr = errors.Join(runErr, admissionStore.Close())
@@ -241,7 +242,7 @@ func Run(options Options) (runErr error) {
 		// Recovery and admission come first; a message missing a section is
 		// still refused here, before the tests and not after them.
 		if *messageFile != "" {
-			authored, err := os.ReadFile(*messageFile)
+			authored, err = authoredMessage(*messageFile, os.Stdin)
 			if err == nil {
 				_, err = structuredMessage(authored, nil)
 			}
@@ -251,7 +252,7 @@ func Run(options Options) (runErr error) {
 		}
 	}
 	g := &gateContext{
-		repo: repo, planRef: *planRef, checkpoint: checkpoint, messageFile: *messageFile, storePath: cleanStore, start: time.Now(), clock: processmeasure.NewStopwatch(),
+		repo: repo, planRef: *planRef, checkpoint: checkpoint, messageFile: *messageFile, authored: authored, storePath: cleanStore, start: time.Now(), clock: processmeasure.NewStopwatch(),
 		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
 		completionAuthority: completionAuthority, planHead: planHead, dispatchClaim: dispatchClaim,
 		indexBefore: indexBefore, mergeBefore: mergeBefore,

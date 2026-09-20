@@ -51,7 +51,7 @@ func commitGateAttempt(t *testing.T, store *overgodb.Store, item, step string, s
 	batch.Artifacts = append(batch.Artifacts,
 		artifact.Descriptor{ID: record.Result.Recipe}, artifact.Descriptor{ID: record.Result.Environment}, content.Descriptor)
 	batch.Contents = append(batch.Contents, content)
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 }

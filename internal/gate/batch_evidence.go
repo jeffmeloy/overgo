@@ -37,9 +37,12 @@ type batchCheckEvidence struct {
 	Resolution artifact.ID                 `json:"resolution,omitzero"`
 }
 
+// batchEvidenceSchema is a kind the store admits from the gate alone.
+const batchEvidenceSchema = "overgo/gate-batch-evidence/v1"
+
 var batchEvidenceCodec = artifact.JSONDocumentCodec(
 	"gate batch evidence", artifact.KindEvidence,
-	"application/vnd.overgo.gate-batch-evidence+json", "overgo/gate-batch-evidence/v1",
+	"application/vnd.overgo.gate-batch-evidence+json", batchEvidenceSchema,
 	func(value *batchEvidence) error {
 		if value.Version != artifact.InitialDocumentVersion || value.Task.Kind() != artifact.KindRecipe || !value.Base.Valid() || !value.Candidate.Valid() ||
 			value.Previous.Valid() && value.Previous.Kind() != artifact.KindEvidence || len(value.Checks) == 0 {
@@ -232,7 +235,7 @@ func (ledger *batchEvidenceLedger) publish(ctx context.Context, next batchEviden
 	}
 	publication.Aliases = append(publication.Aliases, alias)
 	publication.Key = ledger.alias + "/" + record.ID.String()
-	if _, err := artifact.CommitBatch(ctx, ledger.store, publication); err != nil {
+	if _, err := ledger.store.CommitAs(ctx, gateProducer, publication); err != nil {
 		return err
 	}
 	ledger.state = record

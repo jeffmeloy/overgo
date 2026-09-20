@@ -46,7 +46,7 @@ func newAttemptGateChain(
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := artifact.CommitBatch(ctx, store, preparationBatch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, preparationBatch); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -120,7 +120,7 @@ func commitAttemptGateChain(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -316,7 +316,7 @@ func TestVerifyAttemptGateRejectsPreparationPublishedWithFinalBatch(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := VerifyAttemptGate(ctx, store, chain.attempt); err == nil {
@@ -344,7 +344,7 @@ func TestVerifyAttemptGateRejectsEnvironmentPublishedAfterPreparation(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key:       "fixture/attempt-gate/late-environment/descriptor",
 		Artifacts: []artifact.Descriptor{environmentContent.Descriptor},
 	}); err != nil {
@@ -365,7 +365,7 @@ func TestVerifyAttemptGateRejectsEnvironmentPublishedAfterPreparation(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, preparationBatch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, preparationBatch); err != nil {
 		t.Fatal(err)
 	}
 
@@ -392,7 +392,7 @@ func TestVerifyAttemptGateRejectsEnvironmentPublishedAfterPreparation(t *testing
 		gate: gate, finalization: finalization, attempt: attempt,
 	}
 	commitAttemptGateChain(t, ctx, store, "fixture/attempt-gate/late-environment/final", chain, true, true, true, true)
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "fixture/attempt-gate/late-environment/content", Contents: []artifact.Content{environmentContent},
 	}); err != nil {
 		t.Fatal(err)
@@ -466,7 +466,7 @@ func TestVerifyAttemptGateRejectsConflictingPreparationFinalization(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	if _, _, err := GateFinalizationForPreparation(ctx, store, chain.preparation.ID); err == nil {

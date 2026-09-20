@@ -31,7 +31,7 @@ func TestGateLifecycleAtRestAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "test/at-rest/prepared", Contents: []artifact.Content{preparedContent},
 		Lineage: prepared.Lineage(),
 		Aliases: []artifact.AliasBinding{{Name: GateLifecycleCurrentAlias, Target: prepared.ID}},
@@ -60,7 +60,7 @@ func TestGateLifecycleAtRestAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "test/at-rest/finalized", Contents: []artifact.Content{finalizedContent},
 		Lineage: finalized.Lineage(),
 		Aliases: []artifact.AliasBinding{{
@@ -101,7 +101,7 @@ func TestGateLaneObligationAtRestAdmission(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Commit(ctx, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}

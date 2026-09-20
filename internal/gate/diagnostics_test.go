@@ -103,7 +103,7 @@ func magicGateFixture(t *testing.T, publish bool) (string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{
+	if _, err := store.CommitAs(t.Context(), gateProducer, artifact.Batch{
 		Key: "magic/dependency", Artifacts: []artifact.Descriptor{{ID: binding.Owner}},
 	}); err != nil {
 		t.Fatal(err)
@@ -124,7 +124,7 @@ func magicGateFixture(t *testing.T, publish bool) (string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	return root, path

@@ -35,7 +35,7 @@ func TestRetainedGatePhaseReport(t *testing.T) {
 	recipe := testutil.ArtifactID(t, artifact.KindRecipe, "report-recipe")
 	put := func(content artifact.Content) {
 		t.Helper()
-		_, err := store.Commit(t.Context(), artifact.Batch{Key: "report/" + content.Descriptor.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}})
+		_, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{Key: "report/" + content.Descriptor.ID.String(), Artifacts: []artifact.Descriptor{content.Descriptor}, Contents: []artifact.Content{content}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -363,7 +363,7 @@ func testRetainedGateResultIntegrity(t *testing.T) {
 					batch.Contents = append(batch.Contents, content)
 				}
 			}
-			if _, err := store.Commit(t.Context(), batch); err != nil {
+			if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 				t.Fatal(err)
 			}
 			_, err = loadGatePhaseHistory(t.Context(), store, cli{history: "all"})

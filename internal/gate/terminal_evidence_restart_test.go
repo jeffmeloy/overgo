@@ -159,7 +159,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, publishErr := artifact.CommitBatch(t.Context(), store, environmentBatch)
+	_, publishErr := store.CommitAs(t.Context(), gateProducer, environmentBatch)
 	if err := errors.Join(publishErr, store.Close()); err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +273,7 @@ func testPackageLedgerCost(t *testing.T) {
 		for index := range seedArtifacts {
 			seed.Artifacts = append(seed.Artifacts, artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("seed/%d", index))})
 		}
-		_, err = artifact.CommitBatch(t.Context(), store, seed)
+		_, err = store.CommitAs(t.Context(), gateProducer, seed)
 		if err := errors.Join(err, store.Close()); err != nil {
 			t.Fatal(err)
 		}

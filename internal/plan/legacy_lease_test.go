@@ -44,7 +44,7 @@ func TestRetireLegacyLeases(t *testing.T) {
 		t.Fatal(err)
 	}
 	legacyAlias := worklease.AliasRoot + "legacy"
-	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "test/legacy-lease", Contents: []artifact.Content{legacyContent},
 		Aliases: []artifact.AliasBinding{{Name: legacyAlias, Target: legacyID}},
 	}); err != nil {

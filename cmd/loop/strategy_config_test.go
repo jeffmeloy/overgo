@@ -40,7 +40,7 @@ func TestLoopConfigResolvesStrategyAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

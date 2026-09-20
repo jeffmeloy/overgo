@@ -146,7 +146,7 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 		return err
 	}
 	batch.Key = packageReceiptAlias + key.String()
-	_, err = artifact.CommitBatch(ctx, store, batch)
+	_, err = store.CommitAs(ctx, gateProducer, batch)
 	return err
 }
 
@@ -175,7 +175,7 @@ func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, pas
 		alias.Previous = &previous
 		parents = append(parents, previous)
 	}
-	_, err = artifact.CommitBatch(ctx, ledger.store, artifact.Batch{
+	_, err = ledger.store.CommitAs(ctx, gateProducer, artifact.Batch{
 		Key: packageReceiptAlias + receipt.ID.String(), Contents: []artifact.Content{content},
 		Lineage: artifact.DependencyLineage(receipt.ID, parents...), Aliases: []artifact.AliasBinding{alias},
 	})

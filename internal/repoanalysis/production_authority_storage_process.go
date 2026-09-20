@@ -61,8 +61,12 @@ func auditStorageAndProcessAuthorities(sources []productionAuthoritySource, repo
 	// kind: each site is a reviewed entry here, never a caller's choice.
 	verifyAuthoritySites(report, "storage", ".CommitAs", producerCommitSites, []authorityAllowance{
 		{File: "cmd/store-precheck/main.go", Count: oneAuthoritySite},
+		{File: "internal/gate/batch_evidence.go", Count: oneAuthoritySite},
+		{File: "internal/gate/deferred_lanes.go", Count: twoAuthoritySites},
 		{File: "internal/gate/finalization.go", Count: oneAuthoritySite},
-		{File: "internal/gate/recovery.go", Count: oneAuthoritySite},
+		{File: "internal/gate/preparation.go", Count: oneAuthoritySite},
+		{File: "internal/gate/recovery.go", Count: threeAuthoritySites},
+		{File: "internal/gate/terminal_evidence.go", Count: twoAuthoritySites},
 		{File: "internal/overgodb/rebuild.go", Count: oneAuthoritySite},
 		{File: "internal/overgodb/store.go", Function: "Store.Commit", Count: oneAuthoritySite},
 	})
@@ -137,9 +141,6 @@ var directCommitAllowances = []authorityAllowance{
 	{File: "cmd/compatibility/main.go", Count: oneAuthoritySite},
 	{File: "cmd/composite-generation-lane/run_windows.go", Count: fourAuthoritySites},
 	{File: "cmd/finding/main.go", Count: oneAuthoritySite},
-	{File: "internal/gate/deferred_lanes.go", Count: twoAuthoritySites},
-	{File: "internal/gate/preparation.go", Count: oneAuthoritySite},
-	{File: "internal/gate/recovery.go", Count: oneAuthoritySite},
 	{File: "cmd/graft-probe/main.go", Count: oneAuthoritySite},
 	{File: "cmd/lora-extract/main.go", Count: oneAuthoritySite},
 	{File: "cmd/model-characterize/main.go", Count: twoAuthoritySites},

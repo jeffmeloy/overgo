@@ -51,7 +51,7 @@ func TestGateStoreAcceleration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{
+	if _, err := store.CommitAs(t.Context(), gateProducer, artifact.Batch{
 		Key: "test/gate-store-acceleration", Artifacts: []artifact.Descriptor{{ID: id}},
 	}); err != nil {
 		t.Fatal(err)

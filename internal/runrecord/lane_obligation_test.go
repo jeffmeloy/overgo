@@ -10,6 +10,10 @@ import (
 	"overgo/internal/testutil"
 )
 
+// gateDoor stands in for the gate in this package's fixtures: the store
+// admits lifecycle and lane obligation records from its capability alone.
+var gateDoor = overgodb.NewProducer("gate")
+
 // TestGateLaneObligation holds the deferred-lane record: a pending
 // obligation is published under the current alias, its states form a chain
 // of immutable documents, the chain admits only the declared transitions,
@@ -65,7 +69,7 @@ func TestGateLaneObligation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	current, found, err := CurrentGateLaneObligation(t.Context(), store)
@@ -77,14 +81,14 @@ func TestGateLaneObligation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	stale, err := failed.Batch(&previous)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), stale); err == nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, stale); err == nil {
 		t.Fatal("a stale CAS alias move was admitted")
 	}
 	current, _, err = CurrentGateLaneObligation(t.Context(), store)

@@ -354,7 +354,7 @@ func runDeferredLanes(repo, storePath string, execute func(*gateContext, runreco
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
 	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: runrecord.GateLaneObligationAlias, Target: resolved.ID, Previous: &previous})
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: resolved.ID, Parent: previous, Relation: artifact.RelationDerivedFrom})
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.CommitAs(context.Background(), gateProducer, batch); err != nil {
 		return fmt.Errorf("gate: record the lane outcome: %w", err)
 	}
 	_ = g.writeLaneLocator(resolved)
@@ -489,7 +489,7 @@ func (g *gateContext) publishLaneState(state runrecord.GateLaneObligation, previ
 	if err != nil {
 		return err
 	}
-	_, err = g.store.Commit(context.Background(), batch)
+	_, err = g.store.CommitAs(context.Background(), gateProducer, batch)
 	return err
 }
 

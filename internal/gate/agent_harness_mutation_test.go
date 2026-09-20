@@ -69,7 +69,7 @@ func mutationProxyBypass(t *testing.T) bool {
 	snapshot, _ := agenttool.NewCatalogSnapshot([]agenttool.Manual{allowed})
 	content, _ := snapshot.ArtifactContent()
 	batch, _ := artifact.NewDocumentBatch("mutation-proxy", []artifact.Content{content}, nil, []artifact.AliasBinding{{Name: agenttool.ActiveCatalogAlias, Target: snapshot.ID}})
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	_, err = agenttool.ResolveRegisteredManual(ctx, store, excluded.Name)

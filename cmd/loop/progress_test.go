@@ -85,7 +85,7 @@ func TestCampaignAcceptedProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "progress/prepared", Contents: []artifact.Content{envContent, prepContent}, Lineage: preparation.Lineage()}); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{Key: "progress/prepared", Contents: []artifact.Content{envContent, prepContent}, Lineage: preparation.Lineage()}); err != nil {
 		t.Fatal(err)
 	}
 	manifest := testutil.ArtifactID(t, artifact.KindRecipe, "progress manifest")
@@ -138,7 +138,7 @@ func TestCampaignAcceptedProgress(t *testing.T) {
 	batch.Contents = append(batch.Contents, finalContent, attemptContent)
 	batch.Lineage = append(batch.Lineage, finalization.Lineage()...)
 	batch.Lineage = append(batch.Lineage, attempt.Lineage()...)
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	assertProgress := func(want bool) {
@@ -171,7 +171,7 @@ func TestCampaignAcceptedProgress(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Commit(t.Context(), batch); err != nil {
+		if _, err := store.CommitAs(t.Context(), gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 		id := pending.ID

@@ -42,7 +42,7 @@ func TestCampaignValidationReadsFreshFailure(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := writer.Commit(t.Context(), batch); err != nil {
+		if _, err := writer.CommitAs(t.Context(), gateDoor, batch); err != nil {
 			t.Fatal(err)
 		}
 	}

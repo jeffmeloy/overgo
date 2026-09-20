@@ -33,6 +33,14 @@ func NewProducer(name string) Producer { return Producer{name: name} }
 // at the boundary, not with the schema owners, so a process that never links
 // an owner is held to it all the same.
 var producerKinds = []struct{ prefix, producer string }{
+	// The kinds only the gate mints. The lifecycle is what the plan
+	// completion authority discovers a landing through. Gate results and
+	// attempts are absent: other verifiers mint them for their own runs.
+	{"overgo/gate-batch-evidence/", "gate"},
+	{"overgo/gate-lane-obligation/", "gate"},
+	{"overgo/gate-lifecycle/", "gate"},
+	{"overgo/gate-package-receipt/", "gate"},
+	{"overgo/gate-selection-cause/", "gate"},
 	{"overgo/gate-suite-cost/", "gate"},
 	{operationProofKind, "store-precheck"},
 }

@@ -87,7 +87,7 @@ func newCompletionFixture(t *testing.T, parent Plan, item, step string) *complet
 	if err != nil {
 		t.Fatal(err)
 	}
-	preparationCommit, err := store.Commit(t.Context(), artifact.Batch{
+	preparationCommit, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key:      "completion/prepared/" + preparation.ID.String(),
 		Contents: []artifact.Content{environmentContent, preparationContent},
 		Lineage:  preparation.Lineage(),
@@ -216,7 +216,7 @@ func (fixture *completionFixture) rotatePreparation(treeKey string, started time
 	if err != nil {
 		fixture.t.Fatal(err)
 	}
-	preparationCommit, err := fixture.store.Commit(context.Background(), artifact.Batch{
+	preparationCommit, err := fixture.store.CommitAs(context.Background(), gateDoor, artifact.Batch{
 		Key:      "completion/prepared/" + preparation.ID.String(),
 		Contents: []artifact.Content{content},
 		Lineage:  preparation.Lineage(),
@@ -256,7 +256,7 @@ func publishCompletionAttemptWithManifestAnalysis(
 	t.Helper()
 	ctx := t.Context()
 	environment := preparation.Environment
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "completion/dependencies/" + commit,
 		Artifacts: []artifact.Descriptor{
 			{ID: manifest}, {ID: codeManifest},
@@ -360,11 +360,11 @@ func publishCompletionAttemptWithManifestAnalysis(
 			}
 		}
 	}
-	if _, err := store.Commit(ctx, batch); err != nil {
+	if _, err := store.CommitAs(ctx, gateDoor, batch); err != nil {
 		t.Fatal(err)
 	}
 	if delayedAnalysis != nil {
-		if _, err := store.Commit(ctx, *delayedAnalysis); err != nil {
+		if _, err := store.CommitAs(ctx, gateDoor, *delayedAnalysis); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -558,7 +558,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 	})
 	t.Run("foreign valid preparation introduction commit", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
-		foreign, err := fixture.store.Commit(t.Context(), artifact.Batch{
+		foreign, err := fixture.store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 			Key: "completion/foreign-preparation-commit",
 			Artifacts: []artifact.Descriptor{{
 				ID: testutil.ArtifactID(t, artifact.KindEvidence, "foreign-preparation-commit"),

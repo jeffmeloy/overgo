@@ -25,7 +25,7 @@ func TestGateAdvisoryFindingPublication(t *testing.T) {
 	if err := appendGateAdvisoryFinding(t.Context(), store, &batch, []string{"internal/p"}, audit); err != nil {
 		t.Fatal(err)
 	}
-	mustGateValue(store.Commit(t.Context(), batch))
+	mustGateValue(store.CommitAs(t.Context(), gateProducer, batch))
 	next := artifact.Batch{Key: "gate/fixture/repeat"}
 	if err := appendGateAdvisoryFinding(t.Context(), store, &next, []string{"internal/p"}, audit); err != nil ||
 		len(next.Aliases) != 1 || next.Aliases[0].Previous == nil || *next.Aliases[0].Previous != batch.Aliases[0].Target {

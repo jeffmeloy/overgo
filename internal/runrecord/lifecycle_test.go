@@ -71,7 +71,7 @@ func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "test/gate-lifecycle/prepared", Contents: []artifact.Content{preparedContent, unrelated},
 		Lineage: prepared.Lineage(),
 		Aliases: []artifact.AliasBinding{{Name: GateLifecycleCurrentAlias, Target: prepared.ID}},
@@ -98,7 +98,7 @@ func TestGateLifecycleStoreScanAndDebt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(ctx, artifact.Batch{
+	if _, err := store.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key: "test/gate-lifecycle/finalized", Contents: []artifact.Content{finalizedContent},
 		Lineage: finalized.Lineage(),
 		Aliases: []artifact.AliasBinding{{

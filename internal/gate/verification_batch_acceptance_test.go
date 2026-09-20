@@ -154,7 +154,7 @@ func testBatchCompletionRecovery(t *testing.T) {
 		}
 		_, publication := successfulAttemptBatchForReference(t, fixture, "ratchet", "recover", "go test ./cmd/gate", true, "batch recovery", members...)
 		store := openRecoveryStore(t, fixture)
-		_, err := store.Commit(t.Context(), publication)
+		_, err := store.CommitAs(t.Context(), gateProducer, publication)
 		closeErr := store.Close()
 		if err != nil || closeErr != nil {
 			t.Fatalf("publish recovery fixture: %v, %v", err, closeErr)

@@ -86,7 +86,7 @@ func TestClaimedGateAdmission(t *testing.T) {
 	invalid := release
 	invalid.Aliases = slices.Clone(release.Aliases)
 	invalid.Aliases[0].Previous = &marker
-	if _, err := artifact.CommitBatch(t.Context(), store, invalid); err == nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, invalid); err == nil {
 		t.Fatal("stale release admitted")
 	}
 	if _, found, err := store.Artifact(t.Context(), marker); err != nil || found {
@@ -95,7 +95,7 @@ func TestClaimedGateAdmission(t *testing.T) {
 	if err := worklease.ResolveOwner(t.Context(), store, *claimed.Claim); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := artifact.CommitBatch(t.Context(), store, release); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, release); err != nil {
 		t.Fatal(err)
 	}
 	if _, found, err := store.Artifact(t.Context(), marker); err != nil || !found {

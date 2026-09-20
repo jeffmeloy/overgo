@@ -759,7 +759,7 @@ func completeGateRowForMergeAuthority(
 	)
 	store := openRecoveryStore(t, completion)
 	defer store.Close()
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	return commit

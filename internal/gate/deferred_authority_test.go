@@ -168,11 +168,11 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := store.Commit(t.Context(), batch); err != nil {
+					if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 						t.Fatal(err)
 					}
 				} else {
-					_, err := store.Commit(t.Context(), artifact.Batch{Key: "independent/write", Artifacts: []artifact.Descriptor{{ID: independent}}})
+					_, err := store.CommitAs(t.Context(), gateProducer, artifact.Batch{Key: "independent/write", Artifacts: []artifact.Descriptor{{ID: independent}}})
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -273,7 +273,7 @@ func deferredAuthorityFixture(t *testing.T) (string, *overgodb.Store, runrecord.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	return repo, store, pending

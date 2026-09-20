@@ -261,7 +261,7 @@ func TestGateRepairBatchAcceptance(t *testing.T) {
 	_, publication := successfulAttemptBatchForReference(t, fixture, "audio", "dataset",
 		document.Items[0].Steps[0].Verify, true, "focused-checkpoint-completion", members...)
 	completion := openRecoveryStore(t, fixture)
-	_, publishErr := completion.Commit(t.Context(), publication)
+	_, publishErr := completion.CommitAs(t.Context(), gateProducer, publication)
 	if publishErr != nil {
 		completion.Close()
 		t.Fatal(publishErr)

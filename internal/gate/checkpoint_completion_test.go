@@ -166,7 +166,7 @@ func TestReusedCheckpointCompletionAuthorityAcceptance(t *testing.T) {
 	_, publication := successfulAttemptBatchForReference(t, fixture, "audio", "dataset",
 		document.Items[0].Steps[0].Verify, true, "executed-checkpoint-completion", members...)
 	store := openRecoveryStore(t, fixture)
-	_, publishErr := store.Commit(t.Context(), publication)
+	_, publishErr := store.CommitAs(t.Context(), gateProducer, publication)
 	closeErr := store.Close()
 	if publishErr != nil || closeErr != nil {
 		t.Fatalf("publish completion: %v; close: %v", publishErr, closeErr)

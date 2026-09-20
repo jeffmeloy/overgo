@@ -45,7 +45,7 @@ func TestGateAttemptBindsStrategyIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), strategyBatch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, strategyBatch); err != nil {
 		t.Fatal(err)
 	}
 

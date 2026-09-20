@@ -394,7 +394,7 @@ func releaseClaim(t *testing.T, store *overgodb.Store, id artifact.ID, worker, r
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(t.Context(), store, batch)
+	_, err = store.CommitAs(t.Context(), gateDoor, batch)
 	return err
 }
 

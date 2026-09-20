@@ -754,7 +754,7 @@ func (g *gateContext) prepareWithStore(store *overgodb.Store) error {
 	if err := g.writeHeartbeat(runrecord.HeartbeatRunning); err != nil {
 		return fmt.Errorf("prepare gate lifecycle locator: %w", err)
 	}
-	preparationCommit, err := store.Commit(context.Background(), batch)
+	preparationCommit, err := store.CommitAs(context.Background(), gateProducer, batch)
 	if err != nil {
 		return fmt.Errorf("prepare gate lifecycle before Git commit: %w", err)
 	}

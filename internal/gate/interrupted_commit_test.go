@@ -1825,7 +1825,7 @@ func publishInterruptedPreparationWithKey(
 	if err != nil {
 		t.Fatal(err)
 	}
-	commit, err := store.Commit(t.Context(), batch)
+	commit, err := store.CommitAs(t.Context(), gateProducer, batch)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1848,7 +1848,7 @@ func publishSuccessfulInterruptedAttempt(
 	attempt, batch := successfulInterruptedAttemptBatch(t, fixture, includeAttempt, "fixture/interrupted/success")
 	store := openRecoveryStore(t, fixture)
 	defer store.Close()
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	return attempt

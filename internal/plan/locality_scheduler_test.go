@@ -33,7 +33,7 @@ func TestScheduleByArtifactLocality(t *testing.T) {
 	firstLocation := location("store-a/first", first)
 	secondLocation := location("store-b/second", second)
 	thirdLocation := location("store-a/third", third)
-	if _, err := repository.Commit(ctx, artifact.Batch{
+	if _, err := repository.CommitAs(ctx, gateDoor, artifact.Batch{
 		Key:       "fixture/locality/artifacts",
 		Artifacts: []artifact.Descriptor{first, second, third},
 		Locations: []artifact.LocationEvent{

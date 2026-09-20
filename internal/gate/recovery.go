@@ -315,7 +315,7 @@ func recoverInterruptedCommit(repo, storePath string) (recovered artifact.ID, er
 		batch.Contents = append(batch.Contents, finalizedContent)
 		batch.Lineage = append(batch.Lineage, finalized.Lineage()...)
 		appendGateFinalizationAlias(&batch, preparation.ID, finalized.ID)
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
+		if _, err := store.CommitAs(ctx, gateProducer, batch); err != nil {
 			return artifact.ID{}, err
 		}
 	}
@@ -1485,7 +1485,7 @@ func recordSelectedUnbatchableFailure(repo, storePath, selected string) (artifac
 	if gateRecordFailureBeforeStoreCommitHook != nil {
 		gateRecordFailureBeforeStoreCommitHook(store)
 	}
-	if _, err := store.Commit(context.Background(), batch); err != nil {
+	if _, err := store.CommitAs(context.Background(), gateProducer, batch); err != nil {
 		return artifact.ID{}, err
 	}
 	if gateRecordFailureAfterStoreCommitHook != nil {

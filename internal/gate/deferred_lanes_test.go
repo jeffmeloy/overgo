@@ -218,7 +218,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.Commit(t.Context(), batch); err != nil {
+		if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -276,7 +276,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err := inline.appendLaneObligation(&batch, commit, result); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	current, found, err := runrecord.CurrentGateLaneObligation(t.Context(), store)
@@ -291,7 +291,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err := deferring.appendLaneObligation(&batch, commit, laneRun); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Commit(t.Context(), batch); err != nil {
+	if _, err := store.CommitAs(t.Context(), gateProducer, batch); err != nil {
 		t.Fatal(err)
 	}
 	current, _, err = runrecord.CurrentGateLaneObligation(t.Context(), store)

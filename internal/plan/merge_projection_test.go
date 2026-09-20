@@ -232,7 +232,7 @@ func TestFirstParentTargetSourcePreflightRequiresSharedStoreAncestry(t *testing.
 	}
 	t.Cleanup(func() { _ = targetStore.Close() })
 	common := testutil.ArtifactID(t, artifact.KindEvidence, "shared-store-prefix")
-	if _, err := targetStore.Commit(t.Context(), artifact.Batch{
+	if _, err := targetStore.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key: "common", Artifacts: []artifact.Descriptor{{ID: common}},
 	}); err != nil {
 		t.Fatal(err)
@@ -248,7 +248,7 @@ func TestFirstParentTargetSourcePreflightRequiresSharedStoreAncestry(t *testing.
 	t.Cleanup(func() { _ = sourceStore.Close() })
 	for key, store := range map[string]*overgodb.Store{"local": targetStore, "incoming": sourceStore} {
 		marker := testutil.ArtifactID(t, artifact.KindEvidence, key+"-divergence")
-		if _, err := store.Commit(t.Context(), artifact.Batch{
+		if _, err := store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 			Key: key, Artifacts: []artifact.Descriptor{{ID: marker}},
 		}); err != nil {
 			t.Fatal(err)
@@ -316,7 +316,7 @@ func TestFirstParentTargetSourcePreflightRequiresSharedStoreAncestry(t *testing.
 	}
 	t.Cleanup(func() { _ = foreignStore.Close() })
 	foreign := testutil.ArtifactID(t, artifact.KindEvidence, "foreign-store")
-	if _, err := foreignStore.Commit(t.Context(), artifact.Batch{
+	if _, err := foreignStore.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key: "foreign", Artifacts: []artifact.Descriptor{{ID: foreign}},
 	}); err != nil {
 		t.Fatal(err)
@@ -374,7 +374,7 @@ func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	sourcePreparationCommit, err := sourceStore.Commit(t.Context(), artifact.Batch{
+	sourcePreparationCommit, err := sourceStore.CommitAs(t.Context(), gateDoor, artifact.Batch{
 		Key: "source/prepared/duplicate", Contents: []artifact.Content{sourcePreparationContent},
 		Lineage: sourcePreparation.Lineage(),
 	})
@@ -681,7 +681,7 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 			}
 		})
 		sourceMarker := testutil.ArtifactID(t, artifact.KindEvidence, "source-store-"+targetID)
-		if _, err := sourceStore.Commit(t.Context(), artifact.Batch{
+		if _, err := sourceStore.CommitAs(t.Context(), gateDoor, artifact.Batch{
 			Key: "source/divergence/" + targetID, Artifacts: []artifact.Descriptor{{ID: sourceMarker}},
 		}); err != nil {
 			t.Fatal(err)
@@ -700,7 +700,7 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sourcePreparationCommit, err := sourceStore.Commit(t.Context(), artifact.Batch{
+		sourcePreparationCommit, err := sourceStore.CommitAs(t.Context(), gateDoor, artifact.Batch{
 			Key:      "source/prepared/" + completedSourceID,
 			Contents: []artifact.Content{sourcePreparationContent}, Lineage: sourcePreparation.Lineage(),
 		})
@@ -964,7 +964,7 @@ func TestAudioGateReplayAcceptance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := fixture.store.Commit(t.Context(), artifact.Batch{
+			if _, err := fixture.store.CommitAs(t.Context(), gateDoor, artifact.Batch{
 				Key: "target/late-duplicate-receipt", Contents: []artifact.Content{lateContent},
 				Lineage: append(late.Lineage(), artifact.Lineage{
 					Child: targetAttempt.Result, Parent: late.ID, Relation: artifact.RelationDependsOn,

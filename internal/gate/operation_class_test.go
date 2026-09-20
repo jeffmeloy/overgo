@@ -12,6 +12,22 @@ import (
 	"overgo/internal/plan"
 )
 
+// TestOperationClassIsPrinted holds the class note to the audit printer: the
+// note the precheck records is the line the operator reads, so a class the
+// gate derived cannot stay invisible behind the printer's prefix filter.
+func TestOperationClassIsPrinted(t *testing.T) {
+	t.Parallel()
+	store := mustGateValue(overgodb.Open(filepath.Join(t.TempDir(), "store")))
+	defer store.Close()
+	g := &gateContext{paths: []string{"internal/gate/gate.go"}}
+	if err := g.requireOperationPrechecks(t.Context(), store); err != nil {
+		t.Fatal(err)
+	}
+	if printed := compactAudit(g.audit); len(printed) != 1 || printed[0] != "advisory: class: operation class: "+classCodeChange {
+		t.Fatalf("printed audit = %q", printed)
+	}
+}
+
 // TestOperationClassPrechecks derives a landing's classes from the ship set
 // and the store's chain, and holds a store mutation to the precheck its
 // class owns: content released since the last landing refuses the gate until

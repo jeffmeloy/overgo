@@ -822,7 +822,8 @@
             "automation-review-suite-cost-regression/do",
             "store-producer-guards-gate-evidence/do",
             "automation-land-regenerates-derived-docs/do",
-            "automation-land-reports-lane-obligation/do"
+            "automation-land-reports-lane-obligation/do",
+            "gate-prints-operation-class/do"
           ]
         }
       ]

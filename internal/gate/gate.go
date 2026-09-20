@@ -671,6 +671,8 @@ func compactAudit(lines []string) []string {
 			label = "advisory: consumer: "
 		case strings.HasPrefix(line, "impact selection:"):
 			label = "advisory: impact: "
+		case strings.HasPrefix(line, "operation class:"):
+			label = "advisory: class: "
 		case strings.HasPrefix(line, "test scope:"):
 			label = "advisory: scope: "
 		case strings.HasPrefix(line, "package test evidence:"):

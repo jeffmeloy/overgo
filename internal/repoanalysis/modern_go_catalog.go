@@ -24,6 +24,10 @@ const (
 	ModernGoCatalogSHA256 = "f452804a0d451f676701025989aff5223ffb63849e344e3714eb42842acb05a5"
 	// ModernGoTargetVersion is Overgo's current language and standard-library floor.
 	ModernGoTargetVersion = "1.26"
+	// ModernGoComputationSchema is the gate's memo of one census computation:
+	// recomputable from the tree at its source identity, so a released memo is
+	// a miss and the store may let its bytes go.
+	ModernGoComputationSchema = "overgo/modern-go-computation/v1"
 )
 
 // ModernGoExample is one before-and-after example from the pinned catalog.

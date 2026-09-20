@@ -4,14 +4,70 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-blob-pack-and-split",
-      "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, and remove the redundancy found on the way instead of packing it: measure first which records repeat what another already holds (each closure-ledger rebind republishing near-identical documents, a fresh environment document per gate, descriptors held in both the journal frame and the blob, superseded checkpoint and snapshot generations) and stop writing or release what is redundant before choosing a pack format for what remains, continuing the RSI storage-blob-split step",
+      "id": "store-package-receipts-redundancy",
+      "title": "Stop writing a gate package receipt per package per gate when nothing about the package changed: the census found 27,459 receipts in 12.3 MB, 24,292 of them exactly 123 bytes, each its own blob file; keep the per-package reuse lookup the ledger needs and write only what differs from the receipt already current",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Split retained claims from ephemeral evidence physically and pack small blobs so the store's file count stops taxing every walk, rebind and lookup, and remove the redundancy found on the way instead of packing it: measure first which records repeat what another already holds (each closure-ledger rebind republishing near-identical documents, a fresh environment document per gate, descriptors held in both the journal frame and the blob, superseded checkpoint and snapshot generations) and stop writing or release what is redundant before choosing a pack format for what remains, continuing the RSI storage-blob-split step",
+          "title": "Stop writing a gate package receipt per package per gate when nothing about the package changed: the census found 27,459 receipts in 12.3 MB, 24,292 of them exactly 123 bytes, each its own blob file; keep the per-package reuse lookup the ledger needs and write only what differs from the receipt already current",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestPackageReceiptsWriteOnlyChanges' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-agent-obligation-redundancy",
+      "title": "Find what writes agent obligations one record at a time and stop it: the census found 49,785 of them, the largest schema in the store, in 17.8 MB (mean 358 bytes), each its own blob file; record the writer, what reads them back, and write one document per unit the readers actually consume",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find what writes agent obligations one record at a time and stop it: the census found 49,785 of them, the largest schema in the store, in 17.8 MB (mean 358 bytes), each its own blob file; record the writer, what reads them back, and write one document per unit the readers actually consume",
+          "status": "open",
+          "verify": "go test ./internal/agentloop -run '^TestObligationsAreNotOneRecordEach' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-closure-rebind-redundancy",
+      "title": "Stop the closure ledger rebind from republishing documents whose content did not change: the census found 30,915 closure-ledger records in 32.9 MB and every closure-scan -import-store adds more for a pure offset move; publish a rebound document only when its reviewed content differs and carry the offset in the binding",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop the closure ledger rebind from republishing documents whose content did not change: the census found 30,915 closure-ledger records in 32.9 MB and every closure-scan -import-store adds more for a pure offset move; publish a rebound document only when its reviewed content differs and carry the offset in the binding",
+          "status": "open",
+          "verify": "go test ./internal/closureledger -run '^TestRebindDoesNotRepublishUnchangedDocuments' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-benchmark-record-redundancy",
+      "title": "Batch benchmark records: the census found 24,318 of them in 24.3 MB, one blob file per measurement; write one document per benchmark run with its measurements inside, keeping whatever per-measurement lookup the reports need",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Batch benchmark records: the census found 24,318 of them in 24.3 MB, one blob file per measurement; write one document per benchmark run with its measurements inside, keeping whatever per-measurement lookup the reports need",
+          "status": "open",
+          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-blob-pack-and-split",
+      "title": "Pack what remains once the redundancy rows have stopped the four tiny schemas at their writers (the census found them at 132,477 records in 83 MB, 77 percent of held records): split retained claims from ephemeral evidence physically and pack the small blobs that are still written, choosing the format from a fresh census so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pack what remains once the redundancy rows have stopped the four tiny schemas at their writers (the census found them at 132,477 records in 83 MB, 77 percent of held records): split retained claims from ephemeral evidence physically and pack the small blobs that are still written, choosing the format from a fresh census so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
           "status": "open",
           "verify": "test -f internal/overgodb/blob_pack_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestBlobPackAndSplit' -count=1"
         }
@@ -844,7 +900,12 @@
             "completion-proof-horizon-first-seal/do",
             "plan-dispatch-opens-store-once/do",
             "store-open-cost/do",
-            "store-record-census/do"
+            "store-record-census/do",
+            "store-derived-cache-modern-go/do",
+            "store-package-receipts-redundancy/do",
+            "store-agent-obligation-redundancy/do",
+            "store-closure-rebind-redundancy/do",
+            "store-benchmark-record-redundancy/do"
           ]
         }
       ]

@@ -18,7 +18,7 @@ import (
 const modernCensusCheckName = "modern-census"
 
 // One immutable census payload; retry evidence holds references, never copies.
-var modernCensusContract = artifact.JSONContract(artifact.KindProfile, "overgo/modern-go-computation/v1")
+var modernCensusContract = artifact.JSONContract(artifact.KindProfile, repoanalysis.ModernGoComputationSchema)
 
 type modernGoInput struct {
 	ID           artifact.ID

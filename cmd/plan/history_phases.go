@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
+	"strings"
 	"time"
 
 	"overgo/internal/artifact"
@@ -256,6 +260,22 @@ func writeSelectionCauses(output io.Writer, histogram *runrecord.SelectionHistog
 	}
 	for _, bar := range histogram.Inputs {
 		fmt.Fprintf(output, "  input %s packages=%d executed=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.ElapsedSeconds)
+	}
+	// An unnamed reach binds its reader to every root, so the readers that
+	// select the most packages are the inputs most worth naming.
+	selected, seconds := map[string]int{}, map[string]float64{}
+	for _, entry := range histogram.Packages {
+		for _, cause := range entry.Causes {
+			if cause.Kind == runrecord.SelectionCauseReader {
+				selected[cause.Detail]++
+				seconds[cause.Detail] += *cmp.Or(entry.ElapsedSeconds, new(float64))
+			}
+		}
+	}
+	for _, reader := range slices.SortedFunc(maps.Keys(selected), func(left, right string) int {
+		return cmp.Or(cmp.Compare(selected[right], selected[left]), strings.Compare(left, right))
+	}) {
+		fmt.Fprintf(output, "  reader packages=%d elapsed=%.1fs %s\n", selected[reader], seconds[reader], reader)
 	}
 	fmt.Fprintln(output, "  "+histogram.Limitations)
 }

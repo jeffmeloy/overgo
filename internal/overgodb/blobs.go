@@ -24,6 +24,7 @@ import (
 // reference them.
 type blobStore struct {
 	root string
+	pack *blobPack
 }
 
 const (
@@ -35,7 +36,7 @@ const (
 )
 
 func newBlobStore(root string) blobStore {
-	return blobStore{root: filepath.Join(root, blobDirectory)}
+	return blobStore{root: filepath.Join(root, blobDirectory), pack: new(blobPack)}
 }
 
 // path derives the blob's immutable location from its identity alone.
@@ -64,6 +65,9 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 		if info.Size() != int64(len(payload)) {
 			return fmt.Errorf("overgodb: blob %s exists with conflicting size", id)
 		}
+		return b.verify(id)
+	}
+	if _, _, found := b.packed(id); found {
 		return b.verify(id)
 	}
 	directory := filepath.Dir(destination)
@@ -99,20 +103,61 @@ func (b blobStore) prepare(id artifact.ID, payload []byte) error {
 // open returns the blob's bytes stream after a size check against the
 // committed descriptor; identity-deep verification is verify's job.
 func (b blobStore) open(id artifact.ID, size uint64) (io.ReadCloser, error) {
+	reader, err := b.reader(id)
+	if err != nil {
+		return nil, err
+	}
+	if uint64(reader.remaining) != size {
+		_ = reader.Close()
+		return nil, fmt.Errorf("overgodb: blob %s size differs from descriptor", id)
+	}
+	return reader, nil
+}
+
+// reader streams the blob's bytes from its loose file, or from the pack when
+// there is none.
+func (b blobStore) reader(id artifact.ID) (*blobReader, error) {
 	destination, err := b.path(id)
 	if err != nil {
 		return nil, err
 	}
 	file, err := os.Open(destination)
+	offset, size, found := int64(0), int64(0), false
+	if errors.Is(err, os.ErrNotExist) {
+		if offset, size, found = b.packed(id); found {
+			file, err = os.Open(filepath.Join(b.root, blobPackFilename))
+		}
+	}
 	if err != nil {
 		return nil, fmt.Errorf("overgodb: open blob %s: %w", id, err)
 	}
-	info, err := file.Stat()
-	if err != nil || uint64(info.Size()) != size {
-		_ = file.Close()
-		return nil, fmt.Errorf("overgodb: blob %s size differs from descriptor", id)
+	if !found {
+		info, statErr := file.Stat()
+		if statErr != nil {
+			_ = file.Close()
+			return nil, statErr
+		}
+		size = info.Size()
 	}
-	return &blobReader{file: file, remaining: int64(size)}, nil
+	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return &blobReader{file: file, remaining: size}, nil
+}
+
+// payload reads the whole blob and holds it to its identity.
+func (b blobStore) payload(id artifact.ID) ([]byte, error) {
+	reader, err := b.reader(id)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(reader)
+	if digest := sha256.Sum256(data); err == nil && hex.EncodeToString(digest[:]) != id.DigestHex() {
+		err = fmt.Errorf("overgodb: blob %s bytes do not hash to their identity", id)
+	}
+	return data, err
 }
 
 // blobReader closes its file the moment the stream is exhausted --
@@ -156,11 +201,7 @@ func (r *blobReader) Close() error {
 // verify re-derives the blob's digest from its bytes and compares it
 // to the identity that addresses it.
 func (b blobStore) verify(id artifact.ID) error {
-	destination, err := b.path(id)
-	if err != nil {
-		return err
-	}
-	file, err := os.Open(destination)
+	file, err := b.reader(id)
 	if err != nil {
 		return fmt.Errorf("overgodb: verify blob %s: %w", id, err)
 	}
@@ -177,6 +218,7 @@ func (b blobStore) verify(id artifact.ID) error {
 
 // remove deletes the published blob for id and reports whether a file
 // went; an absent blob is not an error, since a release is idempotent.
+// Packed bytes stay until the next pack, which leaves released content out.
 func (b blobStore) remove(id artifact.ID) (bool, error) {
 	destination, err := b.path(id)
 	if err != nil {
@@ -199,8 +241,11 @@ func (b blobStore) has(id artifact.ID) bool {
 	if err != nil {
 		return false
 	}
-	_, statErr := os.Stat(destination)
-	return statErr == nil
+	if _, statErr := os.Stat(destination); statErr == nil {
+		return true
+	}
+	_, _, found := b.packed(id)
+	return found
 }
 
 // MergeBlobTrees moves every content-addressed blob under sourceRoot's

@@ -4,6 +4,34 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "store-blob-pack-and-split",
+      "title": "Pack the small blobs (owner 2026-09-20: blobs still has way too many files; measured 127,809 files, 123,919 of them under 4 KB holding 63 MB of the 702 MB, 697 files over 64 KB holding 592 MB): new small content has ridden in the journal frame since ffe8464b, so the count no longer grows, but the existing small blobs stay and the journal cannot be rewritten to take them. Give the blob store a pack -- one file of the blobs under the inline limit with an index from digest to offset and size, the reader falling back to it when a loose file is absent -- built on a candidate by store-precheck, which removes the packed loose files there, proves the candidate and swaps; a blob's place is a storage fact, not a journal fact, so the chain is untouched. Expected: about 127.8k files to about 3.9k",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Pack the small blobs (owner 2026-09-20: blobs still has way too many files; measured 127,809 files, 123,919 of them under 4 KB holding 63 MB of the 702 MB, 697 files over 64 KB holding 592 MB): new small content has ridden in the journal frame since ffe8464b, so the count no longer grows, but the existing small blobs stay and the journal cannot be rewritten to take them. Give the blob store a pack -- one file of the blobs under the inline limit with an index from digest to offset and size, the reader falling back to it when a loose file is absent -- built on a candidate by store-precheck, which removes the packed loose files there, proves the candidate and swaps; a blob's place is a storage fact, not a journal fact, so the chain is untouched. Expected: about 127.8k files to about 3.9k",
+          "status": "open",
+          "verify": "go test ./cmd/store-precheck -run '^TestPrecheckPacksSmallBlobs' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-alias-move-address-form",
+      "title": "Close the gap in the alias move ratchet and convert what it hid: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval and have the test refuse Previous set from either form outside artifact",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close the gap in the alias move ratchet and convert what it hid: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval and have the test refuse Previous set from either form outside artifact",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestAliasMovesHaveOneOwner' -count=1"
+        }
+      ]
+    },
+    {
       "id": "tmp-refuses-undeclared-entries",
       "title": "Refuse an entry in tmp that no tool declares, once tmp is clean: tmp mixes the gate's live control state (locks, lifecycle, lanes, cache, prepared selection, closure proposals, the merge-evidence staging store at 3.3 GB) with worker debris; 880 loose files were deleted by hand on 2026-09-20 and 15 debris directories plus two clean worktrees wait on the owner, whose delete the permission classifier refused the worker. When they are gone, have admission refuse a tmp entry outside a declared table so debris cannot accumulate again, and have the merge tool retire merge-evidence stores of merges that landed",
       "owner": "master-lead",
@@ -98,20 +126,6 @@
           "title": "Cut what the two largest checkpoints cost an open, re-measured after the redundancy rows: with the members loading at once and canonical form proved at the writer, an open is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s; bare open 1.4 s. Re-measure first, since the agent-obligation, closure-rebind and benchmark-record rows shrink both, then split what remains so one member's decode uses the cores or give it an encoding that does not parse text, keeping the digest, version and anchor checks",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-blob-pack-and-split",
-      "title": "Pack what remains once the redundancy rows have stopped the four tiny schemas at their writers (the census found them at 132,477 records in 83 MB, 77 percent of held records): split retained claims from ephemeral evidence physically and pack the small blobs that are still written, choosing the format from a fresh census so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Pack what remains once the redundancy rows have stopped the four tiny schemas at their writers (the census found them at 132,477 records in 83 MB, 77 percent of held records): split retained claims from ephemeral evidence physically and pack the small blobs that are still written, choosing the format from a fresh census so the store's file count stops taxing every walk, rebind and lookup, continuing the RSI storage-blob-split step",
-          "status": "open",
-          "verify": "test -f internal/overgodb/blob_pack_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestBlobPackAndSplit' -count=1"
         }
       ]
     },
@@ -877,7 +891,9 @@
             "store-publish-has-one-owner/do",
             "land-echo-selection-leak/do",
             "tracked-documents-classified/do",
-            "store-publish-changed-result/do"
+            "store-publish-changed-result/do",
+            "store-alias-move-address-form/do",
+            "store-blob-pack-reader/do"
           ]
         }
       ]

@@ -176,6 +176,12 @@
       "name": "RegisterDocumentRuntime",
       "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
       "retire_with": "speech-document-admission/do"
+    },
+    {
+      "package": "overgo/internal/overgodb",
+      "name": "PackSmallBlobs",
+      "reason": "the pack builder lands with the reader it is proved against, on fixture stores; its one consumer is store-precheck, which the operation row wires in and which runs it on a candidate of the live store",
+      "retire_with": "store-blob-pack-and-split/do"
     }
   ]
 }

@@ -133,10 +133,17 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 		return report, err
 	}
 	retainedBlobs := make(map[string]bool, len(requiredBlobs))
+	var packed []artifact.ID
 	for _, id := range requiredBlobs {
 		sourcePath, err := sourceBlobs.path(id)
 		if err != nil {
 			return report, err
+		}
+		if _, statErr := os.Stat(sourcePath); errors.Is(statErr, os.ErrNotExist) {
+			if _, _, found := sourceBlobs.packed(id); found {
+				packed = append(packed, id)
+				continue
+			}
 		}
 		destinationPath, err := destinationBlobs.path(id)
 		if err != nil {
@@ -152,6 +159,25 @@ func (s *Store) Backup(ctx context.Context, destinationRoot string) (*BackupRepo
 		}
 		if err := report.copyFile(ctx, sourcePath, destinationPath, info.Size(), id.DigestHex(), durable); err != nil {
 			return report, err
+		}
+	}
+	// Blobs the source holds only in its pack travel with the pack, and each
+	// is held to its identity in the copy.
+	if len(packed) != 0 {
+		sourcePack := filepath.Join(sourceBlobs.root, blobPackFilename)
+		destinationPack := filepath.Join(destinationBlobs.root, blobPackFilename)
+		retainedBlobs[destinationPack] = true
+		info, err := os.Stat(sourcePack)
+		if err != nil {
+			return report, fmt.Errorf("overgodb: backup blob pack: %w", err)
+		}
+		if err := report.copyFile(ctx, sourcePack, destinationPack, info.Size(), "", durable); err != nil {
+			return report, err
+		}
+		for _, id := range packed {
+			if err := destinationBlobs.verify(id); err != nil {
+				return report, err
+			}
 		}
 	}
 	// The seal covers only verified files. Retire scratch/orphan copies so a

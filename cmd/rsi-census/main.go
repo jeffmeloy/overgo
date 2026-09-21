@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -64,6 +65,24 @@ func run() error {
 	}
 	for _, reach := range access {
 		fmt.Printf("store access %-44s total=%-4d %v domains=%v\n", reach.Package, reach.Total, reach.Sites, reach.Domains)
+	}
+	// The tracked documents: printed, never published -- a census of the
+	// documents that should leave the tree does not add one to it.
+	tracked, err := repoanalysis.TrackedDocuments(context.Background(), ".")
+	if err != nil {
+		return err
+	}
+	documents, err := repoanalysis.TrackedDocumentCensus(snapshot, tracked, repoanalysis.TrackedDocumentFamilies)
+	if err != nil {
+		return err
+	}
+	for _, tracked := range documents {
+		if kind := tracked.Family.Kind; kind == repoanalysis.DocumentUnread || kind == repoanalysis.DocumentGenerated {
+			fmt.Printf("document %s %s writers=%v readers=%v\n", kind, tracked.Path, tracked.Writers, tracked.Readers)
+		}
+	}
+	if err := repoanalysis.ValidateTrackedDocuments(documents, repoanalysis.TrackedDocumentFamilies); err != nil {
+		return err
 	}
 	document := struct {
 		Version     int                          `json:"version"`

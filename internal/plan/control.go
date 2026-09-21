@@ -355,7 +355,7 @@ func recordStopControl(ctx context.Context, repository artifact.Repository, even
 	}
 	var aliases []artifact.AliasBinding
 	if event.Kind != ControlMaintenance {
-		aliases = []artifact.AliasBinding{{Name: stopAlias(root), Target: identified.ID, Previous: previous}}
+		aliases = []artifact.AliasBinding{artifact.AliasMoveFrom(stopAlias(root), identified.ID, previous)}
 	}
 	batch, err := controlCodec.Batch("automation/control/"+identified.ID.String(), identified, lineage, aliases)
 	if err != nil {

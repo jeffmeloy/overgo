@@ -134,7 +134,7 @@ func (g *gateContext) appendLaneObligation(batch *artifact.Batch, codeCommit str
 		}
 		previous := g.laneDebt.ID
 		batch.Contents = append(batch.Contents, content)
-		batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: runrecord.GateLaneObligationAlias, Target: superseded.ID, Previous: &previous})
+		batch.Aliases = append(batch.Aliases, artifact.AliasMove(runrecord.GateLaneObligationAlias, superseded.ID, previous))
 		batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: superseded.ID, Parent: previous, Relation: artifact.RelationDerivedFrom})
 		g.note("lane debt superseded: the lanes ran inline on " + codeCommit[:12] + " and passed")
 		return nil
@@ -157,7 +157,7 @@ func (g *gateContext) appendLaneObligation(batch *artifact.Batch, codeCommit str
 		previous = &current.ID
 	}
 	batch.Contents = append(batch.Contents, content)
-	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: runrecord.GateLaneObligationAlias, Target: obligation.ID, Previous: previous})
+	batch.Aliases = append(batch.Aliases, artifact.AliasMoveFrom(runrecord.GateLaneObligationAlias, obligation.ID, previous))
 	g.laneObligation = &obligation
 	return nil
 }
@@ -352,7 +352,7 @@ func runDeferredLanes(repo, storePath string, execute func(*gateContext, runreco
 	previous := running.ID
 	batch.Contents = append(batch.Contents, content, environmentContent)
 	batch.Artifacts = append(batch.Artifacts, artifact.Descriptor{ID: recipeID})
-	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: runrecord.GateLaneObligationAlias, Target: resolved.ID, Previous: &previous})
+	batch.Aliases = append(batch.Aliases, artifact.AliasMove(runrecord.GateLaneObligationAlias, resolved.ID, previous))
 	batch.Lineage = append(batch.Lineage, artifact.Lineage{Child: resolved.ID, Parent: previous, Relation: artifact.RelationDerivedFrom})
 	if _, err := store.CommitAs(context.Background(), gateProducer, batch); err != nil {
 		return fmt.Errorf("gate: record the lane outcome: %w", err)

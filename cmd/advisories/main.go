@@ -109,13 +109,9 @@ func run() error {
 		return err
 	}
 	alias := runrecord.AdvisoryAlias(advisory.Recipe, advisory.Environment, advisory.Metric)
-	previous, found, err := artifact.ResolveAlias(ctx, store, alias)
+	binding, _, err := artifact.MoveAlias(ctx, store, alias, advisory.ID)
 	if err != nil {
 		return err
-	}
-	binding := artifact.AliasBinding{Name: alias, Target: advisory.ID}
-	if found {
-		binding.Previous = &previous
 	}
 	batch.Aliases = append(batch.Aliases, binding)
 	if _, err := store.Commit(ctx, batch); err != nil {

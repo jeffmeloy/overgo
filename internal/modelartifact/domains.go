@@ -72,7 +72,7 @@ func DeclareEvalDomains(ctx context.Context, repository artifact.Repository, mod
 		if current == declaration.ID {
 			return declaration.ID, nil
 		}
-		alias.Previous = &current
+		alias = artifact.AliasMove(alias.Name, alias.Target, current)
 	}
 	batch, err := evalDomainCodec.Batch(
 		"evaluation/domains/"+declaration.ID.String(), declaration, nil, []artifact.AliasBinding{alias},

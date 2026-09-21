@@ -1115,7 +1115,7 @@ func gatePreparationAlias(
 	if lifecycle.State != runrecord.GateFinalized {
 		return artifact.AliasBinding{}, errors.New("current gate lifecycle is not finalized")
 	}
-	binding.Previous = &current
+	binding = artifact.AliasMove(binding.Name, binding.Target, current)
 	return binding, nil
 }
 
@@ -1200,7 +1200,5 @@ func appendGateFinalizationAlias(
 	preparation, finalization artifact.ID,
 ) {
 	previous := preparation
-	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{
-		Name: runrecord.GateLifecycleCurrentAlias, Target: finalization, Previous: &previous,
-	})
+	batch.Aliases = append(batch.Aliases, artifact.AliasMove(runrecord.GateLifecycleCurrentAlias, finalization, previous))
 }

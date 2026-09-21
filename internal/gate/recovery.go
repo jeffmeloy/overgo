@@ -1528,7 +1528,7 @@ func bindRecoveredGateFinalization(
 			return errors.New("gate: recovered lifecycle alias moved beyond its preparation")
 		}
 		previous := current
-		binding.Previous = &previous
+		binding = artifact.AliasMove(binding.Name, binding.Target, previous)
 	}
 	_, err := artifact.CommitBatch(ctx, store, artifact.Batch{
 		Key:     "gate/recovered-alias/" + preparation.ID.String(),

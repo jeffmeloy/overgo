@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-alias-move-address-form",
-      "title": "Close the gap in the alias move ratchet, convert what it hid, and match by type from now on: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval; have the test identify the field being set -- artifact.AliasBinding.Previous -- by its type rather than by how the value is spelled, and give the idempotent commit ratchet the same footing",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close the gap in the alias move ratchet, convert what it hid, and match by type from now on: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval; have the test identify the field being set -- artifact.AliasBinding.Previous -- by its type rather than by how the value is spelled, and give the idempotent commit ratchet the same footing",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestAliasMovesHaveOneOwner' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-precheck-owns-its-backup",
       "title": "Take a sealed backup inside store-precheck (owner 2026-09-20: fold in what the day exposed): a store operation today starts with a separate backup of about 18 minutes and a rule the operator must remember -- no gate between the backup and the precheck, because the seal must equal the head. One command that seals, clones, transforms, proves and swaps under one hold of the store removes the wait between steps and the hazard, and lets it retire the superseded store of the operation before last once the new one has served a landing",
       "owner": "master-lead",
@@ -1165,6 +1151,10 @@
     },
     {
       "key": "surface-move:production-nodes:cec8650046f910a364e4ec6d4ac753d4b3439b17",
+      "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:dc8d00b949a0fc3fd358fd18eeb599f64cd1fae1",
       "row": "automation-harness-surface-remainder"
     }
   ]

@@ -88,7 +88,7 @@ func projectActiveClosures(index closurescan.RebindIndex, candidates []closuresc
 		claimedAliases[currentAlias] = true
 		projectedClaims[currentAlias] = true
 		if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
-			retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
+			retirements = append(retirements, artifact.AliasRemoval(previousAlias, document.ID))
 			retired[previousAlias] = true
 		}
 		rebound = append(rebound, current)
@@ -120,7 +120,7 @@ func projectActiveClosures(index closurescan.RebindIndex, candidates []closuresc
 				projectedClaims[currentAlias] = true
 				progress = true
 				if sameStore && currentAlias != previousAlias && !retired[previousAlias] {
-					retirements = append(retirements, artifact.AliasBinding{Name: previousAlias, Target: document.ID, Previous: &document.ID, Remove: true})
+					retirements = append(retirements, artifact.AliasRemoval(previousAlias, document.ID))
 					retired[previousAlias] = true
 				}
 				rebound = append(rebound, current)

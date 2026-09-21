@@ -75,7 +75,7 @@ func (p OperationProof) Batch(ctx context.Context, store *Store) (artifact.Batch
 	if previous, found, err := artifact.ResolveAlias(ctx, store, OperationProofAlias); err != nil {
 		return artifact.Batch{}, err
 	} else if found {
-		binding.Previous = &previous
+		binding = artifact.AliasMove(binding.Name, binding.Target, previous)
 	}
 	return artifact.Batch{
 		Key:      "store-operation/proof/" + content.Descriptor.ID.String(),

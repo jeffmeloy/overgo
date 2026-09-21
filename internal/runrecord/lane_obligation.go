@@ -113,7 +113,7 @@ func (obligation GateLaneObligation) Batch(previous *artifact.ID) (artifact.Batc
 		lineage = []artifact.Lineage{{Child: obligation.ID, Parent: obligation.Previous, Relation: artifact.RelationDerivedFrom}}
 	}
 	return gateLaneObligationCodec.Batch("gate/lanes/"+obligation.ID.String(), obligation, lineage,
-		[]artifact.AliasBinding{{Name: GateLaneObligationAlias, Target: obligation.ID, Previous: previous}})
+		[]artifact.AliasBinding{artifact.AliasMoveFrom(GateLaneObligationAlias, obligation.ID, previous)})
 }
 
 // CurrentGateLaneObligation resolves the store's current obligation, if any.

@@ -141,7 +141,7 @@ func PublishMemo(ctx context.Context, repository artifact.Repository, memo *Memo
 	}
 	batch, err := identityEvidenceCodec.Batch(
 		"discovery/file-identities/"+evidence.ID.String(), evidence, nil,
-		[]artifact.AliasBinding{{Name: IdentityEvidenceAlias, Target: evidence.ID, Previous: previous}},
+		[]artifact.AliasBinding{artifact.AliasMoveFrom(IdentityEvidenceAlias, evidence.ID, previous)},
 	)
 	if err != nil {
 		return err

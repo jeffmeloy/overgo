@@ -77,7 +77,7 @@ func ParseCensusEvidence(data []byte) (CensusEvidence, error) {
 }
 
 func (e CensusEvidence) Batch(previous *artifact.ID) (artifact.Batch, error) {
-	alias := artifact.AliasBinding{Name: CensusEvidenceAlias, Target: e.ID, Previous: previous}
+	alias := artifact.AliasMoveFrom(CensusEvidenceAlias, e.ID, previous)
 	lineage := make([]artifact.Lineage, len(e.Unresolved))
 	for index, row := range e.Unresolved {
 		lineage[index] = artifact.Lineage{Child: e.ID, Parent: row.Document, Relation: artifact.RelationDependsOn}

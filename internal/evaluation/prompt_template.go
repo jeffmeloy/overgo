@@ -62,7 +62,7 @@ func PublishPromptTemplate(
 		if current == published.ID {
 			return published, nil
 		}
-		alias.Previous = &current
+		alias = artifact.AliasMove(alias.Name, alias.Target, current)
 	}
 	batch, err := promptTemplateCodec.Batch(
 		"evaluation/prompt-template/"+published.ID.String(), published, nil, []artifact.AliasBinding{alias},

@@ -172,7 +172,7 @@ func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, pas
 	alias := artifact.AliasBinding{Name: packageReceiptAlias + obligation.ID.String(), Target: receipt.ID}
 	parents := []artifact.ID{obligation.ID}
 	if previous.Valid() {
-		alias.Previous = &previous
+		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 		parents = append(parents, previous)
 	}
 	_, err = ledger.store.CommitAs(ctx, gateProducer, artifact.Batch{

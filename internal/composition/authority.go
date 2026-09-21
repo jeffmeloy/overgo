@@ -321,7 +321,7 @@ func (value CompositionRecipe) ActivationBatch(
 	}
 	batch := artifact.Batch{
 		Key:     key,
-		Aliases: []artifact.AliasBinding{{Name: alias, Target: value.ID, Previous: previous}},
+		Aliases: []artifact.AliasBinding{artifact.AliasMoveFrom(alias, value.ID, previous)},
 	}
 	if err := batch.Validate(); err != nil {
 		return artifact.Batch{}, err

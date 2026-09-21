@@ -302,10 +302,7 @@ func (w *closureWalker) bindings(prefix string, sourceActive map[artifact.ID]art
 		if bound && current == view.Target {
 			return nil
 		}
-		binding := artifact.AliasBinding{Name: view.Name, Target: view.Target}
-		if bound {
-			binding.Previous = &current
-		}
+		binding := artifact.AliasMove(view.Name, view.Target, current)
 		aliases.Aliases = append(aliases.Aliases, binding)
 		return nil
 	}); err != nil {
@@ -319,8 +316,7 @@ func (w *closureWalker) bindings(prefix string, sourceActive map[artifact.ID]art
 		if _, held := sourceActive[model]; held {
 			return nil
 		}
-		previous := view.Target
-		aliases.Aliases = append(aliases.Aliases, artifact.AliasBinding{Name: view.Name, Target: view.Target, Previous: &previous, Remove: true})
+		aliases.Aliases = append(aliases.Aliases, artifact.AliasRemoval(view.Name, view.Target))
 		w.report.Released = append(w.report.Released, view.Name)
 		return nil
 	}); err != nil {

@@ -349,6 +349,12 @@ func AliasMove(name string, target, previous ID) AliasBinding {
 	return binding
 }
 
+// AliasMoveFrom is AliasMove for a caller that already holds the previous
+// target as the optional identity a binding carries; nil is a first binding.
+func AliasMoveFrom(name string, target ID, previous *ID) AliasBinding {
+	return AliasBinding{Name: name, Target: target, Previous: CloneID(previous)}
+}
+
 // AliasRemoval unbinds name, which the store allows only while it still
 // holds target.
 func AliasRemoval(name string, target ID) AliasBinding {

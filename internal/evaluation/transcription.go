@@ -421,7 +421,7 @@ func publishTranscriptionReportContent(ctx context.Context, repository artifact.
 		if previous == binding.Target {
 			return artifact.ErrNoChange
 		}
-		binding.Previous = &previous
+		binding = artifact.AliasMove(binding.Name, binding.Target, previous)
 	}
 	batch, err := artifact.NewDocumentBatch(
 		alias+"/"+previous.String()+"/"+binding.Target.DigestHex(), []artifact.Content{content}, artifact.DependencyLineage(binding.Target, parents...),

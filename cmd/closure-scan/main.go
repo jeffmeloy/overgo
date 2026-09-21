@@ -758,7 +758,7 @@ func importClosureDocumentsWith(
 				moved = currentAlias != alias
 			}
 			if !matched || moved {
-				retirements = append(retirements, artifact.AliasBinding{Name: alias, Target: document.ID, Previous: &document.ID, Remove: true})
+				retirements = append(retirements, artifact.AliasRemoval(alias, document.ID))
 				retired[alias] = true
 			}
 		}
@@ -1644,7 +1644,7 @@ func commitClosureDocumentsAtHead(
 				if previous == document.ID {
 					continue
 				}
-				active.Previous = &previous
+				active = artifact.AliasMove(active.Name, active.Target, previous)
 			}
 			// Identical source revisions can repeat one alias in an import. The
 			// preflight above refuses distinct decisions for one alias; here an

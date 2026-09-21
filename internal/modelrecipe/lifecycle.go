@@ -230,10 +230,8 @@ func ReleaseRetiredAlias(ctx context.Context, store artifact.Repository, model a
 		return errors.New("model recipe: the active alias names a recipe that is not retired; retire it through the evidence-backed path first")
 	}
 	_, err = artifact.CommitBatch(ctx, store, artifact.Batch{
-		Key: "recipe/released-alias/" + retiredID.String(),
-		Aliases: []artifact.AliasBinding{{
-			Name: alias, Target: retiredID, Previous: &retiredID, Remove: true,
-		}},
+		Key:     "recipe/released-alias/" + retiredID.String(),
+		Aliases: []artifact.AliasBinding{artifact.AliasRemoval(alias, retiredID)},
 	})
 	return err
 }
@@ -317,9 +315,7 @@ func RetireOrphanedActivation(
 	// The orphan has no successor, so the active alias is removed
 	// outright: a retired recipe must leave the catalog, not linger as
 	// an alias naming a refused definition.
-	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{
-		Name: alias, Target: activeID, Previous: &activeID, Remove: true,
-	})
+	batch.Aliases = append(batch.Aliases, artifact.AliasRemoval(alias, activeID))
 	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil {
 		return err
 	}
@@ -381,7 +377,7 @@ func reverifyActiveCapability(
 		"recipe/reverified/"+definition.ID.String()+"/"+event.ID.String(),
 		[]artifact.Content{decisionContent, eventContent},
 		append(decision.Lineage(), event.Lineage()...),
-		[]artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &current.ID}},
+		[]artifact.AliasBinding{artifact.AliasMove(statusAlias(definition.ID), event.ID, current.ID)},
 	)
 	if err != nil {
 		return err
@@ -516,7 +512,7 @@ func transition(
 	}
 	contents := append(append([]artifact.Content(nil), pending...), eventContent)
 	pendingLineage = append(pendingLineage, event.Lineage()...)
-	aliases := []artifact.AliasBinding{{Name: statusAlias(definition.ID), Target: event.ID, Previous: &previous.ID}}
+	aliases := []artifact.AliasBinding{artifact.AliasMove(statusAlias(definition.ID), event.ID, previous.ID)}
 	var descriptors []artifact.Descriptor
 	if prepared != nil {
 		contents = append(prepared.Contents, contents...)
@@ -535,10 +531,7 @@ func transition(
 		if !active && supersedes != nil {
 			return artifact.CommitID{}, recipe.LifecycleEvent{}, errors.New("model recipe: activation supersedes no active recipe")
 		}
-		aliases = append(aliases, artifact.AliasBinding{
-			Name: activeAlias(definition.Model, definition.Task), Target: definition.ID,
-			Previous: artifact.CloneID(supersedes),
-		})
+		aliases = append(aliases, artifact.AliasMoveFrom(activeAlias(definition.Model, definition.Task), definition.ID, supersedes))
 		// A rollback supersedes an alias holder that is already retired;
 		// its superseded event stands, so only the alias moves.
 		if active {
@@ -569,9 +562,7 @@ func transition(
 			}
 			contents = append(contents, supersededContent)
 			pendingLineage = append(pendingLineage, superseded.Lineage()...)
-			aliases = append(aliases, artifact.AliasBinding{
-				Name: statusAlias(activeID), Target: superseded.ID, Previous: &oldEvent.ID,
-			})
+			aliases = append(aliases, artifact.AliasMove(statusAlias(activeID), superseded.ID, oldEvent.ID))
 		}
 	}
 	batch, err := artifact.NewDocumentBatch(key, contents, pendingLineage, aliases)

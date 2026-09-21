@@ -538,10 +538,7 @@ func publishConversationLabel(ctx context.Context, repository artifact.Repositor
 	if found && current.ID == value.ID {
 		return value, nil
 	}
-	binding := artifact.AliasBinding{Name: conversationLabelAliasRoot + value.Root, Target: value.ID}
-	if found {
-		binding.Previous = &current.ID
-	}
+	binding := artifact.AliasMove(conversationLabelAliasRoot+value.Root, value.ID, current.ID)
 	// A title/archive state may recur. Key the transition by the observed
 	// store head so replay of an earlier toggle cannot suppress this write.
 	head, _ := repository.Head()

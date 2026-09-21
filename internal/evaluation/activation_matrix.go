@@ -213,7 +213,7 @@ func PublishActivationMatrix(
 	}
 	binding := artifact.AliasBinding{Name: ActivationMatrixAlias, Target: matrix.ID}
 	if active {
-		binding.Previous = artifact.CloneID(&previous)
+		binding = artifact.AliasMove(binding.Name, binding.Target, previous)
 	}
 	batch, err := artifact.NewDocumentBatch("evaluation/activation-matrix/"+matrix.ID.String(), contents, lineage, []artifact.AliasBinding{binding})
 	if err != nil {

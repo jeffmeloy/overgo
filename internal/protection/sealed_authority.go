@@ -197,7 +197,7 @@ func (s *SealedAuthority) ServeHTTP(response http.ResponseWriter, request *http.
 	batch := artifact.Batch{
 		Key: "sealed-authority/" + content.Descriptor.ID.String(), Artifacts: descriptors,
 		Contents: []artifact.Content{content}, Lineage: artifact.DependencyLineage(content.Descriptor.ID, parents...),
-		Aliases: []artifact.AliasBinding{{Name: alias, Target: content.Descriptor.ID, Previous: write.Previous}},
+		Aliases: []artifact.AliasBinding{artifact.AliasMoveFrom(alias, content.Descriptor.ID, write.Previous)},
 	}
 	err = batch.Validate()
 	if err == nil {

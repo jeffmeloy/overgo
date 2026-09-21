@@ -142,6 +142,9 @@ func TestProductionAuthorityBoundaries(t *testing.T) {
 		{name: "tool", family: "tool", overlay: map[string][]byte{
 			"internal/server/rogue_tool.go": []byte("package server\nimport tools \"overgo/internal/agenttool\"\nfunc rogueTool(e *tools.Executor) { _, _ = e.Invoke(nil, tools.Manual{}, nil) }\n"),
 		}},
+		{name: "active catalog bound through the alias owner", family: "tool", overlay: map[string][]byte{
+			"internal/server/rogue_catalog.go": []byte("package server\nimport (\"overgo/internal/agenttool\"; \"overgo/internal/artifact\")\nfunc rogueCatalog(target, held artifact.ID) artifact.AliasBinding { return artifact.AliasMove(agenttool.ActiveCatalogAlias, target, held) }\n"),
+		}},
 		{name: "trigger", family: "trigger", overlay: map[string][]byte{
 			"internal/server/rogue_trigger.go": []byte("package server\nimport records \"overgo/internal/runrecord\"\nvar rogueTrigger = records.CausalContext{Trigger: records.TriggerWebhook}\n"),
 		}},

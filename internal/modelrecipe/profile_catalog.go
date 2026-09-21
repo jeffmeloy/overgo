@@ -221,7 +221,7 @@ func profileCatalogBatch(
 			if actual == document.ID {
 				continue
 			}
-			binding.Previous = &actual
+			binding = artifact.AliasMove(binding.Name, binding.Target, actual)
 		} else {
 			fmt.Fprint(digest, "missing\x00")
 		}

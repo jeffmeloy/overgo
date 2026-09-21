@@ -152,7 +152,7 @@ func Record(ctx context.Context, repository artifact.Repository, data []byte) (L
 		previous = &current
 	}
 	batch, err := Codec.Batch("automation/work-lease/"+value.ID.String(), value, nil,
-		[]artifact.AliasBinding{{Name: worktreeAlias(value.Worktree), Target: value.ID, Previous: previous}})
+		[]artifact.AliasBinding{artifact.AliasMoveFrom(worktreeAlias(value.Worktree), value.ID, previous)})
 	if err != nil {
 		return Lease{}, err
 	}
@@ -448,7 +448,7 @@ func recordDispatch(ctx context.Context, repository artifact.Repository, value L
 	}
 	var aliases []artifact.AliasBinding
 	for _, name := range Aliases(value) {
-		aliases = append(aliases, artifact.AliasBinding{Name: name, Target: value.ID, Previous: previous})
+		aliases = append(aliases, artifact.AliasMoveFrom(name, value.ID, previous))
 	}
 	batch, err := Codec.Batch("automation/work-lease/"+value.ID.String(), value, lineage, aliases)
 	if err != nil {
@@ -475,7 +475,7 @@ func (lease Lease) ReleaseBatch(worker, reason string) (artifact.Batch, error) {
 	id := lease.ID
 	batch := artifact.Batch{Key: "automation/work-lease/release/" + id.String() + "/" + reason}
 	for _, name := range Aliases(lease) {
-		batch.Aliases = append(batch.Aliases, artifact.AliasBinding{Name: name, Target: id, Previous: &id, Remove: true})
+		batch.Aliases = append(batch.Aliases, artifact.AliasRemoval(name, id))
 	}
 	return batch, nil
 }

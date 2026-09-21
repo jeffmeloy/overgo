@@ -739,7 +739,7 @@ func publishLaneEvidence(
 	}
 	aliases := []artifact.AliasBinding{{Name: alias, Target: surfacePromotion.ID}}
 	if found {
-		aliases[tensor.FirstOffset].Previous = &previous
+		aliases[tensor.FirstOffset] = artifact.AliasMove(aliases[tensor.FirstOffset].Name, aliases[tensor.FirstOffset].Target, previous)
 	}
 	batch, err := artifact.NewDocumentBatch(
 		"composite-generation/cuda/evidence/"+evidence.ID.String(), contents, lineage, aliases,

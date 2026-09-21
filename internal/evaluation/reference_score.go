@@ -120,7 +120,7 @@ func DeclareReferenceScores(
 		if previous == declaration.ID {
 			return declaration.ID, nil
 		}
-		alias.Previous = &previous
+		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 	}
 	batch, err := referenceScoreCodec.Batch(
 		referenceScoresAliasPrefix+declaration.ID.String(), declaration, nil, []artifact.AliasBinding{alias},

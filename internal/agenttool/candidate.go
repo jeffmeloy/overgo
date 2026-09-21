@@ -267,10 +267,7 @@ func ActivateCandidateCatalog(
 		return CatalogActivation{}, err
 	}
 	if !found || active != snapshot.ID {
-		binding := artifact.AliasBinding{Name: ActiveCatalogAlias, Target: snapshot.ID}
-		if found {
-			binding.Previous = &active
-		}
+		binding := artifact.AliasMove(ActiveCatalogAlias, snapshot.ID, active)
 		batch.Aliases = append(batch.Aliases, binding)
 	}
 	batch.Key = "agent-tool/activate/" + candidate.ID.String() + "/" + verification.ID.String()

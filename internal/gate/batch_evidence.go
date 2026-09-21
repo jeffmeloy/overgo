@@ -229,10 +229,7 @@ func (ledger *batchEvidenceLedger) publish(ctx context.Context, next batchEviden
 		}
 	}
 	publication.Lineage = append(publication.Lineage, artifact.DependencyLineage(record.ID, parents...)...)
-	alias := artifact.AliasBinding{Name: ledger.alias, Target: record.ID}
-	if record.Previous.Valid() {
-		alias.Previous = &record.Previous
-	}
+	alias := artifact.AliasMove(ledger.alias, record.ID, record.Previous)
 	publication.Aliases = append(publication.Aliases, alias)
 	publication.Key = ledger.alias + "/" + record.ID.String()
 	if _, err := ledger.store.CommitAs(ctx, gateProducer, publication); err != nil {

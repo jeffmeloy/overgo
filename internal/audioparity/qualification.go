@@ -181,9 +181,7 @@ func (q AudioArtifactQualification) AugmentBatch(
 	batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(
 		q.ID, q.Model, q.Election, q.Recipe, q.TensorInventory,
 	)...)
-	batch.Aliases = append(batch.Aliases, artifact.AliasBinding{
-		Name: q.Alias(), Target: q.ID, Previous: artifact.CloneID(previous),
-	})
+	batch.Aliases = append(batch.Aliases, artifact.AliasMoveFrom(q.Alias(), q.ID, previous))
 	return batch.Validate()
 }
 

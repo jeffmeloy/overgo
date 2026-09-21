@@ -127,7 +127,7 @@ func PublishActivationCaseRegistry(
 	}
 	binding := artifact.AliasBinding{Name: ActivationCaseRegistryAlias, Target: registry.ID}
 	if found {
-		binding.Previous = artifact.CloneID(&previous)
+		binding = artifact.AliasMove(binding.Name, binding.Target, previous)
 	}
 	batch, err := artifact.NewDocumentBatch("evaluation/activation-cases/"+registry.ID.String(), contents, lineage, []artifact.AliasBinding{binding})
 	if err != nil {

@@ -55,7 +55,7 @@ func NewDispositionBatch(ctx context.Context, reader artifact.Reader, original D
 	if previous, found, err := artifact.ResolveAlias(ctx, reader, alias.Name); err != nil {
 		return Document{}, artifact.Batch{}, err
 	} else if found {
-		alias.Previous = &previous
+		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 	}
 	batch, err := artifact.NewDocumentBatch("finding/"+document.ID.String(),
 		append(resolutionContents, content), document.Lineage(), []artifact.AliasBinding{alias})

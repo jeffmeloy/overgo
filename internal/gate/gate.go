@@ -647,7 +647,7 @@ func appendGateAdvisoryFinding(ctx context.Context, store *overgodb.Store, batch
 	if previous, found, err := artifact.ResolveAlias(ctx, store, alias.Name); err != nil {
 		return err
 	} else if found {
-		alias.Previous = &previous
+		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 	}
 	batch.Contents = append(batch.Contents, findingBatch.Contents...)
 	batch.Lineage = append(batch.Lineage, findingBatch.Lineage...)

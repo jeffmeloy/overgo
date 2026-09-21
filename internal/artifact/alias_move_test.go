@@ -59,6 +59,12 @@ func TestAliasMoveOwnsTheCompareAndSwap(t *testing.T) {
 	if move := AliasMove("a", next, held); move.Previous == nil || *move.Previous != held || move.Target != next {
 		t.Fatalf("move = %+v", move)
 	}
+	if from := AliasMoveFrom("a", next, &held); from.Previous == nil || *from.Previous != held || from.Previous == &held {
+		t.Fatalf("move from a held pointer = %+v, want its own copy of the previous target", from)
+	}
+	if first := AliasMoveFrom("a", next, nil); first.Previous != nil {
+		t.Fatalf("move from no previous target = %+v", first)
+	}
 	if removal := AliasRemoval("a", held); !removal.Remove || removal.Target != held || removal.Previous == nil || *removal.Previous != held {
 		t.Fatalf("removal = %+v", removal)
 	}

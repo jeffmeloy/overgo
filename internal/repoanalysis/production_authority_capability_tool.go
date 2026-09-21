@@ -1,6 +1,9 @@
 package repoanalysis
 
-import "go/ast"
+import (
+	"go/ast"
+	"slices"
+)
 
 const (
 	agentToolPackage         = "internal/agenttool"
@@ -91,6 +94,14 @@ func auditCapabilityAndToolAuthorities(sources []productionAuthoritySource, repo
 				if identifier, ok := typed.Fun.(*ast.Ident); ok &&
 					source.Package == agentToolPackage && identifier.Name == "manualCatalogBatch" {
 					recordAuthoritySite(manualCatalogBatch, source, function, typed.Pos())
+				}
+				// The alias move has one owner in artifact; a binding of the
+				// active catalog through it is the same site as the literal.
+				for _, owner := range []string{"AliasMove", "AliasMoveFrom", "MoveAlias", "AliasRemoval"} {
+					if authorityCallNames(source, typed.Fun, "artifact", artifactImport, owner) &&
+						slices.ContainsFunc(typed.Args, func(argument ast.Expr) bool { return activeCatalogAliasExpression(source, argument) }) {
+						recordAuthoritySite(activeCatalogBindings, source, function, typed.Pos())
+					}
 				}
 			case *ast.CompositeLit:
 				importPath, name := authorityCompositeType(source, typed.Type)

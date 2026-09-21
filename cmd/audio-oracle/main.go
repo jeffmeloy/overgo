@@ -109,7 +109,7 @@ func run() error {
 		return err
 	}
 	if found {
-		batch.Aliases[0].Previous = &current
+		batch.Aliases[0] = artifact.AliasMove(batch.Aliases[0].Name, batch.Aliases[0].Target, current)
 	}
 	locations, err := electionLocations(election, *modelRoot, *datasetRoot)
 	if err != nil {

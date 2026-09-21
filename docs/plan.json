@@ -18,20 +18,6 @@
       ]
     },
     {
-      "id": "modern-go-baseline-minimal",
-      "title": "Retire after modern-go-census-leaves-the-tree, whose landing 048bee9d did this work (2026-09-21): docs/modern_go_baseline.json was rewritten by 662 landings through an embedded hash of the whole source tree; it now holds only reviewed floors, the gate refuses it as loose exactly when lowering would change the file, and a landing that moves no floor leaves it byte-identical",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire after modern-go-census-leaves-the-tree, whose landing 048bee9d did this work (2026-09-21): docs/modern_go_baseline.json was rewritten by 662 landings through an embedded hash of the whole source tree; it now holds only reviewed floors, the gate refuses it as loose exactly when lowering would change the file, and a landing that moves no floor leaves it byte-identical",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestModernGoBaselineHoldsOnlyReviewedThresholds' -count=1"
-        }
-      ]
-    },
-    {
       "id": "repoanalysis-suite-wall",
       "title": "Discover the repository once for the repoanalysis suite: its tests each walk and parse the whole tree again (the suite measured 66 s in test-owners after the store access census added one more), so share one source snapshot across the tests that only read it and record the suite wall before and after",
       "owner": "master-lead",
@@ -1072,7 +1058,15 @@
       "row": "skipped-fixture-classification"
     },
     {
+      "key": "store-growth:bytes:overgo/code-manifest-analysis/v1",
+      "row": "store-growth-ratchet"
+    },
+    {
       "key": "store-growth:bytes:overgo/modern-go-computation/v1",
+      "row": "store-growth-ratchet"
+    },
+    {
+      "key": "store-growth:count:overgo.code-manifest-digest.v1",
       "row": "store-growth-ratchet"
     },
     {

@@ -5,15 +5,71 @@
   "items": [
     {
       "id": "store-alias-move-address-form",
-      "title": "Close the gap in the alias move ratchet and convert what it hid: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval and have the test refuse Previous set from either form outside artifact",
+      "title": "Close the gap in the alias move ratchet, convert what it hid, and match by type from now on: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval; have the test identify the field being set -- artifact.AliasBinding.Previous -- by its type rather than by how the value is spelled, and give the idempotent commit ratchet the same footing",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Close the gap in the alias move ratchet and convert what it hid: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval and have the test refuse Previous set from either form outside artifact",
+          "title": "Close the gap in the alias move ratchet, convert what it hid, and match by type from now on: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval; have the test identify the field being set -- artifact.AliasBinding.Previous -- by its type rather than by how the value is spelled, and give the idempotent commit ratchet the same footing",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestAliasMovesHaveOneOwner' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-precheck-owns-its-backup",
+      "title": "Take a sealed backup inside store-precheck (owner 2026-09-20: fold in what the day exposed): a store operation today starts with a separate backup of about 18 minutes and a rule the operator must remember -- no gate between the backup and the precheck, because the seal must equal the head. One command that seals, clones, transforms, proves and swaps under one hold of the store removes the wait between steps and the hazard, and lets it retire the superseded store of the operation before last once the new one has served a landing",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Take a sealed backup inside store-precheck (owner 2026-09-20: fold in what the day exposed): a store operation today starts with a separate backup of about 18 minutes and a rule the operator must remember -- no gate between the backup and the precheck, because the seal must equal the head. One command that seals, clones, transforms, proves and swaps under one hold of the store removes the wait between steps and the hazard, and lets it retire the superseded store of the operation before last once the new one has served a landing",
+          "status": "open",
+          "verify": "go test ./cmd/store-precheck -run '^TestPrecheckTakesItsOwnBackup' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-snapshot-single-format",
+      "title": "Keep one acceleration format: a snapshot writes the whole catalog twice, as the monolithic 193 MB snapshot document and as the per-facet checkpoints of the same 193 MB, and an open that finds no usable checkpoints already falls back past the snapshot to replaying the sealed segments. Measure what the monolithic snapshot still buys -- which opens have used it since checkpoints landed -- and if nothing, remove its writer, reader and generations, halving what a snapshot writes and deleting a fallback path",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep one acceleration format: a snapshot writes the whole catalog twice, as the monolithic 193 MB snapshot document and as the per-facet checkpoints of the same 193 MB, and an open that finds no usable checkpoints already falls back past the snapshot to replaying the sealed segments. Measure what the monolithic snapshot still buys -- which opens have used it since checkpoints landed -- and if nothing, remove its writer, reader and generations, halving what a snapshot writes and deleting a fallback path",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestCheckpointsAreTheOnlyAcceleration' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-pack-neighbours",
+      "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestMergeBlobTreesCarriesThePack' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "closure-binding-follows-declaration",
+      "title": "Bind a catalogued constant by its declaration, not by where it is used: adding a use of storeDirectoryMode and of inlineContentLimit in the blob pack drifted their closure bindings, the scan reported them unmatched, retiring the unmatched bindings left both constants uncatalogued, and each had to be proposed, written up and triaged again -- three preflight rounds for two constants nobody had changed. A binding that follows the declaration survives new uses, and a use that moves is not a decision to review",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind a catalogued constant by its declaration, not by where it is used: adding a use of storeDirectoryMode and of inlineContentLimit in the blob pack drifted their closure bindings, the scan reported them unmatched, retiring the unmatched bindings left both constants uncatalogued, and each had to be proposed, written up and triaged again -- three preflight rounds for two constants nobody had changed. A binding that follows the declaration survives new uses, and a use that moves is not a decision to review",
+          "status": "open",
+          "verify": "go test ./internal/closureledger -run '^TestBindingSurvivesANewUse' -count=1"
         }
       ]
     },
@@ -103,13 +159,13 @@
     },
     {
       "id": "store-open-lineage-cost",
-      "title": "Cut what the two largest checkpoints cost an open, re-measured after the redundancy rows: with the members loading at once and canonical form proved at the writer, an open is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s; bare open 1.4 s. Re-measure first, since the agent-obligation, closure-rebind and benchmark-record rows shrink both, then split what remains so one member's decode uses the cores or give it an encoding that does not parse text, keeping the digest, version and anchor checks",
+      "title": "Load the large facets when a command first asks for them: with the members loading at once and canonical form proved at the writer, a bare open is 1.4 s and is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s -- yet most commands resolve an alias and read a few documents and never walk lineage. Re-measure after the redundancy rows, which shrink both; then have an open verify every member's header, digest and anchor as now but decode lineage, and whatever else the measurement names, on first use, applying the journal tail to a facet when it loads; a typical open should be about half a second",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Cut what the two largest checkpoints cost an open, re-measured after the redundancy rows: with the members loading at once and canonical form proved at the writer, an open is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s; bare open 1.4 s. Re-measure first, since the agent-obligation, closure-rebind and benchmark-record rows shrink both, then split what remains so one member's decode uses the cores or give it an encoding that does not parse text, keeping the digest, version and anchor checks",
+          "title": "Load the large facets when a command first asks for them: with the members loading at once and canonical form proved at the writer, a bare open is 1.4 s and is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s -- yet most commands resolve an alias and read a few documents and never walk lineage. Re-measure after the redundancy rows, which shrink both; then have an open verify every member's header, digest and anchor as now but decode lineage, and whatever else the measurement names, on first use, applying the journal tail to a facet when it loads; a typical open should be about half a second",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1"
         }
@@ -879,7 +935,12 @@
             "tracked-documents-classified/do",
             "store-publish-changed-result/do",
             "store-alias-move-address-form/do",
-            "store-blob-pack-reader/do"
+            "store-blob-pack-reader/do",
+            "store-precheck-owns-its-backup/do",
+            "store-snapshot-single-format/do",
+            "store-pack-neighbours/do",
+            "closure-binding-follows-declaration/do",
+            "gate-receipt-reuse-measured/do"
           ]
         }
       ]

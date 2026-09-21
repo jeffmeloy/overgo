@@ -48,7 +48,11 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 			repo, store, pending := deferredAuthorityFixture(t)
 			if scenario == "process-death" {
 				child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestDeferredAuthorityLifetime$", "-test.count=1")
-				child.Env = append(os.Environ(), deferredAuthorityRepo+"="+repo)
+				// The child is killed on purpose and its candidate removed by
+				// hand below. Its temporaries live under a root of their own,
+				// so no other gate's sweep of dead processes takes them first.
+				private := t.TempDir()
+				child.Env = append(os.Environ(), deferredAuthorityRepo+"="+repo, "TMP="+private, "TEMP="+private, "TMPDIR="+private)
 				input, err := child.StdinPipe()
 				if err != nil {
 					t.Fatal(err)

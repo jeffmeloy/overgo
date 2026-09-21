@@ -65,6 +65,14 @@ type goPackageInput struct {
 	// testSourceReader marks the same for the package's tests alone.
 	sourceReader     bool
 	testSourceReader bool
+	// reachesRepository marks compiled sources that find the repository root
+	// by themselves; confinedCaller marks a classified package whose sources
+	// and tests name no path outside their own directory and leave no reach
+	// unnamed, so it has no repository path to hand a reader it imports. An
+	// unclassified package is not confined. Together they are the evidence
+	// the shadow isolation measure reads; selection does not read them.
+	reachesRepository bool
+	confinedCaller    bool
 	// runtimeReason explains a broad binding: what the source left unnamed.
 	runtimeReason string
 	// Named repository inputs retain runtime acceptance even when Markdown.
@@ -204,6 +212,9 @@ func (graph *packageInputGraph) bindResourceFiles(paths []string) {
 		inputs, err := classifyRuntimeInputs(graph.root, node.Dir, packageSources(*node))
 		node.declaredFiles = slices.Concat(inputs.files, inputs.testFiles)
 		node.namedProductionFiles = slices.Clone(inputs.files)
+		node.reachesRepository = inputs.productionEscapes
+		node.confinedCaller = err == nil && !inputs.escapes && !inputs.dynamicExec && !inputs.testDynamicExec &&
+			len(inputs.dynamic) == 0 && len(inputs.testDynamic) == 0
 		// Tests read and run at run time as production code does; a package
 		// whose tests alone import os is a runtime reader of its own tests.
 		edges := slices.Concat(node.Imports, node.TestImports, node.XTestImports)

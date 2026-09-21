@@ -37,6 +37,9 @@ type runtimeInputs struct {
 	// a parent path, the working directory, the caller's file or a git
 	// query. Without it a fixture root is a temporary directory.
 	escapes bool
+	// productionEscapes is the same evidence in the compiled sources alone:
+	// a reader that reaches the root by itself, whoever calls it.
+	productionEscapes bool
 	// dynamicExec records a program the compiled sources run without naming
 	// it, which may be any repository command; testDynamicExec the same for
 	// the tests alone.
@@ -102,7 +105,7 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 	// when the sources also reach the repository root; a fixture under a
 	// temporary directory uses the same words for its own tree.
 	trees, testTrees := map[string]bool{}, map[string]bool{}
-	escapes := false
+	productionEscapes, testEscapes := false, false
 	relativeDir, err := filepath.Rel(root, dir)
 	if err != nil {
 		return runtimeInputs{}, err
@@ -154,13 +157,14 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		classifier := sourceClassifier{
 			inputs: &inputs, relativeDir: relativeDir, file: name, commands: commands,
 			named: paths, pending: trees, reasons: &inputs.dynamic, execFlag: &inputs.dynamicExec,
-			safeNames: safeNames(parsed, constants, temporary), temporary: temporary, escapes: &escapes,
+			safeNames: safeNames(parsed, constants, temporary), temporary: temporary, escapes: &productionEscapes,
 			rootFiles: rootFiles, constants: constantValues,
 		}
 		if strings.HasSuffix(name, "_test.go") {
 			classifier.commands = testCommands
 			classifier.named, classifier.pending, classifier.reasons = testPaths, testTrees, &inputs.testDynamic
 			classifier.execFlag = &inputs.testDynamicExec
+			classifier.escapes = &testEscapes
 		}
 		if dotImported {
 			// A file or process owner imported without a name hides every
@@ -172,8 +176,8 @@ func classifyRuntimeInputs(root, dir string, files []string) (runtimeInputs, err
 		}
 		ast.Inspect(parsed, classifier.visit)
 	}
-	inputs.escapes = escapes
-	if escapes {
+	inputs.escapes, inputs.productionEscapes = productionEscapes || testEscapes, productionEscapes
+	if inputs.escapes {
 		maps.Copy(paths, trees)
 		maps.Copy(testPaths, testTrees)
 	}

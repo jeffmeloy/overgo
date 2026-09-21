@@ -20,8 +20,11 @@ type packageTestScope struct {
 	// opaqueReaders: packages bound to every root with the reason the
 	// source left their runtime reach unnamed.
 	opaqueReaders []string
-	edited        []string
-	excluded      int
+	// shadowIsolated: uncertain packages the isolation rule under trial would
+	// leave out. Recorded, never used to select.
+	shadowIsolated []string
+	edited         []string
+	excluded       int
 }
 
 func (g *gateContext) deriveTestScope() (packageTestScope, error) {
@@ -209,6 +212,45 @@ func (g *gateContext) deriveTestScope() (packageTestScope, error) {
 			scope.excluded++
 		}
 	}
+	// Shadow isolation is measured here and enforced nowhere. The rule under
+	// trial: an importer inherits a reader's unnamed Go-source reach only
+	// when the reader finds the repository by itself, or the importer is not
+	// a confined caller and so could hand it a repository path. A named data
+	// input is inherited as it is above. What the rule would leave out of
+	// the uncertain group is recorded so it can be judged on real landings.
+	shadow, reaching := maps.Clone(named), map[string]bool{}
+	for _, node := range graph.nodes {
+		if node.opaqueReader && node.sourceReader && sourceChange {
+			shadow[node.ImportPath], reaching[node.ImportPath] = true, node.reachesRepository
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for _, node := range graph.nodes {
+			edges := node.Imports
+			if !node.testOpaque && !node.opaqueReader {
+				edges = slices.Concat(node.Imports, node.inputDependencies)
+			}
+			for _, imported := range edges {
+				inherits := shadow[imported] && (named[imported] || reaching[imported] || !node.confinedCaller)
+				if inherits && !shadow[node.ImportPath] {
+					shadow[node.ImportPath], changed = true, true
+				}
+				if inherits && (reaching[imported] || node.reachesRepository) && !reaching[node.ImportPath] {
+					reaching[node.ImportPath], changed = true, true
+				}
+			}
+		}
+	}
+	maps.Copy(shadow, changeAffected)
+	shadowTargets := targets(shadow)
+	for _, node := range roots {
+		ownReach := (node.opaqueReader && node.sourceReader || node.testOpaque && node.testSourceReader) && sourceChange
+		if slices.Contains(scope.uncertain, node.ImportPath) && !shadow[node.ImportPath] && !shadowTargets[node.ImportPath] && !ownReach {
+			scope.shadowIsolated = append(scope.shadowIsolated, node.ImportPath)
+		}
+	}
+	slices.Sort(scope.shadowIsolated)
 	slices.Sort(scope.direct)
 	slices.Sort(scope.dependent)
 	slices.Sort(scope.uncertain)

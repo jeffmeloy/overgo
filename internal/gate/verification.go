@@ -1157,6 +1157,9 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 	if len(scope.opaqueReaders) != 0 {
 		g.note(fmt.Sprintf("test scope: %d opaque reader(s) bound to every root; first=%s", len(scope.opaqueReaders), scope.opaqueReaders[0]))
 	}
+	if len(scope.shadowIsolated) != 0 {
+		g.note(fmt.Sprintf("test scope: shadow isolation, measured and not enforced, would leave out %d of %d uncertain package(s): %s", len(scope.shadowIsolated), len(scope.uncertain), strings.Join(scope.shadowIsolated, ",")))
+	}
 	if len(scope.unresolved) != 0 {
 		g.note("test scope widened for global or unresolved Go inputs: " + strings.Join(scope.unresolved, ","))
 	}

@@ -104,7 +104,7 @@ Configured campaign worktrees require that live session at dispatch and commit
 admission. Do not copy a session token into an unrelated interactive process.
 Worker exit is a driver event: it waits for or recovers deferred validation,
 then dispatches again. Keep each worktree's launcher and console separate.
-Read `tmp/loop_supervisor.json` for the owner PID, and the launcher's log for
+Read `.overgo-runtime/loop_supervisor.json` for the owner PID, and the launcher's log for
 worker progress; a retained locator without its live lock requires a restart.
 
 ## Robustness

@@ -21,10 +21,9 @@ import (
 // that supervision exists. Admission also requires the live owner and OS lock.
 const CampaignEnvironment = "OVERGO_CAMPAIGN_SESSION"
 
-const campaignLocatorPath = "tmp/loop_supervisor.json"
-const campaignLockPath = "tmp/loop_supervisor.lock"
+const campaignLocatorPath = processlock.StateDirectory + "/loop_supervisor.json"
+const campaignLockPath = processlock.StateDirectory + "/loop_supervisor.lock"
 const campaignFileMode = 0o600
-const campaignDirectoryMode = 0o700
 const campaignNonceBytes = 32
 
 type campaignLocator struct {
@@ -54,7 +53,7 @@ func BeginCampaign(root, worker string) (*Campaign, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(root, "tmp"), campaignDirectoryMode); err != nil {
+	if err := processlock.EnsureStateDirectory(root); err != nil {
 		return nil, err
 	}
 	lock, err := processlock.Acquire(filepath.Join(root, campaignLockPath), campaignFileMode)

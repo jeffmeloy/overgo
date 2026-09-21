@@ -34,7 +34,7 @@ func TestAcquireSerializesPlanAndGateMutation(t *testing.T) {
 
 func TestAcquireDoesNotInventActiveOwner(t *testing.T) {
 	repository := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repository, relativePath), authorityDirectoryMode); err != nil {
+	if err := os.MkdirAll(filepath.Join(repository, relativePath), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	lock, err := Acquire(repository)

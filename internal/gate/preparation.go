@@ -26,6 +26,7 @@ import (
 	"overgo/internal/gosource"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 )
@@ -678,6 +679,9 @@ func gatePlanScratchPath(repo string, preparation artifact.ID) (string, error) {
 	if preparation.Kind() != artifact.KindEvidence || preparation.DigestHex() == "" {
 		return "", errors.New("gate: plan transaction scratch requires an exact preparation")
 	}
+	if err := processlock.EnsureStateDirectory(repo); err != nil {
+		return "", err
+	}
 	root := filepath.Join(repo, filepath.FromSlash(gatePlanScratchDir))
 	path := filepath.Join(root, preparation.DigestHex())
 	if err := os.MkdirAll(path, gatePrivateDirectoryMode); err != nil {
@@ -890,7 +894,7 @@ func requireNoPendingGateStateWithStore(repo string, store *overgodb.Store) erro
 		return errors.New("gate: pending-state admission requires the canonical store")
 	}
 	if _, err := os.Stat(filepath.Join(repo, filepath.FromSlash(gateDebtFile))); err == nil {
-		return errors.New("gate: unresolved tmp/gate_debt.json; run `go run ./cmd/gate -reconcile` before another gate")
+		return errors.New("gate: unresolved " + gateDebtFile + "; run `go run ./cmd/gate -reconcile` before another gate")
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}

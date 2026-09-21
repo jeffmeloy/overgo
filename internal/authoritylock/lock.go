@@ -20,7 +20,7 @@ import (
 // lock or inferring abandonment from elapsed time.
 func Wait(ctx context.Context, repository string) error {
 	path := filepath.Join(repository, filepath.FromSlash(relativePath))
-	if err := os.MkdirAll(filepath.Dir(path), authorityDirectoryMode); err != nil {
+	if err := processlock.EnsureStateDirectory(repository); err != nil {
 		return err
 	}
 	lock, err := processlock.AcquireContext(ctx, path, authorityFileMode)
@@ -31,10 +31,7 @@ func Wait(ctx context.Context, repository string) error {
 }
 
 const (
-	relativePath = "tmp/gate.lock"
-	// authorityDirectoryMode keeps repository-local mutation state private to
-	// the repository owner on newly created workspaces.
-	authorityDirectoryMode os.FileMode = 0o700
+	relativePath = processlock.StateDirectory + "/gate.lock"
 	// authorityFileMode keeps the process lock private to the repository owner.
 	authorityFileMode os.FileMode = 0o600
 )
@@ -57,8 +54,7 @@ func acquire(repository string, take func(string, os.FileMode) (*processlock.Loc
 		return nil, errors.New("authority lock: repository is required")
 	}
 	repository = filepath.Clean(rawRepository)
-	directory := filepath.Join(repository, filepath.Dir(relativePath))
-	if err := os.MkdirAll(directory, authorityDirectoryMode); err != nil {
+	if err := processlock.EnsureStateDirectory(repository); err != nil {
 		return nil, fmt.Errorf("authority lock: create directory: %w", err)
 	}
 	lock, err := take(filepath.Join(repository, filepath.FromSlash(relativePath)), authorityFileMode)

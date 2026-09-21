@@ -12,10 +12,11 @@ import (
 	"overgo/internal/automationcheck"
 	"overgo/internal/clioptions"
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 )
 
-const gatePreparedSelectionFile = "tmp/gate_prepared_selection.json"
+const gatePreparedSelectionFile = processlock.StateDirectory + "/gate_prepared_selection.json"
 
 // preparedSelection is the compact, source-bound plan a deferring gate leaves
 // for its lane runner: the immutable manifest it already composed, the exact
@@ -35,9 +36,6 @@ type preparedSelection struct {
 func (g *gateContext) persistPreparedSelection() error {
 	if g.manifestPlan == nil || g.acceptedTree == "" {
 		return nil
-	}
-	if err := os.MkdirAll(filepath.Join(g.repo, filepath.Dir(filepath.FromSlash(gatePreparedSelectionFile))), clioptions.OutputDirectoryMode); err != nil {
-		return err
 	}
 	return writeJSON(g.repo, gatePreparedSelectionFile, preparedSelection{
 		Version: artifact.InitialDocumentVersion, Preparation: g.preparation.ID,

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
+	"overgo/internal/processlock"
 )
 
 func TestCampaignDispatchAdmission(t *testing.T) {
@@ -49,7 +50,7 @@ func TestCampaignCommitAdmission(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "campaign:") {
 		t.Fatalf("interactive mode bypass: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "tmp/loop_supervisor.json"), []byte("{invalid"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, processlock.StateDirectory, "loop_supervisor.json"), []byte("{invalid"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, _, _, err = RequireDispatch(t.Context(), store, Plan{}, CompletionAuthority{}, root, "", "row/do")

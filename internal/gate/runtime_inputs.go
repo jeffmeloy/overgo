@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"overgo/internal/processlock"
 )
 
 // runtimeInputs classifies how a package's sources reach beyond their own
@@ -67,7 +69,7 @@ var discoveryCall = regexp.MustCompile(`(?i)(discover|walk|glob|read|load|open|s
 
 // repositoryRoots are the top-level entries a literal path may name to
 // reach repository inputs outside its package.
-var repositoryRoots = []string{"cmd", "internal", "docs", "kernels", "web", "tmp", "build", "scripts", "testdata"}
+var repositoryRoots = []string{"cmd", "internal", "docs", "kernels", "web", "tmp", processlock.StateDirectory, "build", "scripts", "testdata"}
 
 // sourceClassifier carries one source file's classification state.
 type sourceClassifier struct {

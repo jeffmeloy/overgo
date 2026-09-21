@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "tmp-refuses-undeclared-entries",
-      "title": "Give tool state a home of its own and empty tmp (owner 2026-09-20: a current gate output that keeps no history, not tmp files): tmp mixes four kinds of state with worker debris. Locks (gate.lock, gate_lanes.lock, loop_supervisor.lock) must be operating-system files; crash locators and heartbeats (gate_lifecycle.json, gate_commit_intent.json, loop_supervisor.json) exist for the moment the store cannot be read; the live transcript (gate_lanes.log) is the current output with no history the owner asked for; and caches (gate_cache.json, gate_prepared_selection.json) are derived. Nothing journaled can be without history -- every commit is a frame for good, and small content rides inline where it can never be released -- so: a runtime directory beside the store holds the locks, the locators and one overwritten transcript slot per tool, never journaled and left out of backups; the caches become a releasable store class keyed by their inputs; files that only repeat a store record (gate_lanes.json repeats the lane obligation alias) go; and then admission refuses any entry in tmp, which holds nothing a tool needs. Waits on the owner deleting the 15 debris directories the classifier refused the worker",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give tool state a home of its own and empty tmp (owner 2026-09-20: a current gate output that keeps no history, not tmp files): tmp mixes four kinds of state with worker debris. Locks (gate.lock, gate_lanes.lock, loop_supervisor.lock) must be operating-system files; crash locators and heartbeats (gate_lifecycle.json, gate_commit_intent.json, loop_supervisor.json) exist for the moment the store cannot be read; the live transcript (gate_lanes.log) is the current output with no history the owner asked for; and caches (gate_cache.json, gate_prepared_selection.json) are derived. Nothing journaled can be without history -- every commit is a frame for good, and small content rides inline where it can never be released -- so: a runtime directory beside the store holds the locks, the locators and one overwritten transcript slot per tool, never journaled and left out of backups; the caches become a releasable store class keyed by their inputs; files that only repeat a store record (gate_lanes.json repeats the lane obligation alias) go; and then admission refuses any entry in tmp, which holds nothing a tool needs. Waits on the owner deleting the 15 debris directories the classifier refused the worker",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1"
-        }
-      ]
-    },
-    {
       "id": "tracked-documents-classified",
       "title": "Classify every tracked document and move the generated ones to the store (owner question 2026-09-20): 8 json and md files at the root and 206 files under docs mix four kinds -- authored inputs (the policy json, plan.json, README, SECURITY, skill.md: stay, they are reviewed in diffs), ratchet baselines (stay, but as small as they can be: modern_go_baseline is 247 KB), generated reports a tool rewrites at almost every landing (media_report with MEDIA_REPORT 610 KB, api_manifest, the censuses, model_compatibility with COMPATIBILITY, 23 image_video documents cmd/compatibility reads by pattern, 55 verification text receipts the store may already hold), and documents no tool reads (colibri_overgo_plan.md 130 KB, COLIBRI_REVIEW.md: the owner decides). Start with the measurement -- per file, which tool writes it, which code reads it, whether the store holds it -- published by a census; then move generated reports one family per row, the most rewritten first",
       "owner": "master-lead",
@@ -280,6 +266,34 @@
           "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "loop-markers-runtime-directory",
+      "title": "Move the loop's transient markers out of docs into the runtime directory (split from tool-state-runtime-directory 2026-09-21): docs/.loop_state, docs/.loop_pause, docs/.dispatch, docs/loop.json and docs/plan_stop.json are process state kept beside tracked documents and hidden only by ignore entries; the session hooks (cmd/loophook), cmd/loop and cmd/plan read them, so the writers, the readers and the hook binaries move in one landing through processlock.EnsureStateDirectory, the docs ignore entries are removed, and a marker found at the old path is carried across once and never read there again",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the loop's transient markers out of docs into the runtime directory (split from tool-state-runtime-directory 2026-09-21): docs/.loop_state, docs/.loop_pause, docs/.dispatch, docs/loop.json and docs/plan_stop.json are process state kept beside tracked documents and hidden only by ignore entries; the session hooks (cmd/loophook), cmd/loop and cmd/plan read them, so the writers, the readers and the hook binaries move in one landing through processlock.EnsureStateDirectory, the docs ignore entries are removed, and a marker found at the old path is carried across once and never read there again",
+          "status": "open",
+          "verify": "go test ./cmd/loophook ./cmd/loop -run '^TestLoopMarkersLiveInTheRuntimeDirectory' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tmp-refuses-undeclared-entries",
+      "title": "Refuse an entry in tmp that no tool declares, once tool state has moved out and the debris is gone: after tool-state-runtime-directory, tmp holds nothing a tool needs except go.mod and go.sum, which fence its Go files out of the module, and the merge-evidence staging store cmd/plan owns; the gate's caches (gate_cache.json, gate_prepared_selection.json) become a releasable store class keyed by their inputs, and admission refuses any other entry so debris cannot accumulate again. Waits on the owner deleting the 15 debris directories the permission classifier refused the worker (command given 2026-09-21), and on the two 27B reference trees being released by the rows that use them",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse an entry in tmp that no tool declares, once tool state has moved out and the debris is gone: after tool-state-runtime-directory, tmp holds nothing a tool needs except go.mod and go.sum, which fence its Go files out of the module, and the merge-evidence staging store cmd/plan owns; the gate's caches (gate_cache.json, gate_prepared_selection.json) become a releasable store class keyed by their inputs, and admission refuses any other entry so debris cannot accumulate again. Waits on the owner deleting the 15 debris directories the permission classifier refused the worker (command given 2026-09-21), and on the two 27B reference trees being released by the rows that use them",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1"
         }
       ]
     },
@@ -877,7 +891,9 @@
             "store-checkpoint-generations/do",
             "store-retire-superseded-and-backups/do",
             "gate-history-ranks-readers/do",
-            "webui-lane-hang-bounded/do"
+            "webui-lane-hang-bounded/do",
+            "tool-state-runtime-directory/do",
+            "loop-markers-runtime-directory/do"
           ]
         }
       ]

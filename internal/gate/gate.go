@@ -46,6 +46,7 @@ import (
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/processmeasure"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
@@ -56,14 +57,15 @@ const (
 	gateRecipeSeed   = "overgo-gate/v1"
 	gateWorkloadSeed = "overgo-gate-workload/v1"
 	gateStorePath    = "overgodb-store"
-	// Gate state lives in tmp/, the sanctioned scrap home: bin/ holds
-	// executables only and the release refuses anything else in it.
-	gateDebtFile         = "tmp/gate_debt.json"
-	gateCommitIntentFile = "tmp/gate_commit_intent.json"
-	gateHeartbeatFile    = "tmp/gate_lifecycle.json"
-	gateRetryFile        = "tmp/gate_cache.json"
-	gatePlanScratchDir   = "tmp/gate_plan_scratch"
-	// Proposal rows for the uncatalogued closure sites of the last refusal.
+	// Gate state lives in the checkout's runtime directory, never in tmp: a
+	// lock or a crash locator must not sit beside what may be emptied.
+	gateDebtFile         = processlock.StateDirectory + "/gate_debt.json"
+	gateCommitIntentFile = processlock.StateDirectory + "/gate_commit_intent.json"
+	gateHeartbeatFile    = processlock.StateDirectory + "/gate_lifecycle.json"
+	gateRetryFile        = processlock.StateDirectory + "/gate_cache.json"
+	gatePlanScratchDir   = processlock.StateDirectory + "/gate_plan_scratch"
+	// Proposal rows for the uncatalogued closure sites of the last refusal;
+	// a worker fills them in, so they stay where a worker edits.
 	gateClosureProposalsFile = "tmp/closure_proposals.json"
 	gateGitStateLockFile     = "overgo-gate-git-state.lock"
 	gateProgressLine         = "gate: phase=%s heartbeat=%s\n"
@@ -819,7 +821,12 @@ func readJSON(repo, name string, value any) error {
 	return jsonfile.DecodeStrict(filepath.Join(repo, filepath.FromSlash(name)), value)
 }
 
+// writeJSON writes one state file, creating the directory it lives in: the
+// runtime directory exists only once something has state to keep there.
 func writeJSON(repo, name string, value any, mode os.FileMode) error {
+	if err := processlock.EnsureStateDirectory(repo); err != nil {
+		return err
+	}
 	return jsonfile.Write(filepath.Join(repo, filepath.FromSlash(name)), value, mode)
 }
 

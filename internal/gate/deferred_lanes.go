@@ -29,9 +29,9 @@ import (
 var deferredLaneChecks = []string{testDeviceCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 
 const (
-	gateLanesLocatorFile = "tmp/gate_lanes.json"
-	gateLanesLogFile     = "tmp/gate_lanes.log"
-	gateLanesLockFile    = "tmp/gate_lanes.lock"
+	gateLanesLocatorFile = processlock.StateDirectory + "/gate_lanes.json"
+	gateLanesLogFile     = processlock.StateDirectory + "/gate_lanes.log"
+	gateLanesLockFile    = processlock.StateDirectory + "/gate_lanes.lock"
 )
 
 // gateLanesLocator is the advisory pointer to the lane runner: which
@@ -368,7 +368,7 @@ func runDeferredLanes(repo, storePath string, execute func(*gateContext, runreco
 
 func acquireLaneRunner(repo string) (*processlock.Lock, error) {
 	path := filepath.Join(repo, filepath.FromSlash(gateLanesLockFile))
-	if err := os.MkdirAll(filepath.Dir(path), clioptions.OutputDirectoryMode); err != nil {
+	if err := processlock.EnsureStateDirectory(repo); err != nil {
 		return nil, err
 	}
 	return processlock.Acquire(path, gatePrivateFileMode)

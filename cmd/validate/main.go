@@ -20,6 +20,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/gitauthority"
+	"overgo/internal/longform"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 )
@@ -97,7 +98,14 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted))
+		// The surface the code is at now: a guard record is current only when
+		// it ran on this one.
+		surface, err := longform.Surface(ctx, *root)
+		if err != nil {
+			return err
+		}
+		guard := func(location string) error { return longform.Admit(ctx, store, location, surface) }
+		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, guard))
 	}
 
 	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered})

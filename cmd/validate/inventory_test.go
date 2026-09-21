@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -47,7 +49,7 @@ func TestModelInventory(t *testing.T) {
 	}
 	recorded := map[artifact.ID][]string{converted: {"shared-digest"}, superseded: {"shared-digest"}, named: {"a-different-directory"}}
 	var standings []string
-	for _, entry := range buildInventory(directories, cells, recorded) {
+	for _, entry := range buildInventory(directories, cells, recorded, func(string) error { return nil }) {
 		line := filepath.Base(entry.Directory) + " " + entry.Standing
 		for _, tied := range entry.Models {
 			line += " " + tied.Link + ":" + tied.Standing
@@ -88,5 +90,75 @@ func TestModelInventory(t *testing.T) {
 	}
 	if filepath.Base(read[1].Path) != "notes" || read[1].Weights || read[1].ModelType != "" {
 		t.Fatalf("directory without weights = %+v", read[1])
+	}
+}
+
+// TestInventoryValidatedMeansCurrentAtTheSurface holds the inventory to calling
+// a model validated only when its guard evidence is current. An accepted
+// recipe says a model was validated once; the guard record is keyed to the
+// inference code surface, and any change to the closure of that surface
+// expires it, so a model whose cells all carry accepted evidence but whose
+// guard ran on another surface is activated, keeps the reason with the run
+// that lifts it, and keeps the guard's command. A cell without accepted
+// evidence outranks the guard question: that model is registered and its guard
+// is not asked about. A model that earns no guard is activated too, and says
+// that its evidence is unchecked here: nothing is called validated on a claim
+// this command cannot check. A directory takes its best model's standing.
+func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
+	t.Parallel()
+	identify := func(kind artifact.Kind, text string) artifact.ID {
+		id, err := artifact.IdentifyBytes(kind, []byte(text))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	evidence := identify(artifact.KindRecipe, "accepted")
+	current, expired, unverified, image := identify(artifact.KindModel, "current"), identify(artifact.KindModel, "expired"), identify(artifact.KindModel, "unverified"), identify(artifact.KindModel, "image")
+	cells := []ModelValidation{
+		{Model: current, Location: "C:/models/Current/m.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: expired, Location: "C:/models/Expired/m.gguf", Validation: "bbh", Surface: "evaluation", Evidence: evidence},
+		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: unverified, Location: "C:/models/Unverified/m.gguf", Validation: "bbh", Surface: "evaluation"},
+		{Model: image, Location: "C:/models/Image/m.safetensors", Validation: "image-proof", Surface: "image", Evidence: evidence},
+		{Model: expired, Location: "C:/models/Both/old.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+		{Model: current, Location: "C:/models/Both/new.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
+	}
+	var asked []string
+	guard := func(location string) error {
+		asked = append(asked, location)
+		if strings.Contains(location, "Expired") || strings.Contains(location, "old.gguf") || strings.Contains(location, "Unverified") {
+			return errors.New("the long-form record measured another inference surface; run the guard")
+		}
+		return nil
+	}
+	directories := []modelDirectory{
+		{Path: "C:/models/Current", Weights: true}, {Path: "C:/models/Expired", Weights: true},
+		{Path: "C:/models/Unverified", Weights: true}, {Path: "C:/models/Image", Weights: true}, {Path: "C:/models/Both", Weights: true},
+	}
+	var standings []string
+	for _, entry := range buildInventory(directories, cells, nil, guard) {
+		line := filepath.Base(entry.Directory) + " " + entry.Standing
+		for _, tied := range entry.Models {
+			line += " " + tied.Standing
+			if tied.Guard != "" {
+				line += "(guard refused)"
+			}
+		}
+		standings = append(standings, line+" commands="+strconv.Itoa(len(entry.Commands)))
+	}
+	want := []string{
+		"Both validated activated(guard refused) validated commands=1",
+		"Current validated validated commands=0",
+		"Expired activated activated(guard refused) commands=1",
+		"Image activated activated(guard refused) commands=0",
+		"Unverified registered registered commands=1",
+	}
+	if !slices.Equal(standings, want) {
+		t.Fatalf("inventory:\n%s\nwant:\n%s", strings.Join(standings, "\n"), strings.Join(want, "\n"))
+	}
+	if slices.ContainsFunc(asked, func(location string) bool { return strings.Contains(location, "Unverified") }) {
+		t.Errorf("the guard was asked about a model with no accepted evidence: %v", asked)
 	}
 }

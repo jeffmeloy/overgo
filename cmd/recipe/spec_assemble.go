@@ -1,4 +1,4 @@
-package modelartifact
+package main
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
+	"overgo/internal/modelartifact"
 	"overgo/internal/pathidentity"
 	"overgo/internal/processcontrol"
 )
@@ -31,26 +32,48 @@ const (
 	hfConfigFile      = "config.json"
 	markdownExtension = ".md"
 	markdownMediaType = "text/markdown"
+	plainMediaType    = "text/plain"
 )
+
+// registrationDeclaration is one entry of the declaration recipe register
+// decodes. The command holds its own copy of the shape, and the assembler lives
+// here and not beside the registration it serves, because internal/modelartifact
+// is inside the inference surface: every non-test file of that package is
+// hashed into the digest that validation evidence is keyed to, so campaign
+// tooling added there expired the guard record of every model. The test holds
+// the two shapes together: register must accept what this writes.
+type registrationDeclaration struct {
+	Directory        string      `json:"directory"`
+	Model            artifact.ID `json:"model"`
+	TensorInventory  artifact.ID `json:"tensor_inventory"`
+	SourceRepository string      `json:"source_repository"`
+	SourceCommit     string      `json:"source_commit"`
+	License          struct {
+		Path      string      `json:"path"`
+		Artifact  artifact.ID `json:"artifact"`
+		SPDX      string      `json:"spdx"`
+		MediaType string      `json:"media_type"`
+	} `json:"license"`
+}
 
 // undeclaredLicenses are card values that name no license.
 var undeclaredLicenses = []string{"", "other", "unknown"}
 
-// AssembleRegistration computes, for one model directory beneath root, the
-// declaration that PrepareRegistration verifies: the identities of the model
+// assembleRegistration computes, for one model directory beneath root, the
+// declaration that modelartifact.PrepareRegistration verifies: the identities of the model
 // and its tensor inventory, the origin and commit of the directory's own
 // repository, and the license file with its content identity. The license
 // identifier is the one the model card itself declares unless spdx supplies
 // one: a card that declares none, or "other", is refused, because a license is
 // a publisher's statement and is never invented here. A directory whose
 // tracked bytes differ from its commit is refused, as registration would.
-func AssembleRegistration(ctx context.Context, root, directory, spdx string) (json.RawMessage, error) {
+func assembleRegistration(ctx context.Context, root, directory, spdx string) (json.RawMessage, error) {
 	path := filepath.Join(root, filepath.FromSlash(directory))
 	contained, err := pathidentity.Contains(root, path)
 	if err != nil || !contained || !filepath.IsLocal(directory) {
 		return nil, fmt.Errorf("assemble %s: model directory escapes root", directory)
 	}
-	var declared modelRegistration
+	var declared registrationDeclaration
 	declared.Directory = filepath.ToSlash(directory)
 	for _, read := range []struct {
 		arguments []string
@@ -84,7 +107,7 @@ func AssembleRegistration(ctx context.Context, root, directory, spdx string) (js
 	if _, err := os.Stat(filepath.Join(path, hfConfigFile)); err != nil {
 		return nil, fmt.Errorf("assemble %s: not a Hugging Face layout (no %s): declare its components by hand, as the registration of such a directory takes them", directory, hfConfigFile)
 	}
-	inventory, err := FromHFPath(path)
+	inventory, err := modelartifact.FromHFPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("assemble %s: %w", directory, err)
 	}
@@ -101,7 +124,7 @@ func AssembleRegistration(ctx context.Context, root, directory, spdx string) (js
 		if err != nil {
 			continue
 		}
-		declared.License.Path, declared.License.MediaType = name, textMediaType
+		declared.License.Path, declared.License.MediaType = name, plainMediaType
 		if strings.EqualFold(filepath.Ext(name), markdownExtension) {
 			declared.License.MediaType = markdownMediaType
 		}

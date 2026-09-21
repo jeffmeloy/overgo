@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"overgo/internal/clioptions"
-	"overgo/internal/modelartifact"
 )
 
 // assembleSpecification writes the declaration recipe register verifies, for
@@ -38,7 +37,7 @@ func assembleSpecification(args []string) error {
 	for _, directory := range flags.Args() {
 		// Each directory hashes every weight it holds: say which one is running.
 		fmt.Fprintf(os.Stderr, "recipe spec: identifying %s\n", directory)
-		declaration, err := modelartifact.AssembleRegistration(context.Background(), *root, directory, reviewed[directory])
+		declaration, err := assembleRegistration(context.Background(), *root, directory, reviewed[directory])
 		if err != nil {
 			return err
 		}

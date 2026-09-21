@@ -124,6 +124,37 @@ func surfaceDirectories(ctx context.Context, root string) ([]string, error) {
 	return slices.Compact(directories), nil
 }
 
+// SurfaceMoves returns, of the repository-relative paths a change touches, the
+// ones that move the inference surface: a non-test Go source in a package of
+// the closure, or a kernel source. A record keyed to the surface expires when
+// one of them changes, so a landing can name what it is about to expire before
+// it commits rather than learn it from a review candidate afterwards. A path in
+// the closure counts whether the change adds, edits or removes it.
+func SurfaceMoves(ctx context.Context, root string, paths []string) ([]string, error) {
+	root, err := filepath.Abs(root)
+	if err != nil {
+		return nil, err
+	}
+	directories, err := surfaceDirectories(ctx, root)
+	if err != nil {
+		return nil, err
+	}
+	var moves []string
+	for _, changed := range paths {
+		changed = filepath.ToSlash(changed)
+		kernel := slices.ContainsFunc(surfaceKernels, func(source string) bool {
+			return changed == source || strings.HasPrefix(changed, source+"/")
+		})
+		source := strings.HasSuffix(changed, ".go") && !strings.HasSuffix(changed, "_test.go") &&
+			slices.Contains(directories, filepath.Join(root, filepath.FromSlash(filepath.ToSlash(filepath.Dir(changed)))))
+		if kernel || source {
+			moves = append(moves, changed)
+		}
+	}
+	slices.Sort(moves)
+	return slices.Compact(moves), nil
+}
+
 type surfacePackage struct {
 	Dir        string
 	EmbedFiles []string

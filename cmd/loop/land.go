@@ -171,6 +171,13 @@ func (w execRowWorld) Claim(reference string) (string, error) {
 
 // Preflight diagnoses the dirty tree without admission or acceptance credit.
 func (w execRowWorld) Preflight(reference string) (string, error) {
+	// A landing that cannot say whether it moves the surface still lands:
+	// the warning informs a decision, it is not a check of the change.
+	if moves, err := inferenceSurfaceMoves(context.Background(), "."); err == nil {
+		if warning := surfaceMoveWarning(moves); warning != "" {
+			fmt.Fprintln(os.Stderr, warning)
+		}
+	}
 	out, err := w.tool("go", "run", "./cmd/gate", "-preflight", "-plan", reference)
 	if err != nil {
 		return refusalOf(out), nil

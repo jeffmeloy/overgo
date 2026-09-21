@@ -887,7 +887,8 @@
             "modern-go-baseline-minimal/do",
             "models-register-and-validate/do",
             "recipe-spec-assembler/do",
-            "inventory-first-use-corrections/do"
+            "inventory-first-use-corrections/do",
+            "validation-evidence-surface-discipline/do"
           ]
         }
       ]

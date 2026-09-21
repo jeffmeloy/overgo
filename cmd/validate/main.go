@@ -38,6 +38,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	repository := flags.String("repo", "", "OvergoDB store; empty resolves through the data-root contract")
 	baseline := flags.String("baseline", "HEAD~1", "commit to diff against; the change set is baseline..HEAD")
 	execute := flags.Bool("run", false, "execute the selected validations (default: dry run prints the plan only)")
+	inventory := flags.String("inventory", "", "comma-separated model roots: report each directory beneath them as validated, registered, unregistered or not a model, with the commands that would advance it; loads no model")
 	command := clioptions.Command{
 		Name:     "validate",
 		Purpose:  "select the minimal sufficient end-to-end validation for a commit and, with -run, execute it",
@@ -46,6 +47,7 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 			"the default dry run loads no model and opens no device; it prints the plan as JSON",
 			"a cell runs only when the commit's changes move its surface or it has no accepted evidence",
 			"every registered model is accounted for; each available model is dispatched by its declared functions",
+			"-inventory starts from the directories on disk, so a model nothing has registered is reported; it ties a converted model to its directory by the content of the config files the conversion recorded, never by a name",
 			"help opens no store and reads nothing",
 		},
 	}
@@ -85,6 +87,17 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 	registered, err := registeredCells(ctx, store)
 	if err != nil {
 		return err
+	}
+	if *inventory != "" {
+		directories, err := modelDirectories(strings.Split(*inventory, ","))
+		if err != nil {
+			return err
+		}
+		converted, err := convertedSources(ctx, store)
+		if err != nil {
+			return err
+		}
+		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted))
 	}
 
 	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered})

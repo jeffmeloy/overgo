@@ -5,15 +5,15 @@
   "items": [
     {
       "id": "store-agent-obligation-redundancy",
-      "title": "Find what writes agent obligations one record at a time and stop it: the census found 49,785 of them, the largest schema in the store, in 17.8 MB (mean 358 bytes), each its own blob file; record the writer, what reads them back, and write one document per unit the readers actually consume",
+      "title": "Design one per-landing evidence document for the gate's obligations, then write it (re-measured 2026-09-21 with overgodb-query -census): overgo/agent-obligation/v1 is the largest and fastest growing schema, 53,595 records and 19.2 MB, about 127 new records per landing; with overgo/gate-package-receipt/v1 (29,858) and overgo/closure-ledger/v3 (31,216) gate-written evidence is half of all records. The file count the row first named is solved -- the blob pack holds them, the live store is about 4,000 files -- so the remaining cost is catalog state decoded at every open. The writers are in internal/gate, not agentloop: packageEvidenceLedger.prepare (terminal_evidence.go) mints one go-test obligation per test package per landing and keys its package receipt and its result reuse by that obligation's id, and recordBatchEvidence (batch_evidence.go) mints one per verification checkpoint. The gate (batch_evidence.go) and the trajectory supervisor read obligation content back. So this is a redesign of per-package evidence and reuse, not a writer fix: keep the content-addressed id as the reuse key, publish one document per landing that lists the package obligations, and prove reuse still hits across landings before retiring the per-record form",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Find what writes agent obligations one record at a time and stop it: the census found 49,785 of them, the largest schema in the store, in 17.8 MB (mean 358 bytes), each its own blob file; record the writer, what reads them back, and write one document per unit the readers actually consume",
+          "title": "Design one per-landing evidence document for the gate's obligations, then write it (re-measured 2026-09-21 with overgodb-query -census): overgo/agent-obligation/v1 is the largest and fastest growing schema, 53,595 records and 19.2 MB, about 127 new records per landing; with overgo/gate-package-receipt/v1 (29,858) and overgo/closure-ledger/v3 (31,216) gate-written evidence is half of all records. The file count the row first named is solved -- the blob pack holds them, the live store is about 4,000 files -- so the remaining cost is catalog state decoded at every open. The writers are in internal/gate, not agentloop: packageEvidenceLedger.prepare (terminal_evidence.go) mints one go-test obligation per test package per landing and keys its package receipt and its result reuse by that obligation's id, and recordBatchEvidence (batch_evidence.go) mints one per verification checkpoint. The gate (batch_evidence.go) and the trajectory supervisor read obligation content back. So this is a redesign of per-package evidence and reuse, not a writer fix: keep the content-addressed id as the reuse key, publish one document per landing that lists the package obligations, and prove reuse still hits across landings before retiring the per-record form",
           "status": "open",
-          "verify": "go test ./internal/agentloop -run '^TestObligationsAreNotOneRecordEach' -count=1"
+          "verify": "go test ./internal/gate -run '^TestPackageObligationsAreOneDocumentPerLanding' -count=1"
         }
       ]
     },
@@ -336,20 +336,6 @@
           "title": "Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding",
           "status": "open",
           "verify": "test -f internal/overgodb/compaction_cadence_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestCompactionCadence' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "model-inventory-dryrun",
-      "title": "Report each model directory as registered, recipe-supported, validated at which surface by which evidence, and its validation command, as a cmd/validate dry-run mode",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Report each model directory as registered, recipe-supported, validated at which surface by which evidence, and its validation command, as a cmd/validate dry-run mode",
-          "status": "open",
-          "verify": "test -f cmd/validate/inventory_test.go \u0026\u0026 go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
       ]
     },

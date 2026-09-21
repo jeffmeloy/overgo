@@ -166,18 +166,19 @@ func runLane(ctx context.Context, stdout io.Writer, run string, extra []string) 
 	env = append(env, extra...)
 	args := append([]string{"test"}, packages...)
 	args = append(args, "-run", run, "-count=1", "-timeout=20m", "-v")
+	progress := &testProgress{out: stdout}
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
 		Path:   "go",
 		Args:   args,
 		Env:    env,
-		Stdout: stdout,
+		Stdout: progress,
 		Stderr: os.Stderr,
 	})
 	if err != nil {
 		return true, err
 	}
 	if receipt.ExitCode != 0 {
-		return true, fmt.Errorf("webui lane: acceptance exited %d", receipt.ExitCode)
+		return true, fmt.Errorf("webui lane: acceptance exited %d: %s", receipt.ExitCode, progress.summary())
 	}
 	fmt.Fprintf(stdout, "webui lane: PASS browser=%s\n", browser)
 	return true, nil

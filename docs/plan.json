@@ -4,34 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-isolation-rule-enforced",
-      "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "webui-lane-hang-bounded",
-      "title": "Bound a hung browser test to a minute and find what the web UI lane contends on: on 49c418a7 the lane spent its whole 20 minute test timeout hung while the device and model-journey lanes ran beside it, and passed alone in 88 seconds. Give the browser tests a per-test deadline so a hang fails in about a minute and names itself, and measure the lane alone against the lane beside the others to find the shared resource -- the headless browser, a port, the GPU the journeys hold, or plain CPU -- before choosing between serialising the lanes under the machine lease and fixing the test",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound a hung browser test to a minute and find what the web UI lane contends on: on 49c418a7 the lane spent its whole 20 minute test timeout hung while the device and model-journey lanes ran beside it, and passed alone in 88 seconds. Give the browser tests a per-test deadline so a hang fails in about a minute and names itself, and measure the lane alone against the lane beside the others to find the shared resource -- the headless browser, a port, the GPU the journeys hold, or plain CPU -- before choosing between serialising the lanes under the machine lease and fixing the test",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -run '^TestBrowserTestsHaveADeadline' -count=1"
-        }
-      ]
-    },
-    {
       "id": "tmp-refuses-undeclared-entries",
       "title": "Give tool state a home of its own and empty tmp (owner 2026-09-20: a current gate output that keeps no history, not tmp files): tmp mixes four kinds of state with worker debris. Locks (gate.lock, gate_lanes.lock, loop_supervisor.lock) must be operating-system files; crash locators and heartbeats (gate_lifecycle.json, gate_commit_intent.json, loop_supervisor.json) exist for the moment the store cannot be read; the live transcript (gate_lanes.log) is the current output with no history the owner asked for; and caches (gate_cache.json, gate_prepared_selection.json) are derived. Nothing journaled can be without history -- every commit is a frame for good, and small content rides inline where it can never be released -- so: a runtime directory beside the store holds the locks, the locators and one overwritten transcript slot per tool, never journaled and left out of backups; the caches become a releasable store class keyed by their inputs; files that only repeat a store record (gate_lanes.json repeats the lane obligation alias) go; and then admission refuses any entry in tmp, which holds nothing a tool needs. Waits on the owner deleting the 15 debris directories the classifier refused the worker",
       "owner": "master-lead",
@@ -294,6 +266,20 @@
           "title": "Bound the internal/gate test wall (157 s in the owner phase, paid by every control-plane row; 938 s before the shared live-checkout fixture and parallel tests) through the two levers that work left open: the serial floor of tests that cannot share the fixture, and the device-lane projector reach that pulls device packages into a host suite",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestGateSuiteSerialFloorBudget' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "gate-isolation-rule-enforced",
+      "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1"
         }
       ]
     },

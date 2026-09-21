@@ -85,8 +85,8 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 	if err != nil {
 		return fail("alignment-request-invalid", err)
 	}
-	if _, err := artifact.CommitBatch(ctx, transcriber.repository, artifact.Batch{Key: "alignment/request/" + requestContent.Descriptor.ID.String(),
-		Contents: []artifact.Content{requestContent}, Lineage: artifact.DependencyLineage(requestContent.Descriptor.ID, request.Transcription)}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, transcriber.repository, artifact.Batch{Key: "alignment/request/" + requestContent.Descriptor.ID.String(),
+		Contents: []artifact.Content{requestContent}, Lineage: artifact.DependencyLineage(requestContent.Descriptor.ID, request.Transcription)}); err != nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
 	}
 	inputs = uniqueIDs(append(inputs, requestContent.Descriptor.ID)...)
@@ -125,7 +125,7 @@ func (transcriber *transcriptionModel) align(ctx context.Context, data []byte, o
 	if err != nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
 	}
-	if _, err := artifact.CommitBatch(ctx, transcriber.repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, transcriber.repository, batch); err != nil {
 		return recipecontract.TimestampedAlignment{}, runrecord.Run{}, err
 	}
 	return result, run, nil

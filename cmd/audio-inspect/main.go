@@ -193,7 +193,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		descriptor = artifact.Descriptor{ID: id, Size: size}
 	}
 	batch.Artifacts = []artifact.Descriptor{descriptor}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return err
 	}
 	encoder := json.NewEncoder(output)

@@ -51,14 +51,14 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 		return Declaration{}, err
 	}
 	location := Location(declared)
-	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{
+	if _, err := artifact.Publish(ctx, store, artifact.Batch{
 		Key:       "remote-provider/declare/" + declared.ID.String(),
 		Contents:  []artifact.Content{content},
 		Manifests: []artifact.Manifest{manifest},
 		Locations: []artifact.LocationEvent{{Location: artifact.Location{
 			Artifact: declared.ID, Kind: artifact.LocationRemote, Value: location,
 		}, Action: artifact.LocationAdd}},
-	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	}); err != nil {
 		return Declaration{}, err
 	}
 	definition, err := modelrecipe.RemoteInferenceDefinition(manifest.ID, declared.ID)
@@ -107,7 +107,7 @@ func Declare(ctx context.Context, store artifact.Repository, provider Provider, 
 		return Declaration{}, err
 	}
 	batch.Contents = append(batch.Contents, environmentContent)
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return Declaration{}, err
 	}
 	if err := modelrecipe.ActivateCapability(
@@ -200,7 +200,7 @@ func Retire(ctx context.Context, store *overgodb.Store, limit int, location, cod
 		return err
 	}
 	batch.Contents = append(batch.Contents, environmentContent)
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return err
 	}
 	if err := modelrecipe.RetireActiveCapability(ctx, store, definition, modelrecipe.Verification{Gate: record.Result.ID, Run: record.Run.ID}, reason); err != nil {

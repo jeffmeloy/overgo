@@ -228,7 +228,7 @@ func publishObjective(
 	} else if moved {
 		batch.Aliases = []artifact.AliasBinding{move}
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}
 	return objective, nil

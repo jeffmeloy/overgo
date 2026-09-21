@@ -410,7 +410,7 @@ func publishTranscriptionLoadMeasurement(
 	if err != nil {
 		return TranscriptionResourceMeasurement{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.Publish(ctx, repository, batch); err != nil {
 		return TranscriptionResourceMeasurement{}, err
 	}
 	return TranscriptionResourceMeasurement{
@@ -462,7 +462,7 @@ func publishTranscriptionExecutionMeasurement(
 	if err != nil {
 		return artifact.ID{}, artifact.ID{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.Publish(ctx, repository, batch); err != nil {
 		return artifact.ID{}, artifact.ID{}, err
 	}
 	attempts[position] = true

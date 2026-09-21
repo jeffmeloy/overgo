@@ -60,10 +60,10 @@ func (h *Handler) nativeAudioTranscriptions(response http.ResponseWriter, reques
 	if !found {
 		descriptor = artifact.Descriptor{ID: id, Size: uint64(len(data))}
 	}
-	_, err = artifact.CommitBatch(request.Context(), h.repository, artifact.Batch{
+	_, err = artifact.Publish(request.Context(), h.repository, artifact.Batch{
 		Key: "transcription/upload/" + id.String(), Contents: []artifact.Content{{Descriptor: descriptor, Data: data}},
 	})
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}

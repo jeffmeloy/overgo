@@ -87,7 +87,7 @@ func PromoteObjectiveAdaptive(
 		Contents: []artifact.Content{content},
 		Aliases:  []artifact.AliasBinding{artifact.AliasMove(aliasName, promoted.ID, current.ID)},
 	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}
 	return promoted, nil
@@ -157,7 +157,7 @@ func PromoteObjectiveApproved(
 		Contents: []artifact.Content{content},
 		Aliases:  []artifact.AliasBinding{artifact.AliasMove(aliasName, promoted.ID, current.ID)},
 	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}
 	return promoted, nil

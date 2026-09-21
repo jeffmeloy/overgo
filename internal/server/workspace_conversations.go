@@ -549,7 +549,7 @@ func publishConversationLabel(ctx context.Context, repository artifact.Repositor
 	if err != nil {
 		return conversationLabelRecord{}, err
 	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return conversationLabelRecord{}, err
 	}
 	return value, nil

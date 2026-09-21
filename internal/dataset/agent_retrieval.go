@@ -379,7 +379,7 @@ func PublishAgentRetrievalSource(
 	if err != nil {
 		return nil, err
 	}
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return nil, err
 	}
 	result := make([]AgentRetrievalDocument, len(source.Spans))

@@ -113,7 +113,7 @@ func RegisterProjectionCandidate(ctx context.Context, store artifact.Repository,
 		return err
 	}
 	batch.Key = fmt.Sprintf("recipe/projection-facts/%x", sha256.Sum256(data))
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return fmt.Errorf("publish projection facts: %w", err)
 	}
 	_, published, err := modelrecipe.Status(ctx, store, candidate.Definition.ID)

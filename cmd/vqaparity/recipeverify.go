@@ -130,7 +130,7 @@ func verifyActivateVQA(l *campaignContext, repo, imagePath, question string) err
 		return err
 	}
 	// A store that already records the inventory re-verifies over it.
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return err
 	}
 	program, err := modelrecipe.CompileCapability(definition)

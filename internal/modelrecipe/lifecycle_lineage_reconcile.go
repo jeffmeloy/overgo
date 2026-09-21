@@ -78,7 +78,7 @@ func ReconcileLifecycleLineage(ctx context.Context, store *overgodb.Store) (Life
 	if err != nil {
 		return report, err
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return report, fmt.Errorf("model recipe: lineage reconciliation commit: %w", err)
 	}
 	return report, nil

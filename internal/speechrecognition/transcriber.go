@@ -355,7 +355,7 @@ func (transcriber *transcriptionModel) transcribe(ctx context.Context, data []by
 	if err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, transcriber.repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.Publish(ctx, transcriber.repository, batch); err != nil {
 		return recipecontract.Transcription{}, runrecord.Run{}, err
 	}
 	return result, run, nil
@@ -402,7 +402,7 @@ func persistSpeechRun(ctx context.Context, repository artifact.Repository, defin
 	if err != nil {
 		return runrecord.Run{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.Publish(ctx, repository, batch); err != nil {
 		return runrecord.Run{}, err
 	}
 	return run, nil

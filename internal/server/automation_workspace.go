@@ -226,9 +226,9 @@ func (workspace *AutomationWorkspace) ActivateAutomation(
 		[]artifact.Content{authorityContent}, artifact.DependencyLineage(authorityContent.Descriptor.ID, definition.ID), nil,
 	)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, workspace.store, batch)
+		_, err = artifact.Publish(ctx, workspace.store, batch)
 	}
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		return runrecord.ActiveAutomation{}, err
 	}
 	return (runrecord.AutomationAuthority{Repository: workspace.store}).Activate(

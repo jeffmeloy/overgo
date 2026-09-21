@@ -129,9 +129,9 @@ func (d *Detector) DetectDecoded(ctx context.Context, source recipecontract.Audi
 	}
 	batch, err := artifact.NewDocumentBatch("audio-activity/"+content.Descriptor.ID.String(), []artifact.Content{content}, artifact.DependencyLineage(content.Descriptor.ID, d.definition.ID, source.Audio, source.Profile), nil)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, d.repository, batch)
+		_, err = artifact.Publish(ctx, d.repository, batch)
 	}
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err
 	}
 	return result, content.Descriptor.ID, nil
@@ -271,9 +271,9 @@ func (d *Detector) ProcessStream(ctx context.Context, work workflowruntime.Audio
 	lineage := append(artifact.DependencyLineage(checkpoint.Descriptor.ID, parents...), artifact.DependencyLineage(output.Descriptor.ID, checkpoint.Descriptor.ID)...)
 	batch, err := artifact.NewDocumentBatch("audio-activity-stream/"+checkpoint.Descriptor.ID.String(), []artifact.Content{checkpoint, output}, lineage, nil)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, d.repository, batch)
+		_, err = artifact.Publish(ctx, d.repository, batch)
 	}
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		return workflowruntime.AudioStreamResult{}, err
 	}
 	return workflowruntime.AudioStreamResult{Output: output.Descriptor.ID, State: checkpoint.Descriptor.ID}, nil

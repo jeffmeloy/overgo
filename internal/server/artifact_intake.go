@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -80,9 +79,9 @@ func (h *Handler) artifactIntake(response http.ResponseWriter, request *http.Req
 	} else if found {
 		content.Descriptor = prior
 	}
-	if _, err := artifact.CommitBatch(request.Context(), h.repository, artifact.Batch{
+	if _, err := artifact.Publish(request.Context(), h.repository, artifact.Batch{
 		Key: "artifact-intake/" + content.Descriptor.ID.String(), Contents: []artifact.Content{content},
-	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	}); err != nil {
 		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}

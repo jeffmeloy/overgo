@@ -162,9 +162,9 @@ func (runtime *projectedTranscriptionRuntime) transcribe(ctx context.Context, in
 		contents = append(contents, content)
 		batch, err := artifact.NewDocumentBatch(binding.Key, contents, run.Lineage(), nil)
 		if err == nil {
-			_, err = artifact.CommitBatch(ctx, runtime.repository, batch)
+			_, err = artifact.Publish(ctx, runtime.repository, batch)
 		}
-		if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		if err != nil {
 			return result, runrecord.Run{}, errors.Join(cause, err)
 		}
 		return result, run, cause

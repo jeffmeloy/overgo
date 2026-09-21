@@ -71,7 +71,7 @@ func prepareTranscriptionSelection(ctx context.Context, store artifact.Repositor
 	if err != nil {
 		return err
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return err
 	}
 	suite.Split = membership.ID

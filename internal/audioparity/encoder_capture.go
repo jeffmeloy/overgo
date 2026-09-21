@@ -142,7 +142,7 @@ func publishTensorCapture(ctx context.Context, repository artifact.Repository, g
 	// installed at another location without reusing a key for different bytes.
 	batch.Key += "/" + locationID.DigestHex()
 	batch.Locations = append(batch.Locations, artifact.LocationEvent{Location: location, Action: artifact.LocationAdd})
-	if _, err = artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.Publish(ctx, repository, batch); err != nil {
 		return artifact.ID{}, err
 	}
 	return golden.Descriptor.ID, nil

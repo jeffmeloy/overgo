@@ -173,7 +173,7 @@
      "path": "internal/evaluation/transcription_resources.go",
      "contains": "func EvaluateTranscriptionResources(",
      "role": "source",
-     "identity": "file:sha256:8df82209e688f9d9950d8818c8affefd7e30cfc92b128b5be899993996c7b15c"
+     "identity": "file:sha256:4eba345ffa06a6c8d9c6379ea9e09a9ae895583328af754681c4af0977dd7629"
     },
     {
      "path": "internal/audioparity/cpu_resource_fitness_test.go",
@@ -319,7 +319,7 @@
      "path": "internal/speechactivity/execution.go",
      "contains": "func (d *Detector) Detect(",
      "role": "source",
-     "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"
+     "identity": "file:sha256:d167ed9d7c520669dca11a6302704a3b62bb53ab6153316a119850fd62e5b3a3"
     },
     {
      "path": "internal/audioparity/vad_acceptance_test.go",
@@ -348,7 +348,7 @@
      "path": "internal/speechactivity/execution.go",
      "contains": "func (d *Detector) ProcessStream(",
      "role": "source",
-     "identity": "file:sha256:024f8d8f3ab6fa901e252cf8b0b4aa648f319131fdd7f96318639d37b7f7e4b9"
+     "identity": "file:sha256:d167ed9d7c520669dca11a6302704a3b62bb53ab6153316a119850fd62e5b3a3"
     },
     {
      "path": "internal/audioparity/vad_acceptance_test.go",
@@ -414,7 +414,7 @@
      "contains": "func (h *Handler) nativeAudioTranscriptions(",
      "path": "internal/server/native_audio_transcriptions.go",
      "role": "source",
-     "identity": "file:sha256:fc7c8c20eca27bab0d1a6afc003f4ed2e6c6d34e4146b713b735e8fe680ec40c"
+     "identity": "file:sha256:af1a0d49ffed1498fb008f16d23ffab0d36e5803b387492903866d6abee0dc2e"
     },
     {
      "contains": "func TestAudioTranscriptionsAcceptance(",
@@ -1514,7 +1514,7 @@
      "path": "internal/speechrecognition/stream_execution.go",
      "contains": "func (transcriber *transcriptionModel) processStream(",
      "role": "source",
-     "identity": "file:sha256:26ffd46da2a44f7457ade8723a12a5fae6346f347e0f785bc0d884a9b832aa24"
+     "identity": "file:sha256:38d79fbf99bd8a8f36079bfe5d5ce02ebf103c80dffadc341d696f88b556b2c6"
     },
     {
      "path": "internal/capabilityruntime/native_asr_session_test.go",
@@ -1543,7 +1543,7 @@
      "path": "internal/server/streaming_transcriptions.go",
      "contains": "func (h *Handler) nativeStreamingTranscriptions(",
      "role": "source",
-     "identity": "file:sha256:1c9de9d37658df7a0843ff07117bd7e125757faf8dc7afea72879309c8ee4b6a"
+     "identity": "file:sha256:9fc05aff07b8fbc6fc6a67bedbc002f19ce18442c2aa3e5369e1b489bcf77751"
     },
     {
      "path": "internal/server/streaming_transcriptions_test.go",
@@ -1572,7 +1572,7 @@
      "path": "internal/speechrecognition/stream_execution.go",
      "contains": "func (transcriber *transcriptionModel) processStream(",
      "role": "source",
-     "identity": "file:sha256:26ffd46da2a44f7457ade8723a12a5fae6346f347e0f785bc0d884a9b832aa24"
+     "identity": "file:sha256:38d79fbf99bd8a8f36079bfe5d5ce02ebf103c80dffadc341d696f88b556b2c6"
     },
     {
      "path": "internal/capabilityruntime/native_asr_session_test.go",

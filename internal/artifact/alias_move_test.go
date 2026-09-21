@@ -1,8 +1,43 @@
 package artifact
 
 import (
+	"context"
+	"errors"
 	"testing"
 )
+
+type publishRepository struct {
+	Repository
+	outcome error
+}
+
+func (r publishRepository) Commit(context.Context, Batch) (CommitID, error) {
+	return CommitID{1}, r.outcome
+}
+
+// TestPublishTreatsARepeatAsSuccess holds the idempotent commit to its three
+// outcomes: a batch that changed the repository, one the repository already
+// held, which is success with nothing changed, and a refusal, which stays an
+// error.
+func TestPublishTreatsARepeatAsSuccess(t *testing.T) {
+	t.Parallel()
+	refusal := errors.New("refused")
+	id, err := IdentifyBytes(KindEvidence, []byte("published"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch := Batch{Key: "k", Aliases: []AliasBinding{{Name: "a", Target: id}}}
+	for _, test := range []struct {
+		outcome error
+		changed bool
+		failure error
+	}{{nil, true, nil}, {ErrNoChange, false, nil}, {refusal, false, refusal}} {
+		changed, err := Publish(t.Context(), publishRepository{outcome: test.outcome}, batch)
+		if changed != test.changed || !errors.Is(err, test.failure) || test.failure == nil && err != nil {
+			t.Fatalf("outcome %v: changed=%v err=%v", test.outcome, changed, err)
+		}
+	}
+}
 
 // TestAliasMoveOwnsTheCompareAndSwap holds the three forms every caller now
 // shares: a first binding names no previous target, a move names the one the

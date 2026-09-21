@@ -207,7 +207,7 @@ func (p *speakerModel) diarize(ctx context.Context, data []byte, origin dataset.
 	if err != nil {
 		return recipecontract.SpeechTurns{}, runrecord.Run{}, err
 	}
-	if _, err := artifact.CommitBatch(ctx, p.repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, p.repository, batch); err != nil {
 		return recipecontract.SpeechTurns{}, runrecord.Run{}, err
 	}
 	return result, run, nil

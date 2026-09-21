@@ -90,7 +90,7 @@ func (stream *transcriptionHTTPStream) process(ctx context.Context, chunk workfl
 	if event.Admission.Valid() {
 		batch.Lineage = append(batch.Lineage, artifact.DependencyLineage(result.Output, event.Admission)...)
 	}
-	if _, err := artifact.CommitBatch(ctx, w.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, w.store, batch); err != nil {
 		return event, err
 	}
 	event.Output, event.Checkpoint = result.Output, batch.Contents[0].Descriptor.ID

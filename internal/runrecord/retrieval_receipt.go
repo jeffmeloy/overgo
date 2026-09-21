@@ -191,7 +191,7 @@ func SearchAndPublishConsumedRetrieval(
 	if err != nil {
 		return ConsumedRetrieval{}, err
 	}
-	if _, err = artifact.CommitBatch(ctx, repository, transcriptBatch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err = artifact.Publish(ctx, repository, transcriptBatch); err != nil {
 		return ConsumedRetrieval{}, err
 	}
 	head, _ := repository.Head()

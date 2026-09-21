@@ -331,15 +331,15 @@ func prepareCapability(
 		batch.Locations = append(batch.Locations, relatedBatch.Locations...)
 	}
 	batch.Contents = append(batch.Contents, facts...)
-	if _, err := store.Commit(ctx, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish model facts: %w", err)
 	}
 	// Component-group manifests commit under their own content-derived
 	// keys: the facts batch key is content-bound and predates them.
 	for _, manifest := range source.Manifests {
-		if _, err := store.Commit(ctx, artifact.Batch{
+		if _, err := artifact.Publish(ctx, store, artifact.Batch{
 			Key: "recipe/component/" + manifest.ID.String(), Manifests: []artifact.Manifest{manifest},
-		}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		}); err != nil {
 			return artifact.ID{}, recipe.Definition{}, fmt.Errorf("publish component manifest: %w", err)
 		}
 	}
@@ -669,7 +669,7 @@ func registerModels(args []string) error {
 		return err
 	}
 	batch.Key = "recipe/registration/" + identity.DigestHex()
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return err
 	}
 	fmt.Printf("registered=%d source_declaration=%s; exact model, tensor, source and license identities checked; model bytes copied=0; runtime execution and activation did not run\n", len(batch.Manifests), batch.Contents[0].Descriptor.ID)

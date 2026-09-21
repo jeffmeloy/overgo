@@ -1,7 +1,6 @@
 package server
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -98,9 +97,9 @@ func (h *Handler) promptEnhance(response http.ResponseWriter, request *http.Requ
 			writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 			return
 		}
-		if _, err := artifact.CommitBatch(request.Context(), h.repository, artifact.Batch{
+		if _, err := artifact.Publish(request.Context(), h.repository, artifact.Batch{
 			Key: "prompt-enhancement/" + content.Descriptor.ID.String(), Contents: []artifact.Content{content},
-		}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		}); err != nil {
 			writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 			return
 		}

@@ -343,7 +343,7 @@ func (h *Handler) agentSimpleCreate(response http.ResponseWriter, request *http.
 		}
 		manuals = append(manuals, manual.ID)
 	}
-	if _, err := artifact.CommitBatch(ctx, h.repository, artifact.Batch{
+	if _, err := artifact.Publish(ctx, h.repository, artifact.Batch{
 		Key: "agent/simple-create/" + promptID.String(),
 		Contents: []artifact.Content{{
 			Descriptor: artifact.Descriptor{
@@ -353,7 +353,7 @@ func (h *Handler) agentSimpleCreate(response http.ResponseWriter, request *http.
 			Data: promptBytes,
 		}},
 		Artifacts: []artifact.Descriptor{{ID: policyID}},
-	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	}); err != nil {
 		writeGenerationError(response, err)
 		return
 	}
@@ -447,9 +447,9 @@ func (h *Handler) publishAgentDecision(
 		artifact.DependencyLineage(content.Descriptor.ID, definition), nil,
 	)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, h.repository, batch)
+		_, err = artifact.Publish(ctx, h.repository, batch)
 	}
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		return artifact.ID{}, err
 	}
 	return content.Descriptor.ID, nil

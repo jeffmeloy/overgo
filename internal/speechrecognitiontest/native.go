@@ -3,7 +3,6 @@ package speechrecognitiontest
 import (
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -170,9 +169,9 @@ func (fixture NativeFixture) PublishStream(t *testing.T, store artifact.Reposito
 	commit := func(batch artifact.Batch, err error) {
 		t.Helper()
 		if err == nil {
-			_, err = artifact.CommitBatch(t.Context(), store, batch)
+			_, err = artifact.Publish(t.Context(), store, batch)
 		}
-		if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		if err != nil {
 			t.Fatal(err)
 		}
 	}

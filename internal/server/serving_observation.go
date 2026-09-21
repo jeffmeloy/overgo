@@ -33,8 +33,7 @@ func openServingRepository(config Config) (*overgodb.Store, runrecord.Environmen
 			// An identical environment from an earlier serving session is
 			// already the stored fact; a restart on the same machine must
 			// serve, not refuse on the no-op batch.
-			if _, commitErr := artifact.CommitBatch(context.Background(), repository, batch); commitErr != nil &&
-				!errors.Is(commitErr, artifact.ErrNoChange) {
+			if _, commitErr := artifact.Publish(context.Background(), repository, batch); commitErr != nil {
 				err = commitErr
 			}
 		}

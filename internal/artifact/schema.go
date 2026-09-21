@@ -318,6 +318,17 @@ func CommitBatch(ctx context.Context, repository Repository, batch Batch) (Commi
 	return repository.Commit(ctx, batch)
 }
 
+// Publish commits a batch whose repeat is success: a batch the repository
+// already holds changes nothing and is not an error, and changed says which
+// of the two happened.
+func Publish(ctx context.Context, repository Repository, batch Batch) (changed bool, err error) {
+	_, err = CommitBatch(ctx, repository, batch)
+	if errors.Is(err, ErrNoChange) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 func ResolveAlias(ctx context.Context, reader Reader, name string) (ID, bool, error) {
 	if ctx == nil || reader == nil {
 		return ID{}, false, errors.New("artifact: nil alias context or reader")

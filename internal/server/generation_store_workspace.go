@@ -245,7 +245,7 @@ func (workspace *StoreGenerationWorkspace) ExecuteWorkflow(ctx context.Context, 
 		batch.Contents = append(batch.Contents, request)
 	}
 	batch.Contents = append(batch.Contents, content)
-	if _, err := artifact.CommitBatch(ctx, workspace.store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, workspace.store, batch); err != nil {
 		return operation.Completion{}, err
 	}
 	reporter.Publishing()

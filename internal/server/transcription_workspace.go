@@ -103,7 +103,7 @@ func NewTranscriptionWorkspace(ctx context.Context, store *overgodb.Store, polic
 	if err != nil {
 		return nil, err
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return nil, err
 	}
 	sessions, err := speechrecognition.LoadSession(ctx, store, policy.Recipe, policy.MemoryBytes)
@@ -208,9 +208,9 @@ func (workspace *TranscriptionWorkspace) ExecuteWorkflow(ctx context.Context, ki
 	if err != nil {
 		return completion, err
 	}
-	if _, err := artifact.CommitBatch(ctx, workspace.store, artifact.Batch{
+	if _, err := artifact.Publish(ctx, workspace.store, artifact.Batch{
 		Key: "transcription/text/" + text.Descriptor.ID.String(), Contents: []artifact.Content{text},
-	}); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	}); err != nil {
 		return completion, err
 	}
 	completion.Outputs = append(slices.Clone(run.Outputs), text.Descriptor.ID)

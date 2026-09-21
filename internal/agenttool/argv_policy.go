@@ -82,7 +82,7 @@ func PublishArgvPolicy(ctx context.Context, repository artifact.Repository, prog
 	// same policy content can rebind the alias from different
 	// predecessors, and each such supersession is its own batch.
 	batch.Key = "agent-argv-policy/" + policy.ID.String() + "/from/" + supersedes
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return ArgvPolicy{}, err
 	}
 	return policy, nil

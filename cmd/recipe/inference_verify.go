@@ -387,10 +387,10 @@ func verifyExactRuntime(ctx context.Context, store *overgodb.Store, definition r
 		var batch artifact.Batch
 		batch, err = environment.Batch("recipe/exact-environment/" + environment.ID.String())
 		if err == nil {
-			_, err = artifact.CommitBatch(ctx, store, batch)
+			_, err = artifact.Publish(ctx, store, batch)
 		}
 	}
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		return errors.Join(err, runtime.Close())
 	}
 	started := time.Now()

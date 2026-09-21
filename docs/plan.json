@@ -4,14 +4,14 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-publish-has-one-owner",
-      "title": "Give the idempotent commit one owner, the second cut of the store access consolidation: committing a batch and treating an unchanged repeat as success is written out at 67 production sites (server 14, evaluation 8, speechrecognition 6, modelrecipe 4, cmd/recipe 4, then threes and twos across ten more packages), 28 of them the identical line -- CommitBatch, then err != nil and not ErrNoChange. artifact owns it as one call; every site uses it; a census check refuses a production site outside artifact that tests a commit error against ErrNoChange",
+      "id": "store-publish-changed-result",
+      "title": "Give the sites that branch on an unchanged repeat artifact.Publish's changed result, the third cut of the store access consolidation: 23 production sites outside artifact still name ErrNoChange -- thirteen branch on it after a commit, five pass it up through a publisher of their own (publishPlanAuthorities, publishTranscriptionReport, PublishResolvedModelDefinition), and the rest are the store's own. Read each, convert the ones Publish answers, and lower the recorded ceiling to what remains",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Give the idempotent commit one owner, the second cut of the store access consolidation: committing a batch and treating an unchanged repeat as success is written out at 67 production sites (server 14, evaluation 8, speechrecognition 6, modelrecipe 4, cmd/recipe 4, then threes and twos across ten more packages), 28 of them the identical line -- CommitBatch, then err != nil and not ErrNoChange. artifact owns it as one call; every site uses it; a census check refuses a production site outside artifact that tests a commit error against ErrNoChange",
+          "title": "Give the sites that branch on an unchanged repeat artifact.Publish's changed result, the third cut of the store access consolidation: 23 production sites outside artifact still name ErrNoChange -- thirteen branch on it after a commit, five pass it up through a publisher of their own (publishPlanAuthorities, publishTranscriptionReport, PublishResolvedModelDefinition), and the rest are the store's own. Read each, convert the ones Publish answers, and lower the recorded ceiling to what remains",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestIdempotentCommitHasOneOwner' -count=1"
         }
@@ -28,6 +28,20 @@
           "title": "Refuse an entry in tmp that no tool declares, once tmp is clean: tmp mixes the gate's live control state (locks, lifecycle, lanes, cache, prepared selection, closure proposals, the merge-evidence staging store at 3.3 GB) with worker debris; 880 loose files were deleted by hand on 2026-09-20 and 15 debris directories plus two clean worktrees wait on the owner, whose delete the permission classifier refused the worker. When they are gone, have admission refuse a tmp entry outside a declared table so debris cannot accumulate again, and have the merge tool retire merge-evidence stores of merges that landed",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tracked-documents-classified",
+      "title": "Classify every tracked document and move the generated ones to the store (owner question 2026-09-20): 8 json and md files at the root and 206 files under docs mix four kinds -- authored inputs (the policy json, plan.json, README, SECURITY, skill.md: stay, they are reviewed in diffs), ratchet baselines (stay, but as small as they can be: modern_go_baseline is 247 KB), generated reports a tool rewrites at almost every landing (media_report with MEDIA_REPORT 610 KB, api_manifest, the censuses, model_compatibility with COMPATIBILITY, 23 image_video documents cmd/compatibility reads by pattern, 55 verification text receipts the store may already hold), and documents no tool reads (colibri_overgo_plan.md 130 KB, COLIBRI_REVIEW.md: the owner decides). Start with the measurement -- per file, which tool writes it, which code reads it, whether the store holds it -- published by a census; then move generated reports one family per row, the most rewritten first",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify every tracked document and move the generated ones to the store (owner question 2026-09-20): 8 json and md files at the root and 206 files under docs mix four kinds -- authored inputs (the policy json, plan.json, README, SECURITY, skill.md: stay, they are reviewed in diffs), ratchet baselines (stay, but as small as they can be: modern_go_baseline is 247 KB), generated reports a tool rewrites at almost every landing (media_report with MEDIA_REPORT 610 KB, api_manifest, the censuses, model_compatibility with COMPATIBILITY, 23 image_video documents cmd/compatibility reads by pattern, 55 verification text receipts the store may already hold), and documents no tool reads (colibri_overgo_plan.md 130 KB, COLIBRI_REVIEW.md: the owner decides). Start with the measurement -- per file, which tool writes it, which code reads it, whether the store holds it -- published by a census; then move generated reports one family per row, the most rewritten first",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestTrackedDocumentsAreClassified' -count=1"
         }
       ]
     },
@@ -75,13 +89,13 @@
     },
     {
       "id": "store-benchmark-record-redundancy",
-      "title": "Batch benchmark records: the census found 24,318 of them in 24.3 MB, one blob file per measurement; write one document per benchmark run with its measurements inside, keeping whatever per-measurement lookup the reports need",
+      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Batch benchmark records: the census found 24,318 of them in 24.3 MB, one blob file per measurement; write one document per benchmark run with its measurements inside, keeping whatever per-measurement lookup the reports need",
+          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
           "status": "open",
           "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
         }
@@ -875,7 +889,9 @@
             "tmp-holds-only-tool-state/do",
             "tmp-refuses-undeclared-entries/do",
             "store-publish-has-one-owner/do",
-            "land-echo-selection-leak/do"
+            "land-echo-selection-leak/do",
+            "tracked-documents-classified/do",
+            "store-publish-changed-result/do"
           ]
         }
       ]

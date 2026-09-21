@@ -198,7 +198,7 @@ func InspectAudio(ctx context.Context, repository artifact.Repository, data []by
 		descriptor = artifact.Descriptor{ID: source, Size: uint64(len(data))}
 	}
 	batch.Artifacts = append(batch.Artifacts, descriptor)
-	if _, err := artifact.CommitBatch(ctx, repository, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, repository, batch); err != nil {
 		return AudioInspection{}, err
 	}
 	result := AudioInspection{SignalID: measurement.ID, PolicyID: admission.ID, DecisionID: decision.ID,

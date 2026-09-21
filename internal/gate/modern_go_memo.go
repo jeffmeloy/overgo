@@ -149,7 +149,7 @@ func (g *gateContext) computeModernGo(ctx context.Context, _ automationcheck.Inv
 		batch.Contents = append(batch.Contents, baseContent)
 		references.Base = baseContent.Descriptor.ID
 	}
-	if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return false, "", err
 	}
 	encoded, err := json.Marshal(references)

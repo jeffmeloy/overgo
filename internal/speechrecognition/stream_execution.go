@@ -209,9 +209,9 @@ func (transcriber *transcriptionModel) processStream(ctx context.Context, work w
 	lineage := append(artifact.DependencyLineage(checkpoint.Descriptor.ID, parents...), artifact.DependencyLineage(content.Descriptor.ID, checkpoint.Descriptor.ID)...)
 	batch, err := artifact.NewDocumentBatch("transcription-stream/"+checkpoint.Descriptor.ID.String(), []artifact.Content{checkpoint, content}, lineage, nil)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, transcriber.repository, batch)
+		_, err = artifact.Publish(ctx, transcriber.repository, batch)
 	}
-	if err != nil && !errors.Is(err, artifact.ErrNoChange) {
+	if err != nil {
 		return result, err
 	}
 	return workflowruntime.AudioStreamResult{Output: content.Descriptor.ID, State: checkpoint.Descriptor.ID}, nil

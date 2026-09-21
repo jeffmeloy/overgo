@@ -257,7 +257,7 @@ func runCapabilityCensus(repository string, publish bool, checkID string, output
 		if err != nil {
 			return err
 		}
-		if _, err := artifact.CommitBatch(ctx, store, batch); err != nil && !errors.Is(err, artifact.ErrNoChange) {
+		if _, err := artifact.Publish(ctx, store, batch); err != nil {
 			return err
 		}
 	} else {

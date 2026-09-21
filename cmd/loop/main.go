@@ -261,7 +261,7 @@ func (w *execWorld) awaitValidation() error {
 		return err
 	}
 	if obligation.State == runrecord.LaneObligationFailed {
-		w.validationDebt = fmt.Sprintf("Deferred validation failed for commit %s; inspect result %s and repair the recorded failure before the next commit. Do not rerun unchanged tests blindly.", obligation.CodeCommit, obligation.Outcome)
+		w.validationDebt = laneFailure(w.stopStore, obligation)
 		return nil
 	}
 	if w.Paused() {
@@ -279,12 +279,29 @@ func (w *execWorld) awaitValidation() error {
 			return nil
 		}
 		if readErr == nil && found && current.State == runrecord.LaneObligationFailed {
-			w.validationDebt = fmt.Sprintf("Deferred validation failed for commit %s; inspect result %s and repair the recorded failure before the next commit. Do not rerun unchanged tests blindly.", current.CodeCommit, current.Outcome)
+			w.validationDebt = laneFailure(w.stopStore, current)
 			return nil
 		}
 		return fmt.Errorf("loop: resume deferred validation: %w: %s", err, tailOf(out, 4000))
 	}
 	return nil
+}
+
+// laneFailure says what a failed lane obligation owes: the commit, the
+// result to inspect, and -- from that result -- which lane failed and what
+// it said, so the repair starts from the failure instead of from a rerun.
+func laneFailure(store artifact.Reader, obligation runrecord.GateLaneObligation) string {
+	debt := fmt.Sprintf("Deferred validation failed for commit %s; inspect result %s and repair the recorded failure before the next commit. Do not rerun unchanged tests blindly.", obligation.CodeCommit, obligation.Outcome)
+	result, err := runrecord.RequireGateResult(context.Background(), store, obligation.Outcome)
+	if err != nil {
+		return debt
+	}
+	for _, step := range result.Steps {
+		if step.Name == result.Failure && step.Detail != "" {
+			debt += "\n" + step.Name + " said: " + step.Detail
+		}
+	}
+	return debt
 }
 
 func (w *execWorld) Prompt(loop.Step) (string, error) {

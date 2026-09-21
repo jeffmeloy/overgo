@@ -332,6 +332,11 @@ func gateEvidenceRecord(name string, phase runrecord.Phase, evidence automationc
 	switch {
 	case runErr != nil:
 		record.Outcome = runrecord.StepFailed
+		text := runErr.Error()
+		if excess := len(text) - clioptions.DiagnosticTailBytes; excess > 0 {
+			text = text[excess:]
+		}
+		record.Detail = strings.ToValidUTF8(text, "")
 	case evidence.Inapplicable:
 		record.Outcome = runrecord.StepInapplicable
 	case evidence.Reused:

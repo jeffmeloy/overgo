@@ -50,6 +50,9 @@ type GateStep struct {
 	Outcome    StepOutcome `json:"outcome"`
 	DurationNS uint64      `json:"duration_ns,omitzero"`
 	Evidence   string      `json:"evidence,omitzero"`
+	// Detail is what a failed step said: the bounded tail of its error, which
+	// for a lane names the test that failed or was running when it hung.
+	Detail string `json:"detail,omitzero"`
 }
 
 // GateResult defines immutable named-step gate verdict.

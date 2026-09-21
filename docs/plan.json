@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "lanes-failure-names-its-test",
-      "title": "Make a failed deferred lane say what failed (found 2026-09-21 on 49c418a7): the web UI lane ran into its 20 minute test timeout while the device and model-journey lanes ran beside it, passed alone at the same commit in 88 seconds, and passed on a rerun of the lanes; diagnosing it took a manual run because the lane runner's transcript file is truncated at the start and never written, the failed step's evidence lives in the lane's own store where the canonical query cannot find it, and the recorded failure names only the lane. Record on the failed step the test that was running or failed and the tail of its output, readable with the canonical query; give the browser lane a per-test deadline so a hang costs a minute and names its test instead of costing twenty; and find what it contends on beside the other lanes",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make a failed deferred lane say what failed (found 2026-09-21 on 49c418a7): the web UI lane ran into its 20 minute test timeout while the device and model-journey lanes ran beside it, passed alone at the same commit in 88 seconds, and passed on a rerun of the lanes; diagnosing it took a manual run because the lane runner's transcript file is truncated at the start and never written, the failed step's evidence lives in the lane's own store where the canonical query cannot find it, and the recorded failure names only the lane. Record on the failed step the test that was running or failed and the tail of its output, readable with the canonical query; give the browser lane a per-test deadline so a hang costs a minute and names its test instead of costing twenty; and find what it contends on beside the other lanes",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestFailedLaneNamesItsTest' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-retire-superseded-and-backups",
       "title": "Retire the stores and backups the store operations have left behind, with the owner's say for each deletion: three superseded stores sit beside the one in service (9311ae7fdbf4, 052bbabe2dfe, 5d889819db9a) and five sealed backups under overgo-backups, four of them in the 128-thousand-file loose layout. Blobs are hard links, so a directory is safe to remove only when no blob of the store in service links into it alone. Have store-precheck report, per superseded store and per backup, how many of the live store's blob files would lose their last other link, keep the newest backup and the newest superseded store, check each candidate for reparse points, and print the removals for the owner rather than performing them",
       "owner": "master-lead",
@@ -42,6 +28,20 @@
           "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "webui-lane-hang-bounded",
+      "title": "Bound a hung browser test to a minute and find what the web UI lane contends on: on 49c418a7 the lane spent its whole 20 minute test timeout hung while the device and model-journey lanes ran beside it, and passed alone in 88 seconds. Give the browser tests a per-test deadline so a hang fails in about a minute and names itself, and measure the lane alone against the lane beside the others to find the shared resource -- the headless browser, a port, the GPU the journeys hold, or plain CPU -- before choosing between serialising the lanes under the machine lease and fixing the test",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound a hung browser test to a minute and find what the web UI lane contends on: on 49c418a7 the lane spent its whole 20 minute test timeout hung while the device and model-journey lanes ran beside it, and passed alone in 88 seconds. Give the browser tests a per-test deadline so a hang fails in about a minute and names itself, and measure the lane alone against the lane beside the others to find the shared resource -- the headless browser, a port, the GPU the journeys hold, or plain CPU -- before choosing between serialising the lanes under the machine lease and fixing the test",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -run '^TestBrowserTestsHaveADeadline' -count=1"
         }
       ]
     },
@@ -904,7 +904,8 @@
             "lanes-failure-names-its-test/do",
             "store-checkpoint-generations/do",
             "store-retire-superseded-and-backups/do",
-            "gate-history-ranks-readers/do"
+            "gate-history-ranks-readers/do",
+            "webui-lane-hang-bounded/do"
           ]
         }
       ]

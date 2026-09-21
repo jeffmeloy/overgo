@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-precheck-owns-its-backup",
-      "title": "Take a sealed backup inside store-precheck (owner 2026-09-20: fold in what the day exposed): a store operation today starts with a separate backup of about 18 minutes and a rule the operator must remember -- no gate between the backup and the precheck, because the seal must equal the head. One command that seals, clones, transforms, proves and swaps under one hold of the store removes the wait between steps and the hazard, and lets it retire the superseded store of the operation before last once the new one has served a landing",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Take a sealed backup inside store-precheck (owner 2026-09-20: fold in what the day exposed): a store operation today starts with a separate backup of about 18 minutes and a rule the operator must remember -- no gate between the backup and the precheck, because the seal must equal the head. One command that seals, clones, transforms, proves and swaps under one hold of the store removes the wait between steps and the hazard, and lets it retire the superseded store of the operation before last once the new one has served a landing",
-          "status": "open",
-          "verify": "go test ./cmd/store-precheck -run '^TestPrecheckTakesItsOwnBackup' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-snapshot-single-format",
       "title": "Keep one acceleration format: a snapshot writes the whole catalog twice, as the monolithic 193 MB snapshot document and as the per-facet checkpoints of the same 193 MB, and an open that finds no usable checkpoints already falls back past the snapshot to replaying the sealed segments. Measure what the monolithic snapshot still buys -- which opens have used it since checkpoints landed -- and if nothing, remove its writer, reader and generations, halving what a snapshot writes and deleting a fallback path",
       "owner": "master-lead",
@@ -33,13 +19,13 @@
     },
     {
       "id": "store-pack-neighbours",
-      "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
+      "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; store-precheck retires the superseded store of the operation before last once the newer one has served a landing, after checking it for reparse points, since two already sit beside the store in service; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
+          "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; store-precheck retires the superseded store of the operation before last once the newer one has served a landing, after checking it for reparse points, since two already sit beside the store in service; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestMergeBlobTreesCarriesThePack' -count=1"
         }
@@ -70,6 +56,20 @@
           "title": "Flip the isolation rule once its shadow evidence is in: after at least ten landings have recorded the measure, settle the open question of a reader whose path arrives from the environment (the gate binds data roots through it), seed a regression in an unrelated source for each package the rule would have left out most often and confirm none of them would have caught it, then make the rule the selection so receipts of untouched packages match again; the expected gain measured on 2026-09-20 was 28 of 29 packages and about 80 s of wall on a landing confined to one command",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestIsolationRuleSelectsOnEvidence' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "lanes-failure-names-its-test",
+      "title": "Make a failed deferred lane say what failed (found 2026-09-21 on 49c418a7): the web UI lane ran into its 20 minute test timeout while the device and model-journey lanes ran beside it, passed alone at the same commit in 88 seconds, and passed on a rerun of the lanes; diagnosing it took a manual run because the lane runner's transcript file is truncated at the start and never written, the failed step's evidence lives in the lane's own store where the canonical query cannot find it, and the recorded failure names only the lane. Record on the failed step the test that was running or failed and the tail of its output, readable with the canonical query; give the browser lane a per-test deadline so a hang costs a minute and names its test instead of costing twenty; and find what it contends on beside the other lanes",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make a failed deferred lane say what failed (found 2026-09-21 on 49c418a7): the web UI lane ran into its 20 minute test timeout while the device and model-journey lanes ran beside it, passed alone at the same commit in 88 seconds, and passed on a rerun of the lanes; diagnosing it took a manual run because the lane runner's transcript file is truncated at the start and never written, the failed step's evidence lives in the lane's own store where the canonical query cannot find it, and the recorded failure names only the lane. Record on the failed step the test that was running or failed and the tail of its output, readable with the canonical query; give the browser lane a per-test deadline so a hang costs a minute and names its test instead of costing twenty; and find what it contends on beside the other lanes",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestFailedLaneNamesItsTest' -count=1"
         }
       ]
     },
@@ -942,7 +942,8 @@
             "closure-binding-follows-declaration/do",
             "gate-receipt-reuse-measured/do",
             "gate-isolation-rule-on-evidence/do",
-            "gate-isolation-rule-enforced/do"
+            "gate-isolation-rule-enforced/do",
+            "lanes-failure-names-its-test/do"
           ]
         }
       ]

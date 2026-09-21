@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"overgo/internal/authoritylock"
 	"overgo/internal/clioptions"
 	"overgo/internal/closureledger"
 	"overgo/internal/closurescan"
@@ -55,13 +56,30 @@ func main() {
 
 func run() error {
 	repository := flag.String("repo", "overgodb-store", "OvergoDB store in service")
-	backup := flag.String("backup", "", "published backup whose seal names the store's current head")
+	backup := flag.String("backup", "", "published backup whose seal names the store's current head (default: this command seals one under -backups)")
+	backups := flag.String("backups", "", "directory this command seals its own backup under (default: overgo-backups beside the checkout)")
 	checkout := flag.String("checkout", ".", "checkout whose plan, committed documents and commit messages the candidate must satisfy")
 	candidate := flag.String("candidate", "", "fresh candidate store directory (default: <repo>.candidate)")
 	swap := flag.Bool("swap", false, "rename the candidate into service when every check passed, keeping the superseded store beside it")
 	flag.Parse()
-	if flag.NArg() != 0 || strings.TrimSpace(*backup) == "" {
-		return errors.New("usage: store-precheck -backup <published-backup> [-repo <store>] [-checkout <dir>] [-candidate <dir>] [-swap]")
+	if flag.NArg() != 0 {
+		return errors.New("usage: store-precheck [-backup <published-backup> | -backups <dir>] [-repo <store>] [-checkout <dir>] [-candidate <dir>] [-swap]")
+	}
+	// One hold of the gate's authority covers the seal, the candidate and the
+	// swap: no landing can move the head the backup sealed.
+	authority, err := authoritylock.Acquire(*checkout)
+	if err != nil {
+		return err
+	}
+	defer authority.Close()
+	if strings.TrimSpace(*backup) == "" {
+		absolute, err := filepath.Abs(*checkout)
+		if err != nil {
+			return err
+		}
+		if *backup, err = sealBackup(context.Background(), *repository, cmp.Or(*backups, filepath.Join(filepath.Dir(absolute), "overgo-backups"))); err != nil {
+			return err
+		}
 	}
 	*candidate = cmp.Or(*candidate, filepath.Clean(*repository)+".candidate")
 	// The receipt prints whatever happened: a precheck that could not run,
@@ -72,6 +90,24 @@ func run() error {
 	}
 	err = conclude(&result, *swap, func() (string, error) { return swapStores(*repository, *candidate, result.HeadBefore) })
 	return errors.Join(err, json.NewEncoder(os.Stdout).Encode(result))
+}
+
+// sealBackup seals a backup of the store in service under directory, named
+// for the head and sequence it seals, so a repeat at the same head finds the
+// one already there instead of copying the store again.
+func sealBackup(ctx context.Context, repository, directory string) (string, error) {
+	store, err := overgodb.Open(repository)
+	if err != nil {
+		return "", err
+	}
+	defer store.Close()
+	head, sequence := store.Head()
+	destination := filepath.Join(directory, fmt.Sprintf("overgodb-%.12s-%d", head, sequence))
+	if seal, err := overgodb.ReadBackupSeal(destination); err == nil && seal.Head == head && seal.Sequence == sequence {
+		return destination, nil
+	}
+	_, err = store.Backup(ctx, destination)
+	return destination, err
 }
 
 // precheck builds the candidate and collects every consumer's verdict.

@@ -1,4 +1,4 @@
-package longform
+package inferencesurface
 
 import (
 	"os"
@@ -54,11 +54,11 @@ func TestDigestFilesIsPathAndContentBound(t *testing.T) {
 // and is stable within a process.
 func TestSurfaceOfTheRepositoryIsStable(t *testing.T) {
 	ctx := t.Context()
-	first, err := Surface(ctx, "../..")
+	first, err := Digest(ctx, "../..")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := Surface(ctx, "../..")
+	second, err := Digest(ctx, "../..")
 	if err != nil || first != second || len(first) != 64 {
 		t.Fatalf("surface = %q, %q, %v", first, second, err)
 	}

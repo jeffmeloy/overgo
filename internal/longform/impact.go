@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"overgo/internal/inferencesurface"
 )
 
 // Affected reports whether changed paths can alter the current platform's
@@ -20,7 +22,7 @@ func Affected(ctx context.Context, root string, paths []string) (bool, string, e
 	if err != nil {
 		return false, "", err
 	}
-	packages, err := surfacePackages(ctx, root)
+	packages, err := inferencesurface.Packages(ctx, root)
 	if err != nil {
 		return false, "", err
 	}

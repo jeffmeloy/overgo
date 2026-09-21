@@ -20,7 +20,7 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/discovery"
 	"overgo/internal/gitauthority"
-	"overgo/internal/longform"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 )
@@ -100,11 +100,15 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		}
 		// The surface the code is at now: a guard record is current only when
 		// it ran on this one.
-		surface, err := longform.Surface(ctx, *root)
+		surface, err := inferencesurface.Digest(ctx, *root)
 		if err != nil {
 			return err
 		}
-		guard := func(location string) error { return longform.Admit(ctx, store, location, surface) }
+		records, err := latestGuardRecords(ctx, *root, storeRoot)
+		if err != nil {
+			return err
+		}
+		guard := func(location string) error { return guardCurrent(records, location, surface) }
 		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, guard))
 	}
 

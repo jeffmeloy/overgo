@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"overgo/internal/gitauthority"
-	"overgo/internal/longform"
+	"overgo/internal/inferencesurface"
 )
 
 // surfaceMoveShown bounds how many moved sources a warning names; the count
@@ -58,5 +58,5 @@ func inferenceSurfaceMoves(ctx context.Context, root string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return longform.SurfaceMoves(ctx, root, shipSetPaths(string(porcelain)))
+	return inferencesurface.Moves(ctx, root, shipSetPaths(string(porcelain)))
 }

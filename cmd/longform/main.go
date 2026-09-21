@@ -281,6 +281,13 @@ func readTargets(ctx context.Context, store *overgodb.Store, options options, re
 }
 
 func run(args []string, output io.Writer) error {
+	if len(args) != 0 && args[0] == latestRecordsVerb {
+		repository := ""
+		if len(args) > 1 {
+			repository = args[1]
+		}
+		return latestRecords(context.Background(), repository, output)
+	}
 	options, err := parseOptions(args)
 	if err != nil {
 		return err

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/longform"
+	"overgo/internal/inferencesurface"
 )
 
 // TestLandingNamesAnInferenceSurfaceMove holds the landing to saying, before
@@ -34,7 +34,7 @@ func TestLandingNamesAnInferenceSurfaceMove(t *testing.T) {
 	if !slices.Equal(paths, want) {
 		t.Fatalf("ship set paths = %v\nwant %v", paths, want)
 	}
-	moves, err := longform.SurfaceMoves(t.Context(), "../..", paths)
+	moves, err := inferencesurface.Moves(t.Context(), "../..", paths)
 	if err != nil {
 		t.Fatal(err)
 	}

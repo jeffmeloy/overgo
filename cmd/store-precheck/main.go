@@ -61,9 +61,22 @@ func run() error {
 	checkout := flag.String("checkout", ".", "checkout whose plan, committed documents and commit messages the candidate must satisfy")
 	candidate := flag.String("candidate", "", "fresh candidate store directory (default: <repo>.candidate)")
 	swap := flag.Bool("swap", false, "rename the candidate into service when every check passed, keeping the superseded store beside it")
+	leftovers := flag.Bool("leftovers", false, "list the superseded stores and sealed backups earlier operations left and which the newest of each are; removes nothing")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		return errors.New("usage: store-precheck [-backup <published-backup> | -backups <dir>] [-repo <store>] [-checkout <dir>] [-candidate <dir>] [-swap]")
+		return errors.New("usage: store-precheck [-backup <published-backup> | -backups <dir>] [-repo <store>] [-checkout <dir>] [-candidate <dir>] [-swap] | -leftovers")
+	}
+	absolute, err := filepath.Abs(*checkout)
+	if err != nil {
+		return err
+	}
+	*backups = cmp.Or(*backups, filepath.Join(filepath.Dir(absolute), "overgo-backups"))
+	if *leftovers {
+		found, err := listLeftovers(*repository, *backups)
+		if err != nil {
+			return err
+		}
+		return clioptions.WritePrettyJSON(os.Stdout, found)
 	}
 	// One hold of the gate's authority covers the seal, the candidate and the
 	// swap: no landing can move the head the backup sealed.
@@ -73,11 +86,7 @@ func run() error {
 	}
 	defer authority.Close()
 	if strings.TrimSpace(*backup) == "" {
-		absolute, err := filepath.Abs(*checkout)
-		if err != nil {
-			return err
-		}
-		if *backup, err = sealBackup(context.Background(), *repository, cmp.Or(*backups, filepath.Join(filepath.Dir(absolute), "overgo-backups"))); err != nil {
+		if *backup, err = sealBackup(context.Background(), *repository, *backups); err != nil {
 			return err
 		}
 	}

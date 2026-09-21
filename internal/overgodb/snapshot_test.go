@@ -72,7 +72,7 @@ func TestSnapshotFallbackReport(t *testing.T) {
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	file, err := os.OpenFile(snapshot.Path, os.O_RDWR, storeFileMode)
+	file, err := os.OpenFile(filepath.Join(snapshot.Path, "aliases"+checkpointExtension), os.O_RDWR, storeFileMode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,18 +89,13 @@ func TestSnapshotFallbackReport(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = file.Close()
-	// The checkpoint set is the faster verified anchor; remove it so
-	// this test still exercises the monolithic snapshot fallback path.
-	if err := os.RemoveAll(filepath.Join(root, checkpointDirectory)); err != nil {
-		t.Fatal(err)
-	}
 	store, err = OpenReadOnly(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	status := store.SnapshotReplay()
-	if status.Loaded || status.Path != snapshot.Path || status.Fallback == "" {
+	if status.Loaded || status.Fallback == "" {
 		t.Fatalf("snapshot fallback = %+v", status)
 	}
 	if _, ok, err := store.Artifact(t.Context(), batch.Artifacts[0].ID); err != nil || !ok {
@@ -138,15 +133,9 @@ func TestForeignSnapshotFallsBackToLog(t *testing.T) {
 	if err := target.Close(); err != nil {
 		t.Fatal(err)
 	}
-	directory := filepath.Join(targetRoot, snapshotDirectory)
-	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
-		t.Fatal(err)
-	}
-	data, err := os.ReadFile(snapshot.Path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(directory, filepath.Base(snapshot.Path)), data, storeFileMode); err != nil {
+	// A generation of another store carries anchors this journal does not
+	// hold; it must cost a replay, never answers from the wrong catalog.
+	if err := os.CopyFS(filepath.Join(targetRoot, checkpointDirectory, filepath.Base(snapshot.Path)), os.DirFS(snapshot.Path)); err != nil {
 		t.Fatal(err)
 	}
 	target, err = OpenReadOnly(targetRoot)

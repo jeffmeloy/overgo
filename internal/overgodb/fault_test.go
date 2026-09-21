@@ -162,11 +162,11 @@ func TestStreamingSnapshotFaultPreservesStore(t *testing.T) {
 	if _, err := store.Commit(t.Context(), fixtureBatch(t)); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(root, snapshotDirectory), []byte("blocked"), storeFileMode); err != nil {
+	if err := os.WriteFile(filepath.Join(root, checkpointDirectory), []byte("blocked"), storeFileMode); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Snapshot(t.Context()); err == nil {
-		t.Fatal("blocked snapshot directory accepted")
+		t.Fatal("blocked checkpoint directory accepted")
 	}
 	next := fixtureDescriptor(t, artifact.KindOutput, "after-snapshot-fault")
 	if _, err := store.Commit(t.Context(), artifact.Batch{

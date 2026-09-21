@@ -56,10 +56,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 		copyCorpusTree(t, filepath.Join(source, blobDirectory), filepath.Join(root, blobDirectory))
 		copyCorpusTree(t, filepath.Join(source, segmentDirectory), filepath.Join(root, segmentDirectory))
 		if withSnapshot {
-			if err := os.MkdirAll(filepath.Join(root, snapshotDirectory), storeDirectoryMode); err != nil {
-				t.Fatal(err)
-			}
-			copyCorpusFile(t, snapshotPath, filepath.Join(root, snapshotDirectory, filepath.Base(snapshotPath)))
+			copyCorpusTree(t, snapshotPath, filepath.Join(root, checkpointDirectory, filepath.Base(snapshotPath)))
 		}
 		return root
 	}
@@ -85,7 +82,7 @@ func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
 
 	t.Run("damaged snapshot falls back to the log", func(t *testing.T) {
 		root := copyCorpus(t, true)
-		damaged := filepath.Join(root, snapshotDirectory, filepath.Base(snapshotPath))
+		damaged := filepath.Join(root, checkpointDirectory, filepath.Base(snapshotPath), "lineage"+checkpointExtension)
 		data, err := os.ReadFile(damaged)
 		if err != nil {
 			t.Fatal(err)

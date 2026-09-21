@@ -70,7 +70,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		data[len(data)-2] ^= 0xFF
 		return data
 	})
-	if digest := openAndDigest(t, true, "aliases"); digest != baseline {
+	if digest := openAndDigest(t, false, "aliases"); digest != baseline {
 		t.Fatal("payload-corrupt fallback answered differently")
 	}
 	restore(t)
@@ -94,7 +94,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		}
 		return append(append(mutated, '\n'), data[newline+1:]...)
 	})
-	if digest := openAndDigest(t, true, "version"); digest != baseline {
+	if digest := openAndDigest(t, false, "version"); digest != baseline {
 		t.Fatal("unknown-version fallback answered differently")
 	}
 	restore(t)
@@ -118,15 +118,12 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 		}
 		return append(append(mutated, '\n'), data[newline+1:]...)
 	})
-	if digest := openAndDigest(t, true, "anchors a different head"); digest != baseline {
+	if digest := openAndDigest(t, false, "anchors a different head"); digest != baseline {
 		t.Fatal("stale-anchor fallback answered differently")
 	}
 	restore(t)
 
 	if err := os.RemoveAll(directory); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(filepath.Join(root, snapshotDirectory)); err != nil {
 		t.Fatal(err)
 	}
 	if digest := openAndDigest(t, false, "unreadable"); digest != baseline {

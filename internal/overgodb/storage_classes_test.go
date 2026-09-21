@@ -35,7 +35,7 @@ func TestRSIStorageClassContract(t *testing.T) {
 		filepath.Join("root", segmentDirectory, "x"+segmentExtension):             ClassCanonicalFact,
 		filepath.Join("root", blobDirectory, "run", "ab", "abcd"):                 ClassImmutableBlob,
 		filepath.Join("root", checkpointDirectory, "aliases"+checkpointExtension): ClassRebuildableProjection,
-		filepath.Join("root", snapshotDirectory, "x"+snapshotExtension):           ClassRebuildableProjection,
+		filepath.Join("root", snapshotDirectory, "x.snapshot"):                    ClassRebuildableProjection,
 		filepath.Join("root", "overgodb.lock"):                                    ClassOperationalSignal,
 	}
 	for path, expected := range layout {

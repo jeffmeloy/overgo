@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-snapshot-single-format",
-      "title": "Delete the monolithic snapshot once checkpoint generations have landed: its writer, its reader, its generations and the ten test files bound to its format; an open that finds no generation that verifies replays the sealed segments, as it already does when the snapshot is absent; keep Store.Snapshot as the name of the maintenance point that seals the journal and writes a checkpoint generation, since the gate calls it",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete the monolithic snapshot once checkpoint generations have landed: its writer, its reader, its generations and the ten test files bound to its format; an open that finds no generation that verifies replays the sealed segments, as it already does when the snapshot is absent; keep Store.Snapshot as the name of the maintenance point that seals the journal and writes a checkpoint generation, since the gate calls it",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestCheckpointsAreTheOnlyAcceleration' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-pack-neighbours",
       "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; store-precheck retires the superseded store of the operation before last once the newer one has served a landing, after checking it for reparse points, since two already sit beside the store in service; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
       "owner": "master-lead",

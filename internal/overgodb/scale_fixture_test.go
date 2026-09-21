@@ -45,7 +45,7 @@ func copyScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, uint
 	}
 	copyCorpusTree(t, fixture.root, root)
 	scaleCorpusCopies.Add(1)
-	return fixture.head, filepath.Join(root, snapshotDirectory, filepath.Base(fixture.snapshot)), fixture.contentBytes
+	return fixture.head, filepath.Join(root, checkpointDirectory, filepath.Base(fixture.snapshot)), fixture.contentBytes
 }
 
 func TestSharedScaleCorpusIsolation(t *testing.T) {

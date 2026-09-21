@@ -138,8 +138,7 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 		}
 	}
 	requireIntroduction(t, store)
-	snapshot, err := store.Snapshot(ctx)
-	if err != nil {
+	if _, err := store.Snapshot(ctx); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {
@@ -165,17 +164,14 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if replay := store.SnapshotReplay(); !replay.Loaded || replay.Path != snapshot.Path {
-		t.Fatalf("content snapshot was not replayed: %+v", replay)
+	if replay := store.SnapshotReplay(); replay.Loaded || replay.Fallback == "" {
+		t.Fatalf("an open with no checkpoint generation did not replay the journal: %+v", replay)
 	}
 	requireIntroduction(t, store)
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := os.RemoveAll(filepath.Join(root, snapshotDirectory)); err != nil {
-		t.Fatal(err)
-	}
 	store, err = OpenReadOnly(root)
 	if err != nil {
 		t.Fatal(err)

@@ -250,23 +250,13 @@ func open(ctx context.Context, root string, readOnly bool) (*Store, error) {
 		}
 		defer lock.Close()
 	}
-	// Per-projection checkpoints are the fastest verified anchor; any
-	// defect in the set falls back to the monolithic snapshot, then to
-	// full journal replay. Checkpoints are acceleration, not authority.
-	state, anchor, loaded, checkpointFallback := loadProjectionCheckpoints(root)
-	snapshot := SnapshotReplay{Loaded: loaded}
-	if loaded {
-		snapshot.Path = filepath.Join(root, checkpointDirectory)
-	}
+	// A checkpoint generation is the verified anchor; when none verifies the
+	// open replays the whole journal and says why. Checkpoints are
+	// acceleration, not authority.
+	state, anchor, loaded, refused := loadProjectionCheckpoints(root)
+	snapshot := SnapshotReplay{Loaded: loaded, Path: filepath.Join(root, checkpointDirectory), Fallback: refused}
 	if !loaded {
-		state, anchor, snapshot = loadLatestSnapshot(root)
-		if checkpointFallback != "" && snapshot.Fallback == "" {
-			snapshot.Fallback = checkpointFallback
-		}
-		loaded = snapshot.Loaded
-	}
-	if !loaded {
-		state = newCatalogState()
+		state, snapshot.Path = newCatalogState(), ""
 	}
 	store := &Store{state: state, readOnly: readOnly, root: root, snapshot: snapshot, blobs: newBlobStore(root)}
 	log, replay, err := openRecordLog(root, readOnly, anchor, store.applyRecord)

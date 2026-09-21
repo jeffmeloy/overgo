@@ -118,12 +118,18 @@ func TestMetadataSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshotData, err := os.ReadFile(snapshot.Path)
-	if err != nil {
-		t.Fatal(err)
+	members, err := os.ReadDir(snapshot.Path)
+	if err != nil || len(members) == 0 {
+		t.Fatalf("checkpoint generation %s: %d members, %v", snapshot.Path, len(members), err)
 	}
-	if bytes.Contains(snapshotData, content.Data) {
-		t.Fatal("snapshot retained content payload")
+	for _, member := range members {
+		memberData, err := os.ReadFile(filepath.Join(snapshot.Path, member.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(memberData, content.Data) {
+			t.Fatalf("checkpoint %s retained content payload", member.Name())
+		}
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)

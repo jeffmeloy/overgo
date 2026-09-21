@@ -117,7 +117,14 @@ func precheck(ctx context.Context, repository, backup, checkout, candidate strin
 	result.Roots, result.RootsMissing, result.Retained = released.PinnedRoots, released.PinnedMissing, released.Retained
 	result.Unreachable, result.Released, result.ReleasedBytes = released.Unreachable, released.Released, released.ReleasedBytes
 	result.BlobsRemoved = released.BlobsRemoved
+	// The release decides what is live; the pack then takes the small blobs
+	// that are, and the candidate is judged with its blobs where they will
+	// be served from.
+	if result.Pack, err = overgodb.PackSmallBlobs(ctx, store); err != nil {
+		return result, err
+	}
 	result.Checks = runChecks([]namedCheck{
+		{"blob-identity", func() error { _, err := store.VerifyBlobs(ctx); return err }},
 		{"completion-authority", func() error { return checkCompletionAuthority(ctx, checkout, store) }},
 		{"published-chains", func() error { return checkPublishedChains(ctx, checkout, candidate) }},
 		{"closure-ledger", func() error { return checkClosureLedger(ctx, checkout, store) }},

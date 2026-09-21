@@ -47,6 +47,7 @@ type OperationProof struct {
 	Released       int             `json:"released"`
 	ReleasedBytes  int64           `json:"released_bytes"`
 	BlobsRemoved   int             `json:"blobs_removed"`
+	Pack           PackReport      `json:"pack,omitzero"`
 	Checks         []ConsumerCheck `json:"checks"`
 	Passed         bool            `json:"passed"`
 }

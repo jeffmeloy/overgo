@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-blob-pack-and-split",
-      "title": "Pack the small blobs (owner 2026-09-20: blobs still has way too many files; measured 127,809 files, 123,919 of them under 4 KB holding 63 MB of the 702 MB, 697 files over 64 KB holding 592 MB): new small content has ridden in the journal frame since ffe8464b, so the count no longer grows, but the existing small blobs stay and the journal cannot be rewritten to take them. Give the blob store a pack -- one file of the blobs under the inline limit with an index from digest to offset and size, the reader falling back to it when a loose file is absent -- built on a candidate by store-precheck, which removes the packed loose files there, proves the candidate and swaps; a blob's place is a storage fact, not a journal fact, so the chain is untouched. Expected: about 127.8k files to about 3.9k",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Pack the small blobs (owner 2026-09-20: blobs still has way too many files; measured 127,809 files, 123,919 of them under 4 KB holding 63 MB of the 702 MB, 697 files over 64 KB holding 592 MB): new small content has ridden in the journal frame since ffe8464b, so the count no longer grows, but the existing small blobs stay and the journal cannot be rewritten to take them. Give the blob store a pack -- one file of the blobs under the inline limit with an index from digest to offset and size, the reader falling back to it when a loose file is absent -- built on a candidate by store-precheck, which removes the packed loose files there, proves the candidate and swaps; a blob's place is a storage fact, not a journal fact, so the chain is untouched. Expected: about 127.8k files to about 3.9k",
-          "status": "open",
-          "verify": "go test ./cmd/store-precheck -run '^TestPrecheckPacksSmallBlobs' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-alias-move-address-form",
       "title": "Close the gap in the alias move ratchet and convert what it hid: TestAliasMovesHaveOneOwner refuses a binding's Previous set from artifact.IDPointer, and 33 more production sites set it from an address-of expression (gate 7, modelrecipe 6, closure-scan 4, evaluation 3, agenttool 2, lanestore 2, and one each in finding, modelartifact, overgodb, server, worklease, advisories, audio-oracle, composite-generation-lane), so the landing that claimed thirty hand-written sites undercounted by half. Convert them to artifact.AliasMove, MoveAlias and AliasRemoval and have the test refuse Previous set from either form outside artifact",
       "owner": "master-lead",

@@ -109,6 +109,28 @@ func (b blobStore) packed(id artifact.ID) (offset int64, size int64, found bool)
 	return int64(binary.BigEndian.Uint64(place)), int64(binary.BigEndian.Uint32(place[8:])), true
 }
 
+// VerifyBlobs holds every live blob to its identity, loose or packed, and
+// says how many it read: the check a candidate passes after its blobs have
+// been moved.
+func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	checked := 0
+	for id, locator := range s.state.contents.locators {
+		if !locator.blob || locator.released != 0 {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return checked, err
+		}
+		if err := s.blobs.verify(id); err != nil {
+			return checked, err
+		}
+		checked++
+	}
+	return checked, nil
+}
+
 // PackReport says what one pack of a store's small blobs did.
 type PackReport struct {
 	Packed       int   `json:"packed"`

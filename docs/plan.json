@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "api-manifest-leaves-the-tree",
-      "title": "Retire after modern-go-census-leaves-the-tree, whose landing did this work (2026-09-21): docs/api_manifest.json carried a hash of the whole source tree and was rewritten by 584 landings; it now changes only with the release interface, each document keeping the identity of its own declaring file. The manifest stays a tracked file because it is a reviewed record of routes, binaries and contracts with its own diff classifier -- moving it to the store was the wrong fix",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire after modern-go-census-leaves-the-tree, whose landing did this work (2026-09-21): docs/api_manifest.json carried a hash of the whole source tree and was rewritten by 584 landings; it now changes only with the release interface, each document keeping the identity of its own declaring file. The manifest stays a tracked file because it is a reviewed record of routes, binaries and contracts with its own diff classifier -- moving it to the store was the wrong fix",
-          "status": "open",
-          "verify": "go test ./cmd/api-manifest -run '^TestManifestChangesOnlyWithTheInterface' -count=1"
-        }
-      ]
-    },
-    {
       "id": "compatibility-reports-leave-the-tree",
       "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
       "owner": "master-lead",
@@ -33,13 +19,13 @@
     },
     {
       "id": "modern-go-baseline-minimal",
-      "title": "Make the modern-Go baseline as small as a ratchet needs (census 2026-09-21): docs/modern_go_baseline.json is 247 KB and was rewritten by 662 landings since 2026-08-01, the largest and most rewritten baseline; a reviewed threshold should change only when a reviewer moves it. Measure what in it changes between landings, keep only the reviewed thresholds in the file, and move the rest to the census record",
+      "title": "Retire after modern-go-census-leaves-the-tree, whose landing 048bee9d did this work (2026-09-21): docs/modern_go_baseline.json was rewritten by 662 landings through an embedded hash of the whole source tree; it now holds only reviewed floors, the gate refuses it as loose exactly when lowering would change the file, and a landing that moves no floor leaves it byte-identical",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make the modern-Go baseline as small as a ratchet needs (census 2026-09-21): docs/modern_go_baseline.json is 247 KB and was rewritten by 662 landings since 2026-08-01, the largest and most rewritten baseline; a reviewed threshold should change only when a reviewer moves it. Measure what in it changes between landings, keep only the reviewed thresholds in the file, and move the rest to the census record",
+          "title": "Retire after modern-go-census-leaves-the-tree, whose landing 048bee9d did this work (2026-09-21): docs/modern_go_baseline.json was rewritten by 662 landings through an embedded hash of the whole source tree; it now holds only reviewed floors, the gate refuses it as loose exactly when lowering would change the file, and a landing that moves no floor leaves it byte-identical",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestModernGoBaselineHoldsOnlyReviewedThresholds' -count=1"
         }

@@ -779,6 +779,17 @@ func importClosureDocumentsWith(
 	unmatched += projection.unmatched
 	first = cmp.Or(first, projection.first)
 	if sameStore && retireUnmatched {
+		// A decision whose declaration still matches and whose uses moved is
+		// not stale: retiring it throws away a reviewed understanding that
+		// -review-callsites carries forward unchanged.
+		drifted := slices.DeleteFunc(slices.Clone(projection.pending), func(retry closurePending) bool {
+			return retry.reason != string(closurescan.DriftCallsite)
+		})
+		if len(drifted) != 0 {
+			return count, unmatched, first, aliases, fmt.Errorf(
+				"closure-scan: %d decision(s), first %s, drifted only at their callsites and are not stale; rerun the import with -review-callsites to keep their reviewed text, and retire what remains after it",
+				len(drifted), drifted[0].document.Name)
+		}
 		for _, retry := range projection.pending {
 			document, previousAlias := retry.document, retry.previousAlias
 			if !retired[previousAlias] {

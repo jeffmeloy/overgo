@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "closure-binding-follows-declaration",
-      "title": "Bind a catalogued constant by its declaration, not by where it is used: adding a use of storeDirectoryMode and of inlineContentLimit in the blob pack drifted their closure bindings, the scan reported them unmatched, retiring the unmatched bindings left both constants uncatalogued, and each had to be proposed, written up and triaged again -- three preflight rounds for two constants nobody had changed. A binding that follows the declaration survives new uses, and a use that moves is not a decision to review",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bind a catalogued constant by its declaration, not by where it is used: adding a use of storeDirectoryMode and of inlineContentLimit in the blob pack drifted their closure bindings, the scan reported them unmatched, retiring the unmatched bindings left both constants uncatalogued, and each had to be proposed, written up and triaged again -- three preflight rounds for two constants nobody had changed. A binding that follows the declaration survives new uses, and a use that moves is not a decision to review",
-          "status": "open",
-          "verify": "go test ./internal/closureledger -run '^TestBindingSurvivesANewUse' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gate-isolation-rule-enforced",
       "title": "Name the inputs of the packages every landing re-runs (the shadow measure overturned the inheritance rule, 2026-09-21): on a landing confined to cmd/store-precheck the gate ran 29 packages, one for the compiler, and the rule under trial -- an importer inherits a reader's reach only if the reader finds the repository itself or the importer could hand it a path -- would have left out 1 of 29, 1.1 s. The other 27 are not innocent importers: each reaches unnamed paths itself, in its sources or its tests (a flag path, a parent path, the working directory), so each takes every root as an input and no receipt ever matches. The set is about twenty packages wide on any Go change: clone-census, code-manifest, controller-action, device-lane, cmd/gate, overgodb-query, overgodb-rebuild, release, rsi-census, agentworkflow, automationcheck, closurescan, controlleraction, internal/loop, storepolicy, testprocess, testvocab, trainingprogram, trainingworkflow, workflowruntime. For each, read the recorded reason, and either name what it reads so it binds those paths alone, or move the repository-wide read into the one package whose job it is; keep recording the shadow measure, and enforce the inheritance rule only if later landings show it is worth more than it has so far",
       "owner": "master-lead",

@@ -4,34 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "compatibility-reports-leave-the-tree",
-      "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "repoanalysis-suite-wall",
-      "title": "Discover the repository once for the repoanalysis suite: its tests each walk and parse the whole tree again (the suite measured 66 s in test-owners after the store access census added one more), so share one source snapshot across the tests that only read it and record the suite wall before and after",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Discover the repository once for the repoanalysis suite: its tests each walk and parse the whole tree again (the suite measured 66 s in test-owners after the store access census added one more), so share one source snapshot across the tests that only read it and record the suite wall before and after",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestRepositorySnapshotIsSharedAcrossTheSuite' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-agent-obligation-redundancy",
       "title": "Find what writes agent obligations one record at a time and stop it: the census found 49,785 of them, the largest schema in the store, in 17.8 MB (mean 358 bytes), each its own blob file; record the writer, what reads them back, and write one document per unit the readers actually consume",
       "owner": "master-lead",
@@ -322,6 +294,20 @@
           "title": "Tag rows with the surfaces they move and dispatch all movers of a surface contiguously before any evidence or validation row on that surface, so re-validation runs once per batch",
           "status": "open",
           "verify": "test -f internal/plan/surface_dispatch_test.go \u0026\u0026 go test ./internal/plan -run '^TestSurfaceAwareDispatch' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "compatibility-reports-leave-the-tree",
+      "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1"
         }
       ]
     },

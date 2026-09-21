@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"overgo/internal/gosource"
 )
 
 func TestModernGoExceptionsAreExactOwnedAndTested(t *testing.T) {
@@ -76,8 +78,30 @@ func TestModernGoExceptionsHaveRetirementTriggers(t *testing.T) {
 }
 
 // Each caller reads this census; policy and time-sensitive admission stay fresh.
+// The census of the whole repository costs seconds of type checking, and the
+// suite needs it in exactly two forms: as the census command computes it, and
+// as the gate computes it from a snapshot discovered in the other order. Each
+// is computed once for the suite, however many tests read it.
 var modernGoRepositoryCensus = sync.OnceValues(func() (ModernGoCensus, error) {
+	// The other census starts now, beside this one: a serial test asks for
+	// this one long before any test asks for that, and they share no state.
+	go func() { _, _ = modernGoSnapshotCensus() }()
 	return BuildModernGoCensus(filepath.Join("..", ".."), ModernGoTargetVersion)
+})
+
+// modernGoSnapshotCensus is the census as the gate computes it: from an
+// explicit snapshot, discovered internal before cmd.
+var modernGoSnapshotCensus = sync.OnceValues(func() (ModernGoCensus, error) {
+	root := filepath.Join("..", "..")
+	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	if err != nil {
+		return ModernGoCensus{}, err
+	}
+	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
+	if err != nil {
+		return ModernGoCensus{}, err
+	}
+	return ModernGoCensusSnapshot(snapshot, selection, ModernGoTargetVersion)
 })
 
 func modernGoRepositoryExceptionAuthority(t *testing.T) (ModernGoCensus, ModernGoBaseline) {

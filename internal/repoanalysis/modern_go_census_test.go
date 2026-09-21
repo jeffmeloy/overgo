@@ -16,8 +16,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"overgo/internal/gosource"
 )
 
 func TestModernGoCensusCoversApplicableCatalog(t *testing.T) {
@@ -47,6 +45,7 @@ func identity(value any) any { return value }
 }
 
 func TestEveryApplicableModernGoGuidelineMeasured(t *testing.T) {
+	t.Parallel()
 	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
@@ -221,25 +220,17 @@ func launch(wait *localWait) {
 	}
 }
 
+// TestModernGoCensusDiscoveryOrderInvariant compares the suite's two censuses:
+// the census command discovers cmd before internal, the gate's snapshot
+// internal before cmd. The second is asked for first, so that it is computed
+// while a parallel test computes the first.
 func TestModernGoCensusDiscoveryOrderInvariant(t *testing.T) {
-	root := filepath.Join("..", "..")
-	forward, err := DiscoverGo(root, "cmd", "internal")
+	t.Parallel()
+	second, err := modernGoSnapshotCensus()
 	if err != nil {
 		t.Fatal(err)
 	}
-	reverse, err := DiscoverGo(root, "internal", "cmd")
-	if err != nil {
-		t.Fatal(err)
-	}
-	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := ModernGoCensusSnapshot(forward, selection, ModernGoTargetVersion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := ModernGoCensusSnapshot(reverse, selection, ModernGoTargetVersion)
+	first, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
 	}

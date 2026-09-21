@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"overgo/internal/gosource"
 )
 
 func TestEveryApplicableModernGoGuidelineResolved(t *testing.T) {
@@ -112,20 +110,12 @@ func TestModernGoRatchetAtClosure(t *testing.T) {
 // TestModernGoGateSnapshotReachesClosure holds the census the gate computes
 // from its own snapshot to the same closure as the census command.
 func TestModernGoGateSnapshotReachesClosure(t *testing.T) {
-	root := filepath.Join("..", "..")
-	snapshot, err := DiscoverGo(root, "internal", "cmd")
+	t.Parallel()
+	census, err := modernGoSnapshotCensus()
 	if err != nil {
 		t.Fatal(err)
 	}
-	selection, err := gosource.HostBuildSelection(root, "./cmd/...", "./internal/...")
-	if err != nil {
-		t.Fatal(err)
-	}
-	census, err := ModernGoCensusSnapshot(snapshot, selection, ModernGoTargetVersion)
-	if err != nil {
-		t.Fatal(err)
-	}
-	baseline, err := LoadModernGoBaseline(filepath.Join(root, filepath.FromSlash(ModernGoBaselineFile)))
+	baseline, err := LoadModernGoBaseline(filepath.Join("..", "..", filepath.FromSlash(ModernGoBaselineFile)))
 	if err != nil {
 		t.Fatal(err)
 	}

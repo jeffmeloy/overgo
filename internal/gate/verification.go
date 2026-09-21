@@ -1208,6 +1208,7 @@ func (g *gateContext) stepTestPlan(ctx context.Context) (bool, error) {
 		ledger: ledger, directInputs: directInputs, dependentInputs: dependentInputs,
 		edited: edited, remaining: remaining, dependent: dependentPending,
 		reused: directReused + dependentReused, pending: len(directPending) + len(dependentPending),
+		shadowIsolated: scope.shadowIsolated,
 	}
 	if g.testPlan.pending == 0 {
 		g.packageExecutionAudit()
@@ -1221,6 +1222,9 @@ type testGroups struct {
 	directInputs, dependentInputs map[string]artifact.ID
 	edited, remaining, dependent  []string
 	reused, pending               int
+	// shadowIsolated carries the measure into the selection record; nothing
+	// here selects by it.
+	shadowIsolated []string
 }
 
 // stepTestDevice runs prepared device packages under shared admission.

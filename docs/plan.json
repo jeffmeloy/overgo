@@ -74,14 +74,28 @@
       ]
     },
     {
-      "id": "tmp-refuses-undeclared-entries",
-      "title": "Refuse an entry in tmp that no tool declares, once tmp is clean: tmp mixes the gate's live control state (locks, lifecycle, lanes, cache, prepared selection, closure proposals, the merge-evidence staging store at 3.3 GB) with worker debris; 880 loose files were deleted by hand on 2026-09-20 and 15 debris directories plus two clean worktrees wait on the owner, whose delete the permission classifier refused the worker. When they are gone, have admission refuse a tmp entry outside a declared table so debris cannot accumulate again, and have the merge tool retire merge-evidence stores of merges that landed",
+      "id": "gate-isolation-rule-enforced",
+      "title": "Flip the isolation rule once its shadow evidence is in: after at least ten landings have recorded the measure, settle the open question of a reader whose path arrives from the environment (the gate binds data roots through it), seed a regression in an unrelated source for each package the rule would have left out most often and confirm none of them would have caught it, then make the rule the selection so receipts of untouched packages match again; the expected gain measured on 2026-09-20 was 28 of 29 packages and about 80 s of wall on a landing confined to one command",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refuse an entry in tmp that no tool declares, once tmp is clean: tmp mixes the gate's live control state (locks, lifecycle, lanes, cache, prepared selection, closure proposals, the merge-evidence staging store at 3.3 GB) with worker debris; 880 loose files were deleted by hand on 2026-09-20 and 15 debris directories plus two clean worktrees wait on the owner, whose delete the permission classifier refused the worker. When they are gone, have admission refuse a tmp entry outside a declared table so debris cannot accumulate again, and have the merge tool retire merge-evidence stores of merges that landed",
+          "title": "Flip the isolation rule once its shadow evidence is in: after at least ten landings have recorded the measure, settle the open question of a reader whose path arrives from the environment (the gate binds data roots through it), seed a regression in an unrelated source for each package the rule would have left out most often and confirm none of them would have caught it, then make the rule the selection so receipts of untouched packages match again; the expected gain measured on 2026-09-20 was 28 of 29 packages and about 80 s of wall on a landing confined to one command",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestIsolationRuleSelectsOnEvidence' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "tmp-refuses-undeclared-entries",
+      "title": "Give tool state a home of its own and empty tmp (owner 2026-09-20: a current gate output that keeps no history, not tmp files): tmp mixes four kinds of state with worker debris. Locks (gate.lock, gate_lanes.lock, loop_supervisor.lock) must be operating-system files; crash locators and heartbeats (gate_lifecycle.json, gate_commit_intent.json, loop_supervisor.json) exist for the moment the store cannot be read; the live transcript (gate_lanes.log) is the current output with no history the owner asked for; and caches (gate_cache.json, gate_prepared_selection.json) are derived. Nothing journaled can be without history -- every commit is a frame for good, and small content rides inline where it can never be released -- so: a runtime directory beside the store holds the locks, the locators and one overwritten transcript slot per tool, never journaled and left out of backups; the caches become a releasable store class keyed by their inputs; files that only repeat a store record (gate_lanes.json repeats the lane obligation alias) go; and then admission refuses any entry in tmp, which holds nothing a tool needs. Waits on the owner deleting the 15 debris directories the classifier refused the worker",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give tool state a home of its own and empty tmp (owner 2026-09-20: a current gate output that keeps no history, not tmp files): tmp mixes four kinds of state with worker debris. Locks (gate.lock, gate_lanes.lock, loop_supervisor.lock) must be operating-system files; crash locators and heartbeats (gate_lifecycle.json, gate_commit_intent.json, loop_supervisor.json) exist for the moment the store cannot be read; the live transcript (gate_lanes.log) is the current output with no history the owner asked for; and caches (gate_cache.json, gate_prepared_selection.json) are derived. Nothing journaled can be without history -- every commit is a frame for good, and small content rides inline where it can never be released -- so: a runtime directory beside the store holds the locks, the locators and one overwritten transcript slot per tool, never journaled and left out of backups; the caches become a releasable store class keyed by their inputs; files that only repeat a store record (gate_lanes.json repeats the lane obligation alias) go; and then admission refuses any entry in tmp, which holds nothing a tool needs. Waits on the owner deleting the 15 debris directories the classifier refused the worker",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1"
         }
@@ -940,7 +954,9 @@
             "store-snapshot-single-format/do",
             "store-pack-neighbours/do",
             "closure-binding-follows-declaration/do",
-            "gate-receipt-reuse-measured/do"
+            "gate-receipt-reuse-measured/do",
+            "gate-isolation-rule-on-evidence/do",
+            "gate-isolation-rule-enforced/do"
           ]
         }
       ]

@@ -226,8 +226,15 @@ func writeSelectionCauses(output io.Writer, histogram *runrecord.SelectionHistog
 	for _, step := range histogram.Steps {
 		fmt.Fprintf(output, "  causes %-16s packages=%d executed=%d failed=%d skipped=%d unstarted=%d\n", step.Name, step.Packages, step.Executed, step.Failed, step.Skipped, step.Unstarted)
 	}
-	var unknown, missing, failed, passed int
+	var unknown, missing, failed, passed, isolated int
+	var isolatedSeconds float64
 	for _, entry := range histogram.Packages {
+		if entry.ShadowIsolated {
+			isolated++
+			if entry.ElapsedSeconds != nil {
+				isolatedSeconds += *entry.ElapsedSeconds
+			}
+		}
 		switch {
 		case !entry.Reuse.Obligation.Valid():
 			unknown++
@@ -240,6 +247,7 @@ func writeSelectionCauses(output io.Writer, histogram *runrecord.SelectionHistog
 		}
 	}
 	fmt.Fprintf(output, "  receipts before execution: unrecorded=%d no_matching=%d prior_failed=%d prior_passed=%d\n", unknown, missing, failed, passed)
+	fmt.Fprintf(output, "  shadow isolation, measured and not enforced: would leave out packages=%d of %d elapsed=%.1fs\n", isolated, len(histogram.Packages), isolatedSeconds)
 	for _, bar := range histogram.Primary {
 		fmt.Fprintf(output, "  primary %-14s packages=%d executed=%d skipped=%d unstarted=%d elapsed=%.1fs\n", bar.Cause, bar.Packages, bar.Executed, bar.Skipped, bar.Unstarted, bar.ElapsedSeconds)
 	}

@@ -24,6 +24,9 @@ type SelectionPackage struct {
 	UnboundInputs  []string          `json:"unbound_inputs,omitempty"`
 	RuntimeReaders map[string]string `json:"runtime_readers,omitempty"`
 	Reuse          SelectionReuse    `json:"reuse,omitzero"`
+	// ShadowIsolated marks a package the isolation rule under trial would
+	// have left out: a measurement, never a reason it ran or did not.
+	ShadowIsolated bool `json:"shadow_isolated,omitzero"`
 }
 
 // SelectionReuse records the exact obligation and its receipt before execution.
@@ -134,6 +137,7 @@ type SelectionPackageCauses struct {
 	Skipped        bool             `json:"skipped,omitzero"`
 	ElapsedSeconds *float64         `json:"elapsed_seconds,omitempty"`
 	Reuse          SelectionReuse   `json:"reuse,omitzero"`
+	ShadowIsolated bool             `json:"shadow_isolated,omitzero"`
 }
 
 // SelectionCauseCount is one histogram bar.
@@ -265,7 +269,7 @@ func SelectionCauseHistogram(result GateResult, record SelectionCauseRecord) (Se
 		}
 		histogram.Packages = append(histogram.Packages, SelectionPackageCauses{
 			Package: entry.Package, Step: entry.Step, Primary: causes[0].Kind, Causes: causes,
-			Executed: executed, Failed: failed, Skipped: skipped, ElapsedSeconds: elapsed, Reuse: entry.Reuse,
+			Executed: executed, Failed: failed, Skipped: skipped, ElapsedSeconds: elapsed, Reuse: entry.Reuse, ShadowIsolated: entry.ShadowIsolated,
 		})
 	}
 	for _, step := range result.Steps {

@@ -177,6 +177,7 @@ func (g *gateContext) retainSelectionCauses(batches []packageExecutionBatch) {
 					return
 				}
 				entry.Step = batch.Step
+				entry.ShadowIsolated = slices.Contains(g.testPlan.shadowIsolated, target)
 				if g.testPlan.ledger != nil {
 					entry.Reuse = g.testPlan.ledger.prepared[target]
 				}

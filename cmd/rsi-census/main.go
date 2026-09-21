@@ -76,9 +76,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := repoanalysis.DocumentReferences(documents, os.ReadFile); err != nil {
+		return err
+	}
 	for _, tracked := range documents {
-		if kind := tracked.Family.Kind; kind == repoanalysis.DocumentUnread || kind == repoanalysis.DocumentGenerated {
-			fmt.Printf("document %s %s writers=%v readers=%v\n", kind, tracked.Path, tracked.Writers, tracked.Readers)
+		if kind := tracked.Family.Kind; kind == repoanalysis.DocumentGenerated {
+			fmt.Printf("document %s %s writers=%v readers=%v referenced_by=%d\n", kind, tracked.Path, tracked.Writers, tracked.Readers, len(tracked.ReferencedBy))
 		}
 	}
 	if err := repoanalysis.ValidateTrackedDocuments(documents, repoanalysis.TrackedDocumentFamilies); err != nil {

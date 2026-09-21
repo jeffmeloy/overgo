@@ -17,10 +17,14 @@ import (
 
 // The tracked document census answers, for every document the repository
 // tracks beside its source, why it is tracked: which production packages name
-// it, which of them write it, and which family of documents it belongs to. The
-// naming is measured from syntax; the family's kind is a reviewed judgement,
-// and the census holds the two to each other, so a document nothing reads
-// cannot pass as an input and a new document cannot arrive unclassified.
+// it, which of them write it, which documents name it in their own text, and
+// which family of documents it belongs to. Both namings are measured -- from
+// syntax, and from the text of the documents -- and neither alone is enough: a
+// specification that lists its evidence files is read by a tool that then
+// opens each one, and no source literal ever names them. The family's kind is
+// a reviewed judgement, and the census holds it to the measurement, so a
+// document nothing reads cannot pass as an input and a new document cannot
+// arrive unclassified.
 
 // DocumentKind says why a family of documents is tracked.
 type DocumentKind string
@@ -36,8 +40,6 @@ const (
 	DocumentReceipt DocumentKind = "receipt"
 	// DocumentFixture is an input a tool or a test consumes.
 	DocumentFixture DocumentKind = "fixture"
-	// DocumentUnread is named by no production package.
-	DocumentUnread DocumentKind = "unread"
 )
 
 // DocumentFamily classifies the documents its pattern matches. A pattern that
@@ -54,6 +56,8 @@ type TrackedDocument struct {
 	Family  DocumentFamily `json:"family,omitzero"`
 	Writers []string       `json:"writers,omitempty"`
 	Readers []string       `json:"readers,omitempty"`
+	// ReferencedBy are the documents whose text names this one.
+	ReferencedBy []string `json:"referenced_by,omitempty"`
 }
 
 // fileWriterCalls are the lower-case prefixes of a function that puts a file
@@ -88,22 +92,32 @@ func TrackedDocumentCensus(snapshot SourceSnapshot, documents []string, families
 			}
 		}
 	}
-	packages := map[string][]*ast.File{}
+	// A test that opens a document reads it as surely as a tool does, so its
+	// literals name documents; it is never the tool that generates one, so
+	// what it writes -- a golden file it refreshes -- makes no writer. A test
+	// names a file or a pattern, never a directory: it joins a directory to a
+	// file name from its own table, the file name is what it reads, and the
+	// directory alone would pass off every stray beneath it as read.
+	packages, literals := map[string][]*ast.File{}, map[string][]string{}
 	for _, file := range snapshot.Files {
-		if file.Test {
-			continue
-		}
 		syntax, err := file.Syntax()
 		if err != nil {
 			return nil, err
 		}
-		packages[path.Dir(file.Path)] = append(packages[path.Dir(file.Path)], syntax)
+		pkg, names := path.Dir(file.Path), stringLiterals(syntax)
+		if file.Test {
+			names = slices.DeleteFunc(names, func(name string) bool {
+				return path.Ext(name) == "" && !strings.ContainsRune(name, '*')
+			})
+		} else {
+			packages[pkg] = append(packages[pkg], syntax)
+		}
+		literals[pkg] = append(literals[pkg], names...)
 	}
 	constants := packageStrings(packages)
-	for pkg, files := range packages {
-		var named, written []string
-		for _, syntax := range files {
-			named = append(named, stringLiterals(syntax)...)
+	for pkg, named := range literals {
+		var written []string
+		for _, syntax := range packages[pkg] {
 			written = append(written, writtenNames(pkg, syntax, constants)...)
 		}
 		for index := range census {
@@ -263,9 +277,7 @@ func namesDocument(name, document string) bool {
 	if name == path.Base(document) {
 		return true
 	}
-	// A path inside a longer literal starts at a boundary: a sentence of help
-	// may carry it, the tail of another file's name may not.
-	if at := strings.Index(name, document); at == 0 || at > 0 && !strings.ContainsRune(fileNameRunes, rune(name[at-1])) {
+	if carriesPath(name, document) {
 		return true
 	}
 	if strings.ContainsRune(name, '*') {
@@ -276,23 +288,89 @@ func namesDocument(name, document string) bool {
 	return directory != documentsRoot && strings.HasPrefix(document, directory+"/")
 }
 
+// carriesPath reports whether text carries the path starting at a boundary: a
+// sentence may carry it, the tail of another file's name may not.
+func carriesPath(text, document string) bool {
+	for from := 0; ; {
+		at := strings.Index(text[from:], document)
+		if at < 0 {
+			return false
+		}
+		if at += from; at == 0 || !strings.ContainsRune(fileNameRunes, rune(text[at-1])) {
+			return true
+		}
+		from = at + len(document)
+	}
+}
+
+// textDocuments are the extensions of a document whose text can name another.
+var textDocuments = []string{".json", ".jsonl", ".md", ".txt", ".svg"}
+
+// DocumentReferences records, on each document, the documents whose text names
+// it: by its repository path, or by its path from the naming document's own
+// directory, as a link in a report is written. Source syntax cannot see this
+// channel -- a specification that lists its evidence files is read by a tool
+// that then opens every file it lists -- so a document is read when code names
+// it or when a document that is read names it.
+func DocumentReferences(census []TrackedDocument, read func(document string) ([]byte, error)) error {
+	for _, referrer := range census {
+		if !slices.Contains(textDocuments, path.Ext(referrer.Path)) {
+			continue
+		}
+		content, err := read(referrer.Path)
+		if err != nil {
+			return fmt.Errorf("document references: %w", err)
+		}
+		text, directory := string(content), path.Dir(referrer.Path)+"/"
+		for index := range census {
+			target := census[index].Path
+			if target == referrer.Path {
+				continue
+			}
+			relative, beneath := strings.CutPrefix(target, directory)
+			if carriesPath(text, target) || beneath && directory != "./" && carriesPath(text, relative) {
+				census[index].ReferencedBy = append(census[index].ReferencedBy, referrer.Path)
+			}
+		}
+	}
+	return nil
+}
+
+// liveDocuments returns the documents something reads: one a production
+// package names, one a person reads, and -- to a fixed point -- one that a
+// live document names.
+func liveDocuments(census []TrackedDocument) map[string]bool {
+	live := map[string]bool{}
+	for grew := true; grew; {
+		grew = false
+		for _, document := range census {
+			if live[document.Path] {
+				continue
+			}
+			if len(document.Writers)+len(document.Readers) > 0 || document.Family.Kind == DocumentAuthored ||
+				slices.ContainsFunc(document.ReferencedBy, func(referrer string) bool { return live[referrer] }) {
+				live[document.Path], grew = true, true
+			}
+		}
+	}
+	return live
+}
+
 // ValidateTrackedDocuments holds each document's declared family to what was
 // measured, and the families to the documents: none unclassified, none stale.
 func ValidateTrackedDocuments(census []TrackedDocument, families []DocumentFamily) error {
 	var findings []error
 	matched := map[DocumentFamily]bool{}
+	live := liveDocuments(census)
 	for _, document := range census {
-		named := len(document.Writers)+len(document.Readers) > 0
 		matched[document.Family] = true
 		switch kind := document.Family.Kind; {
 		case kind == "":
 			findings = append(findings, fmt.Errorf("tracked document %s belongs to no family: a document enters through a plan row that classifies it", document.Path))
-		case kind == DocumentUnread && named:
-			findings = append(findings, fmt.Errorf("tracked document %s is declared unread and is named by %v %v", document.Path, document.Writers, document.Readers))
 		case kind == DocumentGenerated && len(document.Writers) == 0:
 			findings = append(findings, fmt.Errorf("tracked document %s is declared generated and no package that names it writes a file", document.Path))
-		case kind != DocumentUnread && kind != DocumentAuthored && !named:
-			findings = append(findings, fmt.Errorf("tracked document %s is declared %s and no production package names it", document.Path, kind))
+		case !live[document.Path]:
+			findings = append(findings, fmt.Errorf("tracked document %s is declared %s and nothing reads it: no package, no test and no document that is read names it; give it a reader or delete it", document.Path, kind))
 		}
 	}
 	for _, family := range families {
@@ -323,7 +401,7 @@ var TrackedDocumentFamilies = []DocumentFamily{
 	{"docs/image_video_protocol.json", DocumentFixture},
 	{"docs/image_video_validation.json", DocumentFixture},
 	{"docs/image_video_assertions.json", DocumentFixture},
-	{"docs/image_video_*.json", DocumentUnread},
+	{"docs/image_video_*.json", DocumentReceipt},
 	{"docs/*_baseline.json", DocumentBaseline},
 	{"docs/structure_budgets.json", DocumentBaseline},
 	{"docs/staged_surface.json", DocumentBaseline},
@@ -335,8 +413,8 @@ var TrackedDocumentFamilies = []DocumentFamily{
 	{"docs/verification/smoke-oracles.json", DocumentFixture},
 	{"docs/verification/wan-dit-training-stimulus.txt", DocumentFixture},
 	{"docs/verification/rxbrain-mot-training-stimulus.txt", DocumentFixture},
-	{"docs/verification/*.json", DocumentReceipt},
-	{"docs/verification/", DocumentUnread},
+	{"docs/verification/e4b-validation.md", DocumentAuthored},
+	{"docs/verification/", DocumentReceipt},
 }
 
 // documentPathspecs select what the census covers: documents by their

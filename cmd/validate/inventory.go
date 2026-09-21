@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/model"
 	"overgo/internal/modelartifact"
 	"overgo/internal/overgodb"
 )
@@ -42,6 +41,10 @@ const modelConfigFile = "config.json"
 // registrationSuffix names the declaration recipe spec writes for a directory.
 const registrationSuffix = "-registration.json"
 
+// verifyCommand is the form recipe verify takes, as its own usage states it:
+// a task and an input suite come before the model, and neither is guessed.
+const verifyCommand = "go run ./cmd/recipe verify -task TASK -input SUITE.json "
+
 // modelDirectory is what the inventory reads from one directory on disk.
 type modelDirectory struct {
 	Path          string
@@ -60,12 +63,15 @@ type InventoryModel struct {
 	Cells    []ModelValidation `json:"cells"`
 }
 
-// DirectoryInventory is one model directory's standing.
+// DirectoryInventory is one model directory's standing. ModelType is the
+// architecture its config declares, verbatim: whether a recipe supports it is
+// decided by recipe verify against the registered profile, because the
+// declared name and the runtime.s name for one architecture differ in form
+// (qwen3_5 and qwen35) and matching them here reported a supported one as not.
 type DirectoryInventory struct {
 	Directory string           `json:"directory"`
 	Standing  string           `json:"standing"`
 	ModelType string           `json:"model_type,omitzero"`
-	Supported bool             `json:"recipe_supported"`
 	Models    []InventoryModel `json:"models,omitempty"`
 	Commands  []string         `json:"commands,omitempty"`
 }
@@ -135,7 +141,6 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 	for _, directory := range directories {
 		entry := DirectoryInventory{
 			Directory: filepath.ToSlash(directory.Path), ModelType: directory.ModelType,
-			Supported: slices.Contains(model.SupportedArchitectures(), directory.ModelType),
 		}
 		prefix := strings.ToLower(filepath.ToSlash(directory.Path)) + "/"
 		tied := map[artifact.ID]int{}
@@ -188,7 +193,7 @@ func directoryStanding(directory modelDirectory, models []InventoryModel) (strin
 				continue
 			}
 			models[index].Standing = standingRegistered
-			command := "go run ./cmd/recipe verify " + tied.Model.String()
+			command := verifyCommand + tied.Model.String()
 			if name, args, err := reacquireCommand(cell); err == nil {
 				command = name + " " + strings.Join(args, " ")
 			}

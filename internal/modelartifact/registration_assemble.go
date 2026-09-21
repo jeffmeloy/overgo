@@ -65,8 +65,14 @@ func AssembleRegistration(ctx context.Context, root, directory, spdx string) (js
 			Path: "git", Args: append([]string{"--no-replace-objects", "-C", path}, read.arguments...),
 			Env: gitauthority.ReaderEnvironment(), Stdout: &output,
 		})
-		if err != nil || receipt.ExitCode != 0 {
-			return nil, fmt.Errorf("assemble %s: git %s: the directory needs its own repository with an origin and unchanged tracked bytes (exit=%d): %w", directory, read.arguments[0], receipt.ExitCode, err)
+		if err != nil {
+			return nil, fmt.Errorf("assemble %s: git %s: %w", directory, read.arguments[0], err)
+		}
+		// The check reads the index as it stands, never refreshing it: a
+		// repository copied into place has files newer than its index and
+		// reads as changed until its owner runs git status in it once.
+		if receipt.ExitCode != 0 {
+			return nil, fmt.Errorf("assemble %s: git %s exit=%d: the directory needs its own repository with an origin and unchanged tracked bytes; if nothing was edited, run git status in it once to refresh an index older than its files", directory, read.arguments[0], receipt.ExitCode)
 		}
 		if read.into != nil {
 			*read.into = strings.TrimSpace(output.String())

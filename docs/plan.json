@@ -886,7 +886,8 @@
             "compatibility-reports-leave-the-tree/do",
             "modern-go-baseline-minimal/do",
             "models-register-and-validate/do",
-            "recipe-spec-assembler/do"
+            "recipe-spec-assembler/do",
+            "inventory-first-use-corrections/do"
           ]
         }
       ]
@@ -1068,6 +1069,10 @@
     {
       "key": "suite-cost:overgo/internal/audioparity",
       "row": "audioparity-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/internal/capabilityruntime",
+      "row": "automation-review-suite-cost-regression"
     },
     {
       "key": "suite-cost:overgo/internal/evaluation",

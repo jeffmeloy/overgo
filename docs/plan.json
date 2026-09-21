@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "models-register-and-validate",
+      "title": "Register and validate every model directory (owner campaign; denominator from go run ./cmd/validate -inventory, measured 2026-09-21: 29 directories, 16 validated, 4 registered with no validated model -- FireRedVAD, MiniCPM5-1B, granite-speech-5.0-470m-turboctc, nemotron-3.5-asr-streaming-0.6b -- and 7 unregistered). One row, landed in as few gates as the work allows. First the blocker: recipe register needs a -spec of exact identities and no command writes one -- the only assembler is registrationFixture in cmd/recipe/register_test.go -- so add recipe spec, which computes the model and tensor-inventory identities (modelartifact.FromHFPath or FromGGUF), reads the directory's git origin and commit, and takes the license from the LICENSE file or README with the SPDX id the model card's own license field declares, never one invented; and correct validate -inventory, which landed printing 'recipe register \u003cdir\u003e', a command that does not exist in that form. Then register, verify, activate and validate the unregistered six that are Hugging Face clones with an origin -- Fractale-350M-base (mit), Qwen3.5-4B (apache-2.0; its converted GGUF is registered but no recorded config ties it to the directory), RAE-collections (mit, 69 GB), Unlimited-OCR (mit), timesfm-3.0-pytorch (card says other, not an SPDX id), webssl-dino300m-full2b-224 (cc-by-nc-4.0, non-commercial) -- and acquire accepted evidence for the four registered ones. OWNER decisions recorded, not assumed: bonzai (40 GB) has no git origin, license or README, so it has no source provenance to register; timesfm-3.0's license is not a standard identifier; webssl-dino is non-commercial. Done when the inventory reports no unregistered and no registered-only directory except those the owner has excluded",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Register and validate every model directory (owner campaign; denominator from go run ./cmd/validate -inventory, measured 2026-09-21: 29 directories, 16 validated, 4 registered with no validated model -- FireRedVAD, MiniCPM5-1B, granite-speech-5.0-470m-turboctc, nemotron-3.5-asr-streaming-0.6b -- and 7 unregistered). One row, landed in as few gates as the work allows. First the blocker: recipe register needs a -spec of exact identities and no command writes one -- the only assembler is registrationFixture in cmd/recipe/register_test.go -- so add recipe spec, which computes the model and tensor-inventory identities (modelartifact.FromHFPath or FromGGUF), reads the directory's git origin and commit, and takes the license from the LICENSE file or README with the SPDX id the model card's own license field declares, never one invented; and correct validate -inventory, which landed printing 'recipe register \u003cdir\u003e', a command that does not exist in that form. Then register, verify, activate and validate the unregistered six that are Hugging Face clones with an origin -- Fractale-350M-base (mit), Qwen3.5-4B (apache-2.0; its converted GGUF is registered but no recorded config ties it to the directory), RAE-collections (mit, 69 GB), Unlimited-OCR (mit), timesfm-3.0-pytorch (card says other, not an SPDX id), webssl-dino300m-full2b-224 (cc-by-nc-4.0, non-commercial) -- and acquire accepted evidence for the four registered ones. OWNER decisions recorded, not assumed: bonzai (40 GB) has no git origin, license or README, so it has no source provenance to register; timesfm-3.0's license is not a standard identifier; webssl-dino is non-commercial. Done when the inventory reports no unregistered and no registered-only directory except those the owner has excluded",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1"
+        }
+      ]
+    },
+    {
       "id": "store-agent-obligation-redundancy",
       "title": "Design one per-landing evidence document for the gate's obligations, then write it (re-measured 2026-09-21 with overgodb-query -census): overgo/agent-obligation/v1 is the largest and fastest growing schema, 53,595 records and 19.2 MB, about 127 new records per landing; with overgo/gate-package-receipt/v1 (29,858) and overgo/closure-ledger/v3 (31,216) gate-written evidence is half of all records. The file count the row first named is solved -- the blob pack holds them, the live store is about 4,000 files -- so the remaining cost is catalog state decoded at every open. The writers are in internal/gate, not agentloop: packageEvidenceLedger.prepare (terminal_evidence.go) mints one go-test obligation per test package per landing and keys its package receipt and its result reuse by that obligation's id, and recordBatchEvidence (batch_evidence.go) mints one per verification checkpoint. The gate (batch_evidence.go) and the trajectory supervisor read obligation content back. So this is a redesign of per-package evidence and reuse, not a writer fix: keep the content-addressed id as the reuse key, publish one document per landing that lists the package obligations, and prove reuse still hits across landings before retiring the per-record form",
       "owner": "master-lead",
@@ -870,7 +884,9 @@
             "modern-go-census-leaves-the-tree/do",
             "api-manifest-leaves-the-tree/do",
             "compatibility-reports-leave-the-tree/do",
-            "modern-go-baseline-minimal/do"
+            "modern-go-baseline-minimal/do",
+            "models-register-and-validate/do",
+            "recipe-spec-assembler/do"
           ]
         }
       ]

@@ -39,6 +39,9 @@ var weightExtensions = []string{".safetensors", ".gguf", ".bin", ".pt", ".pth", 
 // modelConfigFile declares a checkpoint's architecture.
 const modelConfigFile = "config.json"
 
+// registrationSuffix names the declaration recipe spec writes for a directory.
+const registrationSuffix = "-registration.json"
+
 // modelDirectory is what the inventory reads from one directory on disk.
 type modelDirectory struct {
 	Path          string
@@ -169,7 +172,12 @@ func directoryStanding(directory modelDirectory, models []InventoryModel) (strin
 		if !directory.Weights {
 			return standingNotAModel, nil
 		}
-		return standingUnregistered, []string{"go run ./cmd/recipe register " + filepath.ToSlash(directory.Path)}
+		root, name := filepath.Split(filepath.ToSlash(directory.Path))
+		specification := name + registrationSuffix
+		return standingUnregistered, []string{
+			"go run ./cmd/recipe spec -root " + root + " -output " + specification + " " + name,
+			"go run ./cmd/recipe register -repo STORE -root " + root + " -spec " + specification,
+		}
 	}
 	var commands []string
 	standing := standingRegistered

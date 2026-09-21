@@ -32,11 +32,14 @@ func main() {
 
 func run() error {
 	if len(os.Args) < 2 {
-		return errors.New("usage: recipe <register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
+		return errors.New("usage: recipe <spec|register|verify|activate|retire|retire-orphan|run|status|policy> [options] <model>")
 	}
 	verb := os.Args[1]
 	if verb == "register" {
 		return registerModels(os.Args[2:])
+	}
+	if verb == "spec" {
+		return assembleSpecification(os.Args[2:])
 	}
 	if verb == "validate-candidate" {
 		return validateCandidate(os.Args[2:])

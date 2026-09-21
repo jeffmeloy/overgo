@@ -116,9 +116,8 @@ func compile(root string) (apimanifest.Manifest, error) {
 		}
 	}
 	return apimanifest.New(apimanifest.Manifest{
-		Version:        1,
-		Release:        "master",
-		SourceIdentity: snapshot.Identity(),
+		Version: 1,
+		Release: "master",
 		BuildContexts: []apimanifest.BuildContext{{
 			ID: selection.Context, GOOS: hostPart(selection.Context, 0), GOARCH: hostPart(selection.Context, 1),
 		}},

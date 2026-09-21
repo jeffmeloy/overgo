@@ -37,31 +37,22 @@ func TestModernGoPreflightBindsCandidateCensus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	published, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline)
-	if err != nil {
+	if _, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline); err != nil {
 		t.Fatal(err)
 	}
 	// Correct working-tree authorities must not hide stale candidate files.
 	if err := jsonfile.Write(filepath.Join(repo, repoanalysis.ModernGoBaselineFile), baseline, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := jsonfile.Write(filepath.Join(repo, repoanalysis.ModernGoPublishedCensusFile), published, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	for _, mode := range []string{"valid", "stale", "missing", "malformed", "baseline"} {
+	for _, mode := range []string{"valid", "loose", "missing", "malformed"} {
 		t.Run(mode, func(t *testing.T) {
-			candidateBaseline, candidateCensus := baseline, published
-			if mode == "stale" {
-				candidateCensus.SourceIdentity = "stale"
+			candidateBaseline := baseline
+			if mode == "loose" {
+				// A floor the tree has bettered: lowering would change the file.
+				candidateBaseline.Coverage.TypedFiles--
 			}
-			if mode == "baseline" {
-				candidateBaseline.SourceIdentity = "stale"
-			}
-			if err := jsonfile.Write(filepath.Join(candidate, repoanalysis.ModernGoBaselineFile), candidateBaseline, 0o644); err != nil {
-				t.Fatal(err)
-			}
-			path := filepath.Join(candidate, repoanalysis.ModernGoPublishedCensusFile)
-			if err := jsonfile.Write(path, candidateCensus, 0o644); err != nil {
+			path := filepath.Join(candidate, repoanalysis.ModernGoBaselineFile)
+			if err := jsonfile.Write(path, candidateBaseline, 0o644); err != nil {
 				t.Fatal(err)
 			}
 			if mode == "missing" {

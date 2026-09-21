@@ -48,7 +48,7 @@ func Compare(previous, current Manifest) ([]Change, error) {
 	changes = append(changes, compareEntries("protocol", ChangeContract, previous.Protocols, current.Protocols, func(value Protocol) string { return value.Name })...)
 	changes = append(changes, compareEntries("workspace", ChangeContract, previous.Workspaces, current.Workspaces, func(value Workspace) string { return value.Name })...)
 	changes = append(changes, compareEntries("authority", ChangeEvidence, previous.Authorities, current.Authorities, func(value Authority) string { return value.Name })...)
-	if previous.Release != current.Release || previous.SourceIdentity != current.SourceIdentity {
+	if previous.Release != current.Release {
 		changes = append(changes, Change{Class: ChangeEvidence, Kind: "release", Key: current.Release})
 	}
 	slices.SortFunc(changes, func(left, right Change) int {

@@ -25,7 +25,6 @@ const (
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
 	modernGoBaselinePath              = "docs/modern_go_baseline.json"
-	modernGoCensusPath                = "docs/modern_go_census.json"
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
@@ -178,7 +177,6 @@ func prepareMergeWithProjection(
 			trainingCompatibilityDocumentPath,
 			apiManifestJSONPath,
 			modernGoBaselinePath,
-			modernGoCensusPath,
 		); err != nil {
 			return err
 		}
@@ -336,8 +334,7 @@ func mergeOwnedDocument(path string) bool {
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
 		apiManifestJSONPath,
-		modernGoBaselinePath,
-		modernGoCensusPath:
+		modernGoBaselinePath:
 		return true
 	default:
 		return false
@@ -357,7 +354,6 @@ func regenerateMergeOwnedDocuments(root, localRevision string) error {
 		args  []string
 	}{
 		{"lower merged modern-Go baseline", []string{"run", "./cmd/modern-census", "-lower-baseline"}},
-		{"publish merged modern-Go census", []string{"run", "./cmd/modern-census", "-publish-census"}},
 		{"refresh merged API manifest", []string{"run", "./cmd/api-manifest", "-update"}},
 	}
 	for _, command := range commands {

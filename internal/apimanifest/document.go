@@ -120,18 +120,17 @@ type Authority struct {
 // Manifest is the canonical release-interface projection: build contexts,
 // binaries, routes, documents, modules, protocols, workspaces, and authorities.
 type Manifest struct {
-	Version        uint16         `json:"version"`
-	Release        string         `json:"release"`
-	SourceIdentity string         `json:"source_identity"`
-	BuildContexts  []BuildContext `json:"build_contexts"`
-	Binaries       []Binary       `json:"binaries,omitempty"`
-	Routes         []Route        `json:"routes,omitempty"`
-	Documents      []Document     `json:"documents,omitempty"`
-	Modules        []Module       `json:"modules,omitempty"`
-	Protocols      []Protocol     `json:"protocols,omitempty"`
-	Workspaces     []Workspace    `json:"workspaces,omitempty"`
-	Authorities    []Authority    `json:"authorities"`
-	ID             artifact.ID    `json:"-"`
+	Version       uint16         `json:"version"`
+	Release       string         `json:"release"`
+	BuildContexts []BuildContext `json:"build_contexts"`
+	Binaries      []Binary       `json:"binaries,omitempty"`
+	Routes        []Route        `json:"routes,omitempty"`
+	Documents     []Document     `json:"documents,omitempty"`
+	Modules       []Module       `json:"modules,omitempty"`
+	Protocols     []Protocol     `json:"protocols,omitempty"`
+	Workspaces    []Workspace    `json:"workspaces,omitempty"`
+	Authorities   []Authority    `json:"authorities"`
+	ID            artifact.ID    `json:"-"`
 }
 
 var codec = artifact.JSONDocumentCodec(
@@ -242,7 +241,7 @@ func canonicalize(value *Manifest) error {
 }
 
 func validate(value Manifest) error {
-	if value.Version != artifact.InitialDocumentVersion || !validText(value.Release) || !artifact.ValidHexDigest(value.SourceIdentity) || len(value.BuildContexts) == 0 || len(value.Authorities) == 0 {
+	if value.Version != artifact.InitialDocumentVersion || !validText(value.Release) || len(value.BuildContexts) == 0 || len(value.Authorities) == 0 {
 		return errors.New("API manifest header is invalid")
 	}
 	contexts := map[string]bool{}

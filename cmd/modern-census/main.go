@@ -43,7 +43,7 @@ func run(args []string, output io.Writer) error {
 	fixManualIdioms := flags.Bool("fix-manual-idioms", false, "rewrite proven fallback, ticker, typed-sort, and slice-clone idioms")
 	closeExceptions := flags.Bool("close-exceptions", false, "replace every retained candidate with exact owned exception authority")
 	exceptionExpiry := flags.String("expires", "", "required YYYY-MM-DD expiry for -close-exceptions")
-	publishCensus := flags.Bool("publish-census", false, "write source-bound closure evidence; combine with -lower-baseline to share analysis")
+	publishCensus := flags.Bool("publish-census", false, "check and print the guideline closure; combine with -lower-baseline to share analysis")
 	rules := flags.String("rules", "", "comma-separated plan-owned guideline IDs for -work")
 	sites := flags.String("sites", "", "print every candidate site of one guideline ID, so a ceiling breach names its source line")
 	limit := flags.String("limit", "", "required maximum source sites for -work")
@@ -235,16 +235,11 @@ func checkModernGoBaseline(root, target string, output io.Writer) error {
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, census, time.Now().UTC()); err != nil {
 		return err
 	}
-	expected, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline)
+	if err := repoanalysis.ModernGoBaselineHolds(baseline, census); err != nil {
+		return err
+	}
+	published, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline)
 	if err != nil {
-		return err
-	}
-	publishedName := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile))
-	var published repoanalysis.ModernGoPublishedCensus
-	if err := jsonfile.DecodeStrict(publishedName, &published); err != nil {
-		return err
-	}
-	if err := repoanalysis.ValidateModernGoPublishedCensus(published, expected); err != nil {
 		return err
 	}
 	measured := 0
@@ -254,9 +249,9 @@ func checkModernGoBaseline(root, target string, output io.Writer) error {
 		}
 	}
 	fmt.Fprintf(output,
-		"modern-census: check=pass measured=%d/%d candidates=%d exceptions=%d unresolved=%d excluded=%d authority=%s baseline=%s published=%s source=%s catalog=%s\n",
+		"modern-census: check=pass measured=%d/%d candidates=%d exceptions=%d unresolved=%d excluded=%d authority=%s baseline=%s source=%s catalog=%s\n",
 		measured, len(census.Findings), census.CandidateCount(), len(baseline.Exceptions), published.Unresolved, len(published.Excluded),
-		baseline.ExceptionSHA256, repoanalysis.ModernGoBaselineFile, repoanalysis.ModernGoPublishedCensusFile,
+		baseline.ExceptionSHA256, repoanalysis.ModernGoBaselineFile,
 		census.SourceIdentity, census.CatalogCommit)
 	return nil
 }
@@ -271,8 +266,8 @@ func publishModernGoCensus(root, target string, lower bool, output io.Writer) er
 		return err
 	}
 	fmt.Fprintf(output,
-		"modern-census: published=%s applicable=%d measured=%d adopted=%d candidates=%d excepted=%d unresolved=%d excluded=%d authority=%s source=%s\n",
-		repoanalysis.ModernGoPublishedCensusFile, published.Applicable, published.Measured, published.Adopted,
+		"modern-census: closure applicable=%d measured=%d adopted=%d candidates=%d excepted=%d unresolved=%d excluded=%d authority=%s source=%s\n",
+		published.Applicable, published.Measured, published.Adopted,
 		published.Candidates, published.ExceptedCandidates, published.Unresolved, len(published.Excluded),
 		published.ExceptionSHA256, published.SourceIdentity)
 	if lower {

@@ -104,7 +104,7 @@ func TestTestingReductionContract(t *testing.T) {
 		}
 	}
 	// Optional reporting belongs to compatibility, outside browser execution.
-	documented, documentedWall := plan([]string{"internal/gate/preflight.go", "docs/plan.json", "docs/api_manifest.json", "docs/modern_go_census.json"})
+	documented, documentedWall := plan([]string{"internal/gate/preflight.go", "docs/plan.json", "docs/api_manifest.json", "docs/modern_go_baseline.json"})
 	reason, excluded := documented.impact.ExclusionReason("device")
 	t.Logf("gate change with documents: device excluded=%v reason=%s unknown=%d", excluded, reason, len(documented.surface.Unknown))
 	for _, name := range []string{automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {

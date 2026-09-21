@@ -1,6 +1,7 @@
 package repoanalysis
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -59,7 +60,6 @@ type ModernGoBaseline struct {
 	TargetGo        string                      `json:"target_go"`
 	CatalogCommit   string                      `json:"catalog_commit"`
 	CatalogSHA256   string                      `json:"catalog_sha256"`
-	SourceIdentity  string                      `json:"source_identity"`
 	Coverage        ModernGoBaselineCoverage    `json:"coverage"`
 	Guidelines      []ModernGoBaselineGuideline `json:"guidelines"`
 	Exceptions      []ModernGoException         `json:"exceptions"`
@@ -73,8 +73,8 @@ func BuildModernGoBaseline(census ModernGoCensus) (ModernGoBaseline, error) {
 		Schema:   modernGoSchema,
 		Doc:      "Pinned per-guideline candidate ceilings. The gate requires complete coverage, refuses increases, and rejects new findings in changed source even when aggregate debt falls.",
 		TargetGo: census.TargetGo, CatalogCommit: census.CatalogCommit,
-		CatalogSHA256: census.CatalogSHA256, SourceIdentity: census.SourceIdentity,
-		Exceptions: []ModernGoException{},
+		CatalogSHA256: census.CatalogSHA256,
+		Exceptions:    []ModernGoException{},
 	}
 	baseline.Coverage.Applicable = len(census.Findings)
 	for _, finding := range census.Findings {
@@ -98,9 +98,37 @@ func BuildModernGoBaseline(census ModernGoCensus) (ModernGoBaseline, error) {
 	return baseline, nil
 }
 
-// LowerModernGoBaseline refreshes census provenance while permitting only
-// lower guideline ceilings and exact exception scopes. A caller
-// cannot use it to normalize newly introduced debt into the authority.
+// ModernGoBaselineHolds refuses a baseline that lowering would change: a
+// ceiling above the measured debt, an exception wider than its sites, or a
+// typed-coverage floor the tree has bettered. The gate keeps the ratchet tight
+// by this rule alone, where it once compared a hash of the whole source tree
+// and so rewrote the baseline at every landing.
+func ModernGoBaselineHolds(baseline ModernGoBaseline, census ModernGoCensus) error {
+	lowered, err := LowerModernGoBaseline(baseline, census)
+	if err != nil {
+		return err
+	}
+	// Compared as the file would be written: that is what would change.
+	before, err := json.Marshal(baseline)
+	if err != nil {
+		return err
+	}
+	after, err := json.Marshal(lowered)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(before, after) {
+		return fmt.Errorf("modern-Go baseline is loose: lowering it would change %s; run `go run ./cmd/modern-census -lower-baseline`", ModernGoBaselineFile)
+	}
+	return nil
+}
+
+// LowerModernGoBaseline permits only lower guideline ceilings and exact
+// exception scopes; a caller cannot use it to normalize newly introduced debt
+// into the authority. The file holds reviewed floors, never a measurement of
+// the tree: the typed-coverage floor moves only when the count of untyped
+// files falls, so a landing that lowers nothing leaves the baseline
+// byte-identical and a reviewer sees it change only when a floor did.
 func LowerModernGoBaseline(baseline ModernGoBaseline, census ModernGoCensus) (ModernGoBaseline, error) {
 	if err := AdmitModernGoRatchet(baseline, census, time.Time{}); err != nil {
 		return ModernGoBaseline{}, err
@@ -110,6 +138,9 @@ func LowerModernGoBaseline(baseline ModernGoBaseline, census ModernGoCensus) (Mo
 		return ModernGoBaseline{}, err
 	}
 	measured.Doc = baseline.Doc
+	if untyped := measured.Coverage.InspectedFiles - measured.Coverage.TypedFiles; untyped >= baseline.Coverage.InspectedFiles-baseline.Coverage.TypedFiles {
+		measured.Coverage = baseline.Coverage
+	}
 	counts := make(map[string]map[string]int, len(census.Findings))
 	for _, finding := range census.Findings {
 		counts[finding.ID] = modernGoSiteCounts(finding.Candidates)
@@ -221,7 +252,7 @@ func AdmitModernGoDelta(baseline ModernGoBaseline, previous, candidate ModernGoC
 }
 
 func validateModernGoBaseline(baseline ModernGoBaseline, today time.Time) error {
-	if baseline.Schema != modernGoSchema || baseline.TargetGo == "" || baseline.CatalogCommit == "" || baseline.CatalogSHA256 == "" || baseline.SourceIdentity == "" {
+	if baseline.Schema != modernGoSchema || baseline.TargetGo == "" || baseline.CatalogCommit == "" || baseline.CatalogSHA256 == "" {
 		return fmt.Errorf("modern-Go baseline has incomplete schema or provenance")
 	}
 	if baseline.Coverage.Applicable == 0 || baseline.Coverage.Measured != baseline.Coverage.Applicable || baseline.Coverage.InspectedFiles == 0 || baseline.Coverage.TypedFiles == 0 {

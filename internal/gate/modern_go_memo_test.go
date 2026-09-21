@@ -46,7 +46,7 @@ func TestSharedModernCensusPreparation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.paths = []string{"internal/example/value.go", repoanalysis.ModernGoBaselineFile, repoanalysis.ModernGoPublishedCensusFile}
+	g.paths = []string{"internal/example/value.go", repoanalysis.ModernGoBaselineFile}
 	tree, err := g.plannedTree()
 	if err != nil {
 		t.Fatal(err)
@@ -57,26 +57,8 @@ func TestSharedModernCensusPreparation(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	for _, damage := range []string{"corrupt", "missing"} {
-		path := filepath.Join(root, repoanalysis.ModernGoPublishedCensusFile)
-		if damage == "corrupt" {
-			err = os.WriteFile(path, []byte("incomplete publication"), 0o644)
-		} else {
-			err = os.Remove(path)
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := g.repairModernGoCensus(); err != nil {
-			t.Fatal(err)
-		}
-		var got repoanalysis.ModernGoPublishedCensus
-		if err := jsonfile.DecodeStrict(path, &got); err != nil || got.SourceIdentity != want.SourceIdentity {
-			t.Fatalf("%s recovery: %+v %v", damage, got, err)
-		}
-	}
 	if computations != 1 {
-		t.Fatalf("candidate computed %d times across repair, verification and output recovery", computations)
+		t.Fatalf("candidate computed %d times across repair and verification", computations)
 	}
 
 	baselinePath := filepath.Join(root, repoanalysis.ModernGoBaselineFile)
@@ -289,14 +271,10 @@ func modernMemoPublish(t *testing.T, root string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	published, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline)
-	if err != nil {
+	if _, err := repoanalysis.BuildModernGoPublishedCensus(census, baseline); err != nil {
 		t.Fatal(err)
 	}
 	if err := jsonfile.Write(filepath.Join(root, repoanalysis.ModernGoBaselineFile), baseline, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := jsonfile.Write(filepath.Join(root, repoanalysis.ModernGoPublishedCensusFile), published, 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -396,7 +374,7 @@ func testModernCensusRestartAndLiveAdmission(t *testing.T) {
 	if err := restart.closeStore(); err != nil {
 		t.Fatal(err)
 	}
-	for _, mode := range []string{"published report", "baseline source", "expired exception"} {
+	for _, mode := range []string{"loose floor", "expired exception"} {
 		t.Run(mode, func(t *testing.T) {
 			modernMemoPublish(t, root)
 			path := filepath.Join(root, repoanalysis.ModernGoBaselineFile)
@@ -405,18 +383,9 @@ func testModernCensusRestartAndLiveAdmission(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch mode {
-			case "published report":
-				path := filepath.Join(root, repoanalysis.ModernGoPublishedCensusFile)
-				var published repoanalysis.ModernGoPublishedCensus
-				if err := jsonfile.DecodeStrict(path, &published); err != nil {
-					t.Fatal(err)
-				}
-				published.Adopted++
-				if err := jsonfile.Write(path, published, 0o644); err != nil {
-					t.Fatal(err)
-				}
-			case "baseline source":
-				baseline.SourceIdentity = fmt.Sprintf("%x", sha256.Sum256([]byte("foreign source")))
+			case "loose floor":
+				// A floor the tree has bettered: lowering would change the file.
+				baseline.Coverage.TypedFiles--
 			case "expired exception":
 				baseline.Exceptions = []repoanalysis.ModernGoException{{
 					Guideline: baseline.Guidelines[0].ID, Path: "internal/example/value.go", Symbol: "Value", Owner: "internal/example",

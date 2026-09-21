@@ -1,12 +1,16 @@
 package repoanalysis
 
 import (
+	"bytes"
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"overgo/internal/gosource"
-	"overgo/internal/jsonfile"
 )
 
 func TestEveryApplicableModernGoGuidelineResolved(t *testing.T) {
@@ -28,26 +32,61 @@ func TestEveryApplicableModernGoGuidelineResolved(t *testing.T) {
 	}
 }
 
-func TestModernGoPublishedCensusMatchesSource(t *testing.T) {
+// TestModernGoBaselineHoldsOnlyReviewedThresholds holds the ratchet file to
+// reviewed floors and nothing measured from the tree. It once carried a hash
+// of the whole source tree, so every landing rewrote it and a reviewer could
+// not tell a moved floor from a touched file. A tree that changes and grows
+// without bettering a floor leaves the lowered baseline byte-identical; a tree
+// with fewer untyped files moves the typed-coverage floor, and until the file
+// is lowered the gate's rule refuses it as loose. The closure report is
+// computed on demand: no copy of it is kept in the tree to be checked against
+// the computation it came from.
+func TestModernGoBaselineHoldsOnlyReviewedThresholds(t *testing.T) {
 	census, baseline := modernGoRepositoryExceptionAuthority(t)
-	expected, err := BuildModernGoPublishedCensus(census, baseline)
+	if err := ModernGoBaselineHolds(baseline, census); err != nil {
+		t.Fatal(err)
+	}
+	written, err := json.Marshal(baseline)
 	if err != nil {
 		t.Fatal(err)
 	}
-	root := filepath.Join("..", "..")
-	var published ModernGoPublishedCensus
-	if err := jsonfile.DecodeStrict(filepath.Join(root, filepath.FromSlash(ModernGoPublishedCensusFile)), &published); err != nil {
+	if strings.Contains(string(written), "source_identity") {
+		t.Fatal("the baseline carries a source identity again")
+	}
+	grown := census
+	grown.SourceIdentity = strings.Repeat("0", len(census.SourceIdentity))
+	grown.Findings = slices.Clone(census.Findings)
+	for index := range grown.Findings {
+		grown.Findings[index].InspectedFiles += 7
+		grown.Findings[index].TypedFiles += 7
+	}
+	lowered, err := LowerModernGoBaseline(baseline, grown)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateModernGoPublishedCensus(published, expected); err != nil {
-		t.Fatal(err)
+	if rewritten, err := json.Marshal(lowered); err != nil || !bytes.Equal(rewritten, written) {
+		t.Fatalf("a tree that changed and grew rewrote the baseline (%v):\n%s\nwas:\n%s", err, rewritten, written)
+	}
+	if err := ModernGoBaselineHolds(baseline, grown); err != nil {
+		t.Fatalf("a tree that changed and grew made the baseline stale: %v", err)
+	}
+	typed := census
+	typed.Findings = slices.Clone(census.Findings)
+	for index := range typed.Findings {
+		typed.Findings[index].TypedFiles++
+	}
+	if err := ModernGoBaselineHolds(baseline, typed); err == nil || !strings.Contains(err.Error(), "loose") {
+		t.Fatalf("a bettered typed-coverage floor did not make the baseline loose: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join("..", "..", "docs", "modern_go_census.json")); !os.IsNotExist(err) {
+		t.Fatalf("a copy of the closure report is kept in the tree: %v", err)
 	}
 }
 
 func TestModernGoRatchetAtClosure(t *testing.T) {
 	census, baseline := modernGoRepositoryExceptionAuthority(t)
-	if baseline.SourceIdentity != census.SourceIdentity {
-		t.Fatalf("ratchet source = %s, current source = %s", baseline.SourceIdentity, census.SourceIdentity)
+	if err := ModernGoBaselineHolds(baseline, census); err != nil {
+		t.Fatal(err)
 	}
 	for _, guideline := range baseline.Guidelines {
 		if guideline.CandidateCeiling != 0 {
@@ -70,7 +109,9 @@ func TestModernGoRatchetAtClosure(t *testing.T) {
 	}
 }
 
-func TestModernGoGateSnapshotMatchesPublishedCensus(t *testing.T) {
+// TestModernGoGateSnapshotReachesClosure holds the census the gate computes
+// from its own snapshot to the same closure as the census command.
+func TestModernGoGateSnapshotReachesClosure(t *testing.T) {
 	root := filepath.Join("..", "..")
 	snapshot, err := DiscoverGo(root, "internal", "cmd")
 	if err != nil {
@@ -91,15 +132,10 @@ func TestModernGoGateSnapshotMatchesPublishedCensus(t *testing.T) {
 	if err := AdmitModernGoRatchet(baseline, census, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
-	var published ModernGoPublishedCensus
-	if err := jsonfile.DecodeStrict(filepath.Join(root, filepath.FromSlash(ModernGoPublishedCensusFile)), &published); err != nil {
+	if err := ModernGoBaselineHolds(baseline, census); err != nil {
 		t.Fatal(err)
 	}
-	expected, err := BuildModernGoPublishedCensus(census, baseline)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := ValidateModernGoPublishedCensus(published, expected); err != nil {
+	if _, err := BuildModernGoPublishedCensus(census, baseline); err != nil {
 		t.Fatal(err)
 	}
 }

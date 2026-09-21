@@ -354,7 +354,6 @@ func TestMergeOwnedDocumentLimitsAutomaticConflictResolution(t *testing.T) {
 		trainingCompatibilityDocumentPath,
 		apiManifestJSONPath,
 		modernGoBaselinePath,
-		modernGoCensusPath,
 	} {
 		if !mergeOwnedDocument(path) {
 			t.Fatalf("owned generated document %q was rejected", path)

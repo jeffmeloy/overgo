@@ -44,7 +44,6 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	write("internal/plan/a.go", "package x\n\nfunc  A( ) {}\n")
 	modernMemoPublish(t, repo)
 	priorBaseline := read("docs/modern_go_baseline.json")
-	write("docs/modern_go_census.json", "old census\n")
 	snapshot, err := repoanalysis.DiscoverGo(repo, "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)
@@ -82,13 +81,15 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 	if got := read("internal/plan/a.go"); got != "package x\n\nfunc A() {}\n" {
 		t.Fatalf("formatted source = %q", got)
 	}
-	if read("docs/modern_go_census.json") == "old census\n" || read("docs/modern_go_baseline.json") == priorBaseline {
-		t.Fatal("the census repair did not publish the formatted source")
+	// Formatting moves no floor, so the repair leaves the baseline as it was:
+	// the file holds reviewed thresholds, not an identity of the source.
+	if read("docs/modern_go_baseline.json") != priorBaseline {
+		t.Fatal("a repair that moved no floor rewrote the modern-Go baseline")
 	}
 	if read(apiManifestFile) != "new manifest\n" {
 		t.Fatal("the API manifest repair did not rewrite through its command")
 	}
-	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoPublishedCensusFile, repoanalysis.ModernGoBaselineFile, apiManifestFile}
+	wantPaths := []string{"internal/plan/a.go", repoanalysis.ModernGoBaselineFile, apiManifestFile}
 	if !slices.Equal(g.paths, wantPaths) {
 		t.Fatalf("planned paths = %v, want %v", g.paths, wantPaths)
 	}
@@ -100,7 +101,7 @@ func TestGateStagesMechanicalRepairs(t *testing.T) {
 		if strings.HasPrefix(line, "staged repair: ") {
 			staged++
 		}
-		if strings.HasPrefix(line, "staged repair: modern-Go census") && !strings.Contains(line, "rewrote=["+repoanalysis.ModernGoPublishedCensusFile+","+repoanalysis.ModernGoBaselineFile+"]") {
+		if strings.HasPrefix(line, "staged repair: modern-Go census") && strings.Contains(line, repoanalysis.ModernGoBaselineFile) {
 			t.Fatalf("census repair audit = %q", line)
 		}
 		if strings.HasPrefix(line, "staged repair: gofmt") && !strings.Contains(line, "rewrote=[internal/plan/a.go]") {

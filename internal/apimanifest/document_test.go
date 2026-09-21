@@ -17,7 +17,7 @@ var fixtureContract = ContractRef{
 func fixtureManifest(t *testing.T) Manifest {
 	t.Helper()
 	value, err := New(Manifest{
-		Version: artifact.InitialDocumentVersion, Release: "fixture", SourceIdentity: fixtureDigest,
+		Version: artifact.InitialDocumentVersion, Release: "fixture",
 		BuildContexts: []BuildContext{{ID: "windows-amd64", GOOS: "windows", GOARCH: "amd64"}},
 		Documents: []Document{{
 			Name: "fixture", Owner: "internal/fixture", VersionOwner: "internal/fixture.fixtureVersion",

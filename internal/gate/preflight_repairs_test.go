@@ -44,7 +44,6 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	write(apiManifestFile, "old manifest\n")
 	write(compatibilityManifestFile, `{"claims":[{"id":"c","evidence":[{"path":"docs/evidence/capture.txt","identity":"old"}]}]}`+"\n")
 	write(compatibilityMatrixFile, "old matrix\n")
-	write("docs/modern_go_census.json", "old census\n")
 	write(harnessSurfaceBaselineFile, string(mustIndent(t, liveHarnessSurface(t, repo)))+"\n")
 
 	var recorded []string
@@ -70,7 +69,7 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	if err := g.preflightRepairs(&output); err != nil {
 		t.Fatal(err)
 	}
-	if read("internal/plan/a.go") != "package x\n\nfunc A() {}\n" || read(apiManifestFile) != "new manifest\n" || read("docs/modern_go_census.json") == "old census\n" {
+	if read("internal/plan/a.go") != "package x\n\nfunc A() {}\n" || read(apiManifestFile) != "new manifest\n" {
 		t.Fatal("the preflight did not apply the derived-file repairs to the working tree")
 	}
 	if read(compatibilityMatrixFile) != "old matrix\n" {
@@ -92,7 +91,7 @@ func TestPreflightAppliesMechanicalRepairs(t *testing.T) {
 	if strings.Contains(output.String(), "closure rebind") || strings.Contains(output.String(), "compatibility identities") {
 		t.Fatalf("preflight output names a repair it did not apply:\n%s", output.String())
 	}
-	wantPaths := []string{"internal/plan/a.go", "docs/modern_go_census.json", "docs/modern_go_baseline.json", apiManifestFile}
+	wantPaths := []string{"internal/plan/a.go", "docs/modern_go_baseline.json", apiManifestFile}
 	if !slices.Equal(g.paths, wantPaths) {
 		t.Fatalf("planned paths = %v, want %v", g.paths, wantPaths)
 	}

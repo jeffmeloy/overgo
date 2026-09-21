@@ -174,20 +174,10 @@ func TestModernCensusExceptionClosureIsDeterministic(t *testing.T) {
 	if text := output.String(); !strings.Contains(text, "unresolved=0") || !strings.Contains(text, "excluded=6") {
 		t.Fatalf("published census audit line=%q", text)
 	}
-	publishedName := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile))
-	firstPublished, err := os.ReadFile(publishedName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := run([]string{"-publish-census", "-root", root}, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	secondPublished, err := os.ReadFile(publishedName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(firstPublished, secondPublished) {
-		t.Fatal("second census publication changed the evidence")
+	// The closure is reported, never kept: a copy in the tree could only be
+	// checked against the computation it came from.
+	if _, err := os.Stat(filepath.Join(root, "docs", "modern_go_census.json")); !os.IsNotExist(err) {
+		t.Fatalf("the closure report was written to the tree: %v", err)
 	}
 	if err := run([]string{"-check", "-root", root}, io.Discard); err != nil {
 		t.Fatal(err)

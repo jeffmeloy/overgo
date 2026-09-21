@@ -20,7 +20,7 @@ import (
 var generatedAuthorityPaths = []string{
 	apiManifestFile, compatibilityManifestFile, compatibilityMatrixFile,
 	"SBOM.cdx.json", "kernels/manifest.json",
-	"docs/modern_go_census.json", "docs/modern_go_baseline.json",
+	"docs/modern_go_baseline.json",
 }
 
 // preflightInvocations plans the whole pipeline exactly as the gate does and

@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
-	"reflect"
 	"time"
 
 	"overgo/internal/jsonfile"
 )
 
-// PublishModernGoCensus applies current policy to a computed census. Publishing
-// never carries admission forward from an earlier computation or invocation.
+// PublishModernGoCensus applies current policy to a computed census and returns
+// its closure report, lowering the baseline file when asked. It never carries
+// admission forward from an earlier computation or invocation.
 func PublishModernGoCensus(root string, census ModernGoCensus, lower bool, mode fs.FileMode) (ModernGoPublishedCensus, error) {
 	var published ModernGoPublishedCensus
 	baselinePath := filepath.Join(root, ModernGoBaselineFile)
@@ -32,20 +32,16 @@ func PublishModernGoCensus(root string, census ModernGoCensus, lower bool, mode 
 	if err != nil {
 		return published, err
 	}
-	if err := jsonfile.Write(filepath.Join(root, ModernGoPublishedCensusFile), published, mode); err != nil {
-		return published, err
-	}
 	if lower {
 		err = jsonfile.Write(baselinePath, baseline, mode)
 	}
 	return published, err
 }
 
-const (
-	// ModernGoPublishedCensusFile is the repository-relative closure evidence.
-	ModernGoPublishedCensusFile = "docs/modern_go_census.json"
-	modernGoPublishedSchema     = "overgo-modern-go-census/v1"
-)
+// modernGoPublishedSchema names the closure report. The report is computed and
+// printed, never kept as a file: a copy in the tree could only be checked
+// against the computation it came from, and was rewritten at every landing.
+const modernGoPublishedSchema = "overgo-modern-go-census/v1"
 
 // ModernGoPublishedResolution is the complete disposition of one applicable
 // guideline without duplicating its exact source sites or exception records.
@@ -144,14 +140,6 @@ func BuildModernGoPublishedCensus(census ModernGoCensus, baseline ModernGoBaseli
 			published.Measured, published.Applicable, published.Unresolved)
 	}
 	return published, nil
-}
-
-// ValidateModernGoPublishedCensus rejects any published/source drift.
-func ValidateModernGoPublishedCensus(published, expected ModernGoPublishedCensus) error {
-	if !reflect.DeepEqual(published, expected) {
-		return fmt.Errorf("published modern-Go census differs from current source, catalog, or exception authority")
-	}
-	return nil
 }
 
 // Closed census publication requires exact exceptions and zero aggregate debt.

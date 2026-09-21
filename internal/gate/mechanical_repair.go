@@ -55,7 +55,7 @@ func (g *gateContext) mechanicalRepairs() []mechanicalRepair {
 			name: "modern-Go census", phase: "modern-go",
 			retainOutputs: true,
 			files: func(*gateContext) []string {
-				return []string{repoanalysis.ModernGoPublishedCensusFile, repoanalysis.ModernGoBaselineFile}
+				return []string{repoanalysis.ModernGoBaselineFile}
 			},
 			apply: (*gateContext).repairModernGoCensus,
 		},

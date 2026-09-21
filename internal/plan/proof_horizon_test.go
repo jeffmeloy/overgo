@@ -73,6 +73,11 @@ func TestCompletionProofHorizon(t *testing.T) {
 	if _, err := resolveFixture(bare, bare.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "sealed 2") {
 		t.Fatalf("a horizon that miscounts history = %v", err)
 	}
+	// The two fixtures are the same landing built twice, and a commit is named
+	// by its content and its second: built within one second they share their
+	// hashes, and the other repository's head is then inside this history. A
+	// commit only the other repository has is outside it whenever it is made.
+	runGit(t, proven.repository, []byte("a commit only the other repository has\n"), "commit", "-q", "--allow-empty", "-F", "-")
 	write(bare, ProofHorizon{Commit: head(proven), Completions: 1}, true)
 	if _, err := resolveFixture(bare, bare.child, "HEAD"); err == nil || !strings.Contains(err.Error(), "not in the history") {
 		t.Fatalf("a horizon outside this history = %v", err)

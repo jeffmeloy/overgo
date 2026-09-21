@@ -27,7 +27,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/gosource"
-	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
@@ -1027,21 +1026,16 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if baseline.SourceIdentity != candidate.SourceIdentity {
-		return false, errors.New("modern-Go baseline source is stale; run `go run ./cmd/modern-census -lower-baseline` and `go run ./cmd/modern-census -publish-census`")
-	}
 	if err := repoanalysis.AdmitModernGoRatchet(baseline, candidate, time.Now().UTC()); err != nil {
 		return false, err
 	}
-	expected, err := repoanalysis.BuildModernGoPublishedCensus(candidate, baseline)
-	if err != nil {
+	// The baseline is current when lowering it would change nothing, and the
+	// closure is complete when its report can be built; neither needs a copy
+	// of the report in the tree to compare against.
+	if err := repoanalysis.ModernGoBaselineHolds(baseline, candidate); err != nil {
 		return false, err
 	}
-	var published repoanalysis.ModernGoPublishedCensus
-	if err := jsonfile.DecodeStrict(filepath.Join(g.sourceRoot(), filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile)), &published); err != nil {
-		return false, err
-	}
-	if err := repoanalysis.ValidateModernGoPublishedCensus(published, expected); err != nil {
+	if _, err := repoanalysis.BuildModernGoPublishedCensus(candidate, baseline); err != nil {
 		return false, err
 	}
 	if _, err := command(g.repo, "git", "cat-file", "-e", "HEAD:"+repoanalysis.ModernGoBaselineFile); err == nil {

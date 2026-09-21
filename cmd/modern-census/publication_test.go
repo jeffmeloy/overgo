@@ -53,28 +53,33 @@ func TestCombinedCensusPublication(t *testing.T) {
 		}
 	}
 	wantBaseline := read(repoanalysis.ModernGoBaselineFile)
-	wantCensus := read(repoanalysis.ModernGoPublishedCensusFile)
-	write(repoanalysis.ModernGoBaselineFile, initial)
-	write(repoanalysis.ModernGoPublishedCensusFile, []byte("previous publication\n"))
+	// The source changed and no floor moved: the baseline holds reviewed
+	// thresholds, not an identity of the tree, so it is byte-identical.
+	if !bytes.Equal(initial, wantBaseline) {
+		t.Fatal("a source change with no new debt rewrote the baseline")
+	}
+	if _, err := os.Stat(filepath.Join(root, "docs", "modern_go_census.json")); !os.IsNotExist(err) {
+		t.Fatalf("the closure report was written to the tree: %v", err)
+	}
 	args := []string{"-publish-census", "-lower-baseline", "-root", root}
 	if err := run(args, &combined); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) || sequential.String() != combined.String() {
+	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || sequential.String() != combined.String() {
 		t.Fatal("combined publication changed the sequential output contract")
 	}
 	if err := run(args, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) {
 		t.Fatal("retry changed an identical publication")
 	}
-	// Simulate interruption after census replacement and before baseline replacement.
+	// A baseline put back to an earlier state converges on the next run.
 	write(repoanalysis.ModernGoBaselineFile, initial)
 	if err := run(args, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) {
 		t.Fatal("partial publication did not converge to the complete result")
 	}
 	for _, extra := range []string{"-check", "-census", "-write-baseline"} {
@@ -87,7 +92,7 @@ func TestCombinedCensusPublication(t *testing.T) {
 	if err := run(args, io.Discard); err == nil || !strings.Contains(err.Error(), "debt increased") {
 		t.Fatalf("new debt admitted: %v", err)
 	}
-	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) {
 		t.Fatal("refused debt changed publication outputs")
 	}
 	// Establish a real exception, then expire its exact identity.
@@ -117,11 +122,11 @@ func TestCombinedCensusPublication(t *testing.T) {
 	if err != nil || len(resolved.Exceptions) != 0 {
 		t.Fatalf("resolved authority retained exceptions: %+v (%v)", resolved.Exceptions, err)
 	}
-	resolvedBaseline, resolvedCensus := read(repoanalysis.ModernGoBaselineFile), read(repoanalysis.ModernGoPublishedCensusFile)
+	resolvedBaseline := read(repoanalysis.ModernGoBaselineFile)
 	if err := run(args, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(resolvedBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(resolvedCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+	if !bytes.Equal(resolvedBaseline, read(repoanalysis.ModernGoBaselineFile)) {
 		t.Fatal("resolved publication is not idempotent")
 	}
 	if err := run([]string{"-check", "-root", root}, io.Discard); err != nil {
@@ -129,7 +134,6 @@ func TestCombinedCensusPublication(t *testing.T) {
 	}
 	write(source, retainedSource)
 	write(repoanalysis.ModernGoBaselineFile, retained)
-	write(repoanalysis.ModernGoPublishedCensusFile, wantCensus)
 	for index := range baseline.Exceptions {
 		baseline.Exceptions[index].Expires = time.Now().UTC().AddDate(0, 0, -1).Format(time.DateOnly)
 	}
@@ -147,38 +151,14 @@ func TestCombinedCensusPublication(t *testing.T) {
 			t.Fatalf("expired resolved exception admitted by %v: %v", mode, err)
 		}
 	}
-	if !bytes.Equal(expired, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+	if !bytes.Equal(expired, read(repoanalysis.ModernGoBaselineFile)) {
 		t.Fatal("expiry refusal changed publication outputs")
 	}
 	write(repoanalysis.ModernGoBaselineFile, []byte("invalid baseline\n"))
 	if err := run(args, io.Discard); err == nil {
 		t.Fatal("invalid baseline admitted")
 	}
-	if string(read(repoanalysis.ModernGoBaselineFile)) != "invalid baseline\n" || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
+	if string(read(repoanalysis.ModernGoBaselineFile)) != "invalid baseline\n" {
 		t.Fatal("invalid baseline refusal changed outputs")
-	}
-	write(source, cleanSource)
-	write(repoanalysis.ModernGoBaselineFile, initial)
-	publishedPath := filepath.Join(root, filepath.FromSlash(repoanalysis.ModernGoPublishedCensusFile))
-	if err := os.Remove(publishedPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(publishedPath, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := run(args, io.Discard); err == nil {
-		t.Fatal("publication write failure ignored")
-	}
-	if !bytes.Equal(initial, read(repoanalysis.ModernGoBaselineFile)) {
-		t.Fatal("baseline lowered before failed publication")
-	}
-	if err := os.Remove(publishedPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := run(args, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(wantBaseline, read(repoanalysis.ModernGoBaselineFile)) || !bytes.Equal(wantCensus, read(repoanalysis.ModernGoPublishedCensusFile)) {
-		t.Fatal("retry after write failure changed output contract")
 	}
 }

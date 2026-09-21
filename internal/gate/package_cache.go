@@ -667,6 +667,24 @@ func (graph packageInputGraph) devicePackages(packages []string) ([]string, erro
 	return devices, nil
 }
 
+// acceptanceLanePackage is the declaration a model acceptance suite's tests
+// import.
+const acceptanceLanePackage = "overgo/internal/acceptancelane"
+
+// acceptancePackages names, among the packages given and in their order, the
+// ones whose tests declare themselves a model acceptance suite. They need no
+// device; they are minutes of whole-machine compute that belong after the
+// commit with the lanes, not in the phase that blocks it.
+func (graph packageInputGraph) acceptancePackages(packages []string) []string {
+	declared := map[string]bool{}
+	for _, node := range graph.nodes {
+		if node.ForTest == "" && slices.Contains(slices.Concat(node.TestImports, node.XTestImports), acceptanceLanePackage) {
+			declared[node.ImportPath] = true
+		}
+	}
+	return slices.DeleteFunc(slices.Clone(packages), func(pkg string) bool { return !declared[pkg] })
+}
+
 // productionDependents reports the packages that are or through compiled
 // imports alone depend on the package named.
 func (graph packageInputGraph) productionDependents(root string) map[string]bool {

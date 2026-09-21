@@ -51,7 +51,7 @@ func TestDevicePackagesRunFirstUnderTheLease(t *testing.T) {
 		t.Fatalf("split = %v / %v, %v; want %v", devices, hostPart, err, want)
 	}
 	if !slices.ContainsFunc(g.audit, func(line string) bool {
-		return strings.HasPrefix(line, "test order: 2 device packages first under the shared lease")
+		return strings.HasPrefix(line, "test order: 2 device and model acceptance packages first under the shared lease")
 	}) {
 		t.Fatalf("audit = %v, want the device-first order", g.audit)
 	}

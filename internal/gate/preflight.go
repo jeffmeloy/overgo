@@ -289,8 +289,16 @@ func (g *gateContext) preflightSelection(output io.Writer) error {
 			groups.owners = append(groups.owners, pkg)
 		}
 	}
-	if groups.devices, err = graph.devicePackages(slices.Concat(groups.short, groups.complete)); err != nil {
+	selected := slices.Concat(groups.short, groups.complete)
+	if groups.devices, err = graph.devicePackages(selected); err != nil {
 		return err
+	}
+	// The lease group is what runs after the commit: the device packages and
+	// the declared model acceptance suites.
+	for _, pkg := range graph.acceptancePackages(selected) {
+		if !slices.Contains(groups.devices, pkg) {
+			groups.devices = append(groups.devices, pkg)
+		}
 	}
 	writeSelectionReport(output, buildGatePlanReport(planned), groups)
 	return nil

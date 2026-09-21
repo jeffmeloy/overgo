@@ -1912,8 +1912,10 @@ func audioReferenceStore(roots dataroot.Roots) string {
 	return cmp.Or(os.Getenv(audioReferenceEnv), roots.AudioReference)
 }
 
-// splitDevice parts one group into the packages whose tests need the device
-// and the host-only rest, each in the group's order.
+// splitDevice parts one group into the packages that run in the deferred
+// test lane under the shared lease -- the ones whose tests need the device,
+// then the declared model acceptance suites -- and the host-only rest, each
+// in the group's order.
 func (g *gateContext) splitDevice(group []string) (devices, host []string, err error) {
 	if len(group) == 0 {
 		return nil, nil, nil
@@ -1926,6 +1928,11 @@ func (g *gateContext) splitDevice(group []string) (devices, host []string, err e
 	if err != nil {
 		return nil, nil, err
 	}
+	for _, pkg := range graph.acceptancePackages(group) {
+		if !slices.Contains(devices, pkg) {
+			devices = append(devices, pkg)
+		}
+	}
 	if len(devices) == 0 {
 		return nil, group, nil
 	}
@@ -1934,6 +1941,6 @@ func (g *gateContext) splitDevice(group []string) (devices, host []string, err e
 			host = append(host, pkg)
 		}
 	}
-	g.note(fmt.Sprintf("test order: %d device packages first under the shared lease [%s]; %d host packages follow without it", len(devices), strings.Join(devices, ","), len(host)))
+	g.note(fmt.Sprintf("test order: %d device and model acceptance packages first under the shared lease [%s]; %d host packages follow without it", len(devices), strings.Join(devices, ","), len(host)))
 	return devices, host, nil
 }

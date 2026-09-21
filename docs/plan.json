@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "store-publish-has-one-owner",
+      "title": "Give the idempotent commit one owner, the second cut of the store access consolidation: committing a batch and treating an unchanged repeat as success is written out at 67 production sites (server 14, evaluation 8, speechrecognition 6, modelrecipe 4, cmd/recipe 4, then threes and twos across ten more packages), 28 of them the identical line -- CommitBatch, then err != nil and not ErrNoChange. artifact owns it as one call; every site uses it; a census check refuses a production site outside artifact that tests a commit error against ErrNoChange",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give the idempotent commit one owner, the second cut of the store access consolidation: committing a batch and treating an unchanged repeat as success is written out at 67 production sites (server 14, evaluation 8, speechrecognition 6, modelrecipe 4, cmd/recipe 4, then threes and twos across ten more packages), 28 of them the identical line -- CommitBatch, then err != nil and not ErrNoChange. artifact owns it as one call; every site uses it; a census check refuses a production site outside artifact that tests a commit error against ErrNoChange",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestIdempotentCommitHasOneOwner' -count=1"
+        }
+      ]
+    },
+    {
       "id": "tmp-refuses-undeclared-entries",
       "title": "Refuse an entry in tmp that no tool declares, once tmp is clean: tmp mixes the gate's live control state (locks, lifecycle, lanes, cache, prepared selection, closure proposals, the merge-evidence staging store at 3.3 GB) with worker debris; 880 loose files were deleted by hand on 2026-09-20 and 15 debris directories plus two clean worktrees wait on the owner, whose delete the permission classifier refused the worker. When they are gone, have admission refuse a tmp entry outside a declared table so debris cannot accumulate again, and have the merge tool retire merge-evidence stores of merges that landed",
       "owner": "master-lead",
@@ -859,7 +873,9 @@
             "land-leaves-no-manual-log/do",
             "store-access-census-counts-construction/do",
             "tmp-holds-only-tool-state/do",
-            "tmp-refuses-undeclared-entries/do"
+            "tmp-refuses-undeclared-entries/do",
+            "store-publish-has-one-owner/do",
+            "land-echo-selection-leak/do"
           ]
         }
       ]

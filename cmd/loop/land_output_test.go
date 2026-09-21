@@ -22,7 +22,7 @@ func TestLandLeavesNoManualLog(t *testing.T) {
 		return
 	}
 	transcript := strings.Join([]string{
-		"preflight: selection: complete pending=[overgo/cmd/a,overgo/cmd/b]",
+		"preflight: selection: complete pending=[overgo/cmd/a,overgo/cmd/finding,overgo/internal/finding]",
 		"preflight: 0 finding(s) in 15 check(s); 0 skipped",
 		"gate: phase=test heartbeat=running",
 		"gate: step=test package=overgo/cmd/a result=pass elapsed=67ms",

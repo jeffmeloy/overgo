@@ -128,7 +128,7 @@ type verdictLines struct {
 	failing bool
 }
 
-var verdictLine = regexp.MustCompile(`FAIL|result=fail|blocker:|refused|^(?:plan:|gate: gate:|GATE |advisory: (?:class|delta|debt|warning):|preflight: .*finding)`)
+var verdictLine = regexp.MustCompile(`FAIL|result=fail|blocker:|refused|^(?:plan:|gate: gate:|GATE |advisory: (?:class|delta|debt|warning):|preflight: (?:\d+|first) finding)`)
 
 // Write echoes the whole lines completed by data that the verdict keeps.
 func (v *verdictLines) Write(data []byte) (int, error) {

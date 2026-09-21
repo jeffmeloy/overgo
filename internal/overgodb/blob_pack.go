@@ -32,7 +32,8 @@ const (
 	blobPackMagic    = "OVGPACK1"
 	// A pack entry is the identity -- kind, digest -- then the payload's
 	// offset in the file and its size.
-	packKeyBytes    = 1 + sha256.Size
+	packKindBytes   = 1
+	packKeyBytes    = packKindBytes + sha256.Size
 	packEntryBytes  = packKeyBytes + 8 + 4
 	packHeaderBytes = len(blobPackMagic) + 8
 )
@@ -115,6 +116,12 @@ func (b blobStore) packed(id artifact.ID) (offset int64, size int64, found bool)
 func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	// The pack is read once and every member held to its identity; a blob
+	// with no loose file is then answered by its place in the verified pack
+	// rather than by opening the pack again for each of its members.
+	if err := s.blobs.verifyPack(); err != nil {
+		return 0, err
+	}
 	checked := 0
 	for id, locator := range s.state.contents.locators {
 		if !locator.blob || locator.released != 0 {
@@ -123,12 +130,48 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 		if err := ctx.Err(); err != nil {
 			return checked, err
 		}
-		if err := s.blobs.verify(id); err != nil {
+		path, err := s.blobs.path(id)
+		if err != nil {
+			return checked, err
+		}
+		if _, statErr := os.Stat(path); statErr == nil {
+			err = s.blobs.verify(id)
+		} else if _, _, packed := s.blobs.packed(id); !packed {
+			err = fmt.Errorf("overgodb: blob %s is neither loose nor packed", id)
+		}
+		if err != nil {
 			return checked, err
 		}
 		checked++
 	}
 	return checked, nil
+}
+
+// verifyPack reads the pack once and holds every member's bytes to the
+// digest its index entry names; a store with no pack has nothing to verify.
+func (b blobStore) verifyPack() error {
+	document, err := os.ReadFile(filepath.Join(b.root, blobPackFilename))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	index := b.pack.entries(b.root)
+	if index == nil {
+		return errors.New("overgodb: blob pack index does not match its digest")
+	}
+	for entry := range slices.Chunk(index, packEntryBytes) {
+		place := entry[packKeyBytes:]
+		offset, size := binary.BigEndian.Uint64(place), uint64(binary.BigEndian.Uint32(place[8:]))
+		if offset+size > uint64(len(document)) {
+			return fmt.Errorf("overgodb: blob pack member %x lies outside the pack", entry[packKindBytes:packKeyBytes])
+		}
+		if sum := sha256.Sum256(document[offset : offset+size]); !bytes.Equal(sum[:], entry[packKindBytes:packKeyBytes]) {
+			return fmt.Errorf("overgodb: blob pack member %x bytes do not hash to their identity", entry[packKindBytes:packKeyBytes])
+		}
+	}
+	return nil
 }
 
 // PackReport says what one pack of a store's small blobs did.

@@ -254,7 +254,10 @@ func (b blobStore) has(id artifact.ID) bool {
 // externalized into its own blobs directory, and a swap without the blobs
 // strands every chain whose content the old journal carried inline. Blob
 // paths are content hashes, so an already-present target is byte-identical
-// and the source copy is simply dropped.
+// and the source copy is simply dropped. A pack is not named for its content:
+// two stores' packs share a name and hold different members, so a source that
+// holds one is refused rather than dropped or moved over the destination's,
+// which stays where it is.
 func MergeBlobTrees(sourceRoot, destinationRoot string) error {
 	source := filepath.Join(sourceRoot, blobDirectory)
 	if _, err := os.Stat(source); errors.Is(err, os.ErrNotExist) {
@@ -267,6 +270,9 @@ func MergeBlobTrees(sourceRoot, destinationRoot string) error {
 		relative, err := filepath.Rel(source, path)
 		if err != nil {
 			return err
+		}
+		if relative == blobPackFilename {
+			return fmt.Errorf("overgodb: %s holds a blob pack; its members cannot be merged by file name", sourceRoot)
 		}
 		target := filepath.Join(destinationRoot, blobDirectory, relative)
 		if _, err := os.Stat(target); err == nil {

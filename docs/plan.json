@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-pack-neighbours",
-      "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; store-precheck retires the superseded store of the operation before last once the newer one has served a landing, after checking it for reparse points, since two already sit beside the store in service; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the pack's neighbours know it: store-check runs Store.VerifyBlobs so a damaged packed payload is found outside a store operation; MergeBlobTrees, which a rebuild uses, moves loose files only and would clobber or strand a pack; store-precheck retires the superseded store of the operation before last once the newer one has served a landing, after checking it for reparse points, since two already sit beside the store in service; and the three backups taken before the pack still hold the 128-thousand-file layout, so take one of the packed store and list which older ones no live blob links into",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestMergeBlobTreesCarriesThePack' -count=1"
-        }
-      ]
-    },
-    {
       "id": "closure-binding-follows-declaration",
       "title": "Bind a catalogued constant by its declaration, not by where it is used: adding a use of storeDirectoryMode and of inlineContentLimit in the blob pack drifted their closure bindings, the scan reported them unmatched, retiring the unmatched bindings left both constants uncatalogued, and each had to be proposed, written up and triaged again -- three preflight rounds for two constants nobody had changed. A binding that follows the declaration survives new uses, and a use that moves is not a decision to review",
       "owner": "master-lead",
@@ -56,6 +42,20 @@
           "title": "Make a failed deferred lane say what failed (found 2026-09-21 on 49c418a7): the web UI lane ran into its 20 minute test timeout while the device and model-journey lanes ran beside it, passed alone at the same commit in 88 seconds, and passed on a rerun of the lanes; diagnosing it took a manual run because the lane runner's transcript file is truncated at the start and never written, the failed step's evidence lives in the lane's own store where the canonical query cannot find it, and the recorded failure names only the lane. Record on the failed step the test that was running or failed and the tail of its output, readable with the canonical query; give the browser lane a per-test deadline so a hang costs a minute and names its test instead of costing twenty; and find what it contends on beside the other lanes",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestFailedLaneNamesItsTest' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-retire-superseded-and-backups",
+      "title": "Retire the stores and backups the store operations have left behind, with the owner's say for each deletion: three superseded stores sit beside the one in service (9311ae7fdbf4, 052bbabe2dfe, 5d889819db9a) and five sealed backups under overgo-backups, four of them in the 128-thousand-file loose layout. Blobs are hard links, so a directory is safe to remove only when no blob of the store in service links into it alone. Have store-precheck report, per superseded store and per backup, how many of the live store's blob files would lose their last other link, keep the newest backup and the newest superseded store, check each candidate for reparse points, and print the removals for the owner rather than performing them",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire the stores and backups the store operations have left behind, with the owner's say for each deletion: three superseded stores sit beside the one in service (9311ae7fdbf4, 052bbabe2dfe, 5d889819db9a) and five sealed backups under overgo-backups, four of them in the 128-thousand-file loose layout. Blobs are hard links, so a directory is safe to remove only when no blob of the store in service links into it alone. Have store-precheck report, per superseded store and per backup, how many of the live store's blob files would lose their last other link, keep the newest backup and the newest superseded store, check each candidate for reparse points, and print the removals for the owner rather than performing them",
+          "status": "open",
+          "verify": "go test ./cmd/store-precheck -run '^TestRetirementReportNamesWhatIsSafe' -count=1"
         }
       ]
     },
@@ -930,7 +930,8 @@
             "gate-isolation-rule-on-evidence/do",
             "gate-isolation-rule-enforced/do",
             "lanes-failure-names-its-test/do",
-            "store-checkpoint-generations/do"
+            "store-checkpoint-generations/do",
+            "store-retire-superseded-and-backups/do"
           ]
         }
       ]

@@ -46,6 +46,7 @@ func run() error {
 	repository := flag.String("repo", "", "OvergoDB store directory; empty resolves via the data-root contract (OVERGO_DATA_ROOT, local-models.json, or ./overgodb-store)")
 	baselinePath := flag.String("baseline", "docs/published_debt.json", "committed baseline of already-broken chains")
 	printBaseline := flag.Bool("print-baseline", false, "emit the current failures as a baseline document and exit zero")
+	blobs := flag.Bool("blobs", false, "also hold every live blob, loose or packed, to its identity")
 	flag.Parse()
 	// A plan-row verify runs in the gate's candidate worktree, which holds no
 	// store; the data-root contract names the canonical one.
@@ -57,6 +58,13 @@ func run() error {
 	failures, checked, err := activeChainFailures(*repository)
 	if err != nil {
 		return err
+	}
+	if *blobs {
+		verified, err := verifyBlobs(*repository)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("store-check: blobs=%d verified\n", verified)
 	}
 	if *printBaseline {
 		return clioptions.WritePrettyJSON(os.Stdout, baselineFile{Broken: failures})
@@ -101,6 +109,16 @@ func run() error {
 			len(fresh), len(drifted), len(recovered))
 	}
 	return nil
+}
+
+// verifyBlobs holds every live blob of the store to its identity.
+func verifyBlobs(repository string) (int, error) {
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		return 0, err
+	}
+	defer store.Close()
+	return store.VerifyBlobs(context.Background())
 }
 
 // activeChainFailures walks every activation alias through the production

@@ -10,6 +10,47 @@ import (
 	"overgo/internal/artifact"
 )
 
+// TestMergeBlobTreesCarriesThePack holds the merge a rebuild uses to the one
+// thing a pack changes. Loose blobs are named for their content, so a merge
+// moves them by name; a pack is not, so a source that holds one is refused
+// rather than dropped as a duplicate of the destination's, and the
+// destination's pack still serves its members after a merge of loose blobs.
+func TestMergeBlobTreesCarriesThePack(t *testing.T) {
+	t.Parallel()
+	packedRoot, looseRoot := filepath.Join(t.TempDir(), "packed"), filepath.Join(t.TempDir(), "loose")
+	packedContent := retentionContent(t, artifact.KindEvidence, "held in the pack")
+	looseContent := retentionContent(t, artifact.KindEvidence, "held loose")
+	for root, content := range map[string]artifact.Content{packedRoot: packedContent, looseRoot: looseContent} {
+		store, err := Open(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: "merge/" + filepath.Base(root), Contents: []artifact.Content{content}}); err != nil {
+			t.Fatal(err)
+		}
+		if root == packedRoot {
+			if _, err := packBlobsUnder(t.Context(), store, int64(content.Descriptor.Size)+1); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := store.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := MergeBlobTrees(packedRoot, looseRoot); err == nil {
+		t.Fatal("a source holding a pack was merged by file name")
+	}
+	if err := MergeBlobTrees(looseRoot, packedRoot); err != nil {
+		t.Fatal(err)
+	}
+	destination := newBlobStore(packedRoot)
+	for _, content := range []artifact.Content{packedContent, looseContent} {
+		if err := destination.verify(content.Descriptor.ID); err != nil {
+			t.Fatalf("after the merge the destination does not serve %s: %v", content.Descriptor.ID, err)
+		}
+	}
+}
+
 // TestVerifyBlobsCoversThePack holds the check a candidate passes after its
 // blobs have been moved: it reads every live blob, packed and loose, against
 // its identity, and a single changed byte in a packed payload -- which the

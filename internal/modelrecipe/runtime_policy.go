@@ -141,10 +141,7 @@ func EnsureRuntimePolicy(ctx context.Context, store artifact.Repository, definit
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(ctx, store, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
-	}
+	_, err = artifact.Publish(ctx, store, batch)
 	return err
 }
 

@@ -12,7 +12,7 @@ import (
 // branch on an unchanged repeat or pass the signal up through a publisher of
 // their own; the row that gives them artifact.Publish's changed result lowers
 // this, and nothing raises it.
-const noChangeTests = 23
+const noChangeTests = 13
 
 // TestIdempotentCommitHasOneOwner holds the idempotent commit to its owner.
 // Committing a batch and treating an unchanged repeat as success is

@@ -387,9 +387,6 @@ func (runtime AutomationRuntime) publishAutomationPlan(
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(ctx, runtime.Store, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
-	}
+	_, err = artifact.Publish(ctx, runtime.Store, batch)
 	return err
 }

@@ -195,10 +195,7 @@ func (workspace *AutomationWorkspace) PublishAutomationDefinition(
 		[]artifact.Content{triggerContent, deliveryContent, definitionContent}, append(definition.Lineage(), trigger.Lineage()...), nil,
 	)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, workspace.store, batch)
-	}
-	if errors.Is(err, artifact.ErrNoChange) {
-		err = nil
+		_, err = artifact.Publish(ctx, workspace.store, batch)
 	}
 	return definition, err
 }

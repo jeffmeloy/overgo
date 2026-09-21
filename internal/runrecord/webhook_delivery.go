@@ -346,10 +346,7 @@ func (ledger WebhookDeliveryLedger) publish(
 	}
 	batch, err := artifact.NewDocumentBatch(key, contents, lineage, aliases)
 	if err == nil {
-		_, err = artifact.CommitBatch(ctx, ledger.Repository, batch)
-	}
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
+		_, err = artifact.Publish(ctx, ledger.Repository, batch)
 	}
 	return err
 }

@@ -74,10 +74,7 @@ func (authority AgentAuthority) PublishDefinition(ctx context.Context, key strin
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(ctx, authority.Repository, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
-	}
+	_, err = artifact.Publish(ctx, authority.Repository, batch)
 	return err
 }
 

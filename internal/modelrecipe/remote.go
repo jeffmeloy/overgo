@@ -99,10 +99,7 @@ func PublishRemoteModelDefinition(ctx context.Context, repository artifact.Repos
 	if err != nil {
 		return artifact.ID{}, err
 	}
-	_, err = artifact.CommitBatch(ctx, repository, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		err = nil
-	}
+	_, err = artifact.Publish(ctx, repository, batch)
 	return value.ID, err
 }
 

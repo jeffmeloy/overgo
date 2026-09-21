@@ -66,10 +66,7 @@ func (e *speechEvaluation) publish(ctx context.Context, batch artifact.Batch, er
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(ctx, e.store, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
-	}
+	_, err = artifact.Publish(ctx, e.store, batch)
 	return err
 }
 

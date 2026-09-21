@@ -565,9 +565,6 @@ func requireGroundedReplayLineage(
 func commitGroundedReplayBatch(ctx context.Context, repository artifact.Repository, batch artifact.Batch) error {
 	head, _ := repository.Head()
 	batch.ExpectedHead = &head
-	_, err := artifact.CommitBatch(ctx, repository, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		return nil
-	}
+	_, err := artifact.Publish(ctx, repository, batch)
 	return err
 }

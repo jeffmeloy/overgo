@@ -146,10 +146,7 @@ func PublishMemo(ctx context.Context, repository artifact.Repository, memo *Memo
 	if err != nil {
 		return err
 	}
-	_, err = artifact.CommitBatch(ctx, repository, batch)
-	if errors.Is(err, artifact.ErrNoChange) {
-		err = nil
-	}
+	_, err = artifact.Publish(ctx, repository, batch)
 	if err == nil {
 		memo.mu.Lock()
 		memo.dirty = false

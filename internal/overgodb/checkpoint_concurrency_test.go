@@ -18,7 +18,7 @@ func TestCheckpointSetLoadsConcurrently(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	copyScaleCorpus(t, root)
-	directory := filepath.Join(root, checkpointDirectory)
+	directory := newestCheckpoints(t, root)
 	together := func() func(string) ([]byte, error) {
 		var asked sync.WaitGroup
 		asked.Add(len(projections(new(catalogState))))

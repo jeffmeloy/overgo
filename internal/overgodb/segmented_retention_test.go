@@ -57,7 +57,7 @@ func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
 	}
 
 	// Invalidate the checkpoint set; the release's snapshot must replace it.
-	victim := filepath.Join(root, checkpointDirectory, "aliases"+checkpointExtension)
+	victim := filepath.Join(newestCheckpoints(t, root), "aliases"+checkpointExtension)
 	data, err := os.ReadFile(victim)
 	if err != nil {
 		t.Fatal(err)

@@ -2,6 +2,7 @@ package overgodb
 
 import (
 	"bytes"
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"overgo/internal/artifact"
@@ -41,9 +43,19 @@ type checkpointHeader struct {
 	PayloadDigest string            `json:"payload_digest"`
 }
 
+// checkpointGeneration names the directory of the set written at sequence;
+// the width keeps the names in sequence order.
+func checkpointGeneration(sequence uint64) string {
+	return fmt.Sprintf("%020d", sequence)
+}
+
 // writeProjectionCheckpoints writes one checkpoint per registered
-// projection, staged and renamed so a crash leaves either the previous
-// set or the complete new one per file, never a torn member.
+// projection into a generation of its own, each member staged and renamed.
+// A write that is interrupted leaves a generation the loader refuses for a
+// missing or torn member and the generation before it intact, so the open
+// that follows replays only the journal since that one. Older generations,
+// and the flat set a store held before generations, go once this one is
+// complete.
 func writeProjectionCheckpoints(
 	root string,
 	state *catalogState,
@@ -52,7 +64,8 @@ func writeProjectionCheckpoints(
 	offset int64,
 	anchor string,
 ) error {
-	directory := filepath.Join(root, checkpointDirectory)
+	parent := filepath.Join(root, checkpointDirectory)
+	directory := filepath.Join(parent, checkpointGeneration(sequence))
 	if err := os.MkdirAll(directory, storeDirectoryMode); err != nil {
 		return fmt.Errorf("overgodb: create checkpoint directory: %w", err)
 	}
@@ -99,17 +112,50 @@ func writeProjectionCheckpoints(
 			return fmt.Errorf("overgodb: publish checkpoint %s: %w", registered.name, err)
 		}
 	}
-	return fsatomic.SyncDirectory(directory)
+	if err := fsatomic.SyncDirectory(directory); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		// A generation a reader still holds open stays until the next write;
+		// the loader takes the newest, so a leftover costs only its bytes.
+		if entry.Name() != filepath.Base(directory) {
+			_ = os.RemoveAll(filepath.Join(parent, entry.Name()))
+		}
+	}
+	return fsatomic.SyncDirectory(parent)
 }
 
-// loadProjectionCheckpoints assembles catalog state from a complete,
-// mutually consistent checkpoint set. Any defect returns loaded=false
-// with the reason; the caller falls back to an earlier verified anchor.
+// loadProjectionCheckpoints assembles catalog state from the newest
+// generation that is complete and mutually consistent, falling back through
+// older ones and last to the flat set a store held before generations. When
+// none verifies it returns loaded=false with the newest one's reason, and
+// the caller falls back to an earlier verified anchor.
 func loadProjectionCheckpoints(root string) (catalogState, replayAnchor, bool, string) {
-	directory := filepath.Join(root, checkpointDirectory)
-	return loadCheckpointSet(func(name string) ([]byte, error) {
-		return os.ReadFile(filepath.Join(directory, name+checkpointExtension))
-	})
+	parent := filepath.Join(root, checkpointDirectory)
+	entries, _ := os.ReadDir(parent)
+	generations := []string{""}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			generations = append(generations, entry.Name())
+		}
+	}
+	slices.Sort(generations)
+	var refused string
+	for _, generation := range slices.Backward(generations) {
+		directory := filepath.Join(parent, generation)
+		state, anchor, loaded, reason := loadCheckpointSet(func(name string) ([]byte, error) {
+			return os.ReadFile(filepath.Join(directory, name+checkpointExtension))
+		})
+		if loaded {
+			return state, anchor, true, ""
+		}
+		refused = cmp.Or(refused, reason)
+	}
+	return catalogState{}, replayAnchor{}, false, refused
 }
 
 // loadCheckpointSet loads every member at once: each restores a facet of its

@@ -56,7 +56,7 @@ func TestSharedScaleCorpusIsolation(t *testing.T) {
 	if head != otherHead || size != otherSize || drillTreeHash(t, first) != before || drillTreeHash(t, second) != before {
 		t.Fatal("fixture copies changed the deterministic corpus")
 	}
-	checkpoint := filepath.Join(first, checkpointDirectory, "aliases"+checkpointExtension)
+	checkpoint := filepath.Join(newestCheckpoints(t, first), "aliases"+checkpointExtension)
 	data, err := os.ReadFile(checkpoint)
 	if err != nil {
 		t.Fatal(err)

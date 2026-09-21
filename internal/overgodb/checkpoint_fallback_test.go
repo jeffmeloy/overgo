@@ -43,7 +43,7 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 
 	corrupt := func(t *testing.T, name string, mutate func([]byte) []byte) {
 		t.Helper()
-		path := filepath.Join(directory, name+checkpointExtension)
+		path := filepath.Join(newestCheckpoints(t, root), name+checkpointExtension)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -132,4 +132,22 @@ func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
 	if digest := openAndDigest(t, false, "unreadable"); digest != baseline {
 		t.Fatal("full-replay fallback answered differently")
 	}
+}
+
+// newestCheckpoints returns the directory of the store's newest checkpoint
+// generation, the one an open loads first.
+func newestCheckpoints(t *testing.T, root string) string {
+	t.Helper()
+	parent := filepath.Join(root, checkpointDirectory)
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := len(entries) - 1; index >= 0; index-- {
+		if entries[index].IsDir() {
+			return filepath.Join(parent, entries[index].Name())
+		}
+	}
+	t.Fatalf("store %s holds no checkpoint generation", root)
+	return ""
 }

@@ -5,13 +5,13 @@
   "items": [
     {
       "id": "store-snapshot-single-format",
-      "title": "Keep one acceleration format: a snapshot writes the whole catalog twice, as the monolithic 193 MB snapshot document and as the per-facet checkpoints of the same 193 MB, and an open that finds no usable checkpoints already falls back past the snapshot to replaying the sealed segments. Measure what the monolithic snapshot still buys -- which opens have used it since checkpoints landed -- and if nothing, remove its writer, reader and generations, halving what a snapshot writes and deleting a fallback path",
+      "title": "Delete the monolithic snapshot once checkpoint generations have landed: its writer, its reader, its generations and the ten test files bound to its format; an open that finds no generation that verifies replays the sealed segments, as it already does when the snapshot is absent; keep Store.Snapshot as the name of the maintenance point that seals the journal and writes a checkpoint generation, since the gate calls it",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Keep one acceleration format: a snapshot writes the whole catalog twice, as the monolithic 193 MB snapshot document and as the per-facet checkpoints of the same 193 MB, and an open that finds no usable checkpoints already falls back past the snapshot to replaying the sealed segments. Measure what the monolithic snapshot still buys -- which opens have used it since checkpoints landed -- and if nothing, remove its writer, reader and generations, halving what a snapshot writes and deleting a fallback path",
+          "title": "Delete the monolithic snapshot once checkpoint generations have landed: its writer, its reader, its generations and the ten test files bound to its format; an open that finds no generation that verifies replays the sealed segments, as it already does when the snapshot is absent; keep Store.Snapshot as the name of the maintenance point that seals the journal and writes a checkpoint generation, since the gate calls it",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestCheckpointsAreTheOnlyAcceleration' -count=1"
         }
@@ -47,15 +47,15 @@
     },
     {
       "id": "gate-isolation-rule-enforced",
-      "title": "Flip the isolation rule once its shadow evidence is in: after at least ten landings have recorded the measure, settle the open question of a reader whose path arrives from the environment (the gate binds data roots through it), seed a regression in an unrelated source for each package the rule would have left out most often and confirm none of them would have caught it, then make the rule the selection so receipts of untouched packages match again; the expected gain measured on 2026-09-20 was 28 of 29 packages and about 80 s of wall on a landing confined to one command",
+      "title": "Name the inputs of the packages every landing re-runs (the shadow measure overturned the inheritance rule, 2026-09-21): on a landing confined to cmd/store-precheck the gate ran 29 packages, one for the compiler, and the rule under trial -- an importer inherits a reader's reach only if the reader finds the repository itself or the importer could hand it a path -- would have left out 1 of 29, 1.1 s. The other 27 are not innocent importers: each reaches unnamed paths itself, in its sources or its tests (a flag path, a parent path, the working directory), so each takes every root as an input and no receipt ever matches. The set is about twenty packages wide on any Go change: clone-census, code-manifest, controller-action, device-lane, cmd/gate, overgodb-query, overgodb-rebuild, release, rsi-census, agentworkflow, automationcheck, closurescan, controlleraction, internal/loop, storepolicy, testprocess, testvocab, trainingprogram, trainingworkflow, workflowruntime. For each, read the recorded reason, and either name what it reads so it binds those paths alone, or move the repository-wide read into the one package whose job it is; keep recording the shadow measure, and enforce the inheritance rule only if later landings show it is worth more than it has so far",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Flip the isolation rule once its shadow evidence is in: after at least ten landings have recorded the measure, settle the open question of a reader whose path arrives from the environment (the gate binds data roots through it), seed a regression in an unrelated source for each package the rule would have left out most often and confirm none of them would have caught it, then make the rule the selection so receipts of untouched packages match again; the expected gain measured on 2026-09-20 was 28 of 29 packages and about 80 s of wall on a landing confined to one command",
+          "title": "Name the inputs of the packages every landing re-runs (the shadow measure overturned the inheritance rule, 2026-09-21): on a landing confined to cmd/store-precheck the gate ran 29 packages, one for the compiler, and the rule under trial -- an importer inherits a reader's reach only if the reader finds the repository itself or the importer could hand it a path -- would have left out 1 of 29, 1.1 s. The other 27 are not innocent importers: each reaches unnamed paths itself, in its sources or its tests (a flag path, a parent path, the working directory), so each takes every root as an input and no receipt ever matches. The set is about twenty packages wide on any Go change: clone-census, code-manifest, controller-action, device-lane, cmd/gate, overgodb-query, overgodb-rebuild, release, rsi-census, agentworkflow, automationcheck, closurescan, controlleraction, internal/loop, storepolicy, testprocess, testvocab, trainingprogram, trainingworkflow, workflowruntime. For each, read the recorded reason, and either name what it reads so it binds those paths alone, or move the repository-wide read into the one package whose job it is; keep recording the shadow measure, and enforce the inheritance rule only if later landings show it is worth more than it has so far",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestIsolationRuleSelectsOnEvidence' -count=1"
+          "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1"
         }
       ]
     },
@@ -943,7 +943,8 @@
             "gate-receipt-reuse-measured/do",
             "gate-isolation-rule-on-evidence/do",
             "gate-isolation-rule-enforced/do",
-            "lanes-failure-names-its-test/do"
+            "lanes-failure-names-its-test/do",
+            "store-checkpoint-generations/do"
           ]
         }
       ]

@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -48,8 +47,8 @@ func TestCheckpointCanonicalAtTheWriter(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "contents") {
 		t.Fatalf("publish = %v, want the contents member refused", err)
 	}
-	if _, statErr := os.Stat(filepath.Join(target, checkpointDirectory, "contents"+checkpointExtension)); !os.IsNotExist(statErr) {
-		t.Fatalf("the refused member was published: %v", statErr)
+	if published, _ := filepath.Glob(filepath.Join(target, checkpointDirectory, "*", "contents"+checkpointExtension)); len(published) != 0 {
+		t.Fatalf("the refused member was published: %v", published)
 	}
 }
 

@@ -5,13 +5,13 @@
   "items": [
     {
       "id": "validate-all-models",
-      "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 after the speech and DNA owners: 19 validated once the acceptance receipt is re-acquired at the landed tree with go run ./cmd/gate -package-run cmd/compatibility, which every landing expires because two campaign-lane tests in that package read docs/plan.json -- the seven text models by the guard pass at surface efae7b5ffe58, ten media and specialized models by that receipt, pocket-tts by the complete receipt for internal/speechsynth, Carbon-500M by its smoke run at the current inference surface. 4 registered: Unlimited-OCR needs the HF-to-GGUF path for its DeepSeek-OCR-derived stack, ported from adaptive_new's unlimitedocr recipe stages with its top-logit screen as oracle; granite-speech, nemotron ASR and FireRedVAD need audio-lane task activation. 4 unregistered: Fractale (no onboarding path), RAE-collections (layout), timesfm-3.0 (license, owner decision), webssl-dino (non-commercial, owner decision). Next: stop the acceptance receipt expiring on plan edits by gating the two campaign-lane tests without reading the plan; then the Unlimited-OCR port. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
+      "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 at 8e140ca0: 20 VALIDATED, none merely activated -- the seven text models and Unlimited-OCR by guard records at the current inference surface, the ten media and specialized models by the gate's complete receipt for cmd/compatibility, pocket-tts by the complete receipt for internal/speechsynth, Carbon-500M by its smoke run at that surface. Remaining: 3 registered speech models (granite-speech, nemotron ASR, FireRedVAD) blocked on one missing piece, a transcription capability in the onboarding catalog -- row transcription-capability; and 4 unregistered (Fractale, no onboarding path for a thoughtbank generation capability; RAE-collections, layout unread; timesfm-3.0, license identifier is an owner decision; webssl-dino, non-commercial is an owner decision). Re-acquiring currency after any landing: the guard pass for text when the inference closure moves, gate -package-run cmd/compatibility for media, and a census republish and rebind whenever a registration, an activation or a benchmark publish moves the denominator. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 after the speech and DNA owners: 19 validated once the acceptance receipt is re-acquired at the landed tree with go run ./cmd/gate -package-run cmd/compatibility, which every landing expires because two campaign-lane tests in that package read docs/plan.json -- the seven text models by the guard pass at surface efae7b5ffe58, ten media and specialized models by that receipt, pocket-tts by the complete receipt for internal/speechsynth, Carbon-500M by its smoke run at the current inference surface. 4 registered: Unlimited-OCR needs the HF-to-GGUF path for its DeepSeek-OCR-derived stack, ported from adaptive_new's unlimitedocr recipe stages with its top-logit screen as oracle; granite-speech, nemotron ASR and FireRedVAD need audio-lane task activation. 4 unregistered: Fractale (no onboarding path), RAE-collections (layout), timesfm-3.0 (license, owner decision), webssl-dino (non-commercial, owner decision). Next: stop the acceptance receipt expiring on plan edits by gating the two campaign-lane tests without reading the plan; then the Unlimited-OCR port. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
+          "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 at 8e140ca0: 20 VALIDATED, none merely activated -- the seven text models and Unlimited-OCR by guard records at the current inference surface, the ten media and specialized models by the gate's complete receipt for cmd/compatibility, pocket-tts by the complete receipt for internal/speechsynth, Carbon-500M by its smoke run at that surface. Remaining: 3 registered speech models (granite-speech, nemotron ASR, FireRedVAD) blocked on one missing piece, a transcription capability in the onboarding catalog -- row transcription-capability; and 4 unregistered (Fractale, no onboarding path for a thoughtbank generation capability; RAE-collections, layout unread; timesfm-3.0, license identifier is an owner decision; webssl-dino, non-commercial is an owner decision). Re-acquiring currency after any landing: the guard pass for text when the inference closure moves, gate -package-run cmd/compatibility for media, and a census republish and rebind whenever a registration, an activation or a benchmark publish moves the denominator. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
@@ -28,6 +28,20 @@
           "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after.",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "speech-models-onboarding",
+      "title": "Onboard the three registered speech models now that the capability stage exists (2026-09-22): publish each checkpoint's execution and processor declarations as artifacts bound to its model, because the recognizer takes its tensor names and numerical conventions from a declaration and never from family dispatch; add the transcription entry to mediacapability.Catalog with a resolver that reads the checkpoint inventory and those declarations and an executor that opens the recognizer session; then onboard granite-speech first, whose declaration and parity capture are complete, minting its exact transcript from the runtime as the text models' goldens were minted, then nemotron ASR, then FireRedVAD under activity detection. Each activation joins the smoke denominator, moves the capability census, and needs a landing whose verify runs it before the accepted coverage can cite it.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Onboard the three registered speech models now that the capability stage exists (2026-09-22): publish each checkpoint's execution and processor declarations as artifacts bound to its model, because the recognizer takes its tensor names and numerical conventions from a declaration and never from family dispatch; add the transcription entry to mediacapability.Catalog with a resolver that reads the checkpoint inventory and those declarations and an executor that opens the recognizer session; then onboard granite-speech first, whose declaration and parity capture are complete, minting its exact transcript from the runtime as the text models' goldens were minted, then nemotron ASR, then FireRedVAD under activity detection. Each activation joins the smoke denominator, moves the capability census, and needs a landing whose verify runs it before the accepted coverage can cite it.",
+          "status": "open",
+          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
       ]
     },
@@ -893,7 +907,9 @@
             "unlimited-ocr-port/do",
             "ocr-census-rebind/do",
             "ocr-coverage-join/do",
-            "post-guard-census-rebind/do"
+            "post-guard-census-rebind/do",
+            "transcription-capability/do",
+            "speech-models-onboarding/do"
           ]
         }
       ]
@@ -1067,6 +1083,10 @@
     {
       "key": "store-growth:bytes:overgo/code-manifest-analysis/v1",
       "row": "store-growth-ratchet"
+    },
+    {
+      "key": "store-growth:bytes:overgo/gate-selection-cause/v1",
+      "row": "store-benchmark-record-redundancy"
     },
     {
       "key": "store-growth:bytes:overgo/modern-go-computation/v1",

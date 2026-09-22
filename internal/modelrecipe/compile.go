@@ -378,6 +378,13 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 		{node: "generate", module: ModuleSpeechGenerate, input: "tokens", output: "latents", inputData: recipe.DataTokens, outData: recipe.DataTensor, session: recipe.SessionCapacity},
 		{node: "decode", module: ModuleSpeechDecode, input: "latents", output: "audio", inputData: recipe.DataTensor, outData: recipe.DataAudio},
 	}},
+	// The recognizer is the model-resident component, as the synthesizer is:
+	// the encoder, its head and the tokenizer stay loaded across requests, so
+	// the stage declares a session lifetime and the component session plan is
+	// not empty.
+	recipe.TaskTranscription: {placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "transcribe", module: ModuleTranscribeAudio, input: "audio", output: "transcription", inputData: recipe.DataAudio, outData: recipe.DataTranscription, session: recipe.SessionCapacity},
+	}},
 }
 
 func imageCapability(

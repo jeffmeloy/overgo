@@ -400,13 +400,13 @@
     },
     {
       "id": "validate-all-models",
-      "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 at 8e140ca0: 20 VALIDATED, none merely activated -- the seven text models and Unlimited-OCR by guard records at the current inference surface, the ten media and specialized models by the gate's complete receipt for cmd/compatibility, pocket-tts by the complete receipt for internal/speechsynth, Carbon-500M by its smoke run at that surface. Remaining: 3 registered speech models (granite-speech, nemotron ASR, FireRedVAD) blocked on one missing piece, a transcription capability in the onboarding catalog -- row transcription-capability; and 4 unregistered (Fractale, no onboarding path for a thoughtbank generation capability; RAE-collections, layout unread; timesfm-3.0, license identifier is an owner decision; webssl-dino, non-commercial is an owner decision). Re-acquiring currency after any landing: the guard pass for text when the inference closure moves, gate -package-run cmd/compatibility for media, and a census republish and rebind whenever a registration, an activation or a benchmark publish moves the denominator. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
+      "title": "Validate all models. State 2026-09-22 at 640feae5: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage, each by a cell stating its exact bound and a proof resolving the landing whose own verify ran it. Remaining, none of which is missing code alone: FireRedVAD has no activity-detection catalog entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for; timesfm-3.0 waits on a license identifier and webssl-dino on a non-commercial term. All four are owner decisions, each parked as a finding.",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 at 8524f5be: 24 VALIDATED, and 27 activations carry accepted protocols, up from 24. Seven text models and Unlimited-OCR by guard records at the current inference surface; ten media and specialized models by the complete receipt for cmd/compatibility; pocket-tts by internal/speechsynth; Carbon-500M by its smoke run; granite-speech, nemotron ASR and the two FireRedVAD checkpoints by the complete receipt for internal/audioparity recorded at this source, whose acceptances run each of them; and Fractale-350M-base, newly registered and activated for generation. granite-speech, nemotron and Fractale are also joined to accepted coverage, each by a cell whose scope states its exact bound and a proof resolving the landing whose own verify ran it. Remaining, none of which is missing code alone: FireRedVAD cannot be activated because the catalog has no activity-detection entry, and building one needs a declared production boundary policy the checkpoint does not carry, an owner decision parked as a finding; RAE-collections is present and complete under MIT but is a two-stage representation-autoencoder image generation architecture, a frozen encoder with a trained decoder plus a stage-2 diffusion transformer, and overgo has no path for that shape; timesfm-3.0 waits on a license identifier and webssl-dino on a non-commercial term. Re-acquiring currency: the guard pass for text when the inference closure moves, gate -package-run cmd/compatibility for media, internal/audioparity for speech and internal/thoughtbank for generation, and a census republish and rebind whenever a registration or activation moves the denominator. An accepted protocol is a join, not a record: a coverage cell naming model and recipe, and a proof resolving the landing whose own verify ran the model to that landing's gate preparation and result, the preparation being the lifecycle document the finalization names, not the attempt.",
+          "title": "Validate all models. State 2026-09-22 at 640feae5: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage, each by a cell stating its exact bound and a proof resolving the landing whose own verify ran it. Remaining, none of which is missing code alone: FireRedVAD has no activity-detection catalog entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for; timesfm-3.0 waits on a license identifier and webssl-dino on a non-commercial term. All four are owner decisions, each parked as a finding.",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
@@ -916,7 +916,8 @@
             "skips-name-their-environment/do",
             "acceptance-pins-follow-coverage/do",
             "device-gate-names-its-lane/do",
-            "device-gate-revert-restores-currency/do"
+            "device-gate-revert-restores-currency/do",
+            "plan-dispositions-recorded/do"
           ]
         }
       ]
@@ -1096,6 +1097,10 @@
       "row": "store-benchmark-record-redundancy"
     },
     {
+      "key": "store-growth:bytes:overgo/gate-suite-cost/v2",
+      "row": "store-growth-ratchet"
+    },
+    {
       "key": "store-growth:bytes:overgo/modern-go-computation/v1",
       "row": "store-growth-ratchet"
     },
@@ -1109,6 +1114,10 @@
     },
     {
       "key": "store-growth:count:overgo/gate-package-receipt/v1",
+      "row": "store-growth-ratchet"
+    },
+    {
+      "key": "store-growth:count:overgo/stage-receipt/v2",
       "row": "store-growth-ratchet"
     },
     {
@@ -1134,6 +1143,10 @@
     {
       "key": "suite-cost:overgo/internal/repoanalysis",
       "row": "repoanalysis-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/internal/server",
+      "reason": "the server suite's device lane wall is what the browser journeys cost; row gate-suite-serial-floor owns suite wall and this candidate is its measurement, not a separate row"
     },
     {
       "key": "suite-cost:overgo/internal/tabularicl",

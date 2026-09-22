@@ -894,7 +894,8 @@
             "media-runtime-chain-reconciled/do",
             "media-evidence-currency-in-inventory/do",
             "q1-0-batched-prefill/do",
-            "lanes-repair-q10-prefill/do"
+            "lanes-repair-q10-prefill/do",
+            "bonsai-coverage-join/do"
           ]
         }
       ]

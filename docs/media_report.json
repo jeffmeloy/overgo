@@ -1972,7 +1972,7 @@
   "accepted_protocols": {
     "Registered": 213,
     "Activations": 30,
-    "AcceptedActivations": 22,
+    "AcceptedActivations": 23,
     "Models": [
       {
         "Model": "model:sha256:000df141c36bd8a393a013338d16898c02f92691ed2897342a745da598b87a6f",
@@ -4813,14 +4813,16 @@
           {
             "Task": "inference",
             "Recipe": "recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6",
-            "Proofs": null,
-            "Scope": "",
+            "Proofs": [
+              "lanes-repair-q10-prefill/do"
+            ],
+            "Scope": "Bonsai-27B-Q1_0: two exact greedy continuations at registration and the greedy integer-addition smoke oracle run by the cited landing. The long-form guard failed its 8192 rung before the Q1_0 staged prefill and is re-acquired after it; no benchmark or quality claim.",
             "Implemented": true,
             "Activated": true,
             "Measured": true,
-            "Accepted": false,
-            "RequiredPhases": 0,
-            "AcceptedPhases": 0,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
             "HistoricalVerifier": {
               "gate": "evidence:sha256:dd248dc5999b701b8626ebfeba0bebbdda0c3dcaad7b729bbf7a8e76301d51a8",
               "run": "run:sha256:bb6a3eea23644e4689b88914d8aee73f73416fcd589af183fe86736f37374ec0",
@@ -4838,7 +4840,7 @@
                 }
               ]
             },
-            "Gap": "No accepted protocol bound to this activation.",
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -6458,7 +6460,7 @@
     "Documents": {
       "docs/verification/image-video-coverage.json": "88af07241fd07965fe65bb31b020c7f29fb400c7deadce60712ea54ae0d91d51",
       "docs/verification/specialized-coverage.json": "700b2bd046116527c6c514a6cbcce080d02d685ad1b939a3d51c981e020458a8",
-      "docs/verification/text-vision-coverage.json": "4da8f01ca386f1943401ec58455a682759fa86aa6b7e661bb1e9c8c04ac0d261"
+      "docs/verification/text-vision-coverage.json": "7d732517316ef33c9489c922773386feb14db451f4412802b271338ef34c5a14"
     },
     "Proofs": [
       {
@@ -6537,6 +6539,13 @@
         "Verify": "go test ./cmd/compatibility -run '^TestAcceptedRxBrainVQA$' -count=1",
         "Preparation": "evidence:sha256:3db4883b9319117176d0e4879ac37566ed472c8bdc2bddac14ed94f898c54a7c",
         "Result": "evidence:sha256:bbc02608ddbb097d7078d572ad259c904104e810ecda63059d426e9f9e098bdf"
+      },
+      {
+        "Reference": "lanes-repair-q10-prefill/do",
+        "Commit": "a9dda8b043108dab0ae55da23954caac087bf81a",
+        "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^(TestMediaQ10prefillReconciliation|TestMediaWorkflowruntimeReconciliation|TestMediaExecutorHostmathReconciliation|TestImageVideoLifecycleAcceptance|TestImageVideoMergedCapabilitiesAcceptance|TestMediaRotarySourceIsolation|TestImageVideoInventoryAcceptance|TestImageVideoWanAcceptance|TestImageVideoCapacityAcceptance)$' -count=1 \u0026\u0026 go test ./internal/finding -run '^TestTextBatchBindsArtifactIdentitiesAsThemselves$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/smoke-lane -run '^TestAcceptedSmokeOracles$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
+        "Preparation": "evidence:sha256:39244fa97829201d4c7256e9994c4ccd8defb310775bd40431cb28f17b2c3945",
+        "Result": "evidence:sha256:38363e25876bb24456184e9ad6985b9787fb895e8caf0e463a1aba461fd62e53"
       },
       {
         "Reference": "modality-verification/diffusion-current-generation",

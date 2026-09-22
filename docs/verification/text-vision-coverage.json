@@ -98,6 +98,20 @@
       ]
     },
     {
+      "Model": "model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6",
+          "Proofs": [
+            "lanes-repair-q10-prefill/do"
+          ],
+          "Scope": "Bonsai-27B-Q1_0: two exact greedy continuations at registration and the greedy integer-addition smoke oracle run by the cited landing. The long-form guard failed its 8192 rung before the Q1_0 staged prefill and is re-acquired after it; no benchmark or quality claim."
+        }
+      ]
+    },
+    {
       "Model": "model:sha256:e686cefa2ddc9fa602e295c27da7b1bca98bbbea44262556dd7ae7b7cb0a137b",
       "Domains": null,
       "Cells": [
@@ -225,6 +239,13 @@
       "Verify": "go test ./cmd/compatibility -run '^TestAcceptedRxBrainVQA$' -count=1",
       "Preparation": "evidence:sha256:3db4883b9319117176d0e4879ac37566ed472c8bdc2bddac14ed94f898c54a7c",
       "Result": "evidence:sha256:bbc02608ddbb097d7078d572ad259c904104e810ecda63059d426e9f9e098bdf"
+    },
+    {
+      "Reference": "lanes-repair-q10-prefill/do",
+      "Commit": "a9dda8b043108dab0ae55da23954caac087bf81a",
+      "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^(TestMediaQ10prefillReconciliation|TestMediaWorkflowruntimeReconciliation|TestMediaExecutorHostmathReconciliation|TestImageVideoLifecycleAcceptance|TestImageVideoMergedCapabilitiesAcceptance|TestMediaRotarySourceIsolation|TestImageVideoInventoryAcceptance|TestImageVideoWanAcceptance|TestImageVideoCapacityAcceptance)$' -count=1 && go test ./internal/finding -run '^TestTextBatchBindsArtifactIdentitiesAsThemselves$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/smoke-lane -run '^TestAcceptedSmokeOracles$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
+      "Preparation": "evidence:sha256:39244fa97829201d4c7256e9994c4ccd8defb310775bd40431cb28f17b2c3945",
+      "Result": "evidence:sha256:38363e25876bb24456184e9ad6985b9787fb895e8caf0e463a1aba461fd62e53"
     }
   ],
   "Inputs": {

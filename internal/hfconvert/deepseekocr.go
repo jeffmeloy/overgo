@@ -12,6 +12,7 @@ import (
 	"overgo/internal/hfgguf"
 	"overgo/internal/hfrepo"
 	"overgo/internal/modelartifact"
+	"overgo/internal/projector"
 )
 
 // deepSeekOCRTokenConfig is what the tokenizer metadata takes from the
@@ -43,6 +44,12 @@ func convertDeepSeekOCR(directory string, options Options) (Report, error) {
 		if projectorErr != nil {
 			return report, projectorErr
 		}
+		// The projector runtime is this package's to reach, not the adapter's:
+		// what is about to be written is read by the reader that will consume
+		// it before a byte lands.
+		if err := requireDeepSeekOCRProjector(metadata, tensors); err != nil {
+			return report, err
+		}
 		slices.SortFunc(tensors, func(left, right gguf.TensorData) int { return strings.Compare(left.Name, right.Name) })
 		if err := gguf.WriteFileExclusive(options.ProjectorPath, metadata, tensors, gguf.WriteOptions{}); err != nil {
 			return report, err
@@ -50,6 +57,32 @@ func convertDeepSeekOCR(directory string, options Options) (Report, error) {
 		report.ProjectorTensors = len(tensors)
 	}
 	return report, nil
+}
+
+// requireDeepSeekOCRProjector reads the mmproj about to be written with the
+// projector runtime's own reader: the tensors it names, their shapes and the
+// metadata it derives its towers and tiling from.
+func requireDeepSeekOCRProjector(metadata []gguf.Metadata, tensors []gguf.TensorData) error {
+	infos := make([]gguf.TensorInfo, len(tensors))
+	for index, tensor := range tensors {
+		info := gguf.TensorInfo{Name: tensor.Name, Type: tensor.Type, Dimensions: uint32(len(tensor.Shape))}
+		traits, _ := tensor.Type.Traits()
+		elements := uint64(1)
+		for axis, extent := range tensor.Shape {
+			info.Shape[axis] = extent
+			elements *= extent
+		}
+		info.Size = elements * traits.TypeSize
+		infos[index] = info
+	}
+	catalog, err := gguf.Catalog(metadata, infos)
+	if err != nil {
+		return err
+	}
+	if _, err := projector.ReadDeepSeekOCRSpec(catalog); err != nil {
+		return fmt.Errorf("HF converter: DeepSeek-OCR projector: %w", err)
+	}
+	return nil
 }
 
 func writeDeepSeekOCRModel(directory string, repository *hfrepo.Repository, options Options) (Report, error) {

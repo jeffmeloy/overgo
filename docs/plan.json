@@ -890,7 +890,8 @@
             "speech-currency-owner/do",
             "acceptance-receipt-survives-plan-edits/do",
             "compatibility-names-its-reads/do",
-            "unlimited-ocr-port/do"
+            "unlimited-ocr-port/do",
+            "ocr-census-rebind/do"
           ]
         }
       ]

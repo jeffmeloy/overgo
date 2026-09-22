@@ -13,7 +13,6 @@ import (
 	"overgo/internal/hfrepo"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
-	"overgo/internal/projector"
 )
 
 // The DeepSeek-OCR document encoder: a SAM tower whose windowed and global
@@ -48,8 +47,10 @@ type deepSeekOCRProcessor struct {
 }
 
 // DeepSeekOCRProjectorConversion returns encoder metadata and streamed SAM,
-// CLIP and projector tensors for the mmproj GGUF, proved against the
-// projector runtime's reader before any byte is written.
+// CLIP and projector tensors for the mmproj GGUF. The catalog it would write
+// is built here so a duplicate name or key is refused before a byte lands;
+// the projector runtime's own reader proves it in the conversion driver,
+// which already carries the device runtime this package must not.
 func DeepSeekOCRProjectorConversion(repository *hfrepo.Repository) ([]gguf.Metadata, []gguf.TensorData, error) {
 	if repository == nil || repository.Tensors == nil {
 		return nil, nil, errors.New("HF/GGUF adapter: nil repository")
@@ -69,12 +70,8 @@ func DeepSeekOCRProjectorConversion(repository *hfrepo.Repository) ([]gguf.Metad
 	if err != nil {
 		return nil, nil, err
 	}
-	catalog, err := gguf.Catalog(metadata, infos)
-	if err != nil {
+	if _, err := gguf.Catalog(metadata, infos); err != nil {
 		return nil, nil, err
-	}
-	if _, err := projector.ReadDeepSeekOCRSpec(catalog); err != nil {
-		return nil, nil, fmt.Errorf("HF/GGUF adapter: DeepSeek-OCR projector: %w", err)
 	}
 	tensors, err := mappedTensorData(mappings)
 	if err != nil {

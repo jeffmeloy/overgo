@@ -1970,8 +1970,8 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 213,
-    "Activations": 30,
+    "Registered": 214,
+    "Activations": 31,
     "AcceptedActivations": 23,
     "Models": [
       {
@@ -3885,6 +3885,49 @@
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
+        "Name": "overgo-hfconvert",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:76b76f0d99b60c7a0dbcee74847b47073f77295766946f488f57d12b1a9865e2",
+              "run": "run:sha256:8c1961ad97226824f6d23386a7a61ceeb0f3421e91656fc1dc2983681ad863a9",
+              "source": "490d85f6260422ba9139cd21efdfb2295950a066",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:76b76f0d99b60c7a0dbcee74847b47073f77295766946f488f57d12b1a9865e2"
+              ],
+              "wall_ns": 11783229100,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 11783229100
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": null,
+        "Gap": "",
+        "RepairOwner": ""
       },
       {
         "Model": "model:sha256:7aa08ec99ff95936111fff35b63ad3debef97d67edee0df2800b6d73ca99b281",

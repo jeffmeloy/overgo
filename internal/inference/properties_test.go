@@ -6,6 +6,7 @@ import (
 
 	"overgo/internal/gguf"
 	"overgo/internal/model"
+	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
@@ -74,7 +75,7 @@ func TestModelPropertiesFromRealGGUF(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_QWEN3_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

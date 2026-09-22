@@ -12,6 +12,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 	"overgo/internal/servingtest"
+	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
@@ -60,7 +61,7 @@ func TestCapacityPagingReproGeneratesPastPageBoundary(t *testing.T) {
 	cudatest.Require(t)
 	path := os.Getenv("OVERGO_REPRO_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_REPRO_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_REPRO_MODEL is not set")
 	}
 	capacityIDs := generateCapacityPagingRepro(t, path, modelrecipe.DecodeSessionCapacity)
 	if len(capacityIDs) <= 256 {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
@@ -299,7 +300,7 @@ func TestNativeQwenChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_QWEN3_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
@@ -325,7 +326,7 @@ func TestNativeQwenToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN3_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_QWEN3_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN3_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
@@ -434,7 +435,7 @@ func TestNativeGemmaChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_GEMMA3_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_GEMMA3_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
@@ -459,7 +460,7 @@ func TestNativeQwen35ChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_QWEN35_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
@@ -485,7 +486,7 @@ func TestNativeQwen35ToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_QWEN35_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_QWEN35_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
@@ -586,7 +587,7 @@ func TestNativeBonsaiChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_BONSAI_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_BONSAI_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_BONSAI_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {
@@ -612,7 +613,7 @@ func TestNativeBonsaiToolChatTemplateMatchesPinnedOracle(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_BONSAI_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_BONSAI_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_BONSAI_MODEL is not set")
 	}
 	runner, err := openFixtureRunner(path, 0)
 	if err != nil {

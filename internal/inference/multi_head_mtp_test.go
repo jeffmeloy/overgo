@@ -7,6 +7,7 @@ import (
 
 	"overgo/internal/model"
 	"overgo/internal/sampling"
+	"overgo/internal/testskip"
 	"overgo/internal/tokenizer"
 )
 
@@ -41,7 +42,7 @@ func TestStep35MTPChainsIndependentHeads(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_STEP35_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip("OVERGO_STEP35_MTP_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_STEP35_MTP_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,
@@ -148,7 +149,7 @@ func TestHYV3MTPChainsIndependentHeads(t *testing.T) {
 	requireIntegration(t)
 	modelPath := os.Getenv("OVERGO_HYV3_MTP_MODEL")
 	if modelPath == "" {
-		t.Skip("OVERGO_HYV3_MTP_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_HYV3_MTP_MODEL is not set")
 	}
 	runner, err := openNativeFixtureRunner(modelPath, OpenOptions{
 		DeviceOrdinal: 0,

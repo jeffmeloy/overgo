@@ -1422,7 +1422,7 @@
      "contains": "func TestExactAttentionCaptureRejectsModifiedScorePolicies(",
      "path": "internal/inference/attention_capture_probe_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:f938d478f7b1ad3f8dc0eb743eae8c25506fbd193f85f93a7ac53fc12eca3b0f"
+     "identity": "evidence:sha256:42b060e8bd2c641efbc88f5b07247c96c9fd930a27989998c01ff9a77814d955"
     }
    ],
    "id": "exact-attention-workbench",

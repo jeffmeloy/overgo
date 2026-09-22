@@ -17,6 +17,7 @@ import (
 	"overgo/internal/gguf"
 	"overgo/internal/jsonfile"
 	"overgo/internal/tensor"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -57,7 +58,7 @@ func TestQwen3VLRealFixture(t *testing.T) {
 	imagePath := os.Getenv("OVERGO_QWEN35_IMAGE")
 	goldenPath := os.Getenv("OVERGO_QWEN35_GOLDEN")
 	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_QWEN35_MMPROJ, OVERGO_QWEN35_IMAGE, and OVERGO_QWEN35_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_QWEN35_MMPROJ, OVERGO_QWEN35_IMAGE, and OVERGO_QWEN35_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -388,7 +389,7 @@ func TestQwen3VLRealVideoFixture(t *testing.T) {
 	projectorPath := os.Getenv("OVERGO_QWEN35_MMPROJ")
 	goldenPath := os.Getenv("OVERGO_QWEN35_VIDEO_GOLDEN")
 	if projectorPath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_QWEN35_MMPROJ and OVERGO_QWEN35_VIDEO_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_QWEN35_MMPROJ and OVERGO_QWEN35_VIDEO_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`

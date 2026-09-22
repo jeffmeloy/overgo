@@ -35,7 +35,7 @@ func TestRealUMT5Tokenization(t *testing.T) {
 	}
 	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
-		t.Skip("OVERGO_UMT5_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": OVERGO_UMT5_MODEL is not set")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

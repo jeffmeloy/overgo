@@ -920,7 +920,8 @@
             "plan-dispositions-recorded/do",
             "store-open-remeasured/do",
             "surface-move-named-in-preflight/do",
-            "store-deferral-constraints/do"
+            "store-deferral-constraints/do",
+            "skips-through-a-variable/do"
           ]
         }
       ]

@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"overgo/internal/testskip"
 )
 
 func TestJSONToolGrammarUsesSchemaAndLazyDelimiter(t *testing.T) {
@@ -131,7 +133,7 @@ func TestNativeToolGrammarsCompileForLocalTemplateFamilies(t *testing.T) {
 		t.Run(fixture.name, func(t *testing.T) {
 			path := os.Getenv(fixture.env)
 			if path == "" {
-				t.Skip(fixture.env + " is not set")
+				t.Skip(testskip.Inapplicable + ": " + fixture.env + " is not set")
 			}
 			runner, err := openFixtureRunner(path, 0)
 			if err != nil {

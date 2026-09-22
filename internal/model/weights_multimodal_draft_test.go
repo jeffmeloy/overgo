@@ -9,6 +9,7 @@ import (
 
 	"os"
 
+	"overgo/internal/testskip"
 	"testing"
 )
 
@@ -176,7 +177,7 @@ func TestReadRealQwen35Catalog(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_QWEN35_MODEL")
 	if path == "" {
-		t.Skip("set OVERGO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_QWEN35_MODEL to run real Qwen3.5 catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -201,7 +202,7 @@ func TestReadRealKimiLinearCatalog(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_KIMI_LINEAR_MODEL")
 	if path == "" {
-		t.Skip("set OVERGO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_KIMI_LINEAR_MODEL to run real Kimi Linear catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -233,7 +234,7 @@ func TestReadRealGemma3Catalog(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_GEMMA3_MODEL")
 	if path == "" {
-		t.Skip("set OVERGO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA3_MODEL to run real Gemma 3 catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
@@ -783,7 +784,7 @@ func TestReadRealUMT5Catalog(t *testing.T) {
 	requireIntegration(t)
 	path := os.Getenv("OVERGO_UMT5_MODEL")
 	if path == "" {
-		t.Skip("set OVERGO_UMT5_MODEL to run real UMT5 catalog validation")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_UMT5_MODEL to run real UMT5 catalog validation")
 	}
 	file, err := gguf.Open(path)
 	if err != nil {

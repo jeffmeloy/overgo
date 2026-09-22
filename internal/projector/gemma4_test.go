@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"overgo/internal/gguf"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/tokenizer"
 )
@@ -314,7 +315,7 @@ func TestGemma4RealFixture(t *testing.T) {
 	imagePath := os.Getenv("OVERGO_GEMMA4_IMAGE")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
 	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_IMAGE, and OVERGO_GEMMA4_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_IMAGE, and OVERGO_GEMMA4_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -456,7 +457,7 @@ func TestGemma4RealPromptTokens(t *testing.T) {
 	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_GOLDEN")
 	if vocabPath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_GOLDEN")
 	}
 	var golden struct {
 		InputIDs                  []tokenizer.TokenID `json:"input_ids"`
@@ -499,7 +500,7 @@ func TestGemma4RealAudioFixture(t *testing.T) {
 	wavePath := os.Getenv("OVERGO_GEMMA4_AUDIO_WAVE")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
 	if projectorPath == "" || wavePath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_AUDIO_WAVE, and OVERGO_GEMMA4_AUDIO_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_AUDIO_WAVE, and OVERGO_GEMMA4_AUDIO_GOLDEN")
 	}
 	type probeRecord struct {
 		Shape      []int     `json:"shape"`
@@ -571,7 +572,7 @@ func TestGemma4RealAudioPromptTokens(t *testing.T) {
 	vocabPath := os.Getenv("OVERGO_GEMMA4_VOCAB")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_AUDIO_GOLDEN")
 	if vocabPath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_AUDIO_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_VOCAB and OVERGO_GEMMA4_AUDIO_GOLDEN")
 	}
 	var golden struct {
 		InputIDs       []tokenizer.TokenID `json:"input_ids"`
@@ -614,7 +615,7 @@ func TestGemma4RealResizeFixture(t *testing.T) {
 	imagePath := os.Getenv("OVERGO_GEMMA4_RESIZE_IMAGE")
 	goldenPath := os.Getenv("OVERGO_GEMMA4_RESIZE_GOLDEN")
 	if projectorPath == "" || imagePath == "" || goldenPath == "" {
-		t.Skip("set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_RESIZE_IMAGE, and OVERGO_GEMMA4_RESIZE_GOLDEN")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_MMPROJ, OVERGO_GEMMA4_RESIZE_IMAGE, and OVERGO_GEMMA4_RESIZE_GOLDEN")
 	}
 	type probeRecord struct {
 		ProbeIndex []int     `json:"probe_index"`

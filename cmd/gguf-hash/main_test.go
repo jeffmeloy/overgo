@@ -64,7 +64,7 @@ func TestExecuteMatchesPinnedLlamaCPPGGUFHash(t *testing.T) {
 	}
 	oracle := os.Getenv("OVERGO_GGUF_HASH_ORACLE")
 	if oracle == "" {
-		t.Skip("set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GGUF_HASH_ORACLE to pinned llama-gguf-hash")
 	}
 	path := writeHashFixture(t)
 	var got bytes.Buffer

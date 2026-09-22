@@ -576,11 +576,12 @@ func tensorCoreMulMat(node *tensor.Tensor) bool {
 }
 
 // quantStagedKernels: the quantized weight types with a dequantize-rows
-// kernel to f16, the types the served models carry (Q8_0 and the
-// K-quants of the UD mixes); other quantized types keep the span
-// kernels.
+// kernel to f16, the types the served models carry (Q8_0, the K-quants of
+// the UD mixes, and the Q1_0 of the ternary 27B); other quantized types
+// keep the span kernels.
 var quantStagedKernels = map[dtype.Type]kernelFunctionID{
 	dtype.Q8_0: kernelDequantRowsQ80F16,
+	dtype.Q1_0: kernelDequantRowsQ10F16,
 	dtype.Q4K:  kernelDequantRowsQ4KF16,
 	dtype.Q5K:  kernelDequantRowsQ5KF16,
 	dtype.Q6K:  kernelDequantRowsQ6KF16,

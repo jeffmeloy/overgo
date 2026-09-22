@@ -121,5 +121,20 @@
         "4"
       ]
     }
+  },
+  {
+    "model": "model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
+    "recipe": "recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6",
+    "domain": "text",
+    "chat": true,
+    "claim": "Greedy instruction following: one exact arithmetic answer; no benchmark or modality-quality claim.",
+    "generation": {
+      "name": "integer-addition",
+      "prompt": "What is 2 + 2? Reply with only the digit.",
+      "max_tokens": 16,
+      "answers": [
+        "4"
+      ]
+    }
   }
 ]

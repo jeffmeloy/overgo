@@ -112,7 +112,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 			referenceCases += len(cases)
 		}
 	}
-	if text != 8 || dna != 1 || chat != 7 || referenceCases != 4 {
+	if text != 9 || dna != 1 || chat != 8 || referenceCases != 4 {
 		t.Fatalf("denominator text=%d DNA=%d chat=%d native=%d", text, dna, chat, referenceCases)
 	}
 	referenceStore := os.Getenv("OVERGO_SMOKE_REFERENCE_STORE")
@@ -166,7 +166,7 @@ func TestAcceptedSmokeOracles(t *testing.T) {
 	t.Run("false_green", TestSmokeOracleRejectsFalseGreen)
 	t.Run("denominator", TestSmokeDeclarationDenominator)
 	t.Run("native", TestSmokeNativeReferenceRejectsWrongScoring)
-	t.Log("9 inference activations: 7 exact-answer cases and 4 native scoring cases; other task/modality evidence remains in modality-verification rows")
+	t.Log("10 inference activations: 8 exact-answer cases and 4 native scoring cases; other task/modality evidence remains in modality-verification rows")
 }
 
 func TestSmokePublishesCompleteBoundRecord(t *testing.T) {

@@ -14,8 +14,9 @@ import (
 // TestExecutorQuantizedTensorCoreMulMatMatchesReference: past the column
 // floor, a quantized weight prefills through f16 staging and the
 // tensor-core GEMM, and agrees with the F32 reference over the same
-// dequantized weight for every type with a dequantize kernel. Below the
-// floor the span kernels still serve, checked on the same graph.
+// dequantized weight for every type with a dequantize kernel, the ternary
+// Q1_0 included. Below the floor the span kernels still serve, checked on
+// the same graph.
 func TestExecutorQuantizedTensorCoreMulMatMatchesReference(t *testing.T) {
 	const (
 		inner   = uint64(512)
@@ -25,10 +26,13 @@ func TestExecutorQuantizedTensorCoreMulMatMatchesReference(t *testing.T) {
 	leftShape := tensor.MustShape(inner, rows)
 	rightValue := patternedValue(tensor.MustShape(inner, columns), 7, 0.05, 0.02)
 	rng := rand.New(rand.NewPCG(17, 23))
-	for _, dataType := range []dtype.Type{dtype.Q8_0, dtype.Q4K, dtype.Q5K, dtype.Q6K} {
+	for _, dataType := range []dtype.Type{dtype.Q8_0, dtype.Q1_0, dtype.Q4K, dtype.Q5K, dtype.Q6K} {
 		t.Run(dataType.String(), func(t *testing.T) {
 			var storage []byte
-			if dataType == dtype.Q8_0 {
+			if dataType == dtype.Q8_0 || dataType == dtype.Q1_0 {
+				// Q1_0 carries one sign bit and a shared scale per block, so the
+				// quantizer decides the weight and the reference must dequantize
+				// the same bytes.
 				var err error
 				storage, err = quant.Quantize(dataType, patternedValue(leftShape, 11, 0.03, -0.1).Data)
 				if err != nil {

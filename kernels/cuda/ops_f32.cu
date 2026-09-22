@@ -5714,6 +5714,32 @@ __device__ float dequant_q1_0_value(
     return value != 0 ? scale : -scale;
 }
 
+// dequant_rows_q1_0_f16 expands Q1_0 weight rows to f16 for the staged
+// tensor-core prefill, as dequant_rows_q8_0_f16 does for Q8_0: a 128-wide
+// block is one f16 scale and 128 sign bits, each element the scale or its
+// negation. Without this the Q1_0 27B prefilled through the per-vector span
+// kernel at its decode rate, 48 prompt tokens a second against 472 for the
+// same model at Q6_K.
+extern "C" __global__ void dequant_rows_q1_0_f16(
+        const unsigned char * weight,
+        __half * output,
+        unsigned int inner,
+        unsigned int start_row,
+        unsigned int count) {
+    const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= count) {
+        return;
+    }
+    const unsigned int block_width = 128u;
+    const unsigned int block_bytes = 18u;
+    const unsigned int column = index % inner;
+    const unsigned int row = start_row + index / inner;
+    const unsigned int blocks_per_row = inner / block_width;
+    const unsigned char * block = weight +
+        ((size_t) row * blocks_per_row + column / block_width) * block_bytes;
+    output[index] = __float2half(dequant_q1_0_value(block, column % block_width));
+}
+
 __device__ float dequant_q2_0_value(
         const unsigned char * block,
         unsigned int column) {

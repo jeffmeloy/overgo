@@ -112,7 +112,7 @@ func TestGUIMobileDeviceEvidence(t *testing.T) {
 	t.Logf("GUI asset SHA-256: %s", source)
 	file := os.Getenv("OVERGO_GUI_MOBILE_EVIDENCE")
 	if file == "" {
-		t.Skip(testskip.ShortIntegration + ": physical mobile evidence belongs to the explicit operator signoff")
+		t.Skip(testskip.Inapplicable + ": physical mobile evidence belongs to the explicit operator signoff")
 	}
 	if !filepath.IsAbs(file) {
 		file = filepath.Join(testutil.RepoRoot(t), file)

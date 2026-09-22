@@ -19,7 +19,7 @@ import (
 // journey mode. Isolated fixture activations do not promote production models.
 func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 	if os.Getenv(webuilane.ModelJourneyEnvironment) == "" {
-		t.Skip(testskip.ShortIntegration + ": native microphone journey runs through cmd/webui-lane -journeys")
+		t.Skip(testskip.Inapplicable + ": native microphone journey runs through cmd/webui-lane -journeys")
 	}
 	f := newLiveASRFixture(t)
 	// Leave room for browser setup/stop silence, bounded to twice the longest

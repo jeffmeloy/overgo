@@ -11,7 +11,7 @@ import (
 
 func TestWebUIBrowserConversationNavigation(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": conversation navigation runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": conversation navigation runs through cmd/webui-lane")
 	}
 	h, _, _ := conversationHistoryFixture(t)
 	server := httptest.NewServer(h)

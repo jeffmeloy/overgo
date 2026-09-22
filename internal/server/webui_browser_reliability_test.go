@@ -20,7 +20,7 @@ import (
 // Exercise timing and recovery failures through the embedded client in Chromium.
 func TestWebUIBrowserReliability(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": browser reliability runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": browser reliability runs through cmd/webui-lane")
 	}
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {

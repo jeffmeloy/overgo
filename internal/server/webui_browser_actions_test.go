@@ -13,7 +13,7 @@ import (
 
 func TestWebUIBrowserConversationActions(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": conversation actions run through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": conversation actions run through cmd/webui-lane")
 	}
 	seed, _, _ := conversationHistoryFixture(t)
 	description, ok := seed.interactionDescription()

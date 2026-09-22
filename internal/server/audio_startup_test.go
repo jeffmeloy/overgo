@@ -76,7 +76,7 @@ func TestAudioStartupCapabilities(t *testing.T) {
 
 func TestWebUIBrowserAudioStartup(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": cold audio browser probe")
+		t.Skip(testskip.Inapplicable + ": cold audio browser probe")
 	}
 	shell, generator := coldStartSpeechFixture(t)
 	server := httptest.NewServer(shell)

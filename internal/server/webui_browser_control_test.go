@@ -14,7 +14,7 @@ import (
 
 func TestWebUIBrowserConversationControl(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": conversation control runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": conversation control runs through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

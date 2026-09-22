@@ -19,7 +19,7 @@ import (
 // the attachment intake decides the format the way the server decodes it.
 func TestWebUIBrowserVideoCapture(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": video capture runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": video capture runs through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

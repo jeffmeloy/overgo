@@ -70,7 +70,7 @@ func laneHubServer(t *testing.T, file string) *httptest.Server {
 // validates its text path and keeps the projector as its projection.
 func TestModelJourneyLibraryValidation(t *testing.T) {
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
-		t.Skip(testskip.ShortIntegration + ": library validation runs through cmd/webui-lane -journeys")
+		t.Skip(testskip.Inapplicable + ": library validation runs through cmd/webui-lane -journeys")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

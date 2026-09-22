@@ -14,7 +14,7 @@ import (
 
 func TestWebUIBrowserSpeechTextImport(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": graphical speech form probe")
+		t.Skip(testskip.Inapplicable + ": graphical speech form probe")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

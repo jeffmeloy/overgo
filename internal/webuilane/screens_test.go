@@ -9,7 +9,7 @@ import (
 
 func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": capture settling runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": capture settling runs through cmd/webui-lane")
 	}
 	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {
@@ -38,7 +38,7 @@ func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
 // those faults absent audits clean, and the screenshot is a PNG.
 func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": the layout audit runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": the layout audit runs through cmd/webui-lane")
 	}
 	browserPath, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
 	if err != nil {

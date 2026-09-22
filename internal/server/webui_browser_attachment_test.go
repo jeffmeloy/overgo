@@ -13,7 +13,7 @@ import (
 
 func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": attachment workflow runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": attachment workflow runs through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

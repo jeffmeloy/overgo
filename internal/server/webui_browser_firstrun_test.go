@@ -51,7 +51,7 @@ import (
 // the image-in leg.
 func TestModelJourneyFirstRun(t *testing.T) {
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
-		t.Skip(testskip.ShortIntegration + ": the journey runs through cmd/webui-lane -journeys")
+		t.Skip(testskip.Inapplicable + ": the journey runs through cmd/webui-lane -journeys")
 	}
 	journey, err := prepareBrowserJourney(t)
 	if err != nil {

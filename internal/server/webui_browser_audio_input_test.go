@@ -15,7 +15,7 @@ import (
 
 func TestWebUIBrowserAudioInput(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": isolated native transcription startup probe")
+		t.Skip(testskip.Inapplicable + ": isolated native transcription startup probe")
 	}
 	for _, earlyKey := range []bool{true, false} {
 		t.Run("early-key="+strconv.FormatBool(earlyKey), func(t *testing.T) {

@@ -14,7 +14,7 @@ import (
 // sends a turn, and reads the resolved chain the turn's inspector shows.
 func TestWebUIBrowserSamplingSettings(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": sampling settings run through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": sampling settings run through cmd/webui-lane")
 	}
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

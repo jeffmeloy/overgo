@@ -32,7 +32,7 @@ import (
 // lane's journey mode with the serving owners, not with every server suite.
 func TestModelJourneyServedProjector(t *testing.T) {
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
-		t.Skip(testskip.ShortIntegration + ": a served model runs through cmd/webui-lane -journeys")
+		t.Skip(testskip.Inapplicable + ": a served model runs through cmd/webui-lane -journeys")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

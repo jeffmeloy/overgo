@@ -14,7 +14,7 @@ import (
 
 func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
-		t.Skip(testskip.ShortIntegration + ": transcription cleanup runs through cmd/webui-lane")
+		t.Skip(testskip.Inapplicable + ": transcription cleanup runs through cmd/webui-lane")
 	}
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	fixture.handler.config.AudioProjector = &fakeAudioProjector{}

@@ -898,7 +898,8 @@
             "speech-models-onboarding/do",
             "transcription-capability-host-boundary/do",
             "transcription-stage-output-contract/do",
-            "granite-speech-transcription-activation/do"
+            "granite-speech-transcription-activation/do",
+            "skip-reason-names-its-gate/do"
           ]
         }
       ]

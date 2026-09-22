@@ -11,7 +11,7 @@
       "steps": [
         {
           "id": "do",
-          "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 at 8e140ca0: 20 VALIDATED, none merely activated -- the seven text models and Unlimited-OCR by guard records at the current inference surface, the ten media and specialized models by the gate's complete receipt for cmd/compatibility, pocket-tts by the complete receipt for internal/speechsynth, Carbon-500M by its smoke run at that surface. Remaining: 3 registered speech models (granite-speech, nemotron ASR, FireRedVAD) blocked on one missing piece, a transcription capability in the onboarding catalog -- row transcription-capability; and 4 unregistered (Fractale, no onboarding path for a thoughtbank generation capability; RAE-collections, layout unread; timesfm-3.0, license identifier is an owner decision; webssl-dino, non-commercial is an owner decision). Re-acquiring currency after any landing: the guard pass for text when the inference closure moves, gate -package-run cmd/compatibility for media, and a census republish and rebind whenever a registration, an activation or a benchmark publish moves the denominator. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
+          "title": "Validate all models (owner priority list 2026-09-21). State 2026-09-22 at ca63a870: 23 VALIDATED. The seven text models and Unlimited-OCR by guard records at the current inference surface; the ten media and specialized models by the gate's complete receipt for cmd/compatibility; pocket-tts by the complete receipt for internal/speechsynth; Carbon-500M by its smoke run at that surface; and the three speech models -- granite-speech, nemotron ASR and the two FireRedVAD checkpoints -- by the complete receipt for internal/audioparity recorded at this source, whose acceptances run each of them against reference traces. granite-speech and nemotron are also activated for transcription through the onboarding catalog, each verified end to end, and the census is bound to both. Remaining: 4 unregistered (Fractale, no onboarding path for a thoughtbank generation capability; RAE-collections, layout unread; timesfm-3.0, license identifier is an owner decision; webssl-dino, non-commercial is an owner decision). Separately open and stronger than validation: no speech activation carries an accepted protocol, which needs a coverage join in docs/verification/specialized-coverage.json citing a landing whose own verify ran the model; and FireRedVAD has no onboarding path, because activity detection is a task in the schema with a module and a definition builder but no entry in the onboarding catalog. Re-acquiring currency after any landing: the guard pass for text when the inference closure moves, gate -package-run cmd/compatibility for media and internal/audioparity for speech, and a census republish and rebind whenever a registration, an activation or a benchmark publish moves the denominator. Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
@@ -902,7 +902,8 @@
             "skip-reason-names-its-gate/do",
             "recurrent-transcription-capability/do",
             "transcript-decode-honours-its-vocabulary/do",
-            "nemotron-transcription-activation/do"
+            "nemotron-transcription-activation/do",
+            "speech-validation-state-recorded/do"
           ]
         }
       ]

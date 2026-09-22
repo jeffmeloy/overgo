@@ -1,0 +1,26 @@
+{
+  "base": "043805ef7f349dd94c1d2e6a7224fe0ccef34ef8",
+  "source_changes": {
+    "internal/workflowruntime/automation.go": {
+      "before_sha256": "b912ca83cc1a8aa3a9d035f6fe16446cd3861ecd1661e37527f2136d42e19a48",
+      "after_sha256": "525f8866182e756546e803d03df2d1328aaba617318ddd17be3a3df0c31c94b1",
+      "reason": "The automation plan's commit is routed through artifact.Publish, the one owner of an idempotent commit, in place of an inline CommitBatch that swallowed artifact.ErrNoChange itself; the same batch is committed and a repeat is still success, so what a workflow writes and every generation it runs are unchanged."
+    },
+    "internal/workflowruntime/runtime.go": {
+      "before_sha256": "82ce76537a35f9f6d3cc8cfa7530b1077c01ff7ea1b474a264168f7c86dd6545",
+      "after_sha256": "49caf5e79a9278b4619fe5094646453fc7f58b6d0165a031ec8d6f10eff442c4",
+      "reason": "The publishExecutionAuthority wrapper, which only forwarded to publishExecutionAuthorityCausal with no cause, is removed as dead surface; no caller remains, so no behaviour changes."
+    }
+  },
+  "evidence": "evidence:sha256:497bd52fff5d2bb608546231a2edad623fce840f8e89db9b85ff4c12b08c7ac9",
+  "required_tests": {
+    "overgo/internal/workflowruntime": [
+      "TestAutomationManualExecution",
+      "TestAutomationDeliveryIdempotency",
+      "TestAutomationRecovery",
+      "TestAutomationSchedule",
+      "TestAutomationCancellation"
+    ]
+  },
+  "scope": "Output-neutral reconciliation of the two internal/workflowruntime production files the harness landings of 2026-09-20 changed above the executor/hostmath base: automation.go routes the plan commit through the idempotent-commit owner, runtime.go loses a dead forwarding wrapper. Neither is on an image or video generation path; the package is in the media runtime paths because the lifecycle workflow runs through it. The bound receipt is the package's own suite re-run at master's current surface through test-lane receipt, and the chain reconciles the pre-delta base as before, so runtime_sha256 is unchanged and no generation was re-run because outputs are provably unchanged."
+}

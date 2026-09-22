@@ -40,7 +40,7 @@ func checkMediaProtocolIdentity(data []byte, digest string) error {
 		return err
 	}
 	if fmt.Sprintf("%x", sha256.Sum256(canonical)) != digest {
-		return errors.New("media protocol: frozen inputs, references, or criteria changed")
+		return fmt.Errorf("media protocol: frozen inputs, references, or criteria changed: measured %x", sha256.Sum256(canonical))
 	}
 	return nil
 }

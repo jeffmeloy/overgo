@@ -21,6 +21,11 @@ type testRunner func(packages []string) (testevidence.GoTestReport, error)
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	if len(os.Args) > 1 && os.Args[1] == receiptVerb {
+		code := receipt(ctx, os.Args[2:], os.Stdout, os.Stderr)
+		stop()
+		os.Exit(code)
+	}
 	code := run(os.Args[1:], os.Stdout, os.Stderr, func(packages []string) (testevidence.GoTestReport, error) {
 		return runGoTest(ctx, packages)
 	})

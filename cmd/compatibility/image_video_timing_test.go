@@ -27,6 +27,13 @@ func checkMediaTimingSource(root, revision string, paths []string) (string, erro
 	// Peel the newer output-neutral executor and host-linear deltas first so the
 	// timing reconciliation sees only its own scope; they carry their own
 	// reviewed reconciliation and receipt.
+	// Newest first: the workflowruntime deltas of the harness landings sit
+	// above the executor/hostmath base and carry their own receipt.
+	if peeledBase, peeled, err := checkMediaWorkflowruntimeSource(root, revision, paths); err != nil {
+		return "", err
+	} else if peeled {
+		revision = peeledBase
+	}
 	if peeledBase, peeled, err := checkMediaExecutorHostmathSource(root, revision, paths); err != nil {
 		return "", err
 	} else if peeled {

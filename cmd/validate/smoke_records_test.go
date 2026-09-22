@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/inferencesurface"
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
@@ -21,8 +22,21 @@ func TestSmokeCurrentFollowsTheInferenceSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := smokeCurrent(t.Context(), root, model, runrecord.Run{Outcome: runrecord.OutcomeSucceeded, CodeCommit: head}, true); err != nil {
-		t.Errorf("a passing run at the current commit is not current: %v", err)
+	// A run at the commit the tree is at is current only when the tree is
+	// that commit; a candidate under verification carries its change and has
+	// moved past its own HEAD, which is the next case, not this one.
+	changed, err := changedSince(t.Context(), root, head)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved, err := inferencesurface.Moves(t.Context(), root, changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(moved) == 0 {
+		if err := smokeCurrent(t.Context(), root, model, runrecord.Run{Outcome: runrecord.OutcomeSucceeded, CodeCommit: head}, true); err != nil {
+			t.Errorf("a passing run at the current commit is not current: %v", err)
+		}
 	}
 	// The staged Q1_0 prefill landed at 161b5138 and moved the executor; a run
 	// at its parent stands for a surface the code has left.

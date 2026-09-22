@@ -889,7 +889,8 @@
             "validate-all-models/do",
             "speech-currency-owner/do",
             "acceptance-receipt-survives-plan-edits/do",
-            "compatibility-names-its-reads/do"
+            "compatibility-names-its-reads/do",
+            "unlimited-ocr-port/do"
           ]
         }
       ]
@@ -1111,6 +1112,10 @@
     {
       "key": "surface-move:production-nodes:00b49160532265a7eea191429073651bff3be82a",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:490d85f6260422ba9139cd21efdfb2295950a066",
+      "reason": "two production nodes: the lane role constant re-exported by the plan and the census alias re-exported by the scanner, declared through the harness paydown row when the landing was budgeted"
     },
     {
       "key": "surface-move:production-nodes:4e87eb1e0a20f326a18e5e7f4cc95eec7b5357ad",

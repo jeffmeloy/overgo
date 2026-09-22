@@ -35,7 +35,10 @@ type Identity struct {
 	ModelType     string
 	TextModelType string
 	Architectures []string
-	Pipeline      string
+	// TextArchitectures names the decoder's own architectures when the
+	// checkpoint nests it under text_config or language_config.
+	TextArchitectures []string
+	Pipeline          string
 }
 
 // InspectIdentity reads available root selectors without opening tensors.
@@ -121,11 +124,22 @@ func readConfig(path string) (map[string]json.RawMessage, Identity, error) {
 	if err := decodeOptional(config, "architectures", &identity.Architectures); err != nil {
 		return nil, Identity{}, err
 	}
+	// A composite checkpoint declares its decoder under text_config or, in
+	// the document-vision families, language_config; the decoder's own
+	// architectures name the family the converter dispatches on.
 	var text map[string]json.RawMessage
 	if err := decodeOptional(config, "text_config", &text); err != nil {
 		return nil, Identity{}, err
 	}
+	if len(text) == 0 {
+		if err := decodeOptional(config, "language_config", &text); err != nil {
+			return nil, Identity{}, err
+		}
+	}
 	if err := decodeOptional(text, "model_type", &identity.TextModelType); err != nil {
+		return nil, Identity{}, err
+	}
+	if err := decodeOptional(text, "architectures", &identity.TextArchitectures); err != nil {
 		return nil, Identity{}, err
 	}
 	return config, identity, nil

@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	"overgo/internal/gguf"
+	"overgo/internal/hfgguf"
+	"overgo/internal/hfrepo"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/safetensors"
@@ -101,6 +103,15 @@ func Convert(options Options) (Report, error) {
 	}
 	if config.ModelType == "qwen3_5" {
 		return convertQwen35(directory, options)
+	}
+	// A composite checkpoint names its decoder's family under its language
+	// config; the wrapper's model type names the product.
+	identity, err := hfrepo.InspectIdentity(directory)
+	if err != nil {
+		return Report{}, err
+	}
+	if hfgguf.IsDeepSeekOCRRepository(identity) {
+		return convertDeepSeekOCR(directory, options)
 	}
 	if strings.TrimSpace(options.ProjectorPath) != "" {
 		return Report{}, fmt.Errorf("HF converter: projector output is unsupported for %q", config.ModelType)

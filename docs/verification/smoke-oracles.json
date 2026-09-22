@@ -136,5 +136,20 @@
         "4"
       ]
     }
+  },
+  {
+    "model": "model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
+    "recipe": "recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3",
+    "domain": "text",
+    "chat": false,
+    "claim": "Greedy continuation determinism on one exact case; no factual accuracy, document-recognition or modality-quality claim.",
+    "generation": {
+      "name": "greedy-continuation",
+      "prompt": "The capital of France is",
+      "max_tokens": 8,
+      "answers": [
+        "the capital of the United States. The"
+      ]
+    }
   }
 ]

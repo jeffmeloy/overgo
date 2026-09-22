@@ -43,6 +43,11 @@ func ValidateRepository(repository *hfrepo.Repository) (model.Spec, error) {
 	if repository == nil {
 		return model.Spec{}, errors.New("HF/GGUF adapter: nil repository")
 	}
+	// A composite checkpoint names its decoder family under its language
+	// config; the wrapper's model type names the product.
+	if IsDeepSeekOCRRepository(repository.Identity) {
+		return ValidateDeepSeekOCRRepository(repository)
+	}
 	switch repository.Identity.ModelType {
 	case "llama", "qwen2":
 		return ValidateDenseRepository(repository)

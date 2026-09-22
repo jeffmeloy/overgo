@@ -1972,7 +1972,7 @@
   "accepted_protocols": {
     "Registered": 218,
     "Activations": 34,
-    "AcceptedActivations": 24,
+    "AcceptedActivations": 25,
     "Models": [
       {
         "Model": "model:sha256:000df141c36bd8a393a013338d16898c02f92691ed2897342a745da598b87a6f",
@@ -4586,14 +4586,16 @@
           {
             "Task": "generation",
             "Recipe": "recipe:sha256:2ed5f2eadfb749508e69d0e78e298d311cabbcff517af6f201025430cb48d4ea",
-            "Proofs": null,
-            "Scope": "",
+            "Proofs": [
+              "fractale-generation-verification/do"
+            ],
+            "Scope": "Exact equality only: the cache-building prefill and the cached decode step reproduce a token-at-a-time reference and a full recomputation with max logit delta 0, over a real code-completion continuation and a twenty-token process probe across the 49,154-entry vocabulary. Prefill wall is held within a full forward's wall. Device training parity is a separate claim under its own record.",
             "Implemented": true,
             "Activated": true,
             "Measured": true,
-            "Accepted": false,
-            "RequiredPhases": 0,
-            "AcceptedPhases": 0,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
             "HistoricalVerifier": {
               "gate": "evidence:sha256:78ced8511634fa3703c6a04d90674eed49c7b34c408e39d6012d8534df95c97f",
               "run": "run:sha256:6642b94c0cb6cc865d1efc5ab65d8a0d74e3fe9ec92602239b5a666d4c1c1198",
@@ -4617,7 +4619,7 @@
                 }
               ]
             },
-            "Gap": "No accepted protocol bound to this activation.",
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -6654,7 +6656,7 @@
     ],
     "Documents": {
       "docs/verification/image-video-coverage.json": "88af07241fd07965fe65bb31b020c7f29fb400c7deadce60712ea54ae0d91d51",
-      "docs/verification/specialized-coverage.json": "700b2bd046116527c6c514a6cbcce080d02d685ad1b939a3d51c981e020458a8",
+      "docs/verification/specialized-coverage.json": "608f378551f2ddbd224fcd268749b7f9f8cf1a428c86d9f1126450da27756900",
       "docs/verification/text-vision-coverage.json": "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381"
     },
     "Proofs": [
@@ -6853,6 +6855,13 @@
         "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
         "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
         "Check": "acceptance-speech"
+      },
+      {
+        "Reference": "fractale-generation-verification/do",
+        "Commit": "e7f204ea4a5424af6c912ba44235247312a7027f",
+        "Verify": "OVERGO_FRACTALE_BASELINE=1 go test ./internal/thoughtbank -tags=modeltest -run '^(TestFractalePrefillLeadership|TestFractaleIncrementalLeadership|TestRealCheckpointCodeCompletion|TestFractaleTwentyTokenProcessProbe)$' -count=1",
+        "Preparation": "evidence:sha256:a8cf54349a6fa19f48d91bf81af2c00b573974ffc987d09e2b7d9d73fd6996e0",
+        "Result": "evidence:sha256:78721bdd62c656b67fe8db1920adb5af1f5948de198ced72737d72516dd5a3dd"
       }
     ]
   }

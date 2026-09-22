@@ -57,6 +57,20 @@
           "Scope": "Two native full-stack cases, 128 horizons and ten outputs per horizon; max absolute error \u003c= 1e-2."
         }
       ]
+    },
+    {
+      "Model": "model:sha256:92e8d118bc317b67145a43efaee171e44e3704ed263080d2962e059ccaff186d",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "generation",
+          "Recipe": "recipe:sha256:2ed5f2eadfb749508e69d0e78e298d311cabbcff517af6f201025430cb48d4ea",
+          "Proofs": [
+            "fractale-generation-verification/do"
+          ],
+          "Scope": "Exact equality only: the cache-building prefill and the cached decode step reproduce a token-at-a-time reference and a full recomputation with max logit delta 0, over a real code-completion continuation and a twenty-token process probe across the 49,154-entry vocabulary. Prefill wall is held within a full forward's wall. Device training parity is a separate claim under its own record."
+        }
+      ]
     }
   ],
   "Proofs": [
@@ -98,6 +112,13 @@
       "Preparation": "evidence:sha256:93e1d075a595a37cbeed68549c03f078335482c7b00c95b555423c3371e3a40c",
       "Result": "evidence:sha256:6cbede4c14531764d5f0a440ff81aeb9ec8c74c91040ee7583d968f0fa155ca4",
       "Check": "acceptance-speech"
+    },
+    {
+      "Reference": "fractale-generation-verification/do",
+      "Commit": "e7f204ea4a5424af6c912ba44235247312a7027f",
+      "Verify": "OVERGO_FRACTALE_BASELINE=1 go test ./internal/thoughtbank -tags=modeltest -run '^(TestFractalePrefillLeadership|TestFractaleIncrementalLeadership|TestRealCheckpointCodeCompletion|TestFractaleTwentyTokenProcessProbe)$' -count=1",
+      "Preparation": "evidence:sha256:a8cf54349a6fa19f48d91bf81af2c00b573974ffc987d09e2b7d9d73fd6996e0",
+      "Result": "evidence:sha256:78721bdd62c656b67fe8db1920adb5af1f5948de198ced72737d72516dd5a3dd"
     }
   ],
   "Inputs": {
@@ -122,6 +143,9 @@
     "internal/speechsynth/generate_golden_test.go": "730e174610c86d1e8b0672cdd89bc537392e0e4c5adf673dcd61683816d1b93a",
     "internal/speechsynth/golden_test.go": "85b70b11e286611025c576dbf45415876e32fe6cfe2f2922c1a466917235e1db",
     "internal/speechsynth/recovery_test.go": "c0746cc7c48eb0950603710e7a42aa27108ae534271899e5be906445448a4ce8",
-    "internal/tabularicl/predict_golden_test.go": "7971f400f2fcdb39add4e5767b7b471adb99dca0318f06e834b202ec462703fc"
+    "internal/tabularicl/predict_golden_test.go": "7971f400f2fcdb39add4e5767b7b471adb99dca0318f06e834b202ec462703fc",
+    "internal/thoughtbank/incremental_leadership_model_test.go": "8575a83697ab72af2ec8689dca0fa98213f4af868d1aa526e8bbd1f2d1d23282",
+    "internal/thoughtbank/load_model_test.go": "e431eea1040b5dfd4f708f4f942219856199045931d608b37ed81d83a676fb32",
+    "internal/thoughtbank/process_probe_model_test.go": "cdb6aa2d2f6c66e65a8c4810ac35816bfb4f08620ec8d256645adef0b5c1254f"
   }
 }

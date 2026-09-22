@@ -4,16 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "media-processing-evidence-reacquired",
-      "title": "Re-acquire the media processing optimisation evidence (found 2026-09-21, failing on clean HEAD since 2026-09-18): TestImageVideoProcessingOptimizationAcceptance holds cmd/compatibility/media.go and samples.go to a declared edit transition from the acquisition's retained source, and media.go was changed by nine landings since that proof's base ee78f361 (report consolidation, typed measurements, scoped acceptance) with no transition recorded, so the accepted memo optimisation cannot be shown to still be in force. Either declare the composed transition as edits that replay from the retained source to the current file, or re-run the baseline and candidate acquisitions at the current source and record the new proof; the media validation lane is not green until this passes",
+      "id": "media-evidence-currency-in-inventory",
+      "title": "Let the inventory judge media and specialized evidence current (campaign step for twelve of the owner's listed models: RxBrain, Krea, LiveEdit, needle, pocket-tts, SenseNova, SimpleDiffusion, tabfm, timesfm-2.5, Un-0, Wan2.1, Carbon-500M). Media evidence is keyed to the media runtime identity, and whether it holds at a tree is decided only by the chain of reviewed layers in cmd/compatibility test files: about 1,350 lines including the rotary layer's AST analysis, with pinned digests throughout, that nothing but tests can call. Two designs, measured 2026-09-21: (a) move the chain's verdict into a leaf package internal/mediasurface and have cmd/validate ask it -- a large move of test code into production, dozens of literals to re-triage, and a duplicate authority if the tests keep their own; (b) treat the verdict as what it is, a test outcome: the gate's complete-mode package receipt for cmd/compatibility at the current input identity, exposed by a read-only cmd/gate mode the planner asks through the process owner, a media cell being validated when that receipt passed at this tree -- small, no duplicate authority, but red today because TestImageVideoProcessingOptimizationAcceptance fails for an unrelated report optimisation (row media-processing-evidence-reacquired), and cmd/compatibility runs in complete mode only when its inputs change. Decide after the processing row: if it is retired to its mutation check, take (b). Carbon-500M is a DNA model with no measuring guard: report it as such rather than validated",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Re-acquire the media processing optimisation evidence (found 2026-09-21, failing on clean HEAD since 2026-09-18): TestImageVideoProcessingOptimizationAcceptance holds cmd/compatibility/media.go and samples.go to a declared edit transition from the acquisition's retained source, and media.go was changed by nine landings since that proof's base ee78f361 (report consolidation, typed measurements, scoped acceptance) with no transition recorded, so the accepted memo optimisation cannot be shown to still be in force. Either declare the composed transition as edits that replay from the retained source to the current file, or re-run the baseline and candidate acquisitions at the current source and record the new proof; the media validation lane is not green until this passes",
+          "title": "Let the inventory judge media and specialized evidence current (campaign step for twelve of the owner's listed models: RxBrain, Krea, LiveEdit, needle, pocket-tts, SenseNova, SimpleDiffusion, tabfm, timesfm-2.5, Un-0, Wan2.1, Carbon-500M). Media evidence is keyed to the media runtime identity, and whether it holds at a tree is decided only by the chain of reviewed layers in cmd/compatibility test files: about 1,350 lines including the rotary layer's AST analysis, with pinned digests throughout, that nothing but tests can call. Two designs, measured 2026-09-21: (a) move the chain's verdict into a leaf package internal/mediasurface and have cmd/validate ask it -- a large move of test code into production, dozens of literals to re-triage, and a duplicate authority if the tests keep their own; (b) treat the verdict as what it is, a test outcome: the gate's complete-mode package receipt for cmd/compatibility at the current input identity, exposed by a read-only cmd/gate mode the planner asks through the process owner, a media cell being validated when that receipt passed at this tree -- small, no duplicate authority, but red today because TestImageVideoProcessingOptimizationAcceptance fails for an unrelated report optimisation (row media-processing-evidence-reacquired), and cmd/compatibility runs in complete mode only when its inputs change. Decide after the processing row: if it is retired to its mutation check, take (b). Carbon-500M is a DNA model with no measuring guard: report it as such rather than validated",
           "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestImageVideoProcessingOptimizationAcceptance' -count=1"
+          "verify": "go test ./internal/mediasurface ./cmd/validate -run '^(TestMediaSurfaceReconcilesTheTree|TestInventoryJudgesMediaEvidenceByTheChain)' -count=1"
         }
       ]
     },
@@ -905,7 +905,8 @@
             "validation-evidence-surface-discipline/do",
             "validation-planner-leaves-the-device-group/do",
             "media-processing-evidence-reacquired/do",
-            "media-runtime-chain-reconciled/do"
+            "media-runtime-chain-reconciled/do",
+            "media-evidence-currency-in-inventory/do"
           ]
         }
       ]

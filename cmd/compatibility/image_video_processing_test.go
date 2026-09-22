@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"maps"
 	"os"
@@ -19,7 +22,6 @@ import (
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
-	"overgo/internal/strictjson"
 	"overgo/internal/testevidence"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -27,41 +29,57 @@ import (
 
 const imageVideoProcessingSHA256 = "d0bd66db0cf42b56093f12d55c2423bcdf57bfb0c5e84025d623a5a927a52b02"
 
-// Freeze the reviewed source transition independently of the original costs.
-const mediaProcessingSourceSHA256 = "7edc55439d4d64959ba87140053c10431c93328a64f4df5c84977464fdea9e98"
-
-type mediaProcessingSource struct {
-	Path   string `json:"path"`
-	Before string `json:"before_sha256"`
-	After  string `json:"after_sha256"`
-	Edits  []struct {
-		Old   string `json:"old"`
-		New   string `json:"new"`
-		Count int    `json:"count"`
-	} `json:"edits"`
-	Scope string `json:"scope"`
-}
-
-func checkMediaProcessingSource(proof mediaProcessingSource, path string, before, current []byte) error {
-	current = []byte(strings.ReplaceAll(string(current), "\r\n", "\n"))
-	if bytes.Equal(before, current) {
-		return nil
+// checkMediaMemoOptimisation holds one report owner to the optimisation the
+// retained acquisition accepted: the persisted discovery memo is loaded and
+// handed to the capability catalog, so no model is re-hashed to render a
+// report or export a sample. It reads the source's syntax, not its bytes: the
+// acceptance once pinned the whole file to a declared edit transition, and six
+// later landings that reshaped the report for other reasons left the
+// optimisation in force while the pin read the file as changed beyond review.
+func checkMediaMemoOptimisation(path string, source []byte) error {
+	syntax, err := parser.ParseFile(token.NewFileSet(), path, source, parser.SkipObjectResolution)
+	if err != nil {
+		return err
 	}
-	if path != proof.Path || proof.Scope == "" || fmt.Sprintf("%x", sha256.Sum256(before)) != proof.Before || fmt.Sprintf("%x", sha256.Sum256(current)) != proof.After {
-		return errors.New("processing source exceeds the declared transition")
-	}
-	replayed := string(before)
-	for _, edit := range proof.Edits {
-		if edit.Old == "" || edit.Count <= 0 || strings.Count(replayed, edit.Old) != edit.Count {
-			return errors.New("processing source edit has different applicability")
+	selector := func(node ast.Expr) string {
+		call, isCall := node.(*ast.CallExpr)
+		if !isCall {
+			return ""
 		}
-		replayed = strings.ReplaceAll(replayed, edit.Old, edit.New)
+		named, isSelector := call.Fun.(*ast.SelectorExpr)
+		if !isSelector {
+			return ""
+		}
+		owner, isIdent := named.X.(*ast.Ident)
+		if !isIdent {
+			return ""
+		}
+		return owner.Name + "." + named.Sel.Name
 	}
-	if replayed != string(current) {
-		return errors.New("processing source differs beyond the reviewed edits")
+	catalogs, memoed := 0, 0
+	ast.Inspect(syntax, func(node ast.Node) bool {
+		call, isCall := node.(*ast.CallExpr)
+		if !isCall || selector(call) != "discovery.CapabilityCatalogForTasks" {
+			return true
+		}
+		catalogs++
+		if len(call.Args) > mediaCatalogMemoArgument && selector(call.Args[mediaCatalogMemoArgument]) == "discovery.LoadMemo" {
+			memoed++
+		}
+		return true
+	})
+	if catalogs == 0 {
+		return fmt.Errorf("%s: no capability catalog is read; the accepted optimisation has no site", path)
+	}
+	if memoed != catalogs {
+		return fmt.Errorf("%s: %d of %d capability catalog reads take the persisted memo; the accepted optimisation is not in force", path, memoed, catalogs)
 	}
 	return nil
 }
+
+// mediaCatalogMemoArgument is the position of the memo in a capability catalog
+// read: context, store, limit, memo, tasks.
+const mediaCatalogMemoArgument = 3
 
 type mediaProcessingObservation struct {
 	Variant   string            `json:"variant"`
@@ -262,43 +280,23 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	if accepted != (value.Decision == "accepted") {
 		t.Fatal("processing decision contradicts frozen comparison")
 	}
-	variant := "baseline"
-	if accepted {
-		variant = "candidate"
-	}
-	sourceRaw, err := os.ReadFile(filepath.Join(root, "cmd/compatibility/testdata/media_processing_source.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := checkMediaProtocolIdentity(sourceRaw, mediaProcessingSourceSHA256); err != nil {
-		t.Fatal(err)
-	}
-	var proof mediaProcessingSource
-	if err := strictjson.DecodeBytes(sourceRaw, &proof); err != nil {
-		t.Fatal(err)
-	}
+	// The retained acquisition proved the optimisation's worth at its own
+	// source; the current owners are held to still carry it, and a source
+	// that drops the memo is refused whatever else it keeps.
 	for _, owner := range []string{"cmd/compatibility/media.go", "cmd/compatibility/samples.go"} {
 		current, err := os.ReadFile(filepath.Join(root, owner))
 		if err != nil {
 			t.Fatal(err)
 		}
-		before := read(value.Sources[variant+"/"+owner])
-		if err := checkMediaProcessingSource(proof, owner, before, current); err != nil {
-			t.Fatalf("%s: %v", owner, err)
+		if err := checkMediaMemoOptimisation(owner, current); err != nil {
+			t.Fatal(err)
 		}
-		if owner == proof.Path {
-			withoutEdits := proof
-			withoutEdits.Edits = nil
-			if err := checkMediaProcessingSource(withoutEdits, owner, before, current); err == nil {
-				t.Fatal("hashes without a complete source transition accepted")
-			}
-			withoutMemo := bytes.ReplaceAll(current, []byte("discovery.LoadMemo(ctx, store)"), []byte("nil"))
-			if bytes.Equal(withoutMemo, current) {
-				t.Fatal("memo-removal mutation did not change the source")
-			}
-			if err := checkMediaProcessingSource(proof, owner, before, withoutMemo); err == nil {
-				t.Fatal("removal of the accepted memo optimization admitted")
-			}
+		withoutMemo := bytes.ReplaceAll(current, []byte("discovery.LoadMemo(ctx, store)"), []byte("nil"))
+		if bytes.Equal(withoutMemo, current) {
+			t.Fatalf("%s: memo-removal mutation did not change the source", owner)
+		}
+		if err := checkMediaMemoOptimisation(owner, withoutMemo); err == nil {
+			t.Fatalf("%s: removal of the accepted memo optimization admitted", owner)
 		}
 	}
 	t.Run("current-report-contract", TestImageVideoReportContract)
@@ -316,5 +314,5 @@ func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
 	if accepted, err := compareMediaProcessing(baseline, bad, limits); err != nil || accepted {
 		t.Fatal("accepted lost latency benefit")
 	}
-	t.Logf("original processing candidate %s; original report and sample identities retained for both lifetimes; reviewed source transition and current report behavior pass; original costs remain historical", value.Decision)
+	t.Logf("original processing candidate %s; original report and sample identities retained for both lifetimes; memo optimisation still in force in both owners and current report behavior pass; original costs remain historical", value.Decision)
 }

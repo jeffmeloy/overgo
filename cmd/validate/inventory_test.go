@@ -49,7 +49,7 @@ func TestModelInventory(t *testing.T) {
 	}
 	recorded := map[artifact.ID][]string{converted: {"shared-digest"}, superseded: {"shared-digest"}, named: {"a-different-directory"}}
 	var standings []string
-	for _, entry := range buildInventory(directories, cells, recorded, func(string) error { return nil }) {
+	for _, entry := range buildInventory(directories, cells, recorded, func(ModelValidation) error { return nil }) {
 		line := filepath.Base(entry.Directory) + " " + entry.Standing
 		for _, tied := range entry.Models {
 			line += " " + tied.Link + ":" + tied.Standing
@@ -126,9 +126,14 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 		{Model: current, Location: "C:/models/Both/new.gguf", Validation: guardValidation, Surface: "inference", Evidence: evidence},
 	}
 	var asked []string
-	guard := func(location string) error {
-		asked = append(asked, location)
-		if strings.Contains(location, "Expired") || strings.Contains(location, "old.gguf") || strings.Contains(location, "Unverified") {
+	currency := func(cell ModelValidation) error {
+		asked = append(asked, cell.Location)
+		switch {
+		case cell.Validation == "bbh":
+			return errCellNotJudged
+		case cell.Validation == "image-proof":
+			return errors.New("no complete receipt for the acceptance package at this tree's inputs")
+		case strings.Contains(cell.Location, "Expired") || strings.Contains(cell.Location, "old.gguf") || strings.Contains(cell.Location, "Unverified"):
 			return errors.New("the long-form record measured another inference surface; run the guard")
 		}
 		return nil
@@ -138,11 +143,11 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 		{Path: "C:/models/Unverified", Weights: true}, {Path: "C:/models/Image", Weights: true}, {Path: "C:/models/Both", Weights: true},
 	}
 	var standings []string
-	for _, entry := range buildInventory(directories, cells, nil, guard) {
+	for _, entry := range buildInventory(directories, cells, nil, currency) {
 		line := filepath.Base(entry.Directory) + " " + entry.Standing
 		for _, tied := range entry.Models {
 			line += " " + tied.Standing
-			if tied.Guard != "" {
+			if tied.Currency != "" {
 				line += "(guard refused)"
 			}
 		}
@@ -152,7 +157,7 @@ func TestInventoryValidatedMeansCurrentAtTheSurface(t *testing.T) {
 		"Both validated activated(guard refused) validated commands=1",
 		"Current validated validated commands=0",
 		"Expired activated activated(guard refused) commands=1",
-		"Image activated activated(guard refused) commands=0",
+		"Image activated activated(guard refused) commands=1",
 		"Unverified registered registered commands=1",
 	}
 	if !slices.Equal(standings, want) {

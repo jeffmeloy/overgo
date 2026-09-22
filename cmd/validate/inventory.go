@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -34,8 +35,9 @@ var standingOrder = []string{standingRegistered, standingActivated, standingVali
 // code surface.
 const guardValidation = "guard"
 
-// uncheckedEvidence is what a model that earns no guard is told.
-const uncheckedEvidence = "earns no long-form guard: whether its accepted evidence is current at the surface it is keyed to is not checked here"
+// uncheckedEvidence is what a model none of whose cells has an owner of its
+// evidence currency is told.
+const uncheckedEvidence = "no owner judges whether its accepted evidence is current at this tree yet"
 
 // How a registered model is tied to a directory.
 const (
@@ -71,11 +73,11 @@ type InventoryModel struct {
 	Location string      `json:"location"`
 	Link     string      `json:"link"`
 	Standing string      `json:"standing"`
-	// Guard says why the long-form guard record is not current at this
-	// surface, with the run that lifts it; empty when it is, or when the
-	// model earns no guard.
-	Guard string            `json:"guard,omitzero"`
-	Cells []ModelValidation `json:"cells"`
+	// Currency says why the model's evidence is not current at this tree --
+	// a guard record from another surface, an acceptance receipt absent or
+	// failed -- with the run that lifts it; empty when it is current.
+	Currency string            `json:"currency,omitzero"`
+	Cells    []ModelValidation `json:"cells"`
 }
 
 // DirectoryInventory is one model directory's standing. ModelType is the
@@ -157,7 +159,7 @@ func convertedSources(ctx context.Context, store overgodb.DocumentReader) (map[a
 // a superseded artifact left beside a validated one -- a conversion from before
 // a fix -- does not make the model any less validated. Every model that is not
 // validated keeps its command.
-func buildInventory(directories []modelDirectory, cells []ModelValidation, converted map[artifact.ID][]string, guard func(location string) error) []DirectoryInventory {
+func buildInventory(directories []modelDirectory, cells []ModelValidation, converted map[artifact.ID][]string, currency func(cell ModelValidation) error) []DirectoryInventory {
 	inventory := make([]DirectoryInventory, 0, len(directories))
 	for _, directory := range directories {
 		entry := DirectoryInventory{
@@ -183,7 +185,7 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 			}
 			entry.Models[index].Cells = append(entry.Models[index].Cells, cell)
 		}
-		entry.Standing, entry.Commands = directoryStanding(directory, entry.Models, guard)
+		entry.Standing, entry.Commands = directoryStanding(directory, entry.Models, currency)
 		inventory = append(inventory, entry)
 	}
 	slices.SortFunc(inventory, func(left, right DirectoryInventory) int { return cmp.Compare(left.Directory, right.Directory) })
@@ -193,7 +195,7 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 // directoryStanding states the standing and the commands that would advance
 // it: registering an unregistered directory, re-acquiring a cell with no
 // accepted evidence. It states each model's own standing in place.
-func directoryStanding(directory modelDirectory, models []InventoryModel, guard func(location string) error) (string, []string) {
+func directoryStanding(directory modelDirectory, models []InventoryModel, currency func(cell ModelValidation) error) (string, []string) {
 	if len(models) == 0 {
 		if !directory.Weights {
 			return standingNotAModel, nil
@@ -224,22 +226,26 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, guard 
 				advance(cell, tied.Model)
 			}
 		}
-		// Whether the guard is current is asked only of a model whose every
+		// Whether evidence is current is asked only of a model whose every
 		// cell carries accepted evidence: a missing one outranks the question.
+		// A cell no owner can judge yet is passed over; a model with no judged
+		// cell is not called validated on an unchecked claim.
+		judged := false
 		for _, cell := range tied.Cells {
-			if standing != standingValidated || cell.Validation != guardValidation {
-				continue
+			if standing != standingValidated {
+				break
 			}
-			if refusal := guard(cell.Location); refusal != nil {
-				standing, models[index].Guard = standingActivated, refusal.Error()
+			switch refusal := currency(cell); {
+			case errors.Is(refusal, errCellNotJudged):
+			case refusal != nil:
+				standing, models[index].Currency = standingActivated, refusal.Error()
 				advance(cell, tied.Model)
+			default:
+				judged = true
 			}
 		}
-		// A model that earns no guard has evidence keyed to a surface this
-		// command cannot check: it is not called validated on an unchecked
-		// claim, and says why.
-		if standing == standingValidated && !slices.ContainsFunc(tied.Cells, func(cell ModelValidation) bool { return cell.Validation == guardValidation }) {
-			standing, models[index].Guard = standingActivated, uncheckedEvidence
+		if standing == standingValidated && !judged {
+			standing, models[index].Currency = standingActivated, uncheckedEvidence
 		}
 		models[index].Standing = standing
 		best = max(best, slices.Index(standingOrder, standing))

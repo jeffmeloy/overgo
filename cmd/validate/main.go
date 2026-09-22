@@ -108,8 +108,20 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		guard := func(location string) error { return guardCurrent(records, location, surface) }
-		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, guard))
+		acceptance, err := gatePackageReceipt(ctx, *root, mediaAcceptancePackage)
+		if err != nil {
+			return err
+		}
+		// Each cell's currency has one owner: the long-form guard for the
+		// inference surface, the acceptance package's receipt for the media
+		// and specialized surfaces; the rest are not judged here.
+		currency := func(cell ModelValidation) error {
+			if cell.Validation == guardValidation {
+				return guardCurrent(records, cell.Location, surface)
+			}
+			return mediaCurrent(acceptance, cell.Surface)
+		}
+		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, currency))
 	}
 
 	plan := SelectValidation(Inputs{Baseline: base, Head: head, ChangedPaths: changed, AffectedSurfaces: affected, Registered: registered})

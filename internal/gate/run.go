@@ -35,7 +35,10 @@ type Options struct {
 	RecoverInterrupted bool
 	AdmitReview        string
 	Watchdog           bool
-	InspectPlan        bool
+	// PackageReceipt names PACKAGE[@MODE] whose gate receipt at the working
+	// tree is printed; read-only.
+	PackageReceipt string
+	InspectPlan    bool
 	// Preflight diagnoses validation failures without admission.
 	Preflight bool
 	// Checkpoint names one checkpoint of the dispatched step's verification
@@ -63,6 +66,7 @@ func Run(options Options) (runErr error) {
 	recoverInterrupted := &options.RecoverInterrupted
 	admitReview := &options.AdmitReview
 	watchdog := &options.Watchdog
+	packageReceipt := &options.PackageReceipt
 	inspectPlan := &options.InspectPlan
 	preflight := &options.Preflight
 	if *inspectPlan && *preflight {
@@ -100,7 +104,7 @@ func Run(options Options) (runErr error) {
 	if err != nil {
 		return err
 	}
-	mutating := *reconcile || *recordFailure || *recoverInterrupted || *admitReview != "" || !*watchdog && !readOnlyPlan
+	mutating := *reconcile || *recordFailure || *recoverInterrupted || *admitReview != "" || !*watchdog && !readOnlyPlan && *packageReceipt == ""
 	writesGit := gateWritesGit(
 		*reconcile, *recordFailure, *recoverInterrupted, *admitReview != "", *watchdog, readOnlyPlan, *merge,
 	)
@@ -162,6 +166,9 @@ func Run(options Options) (runErr error) {
 	}
 	if *watchdog {
 		return printGateWatchdog(repo, *staleAfter)
+	}
+	if *packageReceipt != "" {
+		return printPackageReceipt(repo, cleanStore, *packageReceipt)
 	}
 	if readOnlyPlan && *merge {
 		return errors.New("gate: -inspect-plan and -preflight require explicit -paths and cannot inspect an in-progress merge")

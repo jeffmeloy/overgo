@@ -868,7 +868,8 @@
             "q1-0-batched-prefill/do",
             "lanes-repair-q10-prefill/do",
             "bonsai-coverage-join/do",
-            "verify-selector-per-invocation/do"
+            "verify-selector-per-invocation/do",
+            "gate-package-run-receipt/do"
           ]
         }
       ]

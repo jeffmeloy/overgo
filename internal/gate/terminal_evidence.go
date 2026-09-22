@@ -79,6 +79,20 @@ func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
 		obligations: map[string]runrecord.AgentObligation{}, listings: map[string]artifact.ID{}, previous: map[string]artifact.ID{}}, nil
 }
 
+// packageObligation is the one obligation a package's tests owe in a mode at an
+// input identity in an environment: the receipt's key, computed the same way
+// wherever a receipt is written or read.
+func packageObligation(pkg, mode string, input, environment artifact.ID) (artifact.ID, runrecord.AgentObligation, error) {
+	invocation, err := automationcheck.PackageInvocation(pkg, mode)
+	if err != nil {
+		return artifact.ID{}, runrecord.AgentObligation{}, err
+	}
+	obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{
+		Task: invocation, Name: "go-test", Scope: mode + ":" + pkg, Sources: []artifact.ID{input, environment},
+	})
+	return invocation, obligation, err
+}
+
 // prepare persists every required package before execution, then rebuilds the
 // cache projection from exact store receipts. A tmp file is never authority.
 func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []string, mode string, inputs map[string]artifact.ID, cache *automationcheck.EvidenceCache) error {
@@ -92,14 +106,7 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 	batch := artifact.Batch{}
 	var entries []packageObligationEntry
 	for _, pkg := range packages {
-		invocation, err := automationcheck.PackageInvocation(pkg, mode)
-		if err != nil {
-			return err
-		}
-		obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{
-			Task: invocation, Name: "go-test", Scope: mode + ":" + pkg,
-			Sources: []artifact.ID{inputs[pkg], ledger.environment},
-		})
+		invocation, obligation, err := packageObligation(pkg, mode, inputs[pkg], ledger.environment)
 		if err != nil {
 			return err
 		}

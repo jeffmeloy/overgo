@@ -10,9 +10,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/automationcheck"
 	"overgo/internal/overgodb"
-	"overgo/internal/runrecord"
 )
 
 // PackageReceiptReport is the gate's standing verdict for one package at the
@@ -71,14 +69,7 @@ func PackageReceipt(ctx context.Context, repo, storePath, packagePath, mode stri
 	if err != nil {
 		return PackageReceiptReport{}, err
 	}
-	invocation, err := automationcheck.PackageInvocation(pkg, mode)
-	if err != nil {
-		return PackageReceiptReport{}, err
-	}
-	obligation, err := runrecord.NewAgentObligation(runrecord.AgentObligation{
-		Task: invocation, Name: "go-test", Scope: mode + ":" + pkg,
-		Sources: []artifact.ID{inputs[pkg], environment.ID},
-	})
+	_, obligation, err := packageObligation(pkg, mode, inputs[pkg], environment.ID)
 	if err != nil {
 		return PackageReceiptReport{}, err
 	}

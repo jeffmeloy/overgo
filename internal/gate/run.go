@@ -38,7 +38,11 @@ type Options struct {
 	// PackageReceipt names PACKAGE[@MODE] whose gate receipt at the working
 	// tree is printed; read-only.
 	PackageReceipt string
-	InspectPlan    bool
+	// PackageRun names PACKAGE[@MODE] to run at the clean working tree and
+	// record the gate's receipt for; it holds the authority lock as a landing
+	// does and touches no plan row.
+	PackageRun  string
+	InspectPlan bool
 	// Preflight diagnoses validation failures without admission.
 	Preflight bool
 	// Checkpoint names one checkpoint of the dispatched step's verification
@@ -67,6 +71,7 @@ func Run(options Options) (runErr error) {
 	admitReview := &options.AdmitReview
 	watchdog := &options.Watchdog
 	packageReceipt := &options.PackageReceipt
+	packageRun := &options.PackageRun
 	inspectPlan := &options.InspectPlan
 	preflight := &options.Preflight
 	if *inspectPlan && *preflight {
@@ -169,6 +174,9 @@ func Run(options Options) (runErr error) {
 	}
 	if *packageReceipt != "" {
 		return printPackageReceipt(repo, cleanStore, *packageReceipt)
+	}
+	if *packageRun != "" {
+		return PackageRun(context.Background(), repo, cleanStore, *packageRun, os.Stdout)
 	}
 	if readOnlyPlan && *merge {
 		return errors.New("gate: -inspect-plan and -preflight require explicit -paths and cannot inspect an in-progress merge")

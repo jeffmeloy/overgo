@@ -27,13 +27,20 @@ func TestInventoryJudgesMediaEvidenceByTheChain(t *testing.T) {
 	if err := mediaCurrent(passing, "speech"); !errors.Is(err, errCellNotJudged) {
 		t.Errorf("an unjudged surface was judged: %v", err)
 	}
-	skipped := passing
-	skipped.Tests = map[string]string{"TestImageVideoLifecycleAcceptance": "skip", "TestImageVideoWanAcceptance": "pass"}
+	// A skip in a receipt is a declared exclusion: a test that stated why it
+	// cannot apply at this tree. It neither judges nor refuses the surface;
+	// the surface is current when another named acceptance passed and not
+	// when every named acceptance was excluded.
+	excluded := passing
+	excluded.Tests = map[string]string{"TestImageVideoResourceProtocolAcceptance": "skip", "TestImageVideoWanAcceptance": "pass"}
+	if err := mediaCurrent(excluded, "image"); err != nil {
+		t.Errorf("a declared exclusion beside a passing acceptance refused image evidence: %v", err)
+	}
 	for name, report := range map[string]gateReceipt{
-		"absent":  {Found: false},
-		"failed":  {Found: true, Passed: false},
-		"skipped": skipped,
-		"unnamed": {Found: true, Passed: true, Tests: map[string]string{"TestImageVideoReportContract": "pass"}},
+		"absent":        {Found: false},
+		"failed":        {Found: true, Passed: false},
+		"only excluded": {Found: true, Passed: true, Tests: map[string]string{"TestImageVideoResourceProtocolAcceptance": "skip"}},
+		"unnamed":       {Found: true, Passed: true, Tests: map[string]string{"TestImageVideoReportContract": "pass"}},
 	} {
 		err := mediaCurrent(report, "image")
 		if err == nil || errors.Is(err, errCellNotJudged) {

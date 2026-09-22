@@ -870,7 +870,8 @@
             "bonsai-coverage-join/do",
             "verify-selector-per-invocation/do",
             "gate-package-run-receipt/do",
-            "complete-receipt-declared-exclusions/do"
+            "complete-receipt-declared-exclusions/do",
+            "media-currency-declared-exclusions/do"
           ]
         }
       ]
@@ -1010,12 +1011,20 @@
       "row": "skipped-fixture-classification"
     },
     {
+      "key": "skipped-fixture:test:overgo/cmd/gguf-hash",
+      "reason": "The gguf fixture skips predate this landing, which touched testskip, testevidence, gate and two compatibility test reasons and no gguf path; the fixtures skip for absent fixture files and earn no credit, as the candidate says, and their owner is the gguf reader, not this row"
+    },
+    {
       "key": "skipped-fixture:test:overgo/cmd/vqaparity",
       "row": "skipped-fixture-classification"
     },
     {
       "key": "skipped-fixture:test:overgo/internal/audioparity",
       "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test:overgo/internal/gguf",
+      "reason": "The gguf fixture skips predate this landing, which touched testskip, testevidence, gate and two compatibility test reasons and no gguf path; the fixtures skip for absent fixture files and earn no credit, as the candidate says, and their owner is the gguf reader, not this row"
     },
     {
       "key": "skipped-fixture:test:overgo/internal/model",

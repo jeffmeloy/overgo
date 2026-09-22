@@ -78,16 +78,20 @@ func mediaCurrent(report gateReceipt, surface SurfaceID) error {
 	if !judged {
 		return errCellNotJudged
 	}
-	rerun := "the gate writes it when a landing selects " + mediaAcceptancePackage + " in complete mode"
+	rerun := "run: go run ./cmd/gate -package-run " + mediaAcceptancePackage
 	if !report.Found {
 		return fmt.Errorf("no complete receipt for %s at this tree's inputs; %s", mediaAcceptancePackage, rerun)
 	}
 	if !report.Passed {
 		return fmt.Errorf("the complete run of %s failed at this tree's inputs; repair it, then %s", mediaAcceptancePackage, rerun)
 	}
+	// A receipt carries a skip only for a declared exclusion, a test that
+	// stated why it cannot apply at this tree; it neither judges the surface
+	// nor refuses it. What judges is that at least one named acceptance
+	// passed and none recorded anything else.
 	matched := 0
 	for name, action := range report.Tests {
-		if !pattern.MatchString(name) {
+		if !pattern.MatchString(name) || action == "skip" {
 			continue
 		}
 		if action != "pass" {
@@ -96,7 +100,7 @@ func mediaCurrent(report gateReceipt, surface SurfaceID) error {
 		matched++
 	}
 	if matched == 0 {
-		return fmt.Errorf("the receipt for %s names no %s acceptance among its verdicts", mediaAcceptancePackage, surface)
+		return fmt.Errorf("the receipt for %s names no passing %s acceptance among its verdicts", mediaAcceptancePackage, surface)
 	}
 	return nil
 }

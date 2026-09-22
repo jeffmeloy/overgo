@@ -908,7 +908,8 @@
             "prefill-acceptance-measures-work/do",
             "fractale-generation-verification/do",
             "fractale-coverage-join/do",
-            "speech-transcription-verification/do"
+            "speech-transcription-verification/do",
+            "speech-coverage-join/do"
           ]
         }
       ]

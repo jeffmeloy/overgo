@@ -71,6 +71,34 @@
           "Scope": "Exact equality only: the cache-building prefill and the cached decode step reproduce a token-at-a-time reference and a full recomputation with max logit delta 0, over a real code-completion continuation and a twenty-token process probe across the 49,154-entry vocabulary. Prefill wall is held within a full forward's wall. Device training parity is a separate claim under its own record."
         }
       ]
+    },
+    {
+      "Model": "model:sha256:5df7bae0614c37f11e40fa6659d0cb0e6621812c24831d862d20061036ed51ba",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "transcription",
+          "Recipe": "recipe:sha256:2a980d7a7b1057e4ca31756359282aeb955a0a8b5e8577182a0e9dfb78dc0c21",
+          "Proofs": [
+            "speech-transcription-verification/do"
+          ],
+          "Scope": "Exact transcripts on four reference recordings only: each is transcribed in one call by the packaged recognizer the onboarding path loads, through the checkpoint's own execution and processor declarations and its own tokenizer, and matches the reference exactly. An empty request is refused before a model is read. No word error rate and no broader accuracy claim."
+        }
+      ]
+    },
+    {
+      "Model": "model:sha256:162ed771f9ba22a37ee936f2d1d2019ebb01743d45051ac1c3cc63cf0d92c5f7",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "transcription",
+          "Recipe": "recipe:sha256:09e4454fb71f158c386cbafb92a86b5b2979da8808aaabc872509b5cfd3da3e9",
+          "Proofs": [
+            "speech-transcription-verification/do"
+          ],
+          "Scope": "Step-by-step equality with registered native traces only: each recording decodes offline against its captured encoder and decoder traces, and the first architecture's recordings are preserved in the same run. Native artifact registration is checked there. No word error rate and no broader accuracy claim."
+        }
+      ]
     }
   ],
   "Proofs": [
@@ -119,6 +147,13 @@
       "Verify": "OVERGO_FRACTALE_BASELINE=1 go test ./internal/thoughtbank -tags=modeltest -run '^(TestFractalePrefillLeadership|TestFractaleIncrementalLeadership|TestRealCheckpointCodeCompletion|TestFractaleTwentyTokenProcessProbe)$' -count=1",
       "Preparation": "evidence:sha256:a8cf54349a6fa19f48d91bf81af2c00b573974ffc987d09e2b7d9d73fd6996e0",
       "Result": "evidence:sha256:78721bdd62c656b67fe8db1920adb5af1f5948de198ced72737d72516dd5a3dd"
+    },
+    {
+      "Reference": "speech-transcription-verification/do",
+      "Commit": "c1775281524c53aa811c3709415c3c214e0b3943",
+      "Verify": "go test ./internal/audioparity -run '^(TestRecognizerReproducesReferenceTranscripts|TestSecondASROfflineAcceptance)$' -count=1",
+      "Preparation": "evidence:sha256:fbd88683fb2cb68323c7f4363fd1b6456baac5db3671d18940b5e19d3bc32bfe",
+      "Result": "evidence:sha256:ac513e0515f66c63043c56f6658a5e08a1dea0d470f421a4e3d9c222b14a924c"
     }
   ],
   "Inputs": {
@@ -144,6 +179,8 @@
     "internal/speechsynth/golden_test.go": "85b70b11e286611025c576dbf45415876e32fe6cfe2f2922c1a466917235e1db",
     "internal/speechsynth/recovery_test.go": "c0746cc7c48eb0950603710e7a42aa27108ae534271899e5be906445448a4ce8",
     "internal/tabularicl/predict_golden_test.go": "7971f400f2fcdb39add4e5767b7b471adb99dca0318f06e834b202ec462703fc",
+    "internal/audioparity/recognizer_reference_test.go": "75348c247ba06895e903d53e29d9a2f09f980eac7defcd49aeddf6d673300514",
+    "internal/audioparity/second_asr_test.go": "6482b4e5343da0f5a6760961070cc1cf02aa114cefb23cb3d4e06463a8a59a2c",
     "internal/thoughtbank/incremental_leadership_model_test.go": "8575a83697ab72af2ec8689dca0fa98213f4af868d1aa526e8bbd1f2d1d23282",
     "internal/thoughtbank/load_model_test.go": "e431eea1040b5dfd4f708f4f942219856199045931d608b37ed81d83a676fb32",
     "internal/thoughtbank/process_probe_model_test.go": "cdb6aa2d2f6c66e65a8c4810ac35816bfb4f08620ec8d256645adef0b5c1254f"

@@ -1972,7 +1972,7 @@
   "accepted_protocols": {
     "Registered": 218,
     "Activations": 34,
-    "AcceptedActivations": 25,
+    "AcceptedActivations": 27,
     "Models": [
       {
         "Model": "model:sha256:000df141c36bd8a393a013338d16898c02f92691ed2897342a745da598b87a6f",
@@ -2517,14 +2517,16 @@
           {
             "Task": "transcription",
             "Recipe": "recipe:sha256:09e4454fb71f158c386cbafb92a86b5b2979da8808aaabc872509b5cfd3da3e9",
-            "Proofs": null,
-            "Scope": "",
+            "Proofs": [
+              "speech-transcription-verification/do"
+            ],
+            "Scope": "Step-by-step equality with registered native traces only: each recording decodes offline against its captured encoder and decoder traces, and the first architecture's recordings are preserved in the same run. Native artifact registration is checked there. No word error rate and no broader accuracy claim.",
             "Implemented": true,
             "Activated": true,
             "Measured": true,
-            "Accepted": false,
-            "RequiredPhases": 0,
-            "AcceptedPhases": 0,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
             "HistoricalVerifier": {
               "gate": "evidence:sha256:84931056e3df93302072e9e3d481c9dc9054cd81f5640b880e9962a18b9ae928",
               "run": "run:sha256:d282289e79ce877c3683c175a64ab9ee9f3bf5a7ae6c7531e5882bcfff5a2792",
@@ -2544,7 +2546,7 @@
                 }
               ]
             },
-            "Gap": "No accepted protocol bound to this activation.",
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -3424,14 +3426,16 @@
           {
             "Task": "transcription",
             "Recipe": "recipe:sha256:2a980d7a7b1057e4ca31756359282aeb955a0a8b5e8577182a0e9dfb78dc0c21",
-            "Proofs": null,
-            "Scope": "",
+            "Proofs": [
+              "speech-transcription-verification/do"
+            ],
+            "Scope": "Exact transcripts on four reference recordings only: each is transcribed in one call by the packaged recognizer the onboarding path loads, through the checkpoint's own execution and processor declarations and its own tokenizer, and matches the reference exactly. An empty request is refused before a model is read. No word error rate and no broader accuracy claim.",
             "Implemented": true,
             "Activated": true,
             "Measured": true,
-            "Accepted": false,
-            "RequiredPhases": 0,
-            "AcceptedPhases": 0,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
             "HistoricalVerifier": {
               "gate": "evidence:sha256:306480639e12be878267b7f65d6cd50a89d602bb48bbf0cb78a5d23c805b17bf",
               "run": "run:sha256:2baf4e7ac2d9dbcdae6cde256a7fe4f6b5c05dad7930c7a3d65e9e4a7496867f",
@@ -3451,7 +3455,7 @@
                 }
               ]
             },
-            "Gap": "No accepted protocol bound to this activation.",
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -6656,7 +6660,7 @@
     ],
     "Documents": {
       "docs/verification/image-video-coverage.json": "88af07241fd07965fe65bb31b020c7f29fb400c7deadce60712ea54ae0d91d51",
-      "docs/verification/specialized-coverage.json": "608f378551f2ddbd224fcd268749b7f9f8cf1a428c86d9f1126450da27756900",
+      "docs/verification/specialized-coverage.json": "758cd3af7a644659c110b50f2a363a48c8ec26e03721c3a41a30ef1b40c66dd1",
       "docs/verification/text-vision-coverage.json": "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381"
     },
     "Proofs": [
@@ -6862,6 +6866,13 @@
         "Verify": "OVERGO_FRACTALE_BASELINE=1 go test ./internal/thoughtbank -tags=modeltest -run '^(TestFractalePrefillLeadership|TestFractaleIncrementalLeadership|TestRealCheckpointCodeCompletion|TestFractaleTwentyTokenProcessProbe)$' -count=1",
         "Preparation": "evidence:sha256:a8cf54349a6fa19f48d91bf81af2c00b573974ffc987d09e2b7d9d73fd6996e0",
         "Result": "evidence:sha256:78721bdd62c656b67fe8db1920adb5af1f5948de198ced72737d72516dd5a3dd"
+      },
+      {
+        "Reference": "speech-transcription-verification/do",
+        "Commit": "c1775281524c53aa811c3709415c3c214e0b3943",
+        "Verify": "go test ./internal/audioparity -run '^(TestRecognizerReproducesReferenceTranscripts|TestSecondASROfflineAcceptance)$' -count=1",
+        "Preparation": "evidence:sha256:fbd88683fb2cb68323c7f4363fd1b6456baac5db3671d18940b5e19d3bc32bfe",
+        "Result": "evidence:sha256:ac513e0515f66c63043c56f6658a5e08a1dea0d470f421a4e3d9c222b14a924c"
       }
     ]
   }

@@ -6,8 +6,6 @@ import (
 	"fmt"
 
 	"overgo/internal/audiodsp"
-	"overgo/internal/speechrecognition"
-	"overgo/internal/strictjson"
 )
 
 // A speech checkpoint carries its weights and its configuration, and not the
@@ -50,29 +48,38 @@ func init() {
 	}
 }
 
-// RecognizerSpecFor returns the reviewed declarations for a model type, and
-// reports whether any answer for it. A checkpoint whose type is not reviewed
-// here is refused by its caller rather than loaded against another family's
-// bindings.
-func RecognizerSpecFor(modelType string) (speechrecognition.RecognizerSpec, bool, error) {
+// ReviewedRecognizer is what a reviewed speech checkpoint declares to the
+// runtime that will execute it: the encoder's tensor bindings as the reviewed
+// bytes themselves, the frontend that turns a waveform into features, how
+// those features are grouped, and which vocabulary entry the classifier reads
+// as blank. The bindings stay bytes here so the review keeps its home on the
+// host, and the runtime that decodes them keeps its own.
+type ReviewedRecognizer struct {
+	Execution []byte
+	Frontend  audiodsp.FrontendConfig
+	Grouping  audiodsp.GroupedFeatureConfig
+	Blank     int
+}
+
+// RecognizerSpecFor returns the reviewed declarations for a model type,
+// and reports whether any answer for it. A checkpoint whose type is not
+// reviewed here is refused by its caller rather than loaded against another
+// family's bindings.
+func RecognizerSpecFor(modelType string) (ReviewedRecognizer, bool, error) {
 	declared, known := reviewedRecognizers[modelType]
 	if !known {
-		return speechrecognition.RecognizerSpec{}, false, nil
-	}
-	var declaration speechrecognition.Declaration
-	if err := strictjson.DecodeBytes(declared.execution, &declaration); err != nil {
-		return speechrecognition.RecognizerSpec{}, true, fmt.Errorf("audio parity: %s execution declaration: %w", modelType, err)
+		return ReviewedRecognizer{}, false, nil
 	}
 	var frontend audiodsp.FrontendConfig
 	if err := json.Unmarshal(declared.frontend, &frontend); err != nil {
-		return speechrecognition.RecognizerSpec{}, true, fmt.Errorf("audio parity: %s frontend declaration: %w", modelType, err)
+		return ReviewedRecognizer{}, true, fmt.Errorf("audio parity: %s frontend declaration: %w", modelType, err)
 	}
 	recipe, err := declared.recipe()
 	if err != nil {
-		return speechrecognition.RecognizerSpec{}, true, err
+		return ReviewedRecognizer{}, true, err
 	}
-	return speechrecognition.RecognizerSpec{
-		Declaration: declaration, Frontend: frontend,
+	return ReviewedRecognizer{
+		Execution: declared.execution, Frontend: frontend,
 		Grouping: audiodsp.GroupedFeatureConfig{
 			StackFrames: int(recipe.Preprocessor.StackFactor),
 			DeltaRadius: int(recipe.Preprocessor.DeltaWinLength-1) / 2,

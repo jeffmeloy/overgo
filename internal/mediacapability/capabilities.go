@@ -21,6 +21,7 @@ import (
 	"overgo/internal/seriesforecast"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechsynth"
+	"overgo/internal/strictjson"
 	"overgo/internal/tabularicl"
 	"overgo/internal/textgeneration"
 	"overgo/internal/thoughtbank"
@@ -217,14 +218,21 @@ func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ r
 	if err := jsonfile.Decode(filepath.Join(path, "config.json"), &declared); err != nil {
 		return nil, fmt.Errorf("transcription: checkpoint configuration: %w", err)
 	}
-	spec, reviewed, err := audioparity.RecognizerSpecFor(declared.ModelType)
+	reviewed, known, err := audioparity.RecognizerSpecFor(declared.ModelType)
 	if err != nil {
 		return nil, err
 	}
-	if !reviewed {
+	if !known {
 		return nil, fmt.Errorf("transcription: no reviewed declaration answers for model type %q", declared.ModelType)
 	}
-	return speechrecognition.LoadRecognizer(ctx, path, spec, request.MemoryBytes)
+	var declaration speechrecognition.Declaration
+	if err := strictjson.DecodeBytes(reviewed.Execution, &declaration); err != nil {
+		return nil, fmt.Errorf("transcription: %s execution declaration: %w", declared.ModelType, err)
+	}
+	return speechrecognition.LoadRecognizer(ctx, path, speechrecognition.RecognizerSpec{
+		Declaration: declaration, Frontend: reviewed.Frontend,
+		Grouping: reviewed.Grouping, Blank: reviewed.Blank,
+	}, request.MemoryBytes)
 }
 
 func speechInventory(path string) (modelartifact.Inventory, error) {

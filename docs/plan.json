@@ -895,7 +895,8 @@
             "ocr-coverage-join/do",
             "post-guard-census-rebind/do",
             "transcription-capability/do",
-            "speech-models-onboarding/do"
+            "speech-models-onboarding/do",
+            "transcription-capability-host-boundary/do"
           ]
         }
       ]

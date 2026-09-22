@@ -5,13 +5,13 @@
   "items": [
     {
       "id": "store-open-lineage-cost",
-      "title": "Load the large facets when a command first asks for them: with the members loading at once and canonical form proved at the writer, a bare open is 1.4 s and is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s -- yet most commands resolve an alias and read a few documents and never walk lineage. Re-measure after the redundancy rows, which shrink both; then have an open verify every member's header, digest and anchor as now but decode lineage, and whatever else the measurement names, on first use, applying the journal tail to a facet when it loads; a typical open should be about half a second",
+      "title": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5, and the cost grew rather than shrank: a bare read-only open of overgodb-store is 1.7 s, against the 1.4 s this row recorded, because the redundancy rows that were to shrink it are deferred on owner decisions. The seven checkpoint members total 189 MB: lineage 88.3, artifacts 46.5, contents 26.6, commits 17.9, aliases 8.4, locations 1.2, causality nil. They already load concurrently, so an open is bounded by the largest decode. Where the time goes, measured member by member: reading every member costs 36 ms and digesting every payload 67 ms, so the header, digest and anchor verification this row keeps costs about a tenth of a second in total; a raw scan of the payloads is 644 ms and the typed decode that builds the maps is the remaining second and a half. Deferring the typed decode to first use is therefore worth close to the whole open, and the half-second target is conservative. Have an open verify every member as now, decode each facet when a command first asks for it, and apply the journal tail to a facet when it loads.",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Load the large facets when a command first asks for them: with the members loading at once and canonical form proved at the writer, a bare open is 1.4 s and is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s -- yet most commands resolve an alias and read a few documents and never walk lineage. Re-measure after the redundancy rows, which shrink both; then have an open verify every member's header, digest and anchor as now but decode lineage, and whatever else the measurement names, on first use, applying the journal tail to a facet when it loads; a typical open should be about half a second",
+          "title": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5, and the cost grew rather than shrank: a bare read-only open of overgodb-store is 1.7 s, against the 1.4 s this row recorded, because the redundancy rows that were to shrink it are deferred on owner decisions. The seven checkpoint members total 189 MB: lineage 88.3, artifacts 46.5, contents 26.6, commits 17.9, aliases 8.4, locations 1.2, causality nil. They already load concurrently, so an open is bounded by the largest decode. Where the time goes, measured member by member: reading every member costs 36 ms and digesting every payload 67 ms, so the header, digest and anchor verification this row keeps costs about a tenth of a second in total; a raw scan of the payloads is 644 ms and the typed decode that builds the maps is the remaining second and a half. Deferring the typed decode to first use is therefore worth close to the whole open, and the half-second target is conservative. Have an open verify every member as now, decode each facet when a command first asks for it, and apply the journal tail to a facet when it loads.",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1"
         }
@@ -917,7 +917,8 @@
             "acceptance-pins-follow-coverage/do",
             "device-gate-names-its-lane/do",
             "device-gate-revert-restores-currency/do",
-            "plan-dispositions-recorded/do"
+            "plan-dispositions-recorded/do",
+            "store-open-remeasured/do"
           ]
         }
       ]

@@ -24,8 +24,20 @@ func TestInventoryJudgesMediaEvidenceByTheChain(t *testing.T) {
 			t.Errorf("%s judged not current by a passing receipt: %v", surface, err)
 		}
 	}
-	if err := mediaCurrent(passing, "speech"); !errors.Is(err, errCellNotJudged) {
+	if err := mediaCurrent(passing, "training"); !errors.Is(err, errCellNotJudged) {
 		t.Errorf("an unjudged surface was judged: %v", err)
+	}
+	// Speech is judged by its own package's receipt: the speech synthesizer's
+	// goldens over the model's artifact, not the media acceptances.
+	if err := mediaCurrent(passing, "speech"); err == nil || errors.Is(err, errCellNotJudged) {
+		t.Errorf("the media receipt judged speech evidence: %v", err)
+	}
+	goldens := gateReceipt{Found: true, Passed: true, Tests: map[string]string{"TestSpeakE2EProducesReferenceAudio": "pass", "TestGenerationGolden": "pass", "TestSynthWall": "pass"}}
+	if err := mediaCurrent(goldens, "speech"); err != nil {
+		t.Errorf("a passing golden receipt refused speech evidence: %v", err)
+	}
+	if surfacePackages["speech"] != speechAcceptancePackage || surfacePackages["image"] != mediaAcceptancePackage {
+		t.Errorf("surface packages = %v", surfacePackages)
 	}
 	// A skip in a receipt is a declared exclusion: a test that stated why it
 	// cannot apply at this tree. It neither judges nor refuses the surface;

@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -108,18 +109,33 @@ func runArgs(ctx context.Context, args []string, output io.Writer) error {
 		if err != nil {
 			return err
 		}
-		acceptance, err := gatePackageReceipt(ctx, *root, mediaAcceptancePackage)
-		if err != nil {
-			return err
+		// One receipt per acceptance package, asked for once.
+		receipts := map[string]gateReceipt{}
+		for _, pkg := range surfacePackages {
+			if _, asked := receipts[pkg]; asked {
+				continue
+			}
+			receipt, err := gatePackageReceipt(ctx, *root, pkg)
+			if err != nil {
+				return err
+			}
+			receipts[pkg] = receipt
 		}
 		// Each cell's currency has one owner: the long-form guard for the
-		// inference surface, the acceptance package's receipt for the media
-		// and specialized surfaces; the rest are not judged here.
+		// inference surface, an acceptance package's receipt for the media,
+		// specialized and speech surfaces; the rest are not judged here.
 		currency := func(cell ModelValidation) error {
+			if cell.Validation == guardValidation && slices.Contains(strings.Split(cell.Modality, ","), dnaModality) {
+				run, found, err := latestSmokeRun(ctx, store, cell.Model, cell.Evidence)
+				if err != nil {
+					return err
+				}
+				return smokeCurrent(ctx, *root, cell.Model, run, found)
+			}
 			if cell.Validation == guardValidation {
 				return guardCurrent(records, cell.Location, surface)
 			}
-			return mediaCurrent(acceptance, cell.Surface)
+			return mediaCurrent(receipts[surfacePackages[cell.Surface]], cell.Surface)
 		}
 		return clioptions.WritePrettyJSON(output, buildInventory(directories, registered, converted, currency))
 	}

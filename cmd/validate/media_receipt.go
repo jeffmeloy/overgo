@@ -24,6 +24,19 @@ import (
 // and specialized evidence.
 const mediaAcceptancePackage = "cmd/compatibility"
 
+// speechAcceptancePackage is the package whose complete receipt judges speech
+// evidence: the speech synthesizer's goldens, which load the speech model's
+// artifact and hold its tokenizer, backbone, flow, codec and end-to-end audio
+// to their references.
+const speechAcceptancePackage = "internal/speechsynth"
+
+// surfacePackages names, per judged surface, the package whose complete
+// receipt carries its acceptances.
+var surfacePackages = map[SurfaceID]string{
+	"image": mediaAcceptancePackage, "video": mediaAcceptancePackage, "vqa": mediaAcceptancePackage,
+	"specialized": mediaAcceptancePackage, "speech": speechAcceptancePackage,
+}
+
 // errCellNotJudged marks a cell whose evidence currency this command has no
 // owner to ask about yet.
 var errCellNotJudged = errors.New("evidence currency is not judged here")
@@ -36,6 +49,7 @@ var surfaceAcceptances = map[SurfaceID]*regexp.Regexp{
 	"video":       regexp.MustCompile(`^(TestImageVideo.*Acceptance|TestMedia.*Reconciliation|TestAcceptedImageVideoEvidence)$`),
 	"vqa":         regexp.MustCompile(`^(TestAcceptedRxBrainVQA|TestAcceptedTextVisionEvidence)$`),
 	"specialized": regexp.MustCompile(`^TestAcceptedSpecializedTaskEvidence$`),
+	"speech":      regexp.MustCompile(`^(TestSpeakE2EProducesReferenceAudio|TestGenerationGolden|TestMimiDecodeStagesGolden|TestBackboneStreamGolden|TestFlowOneStepGolden|TestTokenizerGoldenCases)$`),
 }
 
 // gateReceipt is what cmd/gate -package-receipt reports.
@@ -75,15 +89,16 @@ func gatePackageReceipt(ctx context.Context, root, packagePath string) (gateRece
 // named acceptances passed against exactly this tree's inputs.
 func mediaCurrent(report gateReceipt, surface SurfaceID) error {
 	pattern, judged := surfaceAcceptances[surface]
-	if !judged {
+	pkg := surfacePackages[surface]
+	if !judged || pkg == "" {
 		return errCellNotJudged
 	}
-	rerun := "run: go run ./cmd/gate -package-run " + mediaAcceptancePackage
+	rerun := "run: go run ./cmd/gate -package-run " + pkg
 	if !report.Found {
-		return fmt.Errorf("no complete receipt for %s at this tree's inputs; %s", mediaAcceptancePackage, rerun)
+		return fmt.Errorf("no complete receipt for %s at this tree's inputs; %s", pkg, rerun)
 	}
 	if !report.Passed {
-		return fmt.Errorf("the complete run of %s failed at this tree's inputs; repair it, then %s", mediaAcceptancePackage, rerun)
+		return fmt.Errorf("the complete run of %s failed at this tree's inputs; repair it, then %s", pkg, rerun)
 	}
 	// A receipt carries a skip only for a declared exclusion, a test that
 	// stated why it cannot apply at this tree; it neither judges the surface
@@ -100,7 +115,7 @@ func mediaCurrent(report gateReceipt, surface SurfaceID) error {
 		matched++
 	}
 	if matched == 0 {
-		return fmt.Errorf("the receipt for %s names no passing %s acceptance among its verdicts", mediaAcceptancePackage, surface)
+		return fmt.Errorf("the receipt for %s names no passing %s acceptance among its verdicts", pkg, surface)
 	}
 	return nil
 }

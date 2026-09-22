@@ -20,6 +20,10 @@ const (
 	Version   uint16 = 3
 	MediaType        = "application/vnd.overgo.closure-ledger+json"
 	Schema           = "overgo/closure-ledger/v3"
+	// CensusEvidenceAlias names the store's latest closure census, the
+	// identity a campaign lane inherits; it lives with the ledger so a reader
+	// of the alias binds neither the scanner nor the plan.
+	CensusEvidenceAlias = "closure/census/latest"
 
 	maxNameBytes  = 256
 	maxTextBytes  = 32 << 10

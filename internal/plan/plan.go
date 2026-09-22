@@ -22,7 +22,7 @@ import (
 )
 
 // AutomationRoleEnvironment is the shared lane-role input for dispatchers.
-const AutomationRoleEnvironment = "OVERGO_AUTOMATION_ROLE"
+const AutomationRoleEnvironment = worklease.AutomationRoleEnvironment
 
 // Path is the campaign plan, relative to the repo root.
 const Path = "docs/plan.json"

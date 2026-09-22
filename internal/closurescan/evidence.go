@@ -12,7 +12,7 @@ import (
 const (
 	CensusEvidenceMediaType = "application/vnd.overgo.magic-census+json"
 	CensusEvidenceSchema    = "overgo/magic-census-evidence/v3"
-	CensusEvidenceAlias     = "closure/census/latest"
+	CensusEvidenceAlias     = closureledger.CensusEvidenceAlias
 )
 
 type ClosurePressure struct {

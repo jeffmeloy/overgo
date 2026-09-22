@@ -11,15 +11,16 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/closureledger"
 	"overgo/internal/cuda/kernel"
 	"overgo/internal/dataroot"
 	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/media"
 	"overgo/internal/overgodb"
-	"overgo/internal/plan"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
+	"overgo/internal/worklease"
 )
 
 // The backup owner writes this seal after byte verification and replay. Check
@@ -122,6 +123,27 @@ func checkImageVideoWorktreeReadiness(ctx context.Context, root string, roots da
 	return identity, nil
 }
 
+// imageVideoLane is the campaign lane whose worktree these acceptances judge.
+const imageVideoLane = "image_video_gen"
+
+// inheritedCensus reads the census identity the campaign inherits from its
+// store's latest closure census, where the plan binds it from.
+func inheritedCensus(ctx context.Context, storePath string) (artifact.ID, error) {
+	store, err := overgodb.OpenReadOnly(storePath)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	defer store.Close()
+	id, found, err := artifact.ResolveAlias(ctx, store, closureledger.CensusEvidenceAlias)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	if !found {
+		return artifact.ID{}, errors.New("campaign has no inherited census identity")
+	}
+	return id, nil
+}
+
 func TestImageVideoWorktreeReadiness(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
@@ -129,18 +151,18 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
 		t.Skip("integration: set OVERGO_DATA_ROOT for image/video worktree readiness")
 	}
+	// The lane is the role the dispatch runs under; reading the plan for it
+	// would bind the plan document into this package's inputs and expire the
+	// package's receipt at every landing.
+	if os.Getenv(worklease.AutomationRoleEnvironment) != imageVideoLane {
+		t.Skip(testskip.Inapplicable + ": readiness applies to the image_video_gen campaign")
+	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
+	roots, err := dataroot.Resolve(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if document.Lane != "image_video_gen" {
-		t.Skip(testskip.Inapplicable + ": readiness applies to the image_video_gen campaign")
-	}
-	if document.Census == nil {
-		t.Fatal("campaign has no inherited census identity")
-	}
-	roots, err := dataroot.Resolve(root)
+	census, err := inheritedCensus(t.Context(), roots.Store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +172,7 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	identity, err := checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots, *document.Census)
+	identity, err := checkImageVideoWorktreeReadiness(t.Context(), dataRoot, roots, census)
 	if err != nil {
 		t.Fatal(err)
 	}

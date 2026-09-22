@@ -17,7 +17,6 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/dataroot"
 	"overgo/internal/jsonfile"
-	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
 	"overgo/internal/runrecord"
@@ -46,11 +45,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		t.Skip(testskip.ShortIntegration + ": media resource protocol discovers current hardware")
 	}
 	root := testutil.RepoRoot(t)
-	document, err := plan.Load(filepath.Join(root, plan.Path))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
+	if os.Getenv(worklease.AutomationRoleEnvironment) != imageVideoLane || os.Getenv(dataroot.Env) == "" {
 		t.Skip(testskip.Inapplicable + ": image_video_gen resources require their explicit data root")
 	}
 	var protocol imageVideoResourceProtocol
@@ -199,30 +194,9 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 	if _, known := fitness.Measure(runrecord.ResourcePeakHostBytes); known {
 		t.Fatal("missing host peak became an observation")
 	}
-	grant, err := plan.NewExplorationGrant(id(artifact.KindEvidence, "proposer"), id(artifact.KindEvidence, "authority"), 2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	charge, err := plan.NewExplorationCharge(grant.ID, id(artifact.KindEvidence, "experiment"), 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := grant.Content()
-	if err != nil {
-		t.Fatal(err)
-	}
-	replayed, err := plan.ParseExplorationGrant(content.Data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	remaining, err := plan.ExplorationBalance(replayed, []plan.ExplorationCharge{charge})
-	if err != nil || remaining != 1 {
-		t.Fatalf("replay reset charged budget: remaining=%d err=%v", remaining, err)
-	}
-	decision, err := plan.AdmitExploration(replayed, []plan.ExplorationCharge{charge}, 2, false)
-	if err != nil || decision.Admitted {
-		t.Fatalf("over-budget continuation accepted: %+v %v", decision, err)
-	}
+	// The exploration grant's replay round trip is the plan package's own
+	// contract and is held there; naming the plan here would bind the plan
+	// document into this package's inputs.
 	peak, err := processmeasure.SelfPeakWorkingSet()
 	if err != nil || peak == 0 {
 		t.Fatalf("process peak unavailable: %d %v", peak, err)

@@ -6,7 +6,7 @@ Activation records identify available recipes. Verification records identify the
 
 ## Accepted protocol coverage
 
-209 registered models; 29 task activations; 22 activations carry accepted protocols. Counts below are acceptance phases, not examples, quality scores or current performance claims. Producer source revisions and exact verifier commands appear in the [typed report](media_report.json); input identities remain in its linked coverage documents. See also [benchmark results](BENCHMARK.md).
+213 registered models; 30 task activations; 22 activations carry accepted protocols. Counts below are acceptance phases, not examples, quality scores or current performance claims. Producer source revisions and exact verifier commands appear in the [typed report](media_report.json); input identities remain in its linked coverage documents. See also [benchmark results](BENCHMARK.md).
 
 These are raw registrations, including fixture identities, not a count of validated models. Domains are catalog declarations; accepted input modalities appear in protocol scope even when a catalog domain is undeclared. Local results remain separate from hosted capabilities; mocked provider contracts confer no model-quality evidence. Historical resource evidence retains its original source. The [E4B resource refresh](verification/e4b-resource-refresh.json) does not establish current resource bounds after lifecycle changes; device-memory-retention/do owns that comparison.
 
@@ -32,6 +32,7 @@ These are raw registrations, including fixture identities, not a count of valida
 | Qwen2.5-0.5B-HF | local /  | training | true / true / true | 0 / 0 |  No accepted protocol bound to this activation. | `final-model-validation/do` |
 | Qwen3.5-9B | local /  | inference | true / true / true | 1 / 1 | Full raw and generated MMLU-Pro; 541 IFEval prompts and 1668 matched verdicts. Numerical and performance findings remain separate. Acceptance retains producer source and protocol scope; current performance and broader quality are not established. | `final-model-validation/do` |
 | Wan2.1-T2V-1.3B | local /  | training | true / true / true | 0 / 0 |  No accepted protocol bound to this activation. | `final-model-validation/do` |
+| bonzai | local /  | inference | true / true / true | 0 / 0 |  No accepted protocol bound to this activation. | `final-model-validation/do` |
 | Qwen3.5-4B | local /  | training | true / true / true | 0 / 0 |  No accepted protocol bound to this activation. | `final-model-validation/do` |
 | gemma-4-12B-it-fp8-native | local /  | inference | true / true / true | 2 / 2 | 12032 MMLU-Pro cases and native IFEval: 541 prompts, 834 instructions, 1668 matched verdicts. Instruction-model raw NLL is not a new defect. Acceptance retains producer source and protocol scope; current performance and broader quality are not established. | `final-model-validation/do` |
 | timesfm-2.5-200m-transformers | local /  | forecast | true / true / true | 1 / 1 | Two native full-stack cases, 128 horizons and ten outputs per horizon; max absolute error <= 1e-2. Acceptance retains producer source and protocol scope; current performance and broader quality are not established. | `final-model-validation/do` |
@@ -61,6 +62,7 @@ These are raw registrations, including fixture identities, not a count of valida
 | `model:sha256:1712f360981e18b30efad1e17611d16066549b820da88c0eb7c7b6f6ad39c098` | granite-speech-5.0-470m-turboctc | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:174647859c21eabf032db0d16ee6f552e37598dd7af9dbdf77058a2c4ba15670` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:1772ca69b4a276c0de7f61bec0478c5d7d6b886aa2dfbbaf98dbed48ab738f1c` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
+| `model:sha256:17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0` | Bonsai-27B-Q1 | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:1831361e384c46b75a2c72242843151253db42f36b553a6b7a66c22e92009c00` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:18f216b9d5a3c84fd577d07c09f36aa8eab659ae9734de9fc609230b84acbb21` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:1abf71300a7d632a5a1149ad315ee122613fb1d9766c920e5b9950aa1ecf334f` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
@@ -153,6 +155,7 @@ These are raw registrations, including fixture identities, not a count of valida
 | `model:sha256:93c8a146d1677f35405fd205781ca035e975287a37e40ea1e77ecdecaa9e6bee` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:943acac2c3e324a363b04962c17d5a0ae6deb103dc93f5bddf5b80f06e62328a` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:9539931ee8c9c6e6d08f861daed151f1599daea49b31d69b282116871ce611da` | overgo-hfconvert | false | Registered without task activation or accepted protocol. | `final-model-validation/do` |
+| `model:sha256:958c4e9ed54871f65bbb3a3d09b1d326761dc945b37d29178498abf81c3dbd99` | Qwen3.5-4B | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:961b7d67e8fb6bf4e7a262895390b5300fb530d367e3432cb92aa7f829766a43` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:96e6b249610e050a1eb6fb4a60919bc311a35a9de74948a5383cb86bf0178932` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:9765d2a5d7cb546c01d77932e9a62d41dde25010f44f343e9d6e613308763907` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
@@ -206,6 +209,7 @@ These are raw registrations, including fixture identities, not a count of valida
 | `model:sha256:d53a6ecbe84acda6f6b3da21240fefd25bc606d8c0fb9cf63a6fb7698ceaa37a` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:d5778b759aa7a3e3fbdfcb03ade46d34746ce46343f65f931a25637ba9e69e3d` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:da5f55cc24353072aceae342181c6870399c12b043d9d279cbd2128c5d4b93bb` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
+| `model:sha256:da736936344ef409c73ba9f6372dccb175416db59536acb78986fb629fcc3330` | Unlimited-OCR | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:da9167d573b319ed5875800027382707f5d239d0dfec3c0f00a1672ee5f4aff3` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:dada2a725d2147ff5a4516c297528ce02a138ec8f87b332118bd05292c959d65` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:dc235001f0345ee995fcac73a066565acedcdf0186c3e3d163992bfa80194f33` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
@@ -273,6 +277,7 @@ Recorded examples are not correct answers. Units remain separate; there is no co
 | Qwen3.5-9B | text | mmlu-pro-generated-chat | 12032 / 12032 | examples | `8c2a60072839ae2640d76d9a275fd89f3fe4e5e5` (frozen declaration) | Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim. |
 | Qwen3.5-9B | text | mmlu-pro-raw | 12032 / 12032 | examples | `8c2a60072839ae2640d76d9a275fd89f3fe4e5e5` (frozen declaration) | Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim. |
 | Wan2.1-T2V-1.3B | Unspecified | See accepted phase scopes above | Unknown / unknown | Unrecorded | See phase proofs | Structured case receipt unavailable; modality-verification/experiment-resume owns extraction without reacquisition. |
+| bonzai | Unspecified | See accepted phase scopes above | Unknown / unknown | Unrecorded | See phase proofs | Structured case receipt unavailable; modality-verification/experiment-resume owns extraction without reacquisition. |
 | Qwen3.5-4B | Unspecified | See accepted phase scopes above | Unknown / unknown | Unrecorded | See phase proofs | Structured case receipt unavailable; modality-verification/experiment-resume owns extraction without reacquisition. |
 | gemma-4-12B-it-fp8-native | text | ifeval-native | 541 / 541 | examples | `4487fe76c43ef3b0f03bc52008d5b40426429bf7` (frozen declaration) | Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim. |
 | gemma-4-12B-it-fp8-native | text | mmlu-pro-generated-chat | 12032 / 12032 | examples | `f278ca230121df1d0bedf8fc58bf7881a9ebc475` (frozen declaration) | Recorded examples match the frozen case profile; correctness and quality remain the producer's metrics, not this count. No current performance claim. |

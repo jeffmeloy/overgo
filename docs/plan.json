@@ -893,7 +893,8 @@
             "media-processing-evidence-reacquired/do",
             "media-runtime-chain-reconciled/do",
             "media-evidence-currency-in-inventory/do",
-            "q1-0-batched-prefill/do"
+            "q1-0-batched-prefill/do",
+            "lanes-repair-q10-prefill/do"
           ]
         }
       ]
@@ -1095,6 +1096,10 @@
     {
       "key": "suite-cost:overgo/internal/repoanalysis",
       "row": "repoanalysis-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/internal/tabularicl",
+      "row": "automation-review-suite-cost-regression"
     },
     {
       "key": "surface-move:harness-production-nodes",

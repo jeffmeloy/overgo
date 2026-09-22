@@ -75,6 +75,13 @@ func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected
 	// Peel the newest reviewed output-neutral deltas (executor device-byte
 	// accounting and the host linear-column reorder) first, then reconcile the
 	// pre-delta base through the existing chain.
+	// Newest first: the Q1_0 staged-prefill kernel landing sits above the
+	// workflowruntime deltas and carries its own executor receipt.
+	if peeledBase, peeled, err := checkMediaQ10prefillSource(root, revision, paths); err != nil {
+		return err
+	} else if peeled {
+		revision = peeledBase
+	}
 	// Newest first: the workflowruntime deltas of the harness landings sit
 	// above the executor/hostmath base and carry their own receipt.
 	if peeledBase, peeled, err := checkMediaWorkflowruntimeSource(root, revision, paths); err != nil {

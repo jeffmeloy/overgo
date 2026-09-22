@@ -200,6 +200,20 @@ func checkImageVideoDefinitions(ctx context.Context, store *overgodb.Store, valu
 	return nil
 }
 
+// mediaScopeModels keeps the census entries that carry one of the inventory's
+// tasks: the media denominator the frozen inventory answers for. A model
+// joining the catalog with only text tasks moves the census without moving
+// what this acceptance judges.
+func mediaScopeModels(models []censusModel, tasks []recipe.Task) []censusModel {
+	var scoped []censusModel
+	for _, model := range models {
+		if slices.ContainsFunc(model.Capabilities, func(capability censusCapability) bool { return slices.Contains(tasks, capability.Task) }) {
+			scoped = append(scoped, model)
+		}
+	}
+	return scoped
+}
+
 func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact media inventory acceptance checks the private snapshot")
@@ -233,8 +247,12 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(census.Models, current.Models) || !slices.Equal(census.Verifications, current.Verifications) {
-		t.Fatal("media census reconciliation changed model entries or verification coverage")
+	// The disposition may carry the catalog forward -- text models registered
+	// or activated since the inventory froze -- but not the media denominator
+	// this inventory answers for: every entry carrying one of its tasks must be
+	// the entry it was.
+	if !reflect.DeepEqual(mediaScopeModels(census.Models, value.Tasks), mediaScopeModels(current.Models, value.Tasks)) {
+		t.Fatal("media census reconciliation changed the media-scope model entries")
 	}
 	if err := checkCapabilityCensus(t.Context(), store, current, len(current.Models)); err != nil {
 		t.Fatal(err)

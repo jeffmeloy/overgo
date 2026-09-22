@@ -1970,8 +1970,8 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 209,
-    "Activations": 29,
+    "Registered": 213,
+    "Activations": 30,
     "AcceptedActivations": 22,
     "Models": [
       {
@@ -2532,6 +2532,17 @@
       {
         "Model": "model:sha256:1772ca69b4a276c0de7f61bec0478c5d7d6b886aa2dfbbaf98dbed48ab738f1c",
         "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Protocols": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:17ef842e47450caeb8eaa3ebfbbab5d2f2278b62b79be107985fb69a2f819aa0",
+        "Name": "Bonsai-27B-Q1",
         "Present": true,
         "Execution": "local",
         "Domains": null,
@@ -4475,6 +4486,17 @@
         "RepairOwner": "final-model-validation/do"
       },
       {
+        "Model": "model:sha256:958c4e9ed54871f65bbb3a3d09b1d326761dc945b37d29178498abf81c3dbd99",
+        "Name": "Qwen3.5-4B",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Protocols": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
         "Model": "model:sha256:961b7d67e8fb6bf4e7a262895390b5300fb530d367e3432cb92aa7f829766a43",
         "Name": "webui-lane-model",
         "Present": true,
@@ -4780,6 +4802,49 @@
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
+        "Name": "bonzai",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "inference",
+            "Recipe": "recipe:sha256:b560464c52f7112f18aed570afc72b2e8a11f21fb2d028ff4b8dc78d3cfcf9d6",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:dd248dc5999b701b8626ebfeba0bebbdda0c3dcaad7b729bbf7a8e76301d51a8",
+              "run": "run:sha256:bb6a3eea23644e4689b88914d8aee73f73416fcd589af183fe86736f37374ec0",
+              "source": "36c838022b4993050e9386a7b6697d31280a27eb",
+              "environment": "evidence:sha256:828ff2a9b266308a631690d1ecd9f95235807a572a72702b6a16528473cf7633",
+              "inputs": null,
+              "outputs": [
+                "evidence:sha256:dd248dc5999b701b8626ebfeba0bebbdda0c3dcaad7b729bbf7a8e76301d51a8"
+              ],
+              "wall_ns": 6163637300,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 6163637300
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": null,
+        "Gap": "",
+        "RepairOwner": ""
       },
       {
         "Model": "model:sha256:b36c77f0a997dca73635b2851251b42fbcb61c15b5bb458fbaf4c9fb24a9c82c",
@@ -5237,6 +5302,17 @@
       {
         "Model": "model:sha256:da5f55cc24353072aceae342181c6870399c12b043d9d279cbd2128c5d4b93bb",
         "Name": "webui-lane-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Protocols": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:da736936344ef409c73ba9f6372dccb175416db59536acb78986fb629fcc3330",
+        "Name": "Unlimited-OCR",
         "Present": true,
         "Execution": "local",
         "Domains": null,

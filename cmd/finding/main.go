@@ -35,7 +35,7 @@ func runArgs(args []string, output io.Writer) error {
 	resolution := flags.String("resolution", "", "what resolved, refuted, or defers the finding (commit, owner decision, or measurement) for -close")
 	var owners, evidence []string
 	flags.Func("owner", "repeatable owner surface", func(value string) error { owners = append(owners, value); return nil })
-	flags.Func("evidence", "repeatable observed evidence", func(value string) error { evidence = append(evidence, value); return nil })
+	flags.Func("evidence", "repeatable observed evidence: free text kept as a content-addressed anchor, or an artifact id bound as itself", func(value string) error { evidence = append(evidence, value); return nil })
 	command := clioptions.Command{
 		Name:     "finding",
 		Purpose:  "park an out-of-scope observation in the typed OvergoDB finding register, then dispose it once fixed, refuted, or deferred",

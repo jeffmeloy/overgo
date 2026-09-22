@@ -142,6 +142,16 @@ func textContents(kind artifact.Kind, values []string) ([]artifact.ID, []artifac
 		if !textcheck.Bounded(value, 4096, "\x00\r") {
 			return nil, nil, errors.New("finding: invalid text anchor")
 		}
+		// A value that is already an artifact identity anchors that artifact
+		// itself, so a census, a receipt or a run binds as the record it is and
+		// not as the text of its name.
+		if id, err := artifact.ParseID(value); err == nil {
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
+			continue
+		}
 		data := []byte(value)
 		id, err := artifact.IdentifyBytes(kind, data)
 		if err != nil {

@@ -317,6 +317,13 @@ func checkMediaRotarySource(root, revision string, paths []string) (string, erro
 	// Peel the newer output-neutral executor and host-linear deltas first so the
 	// rotary proof reconciles the source at the pre-delta base; they are not
 	// rotary changes and carry their own reviewed reconciliation and receipt.
+	// Newest first: the Q1_0 staged-prefill kernel landing sits above the
+	// workflowruntime deltas and carries its own executor receipt.
+	if peeledBase, peeled, err := checkMediaQ10prefillSource(root, revision, paths); err != nil {
+		return "", err
+	} else if peeled {
+		revision = peeledBase
+	}
 	// Newest first: the workflowruntime deltas of the harness landings sit
 	// above the executor/hostmath base and carry their own receipt.
 	if peeledBase, peeled, err := checkMediaWorkflowruntimeSource(root, revision, paths); err != nil {

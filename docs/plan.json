@@ -914,7 +914,8 @@
             "compatibility-binding-measured/do",
             "defer-decision-blocked-rows/do",
             "skips-name-their-environment/do",
-            "acceptance-pins-follow-coverage/do"
+            "acceptance-pins-follow-coverage/do",
+            "device-gate-names-its-lane/do"
           ]
         }
       ]

@@ -12,6 +12,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
+	"overgo/internal/testskip"
 )
 
 const environmentVariable = "OVERGO_CUDA_TEST"
@@ -91,7 +92,10 @@ func requireEnvironment(t testing.TB, variable, lane string) {
 		t.Skip(testevidence.ShortIntegrationSkip)
 	}
 	if os.Getenv(variable) == "" {
-		t.Skip("set " + variable + "=1 to run " + lane)
+		// The lane that sets the variable credits these; where it is unset
+		// they are inapplicable, and saying so is what lets a complete run
+		// classify the skip and the package reach a verdict.
+		t.Skip(testskip.Inapplicable + ": set " + variable + "=1 to run " + lane)
 	}
 }
 

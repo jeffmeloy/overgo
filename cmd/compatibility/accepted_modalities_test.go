@@ -319,8 +319,8 @@ func TestAcceptedSpecializedTaskEvidence(t *testing.T) {
 	}
 	root := testutil.RepoRoot(t)
 	var coverage acceptedCoverage
-	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "700b2bd046116527c6c514a6cbcce080d02d685ad1b939a3d51c981e020458a8", &coverage)
-	requireAcceptedCoverage(t, root, coverage, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskTranscription, recipe.TaskAlignment, recipe.TaskDiarization, recipe.TaskActivityDetection, recipe.TaskAudioConversion, recipe.TaskAudioGeneration)
+	requireAcceptedDocument(t, root, "docs/verification/specialized-coverage.json", "109b211507a67bff5674d2d0e49808264f7bb5bc09b89a3547d742c982f7e8c7", &coverage)
+	requireAcceptedCoverage(t, root, coverage, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskTranscription, recipe.TaskGeneration, recipe.TaskAlignment, recipe.TaskDiarization, recipe.TaskActivityDetection, recipe.TaskAudioConversion, recipe.TaskAudioGeneration)
 }
 
 func checkAcceptedDenominator(ctx context.Context, store artifact.Reader, expected []acceptedModel, live []discovery.CatalogEntry) error {

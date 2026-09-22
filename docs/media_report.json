@@ -6659,8 +6659,8 @@
       }
     ],
     "Documents": {
-      "docs/verification/image-video-coverage.json": "88af07241fd07965fe65bb31b020c7f29fb400c7deadce60712ea54ae0d91d51",
-      "docs/verification/specialized-coverage.json": "758cd3af7a644659c110b50f2a363a48c8ec26e03721c3a41a30ef1b40c66dd1",
+      "docs/verification/image-video-coverage.json": "93b2c25e87bb6c8765c42657591ff37cc20ff7f23bb6033cfd5cfc588ab770c1",
+      "docs/verification/specialized-coverage.json": "109b211507a67bff5674d2d0e49808264f7bb5bc09b89a3547d742c982f7e8c7",
       "docs/verification/text-vision-coverage.json": "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381"
     },
     "Proofs": [

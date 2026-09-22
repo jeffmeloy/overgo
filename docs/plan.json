@@ -913,7 +913,8 @@
             "campaign-state-after-coverage/do",
             "compatibility-binding-measured/do",
             "defer-decision-blocked-rows/do",
-            "skips-name-their-environment/do"
+            "skips-name-their-environment/do",
+            "acceptance-pins-follow-coverage/do"
           ]
         }
       ]

@@ -159,7 +159,9 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 	if err != nil {
 		return "", err
 	}
-	return r.tokenizer.Decode(ids), nil
+	// A persisted transcript never silently drops what the model emitted, so
+	// an unknown identifier or invalid text is an error here.
+	return r.tokenizer.DecodeStrict(ids)
 }
 
 // transcribeRecurrent reads a recording through the recurrent decoder: the
@@ -183,5 +185,8 @@ func (r *Recognizer) transcribeRecurrent(ctx context.Context, samples []float32,
 	if result.Frames == 0 {
 		return "", errors.New("speechrecognition: the encoder produced no frames")
 	}
-	return r.tokenizer.Decode(result.Tokens), nil
+	// The recurrent decoder emits the blank and the control entries its
+	// vocabulary marks special; the transcript is what remains once the
+	// artifact's own marking is honoured.
+	return r.tokenizer.DecodeText(result.Tokens)
 }

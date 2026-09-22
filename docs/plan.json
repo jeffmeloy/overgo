@@ -900,7 +900,8 @@
             "transcription-stage-output-contract/do",
             "granite-speech-transcription-activation/do",
             "skip-reason-names-its-gate/do",
-            "recurrent-transcription-capability/do"
+            "recurrent-transcription-capability/do",
+            "transcript-decode-honours-its-vocabulary/do"
           ]
         }
       ]

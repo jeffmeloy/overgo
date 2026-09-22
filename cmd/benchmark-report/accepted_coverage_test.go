@@ -8,6 +8,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/testskip"
 )
 
 // mmluProSuite is the store's full multi-domain MMLU-Pro suite; coverage is
@@ -26,7 +27,7 @@ const minMMLUProCovered = 6
 // models carry no MMLU-Pro record and are not required here.
 func TestAcceptedSmallModelMMLUPro(t *testing.T) {
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for MMLU-Pro coverage acceptance")
 	}
 	root, err := dataroot.StoreRoot("")
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
+	"overgo/internal/testskip"
 )
 
 const (
@@ -45,7 +46,7 @@ var carbonAdaptiveCausalWindows = [][]int{
 func TestCarbonMatchedAdaptiveLeadership(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_DENSE_TRAIN_BASELINE") != "1" {
-		t.Skip("set OVERGO_DENSE_TRAIN_BASELINE=1 for matched Carbon training")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_DENSE_TRAIN_BASELINE=1 for matched Carbon training")
 	}
 	if cudatest.MeasurementProcess(t, 0) {
 		return
@@ -149,7 +150,7 @@ func windowSHA256(windows [][]int) string {
 func TestCarbonResidentTrainingLeadership(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_DENSE_TRAIN_BASELINE") != "1" {
-		t.Skip("set OVERGO_DENSE_TRAIN_BASELINE=1 for real Carbon training")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_DENSE_TRAIN_BASELINE=1 for real Carbon training")
 	}
 	if cudatest.MeasurementProcess(t, 0) {
 		return

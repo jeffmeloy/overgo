@@ -28,7 +28,7 @@ func requireRepositoryClosureAuthority(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(closureAuthorityTestEnv) != "1" {
-		t.Skip("set " + closureAuthorityTestEnv + "=1 to verify the current worktree against shared closure authority")
+		t.Skip(testskip.Inapplicable + ": set " + closureAuthorityTestEnv + "=1 to verify the current worktree against shared closure authority")
 	}
 }
 

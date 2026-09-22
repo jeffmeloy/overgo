@@ -22,6 +22,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -29,7 +30,7 @@ import (
 func TestFrozenKreaGeneration(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
-		t.Skip("set OVERGO_KREA_BASELINE=1 for the frozen Krea image")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_KREA_BASELINE=1 for the frozen Krea image")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

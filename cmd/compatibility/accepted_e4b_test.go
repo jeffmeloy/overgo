@@ -25,7 +25,7 @@ func TestAcceptedE4BModalities(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT for canonical E4B evidence acceptance")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for canonical E4B evidence acceptance")
 	}
 	root := testutil.RepoRoot(t)
 	var spec modelValidationSpecification

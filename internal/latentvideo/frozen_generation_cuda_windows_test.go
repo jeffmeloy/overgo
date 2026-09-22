@@ -26,6 +26,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -35,7 +36,7 @@ import (
 func TestFrozenLatentVideoGeneration(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_WAN_FULL") != "1" {
-		t.Skip("set OVERGO_WAN_FULL=1 for the complete frozen 81-frame clip")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_WAN_FULL=1 for the complete frozen 81-frame clip")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

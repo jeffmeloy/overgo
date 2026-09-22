@@ -28,7 +28,7 @@ func TestE4BServingModalities(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
-		t.Skip("set OVERGO_CUDA_TEST=1 for real E4B serving modality validation")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_CUDA_TEST=1 for real E4B serving modality validation")
 	}
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {

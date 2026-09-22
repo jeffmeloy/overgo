@@ -72,7 +72,7 @@ func readGuardCatalog(t *testing.T) guardCatalog {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT for complete guard catalog acceptance")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for complete guard catalog acceptance")
 	}
 	var selected guardCatalog
 	if err := jsonfile.Decode(filepath.Join("..", "..", "docs", "verification", "guard-catalog.json"), &selected); err != nil {

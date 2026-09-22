@@ -149,7 +149,7 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT for image/video worktree readiness")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for image/video worktree readiness")
 	}
 	// The lane is the role the dispatch runs under; reading the plan for it
 	// would bind the plan document into this package's inputs and expire the

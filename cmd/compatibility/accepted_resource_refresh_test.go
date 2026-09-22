@@ -32,7 +32,7 @@ func TestAcceptedE4BResourceRefresh(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT for canonical resource refresh acceptance")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for canonical resource refresh acceptance")
 	}
 	checkE4BResourceRefresh(t, true)
 }

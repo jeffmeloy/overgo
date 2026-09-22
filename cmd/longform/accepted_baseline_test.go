@@ -35,7 +35,7 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT to validate the exact stored guard records; no measurement runs")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT to validate the exact stored guard records; no measurement runs")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {

@@ -29,7 +29,7 @@ func skipReasonSites(snapshot repoanalysis.SourceSnapshot) ([]string, error) {
 				return true
 			}
 			for _, inner := range statement.Body.List {
-				if namesShortExclusion(inner) {
+				if unclassifiedSkip(inner) {
 					sites = append(sites, filepath.ToSlash(file.Path))
 				}
 			}
@@ -54,9 +54,10 @@ func readsEnvironment(expression ast.Expr) bool {
 	return found
 }
 
-// namesShortExclusion reports whether one statement skips citing the
-// short-mode exclusion reason.
-func namesShortExclusion(statement ast.Stmt) bool {
+// unclassifiedSkip reports whether one statement skips without citing a
+// reason a complete run classifies: the short-mode exclusion, which a
+// complete run does not classify, or no classified reason at all.
+func unclassifiedSkip(statement ast.Stmt) bool {
 	expression, ok := statement.(*ast.ExprStmt)
 	if !ok {
 		return false
@@ -69,7 +70,7 @@ func namesShortExclusion(statement ast.Stmt) bool {
 	if !ok || selector.Sel.Name != "Skip" && selector.Sel.Name != "Skipf" {
 		return false
 	}
-	named := false
+	classified := false
 	for _, argument := range call.Args {
 		ast.Inspect(argument, func(node ast.Node) bool {
 			reason, ok := node.(*ast.SelectorExpr)
@@ -77,11 +78,14 @@ func namesShortExclusion(statement ast.Stmt) bool {
 				return true
 			}
 			name, ok := reason.X.(*ast.Ident)
-			named = named || ok && name.Name == "testskip" && reason.Sel.Name == "ShortIntegration"
-			return !named
+			// The short-mode exclusion is classified only when the run is
+			// short, so a guard that reads the environment and cites it
+			// leaves its package incomplete in a complete run.
+			classified = classified || ok && name.Name == "testskip" && reason.Sel.Name != "ShortIntegration"
+			return !classified
 		})
 	}
-	return named
+	return !classified
 }
 
 // TestIntegrationSkipReasonNamesItsGate holds every integration skip to
@@ -106,6 +110,6 @@ func TestIntegrationSkipReasonNamesItsGate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(sites) != 0 {
-		t.Fatalf("environment-gated skips report a short-mode exclusion:\n%s", strings.Join(sites, "\n"))
+		t.Fatalf("environment-gated skips cite no reason a complete run classifies:\n%s", strings.Join(sites, "\n"))
 	}
 }

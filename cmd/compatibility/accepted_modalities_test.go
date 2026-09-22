@@ -31,7 +31,7 @@ func TestAcceptedModalityCoverage(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT for retained modality coverage")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT for retained modality coverage")
 	}
 	t.Run("case-denominators", TestProtocolCaseProjection)
 	t.Run("resource-denominators", TestResourceCaseProjection)

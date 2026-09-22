@@ -94,7 +94,7 @@ func TestMultimodalInputMatrix(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
-		t.Skip("set OVERGO_CUDA_TEST=1 for real multimodal parity")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_CUDA_TEST=1 for real multimodal parity")
 	}
 	t.Run("qwen35-image-video-language", testQwen35ImageVideoParity)
 	t.Run("gemma4-12b-image-audio-video", testGemma4InputParity)

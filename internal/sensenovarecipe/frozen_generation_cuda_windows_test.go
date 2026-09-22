@@ -27,6 +27,7 @@ import (
 	"overgo/internal/routedlm"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 	"overgo/internal/workflowruntime"
 )
@@ -36,7 +37,7 @@ import (
 func TestFrozenSenseNovaGeneration(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_SENSENOVA_FULL") != "1" {
-		t.Skip("set OVERGO_SENSENOVA_FULL=1 for the frozen fifty-step case")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_SENSENOVA_FULL=1 for the frozen fifty-step case")
 	}
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)

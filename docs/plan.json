@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-benchmark-record-redundancy",
-      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
-          "status": "open",
-          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-open-lineage-cost",
       "title": "Load the large facets when a command first asks for them: with the members loading at once and canonical form proved at the writer, a bare open is 1.4 s and is its slowest member's decode -- artifacts, 47 MB of JSON, at 1.2 s, then lineage, 90 MB, at 1.0 s -- yet most commands resolve an alias and read a few documents and never walk lineage. Re-measure after the redundancy rows, which shrink both; then have an open verify every member's header, digest and anchor as now but decode lineage, and whatever else the measurement names, on first use, applying the journal tail to a facet when it loads; a typical open should be about half a second",
       "owner": "master-lead",
@@ -437,6 +423,20 @@
           "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after.",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-benchmark-record-redundancy",
+      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
+          "status": "open",
+          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
         }
       ]
     },
@@ -912,7 +912,8 @@
             "speech-coverage-join/do",
             "campaign-state-after-coverage/do",
             "compatibility-binding-measured/do",
-            "defer-decision-blocked-rows/do"
+            "defer-decision-blocked-rows/do",
+            "skips-name-their-environment/do"
           ]
         }
       ]

@@ -61,7 +61,7 @@ func TestGemma4FP8Leadership(t *testing.T) {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv("OVERGO_GEMMA4_BASELINE") != "1" {
-		t.Skip("set OVERGO_GEMMA4_BASELINE=1 for Gemma4 FP8 leadership")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_GEMMA4_BASELINE=1 for Gemma4 FP8 leadership")
 	}
 	if cudatest.MeasurementProcess(t, 0) {
 		return

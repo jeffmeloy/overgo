@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"overgo/internal/hfbpe"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
 func TestFractalePrefillLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_FRACTALE_BASELINE") != "1" {
-		t.Skip("set OVERGO_FRACTALE_BASELINE=1 for matched Fractale leadership")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale leadership")
 	}
 	modelDirectory := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
 	if modelDirectory == "" {
@@ -129,7 +130,7 @@ func tokenPrefillReference(weights *FastWeightBankLMWeights, ids []int32, memory
 
 func TestFractaleIncrementalLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_FRACTALE_BASELINE") != "1" {
-		t.Skip("set OVERGO_FRACTALE_BASELINE=1 for matched Fractale leadership")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale leadership")
 	}
 	modelDirectory := os.Getenv("OVERGO_THOUGHTBANK_MODEL")
 	if modelDirectory == "" {

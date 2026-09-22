@@ -30,7 +30,7 @@ func TestAcceptedCapabilityCensus(t *testing.T) {
 		t.Skip(testskip.StoreAcceptance)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT to check the exact capability census; no models execute")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {

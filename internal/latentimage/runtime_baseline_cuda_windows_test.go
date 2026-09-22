@@ -18,12 +18,13 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/testskip"
 )
 
 func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
-		t.Skip("set OVERGO_KREA_BASELINE=1 to measure the real Krea pipeline")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_KREA_BASELINE=1 to measure the real Krea pipeline")
 	}
 	request := Request{
 		Prompt: "a red fox licking a vanilla ice cream cone in snow",
@@ -155,7 +156,7 @@ func TestImagePublicationStreamsEncodedArtifact(t *testing.T) {
 func TestImageSessionCacheReusesResidentRuntime(t *testing.T) {
 	requireLongTest(t)
 	if os.Getenv("OVERGO_KREA_BASELINE") != "1" {
-		t.Skip("set OVERGO_KREA_BASELINE=1 to measure Krea residency")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_KREA_BASELINE=1 to measure Krea residency")
 	}
 	request := Request{
 		Prompt: "a red fox licking a vanilla ice cream cone in snow",

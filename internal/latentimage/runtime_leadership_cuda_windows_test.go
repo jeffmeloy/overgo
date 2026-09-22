@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/cuda/device"
 	"overgo/internal/cuda/driver"
+	"overgo/internal/testskip"
 )
 
 const krea2048AdaptivePNG = "b25fa024af3b623ee443c74207b6a6ee32abeb6d0a5df7ba61cc6147c8522a5c"
@@ -22,7 +23,7 @@ const krea2048AdaptivePNGPath = `C:\Users\jeffm\adaptive_new\.claude\worktrees\i
 
 func BenchmarkKrea2048Leadership(b *testing.B) {
 	if os.Getenv("OVERGO_CUDA_TEST") != "1" {
-		b.Skip("set OVERGO_CUDA_TEST=1")
+		b.Skip(testskip.Inapplicable + ": set OVERGO_CUDA_TEST=1")
 	}
 	if _, err := os.Stat(kreaModelDir + `\model_index.json`); err != nil {
 		b.Fatalf("Krea artifact unavailable: %v", err)

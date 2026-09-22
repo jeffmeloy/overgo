@@ -12,6 +12,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/routedlm"
 	"overgo/internal/safetensors"
+	"overgo/internal/testskip"
 	"overgo/internal/torchrng"
 )
 
@@ -39,7 +40,7 @@ type seededLatentOracle struct {
 func TestSenseNovaSeededLatentMatchesOracle(t *testing.T) {
 	cudatest.Require(t)
 	if os.Getenv("OVERGO_SENSENOVA_BASELINE") != "1" {
-		t.Skip("set OVERGO_SENSENOVA_BASELINE=1 for SenseNova generation evidence")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_SENSENOVA_BASELINE=1 for SenseNova generation evidence")
 	}
 	var oracle seededLatentOracle
 	if err := jsonfile.Decode(senseNovaGenerationGold, &oracle); err != nil {

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/testprocess"
+	"overgo/internal/testskip"
 	"overgo/internal/testutil"
 )
 
@@ -15,7 +16,7 @@ const fractaleProcessRuns = 3
 
 func TestFractaleProcessLeadership(t *testing.T) {
 	if os.Getenv("OVERGO_FRACTALE_BASELINE") != "1" {
-		t.Skip("set OVERGO_FRACTALE_BASELINE=1 for matched Fractale process evidence")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_FRACTALE_BASELINE=1 for matched Fractale process evidence")
 	}
 	root := testutil.RepoRoot(t)
 	adaptiveGo := os.Getenv("OVERGO_FRACTALE_ADAPTIVE_GO")

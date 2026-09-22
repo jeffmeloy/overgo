@@ -1970,8 +1970,8 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 216,
-    "Activations": 32,
+    "Registered": 217,
+    "Activations": 33,
     "AcceptedActivations": 24,
     "Models": [
       {
@@ -2500,6 +2500,51 @@
               ]
             },
             "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": null,
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
+        "Model": "model:sha256:162ed771f9ba22a37ee936f2d1d2019ebb01743d45051ac1c3cc63cf0d92c5f7",
+        "Name": "nemotron-3.5-asr-streaming-0.6b",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "transcription",
+            "Recipe": "recipe:sha256:09e4454fb71f158c386cbafb92a86b5b2979da8808aaabc872509b5cfd3da3e9",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:84931056e3df93302072e9e3d481c9dc9054cd81f5640b880e9962a18b9ae928",
+              "run": "run:sha256:d282289e79ce877c3683c175a64ab9ee9f3bf5a7ae6c7531e5882bcfff5a2792",
+              "source": "68bf981a4e3b5f562a294ad2dbe1876865b54edf",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": [
+                "file:sha256:3183d752293d8cc7bae20ef72ad1499eda531cab83fa5362ae3ac6f5ebd4203a"
+              ],
+              "outputs": [
+                "evidence:sha256:84931056e3df93302072e9e3d481c9dc9054cd81f5640b880e9962a18b9ae928"
+              ],
+              "wall_ns": 2434185800,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 2434185800
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
             "RepairOwner": "final-model-validation/do"
           }
         ],

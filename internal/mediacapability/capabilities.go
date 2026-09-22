@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/audioparity"
 	"overgo/internal/capabilityruntime"
+	"overgo/internal/jsonfile"
 	"overgo/internal/modelartifact"
 	"overgo/internal/modelintake"
 	"overgo/internal/modelrecipe"
@@ -17,6 +19,7 @@ import (
 	"overgo/internal/recipe"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
+	"overgo/internal/speechrecognition"
 	"overgo/internal/speechsynth"
 	"overgo/internal/tabularicl"
 	"overgo/internal/textgeneration"
@@ -160,6 +163,8 @@ var Catalog = map[recipe.Task]Capability{
 	recipe.TaskSpeech: inventoryCapability(speechInventory, capabilityruntime.JSONScalar[speechsynth.SynthesisRequest, *speechsynth.Synthesizer, speechsynth.Audio](
 		"speech", speechsynth.ValidateSynthesisRequest,
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
+	recipe.TaskTranscription: inventoryCapability(transcriptionInventory, capabilityruntime.JSONScalar[speechrecognition.TranscriptionRequest, *speechrecognition.Recognizer, string](
+		"transcription", speechrecognition.ValidateTranscriptionRequest, loadRecognizer, speechrecognition.RegisterRuntime)),
 	recipe.TaskImageGen: imageCapability(),
 	recipe.TaskVideoGen: videoCapability(),
 	recipe.TaskVQA:      vqaCapability(),
@@ -192,6 +197,34 @@ func safetensorsInventory(context, path, config string, companions ...modelartif
 		specs = append(specs, companion)
 	}
 	return modelartifact.FromFiles(path, specs)
+}
+
+// transcriptionInventory is a speech recognition checkpoint: its weights, the
+// configuration that names the family its declarations answer for, and the
+// tokenizer that reads its vocabulary back as text.
+func transcriptionInventory(path string) (modelartifact.Inventory, error) {
+	return safetensorsInventory("transcription", path, "config.json",
+		modelartifact.FileSpec{Path: "tokenizer.json", Name: "tokenizer", Role: artifact.ComponentTokenizer})
+}
+
+// loadRecognizer resolves the reviewed declarations for what the checkpoint
+// declares itself to be, and refuses a checkpoint no reviewed declaration
+// answers for rather than loading it against another family's bindings.
+func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request speechrecognition.TranscriptionRequest) (*speechrecognition.Recognizer, error) {
+	var declared struct {
+		ModelType string `json:"model_type"`
+	}
+	if err := jsonfile.Decode(filepath.Join(path, "config.json"), &declared); err != nil {
+		return nil, fmt.Errorf("transcription: checkpoint configuration: %w", err)
+	}
+	spec, reviewed, err := audioparity.RecognizerSpecFor(declared.ModelType)
+	if err != nil {
+		return nil, err
+	}
+	if !reviewed {
+		return nil, fmt.Errorf("transcription: no reviewed declaration answers for model type %q", declared.ModelType)
+	}
+	return speechrecognition.LoadRecognizer(ctx, path, spec, request.MemoryBytes)
 }
 
 func speechInventory(path string) (modelartifact.Inventory, error) {

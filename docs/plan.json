@@ -32,20 +32,6 @@
       ]
     },
     {
-      "id": "speech-models-onboarding",
-      "title": "Onboard the three registered speech models now that the capability stage exists (2026-09-22): publish each checkpoint's execution and processor declarations as artifacts bound to its model, because the recognizer takes its tensor names and numerical conventions from a declaration and never from family dispatch; add the transcription entry to mediacapability.Catalog with a resolver that reads the checkpoint inventory and those declarations and an executor that opens the recognizer session; then onboard granite-speech first, whose declaration and parity capture are complete, minting its exact transcript from the runtime as the text models' goldens were minted, then nemotron ASR, then FireRedVAD under activity detection. Each activation joins the smoke denominator, moves the capability census, and needs a landing whose verify runs it before the accepted coverage can cite it.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Onboard the three registered speech models now that the capability stage exists (2026-09-22): publish each checkpoint's execution and processor declarations as artifacts bound to its model, because the recognizer takes its tensor names and numerical conventions from a declaration and never from family dispatch; add the transcription entry to mediacapability.Catalog with a resolver that reads the checkpoint inventory and those declarations and an executor that opens the recognizer session; then onboard granite-speech first, whose declaration and parity capture are complete, minting its exact transcript from the runtime as the text models' goldens were minted, then nemotron ASR, then FireRedVAD under activity detection. Each activation joins the smoke denominator, moves the capability census, and needs a landing whose verify runs it before the accepted coverage can cite it.",
-          "status": "open",
-          "verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/validate -run '^TestModelInventory' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-benchmark-record-redundancy",
       "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
       "owner": "master-lead",

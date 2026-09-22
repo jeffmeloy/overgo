@@ -122,7 +122,7 @@
      "path": "internal/audioparity/second_asr_test.go",
      "contains": "func TestSecondASROfflineAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:8244bd0f63aa4c3187022714848fa78ab6e7a1ddf8532b5c4055593b1c959977"
+     "identity": "evidence:sha256:6482b4e5343da0f5a6760961070cc1cf02aa114cefb23cb3d4e06463a8a59a2c"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",
@@ -151,7 +151,7 @@
      "path": "internal/audioparity/second_asr_test.go",
      "contains": "func TestSecondASRStreamingAcceptance(",
      "role": "artifact",
-     "identity": "evidence:sha256:8244bd0f63aa4c3187022714848fa78ab6e7a1ddf8532b5c4055593b1c959977"
+     "identity": "evidence:sha256:6482b4e5343da0f5a6760961070cc1cf02aa114cefb23cb3d4e06463a8a59a2c"
     },
     {
      "path": "internal/audioparity/testdata/transducer_captures.json",

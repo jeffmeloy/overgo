@@ -1,4 +1,5 @@
 {
+  "model_type": "nemotron3_5_asr",
   "frontend": {
     "sample_rate": 16000,
     "geometry": {

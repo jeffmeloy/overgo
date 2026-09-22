@@ -20,11 +20,15 @@ import (
 // names a model family, because the declaration carries every name and
 // convention the encoder needs.
 type Recognizer struct {
-	encoder   *Encoder
-	tokenizer *hfbpe.Tokenizer
-	frontend  *audiodsp.Frontend
-	grouping  audiodsp.GroupedFeatureConfig
-	blank     int
+	encoder *Encoder
+	// transducer is set when the checkpoint declares a recurrent decoder
+	// instead of a connectionist classifier. The two read the same acoustic
+	// encoder and differ only in how frames become tokens.
+	transducer *Transducer
+	tokenizer  *hfbpe.Tokenizer
+	frontend   *audiodsp.Frontend
+	grouping   audiodsp.GroupedFeatureConfig
+	blank      int
 }
 
 // RecognizerSpec is what a checkpoint declares beyond its weights: how its
@@ -35,6 +39,11 @@ type RecognizerSpec struct {
 	Frontend    audiodsp.FrontendConfig
 	Grouping    audiodsp.GroupedFeatureConfig
 	Blank       int
+	// Transducer is the recurrent decoder's binding when the checkpoint
+	// declares one. Such a checkpoint reads the frontend's own frames and
+	// names its blank entry in this binding, so the grouping and the blank
+	// above belong to the connectionist form alone.
+	Transducer *TransducerBinding
 }
 
 // LoadRecognizer assembles a recognizer from a checkpoint directory and the
@@ -48,7 +57,16 @@ func LoadRecognizer(ctx context.Context, directory string, spec RecognizerSpec, 
 		return nil, err
 	}
 	defer source.Close()
-	encoder, err := LoadEncoder(ctx, source, spec.Declaration, memoryBytes)
+	var encoder *Encoder
+	var transducer *Transducer
+	if spec.Transducer == nil {
+		encoder, err = LoadEncoder(ctx, source, spec.Declaration, memoryBytes)
+	} else {
+		transducer, err = LoadTransducer(ctx, source, spec.Declaration, *spec.Transducer, memoryBytes)
+		if err == nil {
+			encoder = transducer.encoder
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +79,7 @@ func LoadRecognizer(ctx context.Context, directory string, spec RecognizerSpec, 
 		return nil, err
 	}
 	return &Recognizer{
-		encoder: encoder, tokenizer: tokenizer, frontend: frontend,
+		encoder: encoder, transducer: transducer, tokenizer: tokenizer, frontend: frontend,
 		grouping: spec.Grouping, blank: spec.Blank,
 	}, nil
 }
@@ -114,6 +132,9 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 		return "", fmt.Errorf("speechrecognition: sample rate %d is out of range", audio.Format.SampleRate)
 	}
 	var frontendWork audiodsp.Workspace
+	if r.transducer != nil {
+		return r.transcribeRecurrent(ctx, audio.Samples, rate, &frontendWork)
+	}
 	features, frames, _, err := r.frontend.ProcessGrouped(ctx, audio.Samples, rate, &frontendWork, r.grouping)
 	if err != nil {
 		return "", err
@@ -139,4 +160,28 @@ func (r *Recognizer) Transcribe(ctx context.Context, request TranscriptionReques
 		return "", err
 	}
 	return r.tokenizer.Decode(ids), nil
+}
+
+// transcribeRecurrent reads a recording through the recurrent decoder: the
+// frontend's own frames, with no stacking or deltas, because the binding's
+// subsampling consumes them as the encoder declares. The decoder emits the
+// tokens it kept, and an encode that produced no frames is an error rather
+// than an empty transcript, as it is on the connectionist path.
+func (r *Recognizer) transcribeRecurrent(ctx context.Context, samples []float32, rate int, work *audiodsp.Workspace) (string, error) {
+	features, frames, err := r.frontend.Process(ctx, [][]float32{samples}, rate, work, audiodsp.ProcessOptions{})
+	if err != nil {
+		return "", err
+	}
+	if frames == 0 {
+		return "", errors.New("speechrecognition: the frontend produced no frames")
+	}
+	var decoderWork TransducerWorkspace
+	result, err := r.transducer.Recognize(ctx, features, frames, &decoderWork, nil)
+	if err != nil {
+		return "", err
+	}
+	if result.Frames == 0 {
+		return "", errors.New("speechrecognition: the encoder produced no frames")
+	}
+	return r.tokenizer.Decode(result.Tokens), nil
 }

@@ -19,7 +19,21 @@ var (
 	graniteExecutionJSON []byte
 	//go:embed recipes/granite5asr_frontend.json
 	graniteFrontendJSON []byte
+	//go:embed recipes/transducer_execution.json
+	transducerExecutionJSON []byte
 )
+
+// recurrentDeclaration is a reviewed recurrent checkpoint's whole statement:
+// the model type it answers for, the frontend its encoder reads, the
+// encoder's own bindings and the decoder's. A checkpoint of this form names
+// its blank entry in the decoder binding and needs no architecture recipe
+// beside it.
+type recurrentDeclaration struct {
+	ModelType  string                  `json:"model_type"`
+	Frontend   audiodsp.FrontendConfig `json:"frontend"`
+	Encoder    json.RawMessage         `json:"encoder"`
+	Transducer json.RawMessage         `json:"transducer"`
+}
 
 // declaredRecognizer is one reviewed pairing: the declarations that answer
 // for a model type, and the architecture recipe the rest of its numbers come
@@ -27,6 +41,9 @@ var (
 type declaredRecognizer struct {
 	execution, frontend []byte
 	recipe              func() (audioArchitectureRecipe, error)
+	// recurrent is set instead of the three above when the reviewed
+	// checkpoint states everything in one declaration.
+	recurrent *recurrentDeclaration
 }
 
 // reviewedRecognizers keys the reviewed declarations by the model type their
@@ -35,6 +52,10 @@ type declaredRecognizer struct {
 var reviewedRecognizers = map[string]declaredRecognizer{}
 
 func init() {
+	var recurrent recurrentDeclaration
+	if err := json.Unmarshal(transducerExecutionJSON, &recurrent); err == nil && recurrent.ModelType != "" {
+		reviewedRecognizers[recurrent.ModelType] = declaredRecognizer{recurrent: &recurrent}
+	}
 	recipe, _, err := graniteRecipe()
 	if err != nil {
 		return // the recipe's own validation reports this where it is read
@@ -59,6 +80,10 @@ type ReviewedRecognizer struct {
 	Frontend  audiodsp.FrontendConfig
 	Grouping  audiodsp.GroupedFeatureConfig
 	Blank     int
+	// Transducer is the recurrent decoder's reviewed binding, present only
+	// for a checkpoint that declares one. Such a checkpoint states its own
+	// blank entry there, and reads the frontend's frames as they come.
+	Transducer []byte
 }
 
 // RecognizerSpecFor returns the reviewed declarations for a model type,
@@ -69,6 +94,12 @@ func RecognizerSpecFor(modelType string) (ReviewedRecognizer, bool, error) {
 	declared, known := reviewedRecognizers[modelType]
 	if !known {
 		return ReviewedRecognizer{}, false, nil
+	}
+	if declared.recurrent != nil {
+		return ReviewedRecognizer{
+			Execution: declared.recurrent.Encoder, Frontend: declared.recurrent.Frontend,
+			Transducer: declared.recurrent.Transducer,
+		}, true, nil
 	}
 	var frontend audiodsp.FrontendConfig
 	if err := json.Unmarshal(declared.frontend, &frontend); err != nil {

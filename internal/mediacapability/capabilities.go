@@ -229,9 +229,17 @@ func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ r
 	if err := strictjson.DecodeBytes(reviewed.Execution, &declaration); err != nil {
 		return nil, fmt.Errorf("transcription: %s execution declaration: %w", declared.ModelType, err)
 	}
+	var transducer *speechrecognition.TransducerBinding
+	if len(reviewed.Transducer) != 0 {
+		var binding speechrecognition.TransducerBinding
+		if err := strictjson.DecodeBytes(reviewed.Transducer, &binding); err != nil {
+			return nil, fmt.Errorf("transcription: %s decoder declaration: %w", declared.ModelType, err)
+		}
+		transducer = &binding
+	}
 	return speechrecognition.LoadRecognizer(ctx, path, speechrecognition.RecognizerSpec{
 		Declaration: declaration, Frontend: reviewed.Frontend,
-		Grouping: reviewed.Grouping, Blank: reviewed.Blank,
+		Grouping: reviewed.Grouping, Blank: reviewed.Blank, Transducer: transducer,
 	}, request.MemoryBytes)
 }
 

@@ -55,6 +55,7 @@ func PublishNative(t *testing.T, destination artifact.Repository) NativeFixture 
 		}
 	}
 	var declaration struct {
+		ModelType  string                              `json:"model_type"`
 		Frontend   audiodsp.FrontendConfig             `json:"frontend"`
 		Encoder    speechrecognition.Declaration       `json:"encoder"`
 		Transducer speechrecognition.TransducerBinding `json:"transducer"`

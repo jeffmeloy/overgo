@@ -899,7 +899,8 @@
             "transcription-capability-host-boundary/do",
             "transcription-stage-output-contract/do",
             "granite-speech-transcription-activation/do",
-            "skip-reason-names-its-gate/do"
+            "skip-reason-names-its-gate/do",
+            "recurrent-transcription-capability/do"
           ]
         }
       ]

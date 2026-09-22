@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:5df7bae0614c37f11e40fa6659d0cb0e6621812c24831d862d20061036ed51ba",
+ "name": "granite-speech-5.0-470m-turboctc",
+ "model_file": "C:/Users/jeffm/overgo/models/granite-speech-5.0-470m-turboctc/model.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-granite-speech-transcription.txt"
+ ],
+ "claims": [
+  {
+   "capability": "transcription",
+   "tier": "real-artifact-smoke",
+   "commit": "dc618291740be343a3884ad0af73fcf162ca0dcb",
+   "wall_ns": 8620000000,
+   "evidence": [
+    "evidence:sha256:de585f04a441fd75fc0a07f185885b49b9176e457baf5ef7333e057ad2259485"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+overgo capability transcription verification
+tool: go test ./internal/audioparity;
+verifying commit: dc618291740be343a3884ad0af73fcf162ca0dcb
+model file: C:/Users/jeffm/overgo/models/granite-speech-5.0-470m-turboctc/model.safetensors
+protocol: the packaged recognizer the onboarding path loads, held to the
+transcripts the boundary-by-boundary acceptance checks
+(TestRecognizerReproducesReferenceTranscripts): four reference recordings from
+the LibriSpeech clean corpus, each transcribed in one call through the
+checkpoint's own execution and processor declarations and its own tokenizer,
+each transcript matching the reference exactly. An empty request is refused
+before a model is read.
+measured wall_ns: 8620000000 (test wall including model load)
+notes: exact-transcript claim on four recordings only; no word error rate,
+benchmark or broader accuracy claim, and no current-performance claim. Peak
+device memory is not instrumented on this path -- this is a host path.

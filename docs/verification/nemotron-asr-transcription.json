@@ -1,0 +1,19 @@
+{
+ "model": "model:sha256:162ed771f9ba22a37ee936f2d1d2019ebb01743d45051ac1c3cc63cf0d92c5f7",
+ "name": "nemotron-3.5-asr-streaming-0.6b",
+ "model_file": "C:/Users/jeffm/overgo/models/nemotron-3.5-asr-streaming-0.6b/model.safetensors",
+ "evidence_files": [
+  "docs/verification/capability-nemotron-asr-transcription.txt"
+ ],
+ "claims": [
+  {
+   "capability": "transcription",
+   "tier": "real-artifact-smoke",
+   "commit": "dc618291740be343a3884ad0af73fcf162ca0dcb",
+   "wall_ns": 16440000000,
+   "evidence": [
+    "evidence:sha256:02d2c2d82d89027a95d04abba609a917ce3bd78f4944619687558395977f73eb"
+   ]
+  }
+ ]
+}

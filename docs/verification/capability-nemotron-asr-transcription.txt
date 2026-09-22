@@ -1,0 +1,15 @@
+overgo capability transcription verification
+tool: go test ./internal/audioparity;
+verifying commit: dc618291740be343a3884ad0af73fcf162ca0dcb
+model file: C:/Users/jeffm/overgo/models/nemotron-3.5-asr-streaming-0.6b/model.safetensors
+protocol: the recurrent decoder the onboarding path loads, held to its
+registered native traces (TestSecondASROfflineAcceptance): per-recording
+offline decoding against captured encoder and decoder traces, checked step by
+step, with the first architecture's recordings preserved in the same run so
+adding this decoder does not move them. Native artifact registration is
+checked in the same acceptance.
+measured wall_ns: 16440000000 (test wall including model load)
+notes: trace-equality claim against the registered captures only; no word
+error rate, benchmark or broader accuracy claim, and no current-performance
+claim. Peak device memory is not instrumented on this path -- this is a host
+path.

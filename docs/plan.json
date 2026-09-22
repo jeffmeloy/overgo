@@ -904,7 +904,8 @@
             "transcript-decode-honours-its-vocabulary/do",
             "nemotron-transcription-activation/do",
             "speech-validation-state-recorded/do",
-            "fractale-generation-activation/do"
+            "fractale-generation-activation/do",
+            "prefill-acceptance-measures-work/do"
           ]
         }
       ]

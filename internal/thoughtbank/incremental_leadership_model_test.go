@@ -42,6 +42,19 @@ func TestFractalePrefillLeadership(t *testing.T) {
 	}
 	memory := make([]float32, config.MemSeedSlots*config.MemDim)
 
+	// Each path is run once before it is timed. The three walls below are
+	// compared against one another, and a first-touch measurement of one
+	// against a warmed measurement of another compares their page faults and
+	// allocator state rather than their work.
+	if _, _, err := FastWeightBankLMDecodeInit(weights, ids, memory, config.MemSeedSlots); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := tokenPrefillReference(weights, ids, memory, config.MemSeedSlots); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := FastWeightBankLMForward(ids, memory, config.MemSeedSlots, weights); err != nil {
+		t.Fatal(err)
+	}
 	start := time.Now()
 	state, logits, err := FastWeightBankLMDecodeInit(weights, ids, memory, config.MemSeedSlots)
 	prefillWall := time.Since(start)

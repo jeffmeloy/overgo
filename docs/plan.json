@@ -905,7 +905,8 @@
             "nemotron-transcription-activation/do",
             "speech-validation-state-recorded/do",
             "fractale-generation-activation/do",
-            "prefill-acceptance-measures-work/do"
+            "prefill-acceptance-measures-work/do",
+            "fractale-generation-verification/do"
           ]
         }
       ]

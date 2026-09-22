@@ -1,0 +1,22 @@
+{
+ "model": "model:sha256:92e8d118bc317b67145a43efaee171e44e3704ed263080d2962e059ccaff186d",
+ "name": "Fractale-350M-base",
+ "model_file": "C:/Users/jeffm/adaptive_new/models/Fractale-350M-base/model.pt",
+ "supersedes": [
+  "evidence:sha256:93e908cab1e93f97b6dc349e6b7567578f231434055a59a35bc3f9df9c8c186f"
+ ],
+ "evidence_files": [
+  "docs/verification/capability-fractale-generation.txt"
+ ],
+ "claims": [
+  {
+   "capability": "generation",
+   "tier": "real-artifact-smoke",
+   "commit": "9d461fb00845359b2b7c080d5c5c79cebd2f1bc3",
+   "wall_ns": 20041000000,
+   "evidence": [
+    "evidence:sha256:7125189a489de66f106223e626aec56ae04efdce8719e0de3ba9530d467e04ad"
+   ]
+  }
+ ]
+}

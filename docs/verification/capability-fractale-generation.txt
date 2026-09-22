@@ -1,0 +1,17 @@
+overgo capability generation verification
+tool: go test ./internal/thoughtbank (modeltest tag, OVERGO_FRACTALE_BASELINE=1);
+verifying commit: 9d461fb00845359b2b7c080d5c5c79cebd2f1bc3
+model file: C:/Users/jeffm/adaptive_new/models/Fractale-350M-base/model.pt
+protocol: real fast-weight thought-bank generation on the shipped checkpoint,
+four acceptances in one suite. TestRealCheckpointCodeCompletion continues a
+prompt through the loaded checkpoint. TestFractalePrefillLeadership and
+TestFractaleIncrementalLeadership hold the cache-building prefill and the
+cached decode step to exact equality with a token-at-a-time reference and with
+a full recomputation, max logit delta 0, and hold the prefill wall within a
+full forward's wall. TestFractaleTwentyTokenProcessProbe runs a twenty-token
+process probe over the 49,154-entry vocabulary.
+measured wall_ns: 20041000000 (suite wall including checkpoint load)
+notes: exact-equality and wall-only claims; peak device memory is not
+instrumented on this path -- wall-only measurement by rule. Device training
+parity is a separate claim under its own record and is not asserted here. No
+benchmark, generation-quality or current-performance claim is made.

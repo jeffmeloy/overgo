@@ -79,7 +79,8 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
-		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), generated[0], generated[1], generated[2],
+		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), gateCheck("surface", runrecord.PhaseValidate, g.stepSurface),
+		generated[0], generated[1], generated[2],
 		withResources(gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), storeReader), published,
 		gateCheck("vet", runrecord.PhaseVet, g.stepVet), gateCheck("build", runrecord.PhaseBuild, g.stepBuild),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance),
@@ -136,7 +137,7 @@ var gateCheckRequirements = map[string]automationcheck.Requirements{
 
 // validateWave lists the static prerequisites of build and vet. Independent
 // checks run together; census output precedes modern-Go admission.
-var validateWave = []string{"magics", modernCensusCheckName, "modern-go", "architecture", "profile", "fmt", "style", "manifest", "sbom", "claims", "docs", "published"}
+var validateWave = []string{"magics", modernCensusCheckName, "modern-go", "architecture", "profile", "fmt", "style", "surface", "manifest", "sbom", "claims", "docs", "published"}
 
 func withResources(check automationcheck.Check, resources []automationcheck.Resource) automationcheck.Check {
 	check.Descriptor.Resources = resources

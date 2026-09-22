@@ -918,7 +918,8 @@
             "device-gate-names-its-lane/do",
             "device-gate-revert-restores-currency/do",
             "plan-dispositions-recorded/do",
-            "store-open-remeasured/do"
+            "store-open-remeasured/do",
+            "surface-move-named-in-preflight/do"
           ]
         }
       ]

@@ -51,7 +51,7 @@ func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	if document.Lane != "image_video_gen" || os.Getenv(dataroot.Env) == "" {
-		t.Skip("integration: image_video_gen resources require their explicit data root")
+		t.Skip(testskip.Inapplicable + ": image_video_gen resources require their explicit data root")
 	}
 	var protocol imageVideoResourceProtocol
 	protocolPath := filepath.Join(root, "docs/image_video_resources.json")

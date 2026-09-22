@@ -869,7 +869,8 @@
             "lanes-repair-q10-prefill/do",
             "bonsai-coverage-join/do",
             "verify-selector-per-invocation/do",
-            "gate-package-run-receipt/do"
+            "gate-package-run-receipt/do",
+            "complete-receipt-declared-exclusions/do"
           ]
         }
       ]

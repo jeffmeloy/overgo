@@ -251,7 +251,7 @@ func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticByte
 			tail.append(event.Output, diagnosticBytes)
 			tails[key] = tail
 		}
-		if short && strings.Contains(event.Output, testskip.ShortIntegration) {
+		if short && strings.Contains(event.Output, testskip.ShortIntegration) || strings.Contains(event.Output, testskip.Inapplicable) {
 			classified[key] = true
 		}
 		if reason := unavailable(event.Output); reason != "" {

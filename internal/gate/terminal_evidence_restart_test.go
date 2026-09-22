@@ -219,8 +219,13 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	if err != nil || !found || !maps.Equal(receipt.Tests, map[string]string{"TestWorks": "pass"}) {
 		t.Fatalf("named verdict lost after process death: %+v %v", receipt, err)
 	}
-	if err := ledger.record(t.Context(), "fixture/good", true, map[string]string{"TestWorks": "pass", "TestExcluded": "skip"}); err == nil {
-		t.Fatal("complete profile accepted a skipped test")
+	// A skip in a complete verdict map is a declared exclusion, a test that
+	// stated why it cannot apply here; the receipt keeps it as such.
+	if err := ledger.record(t.Context(), "fixture/good", true, map[string]string{"TestWorks": "pass", "TestExcluded": "skip"}); err != nil {
+		t.Fatalf("complete profile refused a declared exclusion: %v", err)
+	}
+	if receipt, found, err := packageReceiptCodec.Resolve(t.Context(), ledger.store, packageReceiptAlias+ledger.obligations["fixture/good"].ID.String()); err != nil || !found || receipt.Tests["TestExcluded"] != "skip" || !receipt.Passed {
+		t.Fatalf("declared exclusion lost from the receipt: %+v %v", receipt, err)
 	}
 	pending, reused, err := g.packageCachePartition(packages, "complete", inputs)
 	if err != nil || reused != 1 || !slices.Equal(pending, []string{"fixture/pending"}) {

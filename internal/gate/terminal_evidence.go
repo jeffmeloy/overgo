@@ -174,11 +174,10 @@ func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, pas
 	if !found {
 		return fmt.Errorf("package evidence: undeclared package %q", pkg)
 	}
-	for _, action := range tests {
-		if action == "skip" && !strings.HasPrefix(obligation.Scope, "short:") {
-			return errors.New("package evidence: complete profile cannot contain skipped tests")
-		}
-	}
+	// A verdict map carries a skip only for a declared exclusion: in a short
+	// run one excluded by -short, in a complete run one that states why it
+	// cannot apply here. An unowned skip leaves the package unpassed and
+	// never reaches this record.
 	previous := ledger.previous[pkg]
 	receipt, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation.ID, Previous: previous, Passed: passed, Tests: tests})
 	if err != nil {

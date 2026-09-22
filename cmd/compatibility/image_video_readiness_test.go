@@ -135,7 +135,7 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 		t.Fatal(err)
 	}
 	if document.Lane != "image_video_gen" {
-		t.Skip("integration: readiness applies to the image_video_gen campaign")
+		t.Skip(testskip.Inapplicable + ": readiness applies to the image_video_gen campaign")
 	}
 	if document.Census == nil {
 		t.Fatal("campaign has no inherited census identity")

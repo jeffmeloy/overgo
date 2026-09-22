@@ -96,13 +96,20 @@ func (current RebindIndex) rebind(document closureledger.Document, reviewed bool
 		if err != nil {
 			return closureledger.Document{}, false, "binding", err
 		}
+		if sameBinding(binding, previous) {
+			// The declaration is where the ledger left it in every way the
+			// ledger reviews; its line and its file's identity moved with an
+			// edit elsewhere in the file, and the scan finds it by structure.
+			// Republishing the document for that would be the same reviewed
+			// text under a new identity, once per edit of the file.
+			bindings[index] = previous
+			continue
+		}
 		bindings[index] = binding
 		if fixture == previous.Owner {
 			fixture = binding.Owner
 		}
-		if binding != previous {
-			changed = true
-		}
+		changed = true
 	}
 	if !changed {
 		return document, true, "exact", nil
@@ -112,6 +119,15 @@ func (current RebindIndex) rebind(document closureledger.Document, reviewed bool
 		bindings, document.ClosurePath, document.RerankTrigger, fixture,
 	)
 	return rebound, err == nil, "source", err
+}
+
+// sameBinding reports whether two bindings name the same declaration with
+// the same expression, structure, source and callsite identities: the facts
+// the ledger reviews. The line and the owning file's identity are where the
+// declaration sits, and a document is not republished for a move.
+func sameBinding(current, previous closureledger.SourceBinding) bool {
+	current.Line, current.Owner = previous.Line, previous.Owner
+	return current == previous
 }
 
 // ContentMatchedRebind rebinds one single-binding document whose

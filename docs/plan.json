@@ -4,16 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-closure-rebind-redundancy",
-      "title": "Stop the closure ledger rebind from republishing documents whose content did not change: the census found 30,915 closure-ledger records in 32.9 MB and every closure-scan -import-store adds more for a pure offset move; publish a rebound document only when its reviewed content differs and carry the offset in the binding",
+      "id": "validate-all-models",
+      "title": "Validate all models (owner priority list 2026-09-21; the item title carries the full per-model state). State 2026-09-22 at ee7f84a2: 17 validated -- the seven text models (bonzai, gemma-4-12B, gemma-4-E4B, MiniCPM5-1B, Qwen2.5-0.5B, Qwen3.5-4B, Qwen3.8-27B) by the guard pass re-acquired after the Q1_0 staged prefill, and RxBrain, Krea, LiveEdit, SenseNova, SimpleDiffusion, Un-0, Wan, needle, tabfm and timesfm-2.5 by the gate's complete receipt for cmd/compatibility, acquired with go run ./cmd/gate -package-run cmd/compatibility and re-acquired after any landing, since the package's tests read the plan. 2 activated: pocket-tts (speech) and Carbon-500M (DNA) have no currency owner yet; the next step is to choose one for each (the smoke lane's native-likelihood oracle already runs Carbon; adaptive_new source for pocket-tts: pockettts.infer.audio_host.v5 recipe stages). 4 registered: Unlimited-OCR needs the HF-to-GGUF path for its DeepSeek-OCR-derived stack, ported from adaptive_new's unlimitedocr recipe stages with its top-logit screen as oracle; granite-speech, nemotron ASR and FireRedVAD need audio-lane task activation. 4 unregistered: Fractale (no onboarding path), RAE-collections (layout), timesfm-3.0 (license, owner decision), webssl-dino (non-commercial, owner decision). Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop the closure ledger rebind from republishing documents whose content did not change: the census found 30,915 closure-ledger records in 32.9 MB and every closure-scan -import-store adds more for a pure offset move; publish a rebound document only when its reviewed content differs and carry the offset in the binding",
+          "title": "Validate all models (owner priority list 2026-09-21; the item title carries the full per-model state). State 2026-09-22 at ee7f84a2: 17 validated -- the seven text models (bonzai, gemma-4-12B, gemma-4-E4B, MiniCPM5-1B, Qwen2.5-0.5B, Qwen3.5-4B, Qwen3.8-27B) by the guard pass re-acquired after the Q1_0 staged prefill, and RxBrain, Krea, LiveEdit, SenseNova, SimpleDiffusion, Un-0, Wan, needle, tabfm and timesfm-2.5 by the gate's complete receipt for cmd/compatibility, acquired with go run ./cmd/gate -package-run cmd/compatibility and re-acquired after any landing, since the package's tests read the plan. 2 activated: pocket-tts (speech) and Carbon-500M (DNA) have no currency owner yet; the next step is to choose one for each (the smoke lane's native-likelihood oracle already runs Carbon; adaptive_new source for pocket-tts: pockettts.infer.audio_host.v5 recipe stages). 4 registered: Unlimited-OCR needs the HF-to-GGUF path for its DeepSeek-OCR-derived stack, ported from adaptive_new's unlimitedocr recipe stages with its top-logit screen as oracle; granite-speech, nemotron ASR and FireRedVAD need audio-lane task activation. 4 unregistered: Fractale (no onboarding path), RAE-collections (layout), timesfm-3.0 (license, owner decision), webssl-dino (non-commercial, owner decision). Owner 2026-09-22: port from adaptive_new's validated Go implementations, do not re-derive.",
           "status": "open",
-          "verify": "go test ./internal/closureledger -run '^TestRebindDoesNotRepublishUnchangedDocuments' -count=1"
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
       ]
     },
@@ -871,7 +871,8 @@
             "verify-selector-per-invocation/do",
             "gate-package-run-receipt/do",
             "complete-receipt-declared-exclusions/do",
-            "media-currency-declared-exclusions/do"
+            "media-currency-declared-exclusions/do",
+            "validate-all-models/do"
           ]
         }
       ]

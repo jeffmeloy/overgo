@@ -13,6 +13,17 @@ import (
 	"overgo/internal/repoanalysis"
 )
 
+// shiftedCandidates scans the fixture as the import does, so a test can ask
+// the rebind itself which documents a shift renames.
+func shiftedCandidates(t *testing.T, root string) []closurescan.Candidate {
+	t.Helper()
+	candidates, err := closurescan.ScanRoot(root, closurescan.CandidateAll)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return candidates
+}
+
 func TestClosureRebindProjectionAcceptance(t *testing.T) {
 	t.Run("ambiguous successors preserve the original decision", func(t *testing.T) {
 		root := t.TempDir()
@@ -213,8 +224,23 @@ func count(kind, response string, patterns []*regexp.Regexp, values []string) in
 				}
 			}
 
-			if err != nil || unmatched != 0 || count != len(documents)-1 {
-				t.Fatalf("one import did not settle shifted sites: rebound=%d unmatched=%d first=%s error=%v", count, unmatched, first, err)
+			// A shifted site whose reviewed facts are unchanged rebinds exactly
+			// and is not republished; the sites the shift renamed or reordered
+			// within their scope take a new document, by structure or by
+			// content match.
+			expectedRebound := 0
+			for _, document := range documents {
+				if _, matched, reason, err := closurescan.CompileRebindIndex(shiftedCandidates(t, root)).Rebind(document); err != nil {
+					t.Fatal(err)
+				} else if !matched || reason != "exact" {
+					expectedRebound++
+				}
+			}
+			if err != nil || unmatched != 0 || count != expectedRebound {
+				t.Fatalf("one import did not settle shifted sites: rebound=%d want %d unmatched=%d first=%s error=%v", count, expectedRebound, unmatched, first, err)
+			}
+			if expectedRebound == 0 {
+				expectedSequence--
 			}
 			store, err := overgodb.OpenReadOnly(storePath)
 			if err != nil {

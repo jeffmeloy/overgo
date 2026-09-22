@@ -10,6 +10,40 @@ import (
 	"overgo/internal/closureledger"
 )
 
+// TestRebindDoesNotRepublishUnchangedDocuments holds a rebind to leaving a
+// document's identity alone when the declaration only moved: a new line and
+// a new owning-file identity, from an edit elsewhere in the file, rebind
+// exactly onto the document as it is, while a changed expression rebinds
+// onto a new document.
+func TestRebindDoesNotRepublishUnchangedDocuments(t *testing.T) {
+	previous := rebindCandidate(t, "37", "stable callsites")
+	binding, err := previous.Binding()
+	if err != nil {
+		t.Fatal(err)
+	}
+	document := rebindDocument(t, previous, binding)
+	moved := previous
+	moved.Line += 12
+	moved.OwnerID = sourceDigest("the file edited elsewhere")
+	rebound, matched, reason, err := CompileRebindIndex([]Candidate{moved}).Rebind(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !matched || reason != "exact" || rebound.ID != document.ID {
+		t.Fatalf("moved declaration rebound = (%t, %s, %s), want exact onto %s", matched, reason, rebound.ID, document.ID)
+	}
+	changed := moved
+	changed.Expression = previous.Expression + " + 0"
+	changed.SourceID = sourceDigest("changed expression")
+	rebound, matched, reason, err = CompileRebindIndex([]Candidate{changed}).Rebind(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !matched || reason != "source" || rebound.ID == document.ID || rebound.Bindings[0].Line != changed.Line {
+		t.Fatalf("changed declaration rebound = (%t, %s, %s)", matched, reason, rebound.ID)
+	}
+}
+
 func TestRebindUnchangedClosureMovesExactBinding(t *testing.T) {
 	previous := rebindCandidate(t, "37", "stable callsites")
 	current := previous

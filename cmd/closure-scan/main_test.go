@@ -340,7 +340,7 @@ func TestTriagePublishesAndRebindsExactBindings(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count, unmatched, first, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot, false, false); err != nil || count != len(triage.Rows) || unmatched != 0 || first != "" {
+	if count, unmatched, first, _, err := importClosureDocuments(root, "store", filepath.Join(root, "store"), snapshot, false, false); err != nil || count != 0 || unmatched != 0 || first != "" {
 		t.Fatalf("rebound documents = (%d, unmatched=%d first=%s, %v)", count, unmatched, first, err)
 	}
 	candidates, err = closurescan.ScanSnapshot(snapshot, nil, closurescan.CandidateConstants)
@@ -969,7 +969,9 @@ func TestClosureImportRefusesConflictingDecisionClaims(t *testing.T) {
 func TestClosureRetirementRequiresSettledRebind(t *testing.T) {
 	fixture := setupClosureChainFixture(t)
 	path := filepath.Join(fixture.root, "internal", "next", "policy.go")
-	if err := os.WriteFile(path, []byte("// reviewed source movement\npackage next\nconst Policy = 7\n"), 0o644); err != nil {
+	// A moved declaration rebinds exactly; only a changed one leaves the
+	// rebind unsettled, here an expression change with the same value.
+	if err := os.WriteFile(path, []byte("// reviewed source change\npackage next\nconst Policy = 7 + 0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := repoanalysis.DiscoverGo(fixture.root, "internal")

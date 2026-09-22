@@ -42,7 +42,7 @@ func TestBatchEvidenceRetainsReplanObligations(t *testing.T) {
 	if ledger.state.Checks["acceptance-consumer"].Obligation == old || len(cache.Entries) != 1 {
 		t.Fatal("changed verifier retained its obligation or lost the independent pass")
 	}
-	requireStoredPackageObligation(t, filepath.Join(g.repo, g.storePath), old)
+	requireStoredBatchObligation(t, filepath.Join(g.repo, g.storePath), old)
 	if err := g.closeStore(); err != nil {
 		t.Fatal(err)
 	}

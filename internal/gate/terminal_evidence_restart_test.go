@@ -17,7 +17,6 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processlock"
-	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
 	"overgo/internal/testutil"
 )
@@ -322,6 +321,9 @@ func testPackageLedgerCost(t *testing.T) {
 	}
 }
 
+// requireStoredPackageObligation holds a package obligation to being listed in
+// a preparation's obligations document: that listing, not a record of its own,
+// is what the store retains of it.
 func requireStoredPackageObligation(t *testing.T, root string, id artifact.ID) {
 	t.Helper()
 	store, err := overgodb.Open(root)
@@ -329,7 +331,27 @@ func requireStoredPackageObligation(t *testing.T, root string, id artifact.ID) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := runrecord.RequireAgentObligation(t.Context(), store, id); err != nil {
+	if !slices.Contains(listedPackageObligations(t, store), id) {
+		t.Fatalf("obligation %s is listed in no obligations document", id)
+	}
+}
+
+// listedPackageObligations collects every obligation the store's obligations
+// documents list.
+func listedPackageObligations(t *testing.T, store *overgodb.Store) []artifact.ID {
+	t.Helper()
+	var listed []artifact.ID
+	_, err := overgodb.VisitDecodedDocuments(t.Context(), store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{Kind: artifact.KindEvidence, MediaType: packageObligationsMediaType, Schema: packageObligationsSchema}},
+		Order:     overgodb.DocumentOldestFirst,
+	}, packageObligationsCodec.Parse, func(_ overgodb.DocumentView, listing packageObligations) error {
+		for _, entry := range listing.Entries {
+			listed = append(listed, entry.Obligation)
+		}
+		return nil
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
+	return listed
 }

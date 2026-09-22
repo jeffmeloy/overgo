@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -58,8 +59,11 @@ type packageEvidenceLedger struct {
 	store       *overgodb.Store
 	environment artifact.ID
 	obligations map[string]runrecord.AgentObligation
-	previous    map[string]artifact.ID
-	prepared    map[string]runrecord.SelectionReuse
+	// listings: the per-preparation obligations document each package's
+	// obligation is listed in; a receipt descends from it.
+	listings map[string]artifact.ID
+	previous map[string]artifact.ID
+	prepared map[string]runrecord.SelectionReuse
 }
 
 func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
@@ -72,7 +76,7 @@ func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
 		return nil, err
 	}
 	return &packageEvidenceLedger{store: store, environment: g.environment.ID,
-		obligations: map[string]runrecord.AgentObligation{}, previous: map[string]artifact.ID{}}, nil
+		obligations: map[string]runrecord.AgentObligation{}, listings: map[string]artifact.ID{}, previous: map[string]artifact.ID{}}, nil
 }
 
 // prepare persists every required package before execution, then rebuilds the
@@ -86,7 +90,7 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 		return err
 	}
 	batch := artifact.Batch{}
-	var identities []artifact.ID
+	var entries []packageObligationEntry
 	for _, pkg := range packages {
 		invocation, err := automationcheck.PackageInvocation(pkg, mode)
 		if err != nil {
@@ -99,12 +103,8 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 		if err != nil {
 			return err
 		}
-		content, err := obligation.Content()
-		if err != nil {
-			return err
-		}
-		batch.Contents = append(batch.Contents, content)
-		batch.Lineage = append(batch.Lineage, obligation.Lineage()...)
+		// The obligation is the receipt's key, computed here and listed in
+		// the preparation's one document; it is not a record of its own.
 		for _, id := range []artifact.ID{invocation, inputs[pkg], ledger.environment} {
 			descriptor, found, err := store.Artifact(ctx, id)
 			if err != nil {
@@ -115,7 +115,7 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 			}
 			batch.Artifacts = append(batch.Artifacts, descriptor)
 		}
-		identities = append(identities, obligation.ID)
+		entries = append(entries, packageObligationEntry{Package: pkg, Mode: mode, Task: invocation, Input: inputs[pkg], Obligation: obligation.ID})
 		ledger.obligations[pkg] = obligation
 		prior, found, err := packageReceiptCodec.Resolve(ctx, store, packageReceiptAlias+obligation.ID.String())
 		if err != nil {
@@ -138,14 +138,26 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 		}
 		ledger.prepared[pkg] = witness
 	}
-	if len(identities) == 0 {
+	if len(entries) == 0 {
 		return nil
 	}
-	key, err := artifact.JSONID(artifact.KindRecipe, identities)
+	slices.SortFunc(entries, func(a, b packageObligationEntry) int { return strings.Compare(a.Package, b.Package) })
+	listing, err := packageObligationsCodec.NewInitial(packageObligations{Environment: ledger.environment, Entries: entries})
 	if err != nil {
 		return err
 	}
-	batch.Key = packageReceiptAlias + key.String()
+	content, err := packageObligationsCodec.Content(listing)
+	if err != nil {
+		return err
+	}
+	parents := []artifact.ID{ledger.environment}
+	for _, entry := range entries {
+		parents = append(parents, entry.Task, entry.Input)
+		ledger.listings[entry.Package] = listing.ID
+	}
+	batch.Key = packageObligationsAlias + listing.ID.String()
+	batch.Contents = []artifact.Content{content}
+	batch.Lineage = artifact.UniqueDependencyLineage(listing.ID, parents...)
 	_, err = store.CommitAs(ctx, gateProducer, batch)
 	return err
 }
@@ -170,7 +182,8 @@ func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, pas
 		return err
 	}
 	alias := artifact.AliasBinding{Name: packageReceiptAlias + obligation.ID.String(), Target: receipt.ID}
-	parents := []artifact.ID{obligation.ID}
+	// The receipt descends from the listing that names its obligation.
+	parents := []artifact.ID{ledger.listings[pkg]}
 	if previous.Valid() {
 		alias = artifact.AliasMove(alias.Name, alias.Target, previous)
 		parents = append(parents, previous)

@@ -892,7 +892,8 @@
             "compatibility-names-its-reads/do",
             "unlimited-ocr-port/do",
             "ocr-census-rebind/do",
-            "ocr-coverage-join/do"
+            "ocr-coverage-join/do",
+            "post-guard-census-rebind/do"
           ]
         }
       ]

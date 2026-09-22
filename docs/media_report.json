@@ -1970,7 +1970,7 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 214,
+    "Registered": 215,
     "Activations": 31,
     "AcceptedActivations": 24,
     "Models": [
@@ -5316,6 +5316,17 @@
       {
         "Model": "model:sha256:d2003d23f69739621e39d1daf3b25d2c55a93b0ad5d03115c7e4668beac3fdf9",
         "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Protocols": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:d4d2dff7c1988e5eb6900599158f78cf04e836fbf957176d186d2c97edf5c8b9",
+        "Name": "overgo-hfconvert",
         "Present": true,
         "Execution": "local",
         "Domains": null,

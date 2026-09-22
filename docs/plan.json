@@ -891,7 +891,8 @@
             "acceptance-receipt-survives-plan-edits/do",
             "compatibility-names-its-reads/do",
             "unlimited-ocr-port/do",
-            "ocr-census-rebind/do"
+            "ocr-census-rebind/do",
+            "ocr-coverage-join/do"
           ]
         }
       ]
@@ -929,6 +930,10 @@
     {
       "key": "skipped-fixture:test-device:overgo/internal/adaptiveparity",
       "row": "skipped-fixture-classification"
+    },
+    {
+      "key": "skipped-fixture:test-device:overgo/internal/audioparity",
+      "reason": "the audio parity fixture skips for an absent artifact and earns no credit, as the candidate says; its owner is the audio lane, not this row"
     },
     {
       "key": "skipped-fixture:test-device:overgo/internal/controllertrain",

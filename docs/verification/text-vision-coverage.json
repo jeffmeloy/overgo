@@ -54,6 +54,20 @@
       ]
     },
     {
+      "Model": "model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "inference",
+          "Recipe": "recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3",
+          "Proofs": [
+            "ocr-census-rebind/do"
+          ],
+          "Scope": "Unlimited-OCR, the DeepSeek-OCR decoder converted to GGUF: two exact greedy continuations at registration and the greedy continuation smoke oracle run by the cited landing. Document recognition, the encoder and the projector are not claimed here; no benchmark or quality claim."
+        }
+      ]
+    },
+    {
       "Model": "model:sha256:887f41243686e101a314013a168b6bad5df19f8bee5df3e45d942ff79455413b",
       "Domains": null,
       "Cells": [
@@ -246,6 +260,13 @@
       "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^(TestMediaQ10prefillReconciliation|TestMediaWorkflowruntimeReconciliation|TestMediaExecutorHostmathReconciliation|TestImageVideoLifecycleAcceptance|TestImageVideoMergedCapabilitiesAcceptance|TestMediaRotarySourceIsolation|TestImageVideoInventoryAcceptance|TestImageVideoWanAcceptance|TestImageVideoCapacityAcceptance)$' -count=1 && go test ./internal/finding -run '^TestTextBatchBindsArtifactIdentitiesAsThemselves$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/smoke-lane -run '^TestAcceptedSmokeOracles$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
       "Preparation": "evidence:sha256:39244fa97829201d4c7256e9994c4ccd8defb310775bd40431cb28f17b2c3945",
       "Result": "evidence:sha256:38363e25876bb24456184e9ad6985b9787fb895e8caf0e463a1aba461fd62e53"
+    },
+    {
+      "Reference": "ocr-census-rebind/do",
+      "Commit": "e048091febb718c6ba05b5047965f789a905f0db",
+      "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^TestImageVideoInventoryAcceptance$' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/hfconvert -run '^TestDeepSeekOCRProjectorReadsBack' -count=1 && OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
+      "Preparation": "evidence:sha256:a35736a6e2dc57f814220d7d286cee72a2514e1cfd872d32214b8b3184577d6d",
+      "Result": "evidence:sha256:76c6f7457a3f2b30c34df3046c5c0b2dd2065630d92f6f44a8254acae57e1d18"
     }
   ],
   "Inputs": {

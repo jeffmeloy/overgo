@@ -1972,7 +1972,7 @@
   "accepted_protocols": {
     "Registered": 214,
     "Activations": 31,
-    "AcceptedActivations": 23,
+    "AcceptedActivations": 24,
     "Models": [
       {
         "Model": "model:sha256:000df141c36bd8a393a013338d16898c02f92691ed2897342a745da598b87a6f",
@@ -3896,14 +3896,16 @@
           {
             "Task": "inference",
             "Recipe": "recipe:sha256:53c17a9fabd7fe64203ddf7136b7e23763ca0b59d67c54deadf6ea54350188f3",
-            "Proofs": null,
-            "Scope": "",
+            "Proofs": [
+              "ocr-census-rebind/do"
+            ],
+            "Scope": "Unlimited-OCR, the DeepSeek-OCR decoder converted to GGUF: two exact greedy continuations at registration and the greedy continuation smoke oracle run by the cited landing. Document recognition, the encoder and the projector are not claimed here; no benchmark or quality claim.",
             "Implemented": true,
             "Activated": true,
             "Measured": true,
-            "Accepted": false,
-            "RequiredPhases": 0,
-            "AcceptedPhases": 0,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
             "HistoricalVerifier": {
               "gate": "evidence:sha256:76b76f0d99b60c7a0dbcee74847b47073f77295766946f488f57d12b1a9865e2",
               "run": "run:sha256:8c1961ad97226824f6d23386a7a61ceeb0f3421e91656fc1dc2983681ad863a9",
@@ -3921,7 +3923,7 @@
                 }
               ]
             },
-            "Gap": "No accepted protocol bound to this activation.",
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
             "RepairOwner": "final-model-validation/do"
           }
         ],
@@ -6503,7 +6505,7 @@
     "Documents": {
       "docs/verification/image-video-coverage.json": "88af07241fd07965fe65bb31b020c7f29fb400c7deadce60712ea54ae0d91d51",
       "docs/verification/specialized-coverage.json": "700b2bd046116527c6c514a6cbcce080d02d685ad1b939a3d51c981e020458a8",
-      "docs/verification/text-vision-coverage.json": "7d732517316ef33c9489c922773386feb14db451f4412802b271338ef34c5a14"
+      "docs/verification/text-vision-coverage.json": "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381"
     },
     "Proofs": [
       {
@@ -6589,6 +6591,13 @@
         "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^(TestMediaQ10prefillReconciliation|TestMediaWorkflowruntimeReconciliation|TestMediaExecutorHostmathReconciliation|TestImageVideoLifecycleAcceptance|TestImageVideoMergedCapabilitiesAcceptance|TestMediaRotarySourceIsolation|TestImageVideoInventoryAcceptance|TestImageVideoWanAcceptance|TestImageVideoCapacityAcceptance)$' -count=1 \u0026\u0026 go test ./internal/finding -run '^TestTextBatchBindsArtifactIdentitiesAsThemselves$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/smoke-lane -run '^TestAcceptedSmokeOracles$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:b2b6dd89ad8c1fc473bd266c9fa7a7c5c212c07233872aa922d379aba566785c",
         "Preparation": "evidence:sha256:39244fa97829201d4c7256e9994c4ccd8defb310775bd40431cb28f17b2c3945",
         "Result": "evidence:sha256:38363e25876bb24456184e9ad6985b9787fb895e8caf0e463a1aba461fd62e53"
+      },
+      {
+        "Reference": "ocr-census-rebind/do",
+        "Commit": "e048091febb718c6ba05b5047965f789a905f0db",
+        "Verify": "OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store go test ./cmd/compatibility -run '^TestImageVideoInventoryAcceptance$' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./internal/hfconvert -run '^TestDeepSeekOCRProjectorReadsBack' -count=1 \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo OVERGO_AUDIO_REFERENCE_STORE=C:/Users/jeffm/overgo/overgodb-store OVERGO_AUTOMATION_WORKER=claude-master-lead OVERGO_AUTOMATION_ROLE=master-lead go run ./cmd/smoke-lane -diagnostic -budget 15m -model model:sha256:7a7c9de1d98b63289b5287a2b8f6280c306b535570ea87c090c962aba94298e1",
+        "Preparation": "evidence:sha256:a35736a6e2dc57f814220d7d286cee72a2514e1cfd872d32214b8b3184577d6d",
+        "Result": "evidence:sha256:76c6f7457a3f2b30c34df3046c5c0b2dd2065630d92f6f44a8254acae57e1d18"
       },
       {
         "Reference": "modality-verification/diffusion-current-generation",

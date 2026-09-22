@@ -1970,8 +1970,8 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 215,
-    "Activations": 31,
+    "Registered": 216,
+    "Activations": 32,
     "AcceptedActivations": 24,
     "Models": [
       {
@@ -3368,6 +3368,51 @@
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:5df7bae0614c37f11e40fa6659d0cb0e6621812c24831d862d20061036ed51ba",
+        "Name": "granite-speech-5.0-470m-turboctc",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "transcription",
+            "Recipe": "recipe:sha256:2a980d7a7b1057e4ca31756359282aeb955a0a8b5e8577182a0e9dfb78dc0c21",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:306480639e12be878267b7f65d6cd50a89d602bb48bbf0cb78a5d23c805b17bf",
+              "run": "run:sha256:2baf4e7ac2d9dbcdae6cde256a7fe4f6b5c05dad7930c7a3d65e9e4a7496867f",
+              "source": "31d47dc9e65b4a375c1ce7d061d5f0bee9b156a3",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": [
+                "file:sha256:d4a712c6bf726c17a815828da5092e779e288e96b7d5b620bc1df2f013ac6d94"
+              ],
+              "outputs": [
+                "evidence:sha256:306480639e12be878267b7f65d6cd50a89d602bb48bbf0cb78a5d23c805b17bf"
+              ],
+              "wall_ns": 2147819900,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 2147819900
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": null,
+        "Gap": "",
+        "RepairOwner": ""
       },
       {
         "Model": "model:sha256:5e31d9d7382c0bd956a1d9bea59a80f0c898dd84edc0481f0e8be967115b9bed",

@@ -88,7 +88,7 @@ func run() error {
 	reason := flags.String("reason", "", "activation reason recorded in the decision event (activate)")
 	gate := flags.String("gate", "", "successful verifier gate artifact ID (activate)")
 	runID := flags.String("run-id", "", "bound verifier run artifact ID (activate)")
-	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|projection|forecast|tabular|seq2seq|speech|image-gen|video-gen|vqa)")
+	task := flags.String("task", string(recipe.TaskInference), "recipe task (inference|projection|forecast|tabular|seq2seq|speech|transcription|image-gen|video-gen|vqa)")
 	projectorPath := flags.String("projector", "", "projector GGUF for projection recipes")
 	sessionFlag := flags.String("session", "auto", "decode session: auto (derive from plan) | request | capacity")
 	residencyFlag := flags.String("residency", string(recipe.ResidencyHybridNative),

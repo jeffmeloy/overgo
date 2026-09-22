@@ -896,7 +896,8 @@
             "post-guard-census-rebind/do",
             "transcription-capability/do",
             "speech-models-onboarding/do",
-            "transcription-capability-host-boundary/do"
+            "transcription-capability-host-boundary/do",
+            "transcription-stage-output-contract/do"
           ]
         }
       ]

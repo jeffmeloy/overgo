@@ -1970,8 +1970,8 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 217,
-    "Activations": 33,
+    "Registered": 218,
+    "Activations": 34,
     "AcceptedActivations": 24,
     "Models": [
       {
@@ -4575,6 +4575,55 @@
         "Protocols": null,
         "Gap": "Registered without task activation or accepted protocol.",
         "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:92e8d118bc317b67145a43efaee171e44e3704ed263080d2962e059ccaff186d",
+        "Name": "Fractale-350M-base",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "generation",
+            "Recipe": "recipe:sha256:2ed5f2eadfb749508e69d0e78e298d311cabbcff517af6f201025430cb48d4ea",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:78ced8511634fa3703c6a04d90674eed49c7b34c408e39d6012d8534df95c97f",
+              "run": "run:sha256:6642b94c0cb6cc865d1efc5ab65d8a0d74e3fe9ec92602239b5a666d4c1c1198",
+              "source": "3787f8f306369fe0fca3616533147d7f3dba05fe",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": [
+                "file:sha256:47cd4fa815fc92b878bfd289c2ac715eb9324a9307481f18ed2ae21b49ff14b3"
+              ],
+              "outputs": [
+                "evidence:sha256:78ced8511634fa3703c6a04d90674eed49c7b34c408e39d6012d8534df95c97f"
+              ],
+              "wall_ns": 4758470300,
+              "phases": [
+                {
+                  "phase": "generate",
+                  "duration_ns": 4236902800
+                },
+                {
+                  "phase": "test",
+                  "duration_ns": 4758470300
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": null,
+        "Gap": "",
+        "RepairOwner": ""
       },
       {
         "Model": "model:sha256:93128151b16fe85c49acc0d9f14e344fe23671e44bfbfc77bca9465af7f208de",

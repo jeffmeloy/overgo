@@ -903,7 +903,8 @@
             "recurrent-transcription-capability/do",
             "transcript-decode-honours-its-vocabulary/do",
             "nemotron-transcription-activation/do",
-            "speech-validation-state-recorded/do"
+            "speech-validation-state-recorded/do",
+            "fractale-generation-activation/do"
           ]
         }
       ]

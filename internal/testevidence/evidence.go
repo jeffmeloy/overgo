@@ -392,19 +392,14 @@ func VerifyGoTestEvidence(command, out string) error {
 	if err != nil {
 		return err
 	}
-	if len(reports) == 0 || len(targets) > 1 && len(targets) != len(reports) {
+	if len(reports) == 0 {
 		return fmt.Errorf("go test selectors require complete per-invocation evidence: targets=%d packages=%d", len(targets), len(reports))
 	}
-	for i, report := range reports {
-		target := targets[0]
-		if len(targets) > 1 {
-			target = targets[i]
-		}
-		if err := verifyTarget(target, report); err != nil {
-			return err
-		}
+	segments, err := goTestSegments(command)
+	if err != nil {
+		return err
 	}
-	return nil
+	return verifyInvocations(segments, reports)
 }
 
 func verifyTarget(target *runrecord.GoTestTarget, report GoTestReport) error {
@@ -507,4 +502,107 @@ func unavailable(out string) string {
 	default:
 		return ""
 	}
+}
+
+// goTestSegment is one go test invocation of a chained verifier: the packages
+// it names and the -run selector it declares, if any.
+type goTestSegment struct {
+	packages []string
+	target   *runrecord.GoTestTarget
+}
+
+// goTestSegments parses the go test invocations of a chained command in
+// order, each with its package arguments and its selector. A segment that is
+// not a go test invocation is auxiliary and yields no report. A verifier that
+// chains a targeted invocation with a broad one is judged invocation by
+// invocation: the selector answers for the reports its packages produced and
+// the broad invocation for its own, so an unselected invocation is not read
+// as the selector matching nothing.
+func goTestSegments(command string) ([]goTestSegment, error) {
+	var segments []goTestSegment
+	for segment := range strings.SplitSeq(command, "&&") {
+		trimmed := strings.TrimSpace(segment)
+		start := strings.Index(trimmed, "go test ")
+		if start < 0 {
+			continue
+		}
+		targets, err := runrecord.GoTestTargets(trimmed, false)
+		if err != nil {
+			return nil, err
+		}
+		if len(targets) > 1 {
+			return nil, fmt.Errorf("go test invocation declares %d -run selectors", len(targets))
+		}
+		item := goTestSegment{}
+		if len(targets) == 1 {
+			item.target = targets[0]
+		}
+		for token := range strings.FieldsSeq(trimmed[start+len("go test "):]) {
+			if arg, found := strings.CutPrefix(token, "./"); found {
+				item.packages = append(item.packages, arg)
+			}
+		}
+		segments = append(segments, item)
+	}
+	return segments, nil
+}
+
+// owns reports whether the segment's package arguments name a report's
+// package: the import path ends with the argument, or the segment names a
+// pattern or nothing this parser reads and so may own any package.
+func (segment goTestSegment) owns(pkg string) bool {
+	if len(segment.packages) == 0 {
+		return true
+	}
+	for _, arg := range segment.packages {
+		if strings.HasSuffix(arg, "/...") || pkg == arg || strings.HasSuffix(pkg, "/"+arg) {
+			return true
+		}
+	}
+	return false
+}
+
+// verifyInvocations pairs each package report with the invocation that ran it
+// and judges it by that invocation's contract: a selector must match a passing
+// test, a broad invocation must complete with a pass. Every invocation must
+// have produced a report.
+func verifyInvocations(segments []goTestSegment, reports []GoTestReport) error {
+	// Reports arrive in invocation order. A report stays with the current
+	// invocation until that invocation has one and this report is either a
+	// package it does not name or a package it already reported, which is
+	// the next invocation of the same package. Names guide the pairing but
+	// never refuse it: a file run reports as command-line-arguments.
+	seen := make([]bool, len(segments))
+	consumed := map[string]bool{}
+	index := 0
+	for _, report := range reports {
+		pkg := ""
+		for name := range report.packages {
+			pkg = name
+		}
+		if index+1 < len(segments) && seen[index] && (!segments[index].owns(pkg) || consumed[pkg]) {
+			index++
+			consumed = map[string]bool{}
+		}
+		seen[index] = true
+		consumed[pkg] = true
+		if target := segments[index].target; target != nil {
+			if err := verifyTarget(target, report); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := RequireComplete(report); err != nil {
+			return err
+		}
+		if report.PassedTests == 0 {
+			return fmt.Errorf("go test invocation for %s executed no passing test", pkg)
+		}
+	}
+	for position, ran := range seen {
+		if !ran {
+			return fmt.Errorf("go test selectors require complete per-invocation evidence: invocation %d produced no report", position+1)
+		}
+	}
+	return nil
 }

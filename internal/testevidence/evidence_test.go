@@ -292,3 +292,33 @@ func TestFailureSummary(t *testing.T) {
 		t.Fatalf("failure summary = %q", got)
 	}
 }
+
+// TestVerifyGoTestEvidencePairsSelectorsPerInvocation holds a chained
+// verifier to being judged invocation by invocation: the targeted invocation
+// answers for its packages' reports and the broad one for its own, an
+// auxiliary command between them yields nothing, and each invocation must
+// have produced a report that meets its own contract.
+func TestVerifyGoTestEvidencePairsSelectorsPerInvocation(t *testing.T) {
+	command := "OVERGO_DATA_ROOT=C:/root go test ./cmd/x -run '^TestOne$' -count=1 && go test ./internal/y -count=1 && go run ./cmd/lane -diagnostic"
+	targeted := "{\"Action\":\"start\",\"Package\":\"overgo/cmd/x\"}\n" +
+		"{\"Action\":\"run\",\"Package\":\"overgo/cmd/x\",\"Test\":\"TestOne\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"overgo/cmd/x\",\"Test\":\"TestOne\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"overgo/cmd/x\"}\n"
+	broad := "{\"Action\":\"start\",\"Package\":\"overgo/internal/y\"}\n" +
+		"{\"Action\":\"run\",\"Package\":\"overgo/internal/y\",\"Test\":\"TestTwo\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"overgo/internal/y\",\"Test\":\"TestTwo\"}\n" +
+		"{\"Action\":\"pass\",\"Package\":\"overgo/internal/y\"}\n"
+	if err := VerifyGoTestEvidence(command, targeted+broad+"lane passed\n"); err != nil {
+		t.Fatal(err)
+	}
+	for name, out := range map[string]string{
+		"broad invocation skipped":   targeted + strings.ReplaceAll(broad, "\"pass\",\"Package\":\"overgo/internal/y\",\"Test\"", "\"skip\",\"Package\":\"overgo/internal/y\",\"Test\""),
+		"selector matched nothing":   strings.ReplaceAll(targeted, "TestOne", "TestOther") + broad,
+		"broad invocation absent":    targeted,
+		"targeted invocation absent": broad,
+	} {
+		if err := VerifyGoTestEvidence(command, out+"lane passed\n"); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

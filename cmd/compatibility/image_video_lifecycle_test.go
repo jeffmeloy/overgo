@@ -3,10 +3,8 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,7 +12,6 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
-	"overgo/internal/gitauthority"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/testevidence"
@@ -23,12 +20,6 @@ import (
 )
 
 const imageVideoLifecycleSHA256 = "3c61e885b7c979140ffdcb8956e26836d9223cfd4dc3779ef8d137cc1e718159"
-
-type mediaLifecycleChange struct {
-	Before string `json:"before_sha256"`
-	After  string `json:"after_sha256"`
-	Reason string `json:"reason"`
-}
 
 type mediaLifecycleCheck struct {
 	Name     string      `json:"name"`
@@ -40,16 +31,16 @@ type mediaLifecycleCheck struct {
 }
 
 type mediaLifecycleBundle struct {
-	SurfaceReview artifact.ID                     `json:"source_size_review"`
-	Version       uint16                          `json:"version"`
-	Source        string                          `json:"source_base"`
-	Protocol      artifact.ID                     `json:"protocol"`
-	Patch         artifact.ID                     `json:"source_patch"`
-	Changes       map[string]mediaLifecycleChange `json:"source_changes"`
-	Checks        []mediaLifecycleCheck           `json:"checks"`
-	Failed        []artifact.ID                   `json:"failed_attempts"`
-	Harnesses     map[string]artifact.ID          `json:"test_sources"`
-	Scope         string                          `json:"scope"`
+	SurfaceReview artifact.ID                  `json:"source_size_review"`
+	Version       uint16                       `json:"version"`
+	Source        string                       `json:"source_base"`
+	Protocol      artifact.ID                  `json:"protocol"`
+	Patch         artifact.ID                  `json:"source_patch"`
+	Changes       map[string]mediaSourceChange `json:"source_changes"`
+	Checks        []mediaLifecycleCheck        `json:"checks"`
+	Failed        []artifact.ID                `json:"failed_attempts"`
+	Harnesses     map[string]artifact.ID       `json:"test_sources"`
+	Scope         string                       `json:"scope"`
 }
 
 func readMediaLifecycleBundle(root string) (mediaLifecycleBundle, error) {
@@ -69,72 +60,6 @@ func mediaLifecycleProductionPath(path string) bool {
 	return !strings.HasSuffix(path, "_test.go") && (strings.HasSuffix(path, ".go") || strings.HasSuffix(path, ".cu") || strings.HasSuffix(path, ".cuh") || path == "kernels/manifest.json" || path == "go.mod" || path == "go.sum")
 }
 
-// Reconcile only the complete, frozen lifecycle patch. Prior acquisitions retain
-// their original revisions and numerical scope; later source edits need new proof.
-func checkMediaLifecycleSource(root, revision string, paths []string) (string, error) {
-	base, prior := checkMediaLifecyclePatch(root, revision, paths)
-	if prior == nil {
-		return base, nil
-	}
-	timingBase, err := checkMediaTimingSource(root, revision, paths)
-	if err != nil {
-		return "", errors.Join(prior, err)
-	}
-	return checkMediaLifecyclePatch(root, timingBase, paths)
-}
-
-func checkMediaLifecyclePatch(root, revision string, paths []string) (string, error) {
-	bundle, err := readMediaLifecycleBundle(root)
-	if err != nil {
-		return "", err
-	}
-	if !gitauthority.ValidObjectID(bundle.Source) || len(bundle.Changes) == 0 {
-		return "", errors.New("missing lifecycle source closure")
-	}
-	git := func(args ...string) ([]byte, error) {
-		command := exec.Command("git", args...)
-		command.Dir = root
-		return command.Output()
-	}
-	changed, err := mediaRuntimeChanges(root, bundle.Source, revision, paths)
-	if err != nil {
-		return "", err
-	}
-	for _, path := range changed {
-		if _, found := bundle.Changes[path]; !found {
-			return "", fmt.Errorf("unreconciled lifecycle source: %s", path)
-		}
-	}
-	for path, change := range bundle.Changes {
-		included := false
-		for _, scope := range paths {
-			included = included || path == scope || strings.HasPrefix(path, strings.TrimSuffix(scope, "/")+"/")
-		}
-		if !included {
-			continue
-		}
-		before, err := git("show", bundle.Source+":"+path)
-		if change.Before == "" {
-			if err == nil {
-				return "", fmt.Errorf("lifecycle addition already exists: %s", path)
-			}
-		} else if err != nil || fmt.Sprintf("%x", sha256.Sum256(before)) != change.Before {
-			return "", fmt.Errorf("lifecycle prior source differs: %s", path)
-		}
-		var after []byte
-		if revision == "" {
-			after, err = os.ReadFile(filepath.Join(root, path))
-			after = []byte(strings.ReplaceAll(string(after), "\r\n", "\n"))
-		} else {
-			after, err = git("show", revision+":"+path)
-		}
-		if err != nil || fmt.Sprintf("%x", sha256.Sum256(after)) != change.After {
-			return "", fmt.Errorf("lifecycle current source differs: %s", path)
-		}
-	}
-	return bundle.Source, nil
-}
-
 func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -152,9 +77,20 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {
 		t.Fatal(err)
 	}
-	paths := append(slices.Clone(merged.RuntimePaths), "internal/workflowruntime", "cmd/dit-train-probe")
-	if _, err := checkMediaLifecycleSource(root, "", paths); err != nil {
+	// The bundle's patch is one delta of the reviewed chain, read from this
+	// document; the chain must explain the lifecycle workflow's own sources.
+	registry, err := loadMediaDeltaRegistry(root)
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !slices.ContainsFunc(registry.Deltas, func(delta mediaReviewedDelta) bool {
+		return delta.Receipt == mediaReceiptDocument && delta.Evidence == "docs/image_video_lifecycle.json" && delta.EvidenceSHA256 == imageVideoLifecycleSHA256
+	}) {
+		t.Fatal("the lifecycle patch is not a reviewed delta")
+	}
+	paths := append(slices.Clone(merged.RuntimePaths), "internal/workflowruntime", "cmd/dit-train-probe")
+	if unreviewed, err := mediaUnreviewedChanges(root, registry, "", paths); err != nil || len(unreviewed) != 0 {
+		t.Fatal("lifecycle sources exceed the reviewed chain", unreviewed, err)
 	}
 	roots, err := dataroot.Resolve(root)
 	if err != nil {

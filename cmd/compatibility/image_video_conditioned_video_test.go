@@ -175,8 +175,12 @@ func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fmt.Sprintf("%x", sha256.Sum256([]byte(strings.ReplaceAll(string(working), "\r\n", "\n")))) != fix.After {
-		if _, err := checkMediaLifecycleSource(root, "", []string{fix.Path}); err != nil {
-			t.Fatal("current production correction differs", err)
+		registry, err := loadMediaDeltaRegistry(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if unreviewed, err := mediaUnreviewedChanges(root, registry, "", []string{fix.Path}); err != nil || len(unreviewed) != 0 {
+			t.Fatal("current production correction differs", unreviewed, err)
 		}
 		lifecycle, err := readMediaLifecycleBundle(root)
 		if err != nil || lifecycle.Changes[fix.Path].Before != fix.After {

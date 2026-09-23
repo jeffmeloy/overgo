@@ -1,9 +1,7 @@
 package gate
 
 import (
-	"encoding/json"
 	"go/ast"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,18 +13,12 @@ import (
 // exclusion while its own guard reads the environment. Such a skip is
 // classified only when the run is short, so in a complete run it leaves its
 // package incomplete and the package earns no receipt at all.
-func skipReasonSites(snapshot repoanalysis.SourceSnapshot, pinned []string) ([]string, error) {
+func skipReasonSites(snapshot repoanalysis.SourceSnapshot) ([]string, error) {
 	var sites []string
 	for _, file := range snapshot.Files {
+		// A test file never moves the pinned media runtime identity, so one
+		// under a pinned path is held to the rule like any other.
 		if !file.Test {
-			continue
-		}
-		// A file under a pinned media runtime path is left as it is: naming
-		// its reason would move the runtime identity and cost a reviewed
-		// reconciliation layer, which is a price to pay deliberately and not
-		// as a side effect of a skip message. Row store-open-lineage-cost's
-		// sibling finding records what those files still owe.
-		if len(movedRuntimePaths([]string{file.Path}, pinned)) != 0 {
 			continue
 		}
 		syntax, err := file.Syntax()
@@ -156,15 +148,7 @@ func TestIntegrationSkipReasonNamesItsGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(mediaMergedDocument)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var pins mediaRuntimePins
-	if err := json.Unmarshal(data, &pins); err != nil {
-		t.Fatal(err)
-	}
-	sites, err := skipReasonSites(snapshot, pins.RuntimePaths)
+	sites, err := skipReasonSites(snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

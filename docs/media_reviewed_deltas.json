@@ -1,0 +1,269 @@
+{
+  "base": "23e0128b16654d64925c2fbd72af30a79fe82bce",
+  "deltas": [
+    {
+      "evidence": "docs/image_video_conditioned_videos.json",
+      "evidence_sha256": "35dfb03e6fc433e4c3b04ddbedcc85cfe46e4513d21f4e0e1dc74e81c3086589",
+      "id": "liveedit-pixel-range",
+      "receipt": "document",
+      "required_tests": {
+        "overgo/cmd/compatibility": [
+          "TestImageVideoConditionedVideoAcceptance"
+        ]
+      },
+      "scope": "The LiveEdit signed-unit encoder repair declared by the conditioned-video bundle's pixel_range_correction: one argument of one production file, reconstructed from the same retained raw frames. The bundle and its acceptance bind the correction; its change is read from the bundle, not copied."
+    },
+    {
+      "evidence": "docs/image_video_lifecycle.json",
+      "evidence_sha256": "3c61e885b7c979140ffdcb8956e26836d9223cfd4dc3779ef8d137cc1e718159",
+      "id": "lifecycle",
+      "receipt": "document",
+      "required_tests": {
+        "overgo/cmd/compatibility": [
+          "TestImageVideoLifecycleAcceptance"
+        ]
+      },
+      "scope": "The frozen lifecycle patch: cooperative request cancellation, exact recovery and bounded resource ownership across the media backends. Its source_changes, per-check acquisitions and failed attempts are bound by the lifecycle bundle and its acceptance; its changes are read from the bundle, not copied."
+    },
+    {
+      "changes": {
+        "internal/hostmath/dispatch.go": {
+          "after_sha256": "7cb42dbb622322c9a38344613c4c52ae236f323729b757fcee7fa837bd2b9f3f",
+          "before_sha256": "627c76fda7584f1c87f6203dc302ecf8e4d7d6e13de2adf6f9b6f35c720e5100",
+          "reason": "Dispatch timing reads the shared counter in place of wall time; scheduling and every accumulation order are unchanged, so serial, parallel and failed results are identical."
+        },
+        "internal/processmeasure/measure.go": {
+          "after_sha256": "7490b6b9b2d6bbce3ff29d236d4402b54df1f18ad75ae72681666801c174ea9f",
+          "before_sha256": "6bef81a1e9c70c48cc79b8638c588b2cc93149bb78041c2d96bfb869973fa777",
+          "reason": "Recorded durations measure through the shared stopwatch; no generation path reads them."
+        },
+        "internal/processmeasure/peak_other.go": {
+          "after_sha256": "6b33951861c73b5af23ce59c737c199f116d2b2e240e3f569a9b754de02570ed",
+          "before_sha256": "118cb9032df5d4196a7e6c167b5cc93ce55a1ce362a3fb37418a185777e0d126",
+          "reason": "Peak sampling follows the shared counter; measurement only."
+        },
+        "internal/processmeasure/peak_windows.go": {
+          "after_sha256": "7388c6a2cacb8f71f6c94f1c30c010bd7764d33be0e8d98516044dd24cf5b4e6",
+          "before_sha256": "241e0dec604dbeecb13d0313d675ee468ea1cf698be4dad14fafd70f36c72ae2",
+          "reason": "Peak sampling follows the shared counter; measurement only."
+        },
+        "internal/processmeasure/stopwatch.go": {
+          "after_sha256": "1abc7e3189cb567eaa8c19182d278b2505ba74d8387177cb0ee5b3e515878a56",
+          "before_sha256": "",
+          "reason": "Added shared counter stopwatch, the one owner of recorded durations."
+        },
+        "internal/workflowruntime/remote_adapter.go": {
+          "after_sha256": "192fc8457a7c68ff27c83973c5db45d6bb1e372b2618575550e43d6030deaa73",
+          "before_sha256": "8c9bb365df0a51cf4465420abc384821e903c6e5553c1e129f0313f1532d296e",
+          "reason": "Remote stages observe completed or recovered receipts and time through the shared counter; stage lineage and artifact identity are unchanged."
+        },
+        "internal/workflowruntime/runtime.go": {
+          "after_sha256": "82ce76537a35f9f6d3cc8cfa7530b1077c01ff7ea1b474a264168f7c86dd6545",
+          "before_sha256": "b62dbe325b7c4f62a856e836694e74eccb993f36990fbe0b671953024b041300",
+          "reason": "Completed stages publish durably before waiting for siblings; what a workflow runs and writes is unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:a3297f0ec6c0b97d641b07b98c96285642f23b78e36f7f3cb8741c63aaef196b",
+      "id": "timing",
+      "receipt": "source-bound-go-test",
+      "required_tests": {
+        "overgo/internal/hostmath": [
+          "TestDispatchSchedulingPreservesResults"
+        ],
+        "overgo/internal/processmeasure": [
+          "TestStopwatchReadsCounter",
+          "TestStopwatchRetainsFailure"
+        ],
+        "overgo/internal/workflowruntime": [
+          "TestRuntimePublishesCancelledRun",
+          "TestWorkflowRestartSkipsCompletedStages",
+          "TestCancellationCauseReachesTerminalReceipt",
+          "TestStageProgressPrecedesSiblingCompletion",
+          "TestRemoteStageAttemptLineage",
+          "TestRemoteCancellation",
+          "TestRemoteArtifactIdentity"
+        ]
+      },
+      "scope": "Lifecycle-to-current delta: 674f096e publishes completed workflow stages durably before waiting for siblings and observes completed or recovered receipts; 5489d961 replaces wall timing with the shared counter. Kernels, accumulation order, model dimensions and media output contracts are unchanged. The source-bound receipt re-observes local and remote cancellation, restart, cancellation-cause retention, remote lineage and artifact identity, durable progress and exact serial/parallel/failed-counter numerical output at its source commit. Historical elapsed, throughput, device lifecycle and resource observations keep their original source and are not current performance claims.",
+      "source": "5489d961e06ef4d3d0364797dbbcfffeccd9210b"
+    },
+    {
+      "changes": {
+        "internal/cuda/executor/executor.go": {
+          "after_sha256": "8c85f0abb1de9ce95160122f138010c9c3187a554ecd2da063f4fe4d0f2c9bd9",
+          "before_sha256": "26b3df89f37537916c51cc57bf6b1e08b2ec09c7413d2b3fb40ffd8225f98854",
+          "reason": "The multi-axis RoPE runtime-override check also compares layout and interleaved sections; the change lies inside the OpRoPEMulti arm, which no media consumer reaches."
+        },
+        "internal/cuda/executor/kernel_bindings_generated.go": {
+          "after_sha256": "c19687ffe785191c456315bb5e61948693007ea871d686265a800f80b28d7139",
+          "before_sha256": "a5baaab75d84b786f1746c585edd7798814bdcace4ec2cef7dade258c861e88f",
+          "reason": "rope_multi_f32's argument count grows by the interleaved-section and pairing parameters; every other binding is unchanged."
+        },
+        "internal/cuda/executor/launch_rope.go": {
+          "after_sha256": "75ebb4c0e3a019566c772c2499c79e0141a2e6c121ea50fd2c29ae185a306391",
+          "before_sha256": "924c44e0edc798593519fdb1ca50271a74dcff574f905f6c78e7ccc00a60f6d0",
+          "reason": "The multi-axis launch passes interleaved sections and channel pairing to rope_multi_f32; the single-axis launch is unchanged."
+        },
+        "internal/cuda/kernel/manifest_generated.go": {
+          "after_sha256": "b87df6fc81c0ea59180016d9e6c8db8f0b4d29ec77abb69fbe2d6b1151fb0d0b",
+          "before_sha256": "432d50b8518fc989447c74c9f0376ec2004366a9936450b9777e032288500265",
+          "reason": "Bundle ABI version and the ops_f32 module pin follow the rebuilt module."
+        },
+        "internal/tensor/builder_rope.go": {
+          "after_sha256": "a649130874ea217375d5122bdc7caa70be9659eb2e105fd8f3477e41ffef293c",
+          "before_sha256": "10ce91288255621ed1f33e1f08cc3679557f3095cd3ff61ba03b118ccc517886",
+          "reason": "RoPEOptions gains multi-axis positions, sections and interleaving, routed to the multi-axis op behind the MultiPositions guard no media consumer reaches."
+        },
+        "internal/tensor/reference/ops_rope.go": {
+          "after_sha256": "0a637432bc080f7b1f428db0ae8e56dea1aa5eeea06e503b055b17ac7827a31f",
+          "before_sha256": "f78a056799dca51b1f3963e9407c8ecf46387d7442fc5422cebafd2c3fac59c6",
+          "reason": "The multi-axis reference honours interleaved sections and channel pairing; the single-axis reference is unchanged."
+        },
+        "internal/tensor/tensor.go": {
+          "after_sha256": "dcfac4215b4792a3eca2e8a147e8b1d65312891c13e223548f5534d64d74551a",
+          "before_sha256": "2d73e76a9d6e60f617a4e093b99085a4411f7000eb5587b00638aac2e7b41cc7",
+          "reason": "RoPEMultiAttributes gains layout and interleaved-section fields; every other attribute type is unchanged."
+        },
+        "kernels/cuda/ops_f32.cu": {
+          "after_sha256": "9cedbd820445c039af7976522a7acfbeee2dee6437483596948cc09f0d5db2a5",
+          "before_sha256": "ed887307fea34b02b30c56d23a0694a38f1116e586471915254da505afac70ed",
+          "reason": "rope_multi_f32 gains interleaved sections and channel pairing; no other kernel's source changed."
+        },
+        "kernels/manifest.json": {
+          "after_sha256": "ab45cb00c45cab5c1ec2b547ea9ba2d8ef1d63454af83b5b4b0f90903b8b60ab",
+          "before_sha256": "0b9c5fec09f085ec94aaa31fea76b5b82ec472a4f32236fa2be4975dfa780957",
+          "reason": "rope_multi_f32's argument layout and the module's asset hashes follow the rebuilt kernel; every other layout is unchanged."
+        }
+      },
+      "id": "rotary",
+      "receipt": "rotary-ast",
+      "required_tests": {
+        "overgo/cmd/compatibility": [
+          "TestMediaRotarySourceIsolation"
+        ]
+      },
+      "scope": "The interleaved multimodal rotary landing: multi-axis RoPE gains interleaved sections and channel pairing through its options, attributes, kernel, bindings and manifest. The syntax proof erases exactly the multi-axis surface and finds every other byte of the bound sources equal, and every media rotary consumer single-axis, so every media generation computes as before.",
+      "source": "7abbfa4e29c343f897e56f8eb167c19e0ccae1d4"
+    },
+    {
+      "changes": {
+        "internal/cuda/executor/executor.go": {
+          "after_sha256": "11ce180ce820178c4f6023e9b4899e087f7bb86ffa2886aa4312fbb0387d862c",
+          "before_sha256": "8c85f0abb1de9ce95160122f138010c9c3187a554ecd2da063f4fe4d0f2c9bd9",
+          "reason": "device-memory-retention adds read-only ExecutionMetrics device-byte accounting fields and a pool-accounting read in Metrics(); no execution or allocation path changes, so generation output is unchanged."
+        },
+        "internal/hostmath/hostmath.go": {
+          "after_sha256": "85129c7ac0df1ae890d26ea7b233811c97dc832a60aeec838ec090dedc6d020f",
+          "before_sha256": "0afdd492d482e5c3bee080df29dc273d7cec36a652035582ec53afcd4e92dbf3",
+          "reason": "linearCols iterates output columns outermost so each weight row streams once against every input row while inputs stay cached; the inner dot keeps the ascending serial accumulation order, so every result is bit-identical."
+        }
+      },
+      "evidence": "evidence:sha256:4361d31522dadff1a3f71814237f7ffdbeaaae9ed878050a526f971170a1ba08",
+      "id": "executor-hostmath",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/hostmath": [
+          "TestLinearBF16MatchesPromotedLinear",
+          "TestLinearBF16BackwardInput",
+          "TestLinearBackwardWeightOnly",
+          "TestLinearGradientKernelsMatchLinearBackward"
+        ],
+        "overgo/internal/sensenovarecipe": [
+          "TestSenseNovaVariableRequestResources"
+        ]
+      },
+      "scope": "executor.go adds device-byte attribution to ExecutionMetrics; hostmath.go reorders the serial host Linear kernel preserving accumulation order. Both leave every image and video generation output byte-identical; the receipt re-observes the hostmath Linear kernels and the SenseNova native device-resource acquisition."
+    },
+    {
+      "changes": {
+        "internal/workflowruntime/automation.go": {
+          "after_sha256": "525f8866182e756546e803d03df2d1328aaba617318ddd17be3a3df0c31c94b1",
+          "before_sha256": "b912ca83cc1a8aa3a9d035f6fe16446cd3861ecd1661e37527f2136d42e19a48",
+          "reason": "The automation plan's commit is routed through artifact.Publish, the one owner of an idempotent commit, in place of an inline CommitBatch that swallowed artifact.ErrNoChange itself; the same batch is committed and a repeat is still success, so what a workflow writes and every generation it runs are unchanged."
+        },
+        "internal/workflowruntime/runtime.go": {
+          "after_sha256": "49caf5e79a9278b4619fe5094646453fc7f58b6d0165a031ec8d6f10eff442c4",
+          "before_sha256": "82ce76537a35f9f6d3cc8cfa7530b1077c01ff7ea1b474a264168f7c86dd6545",
+          "reason": "The publishExecutionAuthority wrapper, which only forwarded to publishExecutionAuthorityCausal with no cause, is removed as dead surface; no caller remains, so no behaviour changes."
+        }
+      },
+      "evidence": "evidence:sha256:497bd52fff5d2bb608546231a2edad623fce840f8e89db9b85ff4c12b08c7ac9",
+      "id": "workflowruntime",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/workflowruntime": [
+          "TestAutomationManualExecution",
+          "TestAutomationDeliveryIdempotency",
+          "TestAutomationRecovery",
+          "TestAutomationSchedule",
+          "TestAutomationCancellation"
+        ]
+      },
+      "scope": "Two harness landings under internal/workflowruntime: automation.go routes the plan commit through the idempotent-commit owner, runtime.go loses a dead forwarding wrapper. Neither is on an image or video generation path; the package is in scope because the lifecycle workflow runs through it. The receipt is the package's own suite."
+    },
+    {
+      "changes": {
+        "internal/cuda/executor/kernel_bindings_generated.go": {
+          "after_sha256": "602b3033e5114c4d33d22c72ca87458e800df9ec34c7ce570b0471b15e3dcb99",
+          "before_sha256": "c19687ffe785191c456315bb5e61948693007ea871d686265a800f80b28d7139",
+          "reason": "Generated from kernels/manifest.json: one binding constant added for dequant_rows_q1_0_f16; every existing binding keeps its name and argument layout."
+        },
+        "internal/cuda/executor/launch_linear_layout.go": {
+          "after_sha256": "89912fb69a18eadd80d736a416572190e4321f3567730dd36fecf23011d2d9e9",
+          "before_sha256": "e35d72686bdf064314561cbd5acf55ced039e5c20cb2cd5cc1801936f66b6b3c",
+          "reason": "quantStagedKernels gains the Q1_0 entry, so a Q1_0 weight past the column floor prefills through f16 staging and the tensor-core GEMM; the table is consulted only for quantised left operands and no media model carries a Q1_0 tensor, so every image and video product takes the path it took."
+        },
+        "internal/cuda/kernel/manifest_generated.go": {
+          "after_sha256": "c4680bbbce4064cde7de15f43a9acb7c4ace44f9f69fb5ee2cde921f0125c666",
+          "before_sha256": "b87df6fc81c0ea59180016d9e6c8db8f0b4d29ec77abb69fbe2d6b1151fb0d0b",
+          "reason": "The embedded ops_f32.ptx pin follows the rebuilt module that carries the added kernel."
+        },
+        "kernels/cuda/ops_f32.cu": {
+          "after_sha256": "450191322d09bb1b028d44fb1911a469e81efe17e4d912989c31ae5272ee3838",
+          "before_sha256": "9cedbd820445c039af7976522a7acfbeee2dee6437483596948cc09f0d5db2a5",
+          "reason": "One kernel added, dequant_rows_q1_0_f16, expanding a 128-wide Q1_0 block of one f16 scale and 128 sign bits to f16 rows; no existing kernel's source changed."
+        },
+        "kernels/manifest.json": {
+          "after_sha256": "8863487fdfdc0b8ed982551d4ab0e00c5cae1d0d3ea1ca92320b3200abf44cc0",
+          "before_sha256": "ab45cb00c45cab5c1ec2b547ea9ba2d8ef1d63454af83b5b4b0f90903b8b60ab",
+          "reason": "The module's function list and rebuilt-asset hashes carry the added kernel; the argument layouts of every existing entry are unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:d9a3229ded7a6b79ccf59a0136f54fc7b241fa889b949c204b04d2290d99cd8b",
+      "id": "q10prefill",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/executor": [
+          "TestExecutorQuantizedTensorCoreMulMatMatchesReference",
+          "TestExecutorF16MulMatMatchesReference",
+          "TestExecutorBF16MulMatMatchesReference",
+          "TestExecutorF16NativeTensorCoreMulMatMatchesRoundedReference",
+          "TestExecutorBF16TensorCoreMulMatMatchesRoundedReference"
+        ]
+      },
+      "scope": "The Q1_0 staged-prefill landing: one dequantise-rows kernel added for Q1_0 with its manifest and generated-binding entries, and the staged table admitting Q1_0. The added path runs only for a quantised Q1_0 left operand and no media model carries a Q1_0 tensor, so every generation product is computed by the same kernels as before. The receipt is the executor suite re-run on the device, naming the F16, BF16 and quantised GEMM parity tests the media paths share."
+    }
+  ],
+  "paths": [
+    "go.mod",
+    "go.sum",
+    "internal/latentvideo",
+    "internal/latentimage",
+    "internal/diffusionimage",
+    "internal/oscillatorimage",
+    "internal/sensenovarecipe",
+    "internal/routedlm",
+    "internal/cuda",
+    "internal/devicemath",
+    "internal/hostmath",
+    "internal/graphruntime",
+    "internal/media",
+    "internal/safetensors",
+    "internal/tensor",
+    "kernels",
+    "internal/processmeasure",
+    "internal/workflowruntime",
+    "cmd/dit-train-probe"
+  ],
+  "version": 1
+}

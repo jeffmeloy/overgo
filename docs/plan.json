@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "reviewed-delta-registry",
-      "title": "Replace per-change media reconciliation layers with one reviewed delta registry",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Replace per-change media reconciliation layers with one reviewed delta registry",
-          "status": "open",
-          "verify": "test -f cmd/compatibility/reviewed_delta_registry_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestReviewedDeltaRegistry' -count=1",
-          "rationale": "One output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels. Makes output-neutral edits to pinned media paths cheap."
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",

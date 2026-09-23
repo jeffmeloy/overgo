@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "closure-reconcile-single-command",
-      "title": "Retire closure decisions whose code was removed without a hand-run step: since preflight-rebinds-closure-drift (d6202e6e) drift needs no hand rebind and a new literal is catalogued by one -catalog command, but a decision left unmatched after the rebind -- its literal deleted or moved into a helper, as on the activity-detection row -- still needs a separate closure-scan -retire-unmatched run before the gate passes. Make the gate's remediation retire an unmatched decision only when no candidate in its file carries its value, so a reviewed understanding is never discarded for a literal that still exists",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire closure decisions whose code was removed without a hand-run step: since preflight-rebinds-closure-drift (d6202e6e) drift needs no hand rebind and a new literal is catalogued by one -catalog command, but a decision left unmatched after the rebind -- its literal deleted or moved into a helper, as on the activity-detection row -- still needs a separate closure-scan -retire-unmatched run before the gate passes. Make the gate's remediation retire an unmatched decision only when no candidate in its file carries its value, so a reviewed understanding is never discarded for a literal that still exists",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestRemediationRetiresRemovedClosureCode$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "gate-telemetry-size",
       "title": "Write gate telemetry at the size its readers use (store assessment 2026-09-22, seq 52976): gate-selection-cause holds 107 MB over 270 gates, about 400 KB each, and gate-suite-cost 44 MB over 220, yet neither is read by any gate decision -- only by plan -history -phases and the optimization review. Record selection causes as the per-gate histogram that history reads plus the packages selected under uncertainty, and give both schemas a telemetry class with a horizon of recent gates. Telemetry is not a derived cache: git cannot recompute it, so it gets its own horizon in internal/storepolicy rather than joining the cache list.",
       "owner": "master-lead",

@@ -1468,15 +1468,15 @@ func (g *gateContext) stepMagics() (bool, error) {
 	}
 	report, err := closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
 	if err != nil && g.preflight && staleClosureAuthorityFailure(err) {
-		// Judge the drift the gate would rebind as rebound, so only literals
-		// no decision covers stop the preflight.
-		rebound, reboundAliases, moved, projectErr := projectedMagicBindings(snapshot, documents, aliases)
+		// Judge the drift and the removed code the gate would repair as
+		// repaired, so only literals no decision covers stop the preflight.
+		projection, projectErr := projectedMagicBindings(snapshot, documents, aliases)
 		if projectErr != nil {
 			return false, errors.Join(err, projectErr)
 		}
-		if moved != 0 {
-			report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, rebound, reboundAliases)
-			g.note(fmt.Sprintf("preflight: %d closure decision(s) moved offset; the gate rebinds them", moved))
+		if projection.moved != 0 || len(projection.removed) != 0 {
+			report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, projection.documents, projection.aliases)
+			g.note(fmt.Sprintf("preflight: %d closure decision(s) moved offset and %d lost their code; the gate rebinds and retires them", projection.moved, len(projection.removed)))
 		}
 	}
 	uncatalogued, isUncatalogued := errors.AsType[*closurescan.UncataloguedPolicyError](err)
@@ -1495,6 +1495,9 @@ func (g *gateContext) stepMagics() (bool, error) {
 			return false, err
 		}
 		report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+		if err != nil && staleClosureAuthorityFailure(err) && !g.preflight {
+			report, err = g.retireRemovedClosures(snapshot, documents, aliases, report, err)
+		}
 		uncatalogued, isUncatalogued = errors.AsType[*closurescan.UncataloguedPolicyError](err)
 	}
 	if err != nil {
@@ -1592,19 +1595,50 @@ func (g *gateContext) remediateStaleClosureBindings() error {
 	if g.preflight {
 		return fmt.Errorf("preflight: repair required; run `go run ./cmd/closure-scan -import-store %s` outside preflight", g.storePath)
 	}
+	return g.runClosureImport("rebind")
+}
+
+// retireRemovedClosures retires, after the rebind, the decisions whose code is
+// gone and revalidates once. It retires nothing while any unmatched decision's
+// value survives in its file: that one a person judges, and the refusal names
+// it rather than discarding a reviewed understanding.
+func (g *gateContext) retireRemovedClosures(snapshot repoanalysis.SourceSnapshot, documents []closureledger.Document, aliases map[string]artifact.ID, report closurescan.AuthorityReport, err error) (closurescan.AuthorityReport, error) {
+	projection, projectErr := projectedMagicBindings(snapshot, documents, aliases)
+	switch {
+	case projectErr != nil:
+		return report, errors.Join(err, projectErr)
+	case len(projection.kept) != 0:
+		return report, fmt.Errorf("%w; closure decision(s) %s match nothing but their value survives in their file; judge them by hand", err, strings.Join(projection.kept, ","))
+	case len(projection.removed) == 0:
+		return report, err
+	}
+	if retireErr := g.runClosureImport("retirement", "-retire-unmatched"); retireErr != nil {
+		return report, errors.Join(err, retireErr)
+	}
+	documents, aliases, err = activeMagicBindings(g.repo, g.storePath)
+	if err != nil {
+		return report, err
+	}
+	return closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+}
+
+// runClosureImport runs the same-store closure import with the given repair
+// flags and records its receipt.
+func (g *gateContext) runClosureImport(repair string, flags ...string) error {
 	started := processmeasure.NewStopwatch()
 	storePath := filepath.Join(g.repo, g.storePath)
-	out, err := g.runGateCommand(g.sourceRoot(), "go", "run", "./cmd/closure-scan", "-store", storePath, "-import-store", storePath)
+	arguments := append([]string{"run", "./cmd/closure-scan", "-store", storePath, "-import-store", storePath}, flags...)
+	out, err := g.runGateCommand(g.sourceRoot(), "go", arguments...)
 	if err != nil {
-		return fmt.Errorf("gate: closure rebind remediation: %w", err)
+		return fmt.Errorf("gate: closure %s remediation: %w", repair, err)
 	}
 	wall, err := started.Elapsed()
 	if err != nil {
 		return err
 	}
 	g.note(fmt.Sprintf(
-		"remediation: closure rebind applied (%s) wall=%dms",
-		strings.TrimSpace(out), wall/uint64(time.Millisecond),
+		"remediation: closure %s applied (%s) wall=%dms",
+		repair, strings.TrimSpace(out), wall/uint64(time.Millisecond),
 	))
 	return nil
 }

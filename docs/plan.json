@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-harness-surface-remainder",
-      "title": "Net the harness surface back to its pre-session baseline",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Net the harness surface back to its pre-session baseline",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceAtPreSessionBaseline' -count=1",
-          "rationale": "Baseline 181,732 production nodes (182,150 after the dead-code paydown). Pays for dinov2-embedding-capability's +7. Simplify live control-plane code, starting with the optimization review reading the completion authority's resolved evidence instead of its own trailer walk. Admission refuses the row unless its production AST is net-negative."
-        }
-      ]
-    },
-    {
       "id": "surface-move-preflight",
       "title": "Refuse a surface move whose reconciliation is not in the same commit",
       "owner": "master-lead",

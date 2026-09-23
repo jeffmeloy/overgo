@@ -9,6 +9,7 @@ import (
 // fakeRowWorld scripts each step's answer and records the order of calls.
 type fakeRowWorld struct {
 	claim, preflight, gate, lanes string
+	report                        *laneReport
 	landedErr                     error
 	pending                       []string
 	calls                         []string
@@ -34,9 +35,9 @@ func (w *fakeRowWorld) Landed(string) (string, error) {
 	return "0123456789abcdef0123456789abcdef01234567", w.landedErr
 }
 
-func (w *fakeRowWorld) AwaitLanes() (string, error) {
+func (w *fakeRowWorld) AwaitLanes() (*laneReport, string, error) {
 	w.calls = append(w.calls, phaseLanes)
-	return w.lanes, nil
+	return w.report, w.lanes, nil
 }
 
 func (w *fakeRowWorld) PendingReview() ([]string, error) {

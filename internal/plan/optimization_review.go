@@ -243,35 +243,11 @@ func SurfaceMoveCandidates(before, after []byte, commit string) ([]OptimizationC
 // or whose successful attempt the store does not hold, yields none: the
 // completion authority judges that, not the review.
 func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, repository, revision string) ([]OptimizationCandidate, error) {
-	if store == nil {
-		return nil, errors.New("plan: optimization review requires the store")
-	}
-	repository, commit, err := resolveCompletionRevision(ctx, repository, revision)
-	if err != nil {
+	landed, found, err := readLandedCompletion(ctx, store, repository, revision)
+	if err != nil || !found {
 		return nil, err
 	}
-	message, err := gitauthority.Query(ctx, repository, "log", "-1", "--format=%B", "--end-of-options", commit)
-	if err != nil {
-		return nil, err
-	}
-	trailers, hasCompletion, err := parseCompletionTrailers(string(message))
-	if err != nil {
-		return nil, fmt.Errorf("plan: optimization review of %.12s: %w", commit, err)
-	}
-	if !hasCompletion || !trailers.preparation.Valid() {
-		return nil, nil
-	}
-	attempts, err := runrecord.AttemptsForPreparation(ctx, store, trailers.preparation)
-	if err != nil {
-		return nil, err
-	}
-	index := slices.IndexFunc(attempts, func(attempt runrecord.AttemptRecord) bool {
-		return attempt.CodeCommit == commit && attempt.Outcome == runrecord.OutcomeSucceeded
-	})
-	if index < 0 {
-		return nil, nil
-	}
-	attempt := attempts[index]
+	repository, commit, attempt := landed.repository, landed.commit, landed.attempt
 	var candidates []OptimizationCandidate
 	children, err := store.Children(ctx, attempt.Result)
 	if err != nil {
@@ -294,7 +270,7 @@ func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, reposito
 		}
 		candidates = append(candidates, fromCost...)
 	}
-	growth, err := storeGrowthOfCompletion(ctx, store, trailers.preparation)
+	growth, err := storeGrowthOfCompletion(ctx, store, landed.preparation)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +285,60 @@ func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, reposito
 		candidates = append(candidates, moves...)
 	}
 	return candidates, nil
+}
+
+// landedCompletion is a completion commit and the successful gate attempt
+// that landed it.
+type landedCompletion struct {
+	repository, commit string
+	preparation        artifact.ID
+	attempt            runrecord.AttemptRecord
+}
+
+// readLandedCompletion resolves revision to the successful attempt of its
+// prepared completion; a revision that is not one, or whose attempt the
+// store does not hold, is not found.
+func readLandedCompletion(ctx context.Context, store *overgodb.Store, repository, revision string) (landedCompletion, bool, error) {
+	if store == nil {
+		return landedCompletion{}, false, errors.New("plan: a landed completion is read from the store")
+	}
+	repository, commit, err := resolveCompletionRevision(ctx, repository, revision)
+	if err != nil {
+		return landedCompletion{}, false, err
+	}
+	message, err := gitauthority.Query(ctx, repository, "log", "-1", "--format=%B", "--end-of-options", commit)
+	if err != nil {
+		return landedCompletion{}, false, err
+	}
+	trailers, hasCompletion, err := parseCompletionTrailers(string(message))
+	if err != nil {
+		return landedCompletion{}, false, fmt.Errorf("plan: landed completion %.12s: %w", commit, err)
+	}
+	if !hasCompletion || !trailers.preparation.Valid() {
+		return landedCompletion{}, false, nil
+	}
+	attempts, err := runrecord.AttemptsForPreparation(ctx, store, trailers.preparation)
+	if err != nil {
+		return landedCompletion{}, false, err
+	}
+	index := slices.IndexFunc(attempts, func(attempt runrecord.AttemptRecord) bool {
+		return attempt.CodeCommit == commit && attempt.Outcome == runrecord.OutcomeSucceeded
+	})
+	if index < 0 {
+		return landedCompletion{}, false, nil
+	}
+	return landedCompletion{repository: repository, commit: commit, preparation: trailers.preparation, attempt: attempts[index]}, true, nil
+}
+
+// LandedGateResult reads the gate result that landed revision, when revision
+// is a prepared completion whose successful attempt the store holds.
+func LandedGateResult(ctx context.Context, store *overgodb.Store, repository, revision string) (runrecord.GateResult, bool, error) {
+	landed, found, err := readLandedCompletion(ctx, store, repository, revision)
+	if err != nil || !found {
+		return runrecord.GateResult{}, false, err
+	}
+	result, err := runrecord.RequireGateResult(ctx, store, landed.attempt.Result)
+	return result, err == nil, err
 }
 
 // storeGrowthOfCompletion measures what the store gained between the gate's

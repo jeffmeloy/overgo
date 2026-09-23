@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-move-preflight",
-      "title": "Refuse a surface move whose reconciliation is not in the same commit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a surface move whose reconciliation is not in the same commit",
-          "status": "open",
-          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
-          "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
-        }
-      ]
-    },
-    {
       "id": "reviewed-delta-registry",
       "title": "Replace per-change media reconciliation layers with one reviewed delta registry",
       "owner": "master-lead",
@@ -63,21 +48,6 @@
           "depends_on": [
             "reviewed-delta-registry/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "generated-doc-write-under-readers",
-      "title": "Let generated-document writers wait out a concurrent mapped reader",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Let generated-document writers wait out a concurrent mapped reader",
-          "status": "open",
-          "verify": "go test ./internal/fsatomic -run '^TestWriteWaitsOnMappedReader' -count=1",
-          "rationale": "A background git status memory-maps dirty files on Windows and the compatibility repair then fails with a user-mapped-section sharing violation. Wait on that specific violation until the holder releases (no fixed timer); otherwise refuse and name the holder."
         }
       ]
     },
@@ -341,6 +311,21 @@
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
           "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store."
+        }
+      ]
+    },
+    {
+      "id": "surface-move-preflight",
+      "title": "Refuse a surface move whose reconciliation is not in the same commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a surface move whose reconciliation is not in the same commit",
+          "status": "open",
+          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
+          "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
         }
       ]
     },

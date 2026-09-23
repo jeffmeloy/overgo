@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"syscall"
 	"unsafe"
+
+	"overgo/internal/fsatomic"
 )
 
 var (
@@ -16,22 +18,15 @@ var (
 	procResetEvent             = kernel32.NewProc("ResetEvent")
 	procWaitForMultipleObjects = kernel32.NewProc("WaitForMultipleObjects")
 	procQueryInformationJob    = kernel32.NewProc("QueryInformationJobObject")
-	procNtQueryInformationFile = syscall.NewLazyDLL("ntdll.dll").NewProc("NtQueryInformationFile")
 )
 
 const (
-	// Win32 and NT constants: the job's process-id list class, the file's
-	// process-ids-using-file class, the NT statuses a short buffer earns,
-	// WAIT_FAILED, MAXIMUM_WAIT_OBJECTS, FILE_READ_ATTRIBUTES and the
-	// manual-reset flag of CreateEventW.
-	jobObjectBasicProcessIDList        = 3
-	fileProcessIDsUsingFileInformation = 47
-	statusInfoLengthMismatch           = 0xC0000004
-	statusBufferOverflow               = 0x80000005
-	waitFailed                         = 0xFFFFFFFF
-	maximumWaitObjects                 = 64
-	fileReadAttributes                 = 0x0080
-	manualResetEvent                   = 1
+	// Win32 constants: the job's process-id list class, WAIT_FAILED,
+	// MAXIMUM_WAIT_OBJECTS and the manual-reset flag of CreateEventW.
+	jobObjectBasicProcessIDList = 3
+	waitFailed                  = 0xFFFFFFFF
+	maximumWaitObjects          = 64
+	manualResetEvent            = 1
 	// holderListStart is the first slot of a process-id list after its count word.
 	holderListStart = 1
 )
@@ -176,41 +171,17 @@ func resourceHolders(name string) ([]uint32, error) {
 	return holders, nil
 }
 
-// admissionFileUsers asks the kernel which processes hold the admission
-// file open; attribute access joins no sharing check, so the query sees an
-// exclusive holder too.
+// admissionFileUsers lists the processes holding the admission file open.
 func admissionFileUsers(name string) ([]uint32, error) {
 	path, err := resourceAdmissionPath(name)
 	if err != nil {
 		return nil, err
 	}
-	encoded, err := syscall.UTF16PtrFromString(path)
+	users, err := fsatomic.FileUsers(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("processcontrol: resource %q: %w", name, err)
 	}
-	handle, err := syscall.CreateFile(encoded, fileReadAttributes,
-		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE, nil, syscall.OPEN_EXISTING, syscall.FILE_ATTRIBUTE_NORMAL, 0)
-	if errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) || errors.Is(err, syscall.ERROR_PATH_NOT_FOUND) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("processcontrol: inspect resource admission %q: %w", name, err)
-	}
-	defer syscall.CloseHandle(handle)
-	buffer := make([]uintptr, maximumWaitObjects)
-	for {
-		var status [2]uintptr
-		result, _, _ := procNtQueryInformationFile.Call(uintptr(handle), uintptr(unsafe.Pointer(&status[0])),
-			uintptr(unsafe.Pointer(&buffer[0])), uintptr(len(buffer))*unsafe.Sizeof(buffer[0]), fileProcessIDsUsingFileInformation)
-		switch uint32(result) {
-		case 0:
-			return processIDs(buffer, uint32(buffer[0])), nil
-		case statusInfoLengthMismatch, statusBufferOverflow:
-			buffer = make([]uintptr, len(buffer)*2)
-		default:
-			return nil, fmt.Errorf("processcontrol: list holders of %q: NTSTATUS %#x", name, uint32(result))
-		}
-	}
+	return users, nil
 }
 
 // exclusiveJobMembers lists the processes in the resource's exclusive job,

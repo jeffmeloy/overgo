@@ -4,6 +4,38 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "automation-review-suite-cost-regression",
+      "title": "Stop filing a landing's costliest test package as a review candidate",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop filing a landing's costliest test package as a review candidate",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestLandingFilesNoCostliestPackage$' -count=1",
+          "rationale": "Every landing has a costliest package, so the candidate is filed whatever the suite did (5.9 s of modern-census on fd3e2549) and each answer is noise. Suite wall regressions are already held by the suite wall ratchet over the retained suite-cost records, which stay in the store. Remove the candidate; skipped-fixture candidates stay. Net-negative in the harness surface."
+        }
+      ]
+    },
+    {
+      "id": "decode-attention-per-key-cost",
+      "title": "Recover small-head decode throughput without losing long-context correctness",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Recover small-head decode throughput without losing long-context correctness",
+          "status": "open",
+          "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
+          "rationale": "Qwen2.5-0.5B short-context decode fell from 295 to 139 tok/s; E4B held within 3%. Take capacity-sized host upload out of BenchmarkDecodeAttention's timed loop and run it with -bench and device opt-in. Compare isolated before/after runs across short, 4096-boundary, tile-boundary and long contexts. Keep split-key correctness, NLL and memory; bind kernel parity plus end-to-end Qwen and E4B checks. Reuse the MiniCPM split derivation; no competing policy.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "surface-without-capability-tables",
       "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",
@@ -15,21 +47,6 @@
           "status": "open",
           "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
           "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
-        }
-      ]
-    },
-    {
-      "id": "automation-review-suite-cost-regression",
-      "title": "File suite cost only on a regression against the package's own history",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "File suite cost only on a regression against the package's own history",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestSuiteCostCandidateNeedsRegression' -count=1",
-          "rationale": "Ranking always has a first, so every landing files another per-package row. Net-negative in the harness surface."
         }
       ]
     },
@@ -323,23 +340,6 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1",
           "rationale": "After tool state moves out, tmp holds only go.mod, go.sum and the merge-evidence store; gate caches become a releasable store class. Waits on the owner deleting 15 debris directories and on the 27B reference trees being released."
-        }
-      ]
-    },
-    {
-      "id": "decode-attention-per-key-cost",
-      "title": "Recover small-head decode throughput without losing long-context correctness",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Recover small-head decode throughput without losing long-context correctness",
-          "status": "open",
-          "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
-          "rationale": "Qwen2.5-0.5B short-context decode fell from 295 to 139 tok/s; E4B held within 3%. Take capacity-sized host upload out of BenchmarkDecodeAttention's timed loop and run it with -bench and device opt-in. Compare isolated before/after runs across short, 4096-boundary, tile-boundary and long contexts. Keep split-key correctness, NLL and memory; bind kernel parity plus end-to-end Qwen and E4B checks. Reuse the MiniCPM split derivation; no competing policy.",
-          "depends_on": [
-            "model-regression-gate/do"
-          ]
         }
       ]
     },
@@ -644,7 +644,8 @@
             "plan-reranked/do",
             "device-measurement-deadlock/do",
             "registry-document-class/do",
-            "device-holders-rescoped/do"
+            "device-holders-rescoped/do",
+            "suite-cost-rescoped/do"
           ]
         }
       ]

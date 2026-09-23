@@ -11,6 +11,7 @@ import (
 // is deterministic, and the census is computed -- an overlaid file that
 // re-implements a mechanic moves the numbers.
 func TestRSIOwnershipCensusContract(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join("..", "..")
 	snapshot, err := DiscoverGo(root, "internal", "cmd")
 	if err != nil {

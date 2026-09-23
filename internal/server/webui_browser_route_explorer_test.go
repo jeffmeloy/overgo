@@ -17,6 +17,7 @@ import (
 // query (it once sent POST, which starts a hub download instead of cancelling
 // one) and a GET row sends GET with its query.
 func TestWebUIBrowserRouteExplorer(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": the route explorer runs through cmd/webui-lane")
 	}

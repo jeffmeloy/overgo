@@ -21,6 +21,7 @@ import (
 // TestAcceptedE4BModalities reads the frozen evidence selection only. It never
 // launches inference or promotes a partial or fixture-only model result.
 func TestAcceptedE4BModalities(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}

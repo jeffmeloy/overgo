@@ -4,15 +4,13 @@ package adaptiveparity_test
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
-	"overgo/internal/testutil"
 )
 
 // Tier-0 dose-response protocol, written before the run (Probe Discipline):
@@ -38,12 +36,8 @@ const (
 // configuration could not execute.
 func TestTier0ChainDoseResponse(t *testing.T) {
 	cudatest.RequireProbe(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	qwen := filepath.Join(roots.Models, "Qwen2.5-0.5B")
-	minicpm := filepath.Join(roots.Models, "MiniCPM5-1B")
+	qwen := modeltest.Directory(t, "Qwen2.5-0.5B")
+	minicpm := modeltest.Directory(t, "MiniCPM5-1B")
 	for _, directory := range []string{qwen, minicpm} {
 		if _, err := os.Stat(directory); err != nil {
 			t.Skipf("UNAVAILABLE: %s absent; dose-response NOT verified", directory)

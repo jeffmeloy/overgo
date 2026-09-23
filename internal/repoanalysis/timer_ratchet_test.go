@@ -50,6 +50,7 @@ var sharedRetry = sharedBudget / 100
 	write("bubble_test.go", `package probe
 import ("testing"; "testing/synctest"; "time")
 func TestBubble(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		time.Sleep(time.Second)
 		<-time.After(time.Minute)

@@ -66,6 +66,7 @@ func newReleaseFixture(t *testing.T) *releaseFixture {
 // are gone, the aliased content and the unreachable claim are untouched, and
 // a rerun releases nothing.
 func TestReleaseKeepsChainAuthority(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	store := fixture.store
@@ -155,6 +156,7 @@ func assertReleased(t *testing.T, store *Store, fixture *releaseFixture, introdu
 // the checkpoint set, the monolithic snapshot and a full journal replay; each
 // path reproduces the released state and the intact introduction.
 func TestReleaseSurvivesReplayAndCheckpoints(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	introduction, _, err := fixture.store.ArtifactIntroduction(ctx, fixture.orphan.Descriptor.ID)
@@ -197,6 +199,7 @@ func TestReleaseSurvivesReplayAndCheckpoints(t *testing.T) {
 // TestReleaseRefusals binds the two refusals: bytes that were never
 // durable, and the current target of an alias.
 func TestReleaseRefusals(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	never := retentionContent(t, artifact.KindOutput, map[string]any{"never": "durable"})
@@ -224,6 +227,7 @@ func TestReleaseRefusals(t *testing.T) {
 // the released state correctly: a backup needs no released blob, and a
 // rebuild carries the released identity without bytes.
 func TestReleaseThenBackupAndRebuild(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	if _, err := Release(ctx, fixture.store, nil, RetentionPolicy{}, releasable); err != nil {
@@ -255,6 +259,7 @@ func TestReleaseThenBackupAndRebuild(t *testing.T) {
 // TestReleasedContentReintroduces commits the released bytes again: the
 // content is durable once more under a fresh introduction.
 func TestReleasedContentReintroduces(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	if _, err := Release(ctx, fixture.store, nil, RetentionPolicy{}, releasable); err != nil {
@@ -280,6 +285,7 @@ func TestReleasedContentReintroduces(t *testing.T) {
 // marked for children the dependent is live, without it the dependent is
 // an unreachable cache and goes.
 func TestReleaseFollowsChildrenOfPolicyRecords(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {

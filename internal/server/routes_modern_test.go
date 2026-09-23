@@ -8,6 +8,7 @@ import (
 )
 
 func TestRouteManifestMatchesRuntimeMux(t *testing.T) {
+	t.Parallel()
 	manifest := APIManifestRoutes()
 	expected := 0
 	for _, route := range routeCatalog {
@@ -36,6 +37,7 @@ func TestRouteManifestMatchesRuntimeMux(t *testing.T) {
 }
 
 func TestRouteAuthenticationAndMethodSemantics(t *testing.T) {
+	t.Parallel()
 	handler := &Handler{config: Config{APIKey: testAPIKey}}
 	request := func(method, path string, authorized bool) *httptest.ResponseRecorder {
 		recorder := httptest.NewRecorder()
@@ -64,6 +66,7 @@ func TestRouteAuthenticationAndMethodSemantics(t *testing.T) {
 }
 
 func TestPathValueCompatibility(t *testing.T) {
+	t.Parallel()
 	var repository string
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /models/{repository}", func(_ http.ResponseWriter, request *http.Request) {

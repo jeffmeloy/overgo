@@ -26,6 +26,7 @@ type nativeProjectionResult struct {
 
 // Reconstruct acceptance from the original authorities without opening a model.
 func TestRetainedProjectionResults(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	var fixtures []struct {
 		Name     string      `json:"name"`

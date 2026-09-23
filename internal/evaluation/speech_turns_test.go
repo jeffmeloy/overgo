@@ -12,6 +12,7 @@ import (
 )
 
 func TestSpeechTurnScore(t *testing.T) {
+	t.Parallel()
 	source := recipecontract.AudioReference{Audio: testutil.ArtifactID(t, artifact.KindFile, "speech"), Profile: testutil.ArtifactID(t, artifact.KindProfile, "format")}
 	turn := func(name string, start, end uint64) recipecontract.SpeechTurn {
 		return recipecontract.SpeechTurn{Speaker: name, Span: recipecontract.SampleSpan{Start: start, End: end}}
@@ -79,6 +80,7 @@ func TestSpeechTurnScore(t *testing.T) {
 }
 
 func TestSpeakerAssignment(t *testing.T) {
+	t.Parallel()
 	assignment, err := speakerAssignment(t.Context(), []uint64{9, 8, 8, 0}, 2)
 	if err != nil || !slices.Equal(assignment, []int{1, 0}) {
 		t.Fatalf("non-greedy assignment=%v err=%v", assignment, err)

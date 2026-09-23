@@ -136,6 +136,7 @@ func checkMediaLifecyclePatch(root, revision string, paths []string) (string, er
 }
 
 func TestImageVideoLifecycleAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained media lifecycle evidence")
 	}
@@ -245,6 +246,7 @@ func TestImageVideoLifecycleAcceptance(t *testing.T) {
 }
 
 func TestImageVideoLifecycleRejectsChangedEvidence(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_lifecycle.json"))
 	if err != nil {

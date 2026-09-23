@@ -12,6 +12,7 @@ import (
 )
 
 func TestWebUIBrowserConversationActions(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": conversation actions run through cmd/webui-lane")
 	}

@@ -13,6 +13,7 @@ import (
 )
 
 func TestWebUIBrowserTranscriptionCleanup(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": transcription cleanup runs through cmd/webui-lane")
 	}

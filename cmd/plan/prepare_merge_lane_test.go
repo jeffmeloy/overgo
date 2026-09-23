@@ -15,6 +15,7 @@ import (
 // unowned and proven by the compatibility check; and the finalize command
 // still names the live source store.
 func TestPrepareMergeLaneProjection(t *testing.T) {
+	t.Parallel()
 	item := func(id string) plan.Item {
 		return plan.Item{ID: id, Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./..."}}}
 	}

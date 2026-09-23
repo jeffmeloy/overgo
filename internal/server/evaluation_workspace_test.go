@@ -79,6 +79,7 @@ func (*evaluationWorkspaceFixture) CompareEvaluations(context.Context, artifact.
 }
 
 func TestEvaluationCampaignAPIUsesCompiledPlans(t *testing.T) {
+	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "evaluation-api-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "evaluation-api-recipe")
 	data, err := json.Marshal(evaluation.ExactSuite{
@@ -142,6 +143,7 @@ func TestEvaluationCampaignAPIUsesCompiledPlans(t *testing.T) {
 }
 
 func TestEvaluationCampaignAPIRunsSupervisedGroundedReplay(t *testing.T) {
+	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "grounded-replay-api-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "grounded-replay-api-recipe")
 	fixture := &evaluationWorkspaceFixture{
@@ -181,6 +183,7 @@ func TestEvaluationCampaignAPIRunsSupervisedGroundedReplay(t *testing.T) {
 }
 
 func TestEvaluationCampaignAPIRejectsMixedOrUnboundedGroundedReplay(t *testing.T) {
+	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "grounded-replay-refusal-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "grounded-replay-refusal-recipe")
 	planID := testutil.ArtifactID(t, artifact.KindProfile, "grounded-replay-refusal-plan")

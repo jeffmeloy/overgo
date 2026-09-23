@@ -15,6 +15,7 @@ import (
 )
 
 func TestTypedMediaProjection(t *testing.T) {
+	t.Parallel()
 	scope := mediaReportScope{Tasks: []recipe.Task{recipe.TaskImageGen, recipe.TaskVideoGen}}
 	row := reportRow{model: "fixture", task: string(recipe.TaskImageGen), tier: string(runrecord.TierRealArtifactSmoke),
 		modelID:  testutil.ArtifactID(t, artifact.KindModel, "typed media"),

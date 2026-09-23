@@ -10,6 +10,7 @@ import (
 )
 
 func TestEvaluatorRanksKnownOutcomesUnderPriorAuthority(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	acceptance, err := newAcceptancePolicy([]runrecord.Metric{{Name: "quality", Direction: runrecord.DirectionMaximize}})
 	if err != nil {

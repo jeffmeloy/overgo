@@ -392,11 +392,7 @@ func (g *gateContext) deriveManifestImpact() (codemanifest.Impact, codemanifest.
 	g.sourceMutex.Lock()
 	g.manifestCache = manifestCache
 	g.sourceMutex.Unlock()
-	delta, err := codemanifest.Diff(baseManifest, candidateManifest)
-	if err != nil {
-		return codemanifest.Impact{}, codemanifest.Manifest{}, codemanifest.Manifest{}, err
-	}
-	impact, err := codemanifest.Close(baseManifest, candidateManifest, delta)
+	delta, impact, err := codemanifest.Analyze(baseManifest, candidateManifest)
 	if err == nil {
 		g.manifestDelta, g.manifestImpact = &delta, &impact
 	}

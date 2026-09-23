@@ -21,6 +21,7 @@ import (
 // journal rebuilds at the current head, and a store carrying inline
 // legacy content refuses to seal.
 func TestSegmentedJournalChainAndRecovery(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	segmented := t.TempDir()
 	plain := t.TempDir()
@@ -136,6 +137,7 @@ func TestSegmentedJournalChainAndRecovery(t *testing.T) {
 // locator to the segment its frame lies in, and after a second seal, which
 // must leave the first segment's locators where they are.
 func TestSealWithInlineContent(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	ids := writeLegacyInlineStore(t, root, scaleAliasStride)

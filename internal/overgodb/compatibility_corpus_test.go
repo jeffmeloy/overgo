@@ -19,6 +19,7 @@ import (
 // Existing stores are an immutable external format boundary; this
 // corpus is the contract a migrated reader is judged against.
 func TestLegacyStoreCompatibilityCorpus(t *testing.T) {
+	t.Parallel()
 	source := t.TempDir()
 	_, snapshotPath, _ := copyScaleCorpus(t, source)
 	// Rotation empties the active segment at the snapshot boundary;

@@ -15,6 +15,7 @@ type evidenceBatchDocument interface {
 }
 
 func TestEvaluationEvidenceBindsPlanShardsAndAuthorities(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

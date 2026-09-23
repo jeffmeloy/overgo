@@ -3,6 +3,7 @@ package plan
 import "testing"
 
 func TestMergeCompletedCampaignProjections(t *testing.T) {
+	t.Parallel()
 	base := Plan{Campaign: "base", Doctrine: "base doctrine"}
 	local := Plan{Campaign: "completed local", Doctrine: "local doctrine"}
 	upstream := Plan{Campaign: "completed upstream", Doctrine: "upstream doctrine"}

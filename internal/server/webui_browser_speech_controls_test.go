@@ -63,6 +63,7 @@ func (generator *speechSurfaceGenerator) ExecuteWorkflow(ctx context.Context, ki
 // This probe reviews the current speech form. Its catalog is a UI fixture;
 // neither synthesis completion nor model quality is asserted here.
 func TestWebUIBrowserSpeechControls(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": graphical speech form probe")
 	}

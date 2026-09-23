@@ -9,6 +9,7 @@ import (
 )
 
 func TestProjectedTranscriptionBindsPromptAndBudget(t *testing.T) {
+	t.Parallel()
 	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
 		Name: "pinned", Group: "validation", Source: audioReference(t, "projected-protocol"),
 		Reference: "reference stays outside prediction", SampleCount: 16000, SampleRate: 16000,
@@ -75,6 +76,7 @@ func TestProjectedTranscriptionBindsPromptAndBudget(t *testing.T) {
 }
 
 func TestProjectedTranscriptionRefusesTruncation(t *testing.T) {
+	t.Parallel()
 	stopIDs := []tokenizer.TokenID{9, 10}
 	for _, test := range []struct {
 		tokens   []tokenizer.TokenID

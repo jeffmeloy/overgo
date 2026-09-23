@@ -16,6 +16,7 @@ import (
 // identity, render results as tool cards, show steps against the bound),
 // and the workbench agent tab rides the same piece.
 func TestFrontPageAgent(t *testing.T) {
+	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")

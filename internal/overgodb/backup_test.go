@@ -11,6 +11,7 @@ import (
 
 // TestStreamingSnapshotRoundTrip pins replay identity and publication refusal.
 func TestStreamingSnapshotRoundTrip(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -70,6 +71,7 @@ func TestStreamingSnapshotRoundTrip(t *testing.T) {
 }
 
 func TestConcurrentBackupExtent(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {

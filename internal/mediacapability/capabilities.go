@@ -27,6 +27,7 @@ import (
 	"overgo/internal/tabularicl"
 	"overgo/internal/textgeneration"
 	"overgo/internal/thoughtbank"
+	"overgo/internal/vitencoder"
 )
 
 // Capability is one task the catalog can register and execute: Resolve reads a
@@ -173,6 +174,9 @@ var Catalog = map[recipe.Task]Capability{
 	recipe.TaskImageGen: imageCapability(),
 	recipe.TaskVideoGen: videoCapability(),
 	recipe.TaskVQA:      vqaCapability(),
+	recipe.TaskImageEmbedding: inventoryCapability(modelartifact.FromHFPath, capabilityruntime.JSONScalar[vitencoder.EmbeddingRequest, *vitencoder.Encoder, []float32](
+		"image-embedding", vitencoder.ValidateEmbeddingRequest,
+		capabilityruntime.IgnoreInput[vitencoder.EmbeddingRequest](vitencoder.Load), vitencoder.RegisterRuntime)),
 }
 
 func safetensorsInventory(context, path, config string, companions ...modelartifact.FileSpec) (modelartifact.Inventory, error) {

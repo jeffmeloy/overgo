@@ -14,6 +14,7 @@ import (
 // a neighbouring alias under a longer root and an alias of another document
 // under the agent root stay out. The manifest asks on every page load.
 func TestActiveAgentNamesReadOnlyTheActivationRoot(t *testing.T) {
+	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")

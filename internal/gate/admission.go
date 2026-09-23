@@ -207,7 +207,6 @@ func (g *gateContext) stepScope() (bool, error) {
 	var verificationInputs []string
 	for _, path := range unplanned {
 		g.note("unplanned dirty (not shipped): " + path)
-		g.profileDirty = g.profileDirty || strings.HasSuffix(path, ".go")
 		if unplannedVerificationInput(path) {
 			verificationInputs = append(verificationInputs, path)
 		}

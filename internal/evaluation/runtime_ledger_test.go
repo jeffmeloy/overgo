@@ -40,10 +40,12 @@ func (*observedRuntime) ScoreContinuations(
 }
 
 func TestIsolatedModelPerformanceEvidence(t *testing.T) {
+	t.Parallel()
 	testCampaignPublication(t, LifecycleIsolated, false)
 }
 
 func TestResidentCampaignPublication(t *testing.T) {
+	t.Parallel()
 	t.Run("success", func(t *testing.T) { testCampaignPublication(t, LifecycleResident, false) })
 	t.Run("publication recovery", func(t *testing.T) { testCampaignPublication(t, LifecycleResident, true) })
 }

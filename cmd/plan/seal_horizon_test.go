@@ -18,6 +18,7 @@ import (
 // accept -- one that miscounts this history -- fails the dry run, which
 // reads it from the unreferenced commit's tree, and leaves nothing written.
 func TestSealHorizonProvesBeforeItWrites(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{{
 		ID: "row", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "go test ./..."}},
 	}}}

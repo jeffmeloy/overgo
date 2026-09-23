@@ -39,6 +39,14 @@ const guardValidation = "guard"
 // evidence currency is told.
 const uncheckedEvidence = "no owner judges whether its accepted evidence is current at this tree yet"
 
+// excludedSurfaces are the surfaces whose evidence records one run at the
+// commit that made it and that no receipt re-judges at a later tree. Such a
+// cell counts toward activation and never toward validation, and the model is
+// told why rather than that nothing owns it.
+var excludedSurfaces = map[SurfaceID]string{
+	"training": "its training proof is a smoke run recorded at the commit that ran it; no receipt re-judges it at a later tree, so it counts toward activation and not validation",
+}
+
 // How a registered model is tied to a directory.
 const (
 	linkLocation  = "location"
@@ -86,11 +94,15 @@ type InventoryModel struct {
 // declared name and the runtime's name for one architecture differ in form
 // (qwen3_5 and qwen35) and matching them here reported a supported one as not.
 type DirectoryInventory struct {
-	Directory string           `json:"directory"`
-	Standing  string           `json:"standing"`
-	ModelType string           `json:"model_type,omitzero"`
-	Models    []InventoryModel `json:"models,omitempty"`
-	Commands  []string         `json:"commands,omitempty"`
+	Directory string `json:"directory"`
+	Standing  string `json:"standing"`
+	ModelType string `json:"model_type,omitzero"`
+	// Proven is the file whose evidence gives the directory its standing:
+	// a directory holds conversions and superseded files beside it, and its
+	// label alone does not say which one the evidence is for.
+	Proven   string           `json:"proven,omitzero"`
+	Models   []InventoryModel `json:"models,omitempty"`
+	Commands []string         `json:"commands,omitempty"`
 }
 
 // readModelDirectory reads the facts of one directory: whether it holds
@@ -186,6 +198,11 @@ func buildInventory(directories []modelDirectory, cells []ModelValidation, conve
 			entry.Models[index].Cells = append(entry.Models[index].Cells, cell)
 		}
 		entry.Standing, entry.Commands = directoryStanding(directory, entry.Models, currency)
+		if entry.Standing != standingRegistered {
+			if proven := slices.IndexFunc(entry.Models, func(model InventoryModel) bool { return model.Standing == entry.Standing }); proven >= 0 {
+				entry.Proven = entry.Models[proven].Location
+			}
+		}
 		inventory = append(inventory, entry)
 	}
 	slices.SortFunc(inventory, func(left, right DirectoryInventory) int { return cmp.Compare(left.Directory, right.Directory) })
@@ -230,13 +247,14 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, curren
 		// cell carries accepted evidence: a missing one outranks the question.
 		// A cell no owner can judge yet is passed over; a model with no judged
 		// cell is not called validated on an unchecked claim.
-		judged := false
+		judged, unchecked := false, uncheckedEvidence
 		for _, cell := range tied.Cells {
 			if standing != standingValidated {
 				break
 			}
 			switch refusal := currency(cell); {
 			case errors.Is(refusal, errCellNotJudged):
+				unchecked = cmp.Or(excludedSurfaces[cell.Surface], unchecked)
 			case refusal != nil:
 				standing, models[index].Currency = standingActivated, refusal.Error()
 				advance(cell, tied.Model)
@@ -245,7 +263,7 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, curren
 			}
 		}
 		if standing == standingValidated && !judged {
-			standing, models[index].Currency = standingActivated, uncheckedEvidence
+			standing, models[index].Currency = standingActivated, unchecked
 		}
 		models[index].Standing = standing
 		best = max(best, slices.Index(standingOrder, standing))
@@ -253,10 +271,16 @@ func directoryStanding(directory modelDirectory, models []InventoryModel, curren
 	return standingOrder[best], commands
 }
 
-// modelDirectories reads every immediate subdirectory of the roots.
+// modelDirectories reads every immediate subdirectory of the roots. A root is
+// made absolute first, because registrations record absolute locations and a
+// relative root would tie no model to its directory.
 func modelDirectories(roots []string) ([]modelDirectory, error) {
 	var directories []modelDirectory
 	for _, root := range roots {
+		root, err := filepath.Abs(root)
+		if err != nil {
+			return nil, err
+		}
 		entries, err := os.ReadDir(root)
 		if err != nil {
 			return nil, err

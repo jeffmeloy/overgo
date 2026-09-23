@@ -13,6 +13,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
@@ -23,7 +24,7 @@ func TestRealSupernovaForecastStream(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	modelDir := filepath.Join(roots.Models, "timesfm-2.5-200m-transformers")
+	modelDir := modeltest.Directory(t, "timesfm-2.5-200m-transformers")
 	datasetPath := filepath.Join(roots.Datasets, "supernova-timeseries", "test.jsonl")
 	model, err := Load(modelDir)
 	if err != nil {

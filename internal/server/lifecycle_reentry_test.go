@@ -23,6 +23,7 @@ func (lifecycleTestReporter) Metric(operation.Metric)           {}
 func (lifecycleTestReporter) Publishing()                       {}
 
 func TestTrainingAndEvaluationLifecycleReentry(t *testing.T) {
+	t.Parallel()
 	requests := []operation.Request{
 		{Task: recipe.TaskTraining, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "lifecycle training recipe")},
 		{Task: recipe.TaskInference, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "lifecycle evaluation recipe")},

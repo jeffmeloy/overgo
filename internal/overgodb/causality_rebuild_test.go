@@ -13,6 +13,7 @@ import (
 // retry, replay, and evidence-jump queries survive checkpoint loading and a
 // fresh-store rebuild, while missing roots and cycles refuse publication.
 func TestCausalityProjectionRebuild(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	id := func(label string) artifact.ID { return testutil.ArtifactID(t, artifact.KindEvidence, label) }
 	root, motivation := id("causal-root"), id("causal-motivation")

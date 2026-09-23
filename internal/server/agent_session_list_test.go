@@ -15,6 +15,7 @@ import (
 // state, and a FRESH handler over the same store lists the same
 // sessions -- the list is the ledger's memory, not the process's.
 func TestAgentSessionList(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

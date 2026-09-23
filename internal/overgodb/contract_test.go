@@ -8,6 +8,7 @@ import (
 )
 
 func TestRepositoryContract(t *testing.T) {
+	t.Parallel()
 	repositorytest.Run(t, func(t *testing.T) artifact.Repository {
 		t.Helper()
 		store, err := Open(t.TempDir())

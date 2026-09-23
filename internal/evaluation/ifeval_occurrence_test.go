@@ -6,6 +6,7 @@ import (
 )
 
 func TestIFEvalRepeatedInstructionOccurrences(t *testing.T) {
+	t.Parallel()
 	// Two instances of one family carry different operands; neither is redundant.
 	const family = "keywords:existence"
 	entry := storeCase{entry: "ifeval/default/train", fields: rawFields(t, map[string]any{

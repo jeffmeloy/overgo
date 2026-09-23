@@ -8,6 +8,7 @@ import (
 // A bounded plan addition needs no matching source-code inventory edit.
 // Its acceptance and terminal obligation remain mandatory.
 func TestValidationPlanExtensibleChecks(t *testing.T) {
+	t.Parallel()
 	const reference = "validation-probe/bounded-check"
 	for _, test := range []struct {
 		name, verify string

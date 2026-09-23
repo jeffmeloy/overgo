@@ -71,6 +71,7 @@ func commitRolloutObservation(t *testing.T, store artifact.Repository, plan arti
 // evidence, prior projection reports never feed later readings, a tampered
 // digest refuses on parse, and promotion never consumes a mutable row.
 func TestRolloutProjectionEvidenceReproduces(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

@@ -24,6 +24,7 @@ func (f *interruptedInstructionFixture) Generate(ctx context.Context, prompt str
 }
 
 func TestInstructionResumeCounterexample(t *testing.T) {
+	t.Parallel()
 	suite := InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "fixture/v1", Source: "resume-fixture", Cases: []InstructionRulesCase{
 		{Name: "first", Prompt: "First answer.", MaxTokens: 1, Rules: []InstructionRule{{Name: "uppercase", Kind: RuleUppercase}}},
 		{Name: "second", Prompt: "Second answer.", MaxTokens: 1, Rules: []InstructionRule{{Name: "uppercase", Kind: RuleUppercase}}},
@@ -136,6 +137,7 @@ func instructionResumeFixture(t *testing.T) (*overgodb.Store, InstructionRulesPl
 }
 
 func TestInstructionResumeRetainsQualityFailure(t *testing.T) {
+	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	failed := &instructionChatFixture{answer: "lowercase"}
 	first, err := EvaluateInstructionRules(t.Context(), store, failed, compiled, plan)
@@ -153,6 +155,7 @@ func TestInstructionResumeRetainsQualityFailure(t *testing.T) {
 }
 
 func TestInstructionResumeFinishesPublicationAfterCancellation(t *testing.T) {
+	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	ctx, cancel := context.WithCancelCause(t.Context())
 	defer cancel(context.Canceled)
@@ -172,6 +175,7 @@ func TestInstructionResumeFinishesPublicationAfterCancellation(t *testing.T) {
 }
 
 func TestInstructionResumePublicationFailure(t *testing.T) {
+	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	failure := errors.New("fixture storage failure")
 	repository := &instructionCommitFixture{Repository: store, commitErr: failure}
@@ -189,6 +193,7 @@ func TestInstructionResumePublicationFailure(t *testing.T) {
 }
 
 func TestInstructionResumeConcurrentPublication(t *testing.T) {
+	t.Parallel()
 	for _, same := range []bool{true, false} {
 		t.Run(map[bool]string{true: "same", false: "different"}[same], func(t *testing.T) {
 			store, compiled, plan := instructionResumeFixture(t)
@@ -220,6 +225,7 @@ func TestInstructionResumeConcurrentPublication(t *testing.T) {
 }
 
 func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
+	t.Parallel()
 	for _, field := range []string{"model", "recipe", "environment", "source", "protocol", "prompt", "token-cap"} {
 		t.Run(field, func(t *testing.T) {
 			store, compiled, plan := instructionResumeFixture(t)
@@ -273,6 +279,7 @@ func TestInstructionResumeRejectsDifferentBindings(t *testing.T) {
 }
 
 func TestInstructionResumeRejectsMisboundRecord(t *testing.T) {
+	t.Parallel()
 	store, compiled, plan := instructionResumeFixture(t)
 	testCase := compiled.suite.Cases[0]
 	caseID, err := artifact.JSONID(artifact.KindDatasetShard, testCase)

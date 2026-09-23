@@ -7,6 +7,7 @@ import (
 )
 
 func TestSourceOvergoDBPorcelainPreservesWorktreeSpaces(t *testing.T) {
+	t.Parallel()
 	const target = "0123456789abcdef0123456789abcdef01234567"
 	raw := []byte(
 		"worktree C:/Users/Jeff/first worktree\x00" +
@@ -27,6 +28,7 @@ func TestSourceOvergoDBPorcelainPreservesWorktreeSpaces(t *testing.T) {
 }
 
 func TestSourceOvergoDBPorcelainRejectsAmbiguousHead(t *testing.T) {
+	t.Parallel()
 	const target = "0123456789abcdef0123456789abcdef01234567"
 	raw := []byte(
 		"worktree C:/one\x00HEAD " + target + "\x00\x00" +
@@ -39,6 +41,7 @@ func TestSourceOvergoDBPorcelainRejectsAmbiguousHead(t *testing.T) {
 }
 
 func TestSourceOvergoDBPorcelainIgnoresWorktreeWithoutStore(t *testing.T) {
+	t.Parallel()
 	const target = "0123456789abcdef0123456789abcdef01234567"
 	raw := []byte(
 		"worktree C:/one\x00HEAD " + target + "\x00\x00" +
@@ -57,6 +60,7 @@ func TestSourceOvergoDBPorcelainIgnoresWorktreeWithoutStore(t *testing.T) {
 }
 
 func TestSourceOvergoDBPorcelainPrefersNamedSourceBranch(t *testing.T) {
+	t.Parallel()
 	const target = "0123456789abcdef0123456789abcdef01234567"
 	raw := []byte(
 		"worktree C:/master\x00HEAD " + target + "\x00branch refs/heads/master\x00\x00" +

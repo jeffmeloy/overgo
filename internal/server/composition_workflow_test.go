@@ -10,6 +10,7 @@ import (
 )
 
 func TestCompositionAPIWorkflow(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -42,6 +43,7 @@ func TestCompositionAPIWorkflow(t *testing.T) {
 }
 
 func TestCompositionGUIWorkflow(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	module := serveTestRequest(handler, http.MethodGet, "/mod/compositions.js", "")
 	if module.Code != http.StatusOK {
@@ -65,6 +67,7 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 }
 
 func TestCompositeGenerationUnpromotedRefusal(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

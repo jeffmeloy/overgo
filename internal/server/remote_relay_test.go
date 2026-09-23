@@ -48,6 +48,7 @@ func newRelayGenerator(t *testing.T, pieces []string) (*remoterelay.Generator, r
 // relayed response's interaction (relay description carries the relay
 // node's interaction scope); the front page's remote turns depend on it.
 func TestResponsesRelayStoresInteraction(t *testing.T) {
+	// Serial: a helper it calls sets the process environment.
 	generator, environment, _ := newRelayGenerator(t, []string{"Hello"})
 	policy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !supported {
@@ -99,6 +100,7 @@ func TestResponsesRelayStoresInteraction(t *testing.T) {
 // provider's runs are not reproducible, and the count route refuses (the
 // provider tokenizes) rather than reporting zero tokens.
 func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
+	// Serial: a helper it calls sets the process environment.
 	generator, environment, received := newRelayGenerator(t, []string{"Hel", "lo"})
 	policy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !supported {
@@ -143,6 +145,7 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 // assistant turns) + turn proceeds when the count route refuses (provider
 // tokenizes).
 func TestFrontPageRemoteTurns(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }

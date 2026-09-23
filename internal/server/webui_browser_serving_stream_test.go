@@ -18,6 +18,7 @@ import (
 )
 
 func TestWebUIBrowserServingStream(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": serving stream uses Chromium through cmd/webui-lane")
 	}

@@ -98,6 +98,7 @@ func nativeMediaProtocolFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, 
 }
 
 func TestNativeImageProtocolUsesActiveRecipeSession(t *testing.T) {
+	t.Parallel()
 	handler, workspace, image, _ := nativeMediaProtocolFixture(t)
 	recipeID := workspace.capabilities[0].Recipe
 	response := serveTestRequest(handler, http.MethodPost, "/v1/images/generations",
@@ -122,6 +123,7 @@ func TestNativeImageProtocolUsesActiveRecipeSession(t *testing.T) {
 }
 
 func TestNativeAudioProtocolUsesActiveRecipeSession(t *testing.T) {
+	t.Parallel()
 	handler, workspace, _, audio := nativeMediaProtocolFixture(t)
 	recipeID := workspace.capabilities[1].Recipe
 	response := serveTestRequest(handler, http.MethodPost, "/v1/audio/speech",

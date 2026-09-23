@@ -13,6 +13,7 @@ import (
 )
 
 func TestGeneratedSuiteUsesDeclaredChatPrompt(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{GeneratedAnswerKind, StructuredGeneratedKind} {
 		t.Run(kind, func(t *testing.T) {
 			source := map[string]any{"kind": kind, "schema": "fixture/v1", "source": "chat-framing-fixture", "cases": []map[string]any{{"name": "addition", "prompt": "2 + 2?", "max_tokens": 8, "answers": []string{"4"}}}}
@@ -61,6 +62,7 @@ type refusedInstructionChat struct {
 func (f *refusedInstructionChat) ShapeChatPrompt(string) (string, error) { return "", f.cause }
 
 func TestInstructionGenerationPreservesRawAndRefusesFramingError(t *testing.T) {
+	t.Parallel()
 	raw := &rawInstructionGenerator{answer: "4"}
 	if _, err := recordInstruction(t.Context(), raw, "raw", "2 + 2?", 8); err != nil {
 		t.Fatal(err)

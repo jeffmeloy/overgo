@@ -30,6 +30,7 @@ type knowledgePromotionFixture struct {
 }
 
 func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
+	t.Parallel()
 	fixture := newKnowledgePromotionFixture(t)
 	evidence, err := PublishEpisodeKnowledgePromotion(t.Context(), fixture.store,
 		fixture.proposal.ID, fixture.baseline.ID, fixture.trial.ID)
@@ -71,6 +72,7 @@ func TestEpisodeKnowledgePromotionRequiresHeldOutBenefit(t *testing.T) {
 }
 
 func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testing.T) {
+	t.Parallel()
 	t.Run("contaminated stored hygiene", func(t *testing.T) {
 		fixture := newKnowledgePromotionFixtureWithOverlap(t, true)
 		defer fixture.store.Close()
@@ -118,6 +120,7 @@ func TestEpisodeKnowledgePromotionRejectsUncitedOrContaminatedCandidate(t *testi
 }
 
 func TestKnowledgePromotionPublicationRejectsStaleOrForgedEvidence(t *testing.T) {
+	t.Parallel()
 	t.Run("stale head", func(t *testing.T) {
 		fixture := newKnowledgePromotionFixture(t)
 		defer fixture.store.Close()

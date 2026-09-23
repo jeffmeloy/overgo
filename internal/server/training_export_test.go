@@ -54,6 +54,7 @@ func (generator *trainingExportGenerator) ExecuteWorkflow(
 }
 
 func TestGUITrainingAndExportShareServices(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

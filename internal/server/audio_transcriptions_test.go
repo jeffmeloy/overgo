@@ -27,6 +27,7 @@ import (
 const transcriptionHTTPCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestTranscriptionPolicyAndModelBindings(t *testing.T) {
+	t.Parallel()
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	policy := fixture.workspace.policy
 	path := filepath.Join(t.TempDir(), "policy.json")
@@ -159,6 +160,7 @@ func (fixture transcriptionHTTPFixture) request(t *testing.T, data []byte, field
 }
 
 func TestAudioTranscriptionsAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("native-cpu-and-repeat-lineage", testAudioTranscriptionsNative)
 	t.Run("authentication-before-upload", testAudioTranscriptionsAuthentication)
 	t.Run("invalid-input-and-controls", testAudioTranscriptionsInvalid)

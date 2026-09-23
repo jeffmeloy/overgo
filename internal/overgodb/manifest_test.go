@@ -14,6 +14,7 @@ const fixtureManifestLocation = "C:/models/fixture.gguf"
 // persisted delta must still round-trip the replay-side normalization
 // -- the failure that wedged the first store rebuild.
 func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	component := fixtureDescriptor(t, artifact.KindTensorSet, "recommit-weights")
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
@@ -55,6 +56,7 @@ func TestManifestRecommitReplaysAsFixedPoint(t *testing.T) {
 }
 
 func TestManifestAndLocationReplay(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	component := fixtureDescriptor(t, artifact.KindTensorSet, "manifest-weights")
 	manifest, err := artifact.NewManifest(artifact.KindModel, []artifact.Component{{
@@ -101,6 +103,7 @@ func TestManifestAndLocationReplay(t *testing.T) {
 }
 
 func TestLocationRemoval(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

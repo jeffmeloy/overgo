@@ -38,6 +38,7 @@ func sessionlessVQADefinition(modelID artifact.ID) (recipe.Definition, error) {
 // with the reason as its refusal, so the page offers it disabled with why,
 // the run refuses it, and the workspace keeps listing.
 func TestGenerationWorkspaceListsUnresolvableActivationWithRefusal(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)

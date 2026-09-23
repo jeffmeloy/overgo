@@ -119,6 +119,7 @@ func checkMediaLoaderObservations(consumer string, rows []mediaLoaderObservation
 }
 
 func TestImageVideoOptimizationBaselineAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": loader baseline reads retained acquisitions")
 	}

@@ -14,6 +14,7 @@ import (
 // real audio acceptance separately binds repeated source, model and process
 // evidence. Keep quality and resources in the existing vector-policy owner.
 func TestAudioFitnessPolicyAcceptance(t *testing.T) {
+	t.Parallel()
 	contract := CrossDomainEvaluationContract{CandidateDimensions: []CandidateDeltaDimension{CandidateDeltaSystem}, Requirements: []CandidateFitnessRequirement{
 		{Name: "cer", Direction: runrecord.DirectionMinimize, MinimumImprovement: 0.001},
 		{Name: "peak-bytes", Direction: runrecord.DirectionMinimize, MinimumImprovement: 1},

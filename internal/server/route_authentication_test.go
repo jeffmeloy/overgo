@@ -14,6 +14,7 @@ import (
 // reaches outward requires the bearer credential, and a listener that would
 // expose unauthenticated routes beyond this host refuses to start.
 func TestRouteAuthenticationRefusesUnauthenticated(t *testing.T) {
+	t.Parallel()
 	mutating := map[string]bool{
 		http.MethodPost: true, http.MethodPut: true,
 		http.MethodPatch: true, http.MethodDelete: true,

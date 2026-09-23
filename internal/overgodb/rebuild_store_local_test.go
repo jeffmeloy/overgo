@@ -11,6 +11,7 @@ import (
 )
 
 func TestRebuildRefusesLiveStoreLocalAlias(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	source, err := Open(filepath.Join(root, "source"))

@@ -28,9 +28,11 @@ func TestCompatibilityInputBindingRatchet(t *testing.T) {
 		}
 		found = true
 		// Measured 2026-09-22: bound to 268 packages by ten files whose
-		// reads the source does not name. A narrowing lands with a lower
-		// ceiling; nothing may widen it.
-		const ceiling = 268
+		// reads the source does not name; 269 from 2026-09-23, when the
+		// catalog's image embedding capability made internal/vitencoder
+		// reachable. A narrowing lands with a lower ceiling; nothing else may
+		// widen it.
+		const ceiling = 269
 		if len(node.inputDependencies) > ceiling {
 			t.Errorf("%s binds %d packages, ceiling %d", target, len(node.inputDependencies), ceiling)
 		}

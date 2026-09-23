@@ -57,6 +57,7 @@ func videoOutputFixture(t *testing.T, mediaType string, output []byte) (*Handler
 // video type; an output that is neither is refused; and the retired
 // video-edit route and mode are gone.
 func TestVideoRoutesDeliverDeclaredOutput(t *testing.T) {
+	t.Parallel()
 	gif := []byte("GIF89a-encoded-video")
 	for _, mediaType := range []string{media.GIFMediaType, "video/mp4"} {
 		handler, recipeID := videoOutputFixture(t, mediaType, gif)

@@ -14,6 +14,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/recipecontract"
 	"overgo/internal/testutil"
 	"overgo/internal/trainingdata"
@@ -74,7 +75,7 @@ func realGSM8KTrainingPair(t *testing.T, ordinal int) (*Generator, TrainingPair,
 	if err != nil {
 		t.Fatal(err)
 	}
-	generator, err := LoadGenerator(filepath.Join(roots.Models, "needle"))
+	generator, err := LoadGenerator(modeltest.Directory(t, "needle"))
 	if err != nil {
 		t.Fatal(err)
 	}

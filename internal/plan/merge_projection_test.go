@@ -34,6 +34,7 @@ func targetProjectionMessage(t *testing.T, document Plan, item, step string) []b
 }
 
 func TestFirstParentTargetProspectiveTransitionLeavesIncomingWorkSourceOwned(t *testing.T) {
+	t.Parallel()
 	base := standardCompletionPlan()
 	local := base
 	incoming := base
@@ -63,6 +64,7 @@ func TestFirstParentTargetProspectiveTransitionLeavesIncomingWorkSourceOwned(t *
 }
 
 func TestFirstParentTargetRejectsLocalIdentityDeletion(t *testing.T) {
+	t.Parallel()
 	base := standardCompletionPlan()
 	preAdvance := base
 	preAdvance.Items = slices.Delete(slices.Clone(base.Items), 1, 2)
@@ -80,6 +82,7 @@ func TestFirstParentTargetRejectsLocalIdentityDeletion(t *testing.T) {
 }
 
 func TestFirstParentTargetTrailerIsCanonicalAndMergeOnly(t *testing.T) {
+	t.Parallel()
 	document := standardCompletionPlan()
 	child, err := Advance(document, "root", "do")
 	if err != nil {
@@ -138,6 +141,7 @@ func TestFirstParentTargetTrailerIsCanonicalAndMergeOnly(t *testing.T) {
 }
 
 func TestFirstParentTargetProspectiveAuthorityKeepsIncomingRowsOffTarget(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"
@@ -215,6 +219,7 @@ func TestFirstParentTargetProspectiveAuthorityKeepsIncomingRowsOffTarget(t *test
 }
 
 func TestFirstParentTargetSourcePreflightRequiresSharedStoreAncestry(t *testing.T) {
+	t.Parallel()
 	repository := t.TempDir()
 	localRevision := strings.Repeat("1", 40)
 	incomingRevision := strings.Repeat("2", 40)
@@ -332,6 +337,7 @@ func TestFirstParentTargetSourcePreflightRequiresSharedStoreAncestry(t *testing.
 }
 
 func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T) {
+	t.Parallel()
 	initial := Plan{Campaign: "completion reconciliation", Doctrine: "local evidence remains authoritative", Items: []Item{
 		{ID: "duplicate", Status: StatusOpen, Steps: []Step{
 			{ID: "done", Status: StatusOpen, Verify: "go test ./..."},
@@ -594,6 +600,7 @@ func TestFirstParentTargetReconcilesEquivalentIndependentCompletion(t *testing.T
 }
 
 func TestCompletionContractDigestBindsCanonicalItemSnapshot(t *testing.T) {
+	t.Parallel()
 	base := Item{
 		ID: "contract", Title: "item title", Owner: "owner", Status: StatusOpen,
 		Steps: []Step{{

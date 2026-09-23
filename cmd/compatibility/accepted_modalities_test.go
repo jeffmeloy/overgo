@@ -27,6 +27,7 @@ import (
 )
 
 func TestAcceptedModalityCoverage(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
@@ -129,6 +130,7 @@ func TestAcceptedModalityCoverage(t *testing.T) {
 }
 
 func TestProtocolCaseProjection(t *testing.T) {
+	t.Parallel()
 	declared := []json.RawMessage{json.RawMessage(`{"name":"first"}`), json.RawMessage(`{"name":"second"}`)}
 	for name, observed := range map[string][]json.RawMessage{
 		"complete": {declared[1], declared[0]}, "omitted": {declared[0]}, "duplicate": {declared[0], declared[0]}, "foreign": {declared[0], json.RawMessage(`{"name":"third"}`)},
@@ -142,6 +144,7 @@ func TestProtocolCaseProjection(t *testing.T) {
 }
 
 func TestResourceCaseProjection(t *testing.T) {
+	t.Parallel()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "resource-recipe")
 	observation := testutil.ArtifactID(t, artifact.KindEvidence, "resource-observation")
 	gate := runrecord.GateResult{CodeCommit: "source", Recipe: recipeID, Outcome: runrecord.OutcomeSucceeded, Steps: []runrecord.GateStep{
@@ -172,6 +175,7 @@ func TestResourceCaseProjection(t *testing.T) {
 }
 
 func TestAcceptedTextVisionEvidence(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
@@ -314,6 +318,7 @@ func requireAcceptedDocument(t *testing.T, root, path, digest string, target any
 }
 
 func TestAcceptedSpecializedTaskEvidence(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}

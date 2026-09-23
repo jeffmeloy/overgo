@@ -13,6 +13,7 @@ import (
 // newest first by the commit that introduced each file, kept to the media
 // prefix asked for, bounded by the limit, with no cursor.
 func TestArtifactGalleryListsNewestFirstByMedia(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

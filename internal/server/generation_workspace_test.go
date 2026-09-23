@@ -63,6 +63,7 @@ func (generator *generationWorkspaceGenerator) ExecuteWorkflow(
 }
 
 func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +139,7 @@ func TestGenerationWorkspaceUsesRecipeCapabilities(t *testing.T) {
 }
 
 func TestWorkflowSubmissionDoesNotReplayCompletedOperation(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

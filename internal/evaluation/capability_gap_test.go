@@ -17,6 +17,7 @@ import (
 // its weakest domain, targets order deterministically, and an unadmitted
 // document refuses the whole derivation.
 func TestCapabilityGapTargetsFromEvalStore(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 )
 
 func TestGenerationPumpFiltersCountsAndFlushes(t *testing.T) {
+	t.Parallel()
 	var pieces []string
 	pump := newGenerationPump([]string{"STOP"}, func(piece string) error {
 		pieces = append(pieces, piece)
@@ -33,6 +34,7 @@ func TestGenerationPumpFiltersCountsAndFlushes(t *testing.T) {
 }
 
 func TestGenerationPumpLengthReason(t *testing.T) {
+	t.Parallel()
 	pump := newGenerationPump(nil, nil)
 	if err := pump.accept(inference.TokenEvent{Piece: "a"}); err != nil {
 		t.Fatal(err)

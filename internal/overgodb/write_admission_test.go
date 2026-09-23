@@ -17,6 +17,7 @@ import (
 // unproduced batch may depend on it; and Rebuild transplants the kind into a
 // new chain.
 func TestWriteAdmissionBindsKindsToProducers(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Open(root)

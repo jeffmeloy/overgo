@@ -91,6 +91,7 @@ func drillCopyStore(t *testing.T, sourceRoot, destinationRoot string) {
 // torn sealed segment refuses to open, and the source store's bytes never
 // change.
 func TestRSIStoreMigrationDrill(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	sourceRoot := filepath.Join(base, "source")
 	copyScaleCorpus(t, sourceRoot)

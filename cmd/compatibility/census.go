@@ -143,14 +143,20 @@ func checkCapabilityCensus(ctx context.Context, store *overgodb.Store, value cap
 	if truncated {
 		return errors.New("capability census: live registered catalog is truncated")
 	}
-	if !slices.EqualFunc(value.Models, censusModels(current), func(expected, actual censusModel) bool {
-		return expected.Model == actual.Model && expected.Location == actual.Location && expected.Present == actual.Present &&
-			slices.Equal(expected.Capabilities, actual.Capabilities)
-	}) {
+	if !sameCensusModels(value.Models, censusModels(current)) {
 		return fmt.Errorf("capability census: registered identity, availability or task/recipe set changed (snapshot=%d live=%d); record a new disposition before replacing the denominator", len(value.Models), len(current))
 	}
 	_, err = readCensusVerifications(ctx, store, value)
 	return err
+}
+
+// sameCensusModels reports whether two census entry lists name the same
+// registered identities, availability and task/recipe sets, in order.
+func sameCensusModels(expected, actual []censusModel) bool {
+	return slices.EqualFunc(expected, actual, func(expected, actual censusModel) bool {
+		return expected.Model == actual.Model && expected.Location == actual.Location && expected.Present == actual.Present &&
+			slices.Equal(expected.Capabilities, actual.Capabilities)
+	})
 }
 
 type censusVerification struct {

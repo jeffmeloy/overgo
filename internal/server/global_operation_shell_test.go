@@ -18,6 +18,7 @@ import (
 )
 
 func TestGlobalOperationShell(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	app := serveTestRequest(handler, http.MethodGet, "/app.html", "").Body.String()
@@ -45,6 +46,7 @@ func TestGlobalOperationShell(t *testing.T) {
 }
 
 func TestGlobalOperationShellSSE(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -84,6 +86,7 @@ func TestGlobalOperationShellSSE(t *testing.T) {
 }
 
 func TestGlobalOperationDecisionRecovery(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "global-shell-recovery-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "global-shell-recovery-run")
@@ -127,6 +130,7 @@ func TestGlobalOperationDecisionRecovery(t *testing.T) {
 }
 
 func TestGlobalOperationTerminalState(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "global-shell-terminal-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "global-shell-terminal-run")

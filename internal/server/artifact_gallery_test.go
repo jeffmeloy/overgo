@@ -13,6 +13,7 @@ import (
 )
 
 func TestHandlerRetainsBrowseStore(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -37,6 +38,7 @@ func TestHandlerRetainsBrowseStore(t *testing.T) {
 }
 
 func TestHandlerClosesBrowseStore(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -59,6 +61,7 @@ func TestHandlerClosesBrowseStore(t *testing.T) {
 }
 
 func TestArtifactGalleryProjectedPageIsBoundedAndStreamsPayloads(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

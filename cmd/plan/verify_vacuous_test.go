@@ -8,6 +8,7 @@ import (
 )
 
 func TestRunVerifyRejectsSkippedGoTest(t *testing.T) {
+	t.Parallel()
 	item := plan.Item{ID: "gate"}
 	step := plan.Step{
 		ID:     "skip",
@@ -23,6 +24,7 @@ func TestRunVerifyRejectsSkippedGoTest(t *testing.T) {
 }
 
 func TestRunVerifyRejectsSkippedBatchMemberBeforeParent(t *testing.T) {
+	t.Parallel()
 	item := plan.Item{ID: "audio"}
 	step := plan.Step{
 		ID: "dataset", Verify: "true",

@@ -20,6 +20,7 @@ import (
 const transcriptionTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestStoredTranscriptionReportRejectsAlteredScoresAndDenominators(t *testing.T) {
+	t.Parallel()
 	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
 		Name: "exact", Group: "clean", Source: audioReference(t, "stored-quality"),
 		Reference: "Hello world", SampleCount: 16000, SampleRate: 16000,
@@ -97,6 +98,7 @@ type transcriptionEvaluationFixture struct {
 }
 
 func TestTranscriptionEvaluationUsesStoredPredictionsAndFailureDenominators(t *testing.T) {
+	t.Parallel()
 	fixture := newTranscriptionEvaluationFixture(t)
 	defer fixture.store.Close()
 	predictions := []TranscriptionPrediction{
@@ -135,6 +137,7 @@ func TestTranscriptionEvaluationUsesStoredPredictionsAndFailureDenominators(t *t
 }
 
 func TestTranscriptionPredictionIsolationAndAuthorityRefusal(t *testing.T) {
+	t.Parallel()
 	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
 		Name: "exact", Group: "clean", Source: audioReference(t, "isolated-exact"),
 		Reference: "Hello,   world!", SampleCount: 16_000, SampleRate: 16_000,
@@ -182,6 +185,7 @@ func TestTranscriptionPredictionIsolationAndAuthorityRefusal(t *testing.T) {
 }
 
 func TestTranscriptionSilentSuccessIsNegativeControlFailure(t *testing.T) {
+	t.Parallel()
 	fixture := singleTranscriptionEvaluationFixture(t, TranscriptionCase{
 		Name: "silence", Group: "control", Source: audioReference(t, "silent-success"),
 		SampleCount: 4_000, SampleRate: 16_000, SilentControl: true,
@@ -200,6 +204,7 @@ func TestTranscriptionSilentSuccessIsNegativeControlFailure(t *testing.T) {
 }
 
 func TestWordErrorRateUsesOneSequenceEditPrimitive(t *testing.T) {
+	t.Parallel()
 	reference := stringsForTranscriptionScore("The, quick brown fox")
 	hypothesis := stringsForTranscriptionScore("the quick fox")
 	if distance := sequenceEditDistance(reference, hypothesis); distance != 1 {
@@ -208,6 +213,7 @@ func TestWordErrorRateUsesOneSequenceEditPrimitive(t *testing.T) {
 }
 
 func TestCharacterErrorRateUsesUnicodeRunes(t *testing.T) {
+	t.Parallel()
 	reference := []rune(normalizeTranscription("Café", []TranscriptionNormalization{TranscriptionLowercase}))
 	hypothesis := []rune(normalizeTranscription("Cafe", []TranscriptionNormalization{TranscriptionLowercase}))
 	if distance := sequenceEditDistance(reference, hypothesis); distance != 1 {

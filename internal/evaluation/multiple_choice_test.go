@@ -22,6 +22,7 @@ func (s fixedContinuationScorer) ScoreContinuations(
 }
 
 func TestMultipleChoiceScoringMatchesPinnedOracle(t *testing.T) {
+	t.Parallel()
 	compiled, err := CompileMultipleChoice(MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "fixture/v1", Source: "fixture",
 		Normalization: sequencescore.NormalizationMean, Aggregation: AggregationAccuracy,

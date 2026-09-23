@@ -14,6 +14,7 @@ import (
 // needs a location and a reason, answers that it needs the launcher's
 // intake, then retires through it; the intake's refusal is the route's.
 func TestLibraryProviderRetireRetiresThroughTheIntake(t *testing.T) {
+	t.Parallel()
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

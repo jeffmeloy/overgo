@@ -17,6 +17,7 @@ import (
 // retry with the resume checkpoint and the measured recovery cost, reports
 // prediction error for measured leases -- and remains recommendation-only.
 func TestExperimentLeaseLifecycleAndMeasurement(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)
 	experiment := testutil.ArtifactID(t, artifact.KindEvidence, "scheduled-experiment")
 	checkpoint := testutil.ArtifactID(t, artifact.KindCheckpoint, "scheduled-checkpoint")

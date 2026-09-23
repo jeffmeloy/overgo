@@ -9,6 +9,7 @@ import (
 )
 
 func TestFamilyBranchSnapshot(t *testing.T) {
+	t.Parallel()
 	source := []byte(`package shared
 func Match(a string) bool { switch a { case "gemma3": return true }; return a == "llama3" || a != "qwen2.5" }
 `)
@@ -29,6 +30,7 @@ func Match(a string) bool { switch a { case "gemma3": return true }; return a ==
 
 // Keep the repository's independent family-branch ceiling assertion.
 func TestArchitectureFamilyBranchCensus(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join("..", "..")
 	var baseline struct {
 		Version  int            `json:"version"`

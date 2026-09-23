@@ -16,6 +16,7 @@ import (
 // rate lifted from its evidence document, and the latest committed
 // evaluation surfaces per recipe under its derived suite name.
 func TestCatalogEvidenceIndex(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	ctx := t.Context()
 	store := handler.config.Repository

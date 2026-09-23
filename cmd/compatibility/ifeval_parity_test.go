@@ -16,6 +16,7 @@ import (
 // The compact result references the complete acquisition and its passed scorer
 // gate. This check reads historical evidence; it never executes a model.
 func TestMiniCPMIFEvalGoParityAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

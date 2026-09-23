@@ -13,6 +13,7 @@ import (
 // TestWebUIBrowserConversationLayout exercises the work the user does, including
 // a phone viewport reduced by its keyboard, instead of scoring header density.
 func TestWebUIBrowserConversationLayout(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": browser layout runs through cmd/webui-lane")
 	}

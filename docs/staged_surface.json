@@ -1,7 +1,7 @@
 {
   "version": 2,
   "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. A lane projection may retain an unchanged foreign declaration through inherited_from, an exact ancestor with that foreign open step; it grants neither dispatch nor completion credit. Missing, blocked, historical, duplicate, and free-text future-work entries otherwise refuse. Undeclared new unconsumed surface still blocks the gate.",
-  "inherited_from": "a4d55c0212932002f3840c2287952e328a16ae81",
+  "inherited_from": "79f5dd1841a2551ad8c47f0e776b932fc89540f0",
   "staged": [
     {
       "package": "overgo/internal/modelrecipetest",
@@ -176,6 +176,27 @@
       "name": "RegisterDocumentRuntime",
       "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
       "retire_with": "speech-document-admission/do"
+    },
+    {
+      "package": "overgo/internal/storepolicy",
+      "name": "Telemetry",
+      "reason": "the telemetry class and its horizon land with the record they bound, before the store upkeep step that releases past the horizon",
+      "retire_with": "store-growth-ratchet/do"
+    },
+    {
+      "package": "overgo/internal/storepolicy",
+      "name": "TelemetryHorizon",
+      "reason": "the telemetry class and its horizon land with the record they bound, before the store upkeep step that releases past the horizon",
+      "retire_with": "store-growth-ratchet/do"
+    },
+    {
+      "package": "overgo/internal/modeltest",
+      "name": "Directory",
+      "reason": "Resolves a model test's directory through the store's registration instead of a models root joined with a name; test-support surface is test-consumed by design, and it lives apart from testutil so tests that load no model take on no store.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:5ac10b047bf46ee86852ffdd833056897638384e21d6c6215ded10b6e9c8e27f"
+      }
     }
   ]
 }

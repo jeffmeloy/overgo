@@ -8,6 +8,7 @@ import (
 )
 
 func TestMoERoutingBaselineMatrixHasExactPairedAuthorities(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	authorities := moeRoutingPairedAuthorities{
 		Model: id(artifact.KindModel, "model"), Dataset: id(artifact.KindDataset, "dataset"),

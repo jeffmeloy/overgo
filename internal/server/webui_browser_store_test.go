@@ -124,6 +124,7 @@ func prepareBrowserJourneyStore(ctx context.Context, source, destination string)
 }
 
 func TestBrowserJourneyStoreIsolation(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	source := t.TempDir()
 	store, err := overgodb.Open(source)

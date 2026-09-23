@@ -12,6 +12,7 @@ import (
 )
 
 func TestRetainedProjectionPublications(t *testing.T) {
+	t.Parallel()
 	var projections []struct {
 		Name     string      `json:"name"`
 		Evidence artifact.ID `json:"evidence"`

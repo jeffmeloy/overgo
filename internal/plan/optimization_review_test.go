@@ -29,6 +29,7 @@ func reviewID(t *testing.T, kind artifact.Kind, text string) artifact.ID {
 // count, a moved harness surface, and dispatch refusal until each key has a
 // row or a reason -- never both, never neither, and a row must exist.
 func TestPostRowOptimizationReview(t *testing.T) {
+	t.Parallel()
 	evidence := reviewID(t, artifact.KindEvidence, "suite cost")
 	slow, fast := 40.25, 12.5
 	record, err := json.Marshal(map[string]any{
@@ -121,6 +122,7 @@ func TestPostRowOptimizationReview(t *testing.T) {
 // one candidate per step and package, carrying the count as its measure, in
 // a deterministic order after the costliest package.
 func TestReviewKeysAreAnswerable(t *testing.T) {
+	t.Parallel()
 	var deviceSkips []string
 	for index := range 302 {
 		deviceSkips = append(deviceSkips, "overgo/internal/cuda/executor: TestKernel"+strings.Repeat("x", index%7)+string(rune('A'+index%26)))
@@ -164,6 +166,7 @@ func TestReviewKeysAreAnswerable(t *testing.T) {
 // changed a key wins, a key dropped by one side and kept unchanged by the
 // other is dropped, and two different edits of one key conflict.
 func TestOptimizationReviewMerge(t *testing.T) {
+	t.Parallel()
 	rowA := OptimizationDisposition{Key: "suite-cost:a", Row: "row-a"}
 	rowB := OptimizationDisposition{Key: "suite-cost:a", Row: "row-b"}
 	reason := OptimizationDisposition{Key: "store-growth:bytes:x", Reason: "below the ratchet"}

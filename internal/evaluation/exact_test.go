@@ -34,6 +34,7 @@ func (g exactGenerator) Generate(_ context.Context, _ string, options inference.
 }
 
 func TestCompileExactOwnsStableSuite(t *testing.T) {
+	t.Parallel()
 	suite := exactFixture()
 	first, err := CompileExact(suite)
 	if err != nil {
@@ -57,6 +58,7 @@ func TestCompileExactOwnsStableSuite(t *testing.T) {
 }
 
 func TestCompileExactRejectsIncompleteSuite(t *testing.T) {
+	t.Parallel()
 	for _, suite := range []ExactSuite{
 		{},
 		{Schema: "test/v1", Source: "fixture"},
@@ -69,6 +71,7 @@ func TestCompileExactRejectsIncompleteSuite(t *testing.T) {
 }
 
 func TestExactReportsGenerationFailureAndMismatch(t *testing.T) {
+	t.Parallel()
 	plan, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)

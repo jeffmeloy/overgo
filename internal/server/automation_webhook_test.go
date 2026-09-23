@@ -22,6 +22,7 @@ import (
 )
 
 func TestWebhookAutomationDispatchAndRecovery(t *testing.T) {
+	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	workspace := fixture.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace

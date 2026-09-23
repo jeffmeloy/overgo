@@ -14,6 +14,7 @@ import (
 // facet exactly once, with an exact key repeat replaying the same
 // commit identity instead of moving state.
 func TestCommitCoordinatorAtomicity(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {

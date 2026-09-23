@@ -15,6 +15,7 @@ import (
 )
 
 func TestOperationRuntimeLifecycle(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "server-operation-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "server-operation-run")

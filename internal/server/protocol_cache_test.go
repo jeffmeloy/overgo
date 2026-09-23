@@ -33,6 +33,7 @@ func (g *protocolCacheGenerator) Generate(ctx context.Context, prompt string, op
 }
 
 func TestProtocolPromptCacheReuse(t *testing.T) {
+	t.Parallel()
 	for _, protocol := range []struct{ path, input, budget string }{
 		{"/v1/chat/completions", `"messages":[{"role":"user","content":"hi"}]`, "max_tokens"},
 		{"/v1/responses", `"input":"hi"`, "max_output_tokens"},

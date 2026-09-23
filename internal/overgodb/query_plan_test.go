@@ -15,6 +15,7 @@ import (
 // unowned contract may refuse instead of silently scanning the catalog, and
 // every result reports inspected, matched, returned, and loaded facts.
 func TestProjectionQueryPlanEfficiency(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

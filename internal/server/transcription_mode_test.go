@@ -19,6 +19,7 @@ import (
 // the run's transcription document and the transcript's text beside it,
 // the text under the shared text answer contract.
 func TestTranscriptionModeRunsThroughGenericRoute(t *testing.T) {
+	t.Parallel()
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	authorized := func(method, path, body, mediaType string) *httptest.ResponseRecorder {
 		t.Helper()

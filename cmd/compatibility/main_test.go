@@ -10,6 +10,7 @@ import (
 )
 
 func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	source := writeEvidence(t, root, "internal/feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "internal/feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
@@ -39,6 +40,7 @@ func TestGenerateValidatesEvidenceAndSortsOutput(t *testing.T) {
 }
 
 func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
@@ -54,6 +56,7 @@ func TestGenerateRejectsStaleClaimEvidence(t *testing.T) {
 }
 
 func TestSymbolEvidenceIgnoresUnrelatedFileChanges(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	data := "package feature\nfunc Feature() int { return 1 }\nfunc Unrelated() int { return 2 }\n"
 	proof := writeSymbolEvidence(t, root, "feature.go", data, "func Feature(", "Feature", roleSource)
@@ -74,6 +77,7 @@ func TestSymbolEvidenceIgnoresUnrelatedFileChanges(t *testing.T) {
 }
 
 func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	sourceText := "package feature\nfunc Feature() {}\n"
 	proofText := "package feature\nfunc TestFeature() {}\n"
@@ -92,6 +96,7 @@ func TestGenerateNormalizesEvidenceLineEndings(t *testing.T) {
 }
 
 func TestRefreshEvidenceIdentitiesUsesCanonicalBytes(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\r\nfunc Feature() {}\r\n", "func Feature(", roleSource)
 	extra := writeEvidence(t, root, "extra.go", "package feature\r\nfunc Extra() {}\r\n", "func Extra(", roleSource)
@@ -122,6 +127,7 @@ func TestRefreshEvidenceIdentitiesUsesCanonicalBytes(t *testing.T) {
 }
 
 func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	source := writeEvidence(t, root, "feature.go", "package feature\nfunc Feature() {}\n", "func Feature(", roleSource)
 	proof := writeEvidence(t, root, "feature_test.go", "package feature\nfunc TestFeature() {}\n", "func TestFeature(", roleArtifact)
@@ -154,6 +160,7 @@ func TestClaimsRequireLiveEvidenceTier(t *testing.T) {
 }
 
 func TestValidateModelCoverageRejectsMissingAndExtra(t *testing.T) {
+	t.Parallel()
 	models := map[string]modelClaim{
 		"alpha": {Features: []string{"a"}},
 		"extra": {Features: []string{"x"}},

@@ -10,6 +10,7 @@ import (
 )
 
 func TestMediaTargetMetricsRequireExplicitVerifierAuthority(t *testing.T) {
+	t.Parallel()
 	verifier := testutil.ArtifactID(t, artifact.KindProfile, "media verifier")
 	for _, modality := range []recipecontract.Modality{
 		recipecontract.ModalityAudio, recipecontract.ModalityImage, recipecontract.ModalityVideo,

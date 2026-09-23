@@ -18,6 +18,7 @@ import (
 
 // Publication leaves no source delta, but cannot retire admitted work.
 func TestDeferredLaneSelectionSurvivesPublication(t *testing.T) {
+	t.Parallel()
 	liveRepositoryFixture(t).plan(t, nil, func(g *gateContext) {
 		initial, err := g.planPipeline()
 		if err != nil {

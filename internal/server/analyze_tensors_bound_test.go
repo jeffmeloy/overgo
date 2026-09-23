@@ -47,6 +47,7 @@ func requestTensors(t *testing.T, handler *Handler, query string) analyzeTensors
 // answer the same inventory without another full pass, with the same profile.
 // A full pass over a served model took minutes on every Tensors tab mount.
 func TestAnalyzeTensorsIsBounded(t *testing.T) {
+	// Serial: it swaps the package measurement function.
 	passes := countFullPasses(t, nil)
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -76,6 +77,7 @@ func TestAnalyzeTensorsIsBounded(t *testing.T) {
 // measurement once it ends: the Tensors tab showed nothing for minutes while
 // every effective rank was computed.
 func TestAnalyzeTensorsProfilesBeforeSpectra(t *testing.T) {
+	// Serial: it swaps the package measurement function.
 	release := make(chan struct{})
 	countFullPasses(t, release)
 	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeTensorFixture(t)})

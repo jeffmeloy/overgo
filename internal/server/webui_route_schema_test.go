@@ -15,6 +15,7 @@ import (
 // part of a body (the automation trigger, the flat peer placement form) was
 // bound once and sent fields the strict decoder refuses.
 func TestWebUIRouteSchemasMatchHandlerBodies(t *testing.T) {
+	t.Parallel()
 	bodies := map[string]reflect.Type{
 		"/agents/definitions": reflect.TypeFor[AgentDefinitionInput](),
 		"/peers/enroll":       reflect.TypeFor[runrecord.PeerEnrollment](),

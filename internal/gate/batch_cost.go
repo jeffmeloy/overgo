@@ -206,7 +206,7 @@ func (g *gateContext) appendSelectionCauses(batch *artifact.Batch, result artifa
 	if len(g.selectionCauses) == 0 {
 		return nil
 	}
-	record, err := runrecord.SelectionCauseCodec.NewInitial(runrecord.SelectionCauseRecord{
+	record, err := runrecord.NewSelectionCauses(runrecord.SelectionCauseRecord{
 		Result: result, Changed: slices.Clone(g.paths), Packages: slices.Clone(g.selectionCauses),
 		Limitations: "Attribution is package-level binding on the frozen candidate graph, not function reach. Elapsed values come from go test and overlap within a check.",
 	})

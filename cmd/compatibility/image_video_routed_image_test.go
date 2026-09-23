@@ -61,6 +61,7 @@ func checkMediaCPUImage(row mediaLatentObservation, run runrecord.Run, source st
 }
 
 func TestImageVideoRoutedImageAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained routed image bundle")
 	}

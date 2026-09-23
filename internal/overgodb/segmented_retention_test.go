@@ -17,6 +17,7 @@ import (
 // and the closing snapshot replaces a checkpoint set that no longer forms a
 // valid anchored set.
 func TestSegmentedRetentionPreservesAuthorityClosure(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := Open(root)

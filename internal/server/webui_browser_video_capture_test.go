@@ -18,6 +18,7 @@ import (
 // supports stop, preview, retake and discard, releases every track, and
 // the attachment intake decides the format the way the server decodes it.
 func TestWebUIBrowserVideoCapture(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": video capture runs through cmd/webui-lane")
 	}

@@ -10,6 +10,7 @@ import (
 )
 
 func TestWebUIServesEmbeddedAssets(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	cases := []struct {
 		path        string
@@ -62,6 +63,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 }
 
 func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	module := serveTestRequest(handler, http.MethodGet, "/mod/evaluations.js", "").Body.String()
 	for _, token := range []string{
@@ -83,6 +85,7 @@ func TestEvaluationWorkbenchUsesDeclaredCapabilities(t *testing.T) {
 }
 
 func TestWebUIRuntimeMonitor(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(path string) string {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
@@ -113,6 +116,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 }
 
 func TestWorkflowStageGUI(t *testing.T) {
+	t.Parallel()
 	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
 	for _, token := range []string{"data.stages", "Workflow stages", "stage.operation", "stage.attempt"} {
 		if !strings.Contains(runtime, token) {
@@ -122,6 +126,7 @@ func TestWorkflowStageGUI(t *testing.T) {
 }
 
 func TestToolDecisionGUI(t *testing.T) {
+	t.Parallel()
 	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
 	for _, token := range []string{"overgo.decideOperation(", "item.recovery", "Grant ", "decline"} {
 		if !strings.Contains(runtime, token) {
@@ -131,6 +136,7 @@ func TestToolDecisionGUI(t *testing.T) {
 }
 
 func TestInteractionReplayGUI(t *testing.T) {
+	t.Parallel()
 	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
 	for _, token := range []string{"data.interactions", "/interactions/replay?response=", "interaction.trace"} {
 		if !strings.Contains(runtime, token) {
@@ -140,6 +146,7 @@ func TestInteractionReplayGUI(t *testing.T) {
 }
 
 func TestRemoteAttemptGUI(t *testing.T) {
+	t.Parallel()
 	runtime := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/runtime.js", "").Body.String()
 	if !strings.Contains(runtime, `item.compatibility ? " / peer"`) {
 		t.Fatal("remote attempts are not identified from compatibility evidence")
@@ -147,6 +154,7 @@ func TestRemoteAttemptGUI(t *testing.T) {
 }
 
 func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	runtime := serveTestRequest(handler, http.MethodGet, "/mod/runtime.js", "").Body.String()
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
@@ -163,6 +171,7 @@ func TestAgentGUIUsesProjectedQueriesAndSSE(t *testing.T) {
 }
 
 func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	const requestBody = `{"messages":[{"role":"user","content":"hi"}],"stream":true,"max_tokens":1}`
 	count := serveTestRequest(handler, http.MethodPost, "/v1/chat/completions/input_tokens", requestBody)
@@ -230,6 +239,7 @@ func TestWebUIChatUsesServerContextAndTiming(t *testing.T) {
 }
 
 func TestWebUIUnknownPathReturns404(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/no/such/asset.js", "")
 	if response.Code != http.StatusNotFound {
@@ -244,6 +254,7 @@ func TestWebUIUnknownPathReturns404(t *testing.T) {
 // server is key-protected — otherwise the page could never present the key
 // field. API routes stay protected; only the static assets are public.
 func TestWebUIAssetsPublicWhenAPIKeyConfigured(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{ModelID: testModelID, MaxTokens: testMaxTokens, APIKey: "secret"}, &fakeGenerator{})
 	if err != nil {
 		t.Fatal(err)
@@ -265,6 +276,7 @@ func TestWebUIAssetsPublicWhenAPIKeyConfigured(t *testing.T) {
 // non-existent --accent); (2) the panel must own its horizontal overflow so a
 // wide table cannot force the whole page body to scroll sideways.
 func TestWebUIStyleInvariants(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 
 	// Every var(--name) used in a module must be a name style.css defines.
@@ -293,6 +305,7 @@ func TestWebUIStyleInvariants(t *testing.T) {
 // routing their errors through the helper instead of leaking the raw bearer
 // error.
 func TestWebUIAuthUX(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 
@@ -320,6 +333,7 @@ func TestWebUIAuthUX(t *testing.T) {
 // caller-supplied labels (so a reader can map color→value and read the axes
 // instead of hovering every cell).
 func TestWebUIHeatmapLegend(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
 	for _, needle := range []string{"colorScaleLegend", "linearGradient", "rowLabels", "colLabels"} {
@@ -335,6 +349,7 @@ func TestWebUIHeatmapLegend(t *testing.T) {
 }
 
 func TestSignedSeriesPreservesNegativeMeasurements(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	viz := serveTestRequest(handler, http.MethodGet, "/viz.js", "").Body.String()
 	start := strings.Index(viz, "function signedSeries")
@@ -357,6 +372,7 @@ func TestSignedSeriesPreservesNegativeMeasurements(t *testing.T) {
 }
 
 func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	training := serveTestRequest(handler, http.MethodGet, "/mod/training.js", "").Body.String()
 	for _, token := range []string{
@@ -376,6 +392,7 @@ func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
 }
 
 func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
 	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
@@ -397,6 +414,7 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 // health re-probe so a dropped/restored server updates the status pill; the
 // re-probe runs only while the page is visible.
 func TestWebUIShellCache(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 	boot := get("/boot.js")
@@ -420,6 +438,7 @@ func TestWebUIShellCache(t *testing.T) {
 // forward pass (lens, hidden-states, attention). The abort semantics live once
 // in the shared runner; each tab drives it and forwards the signal.
 func TestWebUICancel(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 	boot := get("/boot.js")
@@ -442,6 +461,7 @@ func TestWebUICancel(t *testing.T) {
 // TestWebUIClientDedup guards the tightening: displayToken is defined once in the
 // shell and the token-showing tabs use it instead of each redefining it.
 func TestWebUIClientDedup(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 	if !strings.Contains(get("/boot.js"), "function displayToken") {
@@ -458,6 +478,7 @@ func TestWebUIClientDedup(t *testing.T) {
 // (never innerHTML — model output is untrusted), scheme-check link hrefs, offer
 // copy buttons, and be wired into the chat tab and the shell load order.
 func TestWebUIChatMarkdown(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 
@@ -493,6 +514,7 @@ func TestWebUIChatMarkdown(t *testing.T) {
 // (no inline), nosniff, and no framing. The landing page must therefore carry no
 // inline <script> or inline event handler — those moved to probe.js.
 func TestWebUIContentSecurityPolicy(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, p := range []string{"/", "/index.html", "/app.html", "/boot.js"} {
 		resp := serveTestRequest(handler, http.MethodGet, p, "")
@@ -522,6 +544,7 @@ func TestWebUIContentSecurityPolicy(t *testing.T) {
 }
 
 func TestWebUIRejectsNonGet(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/", nil))
@@ -535,6 +558,7 @@ func TestWebUIRejectsNonGet(t *testing.T) {
 // section headers, and the stylesheet carries the disclosure control
 // styling -- so optional free-entry panels collapse to their headers.
 func TestCollapsibleSections(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	assertions := []struct {
 		path, needle string

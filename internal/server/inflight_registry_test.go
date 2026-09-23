@@ -8,6 +8,7 @@ import (
 // TestInflightRegistryConcurrentFinish exercises completion while admission
 // scans the retained turns. Run with -race to check the two lock domains.
 func TestInflightRegistryConcurrentFinish(t *testing.T) {
+	t.Parallel()
 	for range 100 {
 		var registry inflightRegistry
 		before := registry.begin("before", 1, nil)

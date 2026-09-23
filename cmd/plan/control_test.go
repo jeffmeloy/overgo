@@ -8,6 +8,7 @@ import (
 )
 
 func TestOverrideAndContainmentEvidence(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

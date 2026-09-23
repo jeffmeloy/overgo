@@ -14,6 +14,7 @@ import (
 // live over the model query parameter; served directly it falls back
 // to the relaunch command.
 func TestServedModelHeader(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	health := serveTestRequest(handler, http.MethodGet, "/health", "")
 	if health.Code != http.StatusOK || !strings.Contains(health.Body.String(), testModelID) {

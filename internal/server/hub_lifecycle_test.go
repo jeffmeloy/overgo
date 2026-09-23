@@ -17,6 +17,7 @@ import (
 // cancels a running job, and a cancelled job stays cancelled when its
 // transfer unwinds.
 func TestWorkbenchAPIDownloadAdmissionAndCancellation(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	digest := sha256.Sum256([]byte("w"))
 	mux := http.NewServeMux()

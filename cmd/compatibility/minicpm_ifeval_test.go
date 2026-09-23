@@ -46,6 +46,7 @@ func checkIFEvalSelection(cells []ifevalCell, retained map[string]bool) error {
 }
 
 func TestMiniCPMIFEvalAcquisitionAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -234,6 +235,7 @@ func checkMiniIFEvalNativeScores(rows []miniIFEvalNativeRow, counts map[string]i
 }
 
 func TestMiniCPMIFEvalNativeScoringAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

@@ -885,6 +885,7 @@ func declareLaneRemote(t *testing.T, storePath, name, variable, value string, pi
 }
 
 func TestLaneRemoteFixtureReplacesPriorEndpoint(t *testing.T) {
+	// Serial: a helper it calls sets the process environment.
 	storePath := t.TempDir()
 	first := declareLaneRemote(t, storePath, "webui-lane-cleanup", "OVERGO_WEBUI_LANE_CLEANUP_KEY", "lane-key", []string{"old"})
 	second := declareLaneRemote(t, storePath, "webui-lane-cleanup", "OVERGO_WEBUI_LANE_CLEANUP_KEY", "lane-key", []string{"current"})

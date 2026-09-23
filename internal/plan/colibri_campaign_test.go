@@ -50,6 +50,7 @@ func preparedColibriMergeBoundary(item Item) bool {
 }
 
 func TestColibriPreparedMergeBoundary(t *testing.T) {
+	t.Parallel()
 	item := Item{ID: "merge-939317c05122", Owner: "colibri", Status: StatusOpen,
 		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go build ./..."}}}
 	if !preparedColibriMergeBoundary(item) || preparedMergeBoundary(item) {
@@ -73,6 +74,7 @@ func TestColibriPreparedMergeBoundary(t *testing.T) {
 }
 
 func TestColibriCampaign(t *testing.T) {
+	t.Parallel()
 	document := loadCampaignPlan(t)
 	if document.Lane == "colibri" {
 		assertColibriCampaign(t, document)
@@ -80,6 +82,7 @@ func TestColibriCampaign(t *testing.T) {
 }
 
 func TestColibriLaneRejectsForeignWork(t *testing.T) {
+	t.Parallel()
 	document := Plan{Lane: "colibri", Scope: ScopeLane, Items: []Item{{
 		ID: "foreign", Owner: "master-lead", Status: StatusOpen,
 		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./internal/plan"}},

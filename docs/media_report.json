@@ -1970,7 +1970,7 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 218,
+    "Registered": 219,
     "Activations": 34,
     "AcceptedActivations": 27,
     "Models": [
@@ -3917,6 +3917,17 @@
       {
         "Model": "model:sha256:73f60c3288772798c0fc7c23ac96ad056b296297c8517bb49dd2968613734561",
         "Name": "webui-lane-entry-model",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": null,
+        "Protocols": null,
+        "Gap": "Registered without task activation or accepted protocol.",
+        "RepairOwner": "final-model-validation/do"
+      },
+      {
+        "Model": "model:sha256:7406a105abd72a286bf98cc3a8f3810812bc4baaac4804635de574e50b38921b",
+        "Name": "timesfm-3.0-pytorch",
         "Present": true,
         "Execution": "local",
         "Domains": null,

@@ -397,6 +397,7 @@ func mediaRotarySourceDigest(sources map[string][]byte) string {
 }
 
 func TestMediaRotarySourceIsolation(t *testing.T) {
+	t.Parallel()
 	for _, expression := range []string{
 		"b.RoPEWithOptions(x, options)",
 		"b.RoPEWithOptions(x, tensor.RoPEOptions{MultiPositions: axes})",

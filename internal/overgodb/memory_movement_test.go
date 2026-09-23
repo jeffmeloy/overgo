@@ -17,6 +17,7 @@ import (
 // commit-delta read still materializes and validates payloads for the
 // consumers that need the bytes.
 func TestMemoryMovementTraceReduction(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

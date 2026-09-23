@@ -45,6 +45,7 @@ func (f *chatFixture) ScoreContinuations(context.Context, string, []string) ([]s
 }
 
 func TestMatchChoiceLetterReadsTheFirstStandaloneLetter(t *testing.T) {
+	t.Parallel()
 	candidates := []string{" A", " B", " C", " D"}
 	for _, testCase := range []struct {
 		text    string
@@ -66,6 +67,7 @@ func TestMatchChoiceLetterReadsTheFirstStandaloneLetter(t *testing.T) {
 }
 
 func TestChatTemplateScoringGeneratesTheLetter(t *testing.T) {
+	t.Parallel()
 	suite := MultipleChoiceSuite{
 		Kind: MultipleChoiceKind, Schema: "test/mmlu/v1", Source: "store/mmlu",
 		Normalization: sequencescore.NormalizationSum, Aggregation: AggregationAccuracy,

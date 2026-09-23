@@ -55,6 +55,7 @@ type mediaCompositionBundle struct {
 }
 
 func TestImageVideoCompositionAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained composition evidence")
 	}
@@ -334,6 +335,7 @@ func TestImageVideoCompositionAcceptance(t *testing.T) {
 }
 
 func TestImageVideoCompositionRejectsChangedEvidence(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(testutil.RepoRoot(t), "docs/image_video_composition.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {

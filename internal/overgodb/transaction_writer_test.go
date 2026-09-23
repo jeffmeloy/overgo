@@ -18,6 +18,7 @@ import (
 )
 
 func TestTransactionWriter(t *testing.T) {
+	t.Parallel()
 	t.Run("backup refreshes a stale source", func(t *testing.T) {
 		root := t.TempDir()
 		source, err := Open(root)
@@ -325,6 +326,7 @@ type transactionReply struct {
 }
 
 func TestTransactionWriterProcess(t *testing.T) {
+	t.Parallel()
 	root := os.Getenv("OVERGO_TRANSACTION_TEST_ROOT")
 	if root == "" {
 		return

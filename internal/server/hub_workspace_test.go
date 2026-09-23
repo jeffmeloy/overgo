@@ -58,6 +58,7 @@ func hubTestHandler(t *testing.T, endpoint, downloadRoot string) *Handler {
 // TestWorkbenchAPIHubSearch proxies one bounded query and refuses an
 // unbounded or oversized one.
 func TestWorkbenchAPIHubSearch(t *testing.T) {
+	t.Parallel()
 	hub := hubTestServer(t, []byte("weights"))
 	handler := hubTestHandler(t, hub.URL, t.TempDir())
 	recorder := httptest.NewRecorder()
@@ -80,6 +81,7 @@ func TestWorkbenchAPIHubSearch(t *testing.T) {
 // TestWorkbenchAPIDownloadJob runs one verified download to completion and
 // observes it through the job listing.
 func TestWorkbenchAPIDownloadJob(t *testing.T) {
+	t.Parallel()
 	weights := []byte("downloadable weight bytes")
 	hub := hubTestServer(t, weights)
 	root := t.TempDir()
@@ -124,6 +126,7 @@ func TestWorkbenchAPIDownloadJob(t *testing.T) {
 // TestWorkbenchAPIDownloadRefusals pins the refusal surface: no configured
 // root, and a directory trying to escape it.
 func TestWorkbenchAPIDownloadRefusals(t *testing.T) {
+	t.Parallel()
 	hub := hubTestServer(t, []byte("w"))
 	handler := hubTestHandler(t, hub.URL, "")
 	recorder := httptest.NewRecorder()
@@ -144,6 +147,7 @@ func TestWorkbenchAPIDownloadRefusals(t *testing.T) {
 // TestWorkbenchAPICatalogWithoutStore reports the absent repository as a
 // typed unavailability rather than an empty catalog.
 func TestWorkbenchAPICatalogWithoutStore(t *testing.T) {
+	t.Parallel()
 	handler := hubTestHandler(t, "", t.TempDir())
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/catalog/models", nil))

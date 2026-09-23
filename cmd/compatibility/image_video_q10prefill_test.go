@@ -32,6 +32,7 @@ func checkMediaQ10prefillSource(root, revision string, paths []string) (string, 
 // TestMediaQ10prefillReconciliation proves the newest layer peels to its base
 // at the current surface and that its document is bound field by field.
 func TestMediaQ10prefillReconciliation(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	var merged mediaMergedEvidence
 	if err := jsonfile.Decode(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {

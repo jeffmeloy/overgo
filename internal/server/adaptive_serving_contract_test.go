@@ -3,6 +3,7 @@ package server
 import "testing"
 
 func TestAdaptiveServingContractMatrix(t *testing.T) {
+	t.Parallel()
 	contracts := []struct {
 		name string
 		run  func(*testing.T)

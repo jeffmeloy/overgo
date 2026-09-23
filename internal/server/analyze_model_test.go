@@ -13,6 +13,7 @@ import (
 )
 
 func TestAnalyzeModelReportsMeasuredStatistics(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/model", "")
 	if response.Code != http.StatusOK {
@@ -54,6 +55,7 @@ func TestAnalyzeModelReportsMeasuredStatistics(t *testing.T) {
 // deriveModelStatistics must omit ratios whose divisor is zero rather than
 // fabricate a value — the distribution-free principle forbids guessing.
 func TestAnalyzeModelOmitsRatiosWithZeroDivisor(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &zeroDivisorGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/model", "")
 	if response.Code != http.StatusOK {
@@ -83,6 +85,7 @@ type analysisCapableGenerator struct {
 func (g *analysisCapableGenerator) SupportsHiddenStateCapture() bool { return true }
 
 func TestAnalyzeModelReportsAnalysisCapabilities(t *testing.T) {
+	t.Parallel()
 	// Bare fake: logits always available; no vocab inspection or capture support.
 	bare := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/analyze/model", "")
 	var bareResult analyzeModelResponse
@@ -112,6 +115,7 @@ func TestAnalyzeModelReportsAnalysisCapabilities(t *testing.T) {
 }
 
 func TestAnalyzeModelRejectsNonGet(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/analyze/model", nil))

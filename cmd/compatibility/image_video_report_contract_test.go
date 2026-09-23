@@ -21,6 +21,7 @@ import (
 )
 
 func TestImageVideoReportContract(t *testing.T) {
+	// Serial: a subtest replaces the global flag set and os.Args to drive run.
 	t.Run("focused update refuses before store access", func(t *testing.T) {
 		savedFlags, savedArgs := flag.CommandLine, os.Args
 		defer func() { flag.CommandLine, os.Args = savedFlags, savedArgs }()

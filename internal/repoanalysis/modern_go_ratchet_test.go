@@ -12,6 +12,7 @@ import (
 )
 
 func TestModernGoRatchetCannotIncreaseDebt(t *testing.T) {
+	t.Parallel()
 	census := modernGoRatchetCensus()
 	baseline, err := BuildModernGoBaseline(census)
 	if err != nil {
@@ -77,6 +78,7 @@ func TestModernGoRatchetCannotIncreaseDebt(t *testing.T) {
 }
 
 func TestModernGoRatchetCannotLoseCoverage(t *testing.T) {
+	t.Parallel()
 	census := modernGoRatchetCensus()
 	baseline, err := BuildModernGoBaseline(census)
 	if err != nil {
@@ -94,6 +96,7 @@ func TestModernGoRatchetCannotLoseCoverage(t *testing.T) {
 }
 
 func TestModernGoRatchetRejectsExpiredExceptions(t *testing.T) {
+	t.Parallel()
 	census := modernGoRatchetCensus()
 	baseline, err := BuildModernGoBaseline(census)
 	if err != nil {
@@ -110,6 +113,7 @@ func TestModernGoRatchetRejectsExpiredExceptions(t *testing.T) {
 }
 
 func TestModernGoRatchetRejectsIntroducedDebt(t *testing.T) {
+	t.Parallel()
 	previous := modernGoRatchetCensus()
 	baseline, err := BuildModernGoBaseline(previous)
 	if err != nil {
@@ -148,6 +152,7 @@ func TestModernGoRatchetRejectsIntroducedDebt(t *testing.T) {
 }
 
 func TestModernGoRatchetSurvivesWorktreeRelocation(t *testing.T) {
+	t.Parallel()
 	measure := func(root string) (ModernGoCensus, ModernGoBaseline) {
 		t.Helper()
 		for name, content := range map[string]string{
@@ -198,6 +203,7 @@ func TestModernGoRatchetSurvivesWorktreeRelocation(t *testing.T) {
 }
 
 func TestModernGoBaselineLoweringIsMonotonic(t *testing.T) {
+	t.Parallel()
 	census := modernGoRatchetCensus()
 	baseline, err := BuildModernGoBaseline(census)
 	if err != nil {
@@ -231,6 +237,7 @@ func modernGoRatchetCensus() ModernGoCensus {
 }
 
 func TestModernGoBaselineRetiresResolvedExceptions(t *testing.T) {
+	t.Parallel()
 	initial := modernGoRatchetCensus()
 	first := initial.Findings[0].Candidates[0]
 	second := first

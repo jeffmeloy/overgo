@@ -6,6 +6,7 @@ import (
 )
 
 func TestAgentHarnessConsolidation(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join("..", "..")
 	snapshot, err := DiscoverGo(root, "internal", "cmd")
 	if err != nil {

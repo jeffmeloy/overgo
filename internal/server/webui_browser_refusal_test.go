@@ -16,6 +16,7 @@ import (
 // stream; and a decision on a pending approval from the Automations tab
 // carries the advertised request and succeeds.
 func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": workspace refusal runs through cmd/webui-lane")
 	}

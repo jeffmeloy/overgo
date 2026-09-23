@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"overgo/internal/automationcheck"
+	"overgo/internal/testskip"
 )
 
 // matrixCase is one frozen representative change: the paths the gate is
@@ -59,9 +60,10 @@ func requiredSelectionMatrix() []matrixCase {
 func TestChangeSelectionRequiredMatrix(t *testing.T) {
 	t.Parallel()
 	matrix := requiredSelectionMatrix()
-	excludedCases := 0
+	excludedCases, ranCases := 0, 0
 	for _, entry := range matrix {
 		t.Run(entry.name, func(t *testing.T) {
+			ranCases++
 			g := scopeCompilerFixture(t)
 			for _, path := range entry.removed {
 				if err := os.Remove(filepath.Join(g.repo, filepath.FromSlash(path))); err != nil {
@@ -102,6 +104,9 @@ func TestChangeSelectionRequiredMatrix(t *testing.T) {
 			t.Logf("matrix=%d case=%s denominator=%d full_failed=%d selected=%d excluded=%d full_wall=%s selection_wall=%s",
 				len(matrix), entry.name, len(roots), len(full.Failed), len(selected), scope.excluded, fullWall.Round(time.Millisecond), selectionWall.Round(time.Millisecond))
 		})
+	}
+	if ranCases == 0 {
+		t.Skip(testskip.Inapplicable + ": the -run filter selected no matrix case")
 	}
 	if excludedCases == 0 {
 		t.Fatal("no matrix case excluded a package; the comparison proves nothing")

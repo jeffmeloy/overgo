@@ -105,6 +105,7 @@ func validateGUIMobileEvidence(value guiMobileEvidence, captures fs.FS, source s
 // This operator-only test is deliberately outside the default browser prefix.
 // It validates submitted evidence, not the truth of an unobserved device run.
 func TestGUIMobileDeviceEvidence(t *testing.T) {
+	t.Parallel()
 	source, err := guiMobileSource()
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +129,7 @@ func TestGUIMobileDeviceEvidence(t *testing.T) {
 }
 
 func TestGUIMobileEvidenceContract(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)

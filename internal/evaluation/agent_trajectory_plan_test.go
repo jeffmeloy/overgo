@@ -7,6 +7,7 @@ import (
 )
 
 func TestAgentTrajectoryEvaluationPlan(t *testing.T) {
+	t.Parallel()
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)

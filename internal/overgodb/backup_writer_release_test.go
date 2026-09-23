@@ -46,6 +46,7 @@ func (c *backupBlobBoundary) Err() error {
 }
 
 func TestBackupWriterReleaseAcceptance(t *testing.T) {
+	t.Parallel()
 	for _, cancelCopy := range []bool{false, true} {
 		name := "commit-and-rotate"
 		if cancelCopy {

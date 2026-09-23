@@ -61,6 +61,7 @@ func videoWorkspaceFixture(t *testing.T) (*Handler, *nativeMediaWorkspace, []byt
 // operation, the output must be a committed video artifact, and its
 // content URL serves the exact bytes as video/mp4.
 func TestVideoGenerationWorkspace(t *testing.T) {
+	t.Parallel()
 	handler, workspace, video := videoWorkspaceFixture(t)
 	recipeID := workspace.capabilities[0].Recipe
 	response := serveTestRequest(handler, http.MethodPost, "/v1/videos/generations",

@@ -34,6 +34,14 @@ var surfaceRoots = []string{"./internal/inference", "./internal/cuda/executor", 
 // sources they are built from.
 var surfaceKernels = []string{"kernels/manifest.json", "kernels/cuda"}
 
+// identityAddressed are the packages the runner reaches only to resolve and
+// record artifacts by content identity: the store and the run records. A
+// change to them cannot alter the bytes a decode computes over, which the
+// record pins by identity, so the surface does not descend into them. They
+// were half of what expired text evidence: of 67 surface moves in 400
+// commits, 21 touched nothing else.
+var identityAddressed = []string{"internal/overgodb", "internal/runrecord"}
+
 // Digest digests the inference code surface of the tree at root: the
 // non-test Go sources of every module-local package in the closure of
 // surfaceRoots, plus the kernel sources. A long-form record keyed to
@@ -164,12 +172,15 @@ func Moves(ctx context.Context, root string, paths []string) ([]string, error) {
 // and the files it embeds, which are runtime inputs though they are not source.
 type Package struct {
 	Dir        string
+	ImportPath string
+	Imports    []string
 	EmbedFiles []string
 	Module     *struct{ Path string }
 }
 
 // Packages lists the module-local packages in the closure of the surface roots,
-// through the Go tool's own dependency resolution.
+// through the Go tool's own dependency resolution, without descending into
+// the identity-addressed packages.
 func Packages(ctx context.Context, root string) ([]Package, error) {
 	arguments := append([]string{"list", "-deps", "-json"}, surfaceRoots...)
 	var stdout, stderr bytes.Buffer
@@ -186,7 +197,7 @@ func Packages(ctx context.Context, root string) ([]Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	var packages []Package
+	local := map[string]Package{}
 	decoder := json.NewDecoder(&stdout)
 	for {
 		var pkg Package
@@ -198,7 +209,28 @@ func Packages(ctx context.Context, root string) ([]Package, error) {
 		if pkg.Module == nil || pkg.Module.Path != modulePath {
 			continue
 		}
+		local[pkg.ImportPath] = pkg
+	}
+	pruned := map[string]bool{}
+	for _, name := range identityAddressed {
+		pruned[modulePath+"/"+name] = true
+	}
+	var packages []Package
+	reached := map[string]bool{}
+	var queue []string
+	for _, root := range surfaceRoots {
+		queue = append(queue, modulePath+strings.TrimPrefix(root, "."))
+	}
+	for len(queue) > 0 {
+		path := queue[0]
+		queue = queue[1:]
+		pkg, found := local[path]
+		if !found || reached[path] || pruned[path] {
+			continue
+		}
+		reached[path] = true
 		packages = append(packages, pkg)
+		queue = append(queue, pkg.Imports...)
 	}
 	if len(packages) == 0 {
 		return nil, errors.New("longform: the inference surface lists no module-local package")

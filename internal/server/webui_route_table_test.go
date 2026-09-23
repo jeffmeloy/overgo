@@ -16,6 +16,7 @@ import (
 // chain, the explorer renders from the same table, and the API manifest
 // projects that table (its docs copy is held current by api-manifest -check).
 func TestWebUIRouteTable(t *testing.T) {
+	t.Parallel()
 	static, err := os.ReadFile("webui_static.go")
 	if err != nil {
 		t.Fatal(err)

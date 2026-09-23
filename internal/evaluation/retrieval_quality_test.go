@@ -35,6 +35,7 @@ type consumedRetrievalFixture struct {
 }
 
 func TestRetrievalEvaluationMetricsAndCoverage(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -10,6 +10,7 @@ import (
 )
 
 func TestSchedulerRankedByRealizedDelta(t *testing.T) {
+	t.Parallel()
 	const (
 		gibibyte        = uint64(1 << 30)
 		budgetVRAM      = 8 * gibibyte

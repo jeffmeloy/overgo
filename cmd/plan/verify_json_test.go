@@ -8,6 +8,7 @@ import (
 )
 
 func TestVerifyGoTestJSONTargets(t *testing.T) {
+	t.Parallel()
 	out := fmt.Sprintf(
 		"{\"Action\":\"pass\",\"Package\":\"overgo/x\",\"Test\":\"TestAcceptance\"}\n"+
 			"{\"Action\":\"output\",\"Package\":\"overgo/x\",\"Test\":\"TestHardware\",\"Output\":%q}\n"+

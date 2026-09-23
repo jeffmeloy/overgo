@@ -10,6 +10,7 @@ import (
 )
 
 func TestPeerWorkspaceVertical(t *testing.T) {
+	t.Parallel()
 	fixture := newPeerWorkspaceFixture(t, "peer-gui-vertical", "")
 	publishPeerControlFixture(t, fixture, "gui-peer")
 	manifestResponse := serveTestRequest(fixture.handler, http.MethodGet, "/workspace/manifest", "")
@@ -38,6 +39,7 @@ func TestPeerWorkspaceVertical(t *testing.T) {
 }
 
 func TestPeerWorkspaceUsesCommonForm(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	module := serveTestRequest(handler, http.MethodGet, "/mod/peers.js", "").Body.String()
 	for _, token := range []string{
@@ -57,6 +59,7 @@ func TestPeerWorkspaceUsesCommonForm(t *testing.T) {
 }
 
 func TestPeerWorkspaceUsesGlobalOperations(t *testing.T) {
+	t.Parallel()
 	module := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/peers.js", "").Body.String()
 	for _, token := range []string{"openGlobalOperation", `url.searchParams.set("operation"`, "PopStateEvent", "overgo.runtimeEvents.subscribe"} {
 		if !strings.Contains(module, token) {
@@ -71,6 +74,7 @@ func TestPeerWorkspaceUsesGlobalOperations(t *testing.T) {
 }
 
 func TestPeerWorkspaceSSE(t *testing.T) {
+	t.Parallel()
 	fixture := newPeerWorkspaceFixture(t, "peer-gui-sse", "")
 	ctx, cancel := context.WithCancel(t.Context())
 	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, peerWorkspaceLimit)}

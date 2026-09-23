@@ -73,6 +73,7 @@ func repositoryView(t *testing.T, repository artifact.Repository) string {
 // anchored open and the journal-only open answer the complete public
 // read surface identically on the deterministic corpus.
 func TestModularStoreRepositoryParity(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	if _, _, contentBytes := copyScaleCorpus(t, root); contentBytes == 0 {
 		t.Fatal("corpus carried no content")

@@ -90,6 +90,7 @@ type mediaConditionedObservation struct {
 }
 
 func TestImageVideoConditionedVideoAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained source-conditioned video evidence")
 	}

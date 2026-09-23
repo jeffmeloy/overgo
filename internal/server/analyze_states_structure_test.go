@@ -6,6 +6,7 @@ import (
 )
 
 func TestDistanceMatricesAreExact(t *testing.T) {
+	t.Parallel()
 	vectors := [][]float32{{1, 0}, {0, 1}, {1, 0}}
 	cos := cosineDistanceMatrix(vectors)
 	if math.Abs(cos[0][1]-1) > 1e-9 || math.Abs(cos[0][2]-0) > 1e-9 {
@@ -32,6 +33,7 @@ func TestDistanceMatricesAreExact(t *testing.T) {
 // distance unchanged — it assumes neither a per-dimension scale nor a Euclidean
 // geometry. This is the assumption-light property that motivates it as default.
 func TestSpearmanIsRankInvariant(t *testing.T) {
+	t.Parallel()
 	vectors := [][]float32{{0.1, 0.9, 0.4, 0.2}, {0.8, 0.2, 0.5, 0.1}, {0.3, 0.3, 0.7, 0.6}}
 	transformed := make([][]float32, len(vectors))
 	for i, v := range vectors {
@@ -59,6 +61,7 @@ func TestSpearmanIsRankInvariant(t *testing.T) {
 }
 
 func TestDissimilarityMetricDispatch(t *testing.T) {
+	t.Parallel()
 	vectors := [][]float32{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}}
 	if !equalMatrix(dissimilarityMatrix(vectors, metricEuclidean), euclideanDistanceMatrix(vectors)) {
 		t.Fatal("euclidean dispatch mismatch")
@@ -79,6 +82,7 @@ func TestDissimilarityMetricDispatch(t *testing.T) {
 }
 
 func TestDefaultNeighborCountIsDerived(t *testing.T) {
+	t.Parallel()
 	// round(log2 n), clamped to [1, n-1].
 	cases := map[int]int{2: 1, 3: 2, 4: 2, 8: 3, 16: 4, 64: 6}
 	for n, want := range cases {
@@ -89,6 +93,7 @@ func TestDefaultNeighborCountIsDerived(t *testing.T) {
 }
 
 func TestKNNAdjacencyPicksNearest(t *testing.T) {
+	t.Parallel()
 	distance := [][]float64{
 		{0, 1, 2, 3},
 		{1, 0, 1, 2},
@@ -108,6 +113,7 @@ func TestKNNAdjacencyPicksNearest(t *testing.T) {
 // Non-metric MDS depends ONLY on the rank order of the dissimilarities: any
 // strictly-monotone transform of the distance matrix yields the same layout.
 func TestNonMetricMDSIsRankInvariant(t *testing.T) {
+	t.Parallel()
 	base := squareCluster()
 	transformed := newSquare(len(base))
 	for i := range base {
@@ -127,6 +133,7 @@ func TestNonMetricMDSIsRankInvariant(t *testing.T) {
 // The solver iterates to convergence (relative stress improvement below the
 // tolerance) rather than a fixed count, and stress never increases.
 func TestNonMetricMDSConvergesAndDecreases(t *testing.T) {
+	t.Parallel()
 	distance := squareCluster()
 	_, finalStress, iterations := nonMetricMDS(distance, 1000, 1e-6)
 	if iterations >= 1000 {
@@ -142,6 +149,7 @@ func TestNonMetricMDSConvergesAndDecreases(t *testing.T) {
 }
 
 func TestIsotonicFitIsMonotone(t *testing.T) {
+	t.Parallel()
 	values := []float64{3, 1, 2, 5, 4}
 	fitted := make([]float64, len(values))
 	isotonicFit(values, fitted)

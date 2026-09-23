@@ -3,6 +3,7 @@ package gate
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -42,8 +43,12 @@ func TestPreflightProposesEveryClosureSite(t *testing.T) {
 		t.Fatal("uncatalogued sites passed the magics check")
 	}
 	message := err.Error()
+	// ExistingLimit's code is gone, so the preflight judges it as the gate's
+	// remediation will leave it -- retired -- rather than as stale.
+	if strings.Contains(message, "stale active binding") || !slices.ContainsFunc(g.audit, func(line string) bool { return strings.Contains(line, "1 lost their code") }) {
+		t.Errorf("removed code was not judged retired: %s; audit %q", message, g.audit)
+	}
 	for _, want := range []string{
-		"stale active binding", "ExistingLimit",
 		"uncatalogued production policy FirstLimit at", "uncatalogued production policy SecondLimit at",
 		"1 new site(s) have proposal rows in " + gateClosureProposalsFile, "-triage " + gateClosureProposalsFile,
 		"1 site(s) drifted from catalogued offsets [SecondLimit]", "-import-store " + gateStorePath,

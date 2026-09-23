@@ -19,6 +19,7 @@ import (
 // physical file count approaching the record count, which would mean per-record
 // files and would justify revisiting packing.
 func TestSmallRecordLayoutDecision(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {

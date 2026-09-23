@@ -11,6 +11,7 @@ import (
 )
 
 func TestReplayGUI(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	handler.publishResponseInteraction(t.Context(), "resp_trace", artifact.ID{}, []inference.ChatMessage{
 		{Role: inference.ChatRoleUser, Content: "question"},

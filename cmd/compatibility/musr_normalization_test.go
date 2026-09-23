@@ -38,6 +38,7 @@ func (s *musrRetainedScorer) ScoreContinuations(_ context.Context, prompt string
 	return scores, nil
 }
 func TestMuSRNativeNormalizationAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

@@ -12,6 +12,7 @@ import (
 )
 
 func TestCrossOriginMutationProtection(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name, host, origin, fetchSite, contentType, key, bearer string
 		want                                                    int

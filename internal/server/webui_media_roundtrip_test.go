@@ -13,6 +13,7 @@ import (
 // composer as a file of its own kind, where the served capability accepts
 // or refuses it like any attachment; the chat page wires the hook.
 func TestFrontPageMediaRoundtrip(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }

@@ -19,6 +19,7 @@ import (
 	cudatest "overgo/internal/cuda/testutil"
 	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
+	"overgo/internal/modeltest"
 	"overgo/internal/testutil"
 )
 
@@ -40,7 +41,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wan := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	evidence := filepath.Join(filepath.Dir(roots.Models), ".claude", "worktrees", "image_gen", ".media_artifacts", "video_artifacts")
 	ffmpeg := filepath.Join(filepath.Dir(roots.Models), ".env", "Lib", "site-packages", "imageio_ffmpeg", "binaries", "ffmpeg-win-x86_64-v7.1.exe")
 	probes := filepath.Join(evidence, "liveedit_native_go_currants_seed42.mp4.tensors")
@@ -65,7 +66,7 @@ func TestVideoGenerationLeadership(t *testing.T) {
 	}
 	loadStarted := time.Now()
 	runtime, err := latentvideo.NewReferenceEditRuntime(latentvideo.ReferenceEditRuntimeConfig{
-		WanDirectory: wan, EditCheckpoint: filepath.Join(roots.Models, "LiveEdit", "ar-forcing_002000.pt"),
+		WanDirectory: wan, EditCheckpoint: filepath.Join(modeltest.Directory(t, "LiveEdit"), "ar-forcing_002000.pt"),
 		Policy: profile.Policy, LatentStats: profile.LatentStats,
 		Source:         latentvideo.SourceVideoShape{Channels: 3, Frames: 81, Height: 480, Width: 832},
 		FramesPerChunk: 3, LocalAttentionFrames: 21,

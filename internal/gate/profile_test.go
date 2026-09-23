@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/codeprofile"
 	"overgo/internal/repoanalysis"
 )
@@ -161,33 +160,4 @@ func TestAutomationROIProjection(t *testing.T) {
 	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {
 		t.Fatalf("deletion-only wave rejected: %v", err)
 	}
-}
-
-func TestASTProfileEvidenceGate(t *testing.T) {
-	t.Parallel()
-	gate, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("gate"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile := codeProfileFixture()
-	g := gateContext{profile: &profile}
-	var batch artifact.Batch
-	if err := g.appendProfileEvidence(&batch, "0123456789abcdef0123456789abcdef01234567", gate); err != nil {
-		t.Fatal(err)
-	}
-	if len(batch.Contents) != 1 || len(batch.Lineage) != 1 {
-		t.Fatalf("profile batch = %+v", batch)
-	}
-	g.profileDirty = true
-	batch = artifact.Batch{}
-	if err := g.appendProfileEvidence(&batch, "0123456789abcdef0123456789abcdef01234567", gate); err != nil {
-		t.Fatal(err)
-	}
-	if len(batch.Contents) != 0 || !strings.Contains(g.audit[len(g.audit)-1], "not persisted") {
-		t.Fatalf("contaminated profile was persisted: %+v", batch)
-	}
-}
-
-func codeProfileFixture() codeprofile.Profile {
-	return codeprofile.Profile{Runtime: codeprofile.Partition{Files: 1, Nodes: 1}}
 }

@@ -35,7 +35,7 @@ func AncestorFiles(ctx context.Context, repository, revision string, paths ...st
 	if strings.TrimSpace(string(resolved)) != revision {
 		return nil, errors.New("git authority: ancestor revision is not one exact commit")
 	}
-	if _, err := output(ctx, root, "merge-base", "--is-ancestor", revision, "HEAD"); err != nil {
+	if err := requirePendingAncestor(ctx, root, revision); err != nil {
 		return nil, fmt.Errorf("git authority: revision is not an ancestor: %w", err)
 	}
 	files := make([][]byte, len(paths))
@@ -46,4 +46,21 @@ func AncestorFiles(ctx context.Context, repository, revision string, paths ...st
 		}
 	}
 	return files, nil
+}
+
+// requirePendingAncestor accepts an ancestor of the commit being made: of
+// HEAD, and while a merge is pending, of the incoming parent it will record.
+func requirePendingAncestor(ctx context.Context, root, revision string) error {
+	_, err := output(ctx, root, "merge-base", "--is-ancestor", revision, "HEAD")
+	if err == nil {
+		return nil
+	}
+	incoming, mergeErr := output(ctx, root, "rev-parse", "-q", "--verify", "MERGE_HEAD^{commit}")
+	if mergeErr != nil {
+		return err
+	}
+	if _, incomingErr := output(ctx, root, "merge-base", "--is-ancestor", revision, strings.TrimSpace(string(incoming))); incomingErr != nil {
+		return err
+	}
+	return nil
 }

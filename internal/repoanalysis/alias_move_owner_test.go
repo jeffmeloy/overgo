@@ -18,6 +18,7 @@ import (
 // one or through a batch's Aliases. An overlaid package that writes the move
 // out four ways is held to being found four times.
 func TestAliasMovesHaveOneOwner(t *testing.T) {
+	t.Parallel()
 	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)

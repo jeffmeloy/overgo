@@ -34,7 +34,7 @@ var modalitySurfaces = map[SurfaceID]surfaceRoots{
 	"video":       {roots: []string{"./internal/latentvideo"}},
 	"speech":      {roots: []string{"./internal/speechsynth", "./internal/speechrecognition", "./internal/audiodsp"}},
 	"vqa":         {roots: []string{"./internal/vqaserve", "./internal/projector"}},
-	"specialized": {roots: []string{"./internal/seq2seq", "./internal/seriesforecast", "./internal/tabularicl"}},
+	"specialized": {roots: []string{"./internal/seq2seq", "./internal/seriesforecast", "./internal/tabularicl", "./internal/vitencoder"}},
 	"training":    {roots: []string{"./internal/trainingworkflow", "./internal/adaptertrain", "./internal/densecausal", "./internal/hostmath"}},
 }
 
@@ -63,7 +63,7 @@ func kindValidation(task recipe.Task) []struct {
 		return []cell{{"speech-proof", "speech"}}
 	case "vqa":
 		return []cell{{"vqa-proof", "vqa"}}
-	case "seq2seq", "forecast", "tabular":
+	case "seq2seq", "forecast", "tabular", "image-embedding":
 		return []cell{{"specialized-proof", "specialized"}}
 	case "training":
 		return []cell{{"training-proof", "training"}}

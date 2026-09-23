@@ -18,6 +18,7 @@ import (
 // become a session. The session list and the server's start read the root
 // this way; paging the whole catalog took tens of seconds on a real store.
 func TestAgentWorkspaceRootsReadOnlyTheirDocuments(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

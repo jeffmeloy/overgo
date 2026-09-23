@@ -379,6 +379,7 @@ func resolveFixture(fixture *completionFixture, document Plan, revision string) 
 }
 
 func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
+	t.Parallel()
 	t.Run("exact ancestor gate", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 		fixture.commit(fixture.canonicalMessage(), true)
@@ -891,6 +892,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 }
 
 func TestProtectedCompletionAuthorityBindsRetainedRevisionIdentities(t *testing.T) {
+	t.Parallel()
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 	fixture.commit(fixture.canonicalMessage(), true)
 
@@ -913,6 +915,7 @@ func TestProtectedCompletionAuthorityBindsRetainedRevisionIdentities(t *testing.
 }
 
 func TestLanePlanScope(t *testing.T) {
+	t.Parallel()
 	baseline := standardCompletionPlan()
 	baseline.Lane = "local"
 	for i := range baseline.Items {
@@ -1046,6 +1049,7 @@ func TestCompletionAuthorityRequiresExplicitCanonicalRepository(t *testing.T) {
 }
 
 func TestGitCompletionMessagesRejectRawCommitNUL(t *testing.T) {
+	t.Parallel()
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 	raw := runGit(t, fixture.repository, nil, "cat-file", "commit", "HEAD")
 	header, _, found := bytes.Cut(raw, []byte("\n\n"))
@@ -1065,6 +1069,7 @@ func TestGitCompletionMessagesRejectRawCommitNUL(t *testing.T) {
 }
 
 func TestVerifyProspectiveCompletionTransition(t *testing.T) {
+	t.Parallel()
 	parent := standardCompletionPlan()
 	child, err := Advance(parent, "root", "do")
 	if err != nil {
@@ -1171,6 +1176,7 @@ func TestVerifyProspectiveCompletionTransition(t *testing.T) {
 }
 
 func TestProspectiveMergeAuthorityRequiresTargetCompletionEvidence(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"
@@ -1209,6 +1215,7 @@ func TestProspectiveMergeAuthorityRequiresTargetCompletionEvidence(t *testing.T)
 }
 
 func TestProspectiveMergeAuthorityRejectsCrossParentIdentityReuse(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"
@@ -1237,6 +1244,7 @@ func TestProspectiveMergeAuthorityRejectsCrossParentIdentityReuse(t *testing.T) 
 }
 
 func TestProspectiveMergeAuthorityRejectsAmbiguousParentEvidence(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"
@@ -1261,6 +1269,7 @@ func TestProspectiveMergeAuthorityRejectsAmbiguousParentEvidence(t *testing.T) {
 }
 
 func TestProspectiveMergeAuthorityRequiresCommonProtectedEpoch(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"
@@ -1276,6 +1285,7 @@ func TestProspectiveMergeAuthorityRequiresCommonProtectedEpoch(t *testing.T) {
 }
 
 func TestProspectiveMergeAuthorityCanonicalizesRelativeRepository(t *testing.T) {
+	t.Parallel()
 	repository, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -1294,6 +1304,7 @@ func TestProspectiveMergeAuthorityCanonicalizesRelativeRepository(t *testing.T) 
 }
 
 func TestProspectiveMergeAuthorityBindsBothParents(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"
@@ -1338,6 +1349,7 @@ func prospectiveMergeAuthority(
 }
 
 func TestProtectedCompletionCommitsIgnoreHistoryOrder(t *testing.T) {
+	t.Parallel()
 	commits := []gitCompletionMessage{
 		{hash: "merge", parents: []string{"left", "right"}},
 		{hash: "unrelated-child", parents: []string{"unrelated"}},
@@ -1369,6 +1381,7 @@ func TestProtectedCompletionCommitsIgnoreHistoryOrder(t *testing.T) {
 }
 
 func TestProtectedMergeRequiresRebasedSourceHistory(t *testing.T) {
+	t.Parallel()
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "activation", "do")
 	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
 		ID: "activation", Status: StatusOpen,
@@ -1405,6 +1418,7 @@ func TestProtectedMergeRequiresRebasedSourceHistory(t *testing.T) {
 }
 
 func TestProtectedMergeRequiresCommonPreparedAncestor(t *testing.T) {
+	t.Parallel()
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "main-activation", "do")
 	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
 		ID: "main-activation", Status: StatusOpen,
@@ -1459,6 +1473,7 @@ func TestProtectedMergeRequiresCommonPreparedAncestor(t *testing.T) {
 }
 
 func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
+	t.Parallel()
 	t.Run("retired step and item", func(t *testing.T) {
 		fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 		fixture.commit(fixture.canonicalMessage(), true)
@@ -1537,6 +1552,7 @@ func TestCompletedPlanIdentityCannotBeReused(t *testing.T) {
 }
 
 func TestCompletionAuthorityDerivesMergeTransition(t *testing.T) {
+	t.Parallel()
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "activation", "do")
 	fixture.preAdvance.Items = append(slices.Clone(fixture.parent.Items), Item{
 		ID: "activation", Status: StatusOpen,
@@ -1584,6 +1600,7 @@ func TestCompletionAuthorityDerivesMergeTransition(t *testing.T) {
 }
 
 func TestCompletionAuthoritySelectsTargetMergeBase(t *testing.T) {
+	t.Parallel()
 	fixture := newCompletionFixture(t, standardCompletionPlan(), "root", "do")
 	root := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD")))
 	rootTree := strings.TrimSpace(string(runGit(t, fixture.repository, nil, "rev-parse", "HEAD^{tree}")))

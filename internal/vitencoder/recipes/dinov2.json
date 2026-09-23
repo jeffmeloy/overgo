@@ -1,0 +1,31 @@
+{
+  "model_type": "dinov2",
+  "tensors": {
+    "class_token": "embeddings.cls_token",
+    "position_embeddings": "embeddings.position_embeddings",
+    "patch_weight": "embeddings.patch_embeddings.projection.weight",
+    "patch_bias": "embeddings.patch_embeddings.projection.bias",
+    "final_norm_weight": "layernorm.weight",
+    "final_norm_bias": "layernorm.bias",
+    "layer": {
+      "norm1_weight": "encoder.layer.%d.norm1.weight",
+      "norm1_bias": "encoder.layer.%d.norm1.bias",
+      "query": "encoder.layer.%d.attention.attention.query.weight",
+      "query_bias": "encoder.layer.%d.attention.attention.query.bias",
+      "key": "encoder.layer.%d.attention.attention.key.weight",
+      "key_bias": "encoder.layer.%d.attention.attention.key.bias",
+      "value": "encoder.layer.%d.attention.attention.value.weight",
+      "value_bias": "encoder.layer.%d.attention.attention.value.bias",
+      "output": "encoder.layer.%d.attention.output.dense.weight",
+      "output_bias": "encoder.layer.%d.attention.output.dense.bias",
+      "scale1": "encoder.layer.%d.layer_scale1.lambda1",
+      "norm2_weight": "encoder.layer.%d.norm2.weight",
+      "norm2_bias": "encoder.layer.%d.norm2.bias",
+      "gate_up": "encoder.layer.%d.mlp.weights_in.weight",
+      "gate_up_bias": "encoder.layer.%d.mlp.weights_in.bias",
+      "down": "encoder.layer.%d.mlp.weights_out.weight",
+      "down_bias": "encoder.layer.%d.mlp.weights_out.bias",
+      "scale2": "encoder.layer.%d.layer_scale2.lambda1"
+    }
+  }
+}

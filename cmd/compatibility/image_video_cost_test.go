@@ -18,6 +18,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/processcontrol"
 	"overgo/internal/recipe"
@@ -124,6 +125,7 @@ func checkMediaCostBytes(cost mediaCostProfile, profile latentvideo.Profile, con
 	return nil
 }
 func TestImageVideoCostAttributionAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": cost attribution reads the private snapshot and model metadata")
 	}
@@ -173,7 +175,7 @@ func TestImageVideoCostAttributionAcceptance(t *testing.T) {
 			t.Fatalf("source identity differs: %s: %v", path, err)
 		}
 	}
-	directory := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	directory := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	profile, err := latentvideo.ResolveProfile(directory)
 	if err != nil {
 		t.Fatal(err)

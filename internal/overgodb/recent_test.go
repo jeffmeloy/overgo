@@ -12,6 +12,7 @@ import (
 // keep predicate filters them, the limit bounds them, and a kind with
 // none answers empty.
 func TestRecentArtifactsWalkNewestFirst(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

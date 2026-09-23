@@ -19,6 +19,7 @@ import (
 )
 
 func TestModernGoCensusCoversApplicableCatalog(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 func identity(value any) any { return value }
@@ -66,6 +67,7 @@ func TestEveryApplicableModernGoGuidelineMeasured(t *testing.T) {
 }
 
 func TestModernGoCensusIsTypeAware(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 func copyMap(dst, src map[string]int) {
@@ -94,6 +96,7 @@ func copySlice(dst, src []int) {
 }
 
 func TestModernGoCensusClassifiesRiskAndOwnership(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import (
@@ -132,6 +135,7 @@ func worker(ctx context.Context) {
 }
 
 func TestModernGoCensusDeterministic(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import "strings"
@@ -156,6 +160,7 @@ func parts(value string) {
 }
 
 func TestModernGoCensusPackageIsolation(t *testing.T) {
+	t.Parallel()
 	const imported = `package sample
 import workers "sync"
 func work() {}
@@ -242,6 +247,7 @@ func TestModernGoCensusDiscoveryOrderInvariant(t *testing.T) {
 }
 
 func TestModernGoManualIdiomRewriteConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import (
@@ -301,6 +307,7 @@ func resetTicker() {
 }
 
 func TestModernGoMatcherConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 func fallback(value, other string) string {
@@ -402,6 +409,7 @@ func aligned(values, peers []string) bool {
 }
 
 func TestModernGoNewExpressionConformance(t *testing.T) {
+	t.Parallel()
 	legacyRoot := modernGoTestRepository(t, `package sample
 
 func pointer(value int) *int { return &value }
@@ -434,6 +442,7 @@ func pointer(value int) *int { return new(value) }
 }
 
 func TestNoLegacyUnitStepIntegerRangeOutsideNumericRuntime(t *testing.T) {
+	t.Parallel()
 	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
@@ -447,6 +456,7 @@ func TestNoLegacyUnitStepIntegerRangeOutsideNumericRuntime(t *testing.T) {
 }
 
 func TestModernGoNumericRangeResolution(t *testing.T) {
+	t.Parallel()
 	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
@@ -460,6 +470,7 @@ func TestModernGoNumericRangeResolution(t *testing.T) {
 }
 
 func TestModernGoNumericRangeRewriteConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepositoryPath(t, "internal/hostmath/sample.go", `package hostmath
 
 func transform(values []int, count int) {
@@ -504,6 +515,7 @@ func changing() int { return 1 }
 }
 
 func TestNoRedundantLoopVariableCapture(t *testing.T) {
+	t.Parallel()
 	census, err := modernGoRepositoryCensus()
 	if err != nil {
 		t.Fatal(err)
@@ -515,6 +527,7 @@ func TestNoRedundantLoopVariableCapture(t *testing.T) {
 }
 
 func TestModernGoSliceSearchConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import "strings"
@@ -562,6 +575,7 @@ func aligned(values, peers []string) bool {
 }
 
 func TestModernGoCollectionMutationConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 func cloneMap(source map[string]int) map[string]int {
@@ -612,6 +626,7 @@ func valueString(value int) string { return "" }
 }
 
 func TestModernGoMapIteratorConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import "sort"
@@ -650,6 +665,7 @@ func ordinarySort(values []string) { sort.Strings(values) }
 }
 
 func TestModernGoSortingConformance(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import "sort"
@@ -673,6 +689,7 @@ func search(values []int, target int) int {
 }
 
 func TestModernGoCutConformance(t *testing.T) {
+	t.Parallel()
 	modernGoAssertSourceCandidateCounts(t, `package sample
 
 import (
@@ -703,6 +720,7 @@ func standalone(value string) string { return strings.TrimPrefix(value, "pre/") 
 }
 
 func TestModernGoSplitSequenceConformance(t *testing.T) {
+	t.Parallel()
 	modernGoAssertSourceCandidateCounts(t, `package sample
 
 import (
@@ -719,6 +737,7 @@ func materialize(value string) int { parts := strings.Split(value, "/"); return 
 }
 
 func TestModernGoTextAllocationConformance(t *testing.T) {
+	t.Parallel()
 	modernGoAssertSourceCandidateCounts(t, `package sample
 
 import "fmt"
@@ -740,6 +759,7 @@ func nestedFormat(items []item, value int) []item {
 }
 
 func TestModernGoWaitGroupConformance(t *testing.T) {
+	t.Parallel()
 	modernGoAssertSourceCandidateCounts(t, `package sample
 
 import "sync"
@@ -761,6 +781,7 @@ func work() {}
 }
 
 func TestModernGoOnceAndAtomicConformance(t *testing.T) {
+	t.Parallel()
 	modernGoAssertSourceCandidateCounts(t, `package sample
 
 import (
@@ -790,6 +811,7 @@ func compute() int { return 1 }
 }
 
 func TestModernGoContextConformance(t *testing.T) {
+	t.Parallel()
 	modernGoAssertSourceCandidateCounts(t, `package sample
 
 import (
@@ -814,6 +836,7 @@ func work() {}
 }
 
 func TestModernGoTestingContextConformance(t *testing.T) {
+	t.Parallel()
 	source := `package sample
 
 import (
@@ -858,6 +881,7 @@ func fixtureCleanup(test testing.TB, cleanup func()) { test.Cleanup(cleanup) }
 }
 
 func TestModernGoBenchmarkLoopConformance(t *testing.T) {
+	t.Parallel()
 	source := `package sample
 
 import "testing"
@@ -897,6 +921,7 @@ func work() {}
 }
 
 func TestModernGoErrorConformance(t *testing.T) {
+	t.Parallel()
 	source := `package sample
 
 import (
@@ -988,6 +1013,7 @@ func promoted(a, b inheritedError) bool { return a == b }
 }
 
 func TestModernGoJSONTagConformance(t *testing.T) {
+	t.Parallel()
 	source := `package sample
 
 import "time"
@@ -1022,6 +1048,7 @@ type document struct {
 }
 
 func TestModernGoJSONTagRejectsInvalidTypeInformation(t *testing.T) {
+	t.Parallel()
 	typeExpression := ast.NewIdent("unresolvedImportedType")
 	field := &ast.Field{
 		Type: typeExpression,
@@ -1036,6 +1063,7 @@ func TestModernGoJSONTagRejectsInvalidTypeInformation(t *testing.T) {
 }
 
 func TestModernGoExtremaConformance(t *testing.T) {
+	t.Parallel()
 	source := `package sample
 
 import "math"
@@ -1111,6 +1139,7 @@ func empty(enabled bool) {
 }
 
 func TestModernGoExtremaRewritesExactMathCallsWithoutTypes(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import "math"
@@ -1142,6 +1171,7 @@ func minimum(left, right float64) float64 {
 }
 
 func TestExtremaNaNSignedZeroAndEmptyPolicy(t *testing.T) {
+	t.Parallel()
 	nan := math.NaN()
 	negativeZero := math.Copysign(0, -1)
 	positiveZero := 0.0
@@ -1172,6 +1202,7 @@ func TestExtremaNaNSignedZeroAndEmptyPolicy(t *testing.T) {
 }
 
 func TestModernGoHTTPRoutingResolution(t *testing.T) {
+	t.Parallel()
 	root := modernGoTestRepository(t, `package sample
 
 import "net/http"
@@ -1192,6 +1223,7 @@ func routes(mux *http.ServeMux, handler http.HandlerFunc) {
 }
 
 func TestJSONPresenceGoldenCorpus(t *testing.T) {
+	t.Parallel()
 	type legacy struct {
 		Count int    `json:"count,omitzero"`
 		Name  string `json:"name,omitzero"`
@@ -1225,6 +1257,7 @@ func TestJSONPresenceGoldenCorpus(t *testing.T) {
 }
 
 func TestZeroAndAbsentRemainDistinguishable(t *testing.T) {
+	t.Parallel()
 	type modern struct {
 		Created time.Time `json:"created,omitzero"`
 	}
@@ -1245,6 +1278,7 @@ func TestZeroAndAbsentRemainDistinguishable(t *testing.T) {
 }
 
 func TestWaitGroupLaunchOrdering(t *testing.T) {
+	t.Parallel()
 	var wait sync.WaitGroup
 	started := make(chan struct{})
 	release := make(chan struct{})
@@ -1258,6 +1292,7 @@ func TestWaitGroupLaunchOrdering(t *testing.T) {
 }
 
 func TestWaitGroupPanicAndCancellationContract(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancelCause(t.Context())
 	var wait sync.WaitGroup
 	observed := make(chan error, 1)

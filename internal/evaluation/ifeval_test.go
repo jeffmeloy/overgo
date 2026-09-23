@@ -8,6 +8,7 @@ import (
 )
 
 func TestIFEvalPinnedOracleParity(t *testing.T) {
+	t.Parallel()
 	const response = "preface\nHELLO WORLD\npostscript"
 	compiled, err := CompileInstructionRules(InstructionRulesSuite{
 		Kind: InstructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",

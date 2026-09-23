@@ -22,6 +22,7 @@ import (
 // inspectable -- and the algorithm is unchanged (rank-footrule over
 // distribution-free descriptors).
 func TestSimilarComponentsSpanStoreCatalog(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

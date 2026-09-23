@@ -15,6 +15,7 @@ import (
 )
 
 func TestRepositoryResponseFilePolicy(t *testing.T) {
+	t.Parallel()
 	policy, err := LoadResponseFilePolicy(filepath.Join("..", "..", "resource_policy.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -25,6 +26,7 @@ func TestRepositoryResponseFilePolicy(t *testing.T) {
 }
 
 func TestResponseFilePolicyRejectsToolExecutionPolicy(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	policyPath := filepath.Join(root, "policy.json")
 	document := `{"schema":1,"response_files":{"enabled":false,"max_file_bytes":1,` +
@@ -39,6 +41,7 @@ func TestResponseFilePolicyRejectsToolExecutionPolicy(t *testing.T) {
 }
 
 func TestResponseFilePolicyLoadsAllowedFiles(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	filePath := filepath.Join(root, "note.txt")
 	if err := os.WriteFile(filePath, []byte("bounded note"), 0o600); err != nil {
@@ -67,6 +70,7 @@ func TestResponseFilePolicyLoadsAllowedFiles(t *testing.T) {
 }
 
 func TestResponseFilePolicyRejectsEscapesAndOversizedFiles(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	allowed := filepath.Join(root, "allowed")
 	if err := os.Mkdir(allowed, 0o700); err != nil {
@@ -106,6 +110,7 @@ func (files responseFileMap) ResolveResponseFile(id string) (ResponseFile, bool)
 }
 
 func TestResponsesInputFileSources(t *testing.T) {
+	t.Parallel()
 	remote := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		response.Header().Set("Content-Type", "application/json")
 		_, _ = response.Write([]byte(`{"remote":true}`))
@@ -143,6 +148,7 @@ func TestResponsesInputFileSources(t *testing.T) {
 }
 
 func TestResponsesImageFileIDProjectsPrompt(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
@@ -173,6 +179,7 @@ func TestResponsesImageFileIDProjectsPrompt(t *testing.T) {
 }
 
 func TestResponsesInputFileRejectsUnsafeContent(t *testing.T) {
+	t.Parallel()
 	handler := &Handler{servingWorkspace: servingWorkspace{responseFiles: responseFileMap{
 		"file_binary": {Data: []byte{0xff}, Filename: "bad.txt", MediaType: "text/plain"},
 	}}}
@@ -183,6 +190,7 @@ func TestResponsesInputFileRejectsUnsafeContent(t *testing.T) {
 }
 
 func TestResponsesHostedAndCustomToolsUseExplicitPolicy(t *testing.T) {
+	t.Parallel()
 	for _, toolType := range []string{"web_search_preview", "custom", "mcp"} {
 		t.Run(toolType, func(t *testing.T) {
 			handler := newTestHandler(t, &fakeGenerator{})

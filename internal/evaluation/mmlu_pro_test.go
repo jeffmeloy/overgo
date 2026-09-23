@@ -9,6 +9,7 @@ import (
 )
 
 func TestMMLUProPinnedOracleParity(t *testing.T) {
+	t.Parallel()
 	const expectedPrompt = "Which number is even?\nA. three\nB. four\nAnswer:B\n\nWhich color is primary?\nA. red\nB. green\nAnswer:"
 	compiled, err := CompileMMLUPro(MMLUProSuite{
 		Kind: MMLUProKind, Schema: "lm-eval/leaderboard-mmlu-pro/v0.1", Source: "fixture",

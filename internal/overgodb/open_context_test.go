@@ -10,6 +10,7 @@ import (
 )
 
 func TestOpenContextWriterAdmission(t *testing.T) {
+	t.Parallel()
 	for _, cancelWait := range []bool{false, true} {
 		t.Run(map[bool]string{false: "release resumes opening", true: "cancel leaves owner intact"}[cancelWait], func(t *testing.T) {
 			root := t.TempDir()

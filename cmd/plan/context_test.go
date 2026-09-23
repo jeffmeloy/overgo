@@ -15,6 +15,7 @@ import (
 )
 
 func TestAutomationContextSnapshotEncoding(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{{
 		ID: "automation", Title: "Automation", Status: "open",
 		Steps: []plan.Step{{ID: "context", Title: "Context", Status: "open", Verify: "go test ./..."}},
@@ -44,6 +45,7 @@ func TestAutomationContextSnapshotEncoding(t *testing.T) {
 }
 
 func TestGateDebtAutomationContext(t *testing.T) {
+	t.Parallel()
 	worktree := t.TempDir()
 	environment, err := runrecord.NewEnvironment(runrecord.Environment{
 		Host: "test", OS: "test", Arch: "test", Device: "host",
@@ -84,6 +86,7 @@ func TestGateDebtAutomationContext(t *testing.T) {
 }
 
 func TestReviewPriority(t *testing.T) {
+	t.Parallel()
 	const target = "89abcdef0123456789abcdef0123456789abcdef"
 	worktree := t.TempDir()
 	developer, err := runrecord.NewReviewActor("local:developer", runrecord.ReviewDeveloper)

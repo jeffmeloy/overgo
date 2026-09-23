@@ -8,6 +8,7 @@ import (
 )
 
 func TestMoERoutingEvaluationDetectsNonIIDMixtureAndLagFailures(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	segment := func(name string, admitted bool, source artifact.ID) moeRoutingShiftSegment {
 		result := moeRoutingShiftSegment{

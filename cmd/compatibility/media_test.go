@@ -24,6 +24,7 @@ import (
 // excludes text tasks, and a claim cell states tier, measurements, and
 // commit -- or the dash when no verification stands.
 func TestMediaReportRendersStoreTruth(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root + "/store")
 	if err != nil {
@@ -70,6 +71,7 @@ func TestMediaReportRendersStoreTruth(t *testing.T) {
 }
 
 func TestMediaMeasurementProjection(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -15,6 +15,7 @@ import (
 // with the request's fields and answers the declared models; the intake's
 // refusal is the route's.
 func TestLibraryRegisterDeclaresProvidersThroughTheIntake(t *testing.T) {
+	t.Parallel()
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

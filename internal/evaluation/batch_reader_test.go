@@ -14,6 +14,7 @@ import (
 // campaign reads its outputs through batched visits, and per-item
 // opens stay below the case count instead of scaling with it.
 func TestHighFanoutReadsAreBatched(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	suite := exactFixture()
 	suite.Cases = nil

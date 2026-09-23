@@ -12,6 +12,7 @@ import (
 // endpoint and key variable, answers that it needs the launcher's intake,
 // then lists through it; the intake's refusal is the route's.
 func TestLibraryProviderModelsListsThroughTheIntake(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	path := "/library/providers/models?endpoint=https://fake.example/api/v1&key_environment=OVERGO_LISTING_ROUTE_KEY"
 	if incomplete := serveTestRequest(handler, http.MethodGet, "/library/providers/models?endpoint=https://fake.example", ""); incomplete.Code != http.StatusBadRequest {

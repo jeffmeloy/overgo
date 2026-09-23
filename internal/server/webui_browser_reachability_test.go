@@ -14,6 +14,7 @@ import (
 // enabled in a real browser and confirms a workspace it did not enable
 // stays out of the navigation with its reason.
 func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": workspace reachability runs through cmd/webui-lane")
 	}

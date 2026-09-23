@@ -7,6 +7,7 @@ import (
 )
 
 func TestAcceptedProgressUsesCompletionAuthority(t *testing.T) {
+	t.Parallel()
 	for _, name := range []string{"prerequisite", "sibling", "transitive", "unrelated", "foreign owner"} {
 		t.Run(name, func(t *testing.T) {
 			document := standardCompletionPlan()
@@ -48,6 +49,7 @@ func TestAcceptedProgressUsesCompletionAuthority(t *testing.T) {
 }
 
 func TestAcceptedProgressRejectsReplanAndHeadMovement(t *testing.T) {
+	t.Parallel()
 	document := standardCompletionPlan()
 	document.Items[1].Steps[0].DependsOn = nil
 	fixture := newCompletionFixture(t, document, "root", "do")
@@ -71,6 +73,7 @@ func TestAcceptedProgressRejectsReplanAndHeadMovement(t *testing.T) {
 }
 
 func TestAcceptedProgressRejectsMergeCompletion(t *testing.T) {
+	t.Parallel()
 	document := standardCompletionPlan()
 	document.Items = append(document.Items, Item{ID: "seed", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}}})
 	fixture := newCompletionFixture(t, document, "seed", "do")

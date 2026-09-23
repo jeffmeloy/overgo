@@ -8,6 +8,7 @@ import (
 )
 
 func TestModernGoWorkSelectionDeterministic(t *testing.T) {
+	t.Parallel()
 	root := modernGoWorkTestRepository(t)
 	request := ModernGoWorkRequest{Guidelines: []string{"maps_copy", "maps_copy"}, Limit: 1}
 	first, err := BuildModernGoWorkSelection(root, ModernGoTargetVersion, request)
@@ -27,6 +28,7 @@ func TestModernGoWorkSelectionDeterministic(t *testing.T) {
 }
 
 func TestModernGoWorkSelectionDerivesVerification(t *testing.T) {
+	t.Parallel()
 	selection, err := BuildModernGoWorkSelection(
 		modernGoWorkTestRepository(t), ModernGoTargetVersion,
 		ModernGoWorkRequest{Guidelines: []string{"maps_copy"}, Limit: 1},

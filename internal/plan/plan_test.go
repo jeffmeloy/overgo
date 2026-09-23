@@ -9,6 +9,7 @@ import (
 )
 
 func TestAdvancePreservesHistoricalSchemaAndInput(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{{ID: "item", Status: StatusOpen, Steps: []Step{
 		{ID: ".", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
 		{ID: "next", Status: StatusOpen, Verify: "go test ./...", DependsOn: []string{"legacy-item"}},
@@ -31,6 +32,7 @@ func TestAdvancePreservesHistoricalSchemaAndInput(t *testing.T) {
 
 // TestEnforceCurrentFirstOpenStep pins the shared dispatch rule.
 func TestEnforceCurrentFirstOpenStep(t *testing.T) {
+	t.Parallel()
 	p := Plan{Items: []Item{
 		{ID: "a", Status: StatusDone, Steps: []Step{{ID: "s1", Status: StatusDone}}},
 		{ID: "b", Status: "open", Steps: []Step{
@@ -56,6 +58,7 @@ func TestEnforceCurrentFirstOpenStep(t *testing.T) {
 }
 
 func TestCurrentRefusesUnresolvedOrCrossPlanAuthority(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{{
 		ID: "one", Status: StatusOpen,
 		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},
@@ -73,6 +76,7 @@ func TestCurrentRefusesUnresolvedOrCrossPlanAuthority(t *testing.T) {
 }
 
 func TestRoleOwnedDispatch(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{
 		{ID: "shared", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
 		{ID: "developer", Owner: "developer", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
@@ -90,6 +94,7 @@ func TestRoleOwnedDispatch(t *testing.T) {
 }
 
 func TestUnownedDispatchFallback(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{
 		{ID: "shared", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
 		{ID: "developer", Owner: "developer", Status: "open", Steps: []Step{{ID: "do", Status: "open"}}},
@@ -108,6 +113,7 @@ func TestUnownedDispatchFallback(t *testing.T) {
 }
 
 func TestLivePlanRejectsRetainedCompletionState(t *testing.T) {
+	t.Parallel()
 	valid := Plan{Items: []Item{
 		{ID: "open", Status: "open", Steps: []Step{{ID: "work", Status: "open", Verify: "go test ./..."}}},
 		{ID: "blocked", Status: "blocked-external-prereq", Steps: []Step{{ID: "wait", Status: "blocked-external-prereq"}}},
@@ -134,6 +140,7 @@ func TestLivePlanRejectsRetainedCompletionState(t *testing.T) {
 }
 
 func TestParseRejectsRawDoneFlip(t *testing.T) {
+	t.Parallel()
 	for name, raw := range map[string]string{
 		"item": `{"campaign":"x","doctrine":"x","items":[{"id":"row","status":"done","steps":[]}]}`,
 		"step": `{"campaign":"x","doctrine":"x","items":[{"id":"row","status":"open","steps":[{"id":"do","status":"done","verify":"go test ./..."}]}]}`,
@@ -153,6 +160,7 @@ func TestParseRejectsRawDoneFlip(t *testing.T) {
 }
 
 func TestOpenStepRequiresVerifier(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{{
 		ID: "item", Status: "open", Steps: []Step{{ID: "work", Status: "open"}},
 	}}}
@@ -170,6 +178,7 @@ func TestOpenStepRequiresVerifier(t *testing.T) {
 // REMOVES it, the item leaves with its last step, and completion
 // history lives in Git through the gate's structured trailers.
 func TestAdvanceRemovesCompletedRows(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{{
 		ID: "item", Status: StatusOpen, Steps: []Step{
 			{ID: "first", Status: StatusOpen, Verify: "go test ./..."},
@@ -199,6 +208,7 @@ func TestAdvanceRemovesCompletedRows(t *testing.T) {
 }
 
 func TestCampaignCensusAuthority(t *testing.T) {
+	t.Parallel()
 	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("census"))
 	if err != nil {
 		t.Fatal(err)
@@ -214,6 +224,7 @@ func TestCampaignCensusAuthority(t *testing.T) {
 }
 
 func TestDoctrineRejectsMetricLiterals(t *testing.T) {
+	t.Parallel()
 	id, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("census"))
 	if err != nil {
 		t.Fatal(err)

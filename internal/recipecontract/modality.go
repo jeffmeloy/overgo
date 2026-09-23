@@ -68,6 +68,9 @@ func CompileModalitySignature(definition recipe.Definition) (ModalitySignature, 
 }
 
 func semanticModality(task recipe.Task, data recipe.DataKind) (Modality, error) {
+	if data == recipe.DataEmbeddings && task == recipe.TaskImageEmbedding {
+		return ModalityImage, nil
+	}
 	switch data {
 	case recipe.DataText, recipe.DataTokens, recipe.DataEmbeddings, recipe.DataLogits,
 		recipe.DataPromptConditioning, recipe.DataTranscription:

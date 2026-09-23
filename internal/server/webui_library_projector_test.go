@@ -54,6 +54,7 @@ func storedProjectorPair(t *testing.T) (modelPath, projectorPath string) {
 // one, and the Library tab carries the projector through register and
 // validate.
 func TestFrontPageLibraryProjector(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": reading model files is integration")
 	}

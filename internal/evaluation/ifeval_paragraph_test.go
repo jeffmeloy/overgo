@@ -14,6 +14,7 @@ import (
 var ifevalParagraphOracle []byte
 
 func TestIFEvalIndexedParagraphAcceptance(t *testing.T) {
+	t.Parallel()
 	var oracle struct {
 		ReferenceVersion string `json:"reference_version"`
 		Sources          map[string]string

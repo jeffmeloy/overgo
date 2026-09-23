@@ -14,6 +14,7 @@ import (
 // capability document with three starter actions, and the conversation
 // tab is the manifest's first tab so it is the default view.
 func TestFrontPage(t *testing.T) {
+	t.Parallel()
 	shell, err := fs.ReadFile(webuiFS, "index.html")
 	if err != nil {
 		t.Fatal(err)

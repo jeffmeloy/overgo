@@ -14,6 +14,7 @@ import (
 )
 
 func TestPublishedCensusBaseline(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "docs"), 0o755); err != nil {
 		t.Fatal(err)

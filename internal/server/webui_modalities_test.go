@@ -21,6 +21,7 @@ import (
 // switch is exercised by TestWebUIBrowserDraftLifecycle against refreshed
 // capability declarations, including delayed and failed mounts.
 func TestFrontPageModalities(t *testing.T) {
+	t.Parallel()
 	handler, workspace, _, _ := nativeMediaProtocolFixture(t)
 
 	speech := serveTestRequest(handler, http.MethodPost, "/v1/audio/speech",

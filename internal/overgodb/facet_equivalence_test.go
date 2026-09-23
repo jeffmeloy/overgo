@@ -61,6 +61,7 @@ func catalogDigest(t *testing.T, state catalogState) string {
 // live commits, the state replayed from the journal alone, and the
 // state loaded through the snapshot answer every facet identically.
 func TestCatalogFacetReplayEquivalence(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	head, _, _ := copyScaleCorpus(t, root)
 

@@ -9,6 +9,8 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
+	"sync"
 
 	"overgo/internal/gosource"
 )
@@ -45,11 +47,18 @@ func PackageNames(snapshot SourceSnapshot, selection gosource.BuildSelection) (m
 		}
 	}
 	paths := make([]string, 0, len(imports))
+	standardMutex.Lock()
 	for importPath := range imports {
-		if names[importPath] == "" {
-			paths = append(paths, importPath)
+		if names[importPath] != "" {
+			continue
 		}
+		if name, known := standardNames[importPath]; known {
+			names[importPath] = name
+			continue
+		}
+		paths = append(paths, importPath)
 	}
+	standardMutex.Unlock()
 	slices.Sort(paths)
 	for start := 0; start < len(paths); start += importNameBatch {
 		end := min(start+importNameBatch, len(paths))
@@ -69,8 +78,28 @@ func PackageNames(snapshot SourceSnapshot, selection gosource.BuildSelection) (m
 			}
 			if pkg.ImportPath != "" && pkg.Name != "" {
 				names[pkg.ImportPath] = pkg.Name
+				rememberStandardName(pkg.ImportPath, pkg.Name)
 			}
 		}
 	}
 	return names, nil
+}
+
+var (
+	standardMutex sync.Mutex
+	standardNames = map[string]string{}
+)
+
+// rememberStandardName keeps a standard-library package's name for the rest
+// of the process: the toolchain fixes it, while a module's package can change
+// between the trees one process reads. Every manifest generation otherwise
+// asked go list again for the same few hundred standard packages.
+func rememberStandardName(importPath, name string) {
+	first, _, _ := strings.Cut(importPath, "/")
+	if strings.Contains(first, ".") {
+		return
+	}
+	standardMutex.Lock()
+	standardNames[importPath] = name
+	standardMutex.Unlock()
 }

@@ -15,6 +15,7 @@ import (
 func releaseEverything(artifact.Descriptor) bool { return true }
 
 func TestProfileCatalogReleaseRetainsArchitectureAuthority(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	source, err := overgodb.Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {

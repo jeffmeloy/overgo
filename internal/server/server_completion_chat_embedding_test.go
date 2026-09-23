@@ -45,6 +45,7 @@ import (
 )
 
 func TestNativeCompletionStreaming(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -100,6 +101,7 @@ func TestNativeCompletionStreaming(t *testing.T) {
 }
 
 func TestNativeCompletionAcceptsJSONSchema(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -127,6 +129,7 @@ func TestNativeCompletionAcceptsJSONSchema(t *testing.T) {
 }
 
 func TestNativeCompletionReportsJSONSchemaCompileFailure(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{gbnfErr: errors.New("fixture compile failure")}
 	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
@@ -147,6 +150,7 @@ func TestNativeCompletionReportsJSONSchemaCompileFailure(t *testing.T) {
 }
 
 func TestNativeCompletionTreatsNullJSONSchemaAsAbsent(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
@@ -170,6 +174,7 @@ func TestNativeCompletionTreatsNullJSONSchemaAsAbsent(t *testing.T) {
 }
 
 func TestOpenAICompletionAcceptsJSONSchema(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
@@ -199,6 +204,7 @@ func TestOpenAICompletionAcceptsJSONSchema(t *testing.T) {
 }
 
 func TestOpenAICompletionRejectsInvalidJSONSchemaOptions(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	cases := []string{
 		`{"prompt":"hi","max_tokens":0,"json_schema":{"type":"string","pattern":"unanchored"}}`,
@@ -227,6 +233,7 @@ func TestOpenAICompletionRejectsInvalidJSONSchemaOptions(t *testing.T) {
 }
 
 func TestNativeCompletionRejectsUnsupportedAndInvalidOptions(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	cases := []string{
 		`{"prompt":[1.5],"n_predict":1}`,
@@ -305,6 +312,7 @@ func TestNativeCompletionRejectsUnsupportedAndInvalidOptions(t *testing.T) {
 }
 
 func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
+	t.Parallel()
 	response := &signalingRecorder{
 		ResponseRecorder: httptest.NewRecorder(),
 		flushed:          make(chan struct{}),
@@ -324,6 +332,7 @@ func TestSynchronizedSSEHeartbeatUsesPinnedCommentFrame(t *testing.T) {
 }
 
 func TestContextAfterFuncDoesNotLeak(t *testing.T) {
+	t.Parallel()
 	response := &signalingRecorder{
 		ResponseRecorder: httptest.NewRecorder(),
 		flushed:          make(chan struct{}),
@@ -342,6 +351,7 @@ func TestContextAfterFuncDoesNotLeak(t *testing.T) {
 }
 
 func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {
+	t.Parallel()
 	authenticated, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -398,6 +408,7 @@ func TestNativeCompletionAuthenticationAndTimeout(t *testing.T) {
 }
 
 func TestCompletionStopSequenceSpansTokens(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -422,6 +433,7 @@ func TestCompletionStopSequenceSpansTokens(t *testing.T) {
 }
 
 func TestCompletionFlushesUnmatchedStopPrefix(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -443,6 +455,7 @@ func TestCompletionFlushesUnmatchedStopPrefix(t *testing.T) {
 }
 
 func TestCompletionMultipleChoices(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -472,6 +485,7 @@ func TestCompletionMultipleChoices(t *testing.T) {
 }
 
 func TestCompletionAcceptsGrammarChoices(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -495,6 +509,7 @@ func TestCompletionAcceptsGrammarChoices(t *testing.T) {
 }
 
 func TestCompletionAcceptsGBNF(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -518,6 +533,7 @@ func TestCompletionAcceptsGBNF(t *testing.T) {
 }
 
 func TestCompletionAcceptsLazyGBNF(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -543,6 +559,7 @@ func TestCompletionAcceptsLazyGBNF(t *testing.T) {
 }
 
 func TestCompletionAcceptsOrderedSamplers(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -572,6 +589,7 @@ func TestCompletionAcceptsOrderedSamplers(t *testing.T) {
 }
 
 func TestCompletionRejectsUnsupportedSampler(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -586,6 +604,7 @@ func TestCompletionRejectsUnsupportedSampler(t *testing.T) {
 }
 
 func TestCompletionAcceptsInfillSampler(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -610,6 +629,7 @@ func TestCompletionAcceptsInfillSampler(t *testing.T) {
 }
 
 func TestNativeInfillFormatsAndGeneratesExactPromptTokens(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
 		ModelID:            testModelID,
@@ -663,6 +683,7 @@ func TestNativeInfillFormatsAndGeneratesExactPromptTokens(t *testing.T) {
 }
 
 func TestNativeInfillValidatesRequiredFieldsAndExtraChunks(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for name, body := range map[string]string{
 		"prefix": `{"input_suffix":"after"}`,
@@ -685,6 +706,7 @@ func TestNativeInfillValidatesRequiredFieldsAndExtraChunks(t *testing.T) {
 }
 
 func TestCompletionAcceptsTopNSigmaXTCAndMinKeep(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -715,6 +737,7 @@ func TestCompletionAcceptsTopNSigmaXTCAndMinKeep(t *testing.T) {
 }
 
 func TestCompletionAcceptsLogitBiasAndIgnoreEOS(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -752,6 +775,7 @@ func TestCompletionAcceptsLogitBiasAndIgnoreEOS(t *testing.T) {
 }
 
 func TestCompletionAcceptsArrayLogitBias(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -775,6 +799,7 @@ func TestCompletionAcceptsArrayLogitBias(t *testing.T) {
 }
 
 func TestStreamingCompletion(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -795,6 +820,7 @@ func TestStreamingCompletion(t *testing.T) {
 }
 
 func TestStreamingCompletionDoesNotLeakStopPrefix(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -816,6 +842,7 @@ func TestStreamingCompletionDoesNotLeakStopPrefix(t *testing.T) {
 }
 
 func TestStreamingCompletionIndexesMultipleChoices(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -836,6 +863,7 @@ func TestStreamingCompletionIndexesMultipleChoices(t *testing.T) {
 }
 
 func TestStreamingCompletionBatchesUsePromptMajorIndices(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -863,6 +891,7 @@ func TestStreamingCompletionBatchesUsePromptMajorIndices(t *testing.T) {
 }
 
 func TestCompletionRejectsInvalidStop(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"prompt":"hi","stop":""}`,
@@ -882,6 +911,7 @@ func TestCompletionRejectsInvalidStop(t *testing.T) {
 }
 
 func TestCompletionRejectsInvalidChoiceCount(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, n := range []int{-1, 9} {
 		request := httptest.NewRequest(
@@ -898,6 +928,7 @@ func TestCompletionRejectsInvalidChoiceCount(t *testing.T) {
 }
 
 func TestEmbeddings(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -926,6 +957,7 @@ func TestEmbeddings(t *testing.T) {
 }
 
 func TestOpenAIEmbeddingsBase64(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -959,6 +991,7 @@ func TestOpenAIEmbeddingsBase64(t *testing.T) {
 }
 
 func TestEmbeddingsRejectInvalidInput(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"input":""}`,
@@ -975,6 +1008,7 @@ func TestEmbeddingsRejectInvalidInput(t *testing.T) {
 }
 
 func TestEmbeddingsExactAndMixedTokenInputs(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	openAI := httptest.NewRecorder()
@@ -1018,6 +1052,7 @@ func TestEmbeddingsExactAndMixedTokenInputs(t *testing.T) {
 }
 
 func TestNativeEmbeddings(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, test := range []struct {
 		path string
@@ -1074,6 +1109,7 @@ func TestNativeEmbeddings(t *testing.T) {
 }
 
 func TestNativeEmbeddingsValidationAuthenticationAndMethod(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"content":""}`,
@@ -1128,6 +1164,7 @@ func TestNativeEmbeddingsValidationAuthenticationAndMethod(t *testing.T) {
 }
 
 func TestRerankJinaAndTEIFormats(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	jina := httptest.NewRecorder()
 	handler.ServeHTTP(jina, httptest.NewRequest(
@@ -1168,6 +1205,7 @@ func TestRerankJinaAndTEIFormats(t *testing.T) {
 }
 
 func TestRerankValidationCapabilityAndMethod(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"documents":["a"]}`,
@@ -1195,6 +1233,7 @@ func TestRerankValidationCapabilityAndMethod(t *testing.T) {
 }
 
 func TestChatCompletion(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1218,6 +1257,7 @@ func TestChatCompletion(t *testing.T) {
 }
 
 func TestChatCompletionStructuredResponseFormats(t *testing.T) {
+	t.Parallel()
 	const schema = `{"type":"object","properties":{"ok":{"type":"boolean"}},` +
 		`"required":["ok"],"additionalProperties":false}`
 	cases := []struct {
@@ -1300,6 +1340,7 @@ func TestChatCompletionStructuredResponseFormats(t *testing.T) {
 }
 
 func TestChatCompletionRejectsInvalidStructuredResponseFormats(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	cases := []string{
 		`,"response_format":"json"`,
@@ -1336,6 +1377,7 @@ func TestChatCompletionRejectsInvalidStructuredResponseFormats(t *testing.T) {
 }
 
 func TestChatCompletionAliasAndInputTokens(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	alias := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -1383,6 +1425,7 @@ func TestChatCompletionAliasAndInputTokens(t *testing.T) {
 }
 
 func TestPreparedPromptGenerationAndTokenCountParity(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name           string
 		generationPath string
@@ -1465,6 +1508,7 @@ func TestPreparedPromptGenerationAndTokenCountParity(t *testing.T) {
 }
 
 func TestChatToolSchemasAreCountedAndBufferedCallsAreStructured(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		pieces: []string{
 			`<tool_call>{"name":"weather","arguments":{"city":"Paris"}}</tool_call>`,
@@ -1569,6 +1613,7 @@ func TestChatToolSchemasAreCountedAndBufferedCallsAreStructured(t *testing.T) {
 }
 
 func TestStreamingChatToolCallsAreStructured(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{
 		pieces: []string{
 			`<tool_call><function=weather><parameter=city>`,
@@ -1617,6 +1662,7 @@ func TestStreamingChatToolCallsAreStructured(t *testing.T) {
 }
 
 func TestChatTextContentParts(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, path := range []string{"/v1/chat/completions", "/chat/completions/input_tokens"} {
 		response := httptest.NewRecorder()
@@ -1654,6 +1700,7 @@ func TestChatTextContentParts(t *testing.T) {
 }
 
 func TestChatImageContentPartProjectsPrompt(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -1705,6 +1752,7 @@ func TestChatImageContentPartProjectsPrompt(t *testing.T) {
 }
 
 func TestChatMultipleImagesPreservesContentOrder(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -1745,6 +1793,7 @@ func TestChatMultipleImagesPreservesContentOrder(t *testing.T) {
 }
 
 func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
@@ -1793,6 +1842,7 @@ func TestStreamingChatAudioContentPartProjectsPrompt(t *testing.T) {
 }
 
 func TestChatMultimodalValidation(t *testing.T) {
+	t.Parallel()
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
@@ -1825,6 +1875,7 @@ func TestChatMultimodalValidation(t *testing.T) {
 }
 
 func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
+	t.Parallel()
 	base := &fakeGenerator{}
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
@@ -1883,6 +1934,7 @@ func TestChatImageHistoryPreservesTurnPositionAndReplay(t *testing.T) {
 }
 
 func TestChatMixedImageAudioPreservesChunkOrder(t *testing.T) {
+	t.Parallel()
 	base := &fakeGenerator{}
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
@@ -1937,6 +1989,7 @@ func TestChatMixedImageAudioPreservesChunkOrder(t *testing.T) {
 }
 
 func TestChatRemoteImageUsesExplicitPolicy(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
@@ -1975,6 +2028,7 @@ func TestChatRemoteImageUsesExplicitPolicy(t *testing.T) {
 }
 
 func TestChatImageHistoryOmissionUsesTextPath(t *testing.T) {
+	t.Parallel()
 	base := &fakeGenerator{}
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
@@ -2001,6 +2055,7 @@ func TestChatImageHistoryOmissionUsesTextPath(t *testing.T) {
 }
 
 func TestMultimodalInputTokenCounting(t *testing.T) {
+	t.Parallel()
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
@@ -2065,6 +2120,7 @@ func TestMultimodalInputTokenCounting(t *testing.T) {
 }
 
 func TestResponsesInputTokensAliasesAndValidation(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, path := range []string{"/responses/input_tokens", "/v1/responses/input_tokens"} {
 		for _, body := range []string{
@@ -2120,6 +2176,7 @@ func TestResponsesInputTokensAliasesAndValidation(t *testing.T) {
 }
 
 func TestResponsesInputTokensIncludeToolsAndCallHistory(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
@@ -2163,6 +2220,7 @@ func TestResponsesInputTokensIncludeToolsAndCallHistory(t *testing.T) {
 }
 
 func TestBufferedResponsesAliases(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, path := range []string{"/responses", "/v1/responses"} {
 		response := httptest.NewRecorder()
@@ -2199,6 +2257,7 @@ func TestBufferedResponsesAliases(t *testing.T) {
 }
 
 func TestProtocolHistoryParity(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	first := httptest.NewRecorder()
@@ -2246,6 +2305,7 @@ func TestProtocolHistoryParity(t *testing.T) {
 }
 
 func TestResponsesContinuationRestart(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	repository, err := overgodb.Open(root)
 	if err != nil {
@@ -2289,12 +2349,14 @@ func TestResponsesContinuationRestart(t *testing.T) {
 }
 
 func TestResponseHistoryStoreAbsent(t *testing.T) {
+	t.Parallel()
 	if _, found := reflect.TypeFor[Handler]().FieldByName("responseHistory"); found {
 		t.Fatal("handler retains response history cache")
 	}
 }
 
 func TestResponsesStoreFalseDisablesContinuation(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	first := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -2330,6 +2392,7 @@ func TestResponsesStoreFalseDisablesContinuation(t *testing.T) {
 }
 
 func TestResponsesContinuationRetainsGeneratedToolCallID(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{pieces: []string{
 		`<tool_call><function=weather><parameter=city>`,
 		`Paris</parameter></function></tool_call>`,

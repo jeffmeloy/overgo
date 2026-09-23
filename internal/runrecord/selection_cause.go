@@ -13,15 +13,20 @@ import (
 // SelectionPackage binds one package's selection causes to its observed
 // execution in one gate step. Inputs are repository paths of the change.
 type SelectionPackage struct {
-	Package        string            `json:"package"`
-	Step           string            `json:"step"`
-	Input          artifact.ID       `json:"input,omitzero"`
-	Action         string            `json:"action,omitzero"`
-	Started        bool              `json:"started,omitzero"`
-	ElapsedSeconds *float64          `json:"elapsed_seconds,omitempty"`
-	CompilerInputs []string          `json:"compiler_inputs,omitempty"`
-	RuntimeInputs  []string          `json:"runtime_inputs,omitempty"`
-	UnboundInputs  []string          `json:"unbound_inputs,omitempty"`
+	Package        string      `json:"package"`
+	Step           string      `json:"step"`
+	Input          artifact.ID `json:"input,omitzero"`
+	Action         string      `json:"action,omitzero"`
+	Started        bool        `json:"started,omitzero"`
+	ElapsedSeconds *float64    `json:"elapsed_seconds,omitempty"`
+	CompilerInputs []string    `json:"compiler_inputs,omitempty"`
+	RuntimeInputs  []string    `json:"runtime_inputs,omitempty"`
+	UnboundInputs  []string    `json:"unbound_inputs,omitempty"`
+	// Readers names the opaque readers the package reaches; their reasons
+	// are written once on the record. RuntimeReaders carried each reason on
+	// every package, which repeated the same text dozens of times per
+	// record; records written that way still read.
+	Readers        []string          `json:"readers,omitempty"`
 	RuntimeReaders map[string]string `json:"runtime_readers,omitempty"`
 	Reuse          SelectionReuse    `json:"reuse,omitzero"`
 	// ShadowIsolated marks a package the isolation rule under trial would
@@ -40,27 +45,53 @@ type SelectionReuse struct {
 // SelectionCauseRecord retains every package the gate's test steps requested
 // with its attribution, so the histogram derives from retained records alone.
 type SelectionCauseRecord struct {
-	Version     uint16             `json:"version"`
-	Result      artifact.ID        `json:"result"`
-	Changed     []string           `json:"changed"`
-	Packages    []SelectionPackage `json:"packages"`
-	Limitations string             `json:"limitations"`
-	ID          artifact.ID        `json:"-"`
+	Version  uint16             `json:"version"`
+	Result   artifact.ID        `json:"result"`
+	Changed  []string           `json:"changed"`
+	Packages []SelectionPackage `json:"packages"`
+	// ReaderReasons says once, for every opaque reader any package reaches,
+	// why the input graph binds it to every root.
+	ReaderReasons map[string]string `json:"reader_reasons,omitempty"`
+	Limitations   string            `json:"limitations"`
+	ID            artifact.ID       `json:"-"`
 }
+
+// NewSelectionCauses builds a record with each opaque reader's reason written
+// once on the record and each package naming only the readers it reaches.
+func NewSelectionCauses(value SelectionCauseRecord) (SelectionCauseRecord, error) {
+	value.Packages = slices.Clone(value.Packages)
+	for index := range value.Packages {
+		entry := &value.Packages[index]
+		for reader, reason := range entry.RuntimeReaders {
+			if value.ReaderReasons == nil {
+				value.ReaderReasons = map[string]string{}
+			}
+			value.ReaderReasons[reader] = reason
+			entry.Readers = append(entry.Readers, reader)
+		}
+		entry.RuntimeReaders = nil
+	}
+	return SelectionCauseCodec.NewInitial(value)
+}
+
+// SelectionCauseSchema is the selection-cause record's schema.
+const SelectionCauseSchema = "overgo/gate-selection-cause/v1"
 
 // SelectionCauseCodec owns selection-record construction, encoding and queries.
 var SelectionCauseCodec = artifact.JSONDocumentCodec(
-	"gate selection cause", artifact.KindEvidence, "application/vnd.overgo.gate-selection-cause+json", "overgo/gate-selection-cause/v1",
+	"gate selection cause", artifact.KindEvidence, "application/vnd.overgo.gate-selection-cause+json", SelectionCauseSchema,
 	canonicalizeSelectionCause, func(value SelectionCauseRecord) artifact.ID { return value.ID },
 	func(value *SelectionCauseRecord, id artifact.ID) { value.ID = id },
 	func(value SelectionCauseRecord) SelectionCauseRecord {
 		value.Changed = slices.Clone(value.Changed)
 		value.Packages = slices.Clone(value.Packages)
+		value.ReaderReasons = maps.Clone(value.ReaderReasons)
 		for index := range value.Packages {
 			entry := &value.Packages[index]
 			entry.CompilerInputs = slices.Clone(entry.CompilerInputs)
 			entry.RuntimeInputs = slices.Clone(entry.RuntimeInputs)
 			entry.UnboundInputs = slices.Clone(entry.UnboundInputs)
+			entry.Readers = slices.Clone(entry.Readers)
 			entry.RuntimeReaders = maps.Clone(entry.RuntimeReaders)
 		}
 		return value
@@ -96,7 +127,12 @@ func canonicalizeSelectionCause(value *SelectionCauseRecord) error {
 			return fmt.Errorf("run record: selection cause repeats %s in %s", entry.Package, entry.Step)
 		}
 		previous = key
-		for _, names := range []*[]string{&entry.CompilerInputs, &entry.RuntimeInputs, &entry.UnboundInputs} {
+		for _, reader := range entry.Readers {
+			if _, reasoned := value.ReaderReasons[reader]; !reasoned {
+				return fmt.Errorf("run record: selection cause names reader %s without its reason", reader)
+			}
+		}
+		for _, names := range []*[]string{&entry.CompilerInputs, &entry.RuntimeInputs, &entry.UnboundInputs, &entry.Readers} {
 			slices.Sort(*names)
 			*names = slices.Compact(*names)
 		}
@@ -175,14 +211,18 @@ type SelectionHistogram struct {
 	Limitations string                   `json:"limitations"`
 }
 
-// SelectionCauses derives every sufficient cause of one package's selection.
-func SelectionCauses(entry SelectionPackage) []SelectionCause {
+// SelectionCauses derives every sufficient cause of one package's selection;
+// reasons are the record's reader reasons.
+func SelectionCauses(entry SelectionPackage, reasons map[string]string) []SelectionCause {
 	var causes []SelectionCause
 	for _, name := range entry.CompilerInputs {
 		causes = append(causes, SelectionCause{Kind: SelectionCauseCompiler, Detail: name})
 	}
 	for _, name := range entry.RuntimeInputs {
 		causes = append(causes, SelectionCause{Kind: SelectionCauseRuntime, Detail: name})
+	}
+	for _, reader := range entry.Readers {
+		causes = append(causes, SelectionCause{Kind: SelectionCauseReader, Detail: reader + ": " + reasons[reader]})
 	}
 	for _, reader := range slices.Sorted(maps.Keys(entry.RuntimeReaders)) {
 		causes = append(causes, SelectionCause{Kind: SelectionCauseReader, Detail: reader + ": " + entry.RuntimeReaders[reader]})
@@ -237,7 +277,7 @@ func SelectionCauseHistogram(result GateResult, record SelectionCauseRecord) (Se
 		if step == nil {
 			return SelectionHistogram{}, fmt.Errorf("run record: package %s names step %s absent from the gate result", entry.Package, entry.Step)
 		}
-		causes := SelectionCauses(entry)
+		causes := SelectionCauses(entry, record.ReaderReasons)
 		failed := entry.Action == "fail"
 		executed := entry.Started && (entry.Action == "pass" || failed)
 		skipped := entry.Action == "skip"

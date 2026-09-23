@@ -4,16 +4,14 @@ package adaptiveparity_test
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/testutil"
 )
 
 // Tier-0 chain protocol, written before the run (Probe Discipline): scorer =
@@ -40,12 +38,8 @@ const (
 // execute. The docs/plan.json Phase B row consumes the logged verdict.
 func TestTier0ChainViability(t *testing.T) {
 	cudatest.RequireProbe(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	scorerDir := filepath.Join(roots.Models, "Qwen2.5-0.5B")
-	drafterDir := filepath.Join(roots.Models, "MiniCPM5-1B")
+	scorerDir := modeltest.Directory(t, "Qwen2.5-0.5B")
+	drafterDir := modeltest.Directory(t, "MiniCPM5-1B")
 	for _, directory := range []string{scorerDir, drafterDir} {
 		if _, err := os.Stat(directory); err != nil {
 			t.Skipf("UNAVAILABLE: %s absent; Tier-0 chain viability NOT verified", directory)

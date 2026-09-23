@@ -15,6 +15,7 @@ import (
 // last choice per browser, and lists a stale activation with the loader's
 // reason and no serve control.
 func TestFrontPageModelSwitch(t *testing.T) {
+	t.Parallel()
 	sources := webuiJavaScript(t)
 	boot := sources["boot.js"]
 	for _, needle := range []string{

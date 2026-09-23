@@ -13,6 +13,7 @@ import (
 // signals, and every path in the store layout classifies to exactly
 // the class its directory owns.
 func TestRSIStorageClassContract(t *testing.T) {
+	t.Parallel()
 	document := artifact.Descriptor{Schema: "overgo/attempt/v1", MediaType: "application/json"}
 	if class := DocumentStorageClass(document); class != ClassCanonicalFact {
 		t.Fatalf("typed document classifies %s", class)

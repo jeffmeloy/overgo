@@ -17,6 +17,7 @@ import (
 // and media input described, and the run that consumed it with its
 // outputs; a generator without a workspace derives no next step.
 func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -96,6 +97,7 @@ func TestArtifactLineageListsProducersAndConsumers(t *testing.T) {
 // takes the artifact's type; a refused capability and a slot of another
 // kind are not.
 func TestNextStepsFollowDeclaredSlots(t *testing.T) {
+	t.Parallel()
 	vqa := testutil.ArtifactID(t, artifact.KindRecipe, "vqa")
 	edit := testutil.ArtifactID(t, artifact.KindRecipe, "edit")
 	refused := testutil.ArtifactID(t, artifact.KindRecipe, "refused")

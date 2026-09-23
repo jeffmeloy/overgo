@@ -89,6 +89,7 @@ func (r *e4bServingTrace) Generate(ctx context.Context, prompt string, options i
 // Six input modes traverse all three protocols with one resident model. Expected
 // complete outputs come from the independent native SDPA captures, not this server.
 func TestE4BHTTPModalities(t *testing.T) {
+	t.Parallel()
 	cudatest.Require(t)
 	started := time.Now()
 	publish := os.Getenv("OVERGO_E4B_PUBLISH_PROTOCOL") == "1"

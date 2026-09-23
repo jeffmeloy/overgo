@@ -21,6 +21,7 @@ func (f *continuousFactoryGenerator) NewContinuousGenerator(
 }
 
 func TestServerUsesModelSessionDirectorAsSoleSessionAuthority(t *testing.T) {
+	t.Parallel()
 	factory := &continuousFactoryGenerator{fakeGenerator: &fakeGenerator{}}
 	handler, err := New(Config{MaxConcurrent: 3, ContextShift: true}, factory)
 	if err != nil {

@@ -30,6 +30,7 @@ func checkMediaWorkflowruntimeSource(root, revision string, paths []string) (str
 // TestMediaWorkflowruntimeReconciliation proves the layer peels to its base
 // once the newer layer is peeled, and that its document is bound field by field.
 func TestMediaWorkflowruntimeReconciliation(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	var merged mediaMergedEvidence
 	if err := jsonfile.Decode(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {

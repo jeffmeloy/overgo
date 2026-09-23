@@ -13,6 +13,7 @@ import (
 )
 
 func TestCompositeGenerationHeldoutQuality(t *testing.T) {
+	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	authority := CompositeGenerationQualityAuthority{}
 	quality, err := authority.Evaluate(t.Context(), store, evidenceID, policy)
@@ -35,6 +36,7 @@ func TestCompositeGenerationHeldoutQuality(t *testing.T) {
 }
 
 func TestCompositeGenerationRepeatedSeeds(t *testing.T) {
+	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	authority := CompositeGenerationQualityAuthority{}
 	policy.MinimumSeeds++
@@ -57,6 +59,7 @@ func TestCompositeGenerationRepeatedSeeds(t *testing.T) {
 }
 
 func TestCompositeGenerationSourceEffect(t *testing.T) {
+	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	policy.MinimumSourceEffect = 0.5
 	policy, err := (CompositeGenerationQualityAuthority{}).NewPolicy(policy)
@@ -71,6 +74,7 @@ func TestCompositeGenerationSourceEffect(t *testing.T) {
 }
 
 func TestCompositeGenerationRefusal(t *testing.T) {
+	t.Parallel()
 	store, evidenceID, policy := compositeGenerationQualityFixture(t)
 	policy.QualityMetric = "missing-quality"
 	policy, err := (CompositeGenerationQualityAuthority{}).NewPolicy(policy)

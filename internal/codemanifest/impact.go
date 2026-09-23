@@ -29,6 +29,24 @@ func Close(base, candidate Manifest, delta Delta) (Impact, error) {
 	if err := candidate.Validate(); err != nil {
 		return Impact{}, errors.New("code manifest impact: invalid candidate")
 	}
+	return closeValidated(base, candidate, delta)
+}
+
+// Analyze derives the structural delta between two canonical manifests and
+// its reverse-reachable impact, validating each manifest once: a planner
+// needs both, and validating the same two manifests again for the closure was
+// a third of the validation its planning repeated.
+func Analyze(base, candidate Manifest) (Delta, Impact, error) {
+	delta, err := Diff(base, candidate)
+	if err != nil {
+		return Delta{}, Impact{}, err
+	}
+	impact, err := closeValidated(base, candidate, delta)
+	return delta, impact, err
+}
+
+// closeValidated computes the closure over manifests already validated.
+func closeValidated(base, candidate Manifest, delta Delta) (Impact, error) {
 	if delta.Base != base.ID || delta.Candidate != candidate.ID {
 		return Impact{}, errors.New("code manifest impact: delta identity mismatch")
 	}

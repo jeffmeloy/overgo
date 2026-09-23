@@ -16,6 +16,7 @@ import (
 // collision finding: a fresh handler over a store already carrying
 // resp_7 must issue identifiers past it, never resp_1 again.
 func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -50,6 +51,7 @@ func TestResponsesIdentifiersSeedFromDurableState(t *testing.T) {
 // commit, the responses route returns response_not_durable instead of
 // handing out an identifier whose alias never bound.
 func TestResponsesRefuseNonDurablePublication(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -15,6 +15,7 @@ import (
 // undeclared model keeps full coverage, and re-declaration replaces
 // the binding.
 func TestDomainRoutedSuites(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 )
 
 func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
+	t.Parallel()
 	item := func(id string) plan.Item {
 		return plan.Item{ID: id, Title: id, Status: "open", Steps: []plan.Step{{
 			ID: "do", Title: id, Status: "open", Verify: "go test ./...",
@@ -91,6 +92,7 @@ func TestPrepareMergeSnapshotsSourceAndRegeneratesDerivedDocs(t *testing.T) {
 }
 
 func TestPrepareMergeFirstParentTargetRetainsOnlyLocalPlan(t *testing.T) {
+	t.Parallel()
 	item := func(id string) plan.Item {
 		return plan.Item{ID: id, Status: plan.StatusOpen, Steps: []plan.Step{{
 			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
@@ -124,6 +126,7 @@ func TestPrepareMergeFirstParentTargetRetainsOnlyLocalPlan(t *testing.T) {
 }
 
 func TestMergeFinalizeProjectionArguments(t *testing.T) {
+	t.Parallel()
 	if got, err := mergeFinalizeProjectionArguments(plan.MergeProjectionSemanticUnion, `C:\source lane\overgodb-store`); err != nil || got != "" {
 		t.Fatalf("semantic-union arguments = %q, %v", got, err)
 	}
@@ -141,6 +144,7 @@ func TestMergeFinalizeProjectionArguments(t *testing.T) {
 }
 
 func TestFirstParentTargetSourceStoreRequiresRegisteredWorktree(t *testing.T) {
+	t.Parallel()
 	repository, runGit := mergeTestRepository(t)
 	revision := runGit("rev-parse", "HEAD")
 	if _, err := firstParentTargetSourceStore(t.Context(), repository, revision, ""); err == nil ||
@@ -193,6 +197,7 @@ func clonePlan(t *testing.T, document plan.Plan) plan.Plan {
 }
 
 func TestPrepareMergeSnapshotEvidence(t *testing.T) {
+	t.Parallel()
 	root, runGit := mergeTestRepository(t)
 	snapshot := runGit("rev-parse", "HEAD")
 	source, err := overgodb.Open(filepath.Join(root, "overgodb-store"))
@@ -262,6 +267,7 @@ func mergeEvidenceBatch(t *testing.T, key string) artifact.Batch {
 }
 
 func TestPrepareMergeSourceAdvance(t *testing.T) {
+	t.Parallel()
 	root, runGit := mergeTestRepository(t)
 	first := runGit("rev-parse", "HEAD")
 	if err := os.WriteFile(filepath.Join(root, "fixture"), []byte("two"), 0o644); err != nil {
@@ -278,6 +284,7 @@ func TestPrepareMergeSourceAdvance(t *testing.T) {
 }
 
 func TestPrepareMergeRejectsAmbiguousMergeBaseBeforeProjection(t *testing.T) {
+	t.Parallel()
 	repository, runGit := mergeTestRepository(t)
 	root := runGit("rev-parse", "HEAD")
 	tree := runGit("rev-parse", "HEAD^{tree}")
@@ -336,6 +343,7 @@ func TestPlanGitAuthorityIgnoresAmbientRepositoryOverrides(t *testing.T) {
 }
 
 func TestPrepareMergeRequiresExactRepositoryRoot(t *testing.T) {
+	t.Parallel()
 	repository, _ := mergeTestRepository(t)
 	subdirectory := filepath.Join(repository, "nested")
 	if err := os.Mkdir(subdirectory, 0o755); err != nil {
@@ -348,6 +356,7 @@ func TestPrepareMergeRequiresExactRepositoryRoot(t *testing.T) {
 }
 
 func TestMergeOwnedDocumentLimitsAutomaticConflictResolution(t *testing.T) {
+	t.Parallel()
 	for _, path := range []string{
 		plan.Path,
 		compatibilityDocumentPath,

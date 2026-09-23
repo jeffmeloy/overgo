@@ -16,6 +16,7 @@ import (
 // API with previous_response_id, reattaches through follow, and the rail
 // lists conversations from the server.
 func TestFrontPageConversations(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	// The page counts with the exact request it streams: stream, store and sampling fields included.

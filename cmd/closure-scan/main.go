@@ -764,34 +764,34 @@ func importClosureDocumentsWith(
 		}
 	}
 
-	var projection closureProjection
+	var projection closurescan.Projection
 	if reuseReview && !reviewCallsites {
 		projection = reviewed.projection
 	} else {
-		projection, err = projectActiveClosures(index, candidates, documents, sourceAliases, sameStore, reviewCallsites, retired)
+		projection, err = closurescan.ProjectActiveClosures(index, candidates, documents, sourceAliases, sameStore, reviewCallsites, retired)
 		if err != nil {
 			return count, unmatched, first, aliases, err
 		}
 	}
-	rebound = append(rebound, projection.rebound...)
-	retirements = append(retirements, projection.retirements...)
-	retired, claimedAliases := maps.Clone(projection.retired), maps.Clone(projection.claimed)
-	unmatched += projection.unmatched
-	first = cmp.Or(first, projection.first)
+	rebound = append(rebound, projection.Rebound...)
+	retirements = append(retirements, projection.Retirements...)
+	retired, claimedAliases := maps.Clone(projection.Retired), maps.Clone(projection.Claimed)
+	unmatched += projection.Unmatched
+	first = cmp.Or(first, projection.First)
 	if sameStore && retireUnmatched {
 		// A decision whose declaration still matches and whose uses moved is
 		// not stale: retiring it throws away a reviewed understanding that
 		// -review-callsites carries forward unchanged.
-		drifted := slices.DeleteFunc(slices.Clone(projection.pending), func(retry closurePending) bool {
-			return retry.reason != string(closurescan.DriftCallsite)
+		drifted := slices.DeleteFunc(slices.Clone(projection.Pending), func(retry closurescan.Pending) bool {
+			return retry.Reason != string(closurescan.DriftCallsite)
 		})
 		if len(drifted) != 0 {
 			return count, unmatched, first, aliases, fmt.Errorf(
 				"closure-scan: %d decision(s), first %s, drifted only at their callsites and are not stale; rerun the import with -review-callsites to keep their reviewed text, and retire what remains after it",
-				len(drifted), drifted[0].document.Name)
+				len(drifted), drifted[0].Document.Name)
 		}
-		for _, retry := range projection.pending {
-			document, previousAlias := retry.document, retry.previousAlias
+		for _, retry := range projection.Pending {
+			document, previousAlias := retry.Document, retry.PreviousAlias
 			if !retired[previousAlias] {
 				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasRemoval(previousAlias, document.ID))
 				retired[previousAlias] = true
@@ -1601,7 +1601,11 @@ func commitClosureDocumentsAtHead(
 	fixtures []artifact.Descriptor,
 	expectedHead *artifact.CommitID,
 ) (int, artifact.CommitID, error) {
-	if err := requireUniqueClosureDocumentAliases(documents); err != nil {
+	if err := closurescan.RequireUniqueDocumentAliases(documents); err != nil {
+		return 0, artifact.CommitID{}, err
+	}
+	documents, err := currentClosureOwners(root, documents)
+	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}
 	store, err := overgodb.OpenContext(context.Background(), storePath)
@@ -1700,23 +1704,6 @@ func commitClosureDocumentsAtHead(
 	return len(files), commit, nil
 }
 
-func requireUniqueClosureDocumentAliases(documents []closureledger.Document) error {
-	claims := map[string]artifact.ID{}
-	for _, document := range documents {
-		for _, binding := range document.Bindings {
-			alias, err := closureledger.ActiveAlias(binding)
-			if err != nil {
-				return err
-			}
-			if prior, found := claims[alias]; found && prior != document.ID {
-				return fmt.Errorf("closure-scan: conflicting reviewed decisions claim alias %s", alias)
-			}
-			claims[alias] = document.ID
-		}
-	}
-	return nil
-}
-
 func bindClosureOperationKey(operation closureCommitOperation, batch *artifact.Batch) error {
 	switch operation {
 	case closurePublishOperation, closureImportOperation, closureRebindOperation, closureRetireUnmatchedOperation,
@@ -1734,6 +1721,38 @@ func bindClosureOperationKey(operation closureCommitOperation, batch *artifact.B
 	digest := sha256.Sum256(encoded)
 	batch.Key = string(operation) + hex.EncodeToString(digest[:])
 	return nil
+}
+
+// currentClosureOwners re-keys a binding its source store left at an earlier
+// identity of its file (a rebind keeps the line and owner of a declaration
+// that did not move in any reviewed way) to the file as it is now, so a
+// document imported from another store names the file this store records.
+// The reviewed text and every other binding fact travel unchanged.
+func currentClosureOwners(root string, documents []closureledger.Document) ([]closureledger.Document, error) {
+	current := slices.Clone(documents)
+	for index, document := range current {
+		bindings, fixture, stale := slices.Clone(document.Bindings), document.Fixture, false
+		for position, binding := range bindings {
+			id, _, _, err := fileArtifact(root, binding.File)
+			if err != nil || id == binding.Owner {
+				continue
+			}
+			if fixture == binding.Owner {
+				fixture = id
+			}
+			bindings[position].Owner, stale = id, true
+		}
+		if !stale {
+			continue
+		}
+		rebound, err := closureledger.New(document.Name, document.Value, document.Tier, document.Status,
+			document.Understanding, bindings, document.ClosurePath, document.RerankTrigger, fixture)
+		if err != nil {
+			return nil, fmt.Errorf("closure %s: re-key to the current file: %w", document.Name, err)
+		}
+		current[index] = rebound
+	}
+	return current, nil
 }
 
 func fileArtifact(root, relative string) (artifact.ID, artifact.Descriptor, artifact.LocationEvent, error) {

@@ -6,7 +6,7 @@ Activation records identify available recipes. Verification records identify the
 
 ## Accepted protocol coverage
 
-218 registered models; 34 task activations; 27 activations carry accepted protocols. Counts below are acceptance phases, not examples, quality scores or current performance claims. Producer source revisions and exact verifier commands appear in the [typed report](media_report.json); input identities remain in its linked coverage documents. See also [benchmark results](BENCHMARK.md).
+219 registered models; 34 task activations; 27 activations carry accepted protocols. Counts below are acceptance phases, not examples, quality scores or current performance claims. Producer source revisions and exact verifier commands appear in the [typed report](media_report.json); input identities remain in its linked coverage documents. See also [benchmark results](BENCHMARK.md).
 
 These are raw registrations, including fixture identities, not a count of validated models. Domains are catalog declarations; accepted input modalities appear in protocol scope even when a catalog domain is undeclared. Local results remain separate from hosted capabilities; mocked provider contracts confer no model-quality evidence. Historical resource evidence retains its original source. The [E4B resource refresh](verification/e4b-resource-refresh.json) does not establish current resource bounds after lifecycle changes; device-memory-retention/do owns that comparison.
 
@@ -135,6 +135,7 @@ These are raw registrations, including fixture identities, not a count of valida
 | `model:sha256:72de387c73641aedc3ad63bc13df185be38b9e4992104ad4dfc6d794718e1951` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:730e9b5e31213cdaa607e0a8ea9a2e69825206b7fdd8ff91a1499fe6f73710a6` | webui-lane-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:73f60c3288772798c0fc7c23ac96ad056b296297c8517bb49dd2968613734561` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
+| `model:sha256:7406a105abd72a286bf98cc3a8f3810812bc4baaac4804635de574e50b38921b` | timesfm-3.0-pytorch | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:764862917fa7051c6b115269b6e0f6ce3728161a4a1f2cf798fed9d111258627` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:764daf929f9d93ae9b2ffe886e6bb5871dd5cb85ebb5e0d94700c2158931e471` | Qwen2.5-0.5B | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |
 | `model:sha256:787b660f010dd367d2935ccafd05ea0163b6acc8f36f44f441c600ffbfabbf66` | webui-lane-entry-model | true | Registered without task activation or accepted protocol. | `final-model-validation/do` |

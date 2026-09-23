@@ -4,16 +4,14 @@ package adaptiveparity_test
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/modelartifact"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
-	"overgo/internal/testutil"
 )
 
 // TestComposedArtifactExecutesAndResolvesLineage pins the compose-model
@@ -25,12 +23,8 @@ import (
 // workflow runtime and reproduces the composed recipe identity.
 func TestComposedArtifactExecutesAndResolvesLineage(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	scorerDir := filepath.Join(roots.Models, "Qwen2.5-0.5B")
-	drafterDir := filepath.Join(roots.Models, "MiniCPM5-1B")
+	scorerDir := modeltest.Directory(t, "Qwen2.5-0.5B")
+	drafterDir := modeltest.Directory(t, "MiniCPM5-1B")
 	for _, directory := range []string{scorerDir, drafterDir} {
 		if _, err := os.Stat(directory); err != nil {
 			t.Skipf("UNAVAILABLE: %s absent; composed artifact NOT verified", directory)

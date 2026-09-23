@@ -13,6 +13,7 @@ import (
 // the step's verify, and a complete plan is one field, not a sentence to
 // parse.
 func TestDispatchJSONMatchesProse(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{{
 		ID: "item", Title: "item title", Status: plan.StatusOpen, Steps: []plan.Step{{
 			ID: "do", Title: "make the bounded change", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestX$'",

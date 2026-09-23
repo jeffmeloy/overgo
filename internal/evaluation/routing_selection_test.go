@@ -133,6 +133,7 @@ func publishSelectionEvaluation(
 // returned — the benchmark substrate acting as a control input, with every
 // decision on the record.
 func TestRoutingEvidenceDerivedSelection(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -193,6 +194,7 @@ func TestRoutingEvidenceDerivedSelection(t *testing.T) {
 // win "cheapest" on the manifest's size, and a manifest with no recorded
 // file has no resource evidence at all.
 func TestRoutingResourceIsRecordedBytesNotManifestSize(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

@@ -13,6 +13,7 @@ import (
 )
 
 func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	document := mutationPlan(t, "before")
 	path := saveMutationPlan(t, root, document)
@@ -43,6 +44,7 @@ func TestPlanMutationRefusesSharedGateLock(t *testing.T) {
 }
 
 func TestPlanMutationReloadsAfterAcquiringAuthority(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	stale := mutationPlan(t, "stale")
 	current := mutationPlan(t, "current")

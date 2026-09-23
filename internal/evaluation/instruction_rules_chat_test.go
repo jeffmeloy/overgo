@@ -46,6 +46,7 @@ func (f *instructionChatFixture) ScoreContinuations(context.Context, string, []s
 // its shaped user turn, and the plain generator still sees the raw
 // prompt.
 func TestInstructionRulesShapeThroughTheChatTemplate(t *testing.T) {
+	t.Parallel()
 	compiled, err := CompileInstructionRules(InstructionRulesSuite{
 		Kind: InstructionRulesKind, Schema: "lm-eval/ifeval/v4.0", Source: "fixture",
 		Cases: []InstructionRulesCase{{

@@ -18,6 +18,7 @@ import (
 // authoritative even when empty, temperature 0 under a logit bias draws
 // the argmax, and the responses object names the resolved chain.
 func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
+	t.Parallel()
 	declared := testRuntimePolicy().Serving.Sampling.Samplers
 	if len(declared) == 0 {
 		t.Fatal("inference runtime policy declares no sampler chain")
@@ -107,6 +108,7 @@ func TestRequestWithoutSamplersUsesDeclaredChain(t *testing.T) {
 
 // Omission selects a declaration; explicit zero and nonzero remain request values.
 func TestRequestSamplingPresence(t *testing.T) {
+	t.Parallel()
 	fields := []struct {
 		field, wire        string
 		declared, explicit float64

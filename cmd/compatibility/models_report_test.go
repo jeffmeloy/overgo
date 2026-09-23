@@ -18,6 +18,7 @@ import (
 // with no resolvable architecture lands in the explicit unattributed
 // bucket instead of a guessed one.
 func TestModelsReportNestsSpecificModels(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writeTestManifest(t, root, []claim{}, map[string]modelClaim{
 		"zeta": {Features: []string{"z"}},

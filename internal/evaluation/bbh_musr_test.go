@@ -9,6 +9,7 @@ import (
 )
 
 func TestBBHAndMuSRPinnedOracleParity(t *testing.T) {
+	t.Parallel()
 	const bbhPrompt = "Q: True and not False is\nA:True\n\nQ: not True is\nA:"
 	bbh, err := CompileGroupedChoice(GroupedChoiceSuite{
 		Kind: GroupedChoiceKind, Schema: "lm-eval/leaderboard-bbh/v1.0", Source: "bbh-fixture",

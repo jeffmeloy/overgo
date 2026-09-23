@@ -166,12 +166,12 @@ func buildUnclassifiedHistoryReport(
 		return unclassifiedReport{}, err
 	}
 	index := closurescan.CompileRebindIndex(allCandidates)
-	projection, err := projectActiveClosures(index, allCandidates, activeDocuments, activeAliases, true, false, nil)
+	projection, err := closurescan.ProjectActiveClosures(index, allCandidates, activeDocuments, activeAliases, true, false, nil)
 	if err != nil {
 		return unclassifiedReport{}, err
 	}
 	projectedBindings := map[closureledger.SourceBinding]bool{}
-	for _, document := range projection.resolved {
+	for _, document := range projection.Resolved {
 		for _, binding := range document.Bindings {
 			projectedBindings[binding] = true
 		}
@@ -276,7 +276,7 @@ func buildUnclassifiedHistoryReport(
 	matches := make(map[int][]historicalDecisionMatch)
 	matchGroups := make(map[int]map[string]int)
 	for _, document := range historicalDocuments {
-		current, projected := projection.resolved[document.ID]
+		current, projected := projection.Resolved[document.ID]
 		matched := projected
 		mode := historyMatchExact
 		if !projected {

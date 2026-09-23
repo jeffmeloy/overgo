@@ -6,6 +6,7 @@ import (
 )
 
 func TestPointerPresenceSemantics(t *testing.T) {
+	t.Parallel()
 	absent, err := json.Marshal(responsesStreamEvent{Type: "response.test"})
 	switch err {
 	case nil:

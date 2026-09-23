@@ -9,6 +9,7 @@ import (
 )
 
 func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	evaluator, regime := id(artifact.KindProfile, "quality evaluator"), id(artifact.KindProfile, "regime")
 	makeFit := func(name string, costs []string) scalingFit {
@@ -90,6 +91,7 @@ func TestEffectiveSpeedupUsesObservedQualityAndCompatibleCostUnits(t *testing.T)
 }
 
 func TestEffectiveSpeedupCanonicalOrderIsPermutationInvariant(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	baseline := effectiveSpeedupEndpoint{
 		Rung: 1, Run: id(artifact.KindRun, "shared baseline run"),

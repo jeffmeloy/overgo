@@ -30,6 +30,7 @@ func (repository *interleavedCatalogRepository) ResolveAlias(ctx context.Context
 }
 
 func TestIFEvalParameterCatalogAcceptance(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	storePath := filepath.Join(root, "store")

@@ -8,6 +8,7 @@ import (
 )
 
 func TestMoERoutingPromotionRejectsHiddenStratumOrCostRegressions(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	model, dataset, split := id(artifact.KindModel, "model"), id(artifact.KindDataset, "dataset"), id(artifact.KindDatasetShard, "split")
 	seed, code, environment := id(artifact.KindEvidence, "seed"), id(artifact.KindEvidence, "code"), id(artifact.KindEvidence, "environment")

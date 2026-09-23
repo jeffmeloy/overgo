@@ -518,6 +518,7 @@ func (f *fakeGenerator) Generate(
 }
 
 func TestServerContextShiftOptionReachesGenerator(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
 		ModelID:            testModelID,
@@ -549,6 +550,7 @@ func TestServerContextShiftOptionReachesGenerator(t *testing.T) {
 }
 
 func TestNativeCompletionNKeepReachesGenerator(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler, err := New(Config{
 		ModelID:            testModelID,
@@ -616,6 +618,7 @@ func TestNativeCompletionNKeepReachesGenerator(t *testing.T) {
 }
 
 func TestServerRequestTimeoutCancelsGeneration(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -646,6 +649,7 @@ func TestServerRequestTimeoutCancelsGeneration(t *testing.T) {
 }
 
 func TestWrappedErrorClassification(t *testing.T) {
+	t.Parallel()
 	ctx, end := context.WithCancelCause(t.Context())
 	end(errRequestTimeoutCause)
 	cause := context.Cause(ctx)
@@ -666,6 +670,7 @@ func TestWrappedErrorClassification(t *testing.T) {
 }
 
 func TestServerRejectsNegativeRequestTimeout(t *testing.T) {
+	t.Parallel()
 	if _, err := New(Config{RequestTimeout: -time.Second}, &fakeGenerator{}); err == nil {
 		t.Fatal("negative request timeout was accepted")
 	}
@@ -1067,6 +1072,7 @@ func pngConfigFixture(width, height uint32) []byte {
 }
 
 func TestJSONRequestBudgets(t *testing.T) {
+	t.Parallel()
 	body := `{"value":"` + strings.Repeat("x", maxRequestBytes) + `"}`
 	var ordinary struct {
 		Value string `json:"value"`
@@ -1094,6 +1100,7 @@ func TestJSONRequestBudgets(t *testing.T) {
 }
 
 func TestHealth(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, path := range []string{"/health", "/healthz", "/v1/health"} {
 		request := httptest.NewRequest(http.MethodGet, path, nil)
@@ -1109,6 +1116,7 @@ func TestHealth(t *testing.T) {
 }
 
 func TestMetricsOmitDeviceMemoryWhenSnapshotFails(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &failingMemoryGenerator{fakeGenerator: &fakeGenerator{}})
 	response := serveTestRequest(handler, http.MethodGet, "/metrics", "")
 	if response.Code != http.StatusOK {
@@ -1120,6 +1128,7 @@ func TestMetricsOmitDeviceMemoryWhenSnapshotFails(t *testing.T) {
 }
 
 func TestLoraAdaptersEmptyControlPlane(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := serveTestRequest(handler, http.MethodGet, "/lora-adapters", "")
 	if get.Code != http.StatusOK || strings.TrimSpace(get.Body.String()) != "[]" {
@@ -1148,6 +1157,7 @@ func TestLoraAdaptersEmptyControlPlane(t *testing.T) {
 }
 
 func TestLoraAdaptersLoadedControlPlane(t *testing.T) {
+	t.Parallel()
 	generator := &fakeLoRAGenerator{
 		fakeGenerator: &fakeGenerator{},
 		adapters:      []inference.LoRAAdapterInfo{{ID: 0, Path: "adapter.gguf", Scale: 1}},
@@ -1167,6 +1177,7 @@ func TestLoraAdaptersLoadedControlPlane(t *testing.T) {
 }
 
 func TestNativeCompletionPerRequestLoRA(t *testing.T) {
+	t.Parallel()
 	generator := &fakeLoRAGenerator{
 		fakeGenerator: &fakeGenerator{},
 		adapters:      []inference.LoRAAdapterInfo{{ID: 0, Path: "adapter.gguf", Scale: 1}},
@@ -1196,6 +1207,7 @@ func TestNativeCompletionPerRequestLoRA(t *testing.T) {
 }
 
 func TestModels(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(http.MethodGet, "/v1/models", nil)
 	response := httptest.NewRecorder()
@@ -1234,6 +1246,7 @@ func TestModels(t *testing.T) {
 }
 
 func TestModelsArePublicAndStrictlyGet(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -1258,6 +1271,7 @@ func TestModelsArePublicAndStrictlyGet(t *testing.T) {
 }
 
 func TestProperties(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(http.MethodGet, "/props", nil)
 	response := httptest.NewRecorder()
@@ -1293,6 +1307,7 @@ func TestProperties(t *testing.T) {
 }
 
 func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -1411,6 +1426,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 }
 
 func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -1436,6 +1452,7 @@ func TestSlotsRequireAuthenticationAndGET(t *testing.T) {
 }
 
 func TestSlotsRedactTextByDefault(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	generation := serveTestRequest(
 		handler,
@@ -1472,6 +1489,7 @@ func TestSlotsRedactTextByDefault(t *testing.T) {
 }
 
 func TestNativeCompletionHonorsRequestedSlot(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -1525,6 +1543,7 @@ func TestNativeCompletionHonorsRequestedSlot(t *testing.T) {
 }
 
 func TestPropertiesRejectsPost(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodPost, "/props", "")
 	if response.Code != http.StatusMethodNotAllowed ||
@@ -1539,6 +1558,7 @@ func TestPropertiesRejectsPost(t *testing.T) {
 }
 
 func TestPropertiesRequiresConfiguredBearerToken(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -1567,6 +1587,7 @@ func TestPropertiesRequiresConfiguredBearerToken(t *testing.T) {
 }
 
 func TestBearerAuthentication(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -1609,6 +1630,7 @@ func TestBearerAuthentication(t *testing.T) {
 }
 
 func TestCompletion(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1661,6 +1683,7 @@ func TestCompletion(t *testing.T) {
 }
 
 func TestOpenAICompletionExactMixedAndBatchedPrompts(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name        string
 		prompt      string
@@ -1732,6 +1755,7 @@ func TestOpenAICompletionExactMixedAndBatchedPrompts(t *testing.T) {
 }
 
 func TestNativeCompletion(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1767,6 +1791,7 @@ func TestNativeCompletion(t *testing.T) {
 }
 
 func TestNativeCompletionProjectedInputs(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -1803,6 +1828,7 @@ func TestNativeCompletionProjectedInputs(t *testing.T) {
 }
 
 func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -1854,6 +1880,7 @@ func TestNativeCompletionImageProjectorMultimodalPrompt(t *testing.T) {
 }
 
 func TestNativeCompletionMultipleImagesPreservesOrder(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -1893,6 +1920,7 @@ func TestNativeCompletionMultipleImagesPreservesOrder(t *testing.T) {
 }
 
 func TestValidateMultimodalImagesEnforcesGeometryBudgets(t *testing.T) {
+	t.Parallel()
 	oversizedImage := make([]byte, maxImageBytes+1)
 	aggregateImage := func() []byte {
 		data := make([]byte, maxMediaBytes/2+1)
@@ -1945,6 +1973,7 @@ func TestValidateMultimodalImagesEnforcesGeometryBudgets(t *testing.T) {
 }
 
 func TestNativeCompletionRejectsOversizedImageGeometry(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
@@ -1976,6 +2005,7 @@ func TestNativeCompletionRejectsOversizedImageGeometry(t *testing.T) {
 }
 
 func TestNativeCompletionAudioProjectorMultimodalPrompt(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	audio := &fakeAudioProjector{}
 	handler, err := New(Config{
@@ -2015,6 +2045,7 @@ func TestNativeCompletionAudioProjectorMultimodalPrompt(t *testing.T) {
 }
 
 func TestNativeCompletionMixedMediaPreservesChunkOrder(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeHistoryProjector{}
 	audio := &fakeAudioProjector{}
@@ -2056,6 +2087,7 @@ func TestNativeCompletionMixedMediaPreservesChunkOrder(t *testing.T) {
 }
 
 func TestNativeCompletionMultimodalRequiresProjector(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2070,6 +2102,7 @@ func TestNativeCompletionMultimodalRequiresProjector(t *testing.T) {
 }
 
 func TestNativeCompletionProjectedInputsAllowSignedPromptCache(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -2089,6 +2122,7 @@ func TestNativeCompletionProjectedInputsAllowSignedPromptCache(t *testing.T) {
 }
 
 func TestNativeCompletionPromptCacheAccounting(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{promptCached: 1}
 	handler := newTestHandler(t, generator)
 	request := httptest.NewRequest(
@@ -2159,6 +2193,7 @@ func TestNativeCompletionPromptCacheAccounting(t *testing.T) {
 }
 
 func TestNativeCompletionPredictionTimeLimitStopsOnNewline(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{
 		pieces:     []string{"A", "\n", "C"},
 		tokenDelay: 5 * time.Millisecond,
@@ -2189,6 +2224,7 @@ func TestNativeCompletionPredictionTimeLimitStopsOnNewline(t *testing.T) {
 }
 
 func TestNativeCompletionIndentationLimitTrimsOffendingSuffix(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{
 		pieces: []string{"x", "\n", " y", "z"},
 	})
@@ -2216,6 +2252,7 @@ func TestNativeCompletionIndentationLimitTrimsOffendingSuffix(t *testing.T) {
 }
 
 func TestNativeCompletionPreSamplingProbabilities(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2254,6 +2291,7 @@ func TestNativeCompletionPreSamplingProbabilities(t *testing.T) {
 }
 
 func TestNativeCompletionPostSamplingProbabilities(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2293,6 +2331,7 @@ func TestNativeCompletionPostSamplingProbabilities(t *testing.T) {
 }
 
 func TestNativeCompletionStopAndMultipleChoices(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2324,6 +2363,7 @@ func TestNativeCompletionStopAndMultipleChoices(t *testing.T) {
 }
 
 func TestNativeCompletionExactAndMixedTokenPrompts(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	cases := []struct {
@@ -2370,6 +2410,7 @@ func TestNativeCompletionExactAndMixedTokenPrompts(t *testing.T) {
 }
 
 func TestNativeCompletionPromptBatchTimesChoiceCount(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2403,6 +2444,7 @@ func TestNativeCompletionPromptBatchTimesChoiceCount(t *testing.T) {
 }
 
 func TestNativeCompletionStreamingPromptBatch(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2426,6 +2468,7 @@ func TestNativeCompletionStreamingPromptBatch(t *testing.T) {
 }
 
 func TestNativeCompletionResponseFields(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -2452,6 +2495,7 @@ func TestNativeCompletionResponseFields(t *testing.T) {
 }
 
 func TestNativeCompletionResponseFieldsBatchAndStream(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	batch := httptest.NewRecorder()
 	handler.ServeHTTP(

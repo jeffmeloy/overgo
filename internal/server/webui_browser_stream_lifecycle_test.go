@@ -33,6 +33,7 @@ type streamLifecycleGenerator struct {
 // the server ends cleanly is opened again, and a hidden page stops probing
 // health and the catalog.
 func TestWebUIBrowserStreamLifecycle(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": the stream lifecycle runs through cmd/webui-lane")
 	}
@@ -95,14 +96,18 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	// The page counts the stream requests it makes and its peer evidence reads.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   window.laneStreams = {};
+  window.laneAnswered = new WeakSet();
   window.laneEvidence = 0;
   window.laneOperations = 0;
   overgo.runtimeEvents.subscribe((event) => { if (event === 'operation') window.laneOperations++; });
   const original = window.fetch;
   window.fetch = function (path) {
-    if (typeof path === 'string' && path.endsWith('/stream')) (window.laneStreams[path] = window.laneStreams[path] || []).push(arguments[1] && arguments[1].signal);
+    const signal = arguments[1] && arguments[1].signal;
+    if (typeof path === 'string' && path.endsWith('/stream')) (window.laneStreams[path] = window.laneStreams[path] || []).push(signal);
     if (typeof path === 'string' && path.startsWith('/peers/evidence')) window.laneEvidence++;
-    return original.apply(this, arguments);
+    const answer = original.apply(this, arguments);
+    if (signal) answer.then(() => window.laneAnswered.add(signal), () => {});
+    return answer;
   };
   return true;
 })()`)
@@ -131,7 +136,10 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
   return !streams['/agents/stream'] && (streams['/peers/stream'] || []).length >= 2 &&
     replacedAborted('/automations/stream', 1) && replacedAborted('/peers/stream', 0) && replacedAborted('/runtime/activity/stream', 0);
 })()`)
-	// One finished operation reaches the page through the shared runtime stream.
+	// One finished operation reaches the page through the shared runtime stream. The server
+	// subscribes a stream before answering it, so the operation waits for the latest stream's
+	// answer; one submitted while a remount reopens the stream reaches no subscriber.
+	settle(`(() => { const latest = (window.laneStreams['/runtime/activity/stream'] || []).at(-1); return !!latest && !latest.aborted && window.laneAnswered.has(latest); })()`)
 	var readsBefore, eventsBefore int
 	if err := browser.Evaluate(ctx, "window.laneEvidence", &readsBefore); err != nil {
 		t.Fatal(err)

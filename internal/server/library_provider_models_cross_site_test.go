@@ -13,6 +13,7 @@ import (
 // names, so a foreign page must never reach it; the page itself and a
 // loopback client still list.
 func TestProviderListingRefusesCrossSiteGET(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	list := func(context.Context, string, string) ([]ProviderModel, error) {
 		calls.Add(1)

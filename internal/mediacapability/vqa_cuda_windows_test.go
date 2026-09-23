@@ -12,9 +12,9 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/vqaserve"
 )
@@ -26,11 +26,7 @@ import (
 // the answer the parity harness pins, published as a plain-text output.
 func TestVQAActivation(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.ResolveCurrent()
-	if err != nil {
-		t.Fatal(err)
-	}
-	model := filepath.Join(roots.Models, "Hy-Embodied-RxBrain-1.0")
+	model := modeltest.Directory(t, "Hy-Embodied-RxBrain-1.0")
 	image, err := os.ReadFile(filepath.Join(model, "Hy-Embodied-RxBrain-1.0", "demo_cases", "bridgev2_move_toy", "input", "obs_1.jpg"))
 	if err != nil {
 		t.Skipf("UNAVAILABLE: RxBrain demo image: %v", err)

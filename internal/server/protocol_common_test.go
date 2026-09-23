@@ -23,6 +23,7 @@ func (*testToolOutputStream) Finish() (inference.ChatMessage, error) {
 }
 
 func TestBoundedProtocolTokens(t *testing.T) {
+	t.Parallel()
 	defaultTokens := testRuntimePolicy().Serving.OutputTokens
 	value := 4
 	invalid := 33
@@ -56,6 +57,7 @@ func TestBoundedProtocolTokens(t *testing.T) {
 }
 
 func TestProtocolGenerationOptionsPinsProjectedPrompt(t *testing.T) {
+	t.Parallel()
 	handler := &Handler{config: Config{ContextShift: true}}
 	projected := &inference.ProjectedInputs{}
 	options := handler.protocolGenerationOptions(
@@ -69,6 +71,7 @@ func TestProtocolGenerationOptionsPinsProjectedPrompt(t *testing.T) {
 }
 
 func TestToolDeltaStreamOwnsBufferAndCallState(t *testing.T) {
+	t.Parallel()
 	stream := &toolDeltaStream{output: &testToolOutputStream{deltas: []inference.ChatToolCallDelta{{
 		Index: 1, Name: "lookup", Arguments: `{"x":`, Started: true,
 	}}}}
@@ -88,6 +91,7 @@ func TestToolDeltaStreamOwnsBufferAndCallState(t *testing.T) {
 }
 
 func TestToolDeltaStreamRejectsNegativeIndex(t *testing.T) {
+	t.Parallel()
 	stream := &toolDeltaStream{output: &testToolOutputStream{deltas: []inference.ChatToolCallDelta{{
 		Index: -1, Started: true,
 	}}}}

@@ -13,6 +13,7 @@ import (
 )
 
 func TestGroundedCapabilityUpgradeEndToEnd(t *testing.T) {
+	t.Parallel()
 	knowledge := newKnowledgePromotionFixture(t)
 	store := knowledge.store
 	route := newEvidenceRouteFixtureInStore(t, store, true)

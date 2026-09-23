@@ -11,7 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/testutil"
@@ -38,12 +38,8 @@ const (
 // not execute.
 func TestBridgeSynthesisProducesEvidenceOrRefusal(t *testing.T) {
 	cudatest.RequireProbe(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	targetDir := filepath.Join(roots.Models, "Qwen2.5-0.5B")
-	donorDir := filepath.Join(roots.Models, "Carbon-500M")
+	targetDir := modeltest.Directory(t, "Qwen2.5-0.5B")
+	donorDir := modeltest.Directory(t, "Carbon-500M")
 	for _, directory := range []string{targetDir, donorDir} {
 		if _, err := os.Stat(directory); err != nil {
 			t.Skipf("UNAVAILABLE: %s absent; bridge synthesis NOT verified", directory)

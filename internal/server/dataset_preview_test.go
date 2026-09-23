@@ -22,6 +22,7 @@ func (resolver datasetPreviewResolver) OpenDataset(context.Context, string) (*tr
 }
 
 func TestDatasetPreviewUsesProductionProcessor(t *testing.T) {
+	t.Parallel()
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "gui-preview-dataset")
 	splitID := testutil.ArtifactID(t, artifact.KindDatasetShard, "gui-preview-split")
 	processorID := testutil.ArtifactID(t, artifact.KindProfile, "gui-preview-processor")

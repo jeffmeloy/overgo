@@ -48,6 +48,7 @@ func checkRetainedNativeSequence(native retainedNativeSequence, actual inference
 
 // Accept only the pinned native contracts; no quality or throughput floor.
 func TestQwenSmallRetainedTextAcceptance(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	roots, err := dataroot.Resolve(root)
 	if err != nil {

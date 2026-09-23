@@ -141,6 +141,7 @@ func servingStreamInitial(t *testing.T, probe *runtimeServingProbe) runtimeActiv
 }
 
 func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
+	t.Parallel()
 	t.Run("durable_live_failure_and_reconnect", func(t *testing.T) {
 		handler, store := servingStreamFixture(t, 2)
 		probe := openRuntimeServingProbe(t, handler)

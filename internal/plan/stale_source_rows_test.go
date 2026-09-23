@@ -11,6 +11,7 @@ import (
 // proves its completion or retirement, and the target's own rows are never
 // dropped.
 func TestProspectiveMergeDropsCompletedIncomingRows(t *testing.T) {
+	t.Parallel()
 	const repository = "test-repository"
 	const localRevision = "1111111111111111111111111111111111111111"
 	const incomingRevision = "2222222222222222222222222222222222222222"

@@ -18,20 +18,6 @@
       ]
     },
     {
-      "id": "plan-suite-wall",
-      "title": "Bound the internal/plan test wall (55 s in the owner phase, a quarter of a short gate, selected by every control-plane row) by sharing its git and store fixtures across tests and running them in parallel, the lever that took the gate suite from 938 s to 214 s, with the bound proven from the suite-cost evidence",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound the internal/plan test wall (55 s in the owner phase, a quarter of a short gate, selected by every control-plane row) by sharing its git and store fixtures across tests and running them in parallel, the lever that took the gate suite from 938 s to 214 s, with the bound proven from the suite-cost evidence",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestPlanSuiteWallBudget' -count=1"
-        }
-      ]
-    },
-    {
       "id": "evaluation-suite-wall",
       "title": "Bound the internal/evaluation test wall (2m21s in the test phase, the costliest package of the rewrite-retirement landing after audioparity) by sharing its store and catalog fixtures across tests, with the bound proven from the suite-cost evidence",
       "owner": "master-lead",

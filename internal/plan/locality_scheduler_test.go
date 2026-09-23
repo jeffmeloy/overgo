@@ -11,6 +11,7 @@ import (
 )
 
 func TestScheduleByArtifactLocality(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {

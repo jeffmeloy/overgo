@@ -26,6 +26,7 @@ func frontierTestPlan() Plan {
 // widens it. Lease-isolation is now the reporting concern of
 // frontierLeaseDiagnostics, not a frontier refusal.
 func TestReadyFrontierMembership(t *testing.T) {
+	t.Parallel()
 	document := frontierTestPlan()
 	if _, err := ReadyFrontier(document, CompletionAuthority{}); err == nil {
 		t.Fatal("frontier without a resolved completion authority was served")
@@ -58,6 +59,7 @@ func TestReadyFrontierMembership(t *testing.T) {
 // refuses evidence-less pruning, pruning beside concurrent edits, and item
 // pruning with an unproven step.
 func TestMergeAcceptsGatedPrunedCompletion(t *testing.T) {
+	t.Parallel()
 	base := frontierTestPlan()
 	local := frontierTestPlan()
 	upstream := frontierTestPlan()
@@ -109,6 +111,7 @@ func TestMergeAcceptsGatedPrunedCompletion(t *testing.T) {
 // blocks the dependent until the completion authority proves the pruned
 // producer.
 func TestMergePreservesDependencyOrder(t *testing.T) {
+	t.Parallel()
 	base := frontierTestPlan()
 	local := frontierTestPlan()
 	upstream := frontierTestPlan()

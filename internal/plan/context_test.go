@@ -3,6 +3,7 @@ package plan
 import "testing"
 
 func TestAutomationContextHasOneCurrentTask(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{
 		{ID: "current", Title: "Current item", Status: "open", Steps: []Step{
 			{ID: "first", Title: "First step", Status: "open", Verify: "go test ./..."},
@@ -35,6 +36,7 @@ func TestAutomationContextHasOneCurrentTask(t *testing.T) {
 }
 
 func TestReviewPriority(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{{ID: "one", Title: "One", Status: "open", Steps: []Step{{ID: "do", Title: "Do", Status: "open", Verify: "go test ./..."}}}}}
 	facts := ContextFacts{
 		Head: "0123456789abcdef0123456789abcdef01234567", Branch: "codex/automation", Worktree: "C:/repo",
@@ -59,6 +61,7 @@ func TestReviewPriority(t *testing.T) {
 }
 
 func TestAutomationContextRefusesUnresolvedOrCrossPlanAuthority(t *testing.T) {
+	t.Parallel()
 	document := Plan{Items: []Item{{
 		ID: "one", Status: StatusOpen,
 		Steps: []Step{{ID: "do", Status: StatusOpen, Verify: "go test ./..."}},

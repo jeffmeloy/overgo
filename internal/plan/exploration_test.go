@@ -15,6 +15,7 @@ import (
 // escalates to an external decision; corrupt charge sets error rather than
 // round away.
 func TestExplorationBudgetTokensEnforced(t *testing.T) {
+	t.Parallel()
 	proposer := testutil.ArtifactID(t, artifact.KindEvidence, "autonomous-proposer")
 	authority := testutil.ArtifactID(t, artifact.KindEvidence, "external-authority")
 	experiment := func(name string) artifact.ID {

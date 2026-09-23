@@ -11,6 +11,7 @@ import (
 // plan path, and master's plan, which declares no lane, is untouched. The
 // rule applies independently of a lane's doctrine wording.
 func TestPlanOnlyCommitsAreMergesOnly(t *testing.T) {
+	t.Parallel()
 	lane := Plan{Lane: "hatchet"}
 	if err := PlanOnlyCommitRefusal(lane, "gate-wall/validate-first", []string{Path}, false); err == nil || !strings.Contains(err.Error(), "plan-only lane commit") {
 		t.Fatalf("plan-only lane commit = %v, want the refusal", err)

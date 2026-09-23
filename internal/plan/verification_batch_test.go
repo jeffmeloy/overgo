@@ -27,6 +27,7 @@ func batchPlanFixture() Plan {
 }
 
 func TestVerificationBatchDeclaration(t *testing.T) {
+	t.Parallel()
 	document := batchPlanFixture()
 	data, err := json.Marshal(document)
 	if err != nil {
@@ -94,6 +95,7 @@ func TestVerificationBatchDeclaration(t *testing.T) {
 }
 
 func TestVerificationBatchMerge(t *testing.T) {
+	t.Parallel()
 	base, local, upstream := batchPlanFixture(), batchPlanFixture(), batchPlanFixture()
 	local.Items[0].Steps[0].VerificationBatch.Rationale = "Local measured batch cost."
 	upstream.Items[0].Steps[0].Title = "Updated parent title"
@@ -116,6 +118,7 @@ func TestVerificationBatchMerge(t *testing.T) {
 }
 
 func TestVerificationBatchRequiresExactMemberEvidence(t *testing.T) {
+	t.Parallel()
 	checkpoint := batchPlanFixture().Items[0].Steps[0].VerificationBatch.Checkpoints[0]
 	evidence, err := runrecord.FormatCompletionAcceptanceEvidence(runrecord.CurrentVerifyPolicy, "audio/dataset", checkpoint.Verify)
 	if err != nil {
@@ -146,6 +149,7 @@ func TestVerificationBatchRequiresExactMemberEvidence(t *testing.T) {
 }
 
 func TestVerificationBatchHistoryRefusesParentOnlyReceipt(t *testing.T) {
+	t.Parallel()
 	document := batchPlanFixture()
 	fixture := newCompletionFixture(t, document, "audio", "dataset")
 	fixture.commit(fixture.canonicalMessage(), true)

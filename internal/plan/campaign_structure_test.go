@@ -10,6 +10,7 @@ import (
 )
 
 func TestSingleCanonicalCampaignPlan(t *testing.T) {
+	t.Parallel()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("campaign test path is unavailable")
@@ -74,6 +75,7 @@ func groundedDoctrineDecisions() []string {
 // dependencies name exact producer steps. Completed rows leave plan.json, so
 // row-specific assertions are conditional while the ratchets remain active.
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
+	t.Parallel()
 	document := loadCampaignPlan(t)
 	if document.Lane == "colibri" {
 		assertColibriCampaign(t, document)
@@ -740,6 +742,7 @@ func campaignStructuralViolations(document Plan) []string {
 // phrase but breaks a protected invariant still fails, while rewording the
 // doctrine without changing policy passes.
 func TestStructuralCampaignPolicy(t *testing.T) {
+	t.Parallel()
 	// The doctrine phrases the tests used to pin, retained verbatim so a break
 	// cannot hide behind them.
 	const pinnedDoctrine = "capability freeze enforced by structure; a check records UNAVAILABLE rather than a pass; a step's machine check is set with plan -setverify"
@@ -790,6 +793,7 @@ func preparedMergeShape(item Item) bool {
 }
 
 func TestPreparedMergeBoundaryVerification(t *testing.T) {
+	t.Parallel()
 	item := Item{ID: "merge-fb7de0423660", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}}
 	for _, test := range []struct {
 		verify string

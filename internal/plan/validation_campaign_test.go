@@ -123,6 +123,7 @@ func optimizedValidationProblems(document Plan) []string {
 }
 
 func TestOptimizedValidationCampaign(t *testing.T) {
+	t.Parallel()
 	document := loadCampaignPlan(t)
 	if !strings.Contains(document.Campaign, "bounded capability gains") {
 		return // Other campaigns bind their own structure in campaign_structure_test.go.
@@ -133,6 +134,7 @@ func TestOptimizedValidationCampaign(t *testing.T) {
 }
 
 func TestOptimizedValidationRejectsUnsafeOrdering(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name   string
 		target string

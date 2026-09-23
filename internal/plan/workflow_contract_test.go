@@ -62,6 +62,7 @@ func recordClaim(t *testing.T, store *overgodb.Store, lease worklease.Lease) (wo
 // rationale history stays out of it and retained in the plan document, and a
 // legacy row without prerequisites projects a contract that simply omits them.
 func TestDispatchContractBinding(t *testing.T) {
+	t.Parallel()
 	// base/do is a completed, pruned prerequisite proven by the authority, not a
 	// retained row: the plan holds only open work.
 	document := Plan{Items: []Item{
@@ -114,6 +115,7 @@ func TestDispatchContractBinding(t *testing.T) {
 }
 
 func TestAtomicDispatchClaim(t *testing.T) {
+	t.Parallel()
 	t.Run("legacy retirement cannot see dispatch claims", func(t *testing.T) {
 		store, err := overgodb.Open(t.TempDir())
 		if err != nil {
@@ -399,6 +401,7 @@ func releaseClaim(t *testing.T, store *overgodb.Store, id artifact.ID, worker, r
 }
 
 func TestStopStateContract(t *testing.T) {
+	t.Parallel()
 	fixture := func(t *testing.T) (string, *overgodb.Store, ControlEvent) {
 		t.Helper()
 		root := t.TempDir()
@@ -574,6 +577,7 @@ func TestStopStateContract(t *testing.T) {
 }
 
 func TestAtomicStepEdit(t *testing.T) {
+	t.Parallel()
 	original := Plan{Items: []Item{{ID: "row", Status: StatusOpen, Steps: []Step{
 		{ID: "first", Title: "First", Status: StatusOpen, Verify: "go test ./internal/plan -run '^TestAtomicStepEdit$'"},
 		{ID: "last", Title: "Last", Status: StatusOpen, Verify: "go test ./internal/plan -run '^TestAtomicDispatchClaim$'"},

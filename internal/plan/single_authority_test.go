@@ -12,6 +12,7 @@ import (
 // because open rows lived in a second plan document the dispatcher never read;
 // this test refuses any reintroduction of a parallel plan surface.
 func TestSinglePlanAuthority(t *testing.T) {
+	t.Parallel()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("caller path unavailable")

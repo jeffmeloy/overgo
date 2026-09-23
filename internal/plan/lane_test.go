@@ -9,6 +9,7 @@ import (
 // dispatches the lane's rows, then unowned rows, and never another
 // lane's; an explicit role still takes precedence over the plan's lane.
 func TestLaneOwnedDispatch(t *testing.T) {
+	t.Parallel()
 	document := Plan{Lane: "gui", Items: []Item{
 		{ID: "master-only", Owner: "master", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}},
 		{ID: "shared", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}},

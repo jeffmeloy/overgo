@@ -17,6 +17,7 @@ func flushFixture() BatchFlush {
 // verification batch; refused declarations; size/interval/bytes bounds in
 // order; key isolation; deterministic decisions.
 func TestBatchFlushDeclarations(t *testing.T) {
+	t.Parallel()
 	document := batchPlanFixture()
 	flush := flushFixture()
 	document.Items[0].Steps[0].VerificationBatch.Flush = &flush
@@ -115,6 +116,7 @@ func TestBatchFlushDeclarations(t *testing.T) {
 }
 
 func TestBatchFlushWithoutNewMembers(t *testing.T) {
+	t.Parallel()
 	flush := flushFixture()
 	if _, ready, _, _ := flush.Advance(BatchState{Key: flush.Key, Elapsed: time.Hour}, nil, time.Now(), false); ready {
 		t.Fatal("an empty batch became flushable merely by aging")
@@ -136,6 +138,7 @@ func TestBatchFlushWithoutNewMembers(t *testing.T) {
 }
 
 func TestBatchFlushRestartAndBoundary(t *testing.T) {
+	t.Parallel()
 	declaration := flushFixture()
 	origin := time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)
 	bytes := int64(1)

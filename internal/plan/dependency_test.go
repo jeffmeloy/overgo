@@ -25,6 +25,7 @@ func dependencyFixture() Plan {
 // dependencies are not done never dispatches, whatever the file order
 // says, and dispatches as soon as they are.
 func TestDependencyDispatchSkipsBlocked(t *testing.T) {
+	t.Parallel()
 	document := dependencyFixture()
 	document.Items[0], document.Items[1] = document.Items[1], document.Items[0]
 	item, _, ok := Current(document, "gui", testCompletionAuthority(t, document))
@@ -56,6 +57,7 @@ func TestDependencyDispatchSkipsBlocked(t *testing.T) {
 // boundary: a syntactically valid missing row never satisfies depends_on until
 // the opaque, derived authority carries that exact completion.
 func TestPrunedDependencyRequiresExplicitAuthority(t *testing.T) {
+	t.Parallel()
 	document := dependencyFixture()
 	document.Items = document.Items[1:]
 	if _, _, open := Current(document, "gui", CompletionAuthority{}); open {
@@ -76,6 +78,7 @@ func TestPrunedDependencyRequiresExplicitAuthority(t *testing.T) {
 // to an absent row remains representable because completion removes rows,
 // while dispatch separately requires its completion authority.
 func TestDependencyValidationRefusesCycles(t *testing.T) {
+	t.Parallel()
 	valid := dependencyFixture()
 	if err := Validate(valid); err != nil {
 		t.Fatalf("valid dependency graph refused: %v", err)
@@ -93,6 +96,7 @@ func TestDependencyValidationRefusesCycles(t *testing.T) {
 }
 
 func TestDependencyValidationRequiresExactSteps(t *testing.T) {
+	t.Parallel()
 	for _, reference := range []string{"root", "/do", "root/", "root/do/extra", " root/do", "root/ do", "root\\do"} {
 		document := dependencyFixture()
 		document.Items[1].Steps[0].DependsOn = []string{reference}
@@ -121,6 +125,7 @@ func TestDependencyValidationRequiresExactSteps(t *testing.T) {
 // on a sibling step, but never on itself, and mutually dependent siblings are
 // a cycle.
 func TestDependencySameItemEdges(t *testing.T) {
+	t.Parallel()
 	sibling := dependencyFixture()
 	sibling.Items[0].Steps = append(sibling.Items[0].Steps, Step{
 		ID: "verify", Title: "verify root", Status: StatusOpen, Verify: "exit 0",

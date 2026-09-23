@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "timesfm3-native-declaration",
-      "title": "Load timesfm-3.0 as a forecast model of its own",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Load timesfm-3.0 as a forecast model of its own",
-          "status": "open",
-          "verify": "test -f internal/seriesforecast/native_declaration_test.go \u0026\u0026 go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1",
-          "rationale": "Reference: models/timesfm-3.0-pytorch/timesfm/src/timesfm3/torch (model.py, transformer.py, cpm_revin_refine.py, timesfm3_forecaster.py). Not a config variant of 2.5: variate attention over up to 32 series, iterative RevIN, linear detrend and stitch, ReLU feed-forward, QK RMS norm, causal attention with RoPE, input patch 32, output patch 64, nine quantiles. Anchor to reference-produced golden forecasts (golden-fixture exception), then register, verify and activate with the licence as a LicenseRef."
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",

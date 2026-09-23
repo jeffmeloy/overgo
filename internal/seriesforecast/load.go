@@ -37,6 +37,9 @@ type Model struct {
 	Weights map[string][]float32
 	Shapes  map[string][]int
 	Levels  []float64
+	// native is set for a checkpoint that ships its own configuration; its
+	// forecast runs the native forward (native.go).
+	native *native
 }
 
 type artifactConfig struct {
@@ -50,9 +53,16 @@ type artifactConfig struct {
 
 // Load opens the safetensors artifact and materializes every tensor as f32.
 func Load(directory string) (*Model, error) {
-	config, err := loadConfig(filepath.Join(directory, "config.json"))
+	configPath := filepath.Join(directory, "config.json")
+	nativeLayout, err := isNative(configPath)
 	if err != nil {
 		return nil, err
+	}
+	var config artifactConfig
+	if !nativeLayout {
+		if config, err = loadConfig(configPath); err != nil {
+			return nil, err
+		}
 	}
 	source, err := safetensors.OpenSource(directory)
 	if err != nil {
@@ -63,6 +73,9 @@ func Load(directory string) (*Model, error) {
 	catalog, err := source.MaterializeF32(safetensors.F32Selection{RetainShapes: true})
 	if err != nil {
 		return nil, fmt.Errorf("seriesforecast: materialize: %w", err)
+	}
+	if nativeLayout {
+		return loadNative(configPath, catalog.Values, catalog.Shapes)
 	}
 	weights, shapes, err := canonicalize(catalog.Values, catalog.Shapes)
 	if err != nil {

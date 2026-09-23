@@ -23,6 +23,9 @@ type layer struct {
 	q, k, v, o                               []float32 // [hidden*hidden] each
 	queryLN, keyLN, perDimScale              []float32 // [headDim]
 	ff0, ff1                                 []float32 // [hidden*hidden]
+	// The native layout's variate branch over one variate: its norms and
+	// its value and output projections; absent in the transformers layout.
+	preVarLN, postVarLN, varValue, varOut []float32
 }
 
 func (m *Model) layerWeights(index int) (layer, error) {
@@ -42,6 +45,8 @@ func (m *Model) layerWeights(index int) (layer, error) {
 		queryLN: m.Weights[attn+".query_ln.scale"], keyLN: m.Weights[attn+".key_ln.scale"],
 		perDimScale: m.Weights[attn+".per_dim_scale.per_dim_scale"],
 		ff0:         m.Weights[prefix+".ff0.weight"], ff1: m.Weights[prefix+".ff1.weight"],
+		preVarLN: m.Weights[prefix+".pre_var_ln.scale"], postVarLN: m.Weights[prefix+".post_var_ln.scale"],
+		varValue: m.Weights[prefix+".var_attn.value.weight"], varOut: m.Weights[prefix+".var_attn.out.weight"],
 	}
 	for name, tensor := range map[string][]float32{
 		"pre_attn_ln": l.preAttnLN, "post_attn_ln": l.postAttnLN, "pre_ff_ln": l.preFFLN, "post_ff_ln": l.postFFLN,
@@ -94,6 +99,13 @@ func (m *Model) layerForward(hidden []float32, l layer, invFreq []float64, seq i
 	hostmath.RMSNormInto(q, q, l.queryLN, seq*heads, hd, eps)
 	hostmath.RMSNormInto(k, k, l.keyLN, seq*heads, hd, eps)
 	scale := compiledQueryScale(l.perDimScale, hd)
+	if m.native != nil {
+		// The native reference scores with sqrt(headDim) over the scaled
+		// query rather than one.
+		for dim := range scale {
+			scale[dim] *= float32(math.Sqrt(float64(hd)))
+		}
+	}
 	for row := range seq * heads {
 		qRow := q[row*hd : (row+1)*hd]
 		for dim := range qRow {
@@ -113,12 +125,28 @@ func (m *Model) layerForward(hidden []float32, l layer, invFreq []float64, seq i
 		hidden[i] += proj[i]
 	}
 
+	// Variate attention over one variate: the attention weight is one, so
+	// the branch is its value path, post-normed onto the residual.
+	if l.varValue != nil {
+		hostmath.RMSNormInto(inNorm, hidden, l.preVarLN, seq, d, eps)
+		hostmath.Linear(v[:seq*d], inNorm, l.varValue, seq, d, d)
+		hostmath.Linear(oProj, v[:seq*d], l.varOut, seq, d, d)
+		hostmath.RMSNormInto(proj, oProj, l.postVarLN, seq, d, eps)
+		for i := range hidden {
+			hidden[i] += proj[i]
+		}
+	}
+
 	// Dense sequential feed-forward, post-normed, plain residual.
 	ffIn := make([]float32, seq*d)
 	hostmath.RMSNormInto(ffIn, hidden, l.preFFLN, seq, d, eps)
 	inter := make([]float32, seq*d)
 	hostmath.Linear(inter, ffIn, l.ff0, seq, d, d)
-	hostmath.SiLUInPlace(inter)
+	if m.native != nil {
+		reluInPlace(inter)
+	} else {
+		hostmath.SiLUInPlace(inter)
+	}
 	mlp := make([]float32, seq*d)
 	hostmath.Linear(mlp, inter, l.ff1, seq, d, d)
 	hostmath.RMSNormInto(mlp, mlp, l.postFFLN, seq, d, eps)

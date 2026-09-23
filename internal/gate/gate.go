@@ -82,7 +82,10 @@ type gateContext struct {
 	candidateTree string
 	paths         []string
 	planRef       string
-	checkpoint    string
+	// profiles holds the candidate's code profile and its base's, measured
+	// once: the profile step reads them, and acceptance reads the growth.
+	profiles   *measuredProfiles
+	checkpoint string
 	// Lanes this gate runs after its commit, the obligation it records for
 	// them, the failed obligation that forces them inline, and the exact tree
 	// a lane runner plans instead of the worktree.

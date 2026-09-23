@@ -13,7 +13,7 @@
           "id": "do",
           "title": "Give the onboarding catalog an activity-detection capability that reads the declared policy and takes per-request overrides",
           "status": "open",
-          "verify": "go test ./internal/audioparity -run '^TestActivityPolicyIsTheModelsOwnOperatingPoint$' -count=1"
+          "verify": "test -f internal/mediacapability/activity_detection_test.go \u0026\u0026 go test ./internal/mediacapability -run '^TestActivityDetectionHonoursRequestOverrides$' -count=1"
         }
       ]
     },
@@ -284,7 +284,7 @@
           "id": "do",
           "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
           "status": "open",
-          "verify": "go test ./internal/longform -count=1",
+          "verify": "go test ./internal/longform -run '^TestGemmaTwelveChatRung$' -count=1",
           "rationale": "Preserve the measured raw NLLs (6.94 and 6.97 for the 12B twins versus E4B 4.21) and the existing finding that instruction framing explains the raw ranking while chat scores rank correctly. Extend longform with the declared chat template, thinking disabled, 256 greedy output tokens, chat continuation NLL, text/token IDs, distinct 4-gram/repeated-span diagnostics and rates. Retain raw continuation alongside chat. Verify both precision variants and the small control. A Gemma-capable llama.cpp reference belongs to published-comparison, not this rung or baseline admission unless new same-checkpoint evidence establishes a runtime defect.",
           "depends_on": [
             "model-regression-gate/do"
@@ -596,7 +596,7 @@
           "id": "do",
           "title": "Prove the final text execution surface and long-lived serving behavior",
           "status": "open",
-          "verify": "go test ./internal/longform -count=1",
+          "verify": "go test ./internal/longform -run '^TestFinalServingSurface$' -count=1",
           "rationale": "On the settled execution surface, run full-catalog text regression against the pinned before-baseline, with both framing protocols, required context/head/cache coverage and useful smoke assertions. Exercise a bounded long-lived server sequence covering concurrency, grow/shrink contexts, cancellation, failure, model reload and subsequent valid requests; assert retained VRAM plateaus within the declared budget and outputs remain correct. Reuse valid committed generation-soak evidence only with exact identity/independence proof. Publish once from a clean evidence worktree, then bind read-only identity, coverage and non-regression assertions. Also revalidate every modality/task invalidated by execution, command or location changes; compare to the initial modality report and refresh it with exact final evidence. Retain unaffected initial benchmarks; rerun only suites whose identities/behavior changed. Extend the retained longform/report checks with read-only catalog, soak and affected-modality outcome assertions through plan -setverify before closure. This milestone never gates the initial benchmark pass.",
           "depends_on": [
             "simplify-execution-core/do",
@@ -997,7 +997,8 @@
             "dinov2-embedding-capability/do",
             "rae-generation-path/do",
             "plan-reordered/do",
-            "gate-drops-build-check/do"
+            "gate-drops-build-check/do",
+            "row-check-proves-itself/do"
           ]
         }
       ]

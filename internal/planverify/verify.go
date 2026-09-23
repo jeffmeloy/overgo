@@ -16,6 +16,14 @@ import (
 	"overgo/internal/testevidence"
 )
 
+// ErrFailed marks a verifier whose command exited unsuccessfully, so a caller
+// can tell a failed check from an absent one without reading the message.
+var ErrFailed = errors.New("FAILED")
+
+// ErrVacuous marks a verifier whose command succeeded without running
+// anything, which is what a check naming a test that does not exist does.
+var ErrVacuous = errors.New("VACUOUS")
+
 // Execute runs one plan verifier from directory and validates that a
 // successful process produced non-vacuous evidence. Deterministic Go-test
 // claims are repeated against the same working tree and must agree exactly.
@@ -47,7 +55,7 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 			// stays the authority.
 			detail = "failed tests/packages: " + failures
 		}
-		return "", fmt.Errorf("FAILED: %w: %s", err, detail)
+		return "", fmt.Errorf("%w: %v: %s", ErrFailed, err, detail)
 	}
 	if structuredGoTest {
 		err = testevidence.VerifyGoTestEvidence(command, first)
@@ -55,7 +63,7 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 		err = testevidence.VerifyOutput(command, first)
 	}
 	if err != nil {
-		return "", fmt.Errorf("VACUOUS: %w", err)
+		return "", fmt.Errorf("%w: %v", ErrVacuous, err)
 	}
 	verdict := runrecord.ClassifyVerifyCommand(command)
 	if structuredGoTest && verdict == runrecord.VerdictBitwiseDeterministic {

@@ -506,25 +506,15 @@ func (g *gateContext) stepProfile() (bool, error) {
 	if len(changed) == 0 {
 		return true, nil
 	}
-	snapshot, err := g.sourceSnapshot()
+	profile, base, err := g.profilePair()
 	if err != nil {
 		return false, err
 	}
-	profile, err := g.sourceProfile(snapshot)
-	if err != nil {
-		return false, err
-	}
+	// profilePair leaves both snapshots cached on the context.
+	snapshot, baseSource := *g.source, *g.baseSource
 	profile.Impact = codeprofile.ImpactSelection{
 		Identity: g.selectionID, Owned: g.selection.Owned, Triggered: g.selection.Triggered,
 		Excluded: g.selection.Excluded, Unresolved: g.selection.Unresolved,
-	}
-	baseSource, err := g.baseSnapshot(snapshot)
-	if err != nil {
-		return false, err
-	}
-	base, err := g.sourceProfile(baseSource)
-	if err != nil {
-		return false, err
 	}
 	g.note(fmt.Sprintf(
 		"code profile: runtime=%d files/%d nodes automation=%d/%d generated=%d/%d test=%d/%d duplicate_excess=%d clones=%d functions=%d exported=%d imports=%d",
@@ -1668,6 +1658,9 @@ func (g *gateContext) stepAcceptance() (bool, error) {
 		return false, err
 	}
 	if err := g.verifyAcceptedCandidate(contract.verify, true); err != nil {
+		return false, err
+	}
+	if err := g.proveCheck(contract.verify); err != nil {
 		return false, err
 	}
 	g.stepEvidence["acceptance"] = contract.evidence

@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "inventory-tells-the-truth",
-      "title": "Make the validate inventory answer the same whatever root it is given and say what is proven (owner feedback 2026-09-22): -inventory models, a relative root, reports Qwen3.8-27B, granite, nemotron and timesfm-3.0 as unregistered and FireRedVAD as not a model, and prints recipe register commands that would register them twice, because registrations store absolute locations and the root is matched as given -- resolve it before matching. Four evidence entries (Qwen2.5-0.5B safetensors, a second RxBrain file, LiveEdit's bid-diffusion checkpoint, one Wan file) report that no owner judges their currency, so they stay stale however often the validators run: give each the owner that judges it or declare it excluded. And a directory's activated label hides which of its files carries the evidence (18 files are only registered in activated directories, such as the f16 GGUF the Carbon ropefix replaced and the safetensors behind each converted GGUF): name the proven file per directory. The rule under all three (owner 2026-09-22): the store already records the directory and file paths of each registered model, so the inventory, and every test or tool that now joins a models root with a directory name (internal/adaptiveparity among them), resolves a model's files through its registration instead.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the validate inventory answer the same whatever root it is given and say what is proven (owner feedback 2026-09-22): -inventory models, a relative root, reports Qwen3.8-27B, granite, nemotron and timesfm-3.0 as unregistered and FireRedVAD as not a model, and prints recipe register commands that would register them twice, because registrations store absolute locations and the root is matched as given -- resolve it before matching. Four evidence entries (Qwen2.5-0.5B safetensors, a second RxBrain file, LiveEdit's bid-diffusion checkpoint, one Wan file) report that no owner judges their currency, so they stay stale however often the validators run: give each the owner that judges it or declare it excluded. And a directory's activated label hides which of its files carries the evidence (18 files are only registered in activated directories, such as the f16 GGUF the Carbon ropefix replaced and the safetensors behind each converted GGUF): name the proven file per directory. The rule under all three (owner 2026-09-22): the store already records the directory and file paths of each registered model, so the inventory, and every test or tool that now joins a models root with a directory name (internal/adaptiveparity among them), resolves a model's files through its registration instead.",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestInventoryResolvesARelativeRoot$' -count=1 \u0026\u0026 go test ./cmd/validate -run '^TestEveryEvidenceEntryHasACurrencyOwner$' -count=1 \u0026\u0026 go test ./cmd/validate -run '^TestInventoryNamesTheProvenFile$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "evidence-currency-per-model",
       "title": "Key each model's evidence currency to the code that model runs, not to the whole inference surface (owner feedback 2026-09-22): commit e7ee897a added seven lines to internal/modelrecipe/compile.go for the transcription task and made all nine text models' evidence stale at once, because the surface digest covers every package of the set; so validated is true for a few hours after a validation campaign and false the rest of the time, and every such edit costs a re-validation campaign. Digest each model's own dependency closure -- the packages its recipe's modules reach -- keep test files excluded as now, and prove it by a production edit to a module one family does not run leaving that family's evidence current.",
       "owner": "master-lead",
@@ -197,6 +183,20 @@
             "store-benchmark-record-redundancy/do",
             "store-growth-ratchet/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "model-paths-from-registrations",
+      "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's directory and file paths). About 45 test sites join roots.Models with a directory name -- internal/adaptiveparity, internal/seq2seq, internal/seriesforecast, internal/latentvideo, internal/mediacapability, internal/speechsynth, internal/tabularicl, internal/oscillatorimage, cmd/compatibility, cmd/vqaparity -- and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store, not under the models root). Give tests one resolver by registration, move the sites to it, and prove a site resolves a model the models root does not hold",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's directory and file paths). About 45 test sites join roots.Models with a directory name -- internal/adaptiveparity, internal/seq2seq, internal/seriesforecast, internal/latentvideo, internal/mediacapability, internal/speechsynth, internal/tabularicl, internal/oscillatorimage, cmd/compatibility, cmd/vqaparity -- and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store, not under the models root). Give tests one resolver by registration, move the sites to it, and prove a site resolves a model the models root does not hold",
+          "status": "open",
+          "verify": "go test ./internal/testutil -run '^TestRegisteredModelResolvesThroughTheStore$' -count=1"
         }
       ]
     },
@@ -1089,7 +1089,8 @@
             "inventory-tells-the-truth/do",
             "evidence-currency-per-model/do",
             "media-census-scope/do",
-            "plan-evidence-feedback/do"
+            "plan-evidence-feedback/do",
+            "model-paths-from-registrations/do"
           ]
         }
       ]

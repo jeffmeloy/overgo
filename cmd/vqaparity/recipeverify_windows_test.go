@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"overgo/internal/dataroot"
+	"overgo/internal/modeltest"
 	"overgo/internal/parity"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
@@ -24,7 +25,7 @@ func TestRxBrainProductionParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := filepath.Join(roots.Models, "Hy-Embodied-RxBrain-1.0")
+	model := modeltest.Directory(t, "Hy-Embodied-RxBrain-1.0")
 	image := filepath.Join(model, "Hy-Embodied-RxBrain-1.0", "demo_cases", "bridgev2_move_toy", "input", "obs_1.jpg")
 	l := &campaignContext{
 		Campaign: parity.NewCampaign(filepath.Join(t.TempDir(), "rxbrain.log")),

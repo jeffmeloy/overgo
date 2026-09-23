@@ -9,16 +9,15 @@ import (
 	"encoding/json"
 	"image/gif"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -30,11 +29,7 @@ import (
 // plan from the seed, and the resident second run replays the first clip.
 func TestVideoPromptActivation(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	wan := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
 	profile, err := latentvideo.ResolveProfile(wan)
 	if err != nil {
 		t.Fatal(err)

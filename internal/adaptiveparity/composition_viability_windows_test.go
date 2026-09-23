@@ -4,14 +4,12 @@ package adaptiveparity_test
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"overgo/internal/composition"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
-	"overgo/internal/testutil"
+	"overgo/internal/modeltest"
 )
 
 // Composition-viability protocol, written before the run (Probe Discipline):
@@ -36,12 +34,8 @@ var compositionSeeds = []int64{7, 11, 13}
 // docs/plan.json consumes the logged verdict.
 func TestComponentCompositionViability(t *testing.T) {
 	cudatest.RequireProbe(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	targetDir := filepath.Join(roots.Models, "Qwen2.5-0.5B")
-	donorDir := filepath.Join(roots.Models, "Carbon-500M")
+	targetDir := modeltest.Directory(t, "Qwen2.5-0.5B")
+	donorDir := modeltest.Directory(t, "Carbon-500M")
 	for _, directory := range []string{targetDir, donorDir} {
 		if _, err := os.Stat(directory); err != nil {
 			t.Skipf("UNAVAILABLE: %s absent; composition viability NOT verified", directory)

@@ -4,20 +4,14 @@ package seq2seq
 
 import (
 	"fmt"
-	"path/filepath"
 	"testing"
 
-	"overgo/internal/dataroot"
-	"overgo/internal/testutil"
+	"overgo/internal/modeltest"
 	"overgo/internal/textgeneration"
 )
 
 func TestSingleTokenProcessProbe(t *testing.T) {
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	generator, err := LoadGenerator(filepath.Join(roots.Models, "needle"))
+	generator, err := LoadGenerator(modeltest.Directory(t, "needle"))
 	if err != nil {
 		t.Fatal(err)
 	}

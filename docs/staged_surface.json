@@ -188,6 +188,15 @@
       "name": "TelemetryHorizon",
       "reason": "the telemetry class and its horizon land with the record they bound, before the store upkeep step that releases past the horizon",
       "retire_with": "store-growth-ratchet/do"
+    },
+    {
+      "package": "overgo/internal/modeltest",
+      "name": "Directory",
+      "reason": "Resolves a model test's directory through the store's registration instead of a models root joined with a name; test-support surface is test-consumed by design, and it lives apart from testutil so tests that load no model take on no store.",
+      "retained": {
+        "classification": "test-support",
+        "evidence": "evidence:sha256:5ac10b047bf46ee86852ffdd833056897638384e21d6c6215ded10b6e9c8e27f"
+      }
     }
   ]
 }

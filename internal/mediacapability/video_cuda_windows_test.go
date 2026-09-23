@@ -23,6 +23,7 @@ import (
 	"overgo/internal/latentvideo"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -30,12 +31,8 @@ import (
 func TestVideoProductionActivation(t *testing.T) {
 	cudatest.Require(t)
 	repo := testutil.RepoRoot(t)
-	roots, err := dataroot.Resolve(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wan := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
-	edit := filepath.Join(roots.Models, "LiveEdit")
+	wan := modeltest.Directory(t, "Wan2.1-T2V-1.3B")
+	edit := modeltest.Directory(t, "LiveEdit")
 	profile, err := latentvideo.ResolveProfile(wan)
 	if err != nil {
 		t.Fatal(err)

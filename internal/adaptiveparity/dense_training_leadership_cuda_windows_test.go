@@ -17,8 +17,8 @@ import (
 
 	"overgo/internal/cuda/device"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/densecausal"
+	"overgo/internal/modeltest"
 	"overgo/internal/testutil"
 )
 
@@ -69,11 +69,7 @@ func TestDenseTrainingLeadership(t *testing.T) {
 	if cudatest.MeasurementProcess(t, 0) {
 		return
 	}
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	modelDir := filepath.Join(roots.Models, "Qwen2.5-0.5B")
+	modelDir := modeltest.Directory(t, "Qwen2.5-0.5B")
 	checkpoint := qwenFileSHA256(t, filepath.Join(modelDir, "model.safetensors"))
 	config := qwenFileSHA256(t, filepath.Join(modelDir, "config.json"))
 	corpus := qwenTokenSHA256(qwenAdaptiveProfileTokens)

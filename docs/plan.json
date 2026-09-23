@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "model-paths-from-registrations",
-      "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's paths). About 45 test sites join roots.Models with a directory name and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store). The resolver lives in its own small package, internal/modeltest, because internal/testutil is imported by 646 test files and must not take on the store stack. Move the sites outside the pinned media runtime to it now; the ones under internal/latentvideo and internal/oscillatorimage follow reviewed-delta-registry, which makes a test-only change there cheap",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's paths). About 45 test sites join roots.Models with a directory name and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store). The resolver lives in its own small package, internal/modeltest, because internal/testutil is imported by 646 test files and must not take on the store stack. Move the sites outside the pinned media runtime to it now; the ones under internal/latentvideo and internal/oscillatorimage follow reviewed-delta-registry, which makes a test-only change there cheap",
-          "status": "open",
-          "verify": "go test ./internal/modeltest -run '^TestRegisteredModelResolvesThroughTheStore$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "evidence-currency-per-model",
       "title": "Stop text evidence expiring on code no decode runs (owner feedback 2026-09-22; measured 2026-09-23): of the last 400 commits, 67 moved the inference surface, and 33 of those touched only store, record and process-control packages (overgodb 18, runrecord 14) that no decode executes; modelrecipe alone moved it twice. A per-model closure does not help, because every text model shares one closure, and a declaration-level digest over the code manifest is unsound (it records no symbols for unexported package variables such as the module catalog) and broad (the runner reaches 62 percent of all symbols). The closure is wide because the runner reaches the control plane through four edges only: internal/inference imports modelrecipe, composition and runrecord, and internal/projector imports modelrecipe and modelartifact. Cut them: move the decode-session, plan and runtime-policy types the runner and projector use into a leaf package they import, move composite generation out of the runner, then drop modelrecipe from the surface roots; each cut states how many of the 67 historical moves the narrowed surface would have absorbed, and the proof is that an edit to the store or to a non-text capability leaves the surface digest unchanged",
       "owner": "master-lead",

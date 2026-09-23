@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"overgo/internal/dataroot"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/recipe"
 	"overgo/internal/speechsynth"
 	"overgo/internal/testskip"
@@ -164,11 +164,7 @@ func TestPocketTTSProductionParity(t *testing.T) {
 
 func pocketArtifactDirectory(t *testing.T) string {
 	t.Helper()
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	directory := filepath.Join(roots.Models, "pocket-tts")
+	directory := modeltest.Directory(t, "pocket-tts")
 	if _, err := os.Stat(filepath.Join(directory, "pockettts_config.json")); err != nil {
 		t.Fatalf("UNAVAILABLE: Pocket-TTS artifact absent; parity NOT verified: %v", err)
 	}

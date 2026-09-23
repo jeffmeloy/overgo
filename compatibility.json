@@ -748,7 +748,7 @@
      "contains": "func TestRxBrainProductionParity(",
      "path": "cmd/vqaparity/recipeverify_windows_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:a1deea96bd9fa85bc553d02a87139dbdcd6a831c6743d123731622c4a9a33722"
+     "identity": "evidence:sha256:1f833b2e6ce1c5cc8b683e746c4fce53b3656059f1d910795414389adebb5f4f"
     }
    ],
    "id": "rxbrain-vqa-production-oracle",
@@ -1394,7 +1394,7 @@
      "contains": "func TestPocketTTSProductionParity(",
      "path": "internal/adaptiveparity/pocket_tts_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:596d5934ff16e87b4c140b7e3b8886dd52f5babcd72937dd2a3463896a58c541"
+     "identity": "evidence:sha256:2c2ec814520e54466f2f69600b955329a1dbeefa88fbe72161be7cb3cf1fbf44"
     }
    ],
    "id": "pocket-tts-production-oracle",

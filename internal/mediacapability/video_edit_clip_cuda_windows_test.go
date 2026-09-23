@@ -9,17 +9,16 @@ import (
 	"encoding/json"
 	"image/gif"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"overgo/internal/artifact"
 	"overgo/internal/capabilityruntime"
 	cudatest "overgo/internal/cuda/testutil"
-	"overgo/internal/dataroot"
 	"overgo/internal/latentvideo"
 	"overgo/internal/media"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/modelrecipetest"
+	"overgo/internal/modeltest"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -32,11 +31,7 @@ import (
 // replaying the first edit.
 func TestVideoEditClipActivation(t *testing.T) {
 	cudatest.Require(t)
-	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	edit := filepath.Join(roots.Models, "LiveEdit")
+	edit := modeltest.Directory(t, "LiveEdit")
 	wan, checkpoint := latentvideo.LiveEditArtifacts(edit)
 	for _, required := range []string{checkpoint, latentvideo.WanTextConditioningSpec(wan, 1).EncoderCheckpoint} {
 		if _, err := os.Stat(required); err != nil {

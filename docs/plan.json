@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-style-typeset",
-      "title": "Set one type scale and reading measure for the workbench and remove the eyebrow label",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Set one type scale and reading measure for the workbench and remove the eyebrow label",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Typeset|LayoutAudit)$' -require 'typeset leg'",
-          "rationale": "Carried from professional_overgo_gui. The browser leg measures computed font sizes against the declared role scale and the conversation's line length against the measure at every captured viewport. Review typography in the browser pane before landing.",
-          "depends_on": [
-            "gui-style-tokens/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-chat-sessions",
       "title": "Continue a stopped or resumed conversation exactly through inference sessions instead of replaying and re-prefilling its text",
       "owner": "overgo_gui_cleanup",

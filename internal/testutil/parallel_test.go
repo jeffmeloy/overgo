@@ -14,7 +14,8 @@ import (
 // wall. Measured 2026-09-23, serial to parallel: internal/plan 74.6 to about
 // 41 s, cmd/plan 56 to about 26 s, internal/evaluation 50.3 to 11.7 s,
 // internal/overgodb 66.9 to about 15 s, internal/repoanalysis 64.3 to about
-// 26 s, internal/server 50.9 to about 17 s. In the gate suite only the users
+// 26 s, internal/server 50.9 to about 17 s, cmd/compatibility 339.8 to about
+// 66 s in its complete run. In the gate suite only the users
 // of the shared live-checkout fixture are held, since its one-time build
 // belongs in the parallel phase.
 func TestSuitesRunInParallel(t *testing.T) {
@@ -22,6 +23,9 @@ func TestSuitesRunInParallel(t *testing.T) {
 	for _, suite := range []struct {
 		directory string
 		markers   []string
+		// bound names test files an accepted proof pins by name or bytes,
+		// which keep their bytes rather than gain the parallel line.
+		bound []string
 	}{
 		{directory: "../gate", markers: []string{"liveRepositoryFixture("}},
 		{directory: "../plan"},
@@ -30,17 +34,18 @@ func TestSuitesRunInParallel(t *testing.T) {
 		{directory: "../overgodb"},
 		{directory: "../repoanalysis"},
 		{directory: "../server"},
+		{directory: "../../cmd/compatibility", bound: []string{"verification_workflow_test.go"}},
 	} {
 		t.Run(suite.directory, func(t *testing.T) {
 			t.Parallel()
-			requireParallel(t, suite.directory, suite.markers...)
+			requireParallel(t, suite.directory, suite.bound, suite.markers...)
 		})
 	}
 }
 
 // processGlobal marks a test body that changes state the whole test process
 // shares, which Go allows only in a serial test.
-var processGlobal = []string{"Setenv", "Chdir", "os.Stdout =", "os.Stderr ="}
+var processGlobal = []string{"Setenv", "Chdir", "os.Stdout =", "os.Stderr =", "flag.CommandLine =", "os.Args ="}
 
 // serialMark opens a test that stays serial for a reason the body does not
 // show, such as a helper that sets the process environment.
@@ -52,13 +57,16 @@ const serialMark = "// Serial:"
 // process-wide state, or opens with the serial mark and its reason, may stay
 // serial. The files are scanned as text, so no suite takes on a Go parser to
 // be checked.
-func requireParallel(t *testing.T, directory string, markers ...string) {
+func requireParallel(t *testing.T, directory string, bound []string, markers ...string) {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join(directory, "*_test.go"))
 	if err != nil || len(files) == 0 {
 		t.Fatalf("no test files in %s: %v", directory, err)
 	}
 	for _, file := range files {
+		if slices.Contains(bound, filepath.Base(file)) {
+			continue
+		}
 		data, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)

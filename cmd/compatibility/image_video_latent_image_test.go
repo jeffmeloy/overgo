@@ -120,6 +120,7 @@ func checkMediaLatentCoverage(cases []mediaLatentBundleCase, expected []string) 
 }
 
 func TestImageVideoLatentImageAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained image case bundle")
 	}

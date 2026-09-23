@@ -62,12 +62,14 @@ func retainedPublicationFixtures(t *testing.T) []retainedPublicationFixture {
 }
 
 func TestRetainedModelPublications(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range retainedPublicationFixtures(t) {
 		t.Run(fixture.Name, func(t *testing.T) { checkRetainedModelPublication(t, fixture) })
 	}
 }
 
 func TestQwenFourVerificationPublication(t *testing.T) {
+	t.Parallel()
 	for _, fixture := range retainedPublicationFixtures(t) {
 		if fixture.Name == "qwen-four" {
 			if fixture.Record.String() != "evidence:sha256:d625011eb8f92c10301bcb71a48bb25e9962277c8920033f38ddc075bbb6c161" {

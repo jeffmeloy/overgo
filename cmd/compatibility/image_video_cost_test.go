@@ -125,6 +125,7 @@ func checkMediaCostBytes(cost mediaCostProfile, profile latentvideo.Profile, con
 	return nil
 }
 func TestImageVideoCostAttributionAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": cost attribution reads the private snapshot and model metadata")
 	}

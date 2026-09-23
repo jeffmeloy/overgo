@@ -32,6 +32,7 @@ func requireMediaTestReceipt(t testing.TB, name string, raw []byte, required []s
 }
 
 func TestMediaValidationRetainsFailures(t *testing.T) {
+	t.Parallel()
 	prefix := `{"Action":"start","Package":"fixture"}` + "\n" + `{"Action":"run","Package":"fixture","Test":"TestGeneration"}` + "\n"
 	for _, action := range []string{"pass", "fail", "skip"} {
 		data := prefix + `{"Action":"` + action + `","Package":"fixture","Test":"TestGeneration"}` + "\n" + `{"Action":"` + action + `","Package":"fixture"}` + "\n"
@@ -48,6 +49,7 @@ func TestMediaValidationRetainsFailures(t *testing.T) {
 }
 
 func TestMediaValidationProjection(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(filepath.Join(root, "store"))
 	if err != nil {

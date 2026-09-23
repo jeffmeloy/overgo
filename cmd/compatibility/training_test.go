@@ -13,6 +13,7 @@ import (
 )
 
 func TestTrainingVerificationSpecs(t *testing.T) {
+	t.Parallel()
 	root := trainingFixture(t)
 	if _, err := loadTrainingVerifications(root); err != nil {
 		t.Fatal(err)
@@ -24,6 +25,7 @@ func TestTrainingVerificationSpecs(t *testing.T) {
 }
 
 func TestTrainingVerificationMatrix(t *testing.T) {
+	t.Parallel()
 	root := trainingFixture(t)
 	data, err := generateTraining(root)
 	if err != nil {

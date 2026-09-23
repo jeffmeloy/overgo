@@ -178,6 +178,7 @@ func checkMediaRuntimeBeforeLifecycle(root, revision string, paths []string, exp
 }
 
 func TestImageVideoMergedCapabilitiesAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": merged media evidence requires the private store")
 	}

@@ -988,7 +988,8 @@
             "planning-validates-once/do",
             "standard-names-once/do",
             "cmd-plan-suite-wall/do",
-            "host-suites-parallel/do"
+            "host-suites-parallel/do",
+            "compatibility-suite-parallel/do"
           ]
         }
       ]

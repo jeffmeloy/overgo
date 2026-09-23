@@ -86,6 +86,7 @@ func checkImageVideoObservation(value imageVideoObservation, content artifact.Co
 }
 
 func TestImageVideoProtocolAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": media protocol reads retained private-store outputs")
 	}

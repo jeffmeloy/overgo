@@ -15,6 +15,7 @@ import (
 // front page is one shell, every tab module counts, and the routes the
 // client names are a subset of the manifest's routes.
 func TestMeasureTreeReadsThisRepository(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -35,6 +36,7 @@ func TestMeasureTreeReadsThisRepository(t *testing.T) {
 }
 
 func TestWebUIReport(t *testing.T) {
+	t.Parallel()
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)

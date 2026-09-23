@@ -41,6 +41,7 @@ type imageVideoResourceProtocol struct {
 }
 
 func TestImageVideoResourceProtocolAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": media resource protocol discovers current hardware")
 	}

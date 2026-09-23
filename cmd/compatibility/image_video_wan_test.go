@@ -78,6 +78,7 @@ func checkMediaWanGIF(current, historical []byte, observation imageVideoObservat
 }
 
 func TestImageVideoWanAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained Wan evidence")
 	}
@@ -374,6 +375,7 @@ func TestImageVideoWanAcceptance(t *testing.T) {
 }
 
 func TestImageVideoWanGIFRejectsAlteredSequence(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	var bundle mediaWanBundle
 	if err := jsonfile.DecodeStrict(filepath.Join(root, "docs/image_video_wan.json"), &bundle); err != nil {

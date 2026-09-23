@@ -216,6 +216,7 @@ func mediaScopeModels(models []censusModel, tasks []recipe.Task) []censusModel {
 }
 
 func TestImageVideoInventoryAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": exact media inventory acceptance checks the private snapshot")
 	}

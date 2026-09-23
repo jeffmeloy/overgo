@@ -18,6 +18,7 @@ import (
 )
 
 func TestQwenFourNativeReferenceAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}

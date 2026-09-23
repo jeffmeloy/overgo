@@ -166,6 +166,7 @@ func mediaProcessingRecordedRows(raw []byte) ([]mediaProcessingObservation, erro
 }
 
 func TestImageVideoProcessingOptimizationAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": retained media processing comparison")
 	}

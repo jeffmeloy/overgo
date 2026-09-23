@@ -11,6 +11,7 @@ import (
 )
 
 func TestCapabilityCensusWireCompatibility(t *testing.T) {
+	t.Parallel()
 	data, err := os.ReadFile("testdata/capability_census_v1.json")
 	if err != nil {
 		t.Fatal(err)

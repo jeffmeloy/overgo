@@ -29,6 +29,7 @@ func checkMediaExecutorHostmathSource(root, revision string, paths []string) (st
 // TestMediaExecutorHostmathReconciliation proves the layer peels to its base
 // once the newer layers are peeled, and that its document is bound field by field.
 func TestMediaExecutorHostmathReconciliation(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	var merged mediaMergedEvidence
 	if err := jsonfile.Decode(filepath.Join(root, "docs/image_video_merged.json"), &merged); err != nil {

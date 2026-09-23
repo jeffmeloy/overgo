@@ -140,6 +140,7 @@ func compareMediaTransfers(before, after mediaTransferRecord, steps, stepBytes u
 }
 
 func TestImageVideoTransferOptimizationAcceptance(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": transfer comparison reads retained acquisitions")
 	}

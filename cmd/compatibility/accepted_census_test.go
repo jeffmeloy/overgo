@@ -23,6 +23,7 @@ import (
 // Preserve the historical census and admit the current denominator through
 // an explicit disposition. Registration never grants new verification credit.
 func TestAcceptedCapabilityCensus(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}

@@ -14,6 +14,7 @@ import (
 )
 
 func TestAcceptedProtocolCoverageProjection(t *testing.T) {
+	t.Parallel()
 	acceptedProtocolCoverageProjection(t)
 }
 

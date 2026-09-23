@@ -147,6 +147,7 @@ func readMiniNativeCaptures(t testing.TB) {
 }
 
 func TestAcceptedMiniCPMNativeReference(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
@@ -158,6 +159,7 @@ func TestAcceptedMiniCPMNativeReference(t *testing.T) {
 }
 
 func TestMiniCPMNativeContract(t *testing.T) {
+	t.Parallel()
 	for _, mutation := range []string{"valid", "missing", "duplicate", "input", "output", "text", "budget", "denominator"} {
 		t.Run(mutation, func(t *testing.T) {
 			var a, b nativeTextCapture

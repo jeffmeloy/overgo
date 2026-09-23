@@ -145,6 +145,7 @@ func mediaRuntimeChanges(root, before, revision string, paths []string) ([]strin
 }
 
 func TestMediaTimingSourceReconciliation(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	if _, err := checkMediaTimingSource(root, "", []string{"internal/hostmath"}); err != nil {
 		t.Fatal(err)

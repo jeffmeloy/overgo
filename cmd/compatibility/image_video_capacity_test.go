@@ -132,6 +132,7 @@ func mediaCapacityMeasurements(t testing.TB, raw []byte) []json.RawMessage {
 }
 
 func TestImageVideoCapacityEvidenceRejectsAlteration(t *testing.T) {
+	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join(testutil.RepoRoot(t), "docs/image_video_capacity.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -153,6 +154,7 @@ func TestImageVideoCapacityEvidenceRejectsAlteration(t *testing.T) {
 }
 
 func TestImageVideoCapacityMeasurementsReassembleOutput(t *testing.T) {
+	t.Parallel()
 	var stream bytes.Buffer
 	encoder := json.NewEncoder(&stream)
 	for _, part := range []string{"test.go:1: MEDIA_CAP", "ACITY {\"case\":\"changed\",", "\"wall_ns\":1}\n"} {
@@ -167,6 +169,7 @@ func TestImageVideoCapacityMeasurementsReassembleOutput(t *testing.T) {
 }
 
 func TestImageVideoCapacityAcceptance(t *testing.T) {
+	t.Parallel()
 	root := testutil.RepoRoot(t)
 	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_capacity.json"))
 	if err != nil {

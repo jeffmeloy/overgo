@@ -145,6 +145,7 @@ func inheritedCensus(ctx context.Context, storePath string) (artifact.ID, error)
 }
 
 func TestImageVideoWorktreeReadiness(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
@@ -187,6 +188,7 @@ func TestImageVideoWorktreeReadiness(t *testing.T) {
 }
 
 func TestImageVideoWorktreeReadinessRejectsInvalidState(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	source, err := overgodb.Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {

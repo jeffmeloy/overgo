@@ -29,15 +29,18 @@ import (
 	"strings"
 
 	"overgo/internal/plan"
+	"overgo/internal/processlock"
 	"overgo/internal/repoanalysis"
 )
 
-const (
-	// turnBasePath snapshots dirt at UserPromptSubmit so the Stop gate
-	// blocks only on TURN-CREATED dirt. Pre-existing dirt is another lane's
-	// parked in-flight work.
-	turnBasePath = "docs/.loop_state"
-)
+// turnBaseFile is the process-state file that snapshots dirt at
+// UserPromptSubmit so the Stop gate blocks only on TURN-CREATED dirt.
+// Pre-existing dirt is another lane's parked in-flight work. Empty when the
+// state directory cannot be made: no snapshot, so the gate reads none.
+func turnBaseFile() string {
+	path, _ := processlock.StateFile(".", "loop_state", "docs/.loop_state")
+	return path
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -152,7 +155,7 @@ func runPostCommit(hookJSON string) {
 
 func runDoctrine() {
 	// A turn never spans sessions -- any pending boundary is stale.
-	_ = os.Remove(turnBasePath)
+	_ = os.Remove(turnBaseFile())
 	fmt.Println(doctrineText)
 	fmt.Println()
 	fmt.Println("Dispatched now (go run ./cmd/plan -next):")
@@ -254,13 +257,13 @@ func writeTurnBase() {
 	}
 	data, err := json.Marshal(turnBase{Head: gitHead(), Facts: facts})
 	if err == nil {
-		_ = os.WriteFile(turnBasePath, append(data, '\n'), 0o600)
+		_ = os.WriteFile(turnBaseFile(), append(data, '\n'), 0o600)
 	}
 }
 
 // readTurnBase parses the snapshot; ok=false on a missing or legacy file.
 func readTurnBase() (turnBase, bool) {
-	raw, err := os.ReadFile(turnBasePath)
+	raw, err := os.ReadFile(turnBaseFile())
 	if err != nil {
 		return turnBase{}, false
 	}

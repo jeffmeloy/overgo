@@ -38,10 +38,13 @@ type Dispatch struct {
 	Waiting   string           `json:"waiting,omitzero"`
 }
 
-// DispatchCachePath keeps the last resolved dispatch beside the inputs it
-// was resolved from, so a turn's several readers resolve the completion
-// authority once.
-const DispatchCachePath = "docs/.dispatch"
+// dispatchCacheFile keeps the last resolved dispatch in the checkout's
+// process state, so a turn's several readers resolve the completion
+// authority once; legacyDispatchCache is where it lived before.
+const (
+	dispatchCacheFile   = "dispatch"
+	legacyDispatchCache = "docs/.dispatch"
+)
 
 // Shared Git revision query used by dispatch and completion authority.
 const gitRevisionCommand = "rev-parse"
@@ -210,7 +213,9 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 	}
 	storeHead, sequence := store.Head()
 	key := dispatchCache{Head: head, PlanDigest: hex.EncodeToString(digest[:]), StoreHead: storeHead, StoreSequence: sequence, Role: role, Worker: worker, Reference: request.Reference, Policy: "claimed-prerequisite-frontier/v1"}
-	cachePath := filepath.Join(repository, filepath.FromSlash(DispatchCachePath))
+	// The cache is best-effort, as its write is: a state directory that
+	// cannot be made leaves no path, and dispatch resolves uncached.
+	cachePath, _ := processlock.StateFile(repository, dispatchCacheFile, legacyDispatchCache)
 	if cached, ok := cachedDispatch(cachePath, key); ok && !request.Acquire {
 		return projectStop(cached), nil
 	}

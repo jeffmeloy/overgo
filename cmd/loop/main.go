@@ -4,9 +4,10 @@
 // plan, verifier, gate, and findings stay the repository's deterministic Go.
 // There is no turn concept: worker exit is an event, continuity is this loop.
 //
-//	go run ./cmd/loop -config docs/loop.json
+//	go run ./cmd/loop
 //
-// Config (machine-local, gitignored like local-models.json):
+// Config (machine-local, in the checkout's process state at
+// .overgo-runtime/loop.json unless -config names another file):
 //
 //	{
 //	  "worker": ["claude", "-p", "{prompt}"],
@@ -14,7 +15,7 @@
 //	  "worker_timeout_minutes": 90
 //	}
 //
-// Pause by creating docs/.loop_pause; delete it to resume.
+// Pause by creating .overgo-runtime/loop_pause; delete it to resume.
 package main
 
 import (
@@ -42,10 +43,16 @@ import (
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
 	"overgo/internal/processcontrol"
+	"overgo/internal/processlock"
 	"overgo/internal/runrecord"
 )
 
-const pauseMarker = "docs/.loop_pause"
+// The loop's pause marker lives in the checkout's process state; the legacy
+// path under docs is carried across on first use.
+const (
+	pauseMarker       = "loop_pause"
+	legacyPauseMarker = "docs/.loop_pause"
+)
 
 type config struct {
 	Worker []string `json:"worker"`
@@ -74,7 +81,7 @@ func main() {
 
 func run(args []string) error {
 	flags := flag.NewFlagSet("loop", flag.ContinueOnError)
-	configPath := flags.String("config", "docs/loop.json", "machine-local loop configuration")
+	configPath := flags.String("config", "", "machine-local loop configuration (default .overgo-runtime/loop.json)")
 	repoPath := flags.String("repo", "", "OvergoDB root for the evidence doors; empty resolves the store through the data-root contract")
 	publishStrategySpec := flags.String("publish-strategy", "", "publish one strategy from this spec (worker, catalog, loop config) and exit")
 	experimentSpec := flags.String("experiment", "", "replay one strategy experiment from this spec and print the comparison")
@@ -138,6 +145,10 @@ func run(args []string) error {
 		return publishDirection(*repoPath, *directionSpecPath, os.Stdout)
 	case *attemptReceiptSpecPath != "":
 		return readAttemptReceipt(*repoPath, *attemptReceiptSpecPath, os.Stdout)
+	}
+	if *configPath == "" {
+		// A state directory that cannot be made leaves no path; loading fails below.
+		*configPath, _ = processlock.StateFile(".", processcontrol.LoopConfigFile, processcontrol.LegacyLoopConfigFile)
 	}
 	var loaded config
 	if err := jsonfile.Decode(*configPath, &loaded); err != nil {
@@ -398,7 +409,13 @@ func (w *execWorld) Park(step loop.Step, reason string) error {
 // Paused retains the local kill switch and reads scoped stop authority through
 // the already-open store. It does not re-resolve the plan or reopen its journal.
 func (w *execWorld) Paused() bool {
-	if _, err := os.Stat(pauseMarker); err == nil {
+	// A pause marker the state directory cannot hold pauses: the kill switch
+	// fails closed.
+	marker, err := processlock.StateFile(".", pauseMarker, legacyPauseMarker)
+	if err != nil {
+		return true
+	}
+	if _, err := os.Stat(marker); err == nil {
 		return true
 	}
 	var reader artifact.Reader

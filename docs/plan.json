@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-without-capability-tables",
-      "title": "Keep non-text capability edits out of the inference surface",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep non-text capability edits out of the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
-          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
-        }
-      ]
-    },
-    {
       "id": "prompt-intake-files-rows",
       "title": "Have the prompt hook file owner requests as candidate rows",
       "owner": "master-lead",
@@ -30,21 +15,6 @@
           "status": "open",
           "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
           "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
-        }
-      ]
-    },
-    {
-      "id": "loop-markers-runtime-directory",
-      "title": "Move the loop's transient markers out of docs",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the loop's transient markers out of docs",
-          "status": "open",
-          "verify": "go test ./cmd/loophook ./cmd/loop -run '^TestLoopMarkersLiveInTheRuntimeDirectory' -count=1",
-          "rationale": "docs/.loop_state, .loop_pause, .dispatch, loop.json and plan_stop.json are process state. Move writers, readers (cmd/loophook, cmd/loop, cmd/plan) and hook binaries together through processlock.EnsureStateDirectory, drop the ignore entries, and carry an old-path marker across once."
         }
       ]
     },
@@ -105,6 +75,21 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1",
           "rationale": "Measured 2026-09-23 at 83d0bb9b: suite 149-155 s. The critical path is the live fixture's single lock: ready at about 33 s, then 14 seeded plans run one at a time for about 103 s, and TestTestingReductionContract's five plans end the suite alone. Each plan recomputes whole-snapshot analyses for a one-file seed (codeprofile.Build 14 s, the consumer graph through go list 15 s, manifest identity 10 s and diff 6 s, CPU over five plans), so the content-keyed manifest cache never hits. Warming the base manifest in the fixture measured no gain. A pool of checkouts costs about 40 s of cold setup per extra slot and reverses the one-checkout budget. The structural lever is incremental analysis keyed per file or package (profile facts and consumer-graph edges reused for unchanged files), which also shortens every production gate's base-versus-candidate manifests."
+        }
+      ]
+    },
+    {
+      "id": "surface-without-capability-tables",
+      "title": "Keep non-text capability edits out of the inference surface",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep non-text capability edits out of the inference surface",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
+          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
         }
       ]
     },

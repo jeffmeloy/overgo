@@ -402,6 +402,7 @@ var TrackedDocumentFamilies = []DocumentFamily{
 	{"docs/image_video_validation.json", DocumentFixture},
 	{"docs/image_video_assertions.json", DocumentFixture},
 	{"docs/image_video_*.json", DocumentReceipt},
+	{"docs/media_reviewed_deltas.json", DocumentReceipt},
 	{"docs/*_baseline.json", DocumentBaseline},
 	{"docs/structure_budgets.json", DocumentBaseline},
 	{"docs/staged_surface.json", DocumentBaseline},

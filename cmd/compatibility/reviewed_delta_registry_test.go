@@ -594,8 +594,10 @@ func TestReviewedDeltaRegistryBase(t *testing.T) {
 }
 
 // TestReviewedDeltaRegistryExplainsTheTree proves, at HEAD and in the working
-// tree, that the pinned runtime has moved, that the whole chain has landed,
-// and that nothing outside it moved.
+// tree, that the pinned runtime has moved and that nothing outside the chain
+// moved. The working tree has landed the whole chain; HEAD may stand at a
+// landed prefix of it, since a delta arrives in the commit that makes its
+// change.
 func TestReviewedDeltaRegistryExplainsTheTree(t *testing.T) {
 	t.Parallel()
 	root := testutil.RepoRoot(t)
@@ -615,7 +617,8 @@ func TestReviewedDeltaRegistryExplainsTheTree(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(unreviewed) != 0 || stage != len(registry.Deltas) {
+		whole := revision == "" && stage != len(registry.Deltas)
+		if len(unreviewed) != 0 || whole {
 			t.Fatalf("%q: stage %d of %d, unreviewed %v", revision, stage, len(registry.Deltas), unreviewed)
 		}
 	}

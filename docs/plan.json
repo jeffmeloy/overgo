@@ -4,6 +4,42 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "device-measurement-deadlock",
+      "title": "Stop CUDA measurement-process tests deadlocking on a device reservation the parent holds",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop CUDA measurement-process tests deadlocking on a device reservation the parent holds",
+          "status": "open",
+          "verify": "go test ./internal/cuda/testutil -run '^TestMeasurementProcessRefusesHeldReservation$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "skipped-fixture-classification",
+      "title": "Classify the shared CUDA test gate's skips",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 20,
+        "reason": "the shared CUDA gate's skip cites the classified reason and the delta registry is classified as a receipt"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify the shared CUDA test gate's skips",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestSkippedFixtureClassification' -count=1",
+          "rationale": "internal/cuda/testutil skips with an unclassified reason, so 510 device fixtures hold no receipt. Built 2026-09-23: the gate cites testskip.Inapplicable, skipReasonSites reads every file so a shared gate in a support package is held to the rule, TestSkippedFixtureClassification, and a registry delta (cuda-test-gate-skip-reason) with a device receipt of the driver, cuBLAS and kernel packages. It could not land: changing the shared gate selects every device package, and the full internal/cuda/executor suite hangs in TestDeviceBufferPoolCapacityRefusalReclaimsIdle (device-measurement-deadlock), so the device step ran past its 20-minute package timeout. Rebuild it after that row lands.",
+          "depends_on": [
+            "device-measurement-deadlock/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "surface-without-capability-tables",
       "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",
@@ -15,24 +51,6 @@
           "status": "open",
           "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
           "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
-        }
-      ]
-    },
-    {
-      "id": "skipped-fixture-classification",
-      "title": "Classify the shared CUDA test gate's skips",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Classify the shared CUDA test gate's skips",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestSkippedFixtureClassification' -count=1",
-          "rationale": "internal/cuda/testutil skips with an unclassified reason, so 510 device fixtures hold no receipt. The fix is one line, but internal/cuda is a pinned media path, so it waits on reviewed-delta-registry. cmd/device-lane does set the CUDA environment.",
-          "depends_on": [
-            "reviewed-delta-registry/do"
-          ]
         }
       ]
     },
@@ -659,7 +677,9 @@
             "simplify-capability-report/do",
             "speech-document-admission/do",
             "benchmark-27b/mmlu-pro-pass",
-            "plan-reranked/do"
+            "plan-reranked/do",
+            "device-measurement-deadlock/do",
+            "registry-document-class/do"
           ]
         }
       ]
@@ -869,6 +889,10 @@
     {
       "key": "suite-cost:overgo/cmd/plan",
       "row": "cmd-plan-suite-wall"
+    },
+    {
+      "key": "suite-cost:overgo/cmd/rsi-census",
+      "row": "automation-review-suite-cost-regression"
     },
     {
       "key": "suite-cost:overgo/internal/audioparity",

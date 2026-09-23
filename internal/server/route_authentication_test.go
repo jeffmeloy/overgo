@@ -32,8 +32,8 @@ func TestRouteAuthenticationRefusesUnauthenticated(t *testing.T) {
 		}
 	}
 	for _, path := range []string{
-		"/hub/search", "/hub/downloads", "/agent/tools", "/agent/step",
-		"/agent/approval", "/agent/provenance", "/agent/sessions",
+		"/hub/search", "/hub/downloads", "/agents/tools", "/agents/step",
+		"/agents/approval", "/agents/provenance", "/agents/sessions",
 	} {
 		route, found := resolveRoute(path)
 		if !found || route.Authentication != routeBearer {
@@ -50,10 +50,10 @@ func TestRouteAuthenticationRefusesUnauthenticated(t *testing.T) {
 		handler.ServeHTTP(recorder, input)
 		return recorder
 	}
-	if response := request("/agent/tools", ""); response.Code != http.StatusUnauthorized {
+	if response := request("/agents/tools", ""); response.Code != http.StatusUnauthorized {
 		t.Errorf("unauthenticated agent route status = %d, want %d", response.Code, http.StatusUnauthorized)
 	}
-	if response := request("/agent/tools", testBearerToken); response.Code == http.StatusUnauthorized {
+	if response := request("/agents/tools", testBearerToken); response.Code == http.StatusUnauthorized {
 		t.Errorf("authenticated agent route refused: %s", response.Body.String())
 	}
 	for _, accepted := range []struct{ address, credential string }{

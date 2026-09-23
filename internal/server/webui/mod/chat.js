@@ -105,7 +105,7 @@
       let agents = [];
       let tools = [];
       try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
-      if (agents.length) tools = (await overgo.api.get("/agent/tools")).tools || [];
+      if (agents.length) tools = (await overgo.api.get("/agents/tools")).tools || [];
       if (disposed) return;
       const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });

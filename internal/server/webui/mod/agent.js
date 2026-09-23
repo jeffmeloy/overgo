@@ -168,7 +168,7 @@
           // The session list: every durable session with its steps against the bound, resumable by one click.
           listSessions.addEventListener("click", async () => {
             try {
-              const listing = await api.get("/agent/sessions");
+              const listing = await api.get("/agents/sessions");
               sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
                 const resume = el("button", { class: "btn alt", text: "Resume" });
                 resume.addEventListener("click", () => { session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id; renderEvidence(session.value); });
@@ -230,7 +230,7 @@
       // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
       async function renderProvenance(host, session, step) {
         try {
-          const walk = await api.get("/agent/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
+          const walk = await api.get("/agents/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
           const parts = [
             el("div", {}, "interaction ", artifactLink(walk.interaction), " / transcript ", artifactLink(walk.transcript)),
             el("div", {}, "tool " + walk.tool + " / manual ", walk.manual ? artifactLink(walk.manual) : el("span", { text: "by name" })),
@@ -273,7 +273,7 @@
 
       function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations(); }
 
-      tools = (await api.get("/agent/tools")).tools || [];
+      tools = (await api.get("/agents/tools")).tools || [];
       inventory = await api.get("/agents");
       renderAll();
       const stopStream = overgo.tabStream("/agents/stream", (event, data) => {

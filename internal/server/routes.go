@@ -132,11 +132,9 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/hub/downloads", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
 	{Path: "/library/register", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryRegister},
 	{Path: "/library/validate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryValidate},
-	{Path: "/agent/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentTools},
-	{Path: "/agent/step", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentStep},
-	{Path: "/agent/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentApprovalPreview},
-	{Path: "/agent/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentProvenance},
-	{Path: "/agent/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentSessionList},
+	{Path: "/agents/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentTools},
+	{Path: "/agents/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentProvenance},
+	{Path: "/agents/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentSessionList},
 	// The workbench's own routes: the manifest, schema and route table are
 	// public like the shell they feed; the operations evidence and the
 	// automation, peer and agent workspaces take the bearer credential. They

@@ -45,10 +45,10 @@ func TestAgentWorkspaceRootsReadOnlyTheirDocuments(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer handler.Close()
-	if code := serveTestRequest(handler, http.MethodPost, "/agent/step", `{"session":"alpha","tool":"store.head"}`); code.Code != http.StatusOK {
+	if code := serveTestRequest(handler, http.MethodPost, "/agents/step", `{"session":"alpha","tool":"store.head"}`); code.Code != http.StatusOK {
 		t.Fatalf("step status=%d body=%s", code.Code, code.Body.String())
 	}
-	list := serveTestRequest(handler, http.MethodGet, "/agent/sessions", "")
+	list := serveTestRequest(handler, http.MethodGet, "/agents/sessions", "")
 	body := list.Body.String()
 	if list.Code != http.StatusOK || !strings.Contains(body, `"id":"alpha"`) || strings.Contains(body, `"id":"stray"`) {
 		t.Fatalf("session list status=%d body=%s; want alpha and no stray", list.Code, body)

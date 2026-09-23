@@ -25,7 +25,7 @@ func TestFrontPageAgent(t *testing.T) {
 	if step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) || !strings.Contains(step.Body.String(), `"bound":`) {
 		t.Fatalf("agent step status=%d body=%s", step.Code, step.Body.String())
 	}
-	sessions := serveTestRequest(fixture.handler, http.MethodGet, "/agent/sessions", "")
+	sessions := serveTestRequest(fixture.handler, http.MethodGet, "/agents/sessions", "")
 	if sessions.Code != http.StatusOK || !strings.Contains(sessions.Body.String(), `"bound":`) {
 		t.Fatalf("session list status=%d body=%s", sessions.Code, sessions.Body.String())
 	}
@@ -43,7 +43,7 @@ func TestFrontPageAgent(t *testing.T) {
 		}
 	}
 	chat := get("/mod/chat.js")
-	for _, needle := range []string{`"/agents"`, `"/agent/tools"`, `"/agents/chat"`, "overgo.toolStep(", `mode === "agent"`, "onMode:", "overgo.streams.reply("} {
+	for _, needle := range []string{`"/agents"`, `"/agents/tools"`, `"/agents/chat"`, "overgo.toolStep(", `mode === "agent"`, "onMode:", "overgo.streams.reply("} {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("chat missing %q", needle)
 		}

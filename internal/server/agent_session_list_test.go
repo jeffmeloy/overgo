@@ -40,11 +40,11 @@ func TestAgentSessionList(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, step := range []string{`{"session":"alpha","tool":"store.head"}`, `{"session":"alpha","tool":"store.head"}`, `{"session":"beta","tool":"store.head"}`} {
-		if code := serveTestRequest(first, http.MethodPost, "/agent/step", step); code.Code != http.StatusOK {
+		if code := serveTestRequest(first, http.MethodPost, "/agents/step", step); code.Code != http.StatusOK {
 			t.Fatalf("step status=%d body=%s", code.Code, code.Body.String())
 		}
 	}
-	list := serveTestRequest(first, http.MethodGet, "/agent/sessions", "")
+	list := serveTestRequest(first, http.MethodGet, "/agents/sessions", "")
 	body := list.Body.String()
 	if list.Code != http.StatusOK ||
 		!strings.Contains(body, `"id":"alpha"`) || !strings.Contains(body, `"id":"beta"`) ||
@@ -60,7 +60,7 @@ func TestAgentSessionList(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer restarted.Close()
-	survived := serveTestRequest(restarted, http.MethodGet, "/agent/sessions", "")
+	survived := serveTestRequest(restarted, http.MethodGet, "/agents/sessions", "")
 	if survived.Code != http.StatusOK ||
 		!strings.Contains(survived.Body.String(), `"id":"alpha"`) ||
 		!strings.Contains(survived.Body.String(), `"steps":2`) {

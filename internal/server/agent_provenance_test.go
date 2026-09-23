@@ -40,11 +40,11 @@ func TestAgentProvenance(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-	if code := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	if code := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"walk","tool":"store.head"}`); code.Code != http.StatusOK {
 		t.Fatalf("inspection status=%d body=%s", code.Code, code.Body.String())
 	}
-	preview := serveTestRequest(handler, http.MethodPost, "/agent/approval",
+	preview := serveTestRequest(handler, http.MethodPost, "/agents/approval",
 		`{"session":"walk","tool":"store.commit","arguments":{}}`)
 	var previewed struct {
 		Operation string `json:"operation"`
@@ -52,12 +52,12 @@ func TestAgentProvenance(t *testing.T) {
 	if err := json.Unmarshal(preview.Body.Bytes(), &previewed); err != nil || previewed.Operation == "" {
 		t.Fatalf("preview status=%d operation=%q %v", preview.Code, previewed.Operation, err)
 	}
-	if code := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	if code := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"walk","tool":"store.commit","arguments":{},"approval":"`+previewed.Operation+`"}`); code.Code != http.StatusOK {
 		t.Fatalf("mutation status=%d body=%s", code.Code, code.Body.String())
 	}
 
-	mutation := serveTestRequest(handler, http.MethodGet, "/agent/provenance?session=walk&step=2", "")
+	mutation := serveTestRequest(handler, http.MethodGet, "/agents/provenance?session=walk&step=2", "")
 	body := mutation.Body.String()
 	if mutation.Code != http.StatusOK ||
 		!strings.Contains(body, `"call_id":"walk-step-2"`) ||
@@ -71,7 +71,7 @@ func TestAgentProvenance(t *testing.T) {
 		t.Fatalf("mutation provenance status=%d body=%s", mutation.Code, body)
 	}
 
-	inspection := serveTestRequest(handler, http.MethodGet, "/agent/provenance?session=walk&step=1", "")
+	inspection := serveTestRequest(handler, http.MethodGet, "/agents/provenance?session=walk&step=1", "")
 	inspectionBody := inspection.Body.String()
 	if inspection.Code != http.StatusOK ||
 		!strings.Contains(inspectionBody, `"tool":"store.head"`) ||
@@ -80,7 +80,7 @@ func TestAgentProvenance(t *testing.T) {
 		t.Fatalf("inspection provenance status=%d body=%s", inspection.Code, inspectionBody)
 	}
 
-	absent := serveTestRequest(handler, http.MethodGet, "/agent/provenance?session=walk&step=9", "")
+	absent := serveTestRequest(handler, http.MethodGet, "/agents/provenance?session=walk&step=9", "")
 	if absent.Code != http.StatusNotFound {
 		t.Fatalf("absent step status=%d body=%s", absent.Code, absent.Body.String())
 	}

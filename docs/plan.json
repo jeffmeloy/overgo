@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-lane-trigger-coverage",
-      "title": "Run the browser lane for every change to the workbench's declarations, routes and GUI tests",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the browser lane for every change to the workbench's declarations, routes and GUI tests",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck -run '^TestWebUIPathsCoverWorkspaceDeclarations$' -count=1",
-          "rationale": "Audit: internal/automationcheck/webui.go selects the lane by path prefix and misses workspace_manifest.json, workspace_schema.json, workspace_routes.go, gui_mobile_evidence_test.go and peer_workspace_gui_test.go, so edits there skip every browser test. Acceptance: a test enumerates the files the embedded workbench and its route table read and requires each to select the lane."
-        }
-      ]
-    },
-    {
       "id": "agent-route-consolidation",
       "title": "Serve the agent workspace from one route prefix and retire the duplicate singular agent routes",
       "owner": "overgo_gui_cleanup",

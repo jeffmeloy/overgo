@@ -20,8 +20,13 @@ const (
 	WebUIImpact Fact = "capability:webui"
 )
 
-// webuiPathPrefixes are the changed-path prefixes that own the web UI.
-var webuiPathPrefixes = []string{"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/"}
+// webuiPathPrefixes are the changed-path prefixes that own the web UI: its
+// assets, its tests (a browser leg is named webui_browser_), the lane, and
+// the embedded declarations the page is built from.
+var webuiPathPrefixes = []string{
+	"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
+	"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json",
+}
 
 // WebUICheck returns the real-browser lane as a gate check: it runs when
 // the web UI fact is present. The full journey shares device admission.

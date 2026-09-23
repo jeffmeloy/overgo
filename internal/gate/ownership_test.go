@@ -150,14 +150,14 @@ func TestPhaseCacheIgnoresUnownedPlanChanges(t *testing.T) {
 		}
 	}
 	paths := slices.Collect(maps.Keys(files))
-	buildBefore, err := fingerprintPhaseInputs(root, "build", paths)
+	buildBefore, err := fingerprintPhaseInputs(root, "vet", paths)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "docs", "COMPATIBILITY.md"), []byte("refreshed claims\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	buildAfter, _ := fingerprintPhaseInputs(root, "build", paths)
+	buildAfter, _ := fingerprintPhaseInputs(root, "vet", paths)
 	if buildBefore != buildAfter {
 		t.Fatal("documentation invalidated build inputs")
 	}

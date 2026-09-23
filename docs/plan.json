@@ -996,7 +996,8 @@
             "timesfm3-native-declaration/do",
             "dinov2-embedding-capability/do",
             "rae-generation-path/do",
-            "plan-reordered/do"
+            "plan-reordered/do",
+            "gate-drops-build-check/do"
           ]
         }
       ]

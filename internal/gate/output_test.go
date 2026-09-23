@@ -79,7 +79,7 @@ func TestGateRunsStaticChecksBeforeAcceptance(t *testing.T) {
 	for index, step := range steps {
 		positions[step.Descriptor.Name] = index
 	}
-	for _, static := range []string{"vet", "build"} {
+	for _, static := range []string{"vet"} {
 		if positions[static] >= positions["acceptance"] {
 			t.Fatalf("%s at %d follows acceptance at %d", static, positions[static], positions["acceptance"])
 		}
@@ -99,7 +99,7 @@ func TestMergeGateRunsAuthorityPreflightBeforeBroadTests(t *testing.T) {
 		positions[step.Descriptor.Name] = index
 	}
 	for _, authority := range []string{"architecture", "fmt", "style", "manifest", "sbom", "claims", "docs", "magics"} {
-		for _, expensive := range []string{"acceptance", "vet", "build", "test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
+		for _, expensive := range []string{"acceptance", "vet", "test", "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName} {
 			if positions[authority] >= positions[expensive] {
 				t.Fatalf("authority step %s at %d follows %s at %d", authority, positions[authority], expensive, positions[expensive])
 			}

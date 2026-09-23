@@ -218,7 +218,7 @@ func TestGateEquivalentStaticPreflight(t *testing.T) {
 	if !slices.Equal(names, wantStatic) {
 		t.Fatalf("preflight invocations = %v, want %v", names, wantStatic)
 	}
-	for _, required := range []string{"vet", "build", "fmt", "magics", "modern-go", "architecture", "docs"} {
+	for _, required := range []string{"vet", "fmt", "magics", "modern-go", "architecture", "docs"} {
 		if !slices.Contains(names, required) {
 			t.Fatalf("preflight omits %s", required)
 		}

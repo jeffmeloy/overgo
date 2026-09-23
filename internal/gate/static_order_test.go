@@ -13,10 +13,10 @@ import (
 )
 
 // TestStaticFailurePreventsAcceptance exercises the executable dependency graph,
-// including subordinate batches: failed build/vet must never start model work.
+// including subordinate batches: a failed vet must never start model work.
 func TestStaticFailurePreventsAcceptance(t *testing.T) {
 	t.Parallel()
-	for _, failed := range []string{modernCensusCheckName, "modern-go", "vet", "build", ""} {
+	for _, failed := range []string{modernCensusCheckName, "modern-go", "vet", ""} {
 		for _, batched := range []bool{false, true} {
 			name := cmp.Or(failed, "success")
 			if batched {
@@ -65,8 +65,8 @@ func TestStaticFailurePreventsAcceptance(t *testing.T) {
 					if failed != "" && position >= 0 {
 						t.Fatalf("%s ran despite %s failure: %v", name, failed, executed)
 					}
-					vet, build := slices.Index(executed, "vet"), slices.Index(executed, "build")
-					if failed == "" && (position < 0 || vet < 0 || build < 0 || vet > position || build > position) {
+					vet := slices.Index(executed, "vet")
+					if failed == "" && (position < 0 || vet < 0 || vet > position) {
 						t.Fatalf("%s did not run after static checks: %v", name, executed)
 					}
 				}

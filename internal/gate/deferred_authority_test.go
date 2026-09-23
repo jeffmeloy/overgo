@@ -124,7 +124,7 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				fingerprint, err := g.phaseInputFingerprint("build")
+				fingerprint, err := g.phaseInputFingerprint("vet")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -137,7 +137,7 @@ func TestDeferredAuthorityLifetime(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				changedFingerprint, err := g.phaseInputFingerprint("build")
+				changedFingerprint, err := g.phaseInputFingerprint("vet")
 				if err != nil || changedFingerprint != fingerprint {
 					t.Fatalf("source fingerprint drifted: %v", err)
 				}

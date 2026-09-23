@@ -82,7 +82,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), gateCheck("surface", runrecord.PhaseValidate, g.stepSurface),
 		generated[0], generated[1], generated[2],
 		withResources(gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), storeReader), published,
-		gateCheck("vet", runrecord.PhaseVet, g.stepVet), gateCheck("build", runrecord.PhaseBuild, g.stepBuild),
+		gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance),
 		gateTestCheck(testPlanCheckName, g.stepTestPlan),
 		gateTestCheck(testOwnersCheckName, g.stepTestOwners),
@@ -97,8 +97,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	}
 	dependencies["modern-go"] = []string{modernCensusCheckName}
 	dependencies["vet"] = slices.Clone(validateWave)
-	dependencies["build"] = slices.Clone(validateWave)
-	dependencies["acceptance"] = []string{"vet", "build"}
+	dependencies["acceptance"] = []string{"vet"}
 	// Changed owners precede shared dependency tests and browser correctness.
 	// The device lane and remaining host tests follow the dependency tests.
 	// Shared device admission and waiting store locks protect overlap.
@@ -126,7 +125,6 @@ var gateCheckRequirements = map[string]automationcheck.Requirements{
 	modernCensusCheckName: {Intermediate: true},
 	"docs":                {Process: automationcheck.ProcessToolchain},
 	"vet":                 {Process: automationcheck.ProcessToolchain},
-	"build":               {Process: automationcheck.ProcessToolchain},
 	"acceptance":          {Candidate: true, Process: automationcheck.ProcessSuite},
 	testPlanCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
 	testOwnersCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
@@ -898,7 +896,7 @@ func phaseOwnsPath(phase, path string) bool {
 	switch phase {
 	case "architecture":
 		return goInput || path == plan.Path || path == "docs/staged_surface.json" || path == repoanalysis.StructureBudgetsFile
-	case "vet", "build", "fmt", "style", "profile", modernCensusCheckName:
+	case "vet", "fmt", "style", "profile", modernCensusCheckName:
 		return goInput
 	case "scope", "protection":
 		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
@@ -919,7 +917,7 @@ func phaseOwnsPath(phase, path string) bool {
 // not a fingerprintable input; the commit check is never reused.
 func phaseReusesEvidence(phase string) bool {
 	switch phase {
-	case "vet", "build", "fmt", "style", "profile", "architecture", "scope", "protection", modernCensusCheckName,
+	case "vet", "fmt", "style", "profile", "architecture", "scope", "protection", modernCensusCheckName,
 		"manifest", "sbom", "claims", "docs":
 		return true
 	default:
@@ -1052,8 +1050,13 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 	return false, nil
 }
 
+// stepVet type-checks every package, which is also the only compile check the
+// gate runs: a separate build refused nothing in 865 landings, because a
+// compile error fails here first. It runs for any Go-owned source or asset,
+// not only a changed .go file, so an embedded file that goes missing is still
+// caught before the tests.
 func (g *gateContext) stepVet() (bool, error) {
-	if len(g.changedGoFiles()) == 0 {
+	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
 		return true, nil
 	}
 	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "./...")
@@ -1078,15 +1081,6 @@ func (g *gateContext) pathsTouchAny(prefixes ...string) bool {
 		}
 	}
 	return false
-}
-
-func (g *gateContext) stepBuild() (bool, error) {
-	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
-		g.note("build skipped: no Go-owned source or asset paths in -paths")
-		return true, nil
-	}
-	_, err := g.runGateCommand(g.sourceRoot(), "go", "build", "./...")
-	return false, err
 }
 
 // stepTest follows the compiled import graph for production changes and keeps

@@ -37,7 +37,7 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 			t.Fatalf("%s depends on %v, want %v", name, byName[name].Dependencies, dependencies)
 		}
 	}
-	for _, static := range []string{"vet", "build"} {
+	for _, static := range []string{"vet"} {
 		if !slices.Equal(byName[static].Dependencies, validateWave) {
 			t.Fatalf("%s depends on %v, want the whole validate wave", static, byName[static].Dependencies)
 		}
@@ -92,7 +92,7 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 		if spans[name].start.Before(spans["scope"].end) {
 			t.Fatalf("%s started before scope ended", name)
 		}
-		for _, static := range []string{"vet", "build"} {
+		for _, static := range []string{"vet"} {
 			if spans[static].start.Before(spans[name].end) {
 				t.Fatalf("%s started before %s ended", static, name)
 			}
@@ -103,8 +103,8 @@ func TestValidateChecksRunFirstConcurrently(t *testing.T) {
 			t.Fatalf("the store writer magics overlapped the store reader %s", reader)
 		}
 	}
-	if spans["acceptance"].start.Before(spans["vet"].end) || spans["acceptance"].start.Before(spans["build"].end) {
-		t.Fatal("acceptance started before vet and build ended")
+	if spans["acceptance"].start.Before(spans["vet"].end) {
+		t.Fatal("acceptance started before vet ended")
 	}
 	spans, results := run("fmt", "style")
 	err := checkFailures(results)

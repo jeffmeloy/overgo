@@ -49,9 +49,6 @@ func TestCandidateGoPhasesExcludeIgnoredSource(t *testing.T) {
 	}
 	var firstIdentity string
 	err = g.withCandidateWorktree(tree, func(root string) error {
-		if _, err := g.stepBuild(); err != nil {
-			return fmt.Errorf("candidate build: %w", err)
-		}
 		if _, err := g.stepVet(); err != nil {
 			return fmt.Errorf("candidate vet: %w", err)
 		}

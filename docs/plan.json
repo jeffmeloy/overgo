@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "derived-cache-reuse",
-      "title": "Store a derived cache only when a later gate reads it: code-profile and modern-Go memos cost about 3 MB of new blobs per gate, and about half of all gates are refused, so their candidate profiles are never read again. Measure the reuse from the gate's own cache hits first; keep in the store only what a later gate reads (the landed candidate is the next gate's base) and hold the rest in memory for the gate that computed it. Removes writes rather than scheduling their release.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store a derived cache only when a later gate reads it: code-profile and modern-Go memos cost about 3 MB of new blobs per gate, and about half of all gates are refused, so their candidate profiles are never read again. Measure the reuse from the gate's own cache hits first; keep in the store only what a later gate reads (the landed candidate is the next gate's base) and hold the rest in memory for the gate that computed it. Removes writes rather than scheduling their release.",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestDerivedCacheStoredOnlyWhenReused$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "store-small-record-horizon",
       "title": "Stop the two fastest-growing small-record schemas from growing without bound: agent-obligation/v1 (54,372 records, +4.6k since 09-19) keeps open obligations and discharged ones within a horizon, and gate-package-receipt/v1 (31,722, +4.3k) becomes one receipt per gate naming its packages, which a lookup by package reads newest first. Records a landed commit or an accepted protocol names stay. These rows fill the lineage and artifact checkpoints that every open decodes, so shrinking them shortens every open without new loading machinery.",
       "owner": "master-lead",
@@ -1310,6 +1296,10 @@
     {
       "key": "surface-move:production-nodes:dc8d00b949a0fc3fd358fd18eeb599f64cd1fae1",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:f12613eda4c9e4afc89cf2477055fd85e2bab635",
+      "row": "derived-cache-reuse"
     }
   ]
 }

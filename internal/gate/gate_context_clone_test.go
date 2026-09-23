@@ -7,7 +7,7 @@ func cloneGateContext(g *gateContext) *gateContext {
 		repo: g.repo, candidateRoot: g.candidateRoot, candidateTree: g.candidateTree, paths: g.paths,
 		planRef: g.planRef, messageFile: g.messageFile, authored: g.authored, storePath: g.storePath, start: g.start, clock: g.clock,
 		environment: g.environment, preparation: g.preparation, preparationCommit: g.preparationCommit,
-		source: g.source, baseSource: g.baseSource, profile: g.profile, profileDirty: g.profileDirty,
+		source: g.source, baseSource: g.baseSource, profile: g.profile,
 		preflight: g.preflight, stepEvidence: g.stepEvidence, cachePaths: g.cachePaths, retryCache: g.retryCache,
 		checkpointMemos: g.checkpointMemos, verificationBatch: g.verificationBatch, structural: g.structural,
 		packageGraph: g.packageGraph, selection: g.selection, selectionID: g.selectionID, manifestPlan: g.manifestPlan,

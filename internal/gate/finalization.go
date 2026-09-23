@@ -11,7 +11,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/codemanifest"
-	"overgo/internal/codeprofile"
 	"overgo/internal/fsatomic"
 	"overgo/internal/loop"
 	"overgo/internal/overgodb"
@@ -178,11 +177,6 @@ func (g *gateContext) record(outcome runrecord.Outcome, failure string) error {
 			Child: record.Result.ID, Parent: analysis.Descriptor.ID, Relation: artifact.RelationDependsOn,
 		})
 	}
-	if outcome == runrecord.OutcomeSucceeded {
-		if err := g.appendProfileEvidence(&batch, codeCommit, record.Result.ID); err != nil {
-			return err
-		}
-	}
 	if err := g.appendAttemptRecord(&batch, codeCommit, recipeID, record.Result.ID, outcome, failure); err != nil {
 		return err
 	}
@@ -253,27 +247,6 @@ func (g *gateContext) gateRecipeID() (artifact.ID, error) {
 		return g.manifestPlan.ID, nil
 	}
 	return artifact.IdentifyBytes(artifact.KindRecipe, []byte(gateRecipeSeed))
-}
-
-func (g *gateContext) appendProfileEvidence(batch *artifact.Batch, codeCommit string, gateResult artifact.ID) error {
-	if g.profile == nil {
-		return nil
-	}
-	if g.profileDirty {
-		g.note("code profile evidence not persisted: unplanned Go dirt is outside the committed target")
-		return nil
-	}
-	evidence, err := codeprofile.NewEvidence(codeCommit, gateResult, *g.profile)
-	if err != nil {
-		return err
-	}
-	content, err := evidence.Content()
-	if err != nil {
-		return err
-	}
-	batch.Contents = append(batch.Contents, content)
-	batch.Lineage = append(batch.Lineage, evidence.Lineage()...)
-	return nil
 }
 
 // appendAttemptRecord rides the gate's own record batch with the

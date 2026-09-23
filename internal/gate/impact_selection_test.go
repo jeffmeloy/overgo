@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/codeprofile"
 	"overgo/internal/runrecord"
@@ -34,20 +33,6 @@ func TestImpactExclusionRateEvidence(t *testing.T) {
 	if selection.Owned != 2 || selection.Triggered != 1 || selection.Excluded != 1 || selection.Unresolved != 0 ||
 		!strings.Contains(impactSelectionAudit(selection), "excluded=1/2") {
 		t.Fatalf("impact selection = %+v, %q", selection, impactSelectionAudit(selection))
-	}
-	gate, err := artifact.IdentifyBytes(artifact.KindEvidence, []byte("gate"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	profile := codeProfileFixture()
-	profile.Impact = selection
-	evidence, err := codeprofile.NewEvidence("0123456789abcdef0123456789abcdef01234567", gate, profile)
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := evidence.Content()
-	if err != nil || !strings.Contains(string(content.Data), `"impact_selection":{"identity":"snapshot","owned":2,"triggered":1,"excluded":1,"unresolved":0}`) {
-		t.Fatalf("published impact evidence = %s, %v", content.Data, err)
 	}
 }
 

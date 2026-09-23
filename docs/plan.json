@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-stream-lifecycle",
-      "title": "Release every stream, poller and listener a tab opens, report or reconnect ended streams, and stop background polling while hidden",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Release every stream, poller and listener a tab opens, report or reconnect ended streams, and stop background polling while hidden",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserStreamLifecycle$' -require 'stream lifecycle leg'",
-          "rationale": "Audit: mod/peers.js:164 discards the runtimeEvents unsubscribe (a leaked subscriber per mount, rendering into detached DOM, double evidence fetch); mod/inbox.js:51 opens its own /agents/stream for events the shared stream already carries and refetches per event; agent, automations, peers and inbox tabs go silently stale when a stream ends; boot.js:281 adds a visibilitychange listener per poller that is never removed and boot.js:276 rethrows inside a timer; the status probe refetches /catalog/models every 10 s even while hidden; navigator.clipboard.writeText rejects unhandled on insecure origins; failed key changes stack banners; dataset previews and history loads race without abort. Acceptance: the browser journey mounts and leaves each streaming tab repeatedly, the server-side stream count returns to baseline, an ended stream is reported or resumed, a hidden page issues no catalog probes and overgo.errors stays empty."
-        }
-      ]
-    },
-    {
       "id": "webui-every-tab-mounts-clean",
       "title": "Prove every workspace tab mounts without an error banner or page error, and open gallery artifacts through the authenticated client",
       "owner": "overgo_gui_cleanup",

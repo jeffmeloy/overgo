@@ -125,8 +125,9 @@
   // /analyze/model serves the Model tab and the lens; one cached promise per
   // page load, cleared on rejection and on a key change.
   let modelPromise = null;
+  let servedCatalog = null; // the catalog listing read for the served model; a key change or model change reads it again
   function modelInfo() { return modelPromise || (modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; })); }
-  function invalidateModel() { modelPromise = null; }
+  function invalidateModel() { modelPromise = null; servedCatalog = null; }
 
   // Minimal hyperscript: el("div", {class:"x"}, child, child...).
   function el(tag, attrs, ...children) {
@@ -245,7 +246,7 @@
   // button; an abort goes to onCancel, any other failure to onError.
   // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
   // tick, the offline probe, and the status re-probe.
-  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000, streamReconnectMS = 2000;
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -264,7 +265,9 @@
     };
   }
 
-  function poller(task, interval) {
+  // poller: task every interval while started and the page is visible. A failed tick is reported
+  // (onError, else the page's error record) and the next tick still runs; stop releases the listener.
+  function poller(task, interval, onError) {
     let active = false;
     let controller = null;
     let timer = null;
@@ -276,12 +279,37 @@
       const current = new AbortController();
       controller = current;
       try { await task(current.signal); }
-      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally { if (controller === current) controller = null; schedule(); }
+      catch (err) {
+        if (err && err.name === "AbortError") return;
+        if (onError) onError(err); else errors.push(String(err && err.message || err));
+      } finally { if (controller === current) controller = null; schedule(); }
     }
-    function start() { if (active) return; active = true; activePollers++; if (!document.hidden) tick(); }
-    function stop() { if (active) activePollers--; active = false; cancel(); }
-    document.addEventListener("visibilitychange", () => { cancel(); if (active && !document.hidden) tick(); });
+    function visibility() { cancel(); if (active && !document.hidden) tick(); }
+    function start() { if (active) return; active = true; activePollers++; document.addEventListener("visibilitychange", visibility); if (!document.hidden) tick(); }
+    function stop() { if (active) activePollers--; active = false; document.removeEventListener("visibilitychange", visibility); cancel(); }
     return { start, stop };
+  }
+
+  // tabStream: a tab's own event stream. It reconnects after the server ends it cleanly, reports a
+  // failed connection in host with a Reconnect control, and returns the stop the tab's cleanup calls.
+  function tabStream(path, handler, host) {
+    let controller = null;
+    let timer = null;
+    let stopped = false;
+    function connect() {
+      timer = null;
+      const current = new AbortController();
+      controller = current;
+      api.events(path, handler, { signal: current.signal }).then(() => {
+        if (!stopped && controller === current) timer = setTimeout(connect, streamReconnectMS);
+      }, (err) => {
+        if (stopped || controller !== current || (err && err.name === "AbortError")) return;
+        const retry = el("button", { class: "btn alt", text: "Reconnect", onclick: () => { host.replaceChildren(); connect(); } });
+        host.replaceChildren(errorBanner("Live updates stopped: " + friendlyError(err)), retry);
+      });
+    }
+    connect();
+    return function stop() { stopped = true; if (timer != null) clearTimeout(timer); if (controller) controller.abort(); };
   }
 
   function stat(label, value, unit) {
@@ -554,7 +582,7 @@
     api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
-    displayToken, runner, poller, stat, fold,
+    displayToken, runner, poller, tabStream, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
   };
 
@@ -679,7 +707,11 @@
     try {
       const result = tab.mount(tab.panel, window.overgo);
       // A module that returns a function hands back its cleanup (streams, forms); a remount runs it first.
-      tab.ready = Promise.resolve(result).then((value) => { if (typeof value === "function" && tab.mountAttempt === attempt) tab.cleanup = value; return tab.mountAttempt === attempt; }, failed);
+      // A mount a remount superseded while it was still reading releases what it opened at once.
+      tab.ready = Promise.resolve(result).then((value) => {
+        if (typeof value === "function") { if (tab.mountAttempt === attempt) tab.cleanup = value; else value(); }
+        return tab.mountAttempt === attempt;
+      }, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
   function releaseTab(tab) {
@@ -718,8 +750,14 @@
       servedEvidence = '';
       renderModelSelection();
       if (health && health.model) {
-        // A catalog that fails to list says so under the pill instead of an empty evidence line.
-        const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+        // The catalog is read when the served model changes, not on every status probe; a catalog that
+        // fails to list says so under the pill instead of an empty evidence line, and is read again next time.
+        if (!servedCatalog || servedCatalog.model !== health.model) {
+          const listing = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+          servedCatalog = { model: health.model, listing };
+        }
+        const catalog = servedCatalog.listing;
+        if (catalog.refusal) servedCatalog = null;
         if (attempt !== statusAttempt) return;
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
         servedEvidence = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || '';
@@ -784,7 +822,7 @@
           window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
           const command = 'overgo_gui.bat "' + (item.location || name) + '"';
           const copy = el("button", { class: "btn alt", text: "copy launch" });
-          copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+          copy.addEventListener("click", () => navigator.clipboard.writeText(command).then(() => { copy.textContent = "copied"; }, () => { copy.textContent = "copy unavailable: select the command"; }));
           if (panel !== currentPanel) return;
           panel.replaceChildren(
             el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
@@ -1012,7 +1050,10 @@
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
-      setInterval(refreshStatus, statusRefreshMS);
+      // A hidden page does not probe; it probes once when shown again.
+      const probeVisible = () => { if (!document.hidden) refreshStatus(); };
+      setInterval(probeVisible, statusRefreshMS);
+      document.addEventListener("visibilitychange", probeVisible);
     }
     const start = location.hash.slice(1);
     applyCapabilities();
@@ -1036,7 +1077,14 @@
     setKey(keyInput.value.trim(), keyRemember.checked);
     invalidateModel(); // the cached model was fetched under the old key
     const refresh = shellWired ? remountActive() : initShell().then(() => shellWired ? remountActive() : initShell());
-    refresh.catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
+    refresh.catch(err => {
+      document.getElementById("connection-alert").hidden = false;
+      // One key-change failure shows at a time; the next attempt replaces it.
+      const settings = document.getElementById("conversation-settings"), banner = errorBanner(friendlyError(err));
+      banner.dataset.keyFailure = "";
+      const previous = settings.querySelector("[data-key-failure]");
+      if (previous) previous.replaceWith(banner); else settings.appendChild(banner);
+    });
   });
   initShell();
 })();

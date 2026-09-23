@@ -154,15 +154,13 @@
       // An evidence read that fails says so where the evidence would stand.
       const showEvidence = (data) => { if (data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); };
       await refreshInventory();
-      const stream = new AbortController();
-      api.events("/peers/stream", (event, data) => {
+      // The peer stream carries the inventory; operations come from the global runtime stream alone,
+      // so each transition reads its evidence once, and cleanup releases both.
+      const stopStream = overgo.tabStream("/peers/stream", (event, data) => {
         if (event === "peer.inventory") { inventory = data; renderInventory(); }
-        if (event === "operation") showEvidence(data);
-      }, { signal: stream.signal }).catch((err) => {
-        if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      });
-      overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
-      return () => { stream.abort(); enrollmentForm.dispose(); placementForm.dispose(); };
+      }, status);
+      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
+      return () => { stopStream(); unsubscribe(); enrollmentForm.dispose(); placementForm.dispose(); };
     },
   });
 })();

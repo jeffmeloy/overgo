@@ -103,16 +103,13 @@
       }
 
       await Promise.all([refreshInventory(), refreshHistory()]);
-      const stream = new AbortController();
-      api.events("/automations/stream", (event, data) => {
+      const stopStream = overgo.tabStream("/automations/stream", (event, data) => {
         if (event === "automation.inventory") { inventory = data; renderInventory(); }
         if (event === "operation.snapshot") renderOperations(data);
         if (event === "operation") renderOperations([data.status]);
-      }, { signal: stream.signal }).catch((err) => {
-        if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      });
+      }, status);
       return () => {
-        stream.abort(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
+        stopStream(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
       };
     },
   });

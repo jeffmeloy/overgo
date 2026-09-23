@@ -31,9 +31,15 @@
       const preview = el("div");
       panel.append(search, host, preview);
 
+      // The latest chosen dataset owns the preview: choosing another aborts the earlier read.
+      let previewing = null;
       async function showPreview(name) {
+        if (previewing) previewing.abort();
+        const current = new AbortController();
+        previewing = current;
         try {
-          const result = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
+          const result = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 }, { signal: current.signal });
+          if (previewing !== current) return;
           preview.replaceChildren(
             el("div", { class: "section-title", text: name }),
             ...result.examples.map((example) => el("div", { class: "dataset-example" },
@@ -42,7 +48,7 @@
                 el("span", { class: "tag", text: value.role + " / " + value.modality }),
                 value.text ? el("pre", { class: "preview-text", text: value.text }) :
                   el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
-        } catch (err) { preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { if (previewing === current && err.name !== "AbortError") preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       }
 
       function render() {

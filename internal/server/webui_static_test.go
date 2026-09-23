@@ -394,12 +394,13 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 
 // TestWebUIShellCache guards the shared /analyze/model cache (fetched once for
 // capability gating, the Model tab, and the lens vocab size) and the periodic
-// health re-probe so a dropped/restored server updates the status pill.
+// health re-probe so a dropped/restored server updates the status pill; the
+// re-probe runs only while the page is visible.
 func TestWebUIShellCache(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 	boot := get("/boot.js")
-	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(refreshStatus"} {
+	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(probeVisible", "if (!document.hidden) refreshStatus()"} {
 		if !strings.Contains(boot, needle) {
 			t.Errorf("boot.js missing %q", needle)
 		}

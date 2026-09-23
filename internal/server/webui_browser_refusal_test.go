@@ -59,26 +59,27 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 	settle(`!!document.querySelector('#panel-attention.active .workspace-refusal') && !document.querySelector('#panel-attention select, #panel-attention textarea, #panel-attention canvas')`)
 	t.Log("workspace refusal leg: the refused tab answers a click and a fragment with its reason and enabling action")
 
-	// 2. The Inbox streams; a remount (the key change re-reads every mounted tab) leaves exactly one live stream.
+	// 2. The Inbox listens on the shell's shared runtime stream and opens none of its own; a remount
+	// (a key change re-reads every mounted tab and restarts the shared stream) leaves exactly one live one.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
-  window.liveStreams = [];
+  window.liveStreams = {};
   const original = window.fetch;
   window.fetch = function (path, options) {
-    if (typeof path === 'string' && path === '/agents/stream') window.liveStreams.push(options && options.signal);
+    if (typeof path === 'string' && path.endsWith('/stream')) (window.liveStreams[path] = window.liveStreams[path] || []).push(options && options.signal);
     return original.apply(this, arguments);
   };
   location.hash = 'inbox';
   return true;
 })()`)
-	settle(`!!document.querySelector('#panel-inbox.active') && window.liveStreams.length === 1`)
+	settle(`!!document.querySelector('#panel-inbox.active') && !window.liveStreams['/agents/stream']`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   const key = document.getElementById('api-key');
-  key.value = '';
+  key.value = 'lane-remount';
   key.dispatchEvent(new Event('change', { bubbles: true }));
   return true;
 })()`)
-	settle(`window.liveStreams.length === 2 && window.liveStreams.filter((signal) => !signal.aborted).length === 1`)
-	t.Log("remount leg: the streaming tab remounted onto one live stream")
+	settle(`(window.liveStreams['/runtime/activity/stream'] || []).filter((signal) => !signal.aborted).length === 1 && !window.liveStreams['/agents/stream']`)
+	t.Log("remount leg: the inbox listens on the shared runtime stream, and a remount leaves exactly one live runtime stream")
 
 	// 3. Granting the blocked operation's recovery from the Automations tab succeeds.
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'automations'; return true; })()`)

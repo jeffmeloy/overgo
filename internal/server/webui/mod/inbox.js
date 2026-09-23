@@ -44,16 +44,14 @@
       }
 
       await refresh();
-      // Blocked operations announce themselves on the shared event
-      // stream; the inbox refreshes on every operation transition rather
-      // than polling.
-      const stream = new AbortController();
-      api.events("/agents/stream", (event) => {
-        if (event === "operation") refresh();
-      }, { signal: stream.signal }).catch((err) => {
-        if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      });
-      return () => stream.abort();
+      // Blocked operations announce themselves on the shared runtime stream; the inbox
+      // refreshes after operation transitions, one read at a time with at most one queued.
+      let reading = null, queued = false;
+      function refreshSoon() {
+        if (reading) { queued = true; return; }
+        reading = refresh().finally(() => { reading = null; if (queued) { queued = false; refreshSoon(); } });
+      }
+      return overgo.runtimeEvents.subscribe((event) => { if (event === "operation") refreshSoon(); });
     },
   });
 })();

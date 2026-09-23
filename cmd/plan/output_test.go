@@ -12,6 +12,7 @@ import (
 )
 
 func TestCompactAgentOutput(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Campaign: "campaign", Doctrine: strings.Repeat("long doctrine ", 200), Items: []plan.Item{{
 		ID: "item", Title: "item title", Status: "open", Steps: []plan.Step{{
 			ID: "do", Title: "make the bounded change", Status: "open", Verify: "go test ./x -run '^TestX$'",
@@ -30,6 +31,7 @@ func TestCompactAgentOutput(t *testing.T) {
 }
 
 func TestBatchPromptRetainsParentDispatch(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{{ID: "audio", Status: plan.StatusOpen, Steps: []plan.Step{{
 		ID: "dataset", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestIntegration$'",
 		VerificationBatch: &plan.VerificationBatch{
@@ -47,6 +49,7 @@ func TestBatchPromptRetainsParentDispatch(t *testing.T) {
 }
 
 func TestStatusCountsRetainedOpenRows(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{
 		{ID: "complete", Title: "complete", Status: plan.StatusDone, Steps: []plan.Step{{ID: "done", Status: plan.StatusDone}}},
 		{ID: "active", Title: "active", Status: plan.StatusOpen, Steps: []plan.Step{

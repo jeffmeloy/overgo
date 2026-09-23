@@ -10,6 +10,7 @@ import (
 // open item only, a lane lands on the plan, and blanks or unknown ids are
 // refused.
 func TestAssignOwnerAndLane(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{
 		{ID: "one", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "true"}}},
 		{ID: "two", Status: plan.StatusOpen, Steps: []plan.Step{{ID: "do", Status: plan.StatusOpen, Verify: "true"}}},

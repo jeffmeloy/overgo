@@ -14,6 +14,7 @@ import (
 // top-priority (or -before) open item with a "do" step + verify, and the new item
 // becomes the current step -- no hand-editing plan.json.
 func TestEnforceAddInsertsTask(t *testing.T) {
+	t.Parallel()
 	base := plan.Plan{Items: []plan.Item{
 		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
@@ -48,6 +49,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 // waits for the new row and what it already waited for, the caller's plan is
 // untouched, and a plan with no closeout still takes a row or refuses -before.
 func TestAddOwnsCloseoutDependency(t *testing.T) {
+	t.Parallel()
 	waits := []plan.Step{{ID: "do", Status: "open", DependsOn: []string{"earlier/do"}}}
 	base := plan.Plan{Items: []plan.Item{{ID: "earlier", Status: "open"}, {ID: "campaign-closeout", Status: "open", Steps: waits}}}
 	added, err := insertItem(base, "new-row", "title", "campaign-closeout", "go test ./...")
@@ -67,6 +69,7 @@ func TestAddOwnsCloseoutDependency(t *testing.T) {
 // takes an existing item to the top or before another, keeps every
 // other item in order, and refuses unknown ids.
 func TestRelocateItemReranksWithoutLoss(t *testing.T) {
+	t.Parallel()
 	step := []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}
 	base := plan.Plan{Items: []plan.Item{
 		{ID: "a", Status: "open", Steps: step}, {ID: "b", Status: "open", Steps: step}, {ID: "c", Status: "open", Steps: step},
@@ -123,6 +126,7 @@ func TestRelocateItemReranksWithoutLoss(t *testing.T) {
 // it, and a declaration without a reason, for a row that is not open, or
 // whose paydown is itself or not an open row is refused.
 func TestBudgetDeclarationGoesThroughThePlan(t *testing.T) {
+	t.Parallel()
 	base := plan.Plan{Items: []plan.Item{
 		{ID: "row", Status: plan.StatusOpen}, {ID: "paydown", Status: plan.StatusOpen}, {ID: "landed", Status: "done"},
 	}}
@@ -154,6 +158,7 @@ func TestBudgetDeclarationGoesThroughThePlan(t *testing.T) {
 // TestPrunedDependencyRequiresGatedCompletion pins the CLI selector as a
 // consumer of the same fail-closed authority as the plan package.
 func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
+	t.Parallel()
 	document := plan.Plan{Items: []plan.Item{{
 		ID: "dependent", Status: plan.StatusOpen, Steps: []plan.Step{{
 			ID: "do", Status: plan.StatusOpen, Verify: "go test ./...",
@@ -172,6 +177,7 @@ func TestPrunedDependencyRequiresGatedCompletion(t *testing.T) {
 // step's verify (closing the hand-edit-plan.json gap) and rejects an absent
 // item or step.
 func TestEnforceSetVerify(t *testing.T) {
+	t.Parallel()
 	base := plan.Plan{Items: []plan.Item{
 		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s1", Status: "open"}, {ID: "s2", Status: "open"}}},
 	}}
@@ -235,6 +241,7 @@ func TestSetVerifyResolvesUpdatedAuthorityBeforeSaving(t *testing.T) {
 // accepted -- a manufactured "checkpoint"/"should I continue?" is refused, so the
 // stop-gate can tell a real stop from an invented one.
 func TestEnforceStopReason(t *testing.T) {
+	t.Parallel()
 	for _, r := range []string{"user-stop", "user-stop: they said wait", "irreversible: needs confirm", "external-prereq: model missing"} {
 		if _, _, err := plan.ParseStopReason(r); err != nil {
 			t.Fatalf("valid stop %q rejected: %v", r, err)

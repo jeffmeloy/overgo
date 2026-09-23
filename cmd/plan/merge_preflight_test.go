@@ -11,6 +11,7 @@ import (
 )
 
 func TestSnapshotReusePreflight(t *testing.T) {
+	t.Parallel()
 	for _, conflict := range []bool{false, true} {
 		t.Run(map[bool]string{false: "contained", true: "source_conflict"}[conflict], func(t *testing.T) {
 			root, git := mergeTestRepository(t)
@@ -66,6 +67,7 @@ func TestSnapshotReusePreflight(t *testing.T) {
 }
 
 func TestMergePreflightOwnedDocuments(t *testing.T) {
+	t.Parallel()
 	for _, path := range []string{apiManifestJSONPath, "source conflict.txt"} {
 		t.Run(path, func(t *testing.T) {
 			root, git := mergeTestRepository(t)

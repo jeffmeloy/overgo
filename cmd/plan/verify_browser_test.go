@@ -5,6 +5,7 @@ import "testing"
 // TestBrowserVerifyOutsideLane pins the rule a verify must satisfy: a
 // browser test is named only through the lane runner.
 func TestBrowserVerifyOutsideLane(t *testing.T) {
+	t.Parallel()
 	for command, outside := range map[string]bool{
 		"go test ./internal/server -run '^TestWebUIBrowserFirstRun$' -count=1":                                 true,
 		"go run ./cmd/webui-lane -run '^TestWebUIBrowserFirstRun$' -require 'cold-start leg'":                  false,

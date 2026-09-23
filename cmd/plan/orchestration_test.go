@@ -34,6 +34,7 @@ func writeWorkLeaseFixture(t *testing.T, root string) {
 }
 
 func TestWorkLeaseRecord(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writeWorkLeaseFixture(t, root)
 	var output bytes.Buffer

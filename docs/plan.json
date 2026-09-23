@@ -1000,7 +1000,8 @@
             "surface-without-capability-tables/do",
             "gate-suite-longest-tests/do",
             "planning-validates-once/do",
-            "standard-names-once/do"
+            "standard-names-once/do",
+            "cmd-plan-suite-wall/do"
           ]
         }
       ]
@@ -1206,6 +1207,10 @@
     {
       "key": "suite-cost:overgo/cmd/compatibility",
       "reason": "the package ran its media acceptances once, 57 s, with no regression against its own history; a ranking always has a first, which automation-review-suite-cost-regression exists to stop filing"
+    },
+    {
+      "key": "suite-cost:overgo/cmd/plan",
+      "row": "cmd-plan-suite-wall"
     },
     {
       "key": "suite-cost:overgo/internal/audioparity",

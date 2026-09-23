@@ -21,6 +21,7 @@ import (
 // parent's production ./... package set. No probe executable, overlay wrapper, or
 // second module mechanism is introduced.
 func TestScratchModuleWorkflow(t *testing.T) {
+	t.Parallel()
 	parent := t.TempDir()
 	write := func(rel, content string) {
 		t.Helper()
@@ -62,6 +63,7 @@ func TestScratchModuleWorkflow(t *testing.T) {
 // self-describing cmd/finding invocation, and the stop conditions -- while the
 // rationale history stays out of the task prompt, available by reference.
 func TestPromptContractProjection(t *testing.T) {
+	t.Parallel()
 	item := plan.Item{ID: "work", Title: "Work item"}
 	step := plan.Step{
 		ID: "do", Title: "Bounded change", Status: plan.StatusOpen, Verify: "go test ./x -run '^TestX$'",

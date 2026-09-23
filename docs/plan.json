@@ -1,75 +1,164 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Priority: improve robustness and cut gate, automation and runtime wall time and peak memory by consolidating duplicated logic into fewer general components, never by adding instrumentation or a framework. Net AST nodes stay flat or fall: every addition deletes at least as much, a new general component replaces the copies it subsumes, and the clone and harness ratchets hold the floor. Do safe, behavior-preserving consolidations first, the ones existing tests and the ratchets already cover; take deeper execution-core and command-surface simplification behind the model-regression baseline so a removal never loses proven behavior. Preserve the capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework. Preserve acceptance and independent model progress; these priorities add no automation prerequisite to model validation. Document order ranks ready work; depends_on names actual producers. A step's machine check is its verify, set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. GUI and audio retain their lanes. Master execution proceeds under role master-lead. docs/plan.json is the sole live plan.",
+  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
       "id": "timesfm3-native-declaration",
-      "title": "Load timesfm-3.0 (reference source: models/timesfm-3.0-pytorch/timesfm/src/timesfm3, owner 2026-09-23). It is a new architecture, not a config mapping of timesfm-2.5: variate attention across up to 32 series, iterative RevIN normalization (cpm_revin_refine), linear detrending and stitching, a ReLU feed-forward with QK RMS normalization and causal attention with sequence RoPE, a 32-step input patch and a 64-step output patch with nine quantiles. Port the torch reference (model.py, transformer.py, cpm_revin_refine.py, timesfm3_forecaster.py) as a forecast loader of its own, anchored to golden forecasts the reference produces (the golden-fixture exception to Go-only), then register and validate the model with its licence recorded as a LicenseRef",
+      "title": "Load timesfm-3.0 as a forecast model of its own",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Load timesfm-3.0 (reference source: models/timesfm-3.0-pytorch/timesfm/src/timesfm3, owner 2026-09-23). It is a new architecture, not a config mapping of timesfm-2.5: variate attention across up to 32 series, iterative RevIN normalization (cpm_revin_refine), linear detrending and stitching, a ReLU feed-forward with QK RMS normalization and causal attention with sequence RoPE, a 32-step input patch and a 64-step output patch with nine quantiles. Port the torch reference (model.py, transformer.py, cpm_revin_refine.py, timesfm3_forecaster.py) as a forecast loader of its own, anchored to golden forecasts the reference produces (the golden-fixture exception to Go-only), then register and validate the model with its licence recorded as a LicenseRef",
+          "title": "Load timesfm-3.0 as a forecast model of its own",
           "status": "open",
-          "verify": "test -f internal/seriesforecast/native_declaration_test.go \u0026\u0026 go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gate-suite-longest-tests",
-      "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores; TestTestingReductionContract 84 s in the suite, 88 s alone, is five 14-25 s planning passes over the live checkout plus the one fixture build). Its CPU profile is I/O-bound, not compute-bound -- about 1.9 cores busy, system calls 42 percent of samples, garbage collection 20 percent, code-manifest generation 25 percent -- so the lever is the per-plan snapshot reads, git and go list processes and allocation, not the validation that planning-validates-once removes. Find the repeated per-plan I/O, share it across plans of one tree, and re-measure the same way",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores; TestTestingReductionContract 84 s in the suite, 88 s alone, is five 14-25 s planning passes over the live checkout plus the one fixture build). Its CPU profile is I/O-bound, not compute-bound -- about 1.9 cores busy, system calls 42 percent of samples, garbage collection 20 percent, code-manifest generation 25 percent -- so the lever is the per-plan snapshot reads, git and go list processes and allocation, not the validation that planning-validates-once removes. Find the repeated per-plan I/O, share it across plans of one tree, and re-measure the same way",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1"
+          "verify": "test -f internal/seriesforecast/native_declaration_test.go \u0026\u0026 go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1",
+          "rationale": "Reference: models/timesfm-3.0-pytorch/timesfm/src/timesfm3/torch (model.py, transformer.py, cpm_revin_refine.py, timesfm3_forecaster.py). Not a config variant of 2.5: variate attention over up to 32 series, iterative RevIN, linear detrend and stitch, ReLU feed-forward, QK RMS norm, causal attention with RoPE, input patch 32, output patch 64, nine quantiles. Anchor to reference-produced golden forecasts (golden-fixture exception), then register, verify and activate with the licence as a LicenseRef."
         }
       ]
     },
     {
       "id": "surface-without-capability-tables",
-      "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
+      "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
+          "title": "Keep non-text capability edits out of the inference surface",
           "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1"
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
+          "rationale": "internal/modelrecipe carries every capability's module tables into the inference closure, so any capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Give text inference its own module catalog and move the non-text tables (linear capabilities, audio contract, image, video) out of the packages the runner imports."
+        }
+      ]
+    },
+    {
+      "id": "compatibility-names-its-reads",
+      "title": "Key cmd/compatibility's receipt to the files it actually reads",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Key cmd/compatibility's receipt to the files it actually reads",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
+          "rationale": "The input graph treats the package as an opaque source reader (main.go, media.go, media_coverage.go read unnamed paths), binding it to all 5,860 inputs including docs/plan.json. So the complete receipt that keeps ten media and specialized models current expires on every landing and costs a four-minute rerun. Name each read at its source or route it through attributed readers; test over the real input graph and measure the input count before and after."
+        }
+      ]
+    },
+    {
+      "id": "gate-suite-longest-tests",
+      "title": "Cut the gate suite's longest tests",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cut the gate suite's longest tests",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1",
+          "rationale": "Measured 2026-09-23: 174.7 s wall, 2,501 test-seconds on 32 cores; TestTestingReductionContract alone is 84 s (five 14-25 s planning passes over the live checkout). The profile is I/O-bound (syscalls 42%, GC 20%, code-manifest generation 25%). Share per-plan snapshot reads, git and go list runs across plans of one tree, then re-measure the same way."
+        }
+      ]
+    },
+    {
+      "id": "rae-generation-path",
+      "title": "Add a generation path for the RAE collection",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add a generation path for the RAE collection",
+          "status": "open",
+          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
+          "rationale": "26 MIT checkpoints: a two-stage representation-autoencoder generator (frozen DINOv2 or SigLIP2 encoder, trained ViT decoder, stage-2 diffusion transformer over its latents). No reference implementation here or in adaptive_new, so it is a new derivation. Reuse internal/vitencoder for the DINOv2 stage.",
+          "depends_on": [
+            "dinov2-embedding-capability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validate-all-models",
+      "title": "Validate every registered model",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate every registered model",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
+          "rationale": "Remaining gaps: timesfm-3.0 (timesfm3-native-declaration), RAE (rae-generation-path), and webssl-dino, registered 2026-09-23, which needs recipe verify/activate on the image-embedding task. Licences block none of these: models and the store are gitignored, and registration records the licence.",
+          "depends_on": [
+            "activity-detection-capability/do",
+            "timesfm3-native-declaration/do",
+            "dinov2-embedding-capability/do",
+            "rae-generation-path/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "automation-harness-surface-remainder",
+      "title": "Net the harness surface back to its pre-session baseline",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Net the harness surface back to its pre-session baseline",
+          "status": "open",
+          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceAtPreSessionBaseline' -count=1",
+          "rationale": "Baseline 181,732 production nodes (182,150 after the dead-code paydown). Pays for dinov2-embedding-capability's +7. Simplify live control-plane code, starting with the optimization review reading the completion authority's resolved evidence instead of its own trailer walk. Admission refuses the row unless its production AST is net-negative."
+        }
+      ]
+    },
+    {
+      "id": "surface-move-preflight",
+      "title": "Refuse a surface move whose reconciliation is not in the same commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a surface move whose reconciliation is not in the same commit",
+          "status": "open",
+          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
+          "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
         }
       ]
     },
     {
       "id": "reviewed-delta-registry",
-      "title": "Replace the per-change media reconciliation layers with one reviewed output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels",
+      "title": "Replace per-change media reconciliation layers with one reviewed delta registry",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Replace the per-change media reconciliation layers with one reviewed output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels",
+          "title": "Replace per-change media reconciliation layers with one reviewed delta registry",
           "status": "open",
-          "verify": "test -f cmd/compatibility/reviewed_delta_registry_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestReviewedDeltaRegistry' -count=1"
+          "verify": "test -f cmd/compatibility/reviewed_delta_registry_test.go \u0026\u0026 go test ./cmd/compatibility -run '^TestReviewedDeltaRegistry' -count=1",
+          "rationale": "One output-neutral source-delta registry consulted by mediaRuntimeChanges, retiring the executor-hostmath, timing and lifecycle peels. Makes output-neutral edits to pinned media paths cheap."
         }
       ]
     },
     {
       "id": "skipped-fixture-classification",
-      "title": "Credit the device-gate fixtures: the shared CUDA test gate in internal/cuda/testutil skips with only the variable to set, which a complete run does not classify, so the packages reaching the device through it hold no receipt and the gate counts 510 fixtures uncredited. Giving it the classified reason is one line, but internal/cuda is a pinned media runtime path, so it waits on reviewed-delta-registry making an output-neutral change there cheap. The environment-gated skips elsewhere were classified 2026-09-22 across three landings, and this row's earlier premise that the device lane never sets the CUDA environment was wrong: cmd/device-lane sets it.",
+      "title": "Classify the shared CUDA test gate's skips",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Credit the device-gate fixtures: the shared CUDA test gate in internal/cuda/testutil skips with only the variable to set, which a complete run does not classify, so the packages reaching the device through it hold no receipt and the gate counts 510 fixtures uncredited. Giving it the classified reason is one line, but internal/cuda is a pinned media runtime path, so it waits on reviewed-delta-registry making an output-neutral change there cheap. The environment-gated skips elsewhere were classified 2026-09-22 across three landings, and this row's earlier premise that the device lane never sets the CUDA environment was wrong: cmd/device-lane sets it.",
+          "title": "Classify the shared CUDA test gate's skips",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestSkippedFixtureClassification' -count=1",
+          "rationale": "internal/cuda/testutil skips with an unclassified reason, so 510 device fixtures hold no receipt. The fix is one line, but internal/cuda is a pinned media path, so it waits on reviewed-delta-registry. cmd/device-lane does set the CUDA environment.",
           "depends_on": [
             "reviewed-delta-registry/do"
           ]
@@ -77,58 +166,167 @@
       ]
     },
     {
-      "id": "surface-move-preflight",
-      "title": "Refuse a commit that moves the guard surface or a compatibility claim unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight, and hold the harness production-node surface so a landing that grows it names its paydown. The media runtime part landed 2026-09-22 as the surface preflight check, which names the pinned path a candidate moves.",
+      "id": "generated-doc-write-under-readers",
+      "title": "Let generated-document writers wait out a concurrent mapped reader",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refuse a commit that moves the guard surface or a compatibility claim unless its reconciliation lands in the same commit, reusing cmd/validate surface affectedness in the gate preflight, and hold the harness production-node surface so a landing that grows it names its paydown. The media runtime part landed 2026-09-22 as the surface preflight check, which names the pinned path a candidate moves.",
+          "title": "Let generated-document writers wait out a concurrent mapped reader",
           "status": "open",
-          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1"
+          "verify": "go test ./internal/fsatomic -run '^TestWriteWaitsOnMappedReader' -count=1",
+          "rationale": "A background git status memory-maps dirty files on Windows and the compatibility repair then fails with a user-mapped-section sharing violation. Wait on that specific violation until the holder releases (no fixed timer); otherwise refuse and name the holder."
         }
       ]
     },
     {
-      "id": "compatibility-names-its-reads",
-      "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after. The inputs include docs/plan.json, which almost every landing edits (owner feedback 2026-09-22), so the receipt must stop keying to it.",
+      "id": "automation-land-reports-lane-obligation",
+      "title": "Name the awaited lane obligation in the landing outcome",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after. The inputs include docs/plan.json, which almost every landing edits (owner feedback 2026-09-22), so the receipt must stop keying to it.",
+          "title": "Name the awaited lane obligation in the landing outcome",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1"
+          "verify": "go test ./cmd/loop -run '^TestLandOutcomeNamesLaneObligation' -count=1",
+          "rationale": "Report state, obligation id and commit, and refuse a landing that deferred lanes but finds no obligation instead of treating not-found as passed."
         }
       ]
     },
     {
-      "id": "compatibility-reports-leave-the-tree",
-      "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
+      "id": "automation-review-suite-cost-regression",
+      "title": "File suite cost only on a regression against the package's own history",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
+          "title": "File suite cost only on a regression against the package's own history",
           "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1"
+          "verify": "go test ./internal/plan -run '^TestSuiteCostCandidateNeedsRegression' -count=1",
+          "rationale": "Ranking always has a first, so every landing files another per-package row. Net-negative in the harness surface."
+        }
+      ]
+    },
+    {
+      "id": "prompt-intake-files-rows",
+      "title": "Have the prompt hook file owner requests as candidate rows",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Have the prompt hook file owner requests as candidate rows",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
+          "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
+        }
+      ]
+    },
+    {
+      "id": "loop-markers-runtime-directory",
+      "title": "Move the loop's transient markers out of docs",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the loop's transient markers out of docs",
+          "status": "open",
+          "verify": "go test ./cmd/loophook ./cmd/loop -run '^TestLoopMarkersLiveInTheRuntimeDirectory' -count=1",
+          "rationale": "docs/.loop_state, .loop_pause, .dispatch, loop.json and plan_stop.json are process state. Move writers, readers (cmd/loophook, cmd/loop, cmd/plan) and hook binaries together through processlock.EnsureStateDirectory, drop the ignore entries, and carry an old-path marker across once."
+        }
+      ]
+    },
+    {
+      "id": "surface-aware-dispatch",
+      "title": "Dispatch all movers of a surface before its validation rows",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Dispatch all movers of a surface before its validation rows",
+          "status": "open",
+          "verify": "test -f internal/plan/surface_dispatch_test.go \u0026\u0026 go test ./internal/plan -run '^TestSurfaceAwareDispatch' -count=1",
+          "rationale": "Tag rows with the surfaces they move so re-validation runs once per batch."
+        }
+      ]
+    },
+    {
+      "id": "row-scope-budget-surface",
+      "title": "Let a row budget name the path prefixes its growth may land in",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Let a row budget name the path prefixes its growth may land in",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestScopeBudgetSurface' -count=1",
+          "rationale": "Only if node budgets prove too coarse to catch a row that drifts sideways."
+        }
+      ]
+    },
+    {
+      "id": "gate-isolation-rule-enforced",
+      "title": "Narrow what a confined landing re-runs by a checked reach contract",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Narrow what a confined landing re-runs by a checked reach contract",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1",
+          "rationale": "A one-command landing runs about 29 packages (170 s work, 80 s wall), 28 of them for an unnamed reach inherited through overgodb, artifact, gitauthority, gosource and repoanalysis. Syntactic rules were measured unsound. Either a package declares its reach confined to caller-supplied roots and its tests fail on a read outside them, or a receipt's inputs become the files its tests opened. Keep the shadow measure and reader ranking as before and after."
+        }
+      ]
+    },
+    {
+      "id": "store-small-record-horizon",
+      "title": "Declare which small store records upkeep may release",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Declare which small store records upkeep may release",
+          "status": "open",
+          "verify": "go test ./internal/storepolicy -run '^TestLegacySmallRecordsAreReleasable$' -count=1",
+          "rationale": "54,332 legacy go-test agent-obligation/v1 documents (none written since f169de9f) and package receipts beyond a short history per package become releasable, shrinking the lineage and artifact checkpoints every open decodes."
+        }
+      ]
+    },
+    {
+      "id": "store-benchmark-record-redundancy",
+      "title": "Store benchmark rows once",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store benchmark rows once",
+          "status": "open",
+          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1",
+          "rationale": "24,318 per-row benchmark-records (24.3 MB) duplicate the typed datasets (23.1 MB). Keep each row's identity by recomputing it in memory from one rows document per import, and keep already-stored records readable, since suites, IFEval bindings and catalogs cite those identities."
         }
       ]
     },
     {
       "id": "store-growth-ratchet",
-      "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning. OWNER DECISION FIRST (found 2026-09-23): the whole pipeline already exists as store-precheck -swap (seal a backup, clone, release unreachable caches, pack, run the consumer checks, swap), so the step is only cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold -- but each run keeps the superseded store beside the new one and seals another backup, so a cadence without pruning recreates the copies the store assessment found, and pruning deletes stores and backups, which needs the owner's yes. The question: may the upkeep delete superseded stores and sealed backups older than the newest verified pair of each? Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration",
+      "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning. OWNER DECISION FIRST (found 2026-09-23): the whole pipeline already exists as store-precheck -swap (seal a backup, clone, release unreachable caches, pack, run the consumer checks, swap), so the step is only cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold -- but each run keeps the superseded store beside the new one and seals another backup, so a cadence without pruning recreates the copies the store assessment found, and pruning deletes stores and backups, which needs the owner's yes. The question: may the upkeep delete superseded stores and sealed backups older than the newest verified pair of each? Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration",
+          "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "rationale": "OWNER DECISION: may upkeep delete superseded stores and sealed backups older than the newest verified pair? store-precheck -swap already does the whole pipeline; the step is cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold. Without pruning, each run adds another store copy and backup. Loose blobs grew about 373 MB over 70 landings. This row also closes overgodb-compaction-cadence and projection-generation-pruning.",
           "depends_on": [
             "gate-telemetry-size/do"
           ]
@@ -136,44 +334,17 @@
       ]
     },
     {
-      "id": "store-small-record-horizon",
-      "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
-          "status": "open",
-          "verify": "go test ./internal/storepolicy -run '^TestLegacySmallRecordsAreReleasable$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-benchmark-record-redundancy",
-      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB) and the typed evaluation datasets built from them hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). Constraints found 2026-09-23 before building: the store suites assemble every case from the per-row records, reviewed IFEval parameter bindings cite individual record identities, and every active catalog names imports that list those identities. So keep each row's identity -- the content address of the same record, recomputed in memory from one rows document per import -- and read rows through the import, with the records already held still readable, rather than change any identity that stored evidence cites",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB) and the typed evaluation datasets built from them hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). Constraints found 2026-09-23 before building: the store suites assemble every case from the per-row records, reviewed IFEval parameter bindings cite individual record identities, and every active catalog names imports that list those identities. So keep each row's identity -- the content address of the same record, recomputed in memory from one rows document per import -- and read rows through the import, with the records already held still readable, rather than change any identity that stored evidence cites",
-          "status": "open",
-          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
-        }
-      ]
-    },
-    {
       "id": "overgodb-compaction-cadence",
-      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+      "title": "Closes with store-growth-ratchet (shares its check)",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+          "title": "Closes with store-growth-ratchet (shares its check)",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
           "depends_on": [
             "store-growth-ratchet/do"
           ]
@@ -182,15 +353,16 @@
     },
     {
       "id": "projection-generation-pruning",
-      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+      "title": "Closes with store-growth-ratchet (shares its check)",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+          "title": "Closes with store-growth-ratchet (shares its check)",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
           "depends_on": [
             "store-growth-ratchet/do"
           ]
@@ -199,21 +371,51 @@
     },
     {
       "id": "store-open-lineage-cost",
-      "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
+      "title": "Defer decoding large store facets until first use, if opens are still slow",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
+          "title": "Defer decoding large store facets until first use, if opens are still slow",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
+          "rationale": "Re-measure first, after the other store rows shrink the facets. 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one.",
           "depends_on": [
             "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do",
             "store-growth-ratchet/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "compatibility-reports-leave-the-tree",
+      "title": "Stop compatibility reports churning every landing (owner decision first)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop compatibility reports churning every landing (owner decision first)",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
+          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store."
+        }
+      ]
+    },
+    {
+      "id": "tmp-refuses-undeclared-entries",
+      "title": "Refuse tmp entries no tool declares (waits on owner cleanup)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse tmp entries no tool declares (waits on owner cleanup)",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1",
+          "rationale": "After tool state moves out, tmp holds only go.mod, go.sum and the merge-evidence store; gate caches become a releasable store class. Waits on the owner deleting 15 debris directories and on the 27B reference trees being released."
         }
       ]
     },
@@ -227,7 +429,7 @@
           "title": "Recover small-head decode throughput without losing long-context correctness",
           "status": "open",
           "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
-          "rationale": "The reviewed short-context Qwen2.5-0.5B rate fell from 295 to 139 tokens/s while E4B remained within about three percent. First remove capacity-sized host upload from BenchmarkDecodeAttention's timed iteration and keep caches resident; measure allocation/upload separately. Run the actual benchmark with -bench '^BenchmarkDecodeAttention$' and device opt-in, not only -run. Compare repeated isolated before/after runs across short contexts, 4096 boundaries, tile boundaries, long contexts and representative head geometries. Keep split-key correctness, NLL and memory guarantees; recover the measured short-context gap within predeclared noise bounds without trading away larger-context throughput. Bind both kernel parity and end-to-end Qwen/E4B assertions. Remove capacity-wide work and redundant transfers before introducing another dispatch policy; retain one shared path wherever parity permits. The MiniCPM guard repair now owns the initial block-width split derivation and per-split shared allocation. Consume that landed producer and its measurements; do not implement a competing split policy. Close any remaining performance claim only with the prescribed model/geometry comparison.",
+          "rationale": "Qwen2.5-0.5B short-context decode fell from 295 to 139 tok/s; E4B held within 3%. Take capacity-sized host upload out of BenchmarkDecodeAttention's timed loop and run it with -bench and device opt-in. Compare isolated before/after runs across short, 4096-boundary, tile-boundary and long contexts. Keep split-key correctness, NLL and memory; bind kernel parity plus end-to-end Qwen and E4B checks. Reuse the MiniCPM split derivation; no competing policy.",
           "depends_on": [
             "model-regression-gate/do"
           ]
@@ -244,7 +446,7 @@
           "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
           "status": "open",
           "verify": "go test ./internal/longform -run '^TestGemmaTwelveChatRung$' -count=1",
-          "rationale": "Preserve the measured raw NLLs (6.94 and 6.97 for the 12B twins versus E4B 4.21) and the existing finding that instruction framing explains the raw ranking while chat scores rank correctly. Extend longform with the declared chat template, thinking disabled, 256 greedy output tokens, chat continuation NLL, text/token IDs, distinct 4-gram/repeated-span diagnostics and rates. Retain raw continuation alongside chat. Verify both precision variants and the small control. A Gemma-capable llama.cpp reference belongs to published-comparison, not this rung or baseline admission unless new same-checkpoint evidence establishes a runtime defect.",
+          "rationale": "Raw NLLs 6.94/6.97 vs E4B 4.21 are explained by instruction framing. Add chat template, thinking off, 256 greedy tokens, chat continuation NLL and repetition diagnostics beside raw continuation; verify both precisions and the small control.",
           "depends_on": [
             "model-regression-gate/do"
           ]
@@ -252,164 +454,23 @@
       ]
     },
     {
-      "id": "automation-land-reports-lane-obligation",
-      "title": "Make the landing's typed outcome name the lane obligation it awaited (state, obligation id, commit) and refuse a landing that deferred lanes but finds no obligation, instead of treating not-found as passed and leaving the operator to query the store for the proof",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the landing's typed outcome name the lane obligation it awaited (state, obligation id, commit) and refuse a landing that deferred lanes but finds no obligation, instead of treating not-found as passed and leaving the operator to query the store for the proof",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestLandOutcomeNamesLaneObligation' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "automation-review-suite-cost-regression",
-      "title": "Make suite cost an optimization candidate only when a package's wall regresses against its own retained gate history, instead of naming whichever package ranks first: a ranking always has a first, so every landing files another per-package row (audioparity, evaluation, plan, gate so far); net-negative in the harness surface",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make suite cost an optimization candidate only when a package's wall regresses against its own retained gate history, instead of naming whichever package ranks first: a ranking always has a first, so every landing files another per-package row (audioparity, evaluation, plan, gate so far); net-negative in the harness surface",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestSuiteCostCandidateNeedsRegression' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "automation-harness-surface-remainder",
-      "title": "Net the agent harness surface of the control-plane batch back to its pre-session baseline (181,732 production nodes; 182,150 after the dead-code paydown) once gate-inputs-derived, loop-owns-row-sequence, row-operation-class-prechecks and row-scope-budget-forces-replan have landed, by simplifying live control-plane code -- first by driving the optimization review from the completion authority's resolved evidence instead of its own trailer walk; the gate's automation admission refuses this row unless its production AST is net-negative",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Net the agent harness surface of the control-plane batch back to its pre-session baseline (181,732 production nodes; 182,150 after the dead-code paydown) once gate-inputs-derived, loop-owns-row-sequence, row-operation-class-prechecks and row-scope-budget-forces-replan have landed, by simplifying live control-plane code -- first by driving the optimization review from the completion authority's resolved evidence instead of its own trailer walk; the gate's automation admission refuses this row unless its production AST is net-negative",
-          "status": "open",
-          "verify": "go test ./internal/closurescan -run '^TestHarnessSurfaceAtPreSessionBaseline' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "prompt-intake-files-rows",
-      "title": "Make the prompt hook file owner design feedback as a candidate plan row and return its id, so a request becomes the next row after the current commit as the turn contract says instead of being absorbed into the row in flight",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the prompt hook file owner design feedback as a candidate plan row and return its id, so a request becomes the next row after the current commit as the turn contract says instead of being absorbed into the row in flight",
-          "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gate-isolation-rule-enforced",
-      "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Narrow what a confined landing re-runs, by a contract that is verified rather than by syntax alone (findings of 2026-09-21, read with plan -history -phases): a landing confined to one command runs about 29 packages, 28 of them because they import a library charged with an unnamed reach, for about 170 s of work and 80 s of wall. Two rules were tried on evidence. Inheritance narrowing, measured in shadow on three landings, would leave out 1 of 29. Judging a forwarded path at its call site would clear the foundation libraries whose functions open a path they are handed (atomicfile, fsatomic, jsonfile, processlock), but 24 of the 29 packages also import overgodb, and artifact, gitauthority, gosource and repoanalysis behind it, which hold a root in a struct and join paths under it, and no syntactic rule follows that soundly. The code anticipates a declared runtime contract and none exists. Design one that is checked, not trusted -- a package declares that its reach is confined to roots its callers supply, and its tests run under a guard that fails on a read outside them -- or record the files a package's tests actually opened as the inputs of its receipt; keep the shadow measure and the reader ranking as the before and after. Ranked below the suite walls: the ceiling here is about 80 s on a narrow landing, while audioparity alone is 6 min 45 s of every broad one",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "row-scope-budget-surface",
-      "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Let a row's declared budget name the path prefixes its growth may land in and refuse production growth outside them, if budgets alone prove too coarse to catch a row that pivots sideways: split out of row-scope-budget-forces-replan, where the optional clause cost a quarter of the mechanism's nodes and would rarely have been declared",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestScopeBudgetSurface' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "generated-doc-write-under-readers",
-      "title": "Make the gate's generated-document writers survive a concurrent reader on Windows: a background git status memory-maps dirty worktree files while hashing them and the compatibility repair then fails admission with a user-mapped-section sharing violation; wait on that specific violation until the holder releases, never on a fixed timer, and refuse with the holder named otherwise",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the gate's generated-document writers survive a concurrent reader on Windows: a background git status memory-maps dirty worktree files while hashing them and the compatibility repair then fails admission with a user-mapped-section sharing violation; wait on that specific violation until the holder releases, never on a fixed timer, and refuse with the holder named otherwise",
-          "status": "open",
-          "verify": "go test ./internal/fsatomic -run '^TestWriteWaitsOnMappedReader' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "loop-markers-runtime-directory",
-      "title": "Move the loop's transient markers out of docs into the runtime directory (split from tool-state-runtime-directory 2026-09-21): docs/.loop_state, docs/.loop_pause, docs/.dispatch, docs/loop.json and docs/plan_stop.json are process state kept beside tracked documents and hidden only by ignore entries; the session hooks (cmd/loophook), cmd/loop and cmd/plan read them, so the writers, the readers and the hook binaries move in one landing through processlock.EnsureStateDirectory, the docs ignore entries are removed, and a marker found at the old path is carried across once and never read there again",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Move the loop's transient markers out of docs into the runtime directory (split from tool-state-runtime-directory 2026-09-21): docs/.loop_state, docs/.loop_pause, docs/.dispatch, docs/loop.json and docs/plan_stop.json are process state kept beside tracked documents and hidden only by ignore entries; the session hooks (cmd/loophook), cmd/loop and cmd/plan read them, so the writers, the readers and the hook binaries move in one landing through processlock.EnsureStateDirectory, the docs ignore entries are removed, and a marker found at the old path is carried across once and never read there again",
-          "status": "open",
-          "verify": "go test ./cmd/loophook ./cmd/loop -run '^TestLoopMarkersLiveInTheRuntimeDirectory' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "surface-aware-dispatch",
-      "title": "Tag rows with the surfaces they move and dispatch all movers of a surface contiguously before any evidence or validation row on that surface, so re-validation runs once per batch",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Tag rows with the surfaces they move and dispatch all movers of a surface contiguously before any evidence or validation row on that surface, so re-validation runs once per batch",
-          "status": "open",
-          "verify": "test -f internal/plan/surface_dispatch_test.go \u0026\u0026 go test ./internal/plan -run '^TestSurfaceAwareDispatch' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "speech-document-admission",
-      "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit the document speech program and runtime the GUI lane staged as a served capability, or retire the staged entry points",
-          "status": "open",
-          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
-          "rationale": "Integration boundary: professional_overgo_gui/gui-text-to-speech already owns the complete document-speech feature, including production admission, working-memory bounds and authenticated browser-to-WAV lifecycle. Master does not infer child-graph authority from the parent's activation, add a second executor, or retire that lane's foundation to clear a surface check. Keep this integration obligation and its existing verifier open until committed lane work proves admission or an explicit retirement decision lands. Independent master model validation proceeds without waiting on this GUI feature."
-        }
-      ]
-    },
-    {
       "id": "failure-recovery",
-      "title": "Run independent host recovery drills before closing reliability claims",
+      "title": "Run host recovery drills before closing reliability claims",
       "status": "open",
       "steps": [
         {
           "id": "rollout-plan-author",
-          "title": "Provide the missing typed rollout-plan authoring path",
+          "title": "Add the typed rollout-plan authoring path",
           "status": "open",
           "verify": "go test ./internal/runrecord -run 'TestRolloutPlan' -count=1",
-          "rationale": "Address finding c9c88020 through recipe rollout-plan using the existing committed rollout contract: baseline, candidate, admission/cohort evidence and rollback authority. Derive cohort share/observation requirements from evidence. Test the CLI-to-store round trip and invalid authority refusal, not only parsing the document. Host-only; no dependency on benchmark or media completion."
+          "rationale": "Finding c9c88020: recipe rollout-plan over the committed rollout contract (baseline, candidate, cohort evidence, rollback authority); test the CLI-to-store round trip and invalid-authority refusal. Host-only."
         },
         {
           "id": "control-plane-drills",
-          "title": "Exercise rollback, quarantine, peer failures and durable workflow recovery",
+          "title": "Drill rollback, quarantine, peer failure and workflow recovery",
           "status": "open",
           "verify": "go test ./cmd/loop ./cmd/agent-loop -count=1 \u0026\u0026 test -f internal/agentloop/control_plane_drills_test.go \u0026\u0026 go test ./internal/agentloop -run '^TestControlPlaneRecoveryDrills$' -count=1",
-          "rationale": "Use scratch stores/peers to exercise escalation, candidate quarantine and evidence-bound re-entry, exact predecessor rollback, peer timeout/partial response and workflow restart with persistent obligations. Inject failure before and after side effects/receipt publication; assert state, lineage, idempotence and absence of duplicate mutations. Bind executable drill tests using existing loop/agent-loop owners. A successful build is not a recovery result. Remaining caller coverage: inventory production nonblocking OvergoDB.Open uses and migrate normal service/command startup to the existing OpenContext entry point with the caller's cancellation, retaining immediate refusal only for intentional probes. Gate admission/recovery and closure publication are handled by admission-recovery; reuse that owner and its release/cancellation tests. Do not add caller-specific retry loops, timers or wrappers. Bind live workbench plus simultaneous writers, normal completion, error, queued cancellation and process death; report remaining unmigrated callers. This follow-up cannot force re-acquisition of unrelated completed model evidence.\n\nProve release-triggered progress under expected parallel contention. Bind queued writers to actual OS ownership; process death releases ownership without stale-file or PID-age heuristics. Cover release before waiter registration, release during cancellation, multiple queued writers, duplicate cleanup, and a surviving child that still owns work. Cancellation must drain pending native waits before returning; publish not_busy only after owned handles are released. Recheck the ownership predicate after every wakeup; notifications alone never authorize a write. Distinguish the landed Windows store-writer completion wait from the still-polled GPU AwaitResource admission path. Inventory remaining polling in its existing owner, replace it only with a proved release/process-lifetime trigger, and preserve shared correctness admission plus isolated performance runs. Do not claim all resource waits are event-driven, introduce per-caller retries, or use elapsed time as evidence that an owner is dead.\n\nConnect deferred findings to prerequisites and reconsideration triggers through the existing observation/candidate owners. A changed prerequisite should propose one bounded experiment with a causal hypothesis and fixed acceptance; coalesce duplicate observations and retain rejected evidence. Stops remain operator-controlled, budgets cumulative, and unrelated eligible work continues after one candidate fails. Exercise restart between observation, proposal, admission and result; use the media experiment-resume records instead of acquiring a second demonstration.",
+          "rationale": "On scratch stores and peers, inject failures before and after side effects and receipt publication; assert state, lineage, idempotence and no duplicate mutations using the existing loop and agent-loop owners. Migrate service and command startup to OpenContext with the caller's cancellation; process death releases ownership without stale-file or PID heuristics. No new retry loops, timers or wrappers.",
           "depends_on": [
             "failure-recovery/rollout-plan-author"
           ]
@@ -419,7 +480,7 @@
           "title": "Interrupt and recover the gate in a scratch clone",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestRecoverInterrupted(StateCrashRetryBoundaries|CommitRestoresParentAndFinalizesCancellation)$' -count=1",
-          "rationale": "Run the existing recover-preparation, recover-interrupted and watchdog paths against an isolated scratch clone/store. Assert exact source/index/HEAD, plan step and durable receipt state after interruptions at transaction boundaries; prohibit duplicate commit/advance. Capture bounded diagnostics and classify timeout explicitly. This host-only drill can run independently of model benchmarks, but must not contend with production gate/store locks.\n\nReuse the evidence-commit-recovery integration and its persisted receipts; this row extends the existing transaction-boundary drill, never introduces a second supervisor or recovery path. Include a semantic failure that must not be retried, and preserve exact failure diagnostics.",
+          "rationale": "Run recover-preparation, recover-interrupted and the watchdog against a scratch clone; assert source, index, HEAD, plan and receipt state at each transaction boundary with no duplicate commit. Extend evidence-commit-recovery; include a semantic failure that must not retry.",
           "depends_on": [
             "validation-batch-control/evidence-commit-recovery"
           ]
@@ -428,15 +489,15 @@
     },
     {
       "id": "model-regression-baseline",
-      "title": "Publish an accepted, immutable baseline before simplification",
+      "title": "Publish an accepted baseline before simplification",
       "status": "open",
       "steps": [
         {
           "id": "full-catalog",
-          "title": "Expand and re-accept the full baseline before broad simplification",
+          "title": "Expand and re-accept the full text-catalog baseline",
           "status": "open",
           "verify": "go test ./internal/longform -count=1 \u0026\u0026 test -f cmd/longform/accepted_baseline_test.go \u0026\u0026 go test ./cmd/longform -run '^TestAcceptedBaselineEvidence$' -count=1",
-          "rationale": "After guarded defect fixes, the chat rung and initial modality evidence, expand the accepted baseline to the available full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under explicit budgets. Preserve unavailable/failed dimensions with dispositions. Compare to initial guard and pre-fix evidence under identical inputs and declared bounds; pin accepted record IDs. Bind the actual catalog denominator and read-only completeness/non-regression assertion through longform before closure. Preserve historical records. Reconcile each accepted inference or training cell against its actual changed dependencies before scheduling acquisition. Training acceptance separately binds initialization, optimizer trajectory, checkpoint/resume identity and held-out evaluator; an inference pass cannot substitute. Use existing run-record and training owners, group compatible cases per residency, publish completed cells once and retain missing cells as explicit obligations.",
+          "rationale": "After the guarded defect fixes and chat rung: full text catalog, both prompt shapes, required contexts, rates and peak/retained memory under explicit budgets, with dispositions for unavailable cells. Pin accepted record ids and bind a read-only completeness and non-regression check through longform. Training acceptance binds its own evidence; inference cannot substitute.",
           "depends_on": [
             "model-regression-baseline/do",
             "device-memory-retention/do",
@@ -454,10 +515,10 @@
       "steps": [
         {
           "id": "published-comparison",
-          "title": "Publish benchmark results with matched references and complete coverage",
+          "title": "Publish benchmark results with matched references",
           "status": "open",
           "verify": "test -f cmd/benchmark-report/accepted_coverage_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedPublishedComparison$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "Compare all required suite/model/protocol cells with declared references and local lm-eval oracle records. Compare as equivalent only when checkpoint/precision, dataset split/cases, shot count, template, scoring/generation protocol and answer extraction agree; otherwise label the protocol difference, not a performance regression. Preserve the known 100-case MMLU subset label rather than implying full MMLU coverage. Check all campaign-required suites, including prior BBH/MuSR/IFEval/DNA evidence for reuse validity; rerun only invalidated slices. Generate BENCHMARK.md after coverage and outcome assertions. For Gemma same-checkpoint comparisons, build the Gemma-capable llama.cpp revision when required and pin it with precision/template/protocol; missing reference evidence is a labeled comparison gap, not a prerequisite for the regression baseline. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.\n\nRequired read-only acceptance: TestAcceptedPublishedComparison in cmd/benchmark-report/accepted_coverage_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.\n\nBBH comparison must distinguish native raw likelihood, native chat likelihood and the existing generated-letter-opener protocol. Preserve the 5761-case generated result as such. Native raw compilation is owned by modality-verification/bbh-protocol. Before claiming native chat parity, reproduce the native system description, combined user demonstrations and question, actual template tokens, likelihood method and character normalization. Reuse the captured 24-task/72-example reference; no cross-protocol score substitution.",
+          "rationale": "Compare only cells whose checkpoint, precision, split, shots, template, scoring and extraction agree; label protocol differences. Keep the 100-case MMLU label. Rerun only invalidated slices, then generate BENCHMARK.md. TestAcceptedPublishedComparison must reject omitted cells, duplicates, stale identities and failed outcomes before this closes.",
           "depends_on": [
             "benchmark-completion/mmlu-pro-pass",
             "benchmark-27b/mmlu-pro-pass",
@@ -469,15 +530,15 @@
     },
     {
       "id": "simplify-prefill-paths",
-      "title": "Unify measured prefill policy where reference parity permits",
+      "title": "Unify prefill policy where reference parity permits",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Unify measured prefill policy where reference parity permits",
+          "title": "Unify prefill policy where reference parity permits",
           "status": "open",
           "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TensorCore|Staged' -count=1",
-          "rationale": "Derive one policy from weight representation, column count and committed parity/cost evidence. Preserve a precise staging path wherever f16 conversion cannot meet the required bound; do not predetermine deletion of exact F32 staging outside proven coverage. Remove per-type duplication where behavior is equivalent. Measure the fp8 12B prompt-rate gap (1646 versus its bf16 twin's 2850 in prior evidence) on identical inputs/environment, without assuming the precision variants must have identical cost. Accept kernel parity, scoped model regression and before/after prompt-rate/memory curves; expand to the full text catalog at the following milestone.",
+          "rationale": "One policy from weight representation, column count and parity/cost evidence; keep precise staging where f16 cannot meet the bound. Measure the fp8 12B prompt-rate gap (1646 vs bf16 2850) on identical inputs. Accept kernel parity, scoped regression and before/after rate and memory curves.",
           "depends_on": [
             "model-regression-gate/do",
             "modality-verification/media-report",
@@ -497,7 +558,7 @@
           "title": "Remove costly execution duplication behind the regression gate",
           "status": "open",
           "verify": "go run ./cmd/clone-census -summary -max-excess 9927",
-          "rationale": "The merged cf3f5eb1 measurement is 9927 duplicate-excess nodes under the repository ceiling of 9964. The prior row ceiling of 9963 would permit 36 nodes of regrowth; cap this row at the measured 9927 and bind a strictly lower measured target before implementation. Select a real duplicated CUDA/inference mechanism by cost and counterexample, preserve the accepted kernel/model behavior, remove redundant ownership/wrappers/policy, and lower docs/clone_baseline.json through the existing clone-census owner after verification. File splitting or moving duplication is not acceptance. Retire size exceptions only through cohesive simplification and lower measured maintenance cost. Scoped regression remains required; final full validation follows.\n\nAudio commits d16441de and b747bb78 remove matrix-gradient host round trips, reuse hybrid forward caches and consolidate MLP backward into its existing resident owner. Preserve the shared implementation and caller-owned slabs; do not add compatibility wrappers for retired resident-weight APIs. Recompute the clone census before selecting the next simplification, retain the existing ceiling and require a measured reduction. Bind affected finite-difference, cache-consumption, mixed-trajectory and transfer tests; do not reopen unchanged whole-model acceptance for this census update.",
+          "rationale": "Duplicate excess is 9927 nodes; bind a strictly lower target before starting. Pick a real duplicated CUDA or inference mechanism by cost, preserve accepted behavior, and lower docs/clone_baseline.json through clone-census. Moving or splitting duplication is not acceptance.",
           "depends_on": [
             "simplify-prefill-paths/do"
           ]
@@ -506,7 +567,7 @@
     },
     {
       "id": "simplify-command-surface",
-      "title": "Consolidate public APIs and shipped binaries after their contract prerequisites",
+      "title": "Consolidate duplicated APIs and shipped binaries",
       "status": "open",
       "steps": [
         {
@@ -514,7 +575,7 @@
           "title": "Migrate callers and remove duplicated API and executable owners",
           "status": "open",
           "verify": "go run ./cmd/preflight \u0026\u0026 test -f internal/apimanifest/ownership_consolidation_test.go \u0026\u0026 go test ./internal/apimanifest -run '^TestOwnershipConsolidationContracts$' -count=1",
-          "rationale": "Consume command-discovery's source-derived purpose/audience/flags and actual build inventory. Use operator-facing versus automation-internal roles to rank redundant binaries and APIs by real callers, not suffix or the historical 102 count. Public help/discovery repairs can land independently; binary deletion still requires the caller migration and contract evidence below. Require a capability-scoped removal result. Consume the early common-owner inventory; rank remaining duplicate APIs and shipped command binaries by repeated build, verification, startup, packaging and maintenance cost. Before dispatch choose a concrete duplicated owner and bind the old-to-new caller/operation map. Migrate code, automation, installation/release manifests and human references in the same integration batch; remove the displaced implementation, exports and build target. A dispatcher over unchanged handlers can earn measured packaging/discovery savings, but cannot satisfy this row's ownership-consolidation acceptance without removing duplicated implementation or policy. Preserve public version/flag/schema/exit, streaming, cancellation, credentials, resource lifetime and evidence contracts through independent cases. TestOwnershipConsolidationContracts must reject stale invocation/import/release references and duplicate policy reintroduction, and prove reduced relevant API or executable surface plus retained behavior.\n\nReport exported symbols, wrappers, command packages, actually shipped executables and bytes separately. Compare build/test dependency closure and compile/link/startup costs before and after; do not merge unrelated backends into a binary that forces unused GPU/native dependencies on CPU-only consumers. Keep compatibility shims only for declared external callers with an explicit retirement obligation. Gate public/numerical changes by affected contracts; do not make unrelated catalog validation a new prerequisite for the early internal automation pilot.\n\nConsume the common-owner-pilot's call/effect and caller-migration map. Rank remaining parallel paths by duplicated policy and measured maintenance/verification cost, not textual clones alone. Separate actual shared responsibility from numerical, lifecycle or protocol differences. Consolidate one capability at a time, migrate consumers and delete displaced APIs in the same batch; avoid combining unrelated helpers merely to reduce package count. Keep all existing regression, modality, benchmark and recovery prerequisites for this broader public-surface work.\n\nInventory actual overlapping wrappers rather than assume a fixed command count. Fold probe/lane/parity entrypoints into typed subcommands only where ownership/maintenance cost falls; preserve every behavior, flag contract, exit code and evidence path. Preserve plan, gate, loop and hook responsibilities and their required invocation contracts; separate binaries are justified by actual consumer, isolation or lifecycle requirements, not historical names alone. Atomically update plan verifiers, CI, scripts, API manifest and docs with an old-to-new invocation map; no later row may reference a removed command. Keep README's transport descriptions aligned with registered adapters. Validate all migrated invocation contracts plus representative real dispatch and record the reduced command/duplication ceilings. Avoid rerunning expensive model suites when an exact implementation-independence proof permits evidence reuse. Consolidate only shared responsibilities whose callers can migrate atomically with lower measured maintenance cost; distinct responsibilities remain separate. Command-count reduction alone is not acceptance.\n\nSelect the first consolidation from measured duplicated responsibilities in model lookup, admission, input resolution or evidence publication. Freeze the caller/contract inventory and before cost; migrate every affected caller, remove the displaced implementation and prove equivalent success/refusal/exit/evidence behavior through TestOwnershipConsolidationContracts in internal/apimanifest. Assert that generated invocation references resolve and duplicate ownership cannot reappear. A renamed executable or a new dispatcher around unchanged duplication is insufficient.\n\nAlign skill.md durable automation policy with the campaign decision: the second manual repetition triggers review of the existing owner, not mandatory creation of another command. Prefer removal of manual work or extension of an existing typed operation; require demonstrated recurring need and explicit ownership before admitting a new public entrypoint. Preserve deterministic verification and durable receipts. Include this policy alignment and net surface/caller accounting in the same bounded consolidation; broader HTTP implementation remains GUI-owned.\n\nInclude the landed providerintake, remoteprovider, remoterelay and modelrecipe admission paths in the ownership census. Consolidate duplicated model lookup, credentials or admission only when measured duplication and atomic caller migration justify it; keep provider declaration, credential storage and wire transport responsibilities explicit. Coordinate HTTP caller migration with the GUI lane. Do not add a new public wrapper or defer E4B to perform this cleanup.\n\nThe earlier evidence-commit-recovery slice owns narrowly necessary gate-wrapper removal; consume its ownership map rather than inventory or implement it again. This later row handles only remaining measured duplication. Delete displaced retry, timeout, input-resolution and evidence-publication policy with all callers; require end-to-end success/refusal/cancellation/exit/evidence parity and lower ownership/surface cost. Do not add wrapper-count targets or a new registry.\n\nAudit automatic Markdown writers and their readers in benchmark-report, compatibility (model/media/training), api-manifest, plan sync, preflight and release. Prefer existing typed JSON/OvergoDB results as the single operational authority; machine consumers must not scrape prose. Remove stray generated plans/status/handoffs and redundant report persistence with all callers, while retaining deliberate human documentation and third-party model cards/licenses. Keep optional report rendering explicit. Bind migration acceptance to structured schema validation, equivalent decisions and denominators, missing/invalid record refusal, release/link contracts and absence of unsolicited Markdown writes. Do not create a parallel JSON file for every retired Markdown file or duplicate stored results.\n\nAudit follow-up and sequencing: consume the CLI boundary, consumer-rule proof and early owner pilot. At first dispatch split remaining work into capability-sized implementation steps with one acceptance/integration owner each; retain this parent and its prerequisites until all assigned migrations are accounted for. Rank one command family by measured repeated build, execution, verification and operator cost; do not launch a 102-to-40 binary campaign or treat that estimate as a floor. Candidates are database maintenance, lane execution, declared training probes, and format/model tools. Select shared responsibility, dependencies and lifecycle before command spelling. Avoid a giant train or preflight binary that forces unrelated native/GPU backends into every invocation. CPU-only tools and deliberate process/privilege boundaries stay separate when needed.\n\nDatabase maintenance must reuse canonical transaction, integrity and recovery owners while preserving operation-specific read/write access, CRC/chain validation, crash recovery, backup consistency and concurrent readers. Combining command names does not repair unsafe rebuild/swap or repair paths. Reproduce and correct any real integrity defect with its immediate persistence acceptance; it does not wait for the larger consolidation. Lane migration shares real skip/zero-match/evidence/cancellation policy while retaining distinct resource and protocol requirements. Training probes may share declared dispatch without acquiring every training backend; preserve their actual production paths and independent acceptance.\n\nHTTP remains GUI-owned. Before any route removal or advertisement change, bind the actual launcher/provider path, real consumers and external compatibility claim in the existing route/API manifest owner. Distinguish operational, implemented-but-unwired, compatibility-required and retired surfaces; a missing provider or 501 response alone does not authorize deletion. Resolve automation, peers, export, video edits and unrouted composition handlers by connecting intended capability or recording an explicit staged/retirement disposition. Alias families retain one canonical admission/handler policy; migrate known callers and preserve declared external compatibility with a retirement trigger for temporary aliases. Bind provider-present/provider-absent, authentication, method/side-effect and alias-equivalence acceptance to internal/server before editing. Correct README claims in the same batch. A read-only disposition can proceed independently of model evidence; public behavior changes retain their affected prerequisites. No fixed route-count target.\n\nLibrary-only exports require caller, external-contract and staged-capability review before removal or unexporting. Test-only use, test-line counts and file ceilings are review signals, not evidence of uselessness. Preserve or explicitly retire unfinished inference/session/cache, training, transport and agent recovery obligations through existing staged-surface authority; never claim deletion as capability validation.\n\nGUI follow-up remains lane-owned. Merge 99c142ee8d07 imports committed GUI fe9c59a6 while retaining master's plan. It corrects the reviewed boundary defects in their existing owners: numeric request presence preserves declared defaults and explicit zero; common composer invalidation aborts transcription on clear/dispose/removal; video Front/Rear selection reaches getUserMedia facingMode. TestRequestSamplingPresence covers 25 scalar fields with omitted/zero/nonzero cases and rejects invalid explicit zero; it failed before the repair and passes after it. Focused browser transcription/video cases pass, including late-result isolation after disposal and Rear camera constraints. These are scoped handler/browser results, not new model-quality or physical-device acceptance. Consume the merge's receipts; do not recreate these repair rows. The intake also lands declared video-output delivery, retired video-edit surface, cross-site GET protection, launcher/refusal visibility and projector-separated Library validation. HTTP requests that omit sampling values now use declared defaults; scope affected protocol comparisons to this changed resolution path rather than invalidating unrelated CLI/model acquisitions. Use cheap Go handler/constructor cases for sampler/provider/admission contracts and focused JavaScript/browser cases for camera/abort wiring; do not force model acquisition for pure UI cleanup. Consolidate route/consumer and capability/action declarations in existing manifest owners, with typed required interfaces, strict boundary decoding plus semantic validation and independently retained behavior cases. Derive client-call facts from supported JS analysis; unresolved dynamic calls retain explicit coverage. Go AST analysis alone cannot prove JS behavior. Avoid another hand-maintained declaration table or generated DESIGN.md freshness gate. Coordinate incremental accepted GUI bundles, reuse their independent receipts and reserve comprehensive coverage/device signoff for the final join; new training/style/speculative features must not retroactively invalidate accepted capture or conversation bundles. No master assumption of the lane's open feature plan.",
+          "rationale": "Rank duplicates by real callers and build, test, startup and packaging cost using command-discovery's inventory. Before starting, pick a concrete owner and bind the old-to-new caller map; migrate code, automation, manifests and docs in one batch and delete the displaced implementation and build target. A dispatcher over unchanged handlers does not count. Preserve public flags, schemas, exit codes, streaming, cancellation and evidence contracts. TestOwnershipConsolidationContracts rejects stale references and proves a smaller surface.",
           "depends_on": [
             "model-regression-gate/do",
             "modality-verification/media-report",
@@ -529,15 +590,15 @@
     },
     {
       "id": "simplify-checkpoint-locations",
-      "title": "Remove dependence on retired checkpoint paths with reversible relocation",
+      "title": "Relocate checkpoints off retired paths, reversibly",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Remove dependence on retired checkpoint paths with reversible relocation",
+          "title": "Relocate checkpoints off retired paths, reversibly",
           "status": "open",
           "verify": "go run ./cmd/overgodb-query -repo overgodb-store -servable",
-          "rationale": "After initial validation and the regression gate, relocate live checkpoints from adaptive_new under overgo/models through the existing location owner. First inventory identity, bytes, all live references and destination capacity; verify a staged destination before switching store locators. Keep the original until hash/size, recipe/servable identity, baseline lookup by content ID, bounded load/inference and rollback all pass. Do not rewrite historical evidence or delete original bytes prematurely. Regenerate current reports/fixtures, and assert every expected model remains present and no live reference requires the retired root. A successful -servable listing alone does not prove no model vanished. Remove stale locator duplication first. Move checkpoint bytes only where an active dependency on the retired location remains and relocation removes demonstrated operational cost; directory neatness alone is not a capability gain.",
+          "rationale": "Move a checkpoint from adaptive_new into overgo/models only where a live dependency on the retired root remains. Inventory identity, bytes, references and capacity; verify the staged copy (hash, servable identity, baseline lookup, bounded inference, rollback) before switching locators; keep the original. Assert no model vanishes.",
           "depends_on": [
             "model-regression-gate/do",
             "modality-verification/media-report",
@@ -548,15 +609,15 @@
     },
     {
       "id": "final-model-validation",
-      "title": "Prove the final text execution surface and long-lived serving behavior",
+      "title": "Prove the final text surface and long-lived serving",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Prove the final text execution surface and long-lived serving behavior",
+          "title": "Prove the final text surface and long-lived serving",
           "status": "open",
           "verify": "go test ./internal/longform -run '^TestFinalServingSurface$' -count=1",
-          "rationale": "On the settled execution surface, run full-catalog text regression against the pinned before-baseline, with both framing protocols, required context/head/cache coverage and useful smoke assertions. Exercise a bounded long-lived server sequence covering concurrency, grow/shrink contexts, cancellation, failure, model reload and subsequent valid requests; assert retained VRAM plateaus within the declared budget and outputs remain correct. Reuse valid committed generation-soak evidence only with exact identity/independence proof. Publish once from a clean evidence worktree, then bind read-only identity, coverage and non-regression assertions. Also revalidate every modality/task invalidated by execution, command or location changes; compare to the initial modality report and refresh it with exact final evidence. Retain unaffected initial benchmarks; rerun only suites whose identities/behavior changed. Extend the retained longform/report checks with read-only catalog, soak and affected-modality outcome assertions through plan -setverify before closure. This milestone never gates the initial benchmark pass.",
+          "rationale": "Full-catalog text regression against the pinned baseline with both framings; a bounded long-lived server run (concurrency, context grow/shrink, cancellation, failure, reload) with VRAM plateauing within budget and correct outputs. Revalidate only modalities the simplification rows invalidated, then bind read-only assertions.",
           "depends_on": [
             "simplify-execution-core/do",
             "simplify-command-surface/do",
@@ -569,15 +630,15 @@
     },
     {
       "id": "simplify-capability-report",
-      "title": "Publish capability preserved or improved per unit of mechanism removed",
+      "title": "Report capability kept or gained per unit of mechanism removed",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Publish capability preserved or improved per unit of mechanism removed",
+          "title": "Report capability kept or gained per unit of mechanism removed",
           "status": "open",
           "verify": "test -f cmd/benchmark-report/accepted_capability_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedCapabilityDelta$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 test -f cmd/benchmark-report/controller_comparison_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedControllerComparison$' -count=1",
-          "rationale": "Include the exact API/binary consolidation ledger from the existing manifest and release owners: retained capabilities and external contracts; removed implementations, exports, wrappers and executable build targets; migrated consumers; remaining compatibility obligations; actual distributed artifact inventory/bytes; build/test dependency and measured publication/compile/link/startup changes. Distinguish removal from rename, split and forwarding. Attribute overlapping savings once and reject a surface-reduction claim with stale consumers or shifted duplicate policy. TestAcceptedCapabilityDelta consumes these retained identities and refuses unsupported removal/payback claims without rerunning settled models.\n\nGenerate the final comparison through existing report owners using the fixed accepted before-baseline and exact after evidence. Show quality/correctness, prefill/decode curves, peak/retained VRAM, budget/coverage and recovery results beside duplicate-excess, command packages, production lines, exceptions and measured validation cost. Include every expected capability and every unresolved/unavailable disposition; never average away a required regression. After command/location changes, refresh reports and run only invalidated smoke/dispatch checks; reuse expensive settled-execution evidence with explicit identity/independence proof. Acceptance verifies outcome/coverage/identity before file freshness. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.\n\nRequired read-only acceptance: TestAcceptedCapabilityDelta in cmd/benchmark-report/accepted_capability_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.\n\nController-effectiveness deliverable, after model validation: use existing experiment/evaluation owners for one bounded comparison of an existing planning or repair policy, a frozen baseline and an ablation. Freeze task IDs, held-out split, case denominator, policy identities, acceptance judge, repeats, equal end-to-end budgets and decision thresholds before candidate runs. Include verification cost and interrupted/failed attempts. Publish accepted improvements, regressions, operator interventions, total wall/compute cost and uncertainty from repeat outcomes; distinguish changes to inference capability from changes to controller efficiency. Gate shadow-selection tests alone do not satisfy this experiment. Accept a measured improvement only under the frozen rule and independent unchanged judge; accept a complete negative/inconclusive experiment as a no-promotion decision so the graph does not demand a positive result. Missing cases remain incomplete. Extend the existing report owner, not another RSI framework.\n\nBind TestAcceptedControllerComparison in cmd/benchmark-report/controller_comparison_test.go as a read-only evidence assertion. It must reject omitted/duplicate tasks, unequal budgets, changed judges, held-out leakage, uncounted failures and unsupported improvement claims, while accepting a complete evidence-bound refusal. The same report also compares E4B with the subsequent model validation workflow using workload/coverage denominators, operator interventions, model loads and repeated gate work; report actual differences without attributing different model workloads to scheduler gains.",
+          "rationale": "From the fixed before-baseline and exact after evidence: quality, prefill/decode curves, VRAM, coverage and recovery beside duplicate excess, command packages, production lines and validation cost; the API and binary consolidation ledger distinguishes removal from rename, split and forwarding. TestAcceptedCapabilityDelta refuses unsupported claims without rerunning settled models.",
           "depends_on": [
             "final-model-validation/do",
             "benchmark-completion/published-comparison",
@@ -587,59 +648,23 @@
       ]
     },
     {
-      "id": "rae-generation-path",
-      "title": "Give overgo a path for RAE-collections: 26 MIT checkpoints forming a two-stage representation-autoencoder generator, a frozen DINOv2 or SigLIP2 encoder with a trained ViT decoder plus a stage-2 diffusion transformer over its latents. Nothing here or in adaptive_new implements it, so it is a new derivation; it shares the DINOv2 encoder with the image embedding row and should follow it",
-      "owner": "master-lead",
+      "id": "speech-document-admission",
+      "title": "Admit or retire the GUI lane's document speech program",
+      "owner": "professional_overgo_gui",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Give overgo a path for RAE-collections: 26 MIT checkpoints forming a two-stage representation-autoencoder generator, a frozen DINOv2 or SigLIP2 encoder with a trained ViT decoder plus a stage-2 diffusion transformer over its latents. Nothing here or in adaptive_new implements it, so it is a new derivation; it shares the DINOv2 encoder with the image embedding row and should follow it",
+          "title": "Admit or retire the GUI lane's document speech program",
           "status": "open",
-          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
-          "depends_on": [
-            "dinov2-embedding-capability/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "validate-all-models",
-      "title": "Validate all models. State 2026-09-22: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage. What remains is technical, not licensing: timesfm-3.0-pytorch carries a native PyTorch declaration and the forecast loader reads the HuggingFace one, so it is refused for lacking rope_theta; webssl-dino is a dinov2 vision encoder and the catalog holds no embedding capability; FireRedVAD has no activity-detection entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for. Licences block none of this: models and the store are gitignored so nothing restricted is distributed, registration records an SPDX identifier and commits the licence beside the model, and whoever runs a restricted model is its licensee.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate all models. State 2026-09-22: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage. What remains is technical, not licensing: timesfm-3.0-pytorch carries a native PyTorch declaration and the forecast loader reads the HuggingFace one, so it is refused for lacking rope_theta; webssl-dino is a dinov2 vision encoder and the catalog holds no embedding capability; FireRedVAD has no activity-detection entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for. Licences block none of this: models and the store are gitignored so nothing restricted is distributed, registration records an SPDX identifier and commits the licence beside the model, and whoever runs a restricted model is its licensee.",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
-          "depends_on": [
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "tmp-refuses-undeclared-entries",
-      "title": "Refuse an entry in tmp that no tool declares, once tool state has moved out and the debris is gone: after tool-state-runtime-directory, tmp holds nothing a tool needs except go.mod and go.sum, which fence its Go files out of the module, and the merge-evidence staging store cmd/plan owns; the gate's caches (gate_cache.json, gate_prepared_selection.json) become a releasable store class keyed by their inputs, and admission refuses any other entry so debris cannot accumulate again. Waits on the owner deleting the 15 debris directories the permission classifier refused the worker (command given 2026-09-21), and on the two 27B reference trees being released by the rows that use them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse an entry in tmp that no tool declares, once tool state has moved out and the debris is gone: after tool-state-runtime-directory, tmp holds nothing a tool needs except go.mod and go.sum, which fence its Go files out of the module, and the merge-evidence staging store cmd/plan owns; the gate's caches (gate_cache.json, gate_prepared_selection.json) become a releasable store class keyed by their inputs, and admission refuses any other entry so debris cannot accumulate again. Waits on the owner deleting the 15 debris directories the permission classifier refused the worker (command given 2026-09-21), and on the two 27B reference trees being released by the rows that use them",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1"
+          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
+          "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
         }
       ]
     },
     {
       "id": "benchmark-27b",
-      "title": "Operator-launched full 27B benchmark",
+      "title": "Operator-launched full 27B MMLU-Pro benchmark",
       "owner": "operator",
       "status": "open",
       "steps": [
@@ -648,7 +673,7 @@
           "title": "Complete the operator-launched 27B MMLU-Pro pass",
           "status": "open",
           "verify": "test -f cmd/benchmark-report/accepted_coverage_test.go \u0026\u0026 OVERGO_DATA_ROOT=C:/Users/jeffm/overgo go test ./cmd/benchmark-report -run '^TestAcceptedOperator27BMMLUPro$' -count=1 \u0026\u0026 go run ./cmd/benchmark-report -check",
-          "rationale": "Only the operator launches this full-model benchmark with -budget 3h after smaller-model validation. Estimate each protocol's cost from evidence; checkpoint/resume exact remaining cases within separate bounded launches if both protocols do not fit one budget. Preserve full coverage and input identity; do not silently truncate to fit. This row's gate reads completed evidence and never starts the expensive pass. Other host and modality preparation does not wait for this run. Dispatch contract: retain the current verifier as a lower bound, but bind executable assertions for the exact required denominator, identities, protocols, thresholds and outcomes described above before work starts. If missing, add the smallest read-only assertion to the existing owner and prove its failing counterexample before publishing evidence. A bare freshness/listing/lane command cannot close this row.\n\nRequired read-only acceptance: TestAcceptedOperator27BMMLUPro in cmd/benchmark-report/accepted_coverage_test.go. Implement this bound assertion before the row can close; it must reject an omitted required cell, duplicate case, stale identity and failed required outcome using the stated denominator, protocols and thresholds. Existing lane/report checks remain lower bounds. Aggregate existing per-model evidence and acquire only missing or invalidated cells; do not rebuild an evaluation engine or launch long benchmarks from this assertion.",
+          "rationale": "Operator only, -budget 3h per launch, resuming exact remaining cases; no truncation. The row reads completed evidence and never starts the pass. TestAcceptedOperator27BMMLUPro must reject omitted cells, duplicates, stale identities and failed outcomes before this closes.",
           "depends_on": [
             "benchmark-completion/mmlu-pro-pass"
           ]
@@ -657,325 +682,58 @@
     },
     {
       "id": "campaign-closeout",
-      "title": "Close only after all capability and reliability branches are accounted for",
+      "title": "Close the campaign once every branch is accounted for",
       "status": "open",
       "steps": [
         {
           "id": "closeout",
-          "title": "Verify the final release surface and publish evidence-bound campaign closure",
+          "title": "Verify the final release surface and publish campaign closure",
           "status": "open",
           "verify": "go run ./cmd/gate -preflight \u0026\u0026 go run ./cmd/benchmark-report -check \u0026\u0026 go run ./cmd/compatibility -check",
-          "rationale": "Run preflight and final host/race/device/browser/release checks appropriate to the actual final scope once, reusing only exact proven-independent evidence. Diagnose failures rather than accepting a package name without its output. Resolve high-priority findings; record explicit evidence-backed dispositions and reopen triggers for unavailable or deferred capability without calling it verified. Reconcile the census, accepted baseline, benchmark/media/capability reports and every task's terminal evidence at the closing commit; publish census authority via plan -bind-census. The gate owns pruning the final row. Acceptance asserts all required terminal branches/claims and no unresolved blocking finding, not merely plan -status. Keep the explicit operator stop in force until the operator resumes; campaign completion never clears it automatically.",
+          "rationale": "Run final host, race, device, browser and release checks once, reusing only proven-independent evidence. Resolve high-priority findings; record dispositions and reopen triggers for deferred capability. Reconcile census, baseline and reports at the closing commit and bind the census. The operator stop stays until the operator resumes.",
           "depends_on": [
-            "simplify-capability-report/do",
-            "validation-readiness/failure-diagnostics",
-            "validation-automation/gate-scope-efficiency",
-            "validation-automation/guard-admission-efficiency",
-            "validation-automation/benchmark-protocol",
-            "boundary-hardening/cross-origin",
-            "boundary-hardening/argv-output",
+            "plan-tightened/do",
+            "timesfm3-native-declaration/do",
+            "surface-without-capability-tables/do",
+            "compatibility-names-its-reads/do",
+            "gate-suite-longest-tests/do",
+            "rae-generation-path/do",
+            "validate-all-models/do",
+            "automation-harness-surface-remainder/do",
+            "surface-move-preflight/do",
+            "reviewed-delta-registry/do",
+            "skipped-fixture-classification/do",
+            "generated-doc-write-under-readers/do",
+            "automation-land-reports-lane-obligation/do",
+            "automation-review-suite-cost-regression/do",
+            "prompt-intake-files-rows/do",
+            "loop-markers-runtime-directory/do",
+            "surface-aware-dispatch/do",
+            "row-scope-budget-surface/do",
+            "gate-isolation-rule-enforced/do",
+            "store-small-record-horizon/do",
+            "store-benchmark-record-redundancy/do",
+            "store-growth-ratchet/do",
+            "overgodb-compaction-cadence/do",
+            "projection-generation-pruning/do",
+            "store-open-lineage-cost/do",
+            "compatibility-reports-leave-the-tree/do",
+            "tmp-refuses-undeclared-entries/do",
+            "decode-attention-per-key-cost/do",
+            "gemma-12b-accuracy/do",
+            "failure-recovery/rollout-plan-author",
             "failure-recovery/control-plane-drills",
             "failure-recovery/gate-recovery-drill",
-            "validation-replan/do",
-            "capability-simplification-replan/do",
-            "baseline-repair-order/do",
-            "model-validation-batching/do",
-            "validation-batch-control/batch-promotion",
-            "audio-worktree-integration/register-models",
-            "modality-verification/native-audio-streaming-intake",
-            "validation-integration-replan/do",
-            "merge-a9561f6703a8/do",
-            "validation-priority-replan/do",
-            "modality-verification/smoke-oracle-producer",
-            "modality-verification/decode-guard-readmission",
-            "modality-verification/decode-order-repair",
-            "hatchet-process-replan/do",
-            "documentation-refresh/do",
-            "evidence-storage-efficiency/snapshot-reuse",
-            "evidence-storage-efficiency/small-record-layout",
-            "validation-gate-selection/call-reach",
-            "documentation-boundary/do",
-            "documentation-publication/do",
-            "validation-gate-selection/documentation-cost",
-            "documentation-cost-publication/do",
-            "minicpm-native-parity/do",
-            "validation-device-sharing/do",
-            "validation-gate-selection/short-profile-reuse",
-            "modality-verification/ifeval-text-checkers",
-            "modality-verification/ifeval-structure",
-            "modality-verification/ifeval-native-parameters",
-            "modality-verification/ifeval-indexed-paragraph",
-            "modality-verification/ifeval-tokenizer",
-            "modality-verification/ifeval-language",
-            "validation-preflight-recovery/closure-rebind",
-            "validation-compounding-replan/do",
-            "validation-gate-selection/recipe-node-reuse",
-            "validation-doctrine-tightening/do",
-            "diffusion-cli-fixtures/do",
-            "instruction-evaluation-resume/do",
-            "quality-evaluation-admission/do",
-            "qwen9-ifeval-bundle/do",
-            "validation-gate-selection/runtime-value-flow",
-            "testing-reduction-replan/do",
-            "testing-reduction-split/do",
-            "plan-publication-cost/memoize-fixed-phases",
-            "plan-publication-cost/one-command-publication",
-            "plan-publication-replan/do",
-            "plan-publication-cost/command-help",
-            "plan-publication-cost/command-discovery",
-            "plan-publication-cost/dispatch-readiness",
-            "plan-publication-cost/frontier-diagnostics",
-            "plan-publication-cost/stop-state",
-            "plan-publication-cost/dispatch-contract",
-            "plan-publication-cost/scratch-probe-path",
-            "plan-publication-cost/dispatch-claim",
-            "plan-publication-cost/step-edit",
-            "plan-publication-cost/retained-gate-report",
-            "plan-publication-cost/structural-plan-policy",
-            "plan-publication-cost/verification-failure-summary",
-            "plan-publication-cost/cli-dependency-boundary",
-            "plan-publication-cost/internal-consumer-contract",
-            "surface-priority-replan/do",
-            "plan-publication-cost/fuse-census-preparation",
-            "plan-publication-cost/share-census-imports",
-            "plan-publication-cost/reuse-planning-state",
-            "validation-gate-selection/selection-cause-histogram",
-            "validation-gate-selection/reduction-contract",
-            "validation-gate-selection/repair-iteration",
-            "validation-gate-selection/measured-adoption",
-            "validation-gate-selection/common-owner-pilot",
-            "validation-gate-selection/verification-sequence",
-            "validation-gate-selection/static-analysis-sharing",
-            "plan-publication-cost/merge-portability",
-            "modality-verification/text-and-vision",
-            "modality-verification/image-and-video",
-            "modality-verification/speech-ocr-tabular-forecast",
-            "modality-verification/media-report",
-            "modality-verification/media-evidence-binding",
-            "modality-verification/experiment-resume",
-            "modality-verification/media-capacity-plan",
-            "analysis-verification-replan/do",
-            "validation-gate-selection/static-preflight",
-            "validation-gate-selection/deterministic-lifecycle",
-            "modality-verification/report-projection",
-            "gui-fe9-plan-reconciliation/do",
-            "gate-live-scans/do",
-            "gate-reach-escape/do",
-            "gate-device-edges/do",
-            "gate-skip-constant-leaf/do",
-            "gate-named-documents/do",
-            "stale-store-acceptances/do",
-            "composed-objective-flap/do",
-            "gate-lane-closure/do",
-            "testutil-reach-split/do",
-            "host-device-overlap/do",
-            "docs-scratch-cleanup/do",
-            "gate-suite-wall/do",
-            "stale-source-rows/do",
-            "device-lane-projector-reach/do",
-            "gate-serial-floor/do",
-            "host-linear-kernel-reacquisition/do",
-            "gate-progress-lines/do",
-            "timer-removal/do",
-            "device-link-cost/do",
-            "browser-lane-decomposition/do",
-            "deferred-lanes/do",
-            "gate-structure-replan/do",
-            "timer-sweep/do",
-            "timer-sweep-production/do",
-            "preflight-mechanical-repairs/do",
-            "preflight-selection-report/do",
-            "closure-proposals-one-pass/do",
-            "host-suite-walls/do",
-            "recorded-walls-counter/do",
+            "model-regression-baseline/full-catalog",
+            "benchmark-completion/published-comparison",
+            "simplify-prefill-paths/do",
+            "simplify-execution-core/do",
+            "simplify-command-surface/do",
+            "simplify-checkpoint-locations/do",
+            "final-model-validation/do",
+            "simplify-capability-report/do",
             "speech-document-admission/do",
-            "audio-measurement-owner/do",
-            "native-asr-fixture-once/do",
-            "host-walls-replan/do",
-            "source-reader-test-rules/do",
-            "surface-master-handoff/do",
-            "surface-gate-execution/shared-execution",
-            "surface-gate-analysis/shared-census",
-            "surface-gate-deferred/prepared-resume",
-            "surface-gate-diagnostics/typed-classification",
-            "surface-gate-diagnostics/complete-findings",
-            "surface-gate-scheduling/lane-overlap",
-            "surface-gate-dependencies/bounded-reduction",
-            "timing-media-reconciliation/do",
-            "surface-gate-execution/declaration-boundary",
-            "surface-gate-deferred/authority-lifetime",
-            "gate-resource-priority-replan/do",
-            "gate-resource-efficiency/first-memory-reduction",
-            "command-store-root-resolver/do",
-            "digest-validator-primitive/do",
-            "artifact-validation-primitives/do",
-            "plan-consolidation-replan/do",
-            "sequence-replan/do",
-            "publication-priority-replan/do",
-            "end-to-end-validation/do",
-            "validation-run-execution/do",
-            "overgodb-compact-window/do",
-            "post-row-optimization-review/do",
-            "surface-move-preflight/do",
-            "surface-aware-dispatch/do",
-            "store-growth-ratchet/do",
-            "store-write-admission-boundary/do",
-            "overgodb-compaction-cadence/do",
-            "model-inventory-dryrun/do",
-            "reviewed-delta-registry/do",
-            "store-blob-pack-and-split/do",
-            "completion-proof-horizon/do",
-            "store-precheck-candidate/do",
-            "journal-seal-inline-locators/do",
-            "projection-generation-pruning/do",
-            "audioparity-suite-wall/do",
-            "operator-probes-into-commands/do",
-            "retention-rewrite-retirement/do",
-            "gate-inputs-derived/do",
-            "loop-owns-row-sequence/do",
-            "row-operation-class-prechecks/do",
-            "row-scope-budget-forces-replan/do",
-            "closure-reconcile-single-command/do",
-            "gate-message-structured/do",
-            "prompt-intake-files-rows/do",
-            "skipped-fixture-classification/do",
-            "harness-surface-paydown/do",
-            "evaluation-suite-wall/do",
-            "generated-doc-write-under-readers/do",
-            "automation-harness-surface-remainder/do",
-            "review-key-granularity/do",
-            "plan-suite-wall/do",
-            "gate-suite-serial-floor/do",
-            "automation-review-suite-cost-regression/do",
-            "store-producer-guards-gate-evidence/do",
-            "automation-land-regenerates-derived-docs/do",
-            "automation-land-reports-lane-obligation/do",
-            "gate-prints-operation-class/do",
-            "row-scope-budget-surface/do",
-            "store-producer-guards-shared-kinds/do",
-            "store-release-pre-horizon-evidence/do",
-            "completion-proof-horizon-first-seal/do",
-            "plan-dispatch-opens-store-once/do",
-            "store-open-cost/do",
-            "store-record-census/do",
-            "store-derived-cache-modern-go/do",
-            "store-package-receipts-redundancy/do",
-            "store-agent-obligation-redundancy/do",
-            "store-closure-rebind-redundancy/do",
-            "store-benchmark-record-redundancy/do",
-            "store-access-consolidation/do",
-            "store-access-census/do",
-            "automation-add-owns-closeout-dependency/do",
-            "repoanalysis-suite-wall/do",
-            "store-open-canonical-at-writer/do",
-            "store-open-lineage-cost/do",
-            "land-leaves-no-manual-log/do",
-            "store-access-census-counts-construction/do",
-            "tmp-holds-only-tool-state/do",
-            "tmp-refuses-undeclared-entries/do",
-            "store-publish-has-one-owner/do",
-            "land-echo-selection-leak/do",
-            "tracked-documents-classified/do",
-            "store-publish-changed-result/do",
-            "store-alias-move-address-form/do",
-            "store-blob-pack-reader/do",
-            "store-precheck-owns-its-backup/do",
-            "store-snapshot-single-format/do",
-            "store-pack-neighbours/do",
-            "closure-binding-follows-declaration/do",
-            "gate-receipt-reuse-measured/do",
-            "gate-isolation-rule-on-evidence/do",
-            "gate-isolation-rule-enforced/do",
-            "lanes-failure-names-its-test/do",
-            "store-checkpoint-generations/do",
-            "store-retire-superseded-and-backups/do",
-            "gate-history-ranks-readers/do",
-            "webui-lane-hang-bounded/do",
-            "tool-state-runtime-directory/do",
-            "loop-markers-runtime-directory/do",
-            "unread-documents-leave-the-tree/do",
-            "modern-go-census-leaves-the-tree/do",
-            "api-manifest-leaves-the-tree/do",
-            "compatibility-reports-leave-the-tree/do",
-            "modern-go-baseline-minimal/do",
-            "models-register-and-validate/do",
-            "recipe-spec-assembler/do",
-            "inventory-first-use-corrections/do",
-            "validation-evidence-surface-discipline/do",
-            "validation-planner-leaves-the-device-group/do",
-            "media-processing-evidence-reacquired/do",
-            "media-runtime-chain-reconciled/do",
-            "media-evidence-currency-in-inventory/do",
-            "q1-0-batched-prefill/do",
-            "lanes-repair-q10-prefill/do",
-            "bonsai-coverage-join/do",
-            "verify-selector-per-invocation/do",
-            "gate-package-run-receipt/do",
-            "complete-receipt-declared-exclusions/do",
-            "media-currency-declared-exclusions/do",
-            "validate-all-models/do",
-            "speech-currency-owner/do",
-            "acceptance-receipt-survives-plan-edits/do",
-            "compatibility-names-its-reads/do",
-            "unlimited-ocr-port/do",
-            "ocr-census-rebind/do",
-            "ocr-coverage-join/do",
-            "post-guard-census-rebind/do",
-            "transcription-capability/do",
-            "speech-models-onboarding/do",
-            "transcription-capability-host-boundary/do",
-            "transcription-stage-output-contract/do",
-            "granite-speech-transcription-activation/do",
-            "skip-reason-names-its-gate/do",
-            "recurrent-transcription-capability/do",
-            "transcript-decode-honours-its-vocabulary/do",
-            "nemotron-transcription-activation/do",
-            "speech-validation-state-recorded/do",
-            "fractale-generation-activation/do",
-            "prefill-acceptance-measures-work/do",
-            "fractale-generation-verification/do",
-            "fractale-coverage-join/do",
-            "speech-transcription-verification/do",
-            "speech-coverage-join/do",
-            "campaign-state-after-coverage/do",
-            "compatibility-binding-measured/do",
-            "defer-decision-blocked-rows/do",
-            "skips-name-their-environment/do",
-            "acceptance-pins-follow-coverage/do",
-            "device-gate-names-its-lane/do",
-            "device-gate-revert-restores-currency/do",
-            "plan-dispositions-recorded/do",
-            "store-open-remeasured/do",
-            "surface-move-named-in-preflight/do",
-            "store-deferral-constraints/do",
-            "skips-through-a-variable/do",
-            "licence-blockers-corrected/do",
-            "activity-policy-declared/do",
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do",
-            "plan-reordered/do",
-            "gate-drops-build-check/do",
-            "row-check-proves-itself/do",
-            "derived-cache-reuse/do",
-            "plan-store-reshaped/do",
-            "inventory-tells-the-truth/do",
-            "evidence-currency-per-model/do",
-            "media-census-scope/do",
-            "plan-evidence-feedback/do",
-            "model-paths-from-registrations/do",
-            "preflight-rebinds-closure-drift/do",
-            "plan-closure-rows-reconciled/do",
-            "plan-small-records-rescoped/do",
-            "plan-model-paths-scoped/do",
-            "surface-without-capability-tables/do",
-            "gate-suite-longest-tests/do",
-            "planning-validates-once/do",
-            "standard-names-once/do",
-            "cmd-plan-suite-wall/do",
-            "host-suites-parallel/do",
-            "compatibility-suite-parallel/do"
+            "benchmark-27b/mmlu-pro-pass"
           ]
         }
       ]
@@ -1224,6 +982,10 @@
     },
     {
       "key": "surface-move:production-nodes:00b49160532265a7eea191429073651bff3be82a",
+      "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:1943100ae2b84ea1996ecc1d48ba8206f2dd9cee",
       "row": "automation-harness-surface-remainder"
     },
     {

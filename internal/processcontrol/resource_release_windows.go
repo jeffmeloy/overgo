@@ -6,6 +6,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"slices"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -18,6 +21,7 @@ var (
 	procResetEvent             = kernel32.NewProc("ResetEvent")
 	procWaitForMultipleObjects = kernel32.NewProc("WaitForMultipleObjects")
 	procQueryInformationJob    = kernel32.NewProc("QueryInformationJobObject")
+	procQueryProcessImageName  = kernel32.NewProc("QueryFullProcessImageNameW")
 )
 
 const (
@@ -29,6 +33,9 @@ const (
 	manualResetEvent            = 1
 	// holderListStart is the first slot of a process-id list after its count word.
 	holderListStart = 1
+	// win32PathFormat is the QueryFullProcessImageNameW flag for a Win32
+	// path rather than the native device path.
+	win32PathFormat = 0
 )
 
 // releaseEventName names the manual-reset event every release of the
@@ -136,9 +143,44 @@ func (w *releaseWaiter) wait(ctx context.Context) error {
 		return fmt.Errorf("processcontrol: wait for resource release: %w", callErr)
 	}
 	if cause := context.Cause(ctx); cause != nil {
-		return cause
+		return heldBy(cause, holders)
 	}
 	return nil
+}
+
+// heldBy names the holders a wait ended behind: a caller whose deadline ran
+// out behind a foreign process, such as a preview server on the GPU, reports
+// which process kept the resource instead of timing out silently.
+func heldBy(cause error, holders []uint32) error {
+	if len(holders) == 0 {
+		return cause
+	}
+	// An exclusive holder is both a user of the admission file and a member
+	// of the job, and is named once.
+	slices.Sort(holders)
+	holders = slices.Compact(holders)
+	labels := make([]string, 0, len(holders))
+	for _, pid := range holders {
+		labels = append(labels, processLabel(pid))
+	}
+	return fmt.Errorf("%w; held by %s", cause, strings.Join(labels, ", "))
+}
+
+// processLabel is a holder's image name and id, or its id alone when the
+// image cannot be read.
+func processLabel(pid uint32) string {
+	id := fmt.Sprintf("pid %d", pid)
+	process, _, _ := procOpenProcess.Call(processQueryLimitedInformation, windowsFalse, uintptr(pid))
+	if process == 0 {
+		return id
+	}
+	defer procCloseHandle.Call(process)
+	image := make([]uint16, syscall.MAX_PATH)
+	size := uint32(len(image))
+	if ok, _, _ := procQueryProcessImageName.Call(process, win32PathFormat, uintptr(unsafe.Pointer(&image[0])), uintptr(unsafe.Pointer(&size))); ok == 0 {
+		return id
+	}
+	return filepath.Base(syscall.UTF16ToString(image[:size])) + " (" + id + ")"
 }
 
 // close releases the event; a wait armed and abandoned hands its wake-up

@@ -4,25 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "device-measurement-deadlock",
-      "title": "Name the processes a timed-out device claim waited behind",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 220,
-        "reason": "a resource wait that ends on its deadline names its holders by image and id"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name the processes a timed-out device claim waited behind",
-          "status": "open",
-          "verify": "go test ./internal/processcontrol -run '^TestResourceWaitNamesItsHolders$' -count=1",
-          "rationale": "Measured 2026-09-23: no measurement-process deadlock exists; internal/cuda/executor passes on the device in 38 s once the GPU is free. The device-step timeouts came from go-run preview servers (the .claude/launch.json configurations, the only go run ./cmd/server launchers; gate lanes build the server under processcontrol and none escaped) holding the GPU, and the wait gave no sign of who held it. The wait already lists the holders; a wait that ends on its deadline now names each once by image and id."
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",

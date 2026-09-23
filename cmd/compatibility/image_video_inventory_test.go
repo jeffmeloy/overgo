@@ -15,6 +15,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
+	"overgo/internal/discovery"
 	"overgo/internal/jsonfile"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -254,7 +255,20 @@ func TestImageVideoInventoryAcceptance(t *testing.T) {
 	if !reflect.DeepEqual(mediaScopeModels(census.Models, value.Tasks), mediaScopeModels(current.Models, value.Tasks)) {
 		t.Fatal("media census reconciliation changed the media-scope model entries")
 	}
-	if err := checkCapabilityCensus(t.Context(), store, current, len(current.Models)); err != nil {
+	// The live catalog answers to the binding on the same media-scope entries:
+	// a model registered after the binding moves the whole census, not the
+	// media denominator, so it does not expire this acceptance.
+	if err := capabilityCensusCodec.ValidateIdentity(current); err != nil {
+		t.Fatal(err)
+	}
+	live, truncated, err := discovery.RegisteredCatalog(t.Context(), store, mediaCatalogLimit, discovery.LoadMemo(t.Context(), store))
+	if err != nil || truncated {
+		t.Fatalf("live registered catalog: truncated=%t: %v", truncated, err)
+	}
+	if !sameCensusModels(mediaScopeModels(current.Models, value.Tasks), mediaScopeModels(censusModels(live), value.Tasks)) {
+		t.Fatal("the live media-scope entries differ from the bound census; record a new disposition")
+	}
+	if _, err := readCensusVerifications(t.Context(), store, current); err != nil {
 		t.Fatal(err)
 	}
 	for _, invalid := range []acceptedCensus{

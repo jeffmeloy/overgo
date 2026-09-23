@@ -4,34 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "evidence-currency-per-model",
-      "title": "Key each model's evidence currency to the code that model runs, not to the whole inference surface (owner feedback 2026-09-22): commit e7ee897a added seven lines to internal/modelrecipe/compile.go for the transcription task and made all nine text models' evidence stale at once, because the surface digest covers every package of the set; so validated is true for a few hours after a validation campaign and false the rest of the time, and every such edit costs a re-validation campaign. Digest each model's own dependency closure -- the packages its recipe's modules reach -- keep test files excluded as now, and prove it by a production edit to a module one family does not run leaving that family's evidence current.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Key each model's evidence currency to the code that model runs, not to the whole inference surface (owner feedback 2026-09-22): commit e7ee897a added seven lines to internal/modelrecipe/compile.go for the transcription task and made all nine text models' evidence stale at once, because the surface digest covers every package of the set; so validated is true for a few hours after a validation campaign and false the rest of the time, and every such edit costs a re-validation campaign. Digest each model's own dependency closure -- the packages its recipe's modules reach -- keep test files excluded as now, and prove it by a production edit to a module one family does not run leaving that family's evidence current.",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestModelSurfaceIsItsOwnClosure$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "media-census-scope",
-      "title": "Hold the media census binding to the media models alone (measured 2026-09-22 at 3a331e81): TestImageVideoInventoryAcceptance refuses with live registered catalog is truncated, because checkCapabilityCensus bounds the live catalog by the bound census's own model count, so any model registered after the binding -- text or media -- fails the complete compatibility receipt, although the test's own comment says the disposition may carry text models forward. Compare the media-scope entries only, as the test's other assertion already does, so registering a text model no longer expires the media receipt.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold the media census binding to the media models alone (measured 2026-09-22 at 3a331e81): TestImageVideoInventoryAcceptance refuses with live registered catalog is truncated, because checkCapabilityCensus bounds the live catalog by the bound census's own model count, so any model registered after the binding -- text or media -- fails the complete compatibility receipt, although the test's own comment says the disposition may carry text models forward. Compare the media-scope entries only, as the test's other assertion already does, so registering a text model no longer expires the media receipt.",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestImageVideoInventoryAcceptance$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "automation-land-regenerates-derived-docs",
       "title": "Make the landing regenerate the source-derived documents itself in their binding order (closure rebind, census baseline, published census, api manifest) after the last source edit, instead of reporting them stale for an operator to re-run by hand: skipping one step cost a failed test run and the ritual was repeated three times in one row",
       "owner": "master-lead",
@@ -197,6 +169,20 @@
           "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's directory and file paths). About 45 test sites join roots.Models with a directory name -- internal/adaptiveparity, internal/seq2seq, internal/seriesforecast, internal/latentvideo, internal/mediacapability, internal/speechsynth, internal/tabularicl, internal/oscillatorimage, cmd/compatibility, cmd/vqaparity -- and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store, not under the models root). Give tests one resolver by registration, move the sites to it, and prove a site resolves a model the models root does not hold",
           "status": "open",
           "verify": "go test ./internal/testutil -run '^TestRegisteredModelResolvesThroughTheStore$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "evidence-currency-per-model",
+      "title": "Stop text evidence expiring on code no decode runs (owner feedback 2026-09-22; measured 2026-09-23): of the last 400 commits, 67 moved the inference surface, and 33 of those touched only store, record and process-control packages (overgodb 18, runrecord 14) that no decode executes; modelrecipe alone moved it twice. A per-model closure does not help, because every text model shares one closure, and a declaration-level digest over the code manifest is unsound (it records no symbols for unexported package variables such as the module catalog) and broad (the runner reaches 62 percent of all symbols). The closure is wide because the runner reaches the control plane through four edges only: internal/inference imports modelrecipe, composition and runrecord, and internal/projector imports modelrecipe and modelartifact. Cut them: move the decode-session, plan and runtime-policy types the runner and projector use into a leaf package they import, move composite generation out of the runner, then drop modelrecipe from the surface roots; each cut states how many of the 67 historical moves the narrowed surface would have absorbed, and the proof is that an edit to the store or to a non-text capability leaves the surface digest unchanged",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop text evidence expiring on code no decode runs (owner feedback 2026-09-22; measured 2026-09-23): of the last 400 commits, 67 moved the inference surface, and 33 of those touched only store, record and process-control packages (overgodb 18, runrecord 14) that no decode executes; modelrecipe alone moved it twice. A per-model closure does not help, because every text model shares one closure, and a declaration-level digest over the code manifest is unsound (it records no symbols for unexported package variables such as the module catalog) and broad (the runner reaches 62 percent of all symbols). The closure is wide because the runner reaches the control plane through four edges only: internal/inference imports modelrecipe, composition and runrecord, and internal/projector imports modelrecipe and modelartifact. Cut them: move the decode-session, plan and runtime-policy types the runner and projector use into a leaf package they import, move composite generation out of the runner, then drop modelrecipe from the surface roots; each cut states how many of the 67 historical moves the narrowed surface would have absorbed, and the proof is that an edit to the store or to a non-text capability leaves the surface digest unchanged",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestStoreEditLeavesTheSurfaceUnchanged$' -count=1"
         }
       ]
     },

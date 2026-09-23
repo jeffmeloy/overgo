@@ -242,6 +242,31 @@
         ]
       },
       "scope": "The Q1_0 staged-prefill landing: one dequantise-rows kernel added for Q1_0 with its manifest and generated-binding entries, and the staged table admitting Q1_0. The added path runs only for a quantised Q1_0 left operand and no media model carries a Q1_0 tensor, so every generation product is computed by the same kernels as before. The receipt is the executor suite re-run on the device, naming the F16, BF16 and quantised GEMM parity tests the media paths share."
+    },
+    {
+      "changes": {
+        "internal/cuda/testutil/require.go": {
+          "after_sha256": "0d2f378df75af1955ac92eaa5f882680d5063475ccb0c9cf7cc46a56973668ca",
+          "before_sha256": "631666cc042695f1deb1a13baeaec800bd1adf844fe5a26a0ceaf67152b61009",
+          "reason": "the shared CUDA test gate's environment skip cites testskip.Inapplicable, so a complete run without the device classifies its fixtures; only the skip message changes and no runtime code reads it."
+        }
+      },
+      "evidence": "evidence:sha256:1b2264e2e8a720674cc235c52a35ffe3fbc7044e346f4fb6dd771ebd7b134029",
+      "id": "cuda-test-gate-skip-reason",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/cuda/cublas": [
+          "TestSGEMMIntegration",
+          "TestRowMajorGEMMF32Integration"
+        ],
+        "overgo/internal/cuda/driver": [
+          "TestDriverIntegration"
+        ],
+        "overgo/internal/cuda/kernel": [
+          "TestVectorAddIntegration"
+        ]
+      },
+      "scope": "The skipped-fixture classification: the test-support gate every device fixture calls changes its skip reason only. The receipt re-runs the driver, cuBLAS and kernel packages on the device with the gate opted in, so their fixtures pass through the changed gate instead of skipping."
     }
   ],
   "paths": [

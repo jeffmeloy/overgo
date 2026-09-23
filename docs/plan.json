@@ -5,37 +5,16 @@
   "items": [
     {
       "id": "device-measurement-deadlock",
-      "title": "Stop CUDA measurement-process tests deadlocking on a device reservation the parent holds",
+      "title": "End a gate lane's descendant processes with the gate that started them",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop CUDA measurement-process tests deadlocking on a device reservation the parent holds",
+          "title": "End a gate lane's descendant processes with the gate that started them",
           "status": "open",
-          "verify": "go test ./internal/cuda/testutil -run '^TestMeasurementProcessRefusesHeldReservation$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "skipped-fixture-classification",
-      "title": "Classify the shared CUDA test gate's skips",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 20,
-        "reason": "the shared CUDA gate's skip cites the classified reason and the delta registry is classified as a receipt"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Classify the shared CUDA test gate's skips",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestSkippedFixtureClassification' -count=1",
-          "rationale": "internal/cuda/testutil skips with an unclassified reason, so 510 device fixtures hold no receipt. Built 2026-09-23: the gate cites testskip.Inapplicable, skipReasonSites reads every file so a shared gate in a support package is held to the rule, TestSkippedFixtureClassification, and a registry delta (cuda-test-gate-skip-reason) with a device receipt of the driver, cuBLAS and kernel packages. It could not land: changing the shared gate selects every device package, and the full internal/cuda/executor suite hangs in TestDeviceBufferPoolCapacityRefusalReclaimsIdle (device-measurement-deadlock), so the device step ran past its 20-minute package timeout. Rebuild it after that row lands.",
-          "depends_on": [
-            "device-measurement-deadlock/do"
-          ]
+          "verify": "go test ./internal/processcontrol -run '^TestAbortedRunEndsDescendants$' -count=1",
+          "rationale": "Measured 2026-09-23: the suspected measurement-process deadlock does not exist; internal/cuda/executor passes on the device in 38 s once the GPU is free. The device step's timeout came from a go-run server.exe holding the GPU claim. Attribution is unconfirmed: a peer session (Overgo gui) also runs go run ./cmd/server on this machine, and a second such server held the GPU at 16:56 with no gate running. First establish whether a lane launch escapes processcontrol's kill-on-close job; if none does, the defect is shared-GPU admission (the gate should report the holder and wait, not time out), and the row is re-scoped to that."
         }
       ]
     },

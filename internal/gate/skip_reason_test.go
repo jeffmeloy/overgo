@@ -2,7 +2,9 @@ package gate
 
 import (
 	"go/ast"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,14 +15,12 @@ import (
 // exclusion while its own guard reads the environment. Such a skip is
 // classified only when the run is short, so in a complete run it leaves its
 // package incomplete and the package earns no receipt at all.
+// Every file is read, not only tests: a shared test gate such as the CUDA
+// one lives in a non-test file of a support package, and its skip decides
+// the verdict of every fixture that calls it.
 func skipReasonSites(snapshot repoanalysis.SourceSnapshot) ([]string, error) {
 	var sites []string
 	for _, file := range snapshot.Files {
-		// A test file never moves the pinned media runtime identity, so one
-		// under a pinned path is held to the rule like any other.
-		if !file.Test {
-			continue
-		}
 		syntax, err := file.Syntax()
 		if err != nil {
 			return nil, err
@@ -154,5 +154,54 @@ func TestIntegrationSkipReasonNamesItsGate(t *testing.T) {
 	}
 	if len(sites) != 0 {
 		t.Fatalf("environment-gated skips cite no reason a complete run classifies:\n%s", strings.Join(sites, "\n"))
+	}
+}
+
+// TestSkippedFixtureClassification holds a shared test gate in a support
+// package to the rule its fixtures are: an environment-gated skip in a
+// non-test helper is reported unless it cites a classified reason, and the
+// shared CUDA gate every device fixture calls cites one, so a complete run
+// without the device classifies those fixtures instead of leaving their
+// packages without a receipt.
+func TestSkippedFixtureClassification(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for name, source := range map[string]string{
+		"go.mod": "module fixture\n\ngo 1.25\n",
+		"internal/unclassified/gate.go": "package unclassified\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\n" +
+			"func Require(t testing.TB) {\n\tif os.Getenv(\"DEVICE\") == \"\" {\n\t\tt.Skip(\"set DEVICE=1\")\n\t}\n}\n",
+		"internal/classified/gate.go": "package classified\n\nimport (\n\t\"os\"\n\t\"testing\"\n\n\t\"fixture/internal/testskip\"\n)\n\n" +
+			"func Require(t testing.TB) {\n\tif os.Getenv(\"DEVICE\") == \"\" {\n\t\tt.Skip(testskip.Inapplicable + \": set DEVICE=1\")\n\t}\n}\n",
+		"internal/testskip/testskip.go": "package testskip\n\nconst Inapplicable = \"inapplicable\"\n",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fixture, err := repoanalysis.DiscoverGo(root, "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sites, err := skipReasonSites(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(sites, []string{"internal/unclassified/gate.go"}) {
+		t.Fatalf("support-package skips reported %v, want only the unclassified helper", sites)
+	}
+	repo, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, err := repoanalysis.DiscoverGo(repo, "internal/cuda/testutil")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sites, err := skipReasonSites(live); err != nil || len(sites) != 0 {
+		t.Fatalf("the shared CUDA gate skips without a classified reason: %v %v", sites, err)
 	}
 }

@@ -5,15 +5,15 @@
   "items": [
     {
       "id": "store-small-record-horizon",
-      "title": "Stop the two fastest-growing small-record schemas from growing without bound: agent-obligation/v1 (54,372 records, +4.6k since 09-19) keeps open obligations and discharged ones within a horizon, and gate-package-receipt/v1 (31,722, +4.3k) becomes one receipt per gate naming its packages, which a lookup by package reads newest first. Records a landed commit or an accepted protocol names stay. These rows fill the lineage and artifact checkpoints that every open decodes, so shrinking them shortens every open without new loading machinery.",
+      "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop the two fastest-growing small-record schemas from growing without bound: agent-obligation/v1 (54,372 records, +4.6k since 09-19) keeps open obligations and discharged ones within a horizon, and gate-package-receipt/v1 (31,722, +4.3k) becomes one receipt per gate naming its packages, which a lookup by package reads newest first. Records a landed commit or an accepted protocol names stay. These rows fill the lineage and artifact checkpoints that every open decodes, so shrinking them shortens every open without new loading machinery.",
+          "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestPackageReceiptIsOnePerGate$' -count=1 \u0026\u0026 go test ./internal/runrecord -run '^TestDischargedObligationsExpire$' -count=1"
+          "verify": "go test ./internal/storepolicy -run '^TestLegacySmallRecordsAreReleasable$' -count=1"
         }
       ]
     },
@@ -1022,7 +1022,8 @@
             "plan-evidence-feedback/do",
             "model-paths-from-registrations/do",
             "preflight-rebinds-closure-drift/do",
-            "plan-closure-rows-reconciled/do"
+            "plan-closure-rows-reconciled/do",
+            "plan-small-records-rescoped/do"
           ]
         }
       ]

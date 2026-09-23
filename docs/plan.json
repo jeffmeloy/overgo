@@ -6,20 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-declared-task-output",
-      "title": "Take each composer task's output kind from its declared output and name a served task the workbench offers no surface for (image-embedding first) instead of treating it as image output",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Take each composer task's output kind from its declared output and name a served task the workbench offers no surface for (image-embedding first) instead of treating it as image output",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserUnofferedTask$' -require 'unoffered task leg'"
-        }
-      ]
-    },
-    {
       "id": "webui-lane-trigger-coverage",
       "title": "Run the browser lane for every change to the workbench's declarations, routes and GUI tests",
       "owner": "overgo_gui_cleanup",

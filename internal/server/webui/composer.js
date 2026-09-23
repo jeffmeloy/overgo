@@ -49,7 +49,7 @@
     let completed;
     try { completed = await run(capability, input, signal, null, lifecycle); }
     catch (err) { if (err.operationState === 'cancelled') { yield { type: 'cancelled' }; return; } throw err; }
-    for await (const event of media(outputKind(capability.task), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
+    for await (const event of media(outputKind(capability), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
       if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
       yield event;
     }
@@ -58,8 +58,14 @@
   // generation: one run of a declared capability through the generic run route:
   // the operation's outputs land as media events, each an artifact with provenance,
   // or as the assistant's text when the task answers in text; the output's kind
-  // follows the server's task vocabulary, not a model list.
-  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" || task === "transcription" ? "text" : task.startsWith("video") ? "video" : "image";
+  // follows the capability's declared output, not its task name or a model list.
+  const outputSurfaces = { image: "image", video: "video", audio: "audio", text: "text", transcription: "text" };
+  const declaredOutput = (capability) => ((capability && capability.outputs) || [])[0]?.data || "";
+  const outputKind = (capability) => outputSurfaces[declaredOutput(capability)] || null;
+  // offered: the capability as the page lists it; one whose output the page cannot show is listed
+  // with that refusal instead of being run and shown as something it is not.
+  const offered = (capability) => capability.refusal || outputKind(capability) ? capability :
+    { ...capability, refusal: "The workbench cannot show " + (declaredOutput(capability) || "undeclared") + " output yet" };
   // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
@@ -75,7 +81,7 @@
       else yield { type: "error", message: err.message, status: err.operationUnconfirmed ? 'unknown' : 'failed' };
       return;
     }
-    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
+    if (outputKind(capability) !== "text") { yield* media(outputKind(capability), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
     // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
     for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
@@ -843,6 +849,7 @@
   overgo.generate = generate;
   overgo.bodyControl = bodyControl;
   overgo.outputKind = outputKind;
+  overgo.offered = offered;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

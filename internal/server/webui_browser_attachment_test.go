@@ -82,7 +82,7 @@ func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
   caps.modes.push({id:'image',label:'Image fixture',enabled:true});
   window.attachmentGet=overgo.api.get;window.attachmentUpload=overgo.api.upload;
   const attachmentCaps=structuredClone(caps);
-  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'image',recipe:'attachment-fixture-recipe',name:'Attachment fixture',controls:[{name:'source',label:'Source file',type:'artifact',required:true}]}];const result=await attachmentGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(attachmentCaps);return result;};
+  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'image',recipe:'attachment-fixture-recipe',outputs:[{data:'image'}],name:'Attachment fixture',controls:[{name:'source',label:'Source file',type:'artifact',required:true}]}];const result=await attachmentGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(attachmentCaps);return result;};
   window.attachmentOldComposer=document.querySelector('.composer');overgo.openConversation(null);return true;
 })()`)
 	settle(`!!document.querySelector('.composer') && document.querySelector('.composer')!==attachmentOldComposer`)

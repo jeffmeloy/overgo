@@ -231,7 +231,7 @@ func assertChatAttachmentModeReset(t *testing.T, ctx context.Context, browser *w
       const o = window.overgo;
       window.modeResetProbe = {capabilities: o.capabilities, get: o.api.get, upload: o.api.upload, uploads: 0};
       o.capabilities = () => ({...window.modeResetProbe.capabilities(), modes: [{id:"chat", label:"Chat", enabled:true}, {id:"vqa", label:"Image question", enabled:true}]});
-      o.api.get = (path, ...args) => path === "/generation/capabilities" ? Promise.resolve([{task:"vqa", recipe:"probe", name:"probe", controls:[{name:"image", type:"artifact", label:"image", media:"image"}]}]) : window.modeResetProbe.get(path, ...args);
+      o.api.get = (path, ...args) => path === "/generation/capabilities" ? Promise.resolve([{task:"vqa", recipe:"probe", name:"probe", outputs:[{data:"text"}], controls:[{name:"image", type:"artifact", label:"image", media:"image"}]}]) : window.modeResetProbe.get(path, ...args);
       o.api.upload = () => { window.modeResetProbe.uploads++; return Promise.resolve({id:"probe"}); };
       o.openConversation(null); return true;
     })()`)

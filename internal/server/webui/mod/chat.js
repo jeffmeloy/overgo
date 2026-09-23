@@ -554,7 +554,9 @@
         if (disposed || request.signal.aborted || composer.mode() !== mode) return;
         generation.capabilities = available;
         composer.modeHost.replaceChildren();
-        const declared = generation.capabilities.filter((capability) => capability.task === mode);
+        // Each is offered as the page can show it: one with an output it cannot show is listed, refused.
+        const declared = generation.capabilities.filter((capability) => capability.task === mode).map(overgo.offered);
+        const kind = overgo.outputKind(declared.find((capability) => overgo.outputKind(capability)));
         if (!declared.length) { composer.modeHost.replaceChildren(el('span', { class: 'note', role: 'status', text: 'No model is available for this task. Check Library, then retry.' }), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) })); return; }
         const controlsHost = el("span", { class: mode === 'speech' ? 'row speech-primary-controls' : 'row' });
         const selectionNote = el('span', { class: 'note', role: 'status', hidden: true });
@@ -564,7 +566,7 @@
           value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
         // The gallery rail: the store's outputs of the mode's kind newest first, each thumb named by the
         // capability that made it; "this model" keeps the picked one's. A thumb opens the record.
-        const rail = el("div", { class: "intake-strip gallery", role: "group", "aria-label": "Recent " + overgo.outputKind(mode) + " outputs" });
+        const rail = el("div", { class: "intake-strip gallery", role: "group", "aria-label": "Recent " + (kind || "stored") + " outputs" });
         const only = el("input", { type: "checkbox", "aria-label": "this model only" });
         const filterRail = () => { for (const thumb of rail.children) thumb.hidden = only.checked && thumb.dataset.recipe !== picker.value; };
         const select = () => {
@@ -575,7 +577,7 @@
           const typed = generation.capability ? generation.capability.controls.filter((control) => control !== overgo.bodyControl(generation.capability.controls)) : [];
           generation.fields = overgo.controlInputs(controlsHost, typed);
           selectionNote.hidden = !!generation.capability;
-          selectionNote.textContent = generation.capability ? '' : 'The selected model is unavailable. Choose another model for this task.';
+          selectionNote.textContent = generation.capability ? '' : (declared.find((capability) => capability.recipe === picker.value)?.refusal || 'The selected model is unavailable').replace(/\.$/, '') + '. Choose another model for this task.';
           const saved = generation.capability && generationValues.get(generation.capability.recipe);
           for (const [name, field] of generation.fields) if (saved && saved.has(name)) {
             const value = saved.get(name);
@@ -604,11 +606,11 @@
           composer.modeHost.append(selectionNote, el('button', { class: 'link-button', text: 'Options', 'aria-label': 'Open transcription options', onclick: () => openSpeechOptions() }));
           transcriptionSettings.append(el('h3', { text: 'Transcription options' }), controlsHost,
             el('details', {}, el('summary', { text: 'Recent transcripts' }), el('label', { class: 'chip' }, only, ' This model'), rail));
-        } else composer.modeHost.append(picker, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
+        } else composer.modeHost.append(picker, selectionNote, controlsHost, el("label", { class: "chip" }, only, " this model"), rail);
         select();
         releaseTaskModel();
         releaseTaskModel = overgo.bindTaskModel(picker, () => generation.capability);
-        galleryRail(rail, overgo.outputKind(mode)).then(filterRail);
+        if (kind) galleryRail(rail, kind).then(filterRail);
       }
       async function galleryRail(rail, kind) {
         try {

@@ -14,20 +14,17 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 	"overgo/internal/worklease"
 )
 
-// Every landed row leaves measured evidence in the store: what the gate's
-// tests cost, what the landing added to the store, what it did to the
-// harness surface, which fixtures ran without credit. The optimization
-// review turns that evidence into typed candidates and makes the re-plan
+// Every landed row leaves measured evidence in the store: what the landing
+// added to the store, what it did to the harness surface, which fixtures
+// ran without credit. The optimization review turns that evidence into
+// typed candidates and makes the re-plan
 // answer each one -- with a row or with a reason -- before the next row is
 // dispatched, so optimization happens as you go instead of when it hurts.
 
 const (
-	// CandidateSuiteCost names the costliest measured test package of a landing.
-	CandidateSuiteCost = "suite-cost"
 	// CandidateStoreGrowth names the schema that grew the store most.
 	CandidateStoreGrowth = "store-growth"
 	// CandidateSurfaceMove names a moved harness production surface.
@@ -118,54 +115,34 @@ func RecordDisposition(document Plan, review OptimizationDisposition) (Plan, err
 }
 
 // suiteCostRecord is the plan's reading of the gate's suite-cost document:
-// the invocations with their package executions and skipped fixtures.
+// the fixtures each invocation skipped.
 type suiteCostRecord struct {
-	Result      artifact.ID `json:"result"`
 	Invocations []struct {
-		Step       string                          `json:"step"`
-		WallNS     uint64                          `json:"wall_ns"`
-		Executions []testevidence.PackageExecution `json:"executions"`
-		Skipped    []string                        `json:"skipped"`
+		Step    string   `json:"step"`
+		Skipped []string `json:"skipped"`
 	} `json:"invocations"`
 }
 
-// SuiteCostCandidates names the costliest measured package of the landing
-// and, per step and package, the fixtures that ran without credit.
-func SuiteCostCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandidate, error) {
+// SkippedFixtureCandidates names, per step and package, the fixtures of the
+// landing's suite that ran without credit. The costliest package is not a
+// candidate: every suite has one, so it was filed whatever the suite did,
+// and the suite wall ratchet holds the wall against the retained records.
+func SkippedFixtureCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandidate, error) {
 	var record suiteCostRecord
 	if err := json.Unmarshal(data, &record); err != nil {
 		return nil, fmt.Errorf("plan: decode suite cost evidence: %w", err)
 	}
-	// Invocations and executions are recorded in order, so the first
-	// costliest wins deterministically without a tie-break.
-	var costliest testevidence.PackageExecution
-	costliestStep := ""
 	// Skipped fixtures group by step and package: a lane that skips
 	// hundreds of tests is a handful of answerable subjects, not hundreds.
 	skipped := map[string]int{}
 	for _, invocation := range record.Invocations {
 		step := cmp.Or(invocation.Step, "the test phase")
-		for _, execution := range invocation.Executions {
-			if execution.Elapsed == nil || !execution.Started {
-				continue
-			}
-			if costliest.Elapsed == nil || *execution.Elapsed > *costliest.Elapsed {
-				costliest, costliestStep = execution, step
-			}
-		}
 		for _, fixture := range invocation.Skipped {
 			owner, _, _ := strings.Cut(fixture, ": ")
 			skipped[step+":"+owner]++
 		}
 	}
 	var candidates []OptimizationCandidate
-	if costliest.Elapsed != nil {
-		candidates = append(candidates, OptimizationCandidate{
-			Kind: CandidateSuiteCost, Key: CandidateSuiteCost + ":" + costliest.Package,
-			Measure:  fmt.Sprintf("%gs in %s", *costliest.Elapsed, costliestStep),
-			Evidence: evidence,
-		})
-	}
 	for _, group := range slices.Sorted(maps.Keys(skipped)) {
 		candidates = append(candidates, OptimizationCandidate{
 			Kind: CandidateSkippedFixture, Key: CandidateSkippedFixture + ":" + group,
@@ -264,11 +241,11 @@ func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, reposito
 		if !found || content.Descriptor.Schema != runrecord.SuiteCostSchema {
 			continue
 		}
-		fromCost, costErr := SuiteCostCandidates(content.Data, edge.Child)
-		if costErr != nil {
-			return nil, costErr
+		skipped, skipErr := SkippedFixtureCandidates(content.Data, edge.Child)
+		if skipErr != nil {
+			return nil, skipErr
 		}
-		candidates = append(candidates, fromCost...)
+		candidates = append(candidates, skipped...)
 	}
 	growth, err := storeGrowthOfCompletion(ctx, store, landed.preparation)
 	if err != nil {

@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-review-suite-cost-regression",
-      "title": "Stop filing a landing's costliest test package as a review candidate",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop filing a landing's costliest test package as a review candidate",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestLandingFilesNoCostliestPackage$' -count=1",
-          "rationale": "Every landing has a costliest package, so the candidate is filed whatever the suite did (5.9 s of modern-census on fd3e2549) and each answer is noise. Suite wall regressions are already held by the suite wall ratchet over the retained suite-cost records, which stay in the store. Remove the candidate; skipped-fixture candidates stay. Net-negative in the harness surface."
-        }
-      ]
-    },
-    {
       "id": "decode-attention-per-key-cost",
       "title": "Recover small-head decode throughput without losing long-context correctness",
       "status": "open",

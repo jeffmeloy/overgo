@@ -23,9 +23,9 @@ func reviewID(t *testing.T, kind artifact.Kind, text string) artifact.ID {
 	return id
 }
 
-// TestPostRowOptimizationReview binds the review's four derivations and the
-// disposition rule: the costliest package and every skipped fixture from the
-// suite-cost evidence, the schema that grew the store most by bytes and by
+// TestPostRowOptimizationReview binds the review's derivations and the
+// disposition rule: every skipped fixture from the suite-cost evidence,
+// the schema that grew the store most by bytes and by
 // count, a moved harness surface, and dispatch refusal until each key has a
 // row or a reason -- never both, never neither, and a row must exist.
 func TestPostRowOptimizationReview(t *testing.T) {
@@ -47,14 +47,13 @@ func TestPostRowOptimizationReview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fromCost, err := SuiteCostCandidates(record, evidence)
+	fromSuite, err := SkippedFixtureCandidates(record, evidence)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fromCost) != 2 || fromCost[0].Key != "suite-cost:overgo/internal/slow" || !strings.Contains(fromCost[0].Measure, "40.25s") ||
-		!strings.Contains(fromCost[0].Measure, "test-rest") || fromCost[0].Evidence != evidence ||
-		fromCost[1].Key != "skipped-fixture:test-rest:overgo/cmd/generate" || !strings.HasPrefix(fromCost[1].Measure, "2 fixtures") {
-		t.Fatalf("suite cost candidates = %+v", fromCost)
+	if len(fromSuite) != 1 || fromSuite[0].Key != "skipped-fixture:test-rest:overgo/cmd/generate" ||
+		!strings.HasPrefix(fromSuite[0].Measure, "2 fixtures") || fromSuite[0].Evidence != evidence {
+		t.Fatalf("suite candidates = %+v", fromSuite)
 	}
 
 	big := artifact.Descriptor{ID: reviewID(t, artifact.KindEvidence, "big"), Size: 100, Schema: "test/big/v1"}
@@ -85,20 +84,20 @@ func TestPostRowOptimizationReview(t *testing.T) {
 	}
 
 	document := Plan{Items: []Item{{ID: "slow-suite-split", Status: StatusOpen, Steps: []Step{{ID: "do", Status: StatusOpen}}}}}
-	candidates := slices.Concat(fromCost, growth, moves)
+	candidates := slices.Concat(fromSuite, growth, moves)
 	if pending := UnreviewedCandidates(candidates, document); len(pending) != len(candidates) {
 		t.Fatalf("unreviewed before any disposition = %d, want %d", len(pending), len(candidates))
 	}
-	if _, err := RecordDisposition(document, OptimizationDisposition{Key: fromCost[0].Key, Row: "no-such-row"}); err == nil {
+	if _, err := RecordDisposition(document, OptimizationDisposition{Key: fromSuite[0].Key, Row: "no-such-row"}); err == nil {
 		t.Fatal("disposition naming an absent row was recorded")
 	}
-	if _, err := RecordDisposition(document, OptimizationDisposition{Key: fromCost[0].Key, Row: "slow-suite-split", Reason: "both"}); err == nil {
+	if _, err := RecordDisposition(document, OptimizationDisposition{Key: fromSuite[0].Key, Row: "slow-suite-split", Reason: "both"}); err == nil {
 		t.Fatal("disposition with both a row and a reason was recorded")
 	}
-	if _, err := RecordDisposition(document, OptimizationDisposition{Key: fromCost[0].Key}); err == nil {
+	if _, err := RecordDisposition(document, OptimizationDisposition{Key: fromSuite[0].Key}); err == nil {
 		t.Fatal("disposition with neither a row nor a reason was recorded")
 	}
-	document, err = RecordDisposition(document, OptimizationDisposition{Key: fromCost[0].Key, Row: "slow-suite-split"})
+	document, err = RecordDisposition(document, OptimizationDisposition{Key: fromSuite[0].Key, Row: "slow-suite-split"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +119,7 @@ func TestPostRowOptimizationReview(t *testing.T) {
 
 // TestReviewKeysAreAnswerable holds a lane that skips hundreds of fixtures to
 // one candidate per step and package, carrying the count as its measure, in
-// a deterministic order after the costliest package.
+// a deterministic order.
 func TestReviewKeysAreAnswerable(t *testing.T) {
 	t.Parallel()
 	var deviceSkips []string
@@ -141,7 +140,7 @@ func TestReviewKeysAreAnswerable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidates, err := SuiteCostCandidates(record, reviewID(t, artifact.KindEvidence, "suite cost"))
+	candidates, err := SkippedFixtureCandidates(record, reviewID(t, artifact.KindEvidence, "suite cost"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,14 +150,33 @@ func TestReviewKeysAreAnswerable(t *testing.T) {
 		measures = append(measures, candidate.Measure)
 	}
 	wantKeys := []string{
-		"suite-cost:overgo/internal/cuda/executor",
 		"skipped-fixture:test-device:overgo/internal/cuda/executor",
 		"skipped-fixture:test-device:overgo/internal/inference",
 		"skipped-fixture:test:overgo/cmd/generate",
 	}
-	if !slices.Equal(keys, wantKeys) || !strings.HasPrefix(measures[1], "302 fixtures") ||
-		!strings.HasPrefix(measures[2], "2 fixtures") || !strings.HasPrefix(measures[3], "1 fixtures") {
+	if !slices.Equal(keys, wantKeys) || !strings.HasPrefix(measures[0], "302 fixtures") ||
+		!strings.HasPrefix(measures[1], "2 fixtures") || !strings.HasPrefix(measures[2], "1 fixtures") {
 		t.Fatalf("grouped candidates = %v / %v", keys, measures)
+	}
+}
+
+// TestLandingFilesNoCostliestPackage holds the review to subjects a landing
+// can answer: a suite that measured packages but skipped nothing files no
+// candidate, however long its costliest package ran.
+func TestLandingFilesNoCostliestPackage(t *testing.T) {
+	t.Parallel()
+	record, err := json.Marshal(map[string]any{
+		"result": reviewID(t, artifact.KindEvidence, "gate result").String(),
+		"invocations": []map[string]any{{"step": "test", "wall_ns": 1, "executions": []map[string]any{
+			{"package": "overgo/cmd/modern-census", "action": "pass", "started": true, "elapsed_seconds": 5.873},
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := SkippedFixtureCandidates(record, reviewID(t, artifact.KindEvidence, "suite cost"))
+	if err != nil || len(candidates) != 0 {
+		t.Fatalf("a suite with no skips filed %+v, %v", candidates, err)
 	}
 }
 

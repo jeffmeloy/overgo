@@ -46,7 +46,7 @@
               // A scheduled scan answers {execution, fired}; a scan with no due slot starts nothing.
               if (result.fired === false) status.textContent = "not due / nothing started";
               else status.textContent = "accepted / " + fmt.shortID(result.operation || result.execution.operation);
-            } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+            } catch (err) { status.replaceChildren(overgo.failure(err)); }
           }
           run.addEventListener("click", () => execute("/automations/run"));
           schedule.addEventListener("click", () => execute("/automations/schedule"));
@@ -66,7 +66,7 @@
           definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
           status.textContent = "activated / " + fmt.shortID(created.id);
           await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { status.replaceChildren(overgo.failure(err)); }
       });
 
       function renderOperations(operations) {
@@ -75,11 +75,11 @@
           const actions = [];
           if (!["completed", "cancelled", "failed", "blocked"].includes(item.state)) {
             actions.push(el("button", { class: "btn alt", text: "Cancel", onclick: () =>
-              api.post("/operations/cancel", { id: item.id }) }));
+              overgo.cancelOperation(item.id) }));
           }
           for (const recovery of (item.recovery && item.recovery.actions) || []) {
             // The shell's decision binds the advertised approval request; a refusal shows in the status line.
-            const decide = (answer) => overgo.decideOperation(item.id, recovery.code, answer).catch((err) => status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))));
+            const decide = (answer) => overgo.decideOperation(item.id, recovery.code, answer).catch((err) => status.replaceChildren(overgo.failure(err)));
             actions.push(el("button", { class: "btn", text: "Grant " + recovery.summary, onclick: () => decide("grant") }));
             actions.push(el("button", { class: "btn alt", text: "Decline", onclick: () => decide("decline") }));
           }

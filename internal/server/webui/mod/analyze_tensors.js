@@ -45,7 +45,7 @@
       let data;
       try {
         data = await overgo.api.get("/analyze/tensors");
-      } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+      } catch (err) { clear(panel); panel.appendChild(overgo.failure(err)); return; }
       let rows = data.tensors || [];
       clear(panel);
 
@@ -170,7 +170,7 @@
           rows = answer.tensors || [];
           showSpectra(answer);
           draw();
-        }, (err) => { if (err.name !== "AbortError") spectra.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); });
+        }, (err) => { if (err.name !== "AbortError") spectra.replaceChildren(overgo.failure(err)); });
       }
       return () => pending.abort();
     },

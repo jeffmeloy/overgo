@@ -97,7 +97,7 @@
             report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
               stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
             refreshCatalog();
-          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+          } catch (err) { report(overgo.failure(err)); }
           finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered || stage.pending, onclick: async () => {
@@ -112,7 +112,7 @@
               report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
               if (!disposed && panel.classList.contains('active')) overgo.showOperation(admitted.operation);
             }
-          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+          } catch (err) { report(overgo.failure(err)); }
           finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         cell.append(register, validate, stage.host);

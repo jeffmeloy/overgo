@@ -322,7 +322,7 @@ func TestWebUIAuthUX(t *testing.T) {
 		}
 	}
 	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
-		if !strings.Contains(get(asset), "friendlyError") {
+		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") {
 			t.Errorf("%s does not route errors through friendlyError", asset)
 		}
 	}
@@ -396,7 +396,7 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
 	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
-	for _, token := range []string{`"/" + definition.scope + "/run"`, "overgo.waitOperation", "/operations/cancel"} {
+	for _, token := range []string{`"/" + definition.scope + "/run"`, "overgo.waitOperation", "overgo.cancelOperation("} {
 		if !strings.Contains(workflow, token) {
 			t.Errorf("generic workflow missing %q", token)
 		}

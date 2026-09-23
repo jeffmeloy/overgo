@@ -502,6 +502,10 @@ summary { cursor:pointer; min-height:32px; }
   .tab, summary, .chip, .link-button, .md-copy { min-height:44px; }
   .inspector { width:100vw; }
   .surface-dialog, dialog.picker-card { padding:var(--s4); }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-preview { grid-column:1; grid-row:1; max-width:100%; }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-info { grid-column:1 / -1; grid-row:2; }
+  .composer:has(.transcription-controls:not([hidden])) .attachment-actions { grid-column:2; grid-row:1; max-width:none; }
 }
 @media (max-height:500px) {
   #panel-chat .front-empty .starters { display:none; }
@@ -534,12 +538,6 @@ summary { cursor:pointer; min-height:32px; }
 .composer-extras:has(.transcription-controls:not([hidden])) { max-height:calc(var(--viewport-height, 100dvh) * .45); }
 .composer:has(.transcription-controls:not([hidden])) .attachment-actions { gap:var(--s2); }
 .transcript-offer .link-button { padding-inline:var(--s2); }
-@media (max-width:860px) {
-  .composer:has(.transcription-controls:not([hidden])) .attachment-row { display:grid; grid-template-columns:minmax(0, 1fr) auto; }
-  .composer:has(.transcription-controls:not([hidden])) .attachment-preview { grid-column:1; grid-row:1; max-width:100%; }
-  .composer:has(.transcription-controls:not([hidden])) .attachment-info { grid-column:1 / -1; grid-row:2; }
-  .composer:has(.transcription-controls:not([hidden])) .attachment-actions { grid-column:2; grid-row:1; max-width:none; }
-}
 
 .mode-controls.speech-mode { max-height: none; overflow: visible; flex: none; }
 .speech-primary-controls { flex-wrap: nowrap; width: 100%; }

@@ -216,7 +216,7 @@
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
-        catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); run.disabled = true; return; }
+        catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = true; return; }
         // A task is served by every model activated for it: the recipe is the
         // identity, the model's name the label, and a refused one says why.
         for (const capability of capabilities) {
@@ -235,7 +235,7 @@
         cancel.addEventListener("click", async () => {
           if (operation) {
             cancel.disabled = true;
-            await api.post("/operations/cancel", { id: operation });
+            await overgo.cancelOperation(operation);
           }
         });
         function renderOperation(current) {
@@ -264,7 +264,7 @@
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
+          } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         });
       },
     });

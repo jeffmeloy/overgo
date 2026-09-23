@@ -31,7 +31,7 @@ func TestGlobalOperationShell(t *testing.T) {
 		t.Error("boot.js does not load the operations shell library")
 	}
 	for _, expected := range []string{
-		"runtimeEvents.subscribe", "/operations/evidence?id=", "/operations/cancel", "/operations/decision",
+		"runtimeEvents.subscribe", "/operations/evidence?id=", "overgo.cancelOperation(", "/operations/decision",
 		"searchParams.set(\"operation\"", "Recovery decision", "Results", "artifactLink",
 	} {
 		if !strings.Contains(shell, expected) {

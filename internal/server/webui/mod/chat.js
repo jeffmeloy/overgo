@@ -30,7 +30,7 @@
     close.focus();
     let record;
     try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID)); }
-    catch (err) { body.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+    catch (err) { body.appendChild(overgo.failure(err)); return; }
     const cards = [overgo.stat("Status", record.status, record.statuses.join(" · "))];
     if (record.incomplete_details?.reason === "max_output_tokens") cards.push(overgo.stat("Output limit reached", "Partial answer saved"));
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
@@ -236,7 +236,7 @@
             branch.text = field.value.trim(); branch.users[editIndex].content = branch.text; branch.input[editIndex] = branchInput(users[editIndex], branch.text); run(); });
           editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
           field.focus();
-        } catch (err) { if (!disposed) editor.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { if (!disposed) editor.replaceChildren(overgo.failure(err)); }
         finally { actionPending = false; if (!disposed) updateBusy(); }
       }
       // showLineage: what the store records around a card's artifact (the runs that made it, with their
@@ -245,7 +245,7 @@
       async function showLineage(event, card) {
         let lineage;
         try { lineage = await overgo.api.get("/artifacts/lineage?id=" + encodeURIComponent(event.artifact)); }
-        catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+        catch (err) { card.appendChild(overgo.failure(err)); return; }
         const runLine = (verb, run, items) => el("div", {}, verb + " ", overgo.artifactLink(run.run, "run " + fmt.shortID(run.run)), " " + run.outcome + " · ",
           ...items.map((item) => el("span", {}, item.name, overgo.artifactLink(item.id), " ")));
         const inputName = (input) => { const schema = input.schema || ""; if (schema.endsWith("-input.v1")) return "request "; return schema.startsWith("overgo/prompt-enhancement/") ? "prompt " : ""; };
@@ -355,7 +355,7 @@
       async function cancelBackgroundOperation(work) {
         if (!work.id || work.cancelSent) return;
         work.cancelSent = true; work.failure = '';
-        try { await overgo.api.post('/operations/cancel', { id: work.id }); }
+        try { await overgo.cancelOperation(work.id); }
         catch (err) {
           work.cancelSent = work.stopRequested = false;
           if (!disposed && activeOperation === work) { work.failure = 'Could not stop: ' + overgo.friendlyError(err) + '. Try Stop again.'; work.status.textContent = work.failure; updateBusy(); }
@@ -488,7 +488,7 @@
           const keep = el("button", { class: "btn alt", text: "keep original", onclick: () => { enhanceHost.replaceChildren(); composer.input.focus(); } });
           enhanceHost.replaceChildren(el("div", { class: "card" }, el("div", { class: "note", text: "original: " + answer.original }),
             el("div", { class: "rewrite", text: answer.enhanced }), el("div", { class: "row" }, accept, keep)));
-        } catch (err) { enhanceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { enhanceHost.replaceChildren(overgo.failure(err)); }
       }
 
       // Generation modes project declared capabilities; transitions discard old slots.
@@ -548,7 +548,7 @@
         try {
           available = await overgo.api.get("/generation/capabilities", { signal: request.signal });
         } catch (err) {
-          if (!disposed && generation.loading === request && !request.signal.aborted) composer.modeHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) }));
+          if (!disposed && generation.loading === request && !request.signal.aborted) composer.modeHost.replaceChildren(overgo.failure(err), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) }));
           return;
         } finally { if (generation.loading === request) generation.loading = null; }
         if (disposed || request.signal.aborted || composer.mode() !== mode) return;
@@ -629,7 +629,7 @@
       async function openRecord(item, run, name, url) {
         const card = thread.mediaCard({ kind: overgo.mediaKind(item.descriptor.media_type), url, artifact: item.descriptor.id, mime: item.descriptor.media_type, bytes: item.descriptor.size, caption: name, run: run.id });
         let request = {};
-        try { request = await requestOf(item.descriptor.id, run.id) || {}; } catch (err) { card.appendChild(overgo.errorBanner(overgo.friendlyError(err))); }
+        try { request = await requestOf(item.descriptor.id, run.id) || {}; } catch (err) { card.appendChild(overgo.failure(err)); }
         card.appendChild(el("div", { class: "record" }, overgo.table(["control", "value"], Object.entries(request).map(([control, value]) => [control, String(value)])),
           el("div", { class: "row" }, overgo.artifactLink(run.id, "run " + fmt.shortID(run.id)), el("a", { class: "btn alt", href: url, download: "", text: "download" }))));
       }

@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-helper-consolidation",
-      "title": "Consolidate the workbench's repeated client helpers onto single owners and delete dead markup, exports and inputs",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Consolidate the workbench's repeated client helpers onto single owners and delete dead markup, exports and inputs",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestWebUIClientHelpersHaveOneOwner$' -count=1",
-          "rationale": "Audit: 51 errorBanner(friendlyError(...)) sites beside an overgo.reporter only agent.js uses; /operations/cancel called from four modules; artifactLink defined twice (evaluations.js, training.js); getKey/setKey/invalidateModel/evidenceLine exported but used only in boot.js; index.html #tabs unused; three permanently disabled inputs in compositions.js; two separate @media (max-width:860px) blocks; mixed tab and space indentation in recipe.js and runtime.js; loading copy exposes route paths. Consolidation removes code, so the acceptance is a ratchet test that holds each helper to one owner and forbids the dead identifiers; the full page lane must still pass."
-        }
-      ]
-    },
-    {
       "id": "gui-declared-task-output",
       "title": "Take each composer task's output kind from its declared output and name a served task the workbench offers no surface for (image-embedding first) instead of treating it as image output",
       "owner": "overgo_gui_cleanup",

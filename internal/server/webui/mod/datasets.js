@@ -6,7 +6,7 @@
     async mount(panel, overgo) {
       const { el, clear } = overgo;
       clear(panel);
-      panel.appendChild(el("div", { class: "note", text: "loading /datasets…" }));
+      panel.appendChild(el("div", { class: "note", text: "Loading datasets…" }));
 
       let data;
       try {
@@ -54,7 +54,7 @@
                 el("span", { class: "tag", text: value.role + " / " + value.modality }),
                 value.text ? el("pre", { class: "preview-text", text: value.text }) :
                   el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
-        } catch (err) { if (previewing === current && err.name !== "AbortError") preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { if (previewing === current && err.name !== "AbortError") preview.replaceChildren(overgo.failure(err)); }
       }
 
       function render() {

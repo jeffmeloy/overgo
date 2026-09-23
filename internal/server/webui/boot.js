@@ -195,7 +195,7 @@
         }
       } catch (err) {
         if (!node.isConnected || controller.signal.aborted) return;
-        resource.failure = el('div', { class: 'artifact-load-error' }, errorBanner(friendlyError(err)),
+        resource.failure = el('div', { class: 'artifact-load-error' }, failure(err),
           el('button', { class: 'link-button', text: 'Retry', onclick: load }));
         node.after(resource.failure);
       } finally { if (resource.controller === controller) resource.controller = null; }
@@ -215,6 +215,10 @@
 
   // friendlyError: a 401 becomes the same actionable hint on every tab.
   function friendlyError(err) { return err && err.status === 401 ? "API key required — open Settings and enter it under Connection." : String((err && err.message) || err); }
+  // failure: the one banner for a failed request, in the words friendlyError chooses.
+  function failure(err) { return errorBanner(friendlyError(err)); }
+  // cancelOperation: the one request that cancels a running operation.
+  function cancelOperation(id) { return api.post("/operations/cancel", { id }); }
 
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }
@@ -348,7 +352,7 @@
   // node, or text shown mono after the first column), a grid table from both.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
   // reporter: a host's error reporter, the shape every module spells as showError.
-  function reporter(host) { return (err) => host.replaceChildren(errorBanner(friendlyError(err))); }
+  function reporter(host) { return (err) => host.replaceChildren(failure(err)); }
   function tableRow(cells, attrs) {
     return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
   }
@@ -590,9 +594,9 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
+    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
-    getKey, setKey, modelInfo, invalidateModel,
+    getKey, setKey, modelInfo,
     displayToken, runner, poller, tabStream, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
   };
@@ -705,7 +709,7 @@
     panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
-      onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
+      onError: (err) => out.replaceChildren(failure(err)),
       onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
     });
     const surface = { prompt, out, execute() { out.replaceChildren(el("div", { class: "note", text: options.busy })); runAction(options.execute); } };
@@ -1028,7 +1032,7 @@
     } catch (err) {
       if (err.status === 401) {
         clear(panels);
-        panels.appendChild(el("div", { class: "center tall" }, errorBanner(friendlyError(err))));
+        panels.appendChild(el("div", { class: "center tall" }, failure(err)));
       } else offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
       return;
     }
@@ -1039,7 +1043,7 @@
     try {
       await loadWorkspaceModules(workspaceManifest);
       bindWorkspaceManifest(workspaceManifest);
-    } catch (err) { panels.appendChild(errorBanner(friendlyError(err))); return; }
+    } catch (err) { panels.appendChild(failure(err)); return; }
     for (const section of sectionsPresent()) {
       const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
       const group = el("div", { class: "nav-group" }, button);
@@ -1092,7 +1096,7 @@
     refresh.catch(err => {
       document.getElementById("connection-alert").hidden = false;
       // One key-change failure shows at a time; the next attempt replaces it.
-      const settings = document.getElementById("conversation-settings"), banner = errorBanner(friendlyError(err));
+      const settings = document.getElementById("conversation-settings"), banner = failure(err);
       banner.dataset.keyFailure = "";
       const previous = settings.querySelector("[data-key-failure]");
       if (previous) previous.replaceWith(banner); else settings.appendChild(banner);

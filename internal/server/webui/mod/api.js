@@ -10,7 +10,7 @@
       const { el, clear } = overgo;
       clear(panel);
       let table;
-      try { table = await overgo.api.get("/workspace/routes"); } catch (err) { panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
+      try { table = await overgo.api.get("/workspace/routes"); } catch (err) { panel.appendChild(overgo.failure(err)); return; }
       const count = el("div", { class: "note", text: table.routes.length + " routes from the server's route table" });
       const filter = el("input", { class: "text", type: "search", "aria-label": "Filter routes", placeholder: "Filter by path or method" });
       panel.append(filter, count);

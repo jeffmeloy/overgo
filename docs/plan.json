@@ -82,26 +82,6 @@
       ]
     },
     {
-      "id": "automation-land-reports-lane-obligation",
-      "title": "Name the awaited lane obligation in the landing outcome",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 550,
-        "paydown": "automation-harness-surface-remainder",
-        "reason": "the landing reads the landed gate result's deferred lanes and reports or refuses on the lane obligation; the landed-completion lookup is shared with the optimization review"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Name the awaited lane obligation in the landing outcome",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestLandOutcomeNamesLaneObligation' -count=1",
-          "rationale": "Report state, obligation id and commit, and refuse a landing whose gate deferred lanes but finds no obligation naming its commit, instead of treating not-found as passed. Built and tested 2026-09-23 (the landing reads the landed gate result's deferred steps through the landed-completion lookup it now shares with the optimization review; laneVerdict judges it), then refused at admission: +471 automation nodes, and automation rows must be net-negative. Land it together with deletions from automation-harness-surface-remainder so the pair nets negative."
-        }
-      ]
-    },
-    {
       "id": "automation-review-suite-cost-regression",
       "title": "File suite cost only on a regression against the package's own history",
       "owner": "master-lead",

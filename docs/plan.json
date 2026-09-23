@@ -5,29 +5,29 @@
   "items": [
     {
       "id": "automation-land-regenerates-derived-docs",
-      "title": "Make the landing regenerate the source-derived documents itself in their binding order (closure rebind, census baseline, published census, api manifest) after the last source edit, instead of reporting them stale for an operator to re-run by hand: skipping one step cost a failed test run and the ritual was repeated three times in one row",
+      "title": "Absorbed by preflight-rebinds-closure-drift (d6202e6e): the gate's staged repairs already regenerate the census baseline, the published census and the api manifest, and closure drift now needs no hand rebind, since the preflight judges it as the gate rebinds it. Close this row as a plan-only landing on that check; build nothing of its own",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make the landing regenerate the source-derived documents itself in their binding order (closure rebind, census baseline, published census, api manifest) after the last source edit, instead of reporting them stale for an operator to re-run by hand: skipping one step cost a failed test run and the ritual was repeated three times in one row",
+          "title": "Absorbed by preflight-rebinds-closure-drift (d6202e6e): the gate's staged repairs already regenerate the census baseline, the published census and the api manifest, and closure drift now needs no hand rebind, since the preflight judges it as the gate rebinds it. Close this row as a plan-only landing on that check; build nothing of its own",
           "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestLandRegeneratesDerivedDocuments' -count=1"
+          "verify": "go test ./internal/gate -run '^TestPreflightPassesDriftedClosureBindings$' -count=1"
         }
       ]
     },
     {
       "id": "closure-reconcile-single-command",
-      "title": "Replace the hand-ordered closure ledger sequence (import-store, retire-unmatched, hand-edited tmp/closure_proposals.json, triage) with one reconcile operation that rebinds drift, retires ambiguous bindings and catalogues new sites from reviewed flags in a single store transaction",
+      "title": "Retire closure decisions whose code was removed without a hand-run step: since preflight-rebinds-closure-drift (d6202e6e) drift needs no hand rebind and a new literal is catalogued by one -catalog command, but a decision left unmatched after the rebind -- its literal deleted or moved into a helper, as on the activity-detection row -- still needs a separate closure-scan -retire-unmatched run before the gate passes. Make the gate's remediation retire an unmatched decision only when no candidate in its file carries its value, so a reviewed understanding is never discarded for a literal that still exists",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Replace the hand-ordered closure ledger sequence (import-store, retire-unmatched, hand-edited tmp/closure_proposals.json, triage) with one reconcile operation that rebinds drift, retires ambiguous bindings and catalogues new sites from reviewed flags in a single store transaction",
+          "title": "Retire closure decisions whose code was removed without a hand-run step: since preflight-rebinds-closure-drift (d6202e6e) drift needs no hand rebind and a new literal is catalogued by one -catalog command, but a decision left unmatched after the rebind -- its literal deleted or moved into a helper, as on the activity-detection row -- still needs a separate closure-scan -retire-unmatched run before the gate passes. Make the gate's remediation retire an unmatched decision only when no candidate in its file carries its value, so a reviewed understanding is never discarded for a literal that still exists",
           "status": "open",
-          "verify": "go test ./cmd/closure-scan -run '^TestReconcileSingleCommand' -count=1"
+          "verify": "go test ./internal/gate -run '^TestRemediationRetiresRemovedClosureCode$' -count=1"
         }
       ]
     },
@@ -1077,7 +1077,8 @@
             "media-census-scope/do",
             "plan-evidence-feedback/do",
             "model-paths-from-registrations/do",
-            "preflight-rebinds-closure-drift/do"
+            "preflight-rebinds-closure-drift/do",
+            "plan-closure-rows-reconciled/do"
           ]
         }
       ]

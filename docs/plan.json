@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gate-telemetry-size",
-      "title": "Write gate telemetry at the size its readers use (store assessment 2026-09-22, seq 52976): gate-selection-cause holds 107 MB over 270 gates, about 400 KB each, and gate-suite-cost 44 MB over 220, yet neither is read by any gate decision -- only by plan -history -phases and the optimization review. Record selection causes as the per-gate histogram that history reads plus the packages selected under uncertainty, and give both schemas a telemetry class with a horizon of recent gates. Telemetry is not a derived cache: git cannot recompute it, so it gets its own horizon in internal/storepolicy rather than joining the cache list.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Write gate telemetry at the size its readers use (store assessment 2026-09-22, seq 52976): gate-selection-cause holds 107 MB over 270 gates, about 400 KB each, and gate-suite-cost 44 MB over 220, yet neither is read by any gate decision -- only by plan -history -phases and the optimization review. Record selection causes as the per-gate histogram that history reads plus the packages selected under uncertainty, and give both schemas a telemetry class with a horizon of recent gates. Telemetry is not a derived cache: git cannot recompute it, so it gets its own horizon in internal/storepolicy rather than joining the cache list.",
-          "status": "open",
-          "verify": "go test ./internal/runrecord -run '^TestSelectionCauseRecordIsASummary$' -count=1 \u0026\u0026 go test ./internal/storepolicy -run '^TestTelemetryKeepsAHorizon$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "derived-cache-reuse",
       "title": "Store a derived cache only when a later gate reads it: code-profile and modern-Go memos cost about 3 MB of new blobs per gate, and about half of all gates are refused, so their candidate profiles are never read again. Measure the reuse from the gate's own cache hits first; keep in the store only what a later gate reads (the landed candidate is the next gate's base) and hold the rest in memory for the gate that computed it. Removes writes rather than scheduling their release.",
       "owner": "master-lead",

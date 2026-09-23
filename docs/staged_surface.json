@@ -176,6 +176,18 @@
       "name": "RegisterDocumentRuntime",
       "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
       "retire_with": "speech-document-admission/do"
+    },
+    {
+      "package": "overgo/internal/storepolicy",
+      "name": "Telemetry",
+      "reason": "the telemetry class and its horizon land with the record they bound, before the store upkeep step that releases past the horizon",
+      "retire_with": "store-growth-ratchet/do"
+    },
+    {
+      "package": "overgo/internal/storepolicy",
+      "name": "TelemetryHorizon",
+      "reason": "the telemetry class and its horizon land with the record they bound, before the store upkeep step that releases past the horizon",
+      "retire_with": "store-growth-ratchet/do"
     }
   ]
 }

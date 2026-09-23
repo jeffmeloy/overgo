@@ -11,7 +11,6 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/inference"
 	"overgo/internal/modelrecipe"
-	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
@@ -168,25 +167,11 @@ func (h *Handler) seedResponseIdentifiers(ctx context.Context) error {
 	if h.repository == nil {
 		return nil
 	}
-	query := overgodb.Query{
-		Kind: artifact.KindEvidence, MaxResults: h.config.MaxStoredResponses,
-		Projection: overgodb.ProjectAliases,
+	responses, err := responseInteractionNames(ctx, h.repository)
+	for _, response := range responses {
+		h.observeResponseID(response)
 	}
-	for {
-		result, err := h.repository.Query(ctx, query)
-		if err != nil {
-			return err
-		}
-		for _, alias := range result.Aliases {
-			if response, found := strings.CutPrefix(alias.Name, runrecord.InteractionResponseAliasRoot); found {
-				h.observeResponseID(response)
-			}
-		}
-		if result.Next == nil {
-			return nil
-		}
-		query.Cursor = result.Next
-	}
+	return err
 }
 
 func (h *Handler) observeResponseID(responseID string) {

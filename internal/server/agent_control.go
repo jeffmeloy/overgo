@@ -247,26 +247,36 @@ func (h *Handler) aliasNamesUnder(ctx context.Context, kind artifact.Kind, root 
 	}
 }
 
-// activeAgentNames lists the names under the active-agent root in one pass
-// over the activation documents the root binds (runrecord owns their
-// contract). The manifest asks on every page load, and a catalog query paging
-// every artifact to reach its aliases held the whole shell for tens of
-// seconds on a real store.
-func (h *Handler) activeAgentNames(ctx context.Context) ([]string, error) {
-	activation := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema}
+// documentAliasNames lists the names under root bound to documents of one
+// contract, in one exact-contract pass over those documents. A catalog query
+// paging every artifact to reach its aliases took tens of seconds per call on
+// a real store: on every page load (active agents), at every server start and
+// on every Agent tab session list (stored responses).
+func documentAliasNames(ctx context.Context, store *overgodb.Store, contract artifact.DocumentContract, root string) ([]string, error) {
 	var names []string
-	_, err := h.repository.VisitDocuments(ctx, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{activation}, AliasPrefixes: []string{runrecord.AgentActiveAliasRoot},
-		Order: overgodb.DocumentOldestFirst,
+	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{root}, Order: overgodb.DocumentOldestFirst,
 	}, func(document overgodb.DocumentView) error {
 		for _, alias := range document.Aliases {
-			if name, found := strings.CutPrefix(alias, runrecord.AgentActiveAliasRoot); found {
+			if name, found := strings.CutPrefix(alias, root); found {
 				names = append(names, name)
 			}
 		}
 		return nil
 	})
 	return names, err
+}
+
+// activeAgentNames lists the agents the active root binds to their activation (runrecord owns the contract).
+func (h *Handler) activeAgentNames(ctx context.Context) ([]string, error) {
+	activation := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema}
+	return documentAliasNames(ctx, h.repository, activation, runrecord.AgentActiveAliasRoot)
+}
+
+// responseInteractionNames lists the stored responses the response root binds to their interaction.
+func responseInteractionNames(ctx context.Context, store *overgodb.Store) ([]string, error) {
+	interaction := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}
+	return documentAliasNames(ctx, store, interaction, runrecord.InteractionResponseAliasRoot)
 }
 
 func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, error) {

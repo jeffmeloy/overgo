@@ -231,7 +231,7 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
 	}
-	names, err := h.aliasNamesUnder(request.Context(), artifact.KindEvidence, runrecord.InteractionResponseAliasRoot)
+	names, err := responseInteractionNames(request.Context(), h.repository)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return

@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "agent-workspace-alias-roots",
-      "title": "Read the agent tool registry and agent session roots without paging the whole catalog",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Read the agent tool registry and agent session roots without paging the whole catalog",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestAgentWorkspaceRootsReadOnlyTheirDocuments$' -count=1",
-          "rationale": "Follow-up to webui-manifest-latency: /agent/tools (tool.registered.) and /agent/sessions (interaction/response/) still reach their alias roots through aliasNamesUnder, the paged catalog query that cost tens of seconds per call on the live store, so the Agent tab stalls when opened. Read each root from the documents it binds; keep the stale-registration report for a tool alias whose target no longer resolves to a manual."
-        }
-      ]
-    },
-    {
       "id": "webui-stream-lifecycle",
       "title": "Release every stream, poller and listener a tab opens, report or reconnect ended streams, and stop background polling while hidden",
       "owner": "overgo_gui_cleanup",

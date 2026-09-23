@@ -6,17 +6,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-client-contract",
-      "title": "Make every workbench request match the route it calls: real methods in the route explorer, the schema its handler decodes, and a static guard over the client's route literals",
+      "id": "webui-tensors-latency",
+      "title": "Answer the Tensors tab in seconds on a served model: measured about 8 minutes against Qwen2.5-0.5B on a copy of the live store, where every other tab mounted in under a second",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make every workbench request match the route it calls: real methods in the route explorer, the schema its handler decodes, and a static guard over the client's route literals",
+          "title": "Answer the Tensors tab in seconds on a served model: measured about 8 minutes against Qwen2.5-0.5B on a copy of the live store, where every other tab mounted in under a second",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestWebUIRouteSchemasMatchHandlerBodies$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserRouteExplorer$' -require 'route explorer leg'",
-          "rationale": "Audit: mod/api.js:27 sends every non-GET explorer row as POST, so the DELETE /hub/downloads row starts a download, and GET rows drop their form values; /automations/schedule is bound to the automation-trigger schema while its handler decodes AutomationExecutionInput; composer.js:98 fills tool_end.result from item.arguments; automations.js reads dead PascalCase fields and prints 'accepted / ' with an empty id. Acceptance: a Go test holds every schema the explorer binds to the JSON fields of the body its handler decodes (the automation definition and trigger schemas and the flat peer placement form describe parts of a body, not a body, and are unbound); a browser leg filters the 139-row table, sends the DELETE and GET /hub/downloads rows and observes the declared method and query reach the server. Query rows take a one-line input."
+          "verify": "go test ./internal/server -run '^TestAnalyzeTensorsIsBounded$' -count=1"
         }
       ]
     },

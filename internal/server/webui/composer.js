@@ -91,7 +91,7 @@
       if (event === "response.created") yield { type: "created", id };
       else if (event === "response.output_text.delta") yield { type: "token", text: parsed.delta || "" };
       else if (event === "response.output_item.added" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_start", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
-      else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, result: parsed.item.arguments };
+      else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
       else if (event === "response.failed") {
         yield { type: "error", id, status: "failed", message: String(parsed.delta || (parsed.error && parsed.error.message) || "The turn failed.") };
         return;
@@ -189,9 +189,8 @@
     function toolCard(call) {
       const status = el("span", { class: "tag", text: "running" });
       const arrow = el("span", { class: "arrow", text: "▸" });
-      const bodyNode = el("div", { class: "tool-body", hidden: true },
-        el("div", { class: "note", text: "input" }),
-        el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) }));
+      const input = el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) });
+      const bodyNode = el("div", { class: "tool-body", hidden: true }, el("div", { class: "note", text: "input" }), input);
       bodyNode.id = "tool-" + crypto.randomUUID();
       const header = el("button", { class: "tool-header row", type: "button", "aria-expanded": "false", "aria-controls": bodyNode.id }, arrow, el("span", { class: "mono", text: call.name }), status);
       header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; header.setAttribute("aria-expanded", String(!bodyNode.hidden)); arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
@@ -200,8 +199,15 @@
       scroll();
       const started = Date.now();
       return {
-        end(result) {
+        // end: a tool run's result, or a model's completed call (final arguments, no result).
+        end(result, finalArguments) {
           const elapsed = ((Date.now() - started) / 1000).toFixed(1) + "s";
+          if (finalArguments !== undefined) input.textContent = typeof finalArguments === "string" ? finalArguments : JSON.stringify(finalArguments, null, 2);
+          if (result === undefined) {
+            status.textContent = "requested · " + elapsed;
+            scroll();
+            return;
+          }
           const failed = !!(result && result.error);
           status.className = failed ? "tag tag-danger" : "tag";
           status.textContent = failed ? "error · " + elapsed : "done · " + elapsed;
@@ -278,7 +284,7 @@
             case "tool_end": {
               const id = event.id || event.name + ":" + (open.size - 1);
               const card = open.get(id) || toolCard(event);
-              card.end(event.error ? { error: event.error } : event.result);
+              card.end(event.error ? { error: event.error } : event.result, event.arguments);
               open.delete(id);
               thinking(true);
               break;

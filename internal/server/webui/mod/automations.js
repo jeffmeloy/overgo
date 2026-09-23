@@ -43,7 +43,9 @@
                 name: item.name, key: key.value, destination: destination.value,
                 inputs: JSON.parse(input.value || "{}"),
               });
-              status.textContent = "accepted / " + fmt.shortID(result.operation || (result.execution && result.execution.operation));
+              // A scheduled scan answers {execution, fired}; a scan with no due slot starts nothing.
+              if (result.fired === false) status.textContent = "not due / nothing started";
+              else status.textContent = "accepted / " + fmt.shortID(result.operation || result.execution.operation);
             } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
           }
           run.addEventListener("click", () => execute("/automations/run"));
@@ -60,9 +62,9 @@
         try {
           const definition = definitionForm.value();
           const created = await api.post("/automations/definitions", { name: definition.name, recipe: definition.recipe, trigger: triggerForm.value(), delivery: deliveryForm.value(), });
-          await api.post("/automations/activate", { definition: created.ID || created.id });
+          await api.post("/automations/activate", { definition: created.id });
           definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
-          status.textContent = "activated / " + fmt.shortID(created.ID || created.id);
+          status.textContent = "activated / " + fmt.shortID(created.id);
           await refreshInventory();
         } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
       });
@@ -93,9 +95,9 @@
       async function refreshHistory() {
         const history = await api.get("/automations/history");
         historyHost.replaceChildren(...history.map((run) => el("div", { class: "card" },
-          el("span", { class: "mono", text: fmt.shortID(run.ID || run.id) }),
-          " / " + (run.Outcome || run.outcome),
-          ...((run.Outputs || run.outputs || []).map((id) => el("a", {
+          el("span", { class: "mono", text: fmt.shortID(run.id) }),
+          " / " + run.outcome,
+          ...((run.outputs || []).map((id) => el("a", {
             href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
           }))))));
       }

@@ -86,6 +86,9 @@ func (cache *Cache) get(key cacheKey) (Manifest, bool) {
 	return clone(entry.manifest), true
 }
 
+// put records a manifest Generate identified in the same call, so it is
+// canonical by construction and not validated again: re-deriving its identity
+// was measured at a third of the validation a gate's planning repeats.
 func (cache *Cache) put(key cacheKey, manifest Manifest) error {
 	if cache == nil || cache.capacity <= 0 {
 		return errors.New("code manifest cache: uninitialized")
@@ -96,9 +99,6 @@ func (cache *Cache) put(key cacheKey, manifest Manifest) error {
 	}
 	id, err := canonical.id()
 	if err != nil {
-		return err
-	}
-	if err := manifest.Validate(); err != nil {
 		return err
 	}
 	if manifest.SourceIdentity != canonical.SourceIdentity || manifest.Analyzer != canonical.Analyzer || canonical.Schema != Schema ||

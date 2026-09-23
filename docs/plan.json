@@ -5,13 +5,13 @@
   "items": [
     {
       "id": "gate-suite-longest-tests",
-      "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores, so about 17 busy on average -- the wall is the longest chains, not total work): TestTestingReductionContract 84 s, TestSelectionPaybackAcceptance 78 s, and five near 55-60 s (DocumentationBoundary, GateRepairBatch, StaticFailurePreventsAcceptance, FirstReduction, PreflightRunsAcceptance). Find what each spends -- a repeated planning pass, a fresh worktree, a full suite selection -- and share or narrow it, with the wall re-measured the same way",
+      "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores; TestTestingReductionContract 84 s in the suite, 88 s alone, is five 14-25 s planning passes over the live checkout plus the one fixture build). Its CPU profile is I/O-bound, not compute-bound -- about 1.9 cores busy, system calls 42 percent of samples, garbage collection 20 percent, code-manifest generation 25 percent -- so the lever is the per-plan snapshot reads, git and go list processes and allocation, not the validation that planning-validates-once removes. Find the repeated per-plan I/O, share it across plans of one tree, and re-measure the same way",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores, so about 17 busy on average -- the wall is the longest chains, not total work): TestTestingReductionContract 84 s, TestSelectionPaybackAcceptance 78 s, and five near 55-60 s (DocumentationBoundary, GateRepairBatch, StaticFailurePreventsAcceptance, FirstReduction, PreflightRunsAcceptance). Find what each spends -- a repeated planning pass, a fresh worktree, a full suite selection -- and share or narrow it, with the wall re-measured the same way",
+          "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores; TestTestingReductionContract 84 s in the suite, 88 s alone, is five 14-25 s planning passes over the live checkout plus the one fixture build). Its CPU profile is I/O-bound, not compute-bound -- about 1.9 cores busy, system calls 42 percent of samples, garbage collection 20 percent, code-manifest generation 25 percent -- so the lever is the per-plan snapshot reads, git and go list processes and allocation, not the validation that planning-validates-once removes. Find the repeated per-plan I/O, share it across plans of one tree, and re-measure the same way",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1"
         }
@@ -1012,7 +1012,8 @@
             "plan-small-records-rescoped/do",
             "plan-model-paths-scoped/do",
             "surface-without-capability-tables/do",
-            "gate-suite-longest-tests/do"
+            "gate-suite-longest-tests/do",
+            "planning-validates-once/do"
           ]
         }
       ]

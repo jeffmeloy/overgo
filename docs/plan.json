@@ -4,90 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-without-capability-tables",
-      "title": "Keep non-text capability edits out of the inference surface",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep non-text capability edits out of the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
-          "rationale": "internal/modelrecipe carries every capability's module tables into the inference closure, so any capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Give text inference its own module catalog and move the non-text tables (linear capabilities, audio contract, image, video) out of the packages the runner imports."
-        }
-      ]
-    },
-    {
-      "id": "compatibility-names-its-reads",
-      "title": "Key cmd/compatibility's receipt to the files it actually reads",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Key cmd/compatibility's receipt to the files it actually reads",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
-          "rationale": "The input graph treats the package as an opaque source reader (main.go, media.go, media_coverage.go read unnamed paths), binding it to all 5,860 inputs including docs/plan.json. So the complete receipt that keeps ten media and specialized models current expires on every landing and costs a four-minute rerun. Name each read at its source or route it through attributed readers; test over the real input graph and measure the input count before and after."
-        }
-      ]
-    },
-    {
-      "id": "gate-suite-longest-tests",
-      "title": "Cut the gate suite's longest tests",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Cut the gate suite's longest tests",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1",
-          "rationale": "Measured 2026-09-23: 174.7 s wall, 2,501 test-seconds on 32 cores; TestTestingReductionContract alone is 84 s (five 14-25 s planning passes over the live checkout). The profile is I/O-bound (syscalls 42%, GC 20%, code-manifest generation 25%). Share per-plan snapshot reads, git and go list runs across plans of one tree, then re-measure the same way."
-        }
-      ]
-    },
-    {
-      "id": "rae-generation-path",
-      "title": "Add a generation path for the RAE collection",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add a generation path for the RAE collection",
-          "status": "open",
-          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
-          "rationale": "26 MIT checkpoints: a two-stage representation-autoencoder generator (frozen DINOv2 or SigLIP2 encoder, trained ViT decoder, stage-2 diffusion transformer over its latents). No reference implementation here or in adaptive_new, so it is a new derivation. Reuse internal/vitencoder for the DINOv2 stage.",
-          "depends_on": [
-            "dinov2-embedding-capability/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "validate-all-models",
-      "title": "Validate every registered model",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate every registered model",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
-          "rationale": "Remaining gaps: timesfm-3.0 (timesfm3-native-declaration), RAE (rae-generation-path), and webssl-dino, registered 2026-09-23, which needs recipe verify/activate on the image-embedding task. Licences block none of these: models and the store are gitignored, and registration records the licence.",
-          "depends_on": [
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "automation-harness-surface-remainder",
       "title": "Net the harness surface back to its pre-session baseline",
       "owner": "master-lead",
@@ -133,6 +49,21 @@
       ]
     },
     {
+      "id": "surface-without-capability-tables",
+      "title": "Keep non-text capability edits out of the inference surface",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep non-text capability edits out of the inference surface",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
+          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
+        }
+      ]
+    },
+    {
       "id": "skipped-fixture-classification",
       "title": "Classify the shared CUDA test gate's skips",
       "owner": "master-lead",
@@ -170,13 +101,18 @@
       "title": "Name the awaited lane obligation in the landing outcome",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 550,
+        "paydown": "automation-harness-surface-remainder",
+        "reason": "the landing reads the landed gate result's deferred lanes and reports or refuses on the lane obligation; the landed-completion lookup is shared with the optimization review"
+      },
       "steps": [
         {
           "id": "do",
           "title": "Name the awaited lane obligation in the landing outcome",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestLandOutcomeNamesLaneObligation' -count=1",
-          "rationale": "Report state, obligation id and commit, and refuse a landing that deferred lanes but finds no obligation instead of treating not-found as passed."
+          "rationale": "Report state, obligation id and commit, and refuse a landing whose gate deferred lanes but finds no obligation naming its commit, instead of treating not-found as passed. Built and tested 2026-09-23 (the landing reads the landed gate result's deferred steps through the landed-completion lookup it now shares with the optimization review; laneVerdict judges it), then refused at admission: +471 automation nodes, and automation rows must be net-negative. Land it together with deletions from automation-harness-surface-remainder so the pair nets negative."
         }
       ]
     },
@@ -267,6 +203,21 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestNarrowLandingRunsNarrowly' -count=1",
           "rationale": "A one-command landing runs about 29 packages (170 s work, 80 s wall), 28 of them for an unnamed reach inherited through overgodb, artifact, gitauthority, gosource and repoanalysis. Syntactic rules were measured unsound. Either a package declares its reach confined to caller-supplied roots and its tests fail on a read outside them, or a receipt's inputs become the files its tests opened. Keep the shadow measure and reader ranking as before and after."
+        }
+      ]
+    },
+    {
+      "id": "gate-suite-longest-tests",
+      "title": "Cut the gate suite's longest tests",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Cut the gate suite's longest tests",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1",
+          "rationale": "Measured 2026-09-23 at 83d0bb9b: suite 149-155 s. The critical path is the live fixture's single lock: ready at about 33 s, then 14 seeded plans run one at a time for about 103 s, and TestTestingReductionContract's five plans end the suite alone. Each plan recomputes whole-snapshot analyses for a one-file seed (codeprofile.Build 14 s, the consumer graph through go list 15 s, manifest identity 10 s and diff 6 s, CPU over five plans), so the content-keyed manifest cache never hits. Warming the base manifest in the fixture measured no gain. A pool of checkouts costs about 40 s of cold setup per extra slot and reverses the one-checkout budget. The structural lever is incremental analysis keyed per file or package (profile facts and consumer-graph edges reused for unchanged files), which also shortens every production gate's base-versus-candidate manifests."
         }
       ]
     },
@@ -375,6 +326,45 @@
       ]
     },
     {
+      "id": "rae-generation-path",
+      "title": "Add a generation path for the RAE collection",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add a generation path for the RAE collection",
+          "status": "open",
+          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
+          "rationale": "A two-stage representation-autoencoder generator (frozen encoder, trained ViT decoder, stage-2 diffusion transformer over its latents), MIT. BLOCKED on owner-provided inputs (found 2026-09-23): models/RAE-collections holds decoders, DiTs and latent statistics for DINOv2-with-registers (small/base/large), MAE base and SigLIP2 base, but neither the reference code (github.com/bytetriper/RAE) nor those encoder checkpoints; fetching either is a download that needs the owner's yes. With them: port against reference goldens, reusing internal/vitencoder for the DINOv2 encoders (registers added to its declaration).",
+          "depends_on": [
+            "dinov2-embedding-capability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validate-all-models",
+      "title": "Validate every registered model",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate every registered model",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
+          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
+          "depends_on": [
+            "activity-detection-capability/do",
+            "timesfm3-native-declaration/do",
+            "dinov2-embedding-capability/do",
+            "rae-generation-path/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "compatibility-reports-leave-the-tree",
       "title": "Stop compatibility reports churning every landing (owner decision first)",
       "owner": "master-lead",
@@ -386,6 +376,21 @@
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
           "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store."
+        }
+      ]
+    },
+    {
+      "id": "compatibility-names-its-reads",
+      "title": "Key cmd/compatibility's receipt to the files it actually reads",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Key cmd/compatibility's receipt to the files it actually reads",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
+          "rationale": "The input graph treats the package as an opaque reader, binding it to every root (269 packages) including docs/plan.json, so the complete receipt for ten media and specialized models expires on every landing and costs a four-minute rerun. Found 2026-09-23, three sources of the binding: (1) reads join a root parameter that production only ever passes as \".\", which in-package parameter propagation in the classifier would name; (2) the operator verbs (claim, record-verification, webui-report) read flag paths and can move to their own command; (3) -check reads the source files docs/compatibility.json binds to each claim, so part of the broad binding is correct until compatibility-reports-leave-the-tree decides what that binding means. Waits on that decision; (1) and (2) alone leave the package opaque."
         }
       ]
     },
@@ -718,7 +723,8 @@
             "final-model-validation/do",
             "simplify-capability-report/do",
             "speech-document-admission/do",
-            "benchmark-27b/mmlu-pro-pass"
+            "benchmark-27b/mmlu-pro-pass",
+            "plan-reranked/do"
           ]
         }
       ]

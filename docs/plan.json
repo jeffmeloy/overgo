@@ -400,13 +400,13 @@
     },
     {
       "id": "validate-all-models",
-      "title": "Validate all models. State 2026-09-22 at 640feae5: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage, each by a cell stating its exact bound and a proof resolving the landing whose own verify ran it. Remaining, none of which is missing code alone: FireRedVAD has no activity-detection catalog entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for; timesfm-3.0 waits on a license identifier and webssl-dino on a non-commercial term. All four are owner decisions, each parked as a finding.",
+      "title": "Validate all models. State 2026-09-22: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage. What remains is technical, not licensing: timesfm-3.0-pytorch carries a native PyTorch declaration and the forecast loader reads the HuggingFace one, so it is refused for lacking rope_theta; webssl-dino is a dinov2 vision encoder and the catalog holds no embedding capability; FireRedVAD has no activity-detection entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for. Licences block none of this: models and the store are gitignored so nothing restricted is distributed, registration records an SPDX identifier and commits the licence beside the model, and whoever runs a restricted model is its licensee.",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Validate all models. State 2026-09-22 at 640feae5: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage, each by a cell stating its exact bound and a proof resolving the landing whose own verify ran it. Remaining, none of which is missing code alone: FireRedVAD has no activity-detection catalog entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for; timesfm-3.0 waits on a license identifier and webssl-dino on a non-commercial term. All four are owner decisions, each parked as a finding.",
+          "title": "Validate all models. State 2026-09-22: 24 VALIDATED and 27 activations carry accepted protocols. granite-speech, nemotron ASR and the two FireRedVAD checkpoints hold the complete receipt for internal/audioparity; the ten media and specialized models hold the complete receipt for cmd/compatibility, re-earned at this source; Fractale-350M-base is registered and activated for generation. granite-speech, nemotron and Fractale are joined to accepted coverage. What remains is technical, not licensing: timesfm-3.0-pytorch carries a native PyTorch declaration and the forecast loader reads the HuggingFace one, so it is refused for lacking rope_theta; webssl-dino is a dinov2 vision encoder and the catalog holds no embedding capability; FireRedVAD has no activity-detection entry and building one needs a declared production boundary policy the checkpoint does not carry; RAE-collections is a two-stage representation-autoencoder image generation architecture overgo has no path for. Licences block none of this: models and the store are gitignored so nothing restricted is distributed, registration records an SPDX identifier and commits the licence beside the model, and whoever runs a restricted model is its licensee.",
           "status": "open",
           "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1"
         }
@@ -921,7 +921,8 @@
             "store-open-remeasured/do",
             "surface-move-named-in-preflight/do",
             "store-deferral-constraints/do",
-            "skips-through-a-variable/do"
+            "skips-through-a-variable/do",
+            "licence-blockers-corrected/do"
           ]
         }
       ]

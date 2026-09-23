@@ -176,6 +176,18 @@
       "name": "RegisterDocumentRuntime",
       "reason": "Native document composition and replay are tested; production capability admission and GUI execution are the next planned consumer.",
       "retire_with": "speech-document-admission/do"
+    },
+    {
+      "package": "overgo/internal/audioparity",
+      "name": "ActivityPolicy",
+      "reason": "the reviewed default boundary policy lands before the capability that reads it, so the values and the sources they were read from are reviewed on their own rather than inside a larger change",
+      "retire_with": "activity-detection-capability/do"
+    },
+    {
+      "package": "overgo/internal/audioparity",
+      "name": "ActivityPolicySourcesMatch",
+      "reason": "the reviewed default boundary policy lands before the capability that reads it, so the values and the sources they were read from are reviewed on their own rather than inside a larger change",
+      "retire_with": "activity-detection-capability/do"
     }
   ]
 }

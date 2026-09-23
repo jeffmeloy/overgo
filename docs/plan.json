@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "activity-detection-capability",
+      "title": "Give the onboarding catalog an activity-detection capability that reads the declared policy and takes per-request overrides",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give the onboarding catalog an activity-detection capability that reads the declared policy and takes per-request overrides",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestActivityPolicyIsTheModelsOwnOperatingPoint$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "store-open-lineage-cost",
       "title": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
       "owner": "master-lead",
@@ -922,7 +936,9 @@
             "surface-move-named-in-preflight/do",
             "store-deferral-constraints/do",
             "skips-through-a-variable/do",
-            "licence-blockers-corrected/do"
+            "licence-blockers-corrected/do",
+            "activity-policy-declared/do",
+            "activity-detection-capability/do"
           ]
         }
       ]

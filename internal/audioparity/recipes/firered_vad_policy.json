@@ -1,0 +1,26 @@
+{
+  "doc": "The boundary policy the activity detector applies to the probability the network produces per frame. These are not properties of the weights: they are the operating point the model's own command-line tools ship, read from the sources named below at the digests named below, and a caller that wants a different one states it in its request.",
+  "source": {
+    "offline": "fireredvad/bin/vad.py",
+    "offline_sha256": "443800463f0679eec0c9a712114724de6783ce3e7be1769983d3651107ddcc56",
+    "streaming": "fireredvad/bin/stream_vad.py",
+    "streaming_sha256": "c2074b311627953fe2a98f34183354666abb9b55c4f20fbb9e95b715c10d54ab"
+  },
+  "offline": {
+    "smoothing": 5,
+    "threshold": 0.4,
+    "min_speech": 20,
+    "max_speech": 2000,
+    "min_silence": 20,
+    "merge_silence": 0,
+    "extend_speech": 0
+  },
+  "streaming": {
+    "smoothing": 5,
+    "threshold": 0.4,
+    "pad_start": 5,
+    "min_speech": 8,
+    "max_speech": 2000,
+    "min_silence": 20
+  }
+}

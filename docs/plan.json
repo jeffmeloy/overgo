@@ -4,30 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-without-capability-tables",
-      "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
+      "id": "gate-suite-longest-tests",
+      "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores, so about 17 busy on average -- the wall is the longest chains, not total work): TestTestingReductionContract 84 s, TestSelectionPaybackAcceptance 78 s, and five near 55-60 s (DocumentationBoundary, GateRepairBatch, StaticFailurePreventsAcceptance, FirstReduction, PreflightRunsAcceptance). Find what each spends -- a repeated planning pass, a fresh worktree, a full suite selection -- and share or narrow it, with the wall re-measured the same way",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
+          "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores, so about 17 busy on average -- the wall is the longest chains, not total work): TestTestingReductionContract 84 s, TestSelectionPaybackAcceptance 78 s, and five near 55-60 s (DocumentationBoundary, GateRepairBatch, StaticFailurePreventsAcceptance, FirstReduction, PreflightRunsAcceptance). Find what each spends -- a repeated planning pass, a fresh worktree, a full suite selection -- and share or narrow it, with the wall re-measured the same way",
           "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "gate-suite-serial-floor",
-      "title": "Bound the internal/gate test wall (157 s in the owner phase, paid by every control-plane row; 938 s before the shared live-checkout fixture and parallel tests) through the two levers that work left open: the serial floor of tests that cannot share the fixture, and the device-lane projector reach that pulls device packages into a host suite",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound the internal/gate test wall (157 s in the owner phase, paid by every control-plane row; 938 s before the shared live-checkout fixture and parallel tests) through the two levers that work left open: the serial floor of tests that cannot share the fixture, and the device-lane projector reach that pulls device packages into a host suite",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateSuiteSerialFloorBudget' -count=1"
+          "verify": "go test ./internal/gate -run '^TestGateSuiteLongestTestsBudget$' -count=1"
         }
       ]
     },
@@ -56,6 +42,20 @@
           "title": "Bound the internal/evaluation test wall (2m21s in the test phase, the costliest package of the rewrite-retirement landing after audioparity) by sharing its store and catalog fixtures across tests, with the bound proven from the suite-cost evidence",
           "status": "open",
           "verify": "go test ./internal/evaluation -run '^TestEvaluationSuiteWallBudget' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "surface-without-capability-tables",
+      "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1"
         }
       ]
     },
@@ -1011,7 +1011,8 @@
             "plan-closure-rows-reconciled/do",
             "plan-small-records-rescoped/do",
             "plan-model-paths-scoped/do",
-            "surface-without-capability-tables/do"
+            "surface-without-capability-tables/do",
+            "gate-suite-longest-tests/do"
           ]
         }
       ]

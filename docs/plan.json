@@ -614,7 +614,8 @@
             "registry-document-class/do",
             "device-holders-rescoped/do",
             "suite-cost-rescoped/do",
-            "decode-check-on-device/do"
+            "decode-check-on-device/do",
+            "surface-covers-embedded-inputs/do"
           ]
         }
       ]

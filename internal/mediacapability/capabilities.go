@@ -17,8 +17,10 @@ import (
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
+	"overgo/internal/recipecontract"
 	"overgo/internal/seq2seq"
 	"overgo/internal/seriesforecast"
+	"overgo/internal/speechactivity"
 	"overgo/internal/speechrecognition"
 	"overgo/internal/speechsynth"
 	"overgo/internal/strictjson"
@@ -166,6 +168,8 @@ var Catalog = map[recipe.Task]Capability{
 		capabilityruntime.IgnoreInput[speechsynth.SynthesisRequest](speechsynth.LoadSynthesizer), speechsynth.RegisterRuntime)),
 	recipe.TaskTranscription: inventoryCapability(transcriptionInventory, capabilityruntime.JSONScalar[speechrecognition.TranscriptionRequest, *speechrecognition.Recognizer, string](
 		"transcription", speechrecognition.ValidateTranscriptionRequest, loadRecognizer, speechrecognition.RegisterRuntime)),
+	recipe.TaskActivityDetection: inventoryCapability(activityInventory, capabilityruntime.JSONScalar[speechactivity.DetectionRequest, *speechactivity.OfflineDetector, []recipecontract.ActivitySegment](
+		"activity-detection", speechactivity.ValidateDetectionRequest, loadActivityDetector, speechactivity.RegisterRuntime)),
 	recipe.TaskImageGen: imageCapability(),
 	recipe.TaskVideoGen: videoCapability(),
 	recipe.TaskVQA:      vqaCapability(),
@@ -241,6 +245,42 @@ func loadRecognizer(ctx context.Context, _ artifact.Repository, path string, _ r
 		Declaration: declaration, Frontend: reviewed.Frontend,
 		Grouping: reviewed.Grouping, Blank: reviewed.Blank, Transducer: transducer,
 	}, request.MemoryBytes)
+}
+
+// activityInventory is a whole-recording activity checkpoint: its weights and
+// the feature statistics its frontend was declared from.
+func activityInventory(path string) (modelartifact.Inventory, error) {
+	return modelartifact.FromFiles(path, []modelartifact.FileSpec{
+		{Path: filepath.Join(path, activityWeights), Name: "weights", Role: artifact.ComponentWeights},
+		{Path: filepath.Join(path, "cmvn.ark"), Name: "cmvn", Role: artifact.ComponentPreprocessor},
+	})
+}
+
+// activityWeights is the checkpoint file an activity model directory holds.
+const activityWeights = "model.pth.tar"
+
+// loadActivityDetector resolves the reviewed declarations by the digest of
+// the checkpoint's weights and refuses weights no reviewed declaration
+// answers for, rather than binding them to another checkpoint's tensors.
+func loadActivityDetector(ctx context.Context, _ artifact.Repository, path string, _ recipe.Program, request speechactivity.DetectionRequest) (*speechactivity.OfflineDetector, error) {
+	inventory, err := activityInventory(path)
+	if err != nil {
+		return nil, fmt.Errorf("activity detection: checkpoint: %w", err)
+	}
+	digest := ""
+	for _, component := range inventory.Manifest.Components {
+		if component.Role == artifact.ComponentWeights {
+			digest = component.Artifact.DigestHex()
+		}
+	}
+	reviewed, known, err := audioparity.ActivityDetectorFor(digest)
+	if err != nil {
+		return nil, err
+	}
+	if !known {
+		return nil, fmt.Errorf("activity detection: no reviewed declaration answers for weights %s", digest)
+	}
+	return speechactivity.NewOfflineDetector(ctx, filepath.Join(path, activityWeights), reviewed.Network, reviewed.Frontend, reviewed.Policy, request.MemoryBytes)
 }
 
 func speechInventory(path string) (modelartifact.Inventory, error) {

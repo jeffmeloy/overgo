@@ -97,12 +97,9 @@ func LoadDetector(ctx context.Context, repository artifact.Repository, definitio
 	if checkpoint == "" {
 		return nil, errors.New("speech activity: weight component absent")
 	}
-	network, err := LoadNetwork(ctx, checkpoint, profile.Network, memoryBytes)
+	network, err := loadClassifier(ctx, checkpoint, profile.Network, profile.Frontend, memoryBytes)
 	if err != nil {
 		return nil, err
-	}
-	if uint64(network.InputWidth()) != uint64(profile.Frontend.Geometry.FeatureBins) {
-		return nil, errors.New("speech activity: frontend and classifier widths differ")
 	}
 	d := &Detector{repository: repository, definition: definition, profile: profile, network: network, memoryBytes: memoryBytes}
 	if profile.Streaming != nil {

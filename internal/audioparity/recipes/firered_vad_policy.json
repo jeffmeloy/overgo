@@ -1,10 +1,11 @@
 {
-  "doc": "The boundary policy the activity detector applies to the probability the network produces per frame. These are not properties of the weights: they are the operating point the model's own command-line tools ship, read from the sources named below at the digests named below, and a caller that wants a different one states it in its request.",
+  "doc": "The boundary policy the activity detector applies to the probability the network produces per frame. These are not properties of the weights: they are the operating point the model's own command-line tools ship, read from the sources named below at the digests named below, and a caller that wants a different one states it in its request. The offline policy answers for the whole-recording checkpoint at offline_weights_sha256, the one vad.py loads.",
   "source": {
     "offline": "fireredvad/bin/vad.py",
     "offline_sha256": "443800463f0679eec0c9a712114724de6783ce3e7be1769983d3651107ddcc56",
     "streaming": "fireredvad/bin/stream_vad.py",
-    "streaming_sha256": "c2074b311627953fe2a98f34183354666abb9b55c4f20fbb9e95b715c10d54ab"
+    "streaming_sha256": "c2074b311627953fe2a98f34183354666abb9b55c4f20fbb9e95b715c10d54ab",
+    "offline_weights_sha256": "63f4fb1b00a6b8607c118dd48efc18d5e40d67d99b7bf9aa7a8d61540cf23d71"
   },
   "offline": {
     "smoothing": 5,

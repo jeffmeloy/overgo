@@ -319,7 +319,7 @@
      "path": "internal/speechactivity/execution.go",
      "contains": "func (d *Detector) Detect(",
      "role": "source",
-     "identity": "file:sha256:d167ed9d7c520669dca11a6302704a3b62bb53ab6153316a119850fd62e5b3a3"
+     "identity": "file:sha256:abacc05948b67bfb210f90611ea556d6eee3fb636f850b04e3a0170a5c12d6f4"
     },
     {
      "path": "internal/audioparity/vad_acceptance_test.go",
@@ -348,7 +348,7 @@
      "path": "internal/speechactivity/execution.go",
      "contains": "func (d *Detector) ProcessStream(",
      "role": "source",
-     "identity": "file:sha256:d167ed9d7c520669dca11a6302704a3b62bb53ab6153316a119850fd62e5b3a3"
+     "identity": "file:sha256:abacc05948b67bfb210f90611ea556d6eee3fb636f850b04e3a0170a5c12d6f4"
     },
     {
      "path": "internal/audioparity/vad_acceptance_test.go",

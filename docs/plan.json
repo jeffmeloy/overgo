@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "activity-detection-capability",
-      "title": "Give the onboarding catalog an activity-detection capability that reads the declared policy and takes per-request overrides",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give the onboarding catalog an activity-detection capability that reads the declared policy and takes per-request overrides",
-          "status": "open",
-          "verify": "test -f internal/mediacapability/activity_detection_test.go \u0026\u0026 go test ./internal/mediacapability -run '^TestActivityDetectionHonoursRequestOverrides$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "automation-land-regenerates-derived-docs",
       "title": "Make the landing regenerate the source-derived documents itself in their binding order (closure rebind, census baseline, published census, api manifest) after the last source edit, instead of reporting them stale for an operator to re-run by hand: skipping one step cost a failed test run and the ritual was repeated three times in one row",
       "owner": "master-lead",

@@ -1,19 +1,22 @@
 package audioparity
 
 import (
-	"crypto/sha256"
 	_ "embed"
-	"encoding/hex"
 	"fmt"
-	"os"
-	"path/filepath"
 
+	"overgo/internal/audiodsp"
 	"overgo/internal/speechactivity"
 	"overgo/internal/strictjson"
 )
 
-//go:embed recipes/firered_vad_policy.json
-var activityPolicyJSON []byte
+var (
+	//go:embed recipes/firered_vad_policy.json
+	activityPolicyJSON []byte
+	//go:embed recipes/firered_vad_execution.json
+	activityExecutionJSON []byte
+	//go:embed recipes/vad_frontend.json
+	activityFrontendJSON []byte
+)
 
 // reviewedActivityPolicy is the boundary policy a detector applies to the
 // probability its network produces per frame, and where that policy comes
@@ -28,20 +31,38 @@ type reviewedActivityPolicy struct {
 		OfflineSHA256   string `json:"offline_sha256"`
 		Streaming       string `json:"streaming"`
 		StreamingSHA256 string `json:"streaming_sha256"`
+		OfflineWeights  string `json:"offline_weights_sha256"`
 	} `json:"source"`
 	Offline   speechactivity.OfflineConfig  `json:"offline"`
 	Streaming speechactivity.BoundaryConfig `json:"streaming"`
 }
 
-// ActivityPolicy reports the reviewed default boundary policy and the source
-// it was read from. A caller that wants another operating point states it
-// rather than editing this one.
-func ActivityPolicy() (speechactivity.OfflineConfig, speechactivity.BoundaryConfig, error) {
+// ReviewedActivityDetector is what a whole-recording detector needs beside
+// its weights, none of which the checkpoint carries: how its classifier's
+// tensors are bound, how a waveform becomes the features it reads, and the
+// boundary policy its own tools apply by default.
+type ReviewedActivityDetector struct {
+	Network  speechactivity.Declaration
+	Frontend audiodsp.FrontendConfig
+	Policy   speechactivity.OfflineConfig
+}
+
+// ActivityDetectorFor resolves the reviewed declarations for a checkpoint by
+// the digest of its weights, since the checkpoint names no type of its own;
+// known is false for weights no reviewed declaration answers for.
+func ActivityDetectorFor(weightsSHA256 string) (ReviewedActivityDetector, bool, error) {
 	policy, err := activityPolicy()
-	if err != nil {
-		return speechactivity.OfflineConfig{}, speechactivity.BoundaryConfig{}, err
+	if err != nil || weightsSHA256 != policy.Source.OfflineWeights {
+		return ReviewedActivityDetector{}, false, err
 	}
-	return policy.Offline, policy.Streaming, nil
+	reviewed := ReviewedActivityDetector{Policy: policy.Offline}
+	if err := strictjson.DecodeBytes(activityExecutionJSON, &reviewed.Network); err != nil {
+		return ReviewedActivityDetector{}, false, fmt.Errorf("audio parity: activity declaration: %w", err)
+	}
+	if err := strictjson.DecodeBytes(activityFrontendJSON, &reviewed.Frontend); err != nil {
+		return ReviewedActivityDetector{}, false, fmt.Errorf("audio parity: activity frontend: %w", err)
+	}
+	return reviewed, true, nil
 }
 
 // activityPolicy decodes the reviewed document and refuses one whose values
@@ -59,30 +80,4 @@ func activityPolicy() (reviewedActivityPolicy, error) {
 		return reviewedActivityPolicy{}, fmt.Errorf("audio parity: activity policy is not a usable operating point")
 	}
 	return policy, nil
-}
-
-// ActivityPolicySourcesMatch reports whether the sources the policy cites
-// still hash to the digests it names, given the directory the model's own
-// repository sits in. A policy whose source has moved is reported rather
-// than trusted, because the values are that source's opinion and nothing
-// else records them.
-func ActivityPolicySourcesMatch(repository string) error {
-	policy, err := activityPolicy()
-	if err != nil {
-		return err
-	}
-	for path, digest := range map[string]string{
-		policy.Source.Offline:   policy.Source.OfflineSHA256,
-		policy.Source.Streaming: policy.Source.StreamingSHA256,
-	} {
-		data, readErr := os.ReadFile(filepath.Join(repository, filepath.FromSlash(path)))
-		if readErr != nil {
-			return readErr
-		}
-		sum := sha256.Sum256(data)
-		if observed := hex.EncodeToString(sum[:]); observed != digest {
-			return fmt.Errorf("audio parity: activity policy source %s is %s, not %s", path, observed, digest)
-		}
-	}
-	return nil
 }

@@ -78,48 +78,17 @@ func (d *Detector) Detect(ctx context.Context, source recipecontract.AudioRefere
 // The caller binds the decoded samples to source; the detector checks format,
 // sample bounds and finite values without reading or copying encoded audio.
 func (d *Detector) DetectDecoded(ctx context.Context, source recipecontract.AudioReference, audio media.DecodedAudio, w *DetectionWorkspace) (recipecontract.ActivitySegments, artifact.ID, error) {
-	if d == nil || d.frontend == nil || ctx == nil || w == nil || len(audio.Samples) == 0 ||
-		audio.Format.Channels != 1 || audio.Format.SampleRate != uint64(d.profile.Frontend.SampleRate) ||
-		audio.Format.Encoding != "pcm-f32le" || uint64(len(audio.Samples)) > d.memoryBytes/4 {
+	if d == nil || d.frontend == nil || ctx == nil || w == nil || !frontendReads(audio, d.profile.Frontend, d.memoryBytes) {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, errors.New("speech activity: invalid decoded input")
 	}
 	if err := source.Validate(); err != nil {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err
 	}
-	features, frames, err := d.frontend.Process(ctx, [][]float32{audio.Samples}, d.profile.Frontend.SampleRate, &w.frontend, audiodsp.ProcessOptions{})
+	segments, err := offlineSegments(ctx, d.network, d.frontend, d.profile.Frontend, audio.Samples, *d.profile.Offline, d.memoryBytes, w)
 	if err != nil {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err
 	}
-	probabilities, _, err := d.network.Evaluate(ctx, features, frames, nil, &w.network, nil)
-	if err != nil {
-		return recipecontract.ActivitySegments{}, artifact.ID{}, err
-	}
-	decisions, err := OfflineDecisions(ctx, probabilities, *d.profile.Offline, d.memoryBytes)
-	if err != nil {
-		return recipecontract.ActivitySegments{}, artifact.ID{}, err
-	}
-	result := recipecontract.ActivitySegments{Source: source}
-	hop := d.profile.Frontend.Geometry.HopSamples
-	for start := 0; start < len(decisions); {
-		if !decisions[start] {
-			start++
-			continue
-		}
-		end := start
-		var sum float64
-		for end < len(decisions) && decisions[end] {
-			sum += float64(probabilities[end])
-			end++
-		}
-		endSample := uint64(end) * hop
-		if end == len(decisions) {
-			// Native offline finalization includes the analysis window and clips
-			// to the actual signal. No synthetic samples or frames are generated.
-			endSample = min(uint64(len(audio.Samples)), endSample+d.profile.Frontend.Geometry.WindowSamples)
-		}
-		result.Segments = append(result.Segments, recipecontract.ActivitySegment{Span: recipecontract.SampleSpan{Start: uint64(start) * hop, End: endSample}, Confidence: sum / float64(end-start)})
-		start = end
-	}
+	result := recipecontract.ActivitySegments{Source: source, Segments: segments}
 	if err := result.Validate(); err != nil {
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err
 	}
@@ -135,6 +104,13 @@ func (d *Detector) DetectDecoded(ctx context.Context, source recipecontract.Audi
 		return recipecontract.ActivitySegments{}, artifact.ID{}, err
 	}
 	return result, content.Descriptor.ID, nil
+}
+
+// frontendReads reports whether decoded audio is what a frontend reads: one
+// channel of float samples at its rate, within the sample budget.
+func frontendReads(audio media.DecodedAudio, config audiodsp.FrontendConfig, memoryBytes uint64) bool {
+	return len(audio.Samples) != 0 && audio.Format.Channels == 1 && audio.Format.SampleRate == uint64(config.SampleRate) &&
+		audio.Format.Encoding == "pcm-f32le" && uint64(len(audio.Samples)) <= memoryBytes/4
 }
 
 func (d *Detector) restore(ctx context.Context, work workflowruntime.AudioStreamWork) (detectionState, error) {

@@ -385,6 +385,11 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 	recipe.TaskTranscription: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "transcribe", module: ModuleTranscribeAudio, input: "audio", output: "transcription", inputData: recipe.DataAudio, outData: recipe.DataTranscription, session: recipe.SessionCapacity},
 	}},
+	// The detector's classifier stays loaded across requests as the
+	// recognizer does; each request brings its own boundary policy.
+	recipe.TaskActivityDetection: {placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "detect", module: ModuleDetectActivity, input: "audio", output: "segments", inputData: recipe.DataAudio, outData: recipe.DataActivitySegments, session: recipe.SessionCapacity},
+	}},
 }
 
 func imageCapability(

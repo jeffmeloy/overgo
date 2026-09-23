@@ -307,12 +307,7 @@ func (h *Handler) tensorMeasurement(ctx context.Context, path string, inventory 
 	pass := &tensorPass{done: make(chan struct{})}
 	found := false
 	if store, err := h.browseStore(ctx); err == nil {
-		err := visitTensorMeasurements(ctx, store, overgodb.DocumentNewestFirst, func(stored modelartifact.TensorMeasurementDocument) error {
-			if !found && stored.Inventory == inventory.ID && stored.Policy == policy {
-				pass.full, found = stored, true
-			}
-			return nil
-		})
+		pass.full, found, err = findTensorMeasurement(ctx, store, inventory.ID, policy)
 		if err != nil {
 			return nil, err
 		}
@@ -363,6 +358,27 @@ func visitTensorMeasurements(ctx context.Context, store *overgodb.Store, order o
 		return visit(document)
 	})
 	return err
+}
+
+// errMeasurementFound ends a measurement visit at its match.
+var errMeasurementFound = errors.New("server: tensor measurement found")
+
+// findTensorMeasurement answers the newest committed measurement of the
+// inventory under the policy, reading measurements newest first and stopping
+// at the match: each one it reads is a whole document to decode.
+func findTensorMeasurement(ctx context.Context, store *overgodb.Store, inventory artifact.ID, policy modelartifact.MeasurementPolicy) (modelartifact.TensorMeasurementDocument, bool, error) {
+	var match modelartifact.TensorMeasurementDocument
+	err := visitTensorMeasurements(ctx, store, overgodb.DocumentNewestFirst, func(stored modelartifact.TensorMeasurementDocument) error {
+		if stored.Inventory != inventory || stored.Policy != policy {
+			return nil
+		}
+		match = stored
+		return errMeasurementFound
+	})
+	if errors.Is(err, errMeasurementFound) {
+		return match, true, nil
+	}
+	return modelartifact.TensorMeasurementDocument{}, false, err
 }
 
 // publishTensorMeasurement commits the measurement with the inventory it names.

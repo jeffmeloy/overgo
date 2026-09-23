@@ -1,22 +1,97 @@
 {
   "campaign": "Integrated validation, GUI cleanup lane: validate, harden and simplify the HTML workbench",
-  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree. Merged master 79f5dd18 on 2026-09-23 (8b77d24e): suites now run in parallel (TestSuitesRunInParallel), so every browser leg awaits the state it asserts instead of relying on serial timing, and the catalog gained an image-embedding task the workbench offers no surface for yet (row gui-declared-task-output names it rather than building one: capability freeze).",
+  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree. Merged master 79f5dd18 on 2026-09-23 (8b77d24e): suites now run in parallel (TestSuitesRunInParallel), so every browser leg awaits the state it asserts instead of relying on serial timing, and the catalog gained an image-embedding task the workbench offers no surface for yet (row gui-declared-task-output names it rather than building one: capability freeze). Owner direction 2026-09-23: architecture that runs the system with fewer components, more efficiency and more robustness outranks features; each arch- row deletes a component (one event stream, one event hub, the route table as sole dispatcher, store reads that scale with their answer, one text turn pipeline, one tab resource primitive) and is measured before and after. The lane edits the server, serving and client stack; overgodb, the gate and the closure ledger are master's active substrates, where the lane files evidence-backed proposals instead of edits.",
   "lane": "overgo_gui_cleanup",
   "scope": "lane",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-chat-sessions",
-      "title": "Continue a stopped or resumed conversation exactly through inference sessions instead of replaying and re-prefilling its text",
+      "id": "arch-one-event-stream",
+      "title": "Serve the workbench's live state from the one runtime event stream: retire the automation, peer and agent tab streams and the download poller",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Continue a stopped or resumed conversation exactly through inference sessions instead of replaying and re-prefilling its text",
+          "title": "Serve the workbench's live state from the one runtime event stream: retire the automation, peer and agent tab streams and the download poller",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestOneWorkbenchEventStream$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(StreamLifecycle|HardenedStates)$' -require 'one event stream leg'",
+          "rationale": "Survey: four status streams (/runtime/activity, /automations, /peers, /agents stream) where the three tab streams send their inventory once at connect and afterwards only operation events the runtime stream already carries, so every tab reads its inventory twice and holds two operation subscriptions; the automations tab replaces its whole operation list with each event; the Library polls /hub/downloads every second. Delete the three tab streams and overgo.tabStream, subscribe the tabs to overgo.runtimeEvents, and publish hub downloads as an event so overgo.poller goes. Estimated about 200 lines out, 55 in. The stream lifecycle leg is rewritten to prove one connection per page."
+        }
+      ]
+    },
+    {
+      "id": "arch-event-hub",
+      "title": "Fan operation and serving events out from one server hub: one operations subscription, one sessions snapshot per event, store reads outside the serving lock, and change events that keep inventories live",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fan operation and serving events out from one server hub: one operations subscription, one sessions snapshot per event, store reads outside the serving lock, and change events that keep inventories live",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestEventHubFansOutOnce$' -count=1",
+          "rationale": "Survey: two fan-out implementations (operation.Manager keeps only the latest event per subscriber and caps subscribers at MaxStoredResponses; servingEvents resyncs on overflow), one operations subscription per connection, runtime.sessions rebuilt per connection per event, and runtimeActivitySnapshot runs four store queries while holding servingEvents.mu, which blocks serving publication. One server hub subscribes once, computes each snapshot once, reads the store outside the lock, and emits workspace change events after mutations so inventories stay live; with a real buffer, terminal operation events are never dropped and waitOperation loses its long-poll fallback."
+        }
+      ]
+    },
+    {
+      "id": "arch-route-dispatch",
+      "title": "Make the route table the only dispatcher: one handler per path, shared workspace preconditions as wrappers, and no handler-level method checks",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the route table the only dispatcher: one handler per path, shared workspace preconditions as wrappers, and no handler-level method checks",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestRouteTableIsTheOnlyDispatcher$' -count=1",
+          "rationale": "Survey: agentControl, peerWorkspace and automationWorkspace re-dispatch 28 paths with switches after the route table chose them (three default 404 branches can never run), 40 of 43 requireMethod calls repeat the method check the table already enforces, and a missing agent runtime answers 501 in one place and 503 in another. Register each path with its own handler, move each workspace precondition into one wrapper, delete the redundant checks, and hold it with a source test."
+        }
+      ]
+    },
+    {
+      "id": "arch-store-read-paths",
+      "title": "Make every per-request store read scale with its answer: alias names through the alias index, the timeline by its alias, and conversations, pending decisions and the tensor pool from projections advanced by store deltas",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make every per-request store read scale with its answer: alias names through the alias index, the timeline by its alias, and conversations, pending decisions and the tensor pool from projections advanced by store deltas",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestStoreReadsScaleWithTheirAnswer$' -count=1",
+          "rationale": "Survey: /interactions, /agents/sessions, /automations, /operations/decisions, /operations/timeline and /analyze/tensors/similar read the whole store per request (the live store answered /agents in 35 s before the lane fixed two of them); automation inventory pages a Kind-less alias projection whose cost grows with the square of the store; browseStore takes the cross-process write lock to refresh a read. In the lane: alias-name reads through VisitAliases, the timeline filtered by its alias, a storeProjection helper advanced by DeltasSince (resync on retention or rebuild) for conversations, pending decisions and the tensor pool. Proposed to master rather than done here: VisitDocuments picks candidates from its media and schema indexes and stops counting past MaxResults, which cuts every full scan at its root (overgodb is master's substrate, and an edit there moves the inference surface)."
+        }
+      ]
+    },
+    {
+      "id": "arch-turn-pipeline",
+      "title": "Serve every text protocol through one turn pipeline: one prompt build, one output parse, one usage and tool-call rule, each protocol only decoding its request and encoding its events",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Serve every text protocol through one turn pipeline: one prompt build, one output parse, one usage and tool-call rule, each protocol only decoding its request and encoding its events",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestTextProtocolsShareOneTurn$' -count=1",
+          "rationale": "Survey: eight text routes (/v1/completions, /completion, /infill, /v1/chat/completions, /v1/responses, /v1/messages, /agents/chat, /generation/enhance) all end in Handler.generate, but prompt building, output parsing, tool-call ids (four separate generators in chat alone), usage, finish reasons and non-streaming paths are built per protocol above it; /v1/completions skips tokenization and the context check; the native completion route runs its own loop; infill and agents/chat re-encode JSON to call another handler; only Responses stores interactions. One runTurn with a sink interface serves them all, each protocol keeping only its request decoder and event encoder. Estimated 1,400 lines out, 830 in."
+        }
+      ]
+    },
+    {
+      "id": "gui-chat-sessions",
+      "title": "Continue a stopped or resumed conversation exactly: keep the decoded tokens in the prompt cache, store each turn's token context, and continue after Stop with the tokens an uninterrupted greedy run produces, without re-prefill",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Continue a stopped or resumed conversation exactly: keep the decoded tokens in the prompt cache, store each turn's token context, and continue after Stop with the tokens an uninterrupted greedy run produces, without re-prefill",
           "status": "open",
           "verify": "test -f internal/server/response_session_test.go \u0026\u0026 go test ./internal/server -run '^TestResponsesContinueSavedSession$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SessionContinuation|LayoutAudit)$' -require 'session continuation leg'",
-          "rationale": "Carried from professional_overgo_gui. Map previous_response_id on /v1/responses to a saved inference session bound to the model fingerprint and sampler state; continuing after Stop produces the same tokens as an uninterrupted greedy run with no re-prefill; a session from another model or sampler is refused with its reason."
+          "rationale": "Survey (2026-09-23): continuing a conversation re-prefills the previous reply because the prompt cache saves only the prompt tokens and releases the decoded tokens' state when generation returns; the cache holds one entry shared by every request, so another conversation evicts it; Stop stores only the text already sent (the stop filter's held-back text and summary reasoning are lost) and continuing re-renders the partial as a finished message. The engine's SaveSession, LoadSession and ContinueSession have no production caller and work only on the host cache, which serving does not use. Save the cache entry after decoding (every token but the pending last one), return partial ids on cancellation, store each turn's token context with its interaction, build the next turn in token space, add a continue request with a Continue control, and delete the unused session API. Acceptance: continuing after Stop produces the tokens of an uninterrupted greedy run with no re-prefill; a session from another model or sampler is refused with its reason."
         }
       ]
     },
@@ -35,6 +110,36 @@
           "depends_on": [
             "agent-route-consolidation/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "arch-tab-resource",
+      "title": "Give every workspace tab one resource primitive that owns loading, empty, failure, reload and abort, and delete each tab's own handling",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give every workspace tab one resource primitive that owns loading, empty, failure, reload and abort, and delete each tab's own handling",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestWebUITabsLoadThroughOneResource$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserHardenedStates$' -require 'hardened states leg'",
+          "rationale": "Every tab hand-writes its loading note, empty state, failure banner, reload and abort, which is why the hardened-states row had to repair tabs one at a time. One overgo.resource(panel, load, render) owns them, the hardened-states leg keeps proving every tab, and a source test holds the tabs to the primitive."
+        }
+      ]
+    },
+    {
+      "id": "arch-behaviour-tests",
+      "title": "Bound every browser wait by the test's own deadline, and replace source-needle GUI tests with behaviour legs",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound every browser wait by the test's own deadline, and replace source-needle GUI tests with behaviour legs",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -run '^TestBrowserWaitsReportBeforeTheDeadline$' -count=1",
+          "rationale": "A browser wait has no deadline, so a missing selector hung the package for 20 minutes several times this lane before the stack named the line; 18 test files pin string needles in the served source and broke on refactors that changed no behaviour. Waits take the test's deadline and report the page's state when it passes; needle tests give way to behaviour legs as rows touch them."
         }
       ]
     },
@@ -78,7 +183,7 @@
           "id": "do",
           "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -require 'stream lifecycle leg' -require 'tab mount errors: 0' -require 'artifact links leg' -require 'unlabelled controls: 0' -require 'hardened states leg' -require 'typeset leg' -require 'session continuation leg' -require 'agent recovery leg' -require 'speculative decoding leg' -require 'model merge leg' -require 'conversation control leg' -require 'mobile interaction leg' -require 'unoffered task leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -require 'stream lifecycle leg' -require 'tab mount errors: 0' -require 'artifact links leg' -require 'unlabelled controls: 0' -require 'hardened states leg' -require 'typeset leg' -require 'session continuation leg' -require 'agent recovery leg' -require 'speculative decoding leg' -require 'model merge leg' -require 'conversation control leg' -require 'mobile interaction leg' -require 'unoffered task leg' -require 'one event stream leg'",
           "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
           "depends_on": [
             "webui-client-contract/do",

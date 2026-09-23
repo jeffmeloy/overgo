@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "timesfm3-native-declaration",
+      "title": "Load timesfm-3.0 (reference source: models/timesfm-3.0-pytorch/timesfm/src/timesfm3, owner 2026-09-23). It is a new architecture, not a config mapping of timesfm-2.5: variate attention across up to 32 series, iterative RevIN normalization (cpm_revin_refine), linear detrending and stitching, a ReLU feed-forward with QK RMS normalization and causal attention with sequence RoPE, a 32-step input patch and a 64-step output patch with nine quantiles. Port the torch reference (model.py, transformer.py, cpm_revin_refine.py, timesfm3_forecaster.py) as a forecast loader of its own, anchored to golden forecasts the reference produces (the golden-fixture exception to Go-only), then register and validate the model with its licence recorded as a LicenseRef",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Load timesfm-3.0 (reference source: models/timesfm-3.0-pytorch/timesfm/src/timesfm3, owner 2026-09-23). It is a new architecture, not a config mapping of timesfm-2.5: variate attention across up to 32 series, iterative RevIN normalization (cpm_revin_refine), linear detrending and stitching, a ReLU feed-forward with QK RMS normalization and causal attention with sequence RoPE, a 32-step input patch and a 64-step output patch with nine quantiles. Port the torch reference (model.py, transformer.py, cpm_revin_refine.py, timesfm3_forecaster.py) as a forecast loader of its own, anchored to golden forecasts the reference produces (the golden-fixture exception to Go-only), then register and validate the model with its licence recorded as a LicenseRef",
+          "status": "open",
+          "verify": "test -f internal/seriesforecast/native_declaration_test.go \u0026\u0026 go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "gate-suite-longest-tests",
       "title": "Cut the internal/gate suite's longest parallel tests, which set its wall (measured 2026-09-23: 174.7 s wall, 2,501 summed test-seconds on 32 cores; TestTestingReductionContract 84 s in the suite, 88 s alone, is five 14-25 s planning passes over the live checkout plus the one fixture build). Its CPU profile is I/O-bound, not compute-bound -- about 1.9 cores busy, system calls 42 percent of samples, garbage collection 20 percent, code-manifest generation 25 percent -- so the lever is the per-plan snapshot reads, git and go list processes and allocation, not the validation that planning-validates-once removes. Find the repeated per-plan I/O, share it across plans of one tree, and re-measure the same way",
       "owner": "master-lead",
@@ -200,34 +214,6 @@
             "store-benchmark-record-redundancy/do",
             "store-growth-ratchet/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "timesfm3-native-declaration",
-      "title": "Load timesfm-3.0's native declaration: its config.json is the native PyTorch form (model_dims, num_layers, input_patch_len, residual_block_config) where the forecast loader reads the HuggingFace form timesfm-2.5 carries, so the checkpoint is refused for lacking rope_theta. adaptive_new has no implementation to port, so this derives the mapping from the checkpoint and its reference code, then registers and validates the model with its licence recorded as a LicenseRef",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Load timesfm-3.0's native declaration: its config.json is the native PyTorch form (model_dims, num_layers, input_patch_len, residual_block_config) where the forecast loader reads the HuggingFace form timesfm-2.5 carries, so the checkpoint is refused for lacking rope_theta. adaptive_new has no implementation to port, so this derives the mapping from the checkpoint and its reference code, then registers and validates the model with its licence recorded as a LicenseRef",
-          "status": "open",
-          "verify": "test -f internal/seriesforecast/native_declaration_test.go \u0026\u0026 go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "dinov2-embedding-capability",
-      "title": "Give the catalog an image embedding capability for webssl-dino: the checkpoint is a dinov2 vision encoder whose output is embeddings, and the catalog's embedding task serves text only, so there is nothing to register it as. overgo has no DINOv2 encoder and adaptive_new none to port, so this derives the ViT forward and preprocessing from the checkpoint, then registers and validates the model with its CC-BY-NC-4.0 licence recorded",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give the catalog an image embedding capability for webssl-dino: the checkpoint is a dinov2 vision encoder whose output is embeddings, and the catalog's embedding task serves text only, so there is nothing to register it as. overgo has no DINOv2 encoder and adaptive_new none to port, so this derives the ViT forward and preprocessing from the checkpoint, then registers and validates the model with its CC-BY-NC-4.0 licence recorded",
-          "status": "open",
-          "verify": "test -f internal/mediacapability/image_embedding_test.go \u0026\u0026 go test ./internal/mediacapability -run '^TestImageEmbeddingCapability$' -count=1"
         }
       ]
     },

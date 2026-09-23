@@ -57,6 +57,9 @@ const (
 	ModuleReferenceVideoDecode     recipe.ModuleID = "model.reference-video-decode"
 	ModuleVQAPrepare               recipe.ModuleID = "model.vqa-prepare"
 	ModuleVQAGenerate              recipe.ModuleID = "model.vqa-generate"
+	// ModuleEmbedImage identifies the host image-embedding forward: an
+	// encoded image in, its pooled embedding vector out.
+	ModuleEmbedImage recipe.ModuleID = "model.embed-image"
 )
 
 var catalog = mustCatalog()
@@ -389,6 +392,10 @@ var linearCapabilities = map[recipe.Task]linearCapability{
 	// recognizer does; each request brings its own boundary policy.
 	recipe.TaskActivityDetection: {placement: recipe.PlacementHost, stages: []scalarStage{
 		{node: "detect", module: ModuleDetectActivity, input: "audio", output: "segments", inputData: recipe.DataAudio, outData: recipe.DataActivitySegments, session: recipe.SessionCapacity},
+	}},
+	// The encoder stays loaded across requests; each request brings one image.
+	recipe.TaskImageEmbedding: {placement: recipe.PlacementHost, stages: []scalarStage{
+		{node: "embed", module: ModuleEmbedImage, input: "image", output: "embedding", inputData: recipe.DataImage, outData: recipe.DataEmbeddings, session: recipe.SessionCapacity},
 	}},
 }
 
@@ -735,7 +742,7 @@ func mustCatalog() *recipe.Catalog {
 		},
 	}
 	for _, task := range []recipe.Task{
-		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech,
+		recipe.TaskGeneration, recipe.TaskForecast, recipe.TaskTabular, recipe.TaskSeq2Seq, recipe.TaskSpeech, recipe.TaskImageEmbedding,
 	} {
 		modules = append(modules, linearCapabilities[task].modules(task)...)
 	}

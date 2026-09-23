@@ -4,16 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "evidence-currency-per-model",
-      "title": "Stop text evidence expiring on code no decode runs (owner feedback 2026-09-22; measured 2026-09-23): of the last 400 commits, 67 moved the inference surface, and 33 of those touched only store, record and process-control packages (overgodb 18, runrecord 14) that no decode executes; modelrecipe alone moved it twice. A per-model closure does not help, because every text model shares one closure, and a declaration-level digest over the code manifest is unsound (it records no symbols for unexported package variables such as the module catalog) and broad (the runner reaches 62 percent of all symbols). The closure is wide because the runner reaches the control plane through four edges only: internal/inference imports modelrecipe, composition and runrecord, and internal/projector imports modelrecipe and modelartifact. Cut them: move the decode-session, plan and runtime-policy types the runner and projector use into a leaf package they import, move composite generation out of the runner, then drop modelrecipe from the surface roots; each cut states how many of the 67 historical moves the narrowed surface would have absorbed, and the proof is that an edit to the store or to a non-text capability leaves the surface digest unchanged",
+      "id": "surface-without-capability-tables",
+      "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stop text evidence expiring on code no decode runs (owner feedback 2026-09-22; measured 2026-09-23): of the last 400 commits, 67 moved the inference surface, and 33 of those touched only store, record and process-control packages (overgodb 18, runrecord 14) that no decode executes; modelrecipe alone moved it twice. A per-model closure does not help, because every text model shares one closure, and a declaration-level digest over the code manifest is unsound (it records no symbols for unexported package variables such as the module catalog) and broad (the runner reaches 62 percent of all symbols). The closure is wide because the runner reaches the control plane through four edges only: internal/inference imports modelrecipe, composition and runrecord, and internal/projector imports modelrecipe and modelartifact. Cut them: move the decode-session, plan and runtime-policy types the runner and projector use into a leaf package they import, move composite generation out of the runner, then drop modelrecipe from the surface roots; each cut states how many of the 67 historical moves the narrowed surface would have absorbed, and the proof is that an edit to the store or to a non-text capability leaves the surface digest unchanged",
+          "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
           "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestStoreEditLeavesTheSurfaceUnchanged$' -count=1"
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1"
         }
       ]
     },
@@ -1010,7 +1010,8 @@
             "preflight-rebinds-closure-drift/do",
             "plan-closure-rows-reconciled/do",
             "plan-small-records-rescoped/do",
-            "plan-model-paths-scoped/do"
+            "plan-model-paths-scoped/do",
+            "surface-without-capability-tables/do"
           ]
         }
       ]

@@ -313,29 +313,9 @@ func checkMediaRotaryConsumers(root string, paths []string) error {
 	return nil
 }
 
+// checkMediaRotarySource proves the rotary landing output-neutral at revision,
+// the commit the registry's rotary delta names as its source.
 func checkMediaRotarySource(root, revision string, paths []string) (string, error) {
-	// Peel the newer output-neutral executor and host-linear deltas first so the
-	// rotary proof reconciles the source at the pre-delta base; they are not
-	// rotary changes and carry their own reviewed reconciliation and receipt.
-	// Newest first: the Q1_0 staged-prefill kernel landing sits above the
-	// workflowruntime deltas and carries its own executor receipt.
-	if peeledBase, peeled, err := checkMediaQ10prefillSource(root, revision, paths); err != nil {
-		return "", err
-	} else if peeled {
-		revision = peeledBase
-	}
-	// Newest first: the workflowruntime deltas of the harness landings sit
-	// above the executor/hostmath base and carry their own receipt.
-	if peeledBase, peeled, err := checkMediaWorkflowruntimeSource(root, revision, paths); err != nil {
-		return "", err
-	} else if peeled {
-		revision = peeledBase
-	}
-	if peeledBase, peeled, err := checkMediaExecutorHostmathSource(root, revision, paths); err != nil {
-		return "", err
-	} else if peeled {
-		revision = peeledBase
-	}
 	changed, err := mediaRuntimeChanges(root, mediaRotaryBase, revision, paths)
 	if err != nil {
 		return "", err
@@ -408,22 +388,23 @@ func TestMediaRotarySourceIsolation(t *testing.T) {
 		}
 	}
 	root := testutil.RepoRoot(t)
-	var merged mediaMergedEvidence
-	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_merged.json"))
+	registry, err := readMediaDeltaRegistry(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := json.Unmarshal(raw, &merged); err != nil {
-		t.Fatal(err)
+	index := slices.IndexFunc(registry.Deltas, func(delta mediaReviewedDelta) bool { return delta.Receipt == mediaReceiptRotary })
+	if index < 0 {
+		t.Fatal("no reviewed delta carries the rotary proof")
 	}
-	if _, err := checkMediaRotarySource(root, "", merged.RuntimePaths); err != nil {
+	source := registry.Deltas[index].Source
+	if _, err := checkMediaRotarySource(root, source, registry.Paths); err != nil {
 		t.Fatal(err)
 	}
 	before, err := mediaRotarySources(root, mediaRotaryBase)
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := mediaRotarySources(root, "")
+	after, err := mediaRotarySources(root, source)
 	if err != nil {
 		t.Fatal(err)
 	}

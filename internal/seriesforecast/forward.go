@@ -26,6 +26,15 @@ import (
 // carried execution fact.
 const revinTolerance = 1e-06
 
+// revinDivisor is the RevIN divisor for a running sigma: one when the sigma
+// is below the tolerance.
+func revinDivisor(sigma float64) float64 {
+	if sigma < revinTolerance {
+		return 1
+	}
+	return sigma
+}
+
 // padToPatches front-pads the series to a whole number of patches; returned
 // masks mark padding with one. A nil mask input means all values legitimate.
 func padToPatches(series, masks []float32, patchLen int) ([]float32, []float32, error) {
@@ -52,46 +61,51 @@ func padToPatches(series, masks []float32, patchLen int) ([]float32, []float32, 
 func patchStats(series, masks []float32, patchLen int, mu, sigma []float64) {
 	var n, runningMu, runningSigma float64
 	for i := range mu {
-		var incN, incSum float64
-		for j := range patchLen {
-			if masks[i*patchLen+j] == 0 {
-				incN++
-				incSum += float64(series[i*patchLen+j])
-			}
-		}
-		var incMu float64
-		if incN > 0 {
-			incMu = incSum / incN
-		}
-		var incVarNum float64
-		for j := range patchLen {
-			if masks[i*patchLen+j] == 0 {
-				d := float64(series[i*patchLen+j]) - incMu
-				incVarNum += d * d
-			}
-		}
-		var incVar float64
-		if incN > 0 {
-			incVar = incVarNum / incN
-		}
-		incSigma := math.Sqrt(incVar)
-		newN := n + incN
-		var newMu, newSigma float64
-		if newN > 0 {
-			newMu = (n*runningMu + incMu*incN) / newN
-			t1 := n * runningSigma * runningSigma
-			t2 := incN * incSigma * incSigma
-			t3 := n * (runningMu - newMu) * (runningMu - newMu)
-			t4 := incN * (incMu - newMu) * (incMu - newMu)
-			newVar := (t1 + t2 + t3 + t4) / newN
-			if newVar < 0 {
-				newVar = 0
-			}
-			newSigma = math.Sqrt(newVar)
-		}
-		n, runningMu, runningSigma = newN, newMu, newSigma
+		n, runningMu, runningSigma = mergePatch(n, runningMu, runningSigma, series[i*patchLen:(i+1)*patchLen], masks[i*patchLen:(i+1)*patchLen])
 		mu[i], sigma[i] = runningMu, runningSigma
 	}
+}
+
+// mergePatch folds one patch's legitimate values into running statistics
+// (count, mean, standard deviation) by a Welford parallel merge.
+func mergePatch(n, runningMu, runningSigma float64, values, masks []float32) (newN, newMu, newSigma float64) {
+	var incN, incSum float64
+	for j, value := range values {
+		if masks[j] == 0 {
+			incN++
+			incSum += float64(value)
+		}
+	}
+	var incMu float64
+	if incN > 0 {
+		incMu = incSum / incN
+	}
+	var incVarNum float64
+	for j, value := range values {
+		if masks[j] == 0 {
+			d := float64(value) - incMu
+			incVarNum += d * d
+		}
+	}
+	var incVar float64
+	if incN > 0 {
+		incVar = incVarNum / incN
+	}
+	incSigma := math.Sqrt(incVar)
+	newN = n + incN
+	if newN > 0 {
+		newMu = (n*runningMu + incMu*incN) / newN
+		t1 := n * runningSigma * runningSigma
+		t2 := incN * incSigma * incSigma
+		t3 := n * (runningMu - newMu) * (runningMu - newMu)
+		t4 := incN * (incMu - newMu) * (incMu - newMu)
+		newVar := (t1 + t2 + t3 + t4) / newN
+		if newVar < 0 {
+			newVar = 0
+		}
+		newSigma = math.Sqrt(newVar)
+	}
+	return newN, newMu, newSigma
 }
 
 // patchEmbed normalizes each patch (RevIN with the running stats), zeroes
@@ -101,10 +115,7 @@ func (m *Model) patchEmbed(out, series, masks []float32, mu, sigma []float64) er
 	p := m.Dims.PatchLen
 	input := make([]float32, extent.PairedExtent*p)
 	for i := range mu {
-		denom := sigma[i]
-		if denom < revinTolerance {
-			denom = 1
-		}
+		denom := revinDivisor(sigma[i])
 		for j := range p {
 			normed := (float64(series[i*p+j]) - mu[i]) / denom
 			if masks[i*p+j] != 0 {
@@ -155,6 +166,9 @@ func (m *Model) residualBlock(dst []float32, prefix string, x []float32) error {
 // the post-norm decoder stack, then the quantile head denormalized with the
 // last patch's statistics. The result is [Horizon*Quantiles] flat, t-major.
 func (m *Model) Forecast(series []float32) ([]float32, error) {
+	if m.native != nil {
+		return m.forecastNative(series, m.Dims.Horizon)
+	}
 	padded, masks, err := padToPatches(series, make([]float32, len(series)), m.Dims.PatchLen)
 	if err != nil {
 		return nil, err

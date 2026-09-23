@@ -1970,9 +1970,9 @@
     "retained_run_lineages": 15
   },
   "accepted_protocols": {
-    "Registered": 219,
-    "Activations": 34,
-    "AcceptedActivations": 27,
+    "Registered": 220,
+    "Activations": 36,
+    "AcceptedActivations": 28,
     "Models": [
       {
         "Model": "model:sha256:000df141c36bd8a393a013338d16898c02f92691ed2897342a745da598b87a6f",
@@ -3208,6 +3208,51 @@
         "RepairOwner": "final-model-validation/do"
       },
       {
+        "Model": "model:sha256:4a8e2d8a35c0fbaa3c262de93a3d474f1ed225e32606471fa482dabf73b1f989",
+        "Name": "webssl-dino300m-full2b-224",
+        "Present": true,
+        "Execution": "local",
+        "Domains": null,
+        "Cells": [
+          {
+            "Task": "image-embedding",
+            "Recipe": "recipe:sha256:1fd5b3b31c8a2f3868ce4f98cc32d2e36f61ac6deeacd1ed0604dc1636faa7fe",
+            "Proofs": null,
+            "Scope": "",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": false,
+            "RequiredPhases": 0,
+            "AcceptedPhases": 0,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:bc1280cf912573a83fc25064441c2f3ff2a7dc8f4a22818d3d65db90f16251ea",
+              "run": "run:sha256:e572fefab04d4ace501fd5b16c6d107bd44a5eb8f24a114f7afcb68d7db93915",
+              "source": "79f5dd1841a2551ad8c47f0e776b932fc89540f0",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": [
+                "file:sha256:59a403cffa21b91e016773052ea4cf2713dc0e76488c394b32b7dc0eb1897dd6"
+              ],
+              "outputs": [
+                "evidence:sha256:bc1280cf912573a83fc25064441c2f3ff2a7dc8f4a22818d3d65db90f16251ea"
+              ],
+              "wall_ns": 220868000,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 220868000
+                }
+              ]
+            },
+            "Gap": "No accepted protocol bound to this activation.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
+        "Protocols": null,
+        "Gap": "",
+        "RepairOwner": ""
+      },
+      {
         "Model": "model:sha256:4c2cd30a6a4e90ab20d1997b8295d8183fc38a12bd685c511dcd84b7f11f8ef0",
         "Name": "webui-lane-model",
         "Present": true,
@@ -3931,10 +3976,46 @@
         "Present": true,
         "Execution": "local",
         "Domains": null,
-        "Cells": null,
+        "Cells": [
+          {
+            "Task": "forecast",
+            "Recipe": "recipe:sha256:91dbabeb8ddd83ac15ee2fe05c1586d6385980cee257126717fc1e6cadfee71f",
+            "Proofs": [
+              "timesfm3-native-declaration/do"
+            ],
+            "Scope": "Every sorted quantile of three native forecasts (a whole-patch context, a front-padded context over two stitched output patches, and a short context) within 1e-5 relative of the model repository's torch decode; the registered checkpoint loads through its store registration. No forecast accuracy claim.",
+            "Implemented": true,
+            "Activated": true,
+            "Measured": true,
+            "Accepted": true,
+            "RequiredPhases": 1,
+            "AcceptedPhases": 1,
+            "HistoricalVerifier": {
+              "gate": "evidence:sha256:814a7c057f37a4916dae1a7fe32538cc3e30d124e7cbed54a6e98e128afd9a9f",
+              "run": "run:sha256:ee3e3ff391176a6e1e3113685dfbe40aabfa283e8cf84cd9baf5a307efa4cab1",
+              "source": "83d0bb9b2ca34c4590dd2da7e682fb8a68a9310c",
+              "environment": "evidence:sha256:69bab6c047aa57461df70e5b808b98d438070162ad950a2cab6507b66f046b5f",
+              "inputs": [
+                "file:sha256:88ddffd2572fcd34761732d98e46e90dccf9e86c2c4c14056b17db8ca74eb744"
+              ],
+              "outputs": [
+                "evidence:sha256:814a7c057f37a4916dae1a7fe32538cc3e30d124e7cbed54a6e98e128afd9a9f"
+              ],
+              "wall_ns": 815509200,
+              "phases": [
+                {
+                  "phase": "test",
+                  "duration_ns": 815509200
+                }
+              ]
+            },
+            "Gap": "Acceptance retains producer source and protocol scope; current performance and broader quality are not established.",
+            "RepairOwner": "final-model-validation/do"
+          }
+        ],
         "Protocols": null,
-        "Gap": "Registered without task activation or accepted protocol.",
-        "RepairOwner": "final-model-validation/do"
+        "Gap": "",
+        "RepairOwner": ""
       },
       {
         "Model": "model:sha256:764862917fa7051c6b115269b6e0f6ce3728161a4a1f2cf798fed9d111258627",
@@ -6671,7 +6752,7 @@
     ],
     "Documents": {
       "docs/verification/image-video-coverage.json": "93b2c25e87bb6c8765c42657591ff37cc20ff7f23bb6033cfd5cfc588ab770c1",
-      "docs/verification/specialized-coverage.json": "109b211507a67bff5674d2d0e49808264f7bb5bc09b89a3547d742c982f7e8c7",
+      "docs/verification/specialized-coverage.json": "12a843562d786e0b1121edfe4d0887d75899a2bd6fc98968a3b584905deff190",
       "docs/verification/text-vision-coverage.json": "ec07d869988aa9cdbe9ea0e3d8a41d6408188aa80acce418d9b3f7f6ae27c381"
     },
     "Proofs": [
@@ -6884,6 +6965,13 @@
         "Verify": "go test ./internal/audioparity -run '^(TestRecognizerReproducesReferenceTranscripts|TestSecondASROfflineAcceptance)$' -count=1",
         "Preparation": "evidence:sha256:fbd88683fb2cb68323c7f4363fd1b6456baac5db3671d18940b5e19d3bc32bfe",
         "Result": "evidence:sha256:ac513e0515f66c63043c56f6658a5e08a1dea0d470f421a4e3d9c222b14a924c"
+      },
+      {
+        "Reference": "timesfm3-native-declaration/do",
+        "Commit": "83d0bb9b2ca34c4590dd2da7e682fb8a68a9310c",
+        "Verify": "test -f internal/seriesforecast/native_declaration_test.go \u0026\u0026 go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1",
+        "Preparation": "evidence:sha256:c262f11b9b836edd465ee4b59b5bf1d751acf91a9e03e3c7d65cadcd41300396",
+        "Result": "evidence:sha256:e6cda1c5cfd7bcaa7068de0aba0761b76202b8f001ca4f0c634b2677f029589b"
       }
     ]
   }

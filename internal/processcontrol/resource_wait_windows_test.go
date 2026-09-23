@@ -5,6 +5,8 @@ package processcontrol
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -93,5 +95,30 @@ func TestResourceAdmissionCancellationAndFailure(t *testing.T) {
 	err = AwaitResource(canceled, func() error { t.Error("claim after cancellation"); return nil })
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancellation lost: %v", err)
+	}
+}
+
+// TestResourceWaitNamesItsHolders holds a wait that ends on its caller's
+// deadline to naming the processes that kept the resource: a device step
+// timed out behind a foreign holder reports that holder's image and id,
+// once, beside its cause and the contention.
+func TestResourceWaitNamesItsHolders(t *testing.T) {
+	name := sharedAdmissionName(t)
+	owner := holdSharedAdmission(t, sharedAdmissionProbe{Name: name, Exclusive: true})
+	ended := errors.New("the device step's deadline")
+	ctx, cancel := context.WithCancelCause(t.Context())
+	attempts := 0
+	err := AwaitResource(ctx, func() error {
+		err := ClaimResource(name)
+		// The first refusal opens the waiter; the second ends the caller's
+		// deadline, so the wait it enters ends behind the live holder.
+		if attempts++; attempts > 1 {
+			cancel(ended)
+		}
+		return err
+	})
+	holder := fmt.Sprintf(".exe (pid %d)", owner.command.Process.Pid)
+	if !errors.Is(err, ended) || !errors.Is(err, ErrResourceBusy) || strings.Count(err.Error(), holder) != 1 {
+		t.Fatalf("wait ended without naming its holder once (want %q): %v", holder, err)
 	}
 }

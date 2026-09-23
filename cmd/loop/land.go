@@ -11,9 +11,11 @@ import (
 	"regexp"
 	"strings"
 
+	"overgo/internal/artifact"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/runrecord"
 )
 
 // Landing a row is a fixed sequence around the one thing a worker authors:
@@ -46,12 +48,37 @@ const (
 
 // landOutcome is the typed result of one row sequence.
 type landOutcome struct {
-	Reference string   `json:"reference"`
-	Phase     string   `json:"phase"`
-	Outcome   string   `json:"outcome"`
-	Commit    string   `json:"commit,omitzero"`
-	Detail    string   `json:"detail,omitzero"`
-	Pending   []string `json:"pending,omitempty"`
+	Reference string `json:"reference"`
+	Phase     string `json:"phase"`
+	Outcome   string `json:"outcome"`
+	Commit    string `json:"commit,omitzero"`
+	Detail    string `json:"detail,omitzero"`
+	// Lanes is the lane obligation the landing awaited, when its gate
+	// deferred lanes.
+	Lanes   *laneReport `json:"lanes,omitempty"`
+	Pending []string    `json:"pending,omitempty"`
+}
+
+// laneReport names a lane obligation: the proof a landing's deferred lanes
+// ran, readable without querying the store.
+type laneReport struct {
+	Obligation artifact.ID `json:"obligation"`
+	State      string      `json:"state"`
+	Commit     string      `json:"commit"`
+	Checks     []string    `json:"checks"`
+}
+
+// laneVerdict judges a landing's lane obligation: a gate that deferred lanes
+// must leave an obligation naming the landed commit, and that obligation is
+// reported whatever its state.
+func laneVerdict(deferred []string, commit string, obligation runrecord.GateLaneObligation, found bool) (*laneReport, string) {
+	if len(deferred) == 0 {
+		return nil, ""
+	}
+	if !found || obligation.CodeCommit != commit {
+		return nil, fmt.Sprintf("the gate deferred %s but no lane obligation names commit %.12s", strings.Join(deferred, ", "), commit)
+	}
+	return &laneReport{Obligation: obligation.ID, State: string(obligation.State), Commit: obligation.CodeCommit, Checks: obligation.Checks}, ""
 }
 
 // rowWorld is what the row sequence drives. A step that refuses returns its
@@ -61,7 +88,7 @@ type rowWorld interface {
 	Preflight(reference string) (findings string, err error)
 	Gate(reference, messageFile string) (failure string, err error)
 	Landed(reference string) (commit string, err error)
-	AwaitLanes() (failure string, err error)
+	AwaitLanes() (lanes *laneReport, failure string, err error)
 	PendingReview() ([]string, error)
 }
 
@@ -88,7 +115,8 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 		return outcome, err
 	}
 	outcome.Commit, outcome.Phase = commit, phaseLanes
-	failure, err := world.AwaitLanes()
+	lanes, failure, err := world.AwaitLanes()
+	outcome.Lanes = lanes
 	if err != nil || failure != "" {
 		outcome.Outcome, outcome.Detail = outcomeLanesFailed, failure
 		return outcome, err
@@ -208,11 +236,33 @@ func (w execRowWorld) Landed(reference string) (string, error) {
 	return commit, nil
 }
 
-// AwaitLanes waits on the lane obligation the way the driver does.
-func (w execRowWorld) AwaitLanes() (string, error) {
+// AwaitLanes waits on the lane obligation the way the driver does, then
+// reads the landed gate result's deferred lanes and the obligation owed for
+// them.
+func (w execRowWorld) AwaitLanes() (*laneReport, string, error) {
 	driver := &execWorld{stopStore: w.store}
-	err := driver.awaitValidation()
-	return driver.validationDebt, err
+	if err := driver.awaitValidation(); err != nil {
+		return nil, "", err
+	}
+	if err := w.store.Refresh(context.Background()); err != nil {
+		return nil, "", err
+	}
+	result, found, err := plan.LandedGateResult(context.Background(), w.store, loopWorktree, "HEAD")
+	if err != nil || !found {
+		return nil, driver.validationDebt, err
+	}
+	var deferred []string
+	for _, step := range result.Steps {
+		if step.Outcome == runrecord.StepDeferred {
+			deferred = append(deferred, step.Name)
+		}
+	}
+	obligation, found, err := runrecord.CurrentGateLaneObligation(context.Background(), w.store)
+	if err != nil {
+		return nil, "", err
+	}
+	lanes, missing := laneVerdict(deferred, result.CodeCommit, obligation, found)
+	return lanes, cmp.Or(driver.validationDebt, missing), nil
 }
 
 // PendingReview lists the landing's unanswered optimization candidates.

@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -63,116 +62,6 @@ func mediaRuntimeIdentity(root, revision string, paths []string) (string, error)
 func compareMediaRuntimeIdentity(expected, actual string) error {
 	if expected == "" || actual != expected {
 		return errors.New("retained generation source scope changed")
-	}
-	return nil
-}
-
-// A later correction does not invalidate unchanged image or Wan acquisitions.
-// Permit only the recorded LiveEdit encoder-range correction: every other
-// production file and every other byte of the corrected file must still match.
-// An empty revision checks the working tree before gate publication.
-func checkMediaRuntimeAtRevision(root, revision string, paths []string, expected string) error {
-	// Peel the newest reviewed output-neutral deltas (executor device-byte
-	// accounting and the host linear-column reorder) first, then reconcile the
-	// pre-delta base through the existing chain.
-	// Newest first: the Q1_0 staged-prefill kernel landing sits above the
-	// workflowruntime deltas and carries its own executor receipt.
-	if peeledBase, peeled, err := checkMediaQ10prefillSource(root, revision, paths); err != nil {
-		return err
-	} else if peeled {
-		revision = peeledBase
-	}
-	// Newest first: the workflowruntime deltas of the harness landings sit
-	// above the executor/hostmath base and carry their own receipt.
-	if peeledBase, peeled, err := checkMediaWorkflowruntimeSource(root, revision, paths); err != nil {
-		return err
-	} else if peeled {
-		revision = peeledBase
-	}
-	if peeledBase, peeled, err := checkMediaExecutorHostmathSource(root, revision, paths); err != nil {
-		return err
-	} else if peeled {
-		revision = peeledBase
-	}
-	prior := checkMediaRuntimeBeforeLifecycle(root, revision, paths, expected)
-	if prior == nil {
-		return nil
-	}
-	base, err := checkMediaLifecycleSource(root, revision, paths)
-	if err != nil {
-		return errors.Join(prior, err)
-	}
-	return checkMediaRuntimeBeforeLifecycle(root, base, paths, expected)
-}
-
-func checkMediaRuntimeBeforeLifecycle(root, revision string, paths []string, expected string) error {
-	if revision != "" {
-		actual, err := mediaRuntimeIdentity(root, revision, paths)
-		if err != nil {
-			return err
-		}
-		if err := compareMediaRuntimeIdentity(expected, actual); err == nil {
-			return nil
-		}
-	}
-	var bundle struct {
-		Correction struct {
-			Source string `json:"source_base"`
-			Path   string `json:"path"`
-			Before string `json:"before_git_sha256"`
-			After  string `json:"after_git_sha256"`
-		} `json:"pixel_range_correction"`
-	}
-	raw, err := os.ReadFile(filepath.Join(root, "docs/image_video_conditioned_videos.json"))
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(raw, &bundle); err != nil {
-		return err
-	}
-	fix := bundle.Correction
-	if fix.Source == "" || fix.Path != "internal/latentvideo/production_cuda_windows.go" || fix.Before == "" || fix.After == "" {
-		return errors.New("missing exact LiveEdit correction identity")
-	}
-	base, err := mediaRuntimeIdentity(root, fix.Source, paths)
-	if err != nil {
-		return err
-	}
-	if err := compareMediaRuntimeIdentity(expected, base); err != nil {
-		return err
-	}
-	git := func(args ...string) ([]byte, error) {
-		command := exec.Command("git", args...)
-		command.Dir = root
-		return command.Output()
-	}
-	before, err := git("show", fix.Source+":"+fix.Path)
-	if err != nil {
-		return err
-	}
-	var after []byte
-	if revision == "" {
-		after, err = os.ReadFile(filepath.Join(root, fix.Path))
-		after = []byte(strings.ReplaceAll(string(after), "\r\n", "\n"))
-	} else {
-		after, err = git("show", revision+":"+fix.Path)
-	}
-	if err != nil {
-		return err
-	}
-	old := "func (r *LiveEditRuntime) Generate(ctx context.Context, request ReferenceEditRequest) (EncodedVideo, error) {\n\tsink, err := NewGIFEncoder(r.profile.SampleFPS, UnitPixels)"
-	want := strings.Replace(string(before), old, strings.Replace(old, "UnitPixels)", "SignedUnitPixels)", 1), 1)
-	if strings.Count(string(before), old) != 1 || string(after) != want || fmt.Sprintf("%x", sha256.Sum256(before)) != fix.Before || fmt.Sprintf("%x", sha256.Sum256(after)) != fix.After {
-		return errors.New("source change exceeds the declared LiveEdit pixel-range correction")
-	}
-	changed, err := mediaRuntimeChanges(root, fix.Source, revision, paths)
-	if err != nil {
-		return err
-	}
-	for _, path := range changed {
-		if path != fix.Path {
-			return fmt.Errorf("unreconciled generation source change: %s", path)
-		}
 	}
 	return nil
 }

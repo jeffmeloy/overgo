@@ -99,6 +99,20 @@
           "Scope": "Step-by-step equality with registered native traces only: each recording decodes offline against its captured encoder and decoder traces, and the first architecture's recordings are preserved in the same run. Native artifact registration is checked there. No word error rate and no broader accuracy claim."
         }
       ]
+    },
+    {
+      "Model": "model:sha256:7406a105abd72a286bf98cc3a8f3810812bc4baaac4804635de574e50b38921b",
+      "Domains": null,
+      "Cells": [
+        {
+          "Task": "forecast",
+          "Recipe": "recipe:sha256:91dbabeb8ddd83ac15ee2fe05c1586d6385980cee257126717fc1e6cadfee71f",
+          "Proofs": [
+            "timesfm3-native-declaration/do"
+          ],
+          "Scope": "Every sorted quantile of three native forecasts (a whole-patch context, a front-padded context over two stitched output patches, and a short context) within 1e-5 relative of the model repository's torch decode; the registered checkpoint loads through its store registration. No forecast accuracy claim."
+        }
+      ]
     }
   ],
   "Proofs": [
@@ -154,6 +168,13 @@
       "Verify": "go test ./internal/audioparity -run '^(TestRecognizerReproducesReferenceTranscripts|TestSecondASROfflineAcceptance)$' -count=1",
       "Preparation": "evidence:sha256:fbd88683fb2cb68323c7f4363fd1b6456baac5db3671d18940b5e19d3bc32bfe",
       "Result": "evidence:sha256:ac513e0515f66c63043c56f6658a5e08a1dea0d470f421a4e3d9c222b14a924c"
+    },
+    {
+      "Reference": "timesfm3-native-declaration/do",
+      "Commit": "83d0bb9b2ca34c4590dd2da7e682fb8a68a9310c",
+      "Verify": "test -f internal/seriesforecast/native_declaration_test.go && go test ./internal/seriesforecast -run '^TestNativeDeclarationLoads$' -count=1",
+      "Preparation": "evidence:sha256:c262f11b9b836edd465ee4b59b5bf1d751acf91a9e03e3c7d65cadcd41300396",
+      "Result": "evidence:sha256:e6cda1c5cfd7bcaa7068de0aba0761b76202b8f001ca4f0c634b2677f029589b"
     }
   ],
   "Inputs": {
@@ -183,6 +204,8 @@
     "internal/audioparity/second_asr_test.go": "6482b4e5343da0f5a6760961070cc1cf02aa114cefb23cb3d4e06463a8a59a2c",
     "internal/thoughtbank/incremental_leadership_model_test.go": "82cb57c94b284d722a2f3e6daa1321095a81fb01b21aadab6a9aa7e571e5a502",
     "internal/thoughtbank/load_model_test.go": "e431eea1040b5dfd4f708f4f942219856199045931d608b37ed81d83a676fb32",
-    "internal/thoughtbank/process_probe_model_test.go": "cdb6aa2d2f6c66e65a8c4810ac35816bfb4f08620ec8d256645adef0b5c1254f"
+    "internal/thoughtbank/process_probe_model_test.go": "cdb6aa2d2f6c66e65a8c4810ac35816bfb4f08620ec8d256645adef0b5c1254f",
+    "internal/seriesforecast/native_declaration_test.go": "cc5fd1672736d34f8f4d5713488659ccc776e30d6d1b51dfb322432a662efd20",
+    "internal/seriesforecast/testdata/timesfm3_golden.json": "edc23bd3e05c912c176eb6e8fe1df68058af9c9ef0828a51b4ced401f5ddf82f"
   }
 }

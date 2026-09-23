@@ -83,7 +83,7 @@ func TestSenseNovaImageGenActiveOnCheckpoint(t *testing.T) {
 	}
 	modelDir := os.Getenv("OVERGO_SENSENOVA_MODEL")
 	if modelDir == "" {
-		t.Skip("OVERGO_SENSENOVA_MODEL is not set")
+		t.Skip(testskip.Inapplicable + ": set OVERGO_SENSENOVA_MODEL for real SenseNova activation")
 	}
 	ctx := t.Context()
 

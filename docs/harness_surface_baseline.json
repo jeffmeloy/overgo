@@ -1,11 +1,11 @@
 {
  "packages": 9,
- "production_files": 163,
- "production_nodes": 182526,
+ "production_files": 161,
+ "production_nodes": 179479,
  "max_file_nodes": 9316,
  "max_function_nodes": 1197,
  "guarded_scalar_fields": 9,
  "repeated_policy_groups": 65,
- "repeated_policy_sites": 753,
+ "repeated_policy_sites": 732,
  "layer_violations": null
 }

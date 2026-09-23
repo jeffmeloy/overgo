@@ -1,6 +1,7 @@
 package seriesforecast
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -70,6 +71,9 @@ func (m *Model) trainableNames() []string {
 
 // NewTrainer binds model views to compiled training storage.
 func NewTrainer(model *Model, config optimizer.Config) (*Trainer, error) {
+	if model.native != nil {
+		return nil, errors.New("seriesforecast: training runs the transformers layout; the native forward is inference only")
+	}
 	names := model.trainableNames()
 	tensors := make(map[string][]float32, len(names))
 	for _, name := range names {

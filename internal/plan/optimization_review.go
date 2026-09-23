@@ -14,20 +14,17 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/runrecord"
-	"overgo/internal/testevidence"
 	"overgo/internal/worklease"
 )
 
-// Every landed row leaves measured evidence in the store: what the gate's
-// tests cost, what the landing added to the store, what it did to the
-// harness surface, which fixtures ran without credit. The optimization
-// review turns that evidence into typed candidates and makes the re-plan
+// Every landed row leaves measured evidence in the store: what the landing
+// added to the store, what it did to the harness surface, which fixtures
+// ran without credit. The optimization review turns that evidence into
+// typed candidates and makes the re-plan
 // answer each one -- with a row or with a reason -- before the next row is
 // dispatched, so optimization happens as you go instead of when it hurts.
 
 const (
-	// CandidateSuiteCost names the costliest measured test package of a landing.
-	CandidateSuiteCost = "suite-cost"
 	// CandidateStoreGrowth names the schema that grew the store most.
 	CandidateStoreGrowth = "store-growth"
 	// CandidateSurfaceMove names a moved harness production surface.
@@ -118,54 +115,34 @@ func RecordDisposition(document Plan, review OptimizationDisposition) (Plan, err
 }
 
 // suiteCostRecord is the plan's reading of the gate's suite-cost document:
-// the invocations with their package executions and skipped fixtures.
+// the fixtures each invocation skipped.
 type suiteCostRecord struct {
-	Result      artifact.ID `json:"result"`
 	Invocations []struct {
-		Step       string                          `json:"step"`
-		WallNS     uint64                          `json:"wall_ns"`
-		Executions []testevidence.PackageExecution `json:"executions"`
-		Skipped    []string                        `json:"skipped"`
+		Step    string   `json:"step"`
+		Skipped []string `json:"skipped"`
 	} `json:"invocations"`
 }
 
-// SuiteCostCandidates names the costliest measured package of the landing
-// and, per step and package, the fixtures that ran without credit.
-func SuiteCostCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandidate, error) {
+// SkippedFixtureCandidates names, per step and package, the fixtures of the
+// landing's suite that ran without credit. The costliest package is not a
+// candidate: every suite has one, so it was filed whatever the suite did,
+// and the suite wall ratchet holds the wall against the retained records.
+func SkippedFixtureCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandidate, error) {
 	var record suiteCostRecord
 	if err := json.Unmarshal(data, &record); err != nil {
 		return nil, fmt.Errorf("plan: decode suite cost evidence: %w", err)
 	}
-	// Invocations and executions are recorded in order, so the first
-	// costliest wins deterministically without a tie-break.
-	var costliest testevidence.PackageExecution
-	costliestStep := ""
 	// Skipped fixtures group by step and package: a lane that skips
 	// hundreds of tests is a handful of answerable subjects, not hundreds.
 	skipped := map[string]int{}
 	for _, invocation := range record.Invocations {
 		step := cmp.Or(invocation.Step, "the test phase")
-		for _, execution := range invocation.Executions {
-			if execution.Elapsed == nil || !execution.Started {
-				continue
-			}
-			if costliest.Elapsed == nil || *execution.Elapsed > *costliest.Elapsed {
-				costliest, costliestStep = execution, step
-			}
-		}
 		for _, fixture := range invocation.Skipped {
 			owner, _, _ := strings.Cut(fixture, ": ")
 			skipped[step+":"+owner]++
 		}
 	}
 	var candidates []OptimizationCandidate
-	if costliest.Elapsed != nil {
-		candidates = append(candidates, OptimizationCandidate{
-			Kind: CandidateSuiteCost, Key: CandidateSuiteCost + ":" + costliest.Package,
-			Measure:  fmt.Sprintf("%gs in %s", *costliest.Elapsed, costliestStep),
-			Evidence: evidence,
-		})
-	}
 	for _, group := range slices.Sorted(maps.Keys(skipped)) {
 		candidates = append(candidates, OptimizationCandidate{
 			Kind: CandidateSkippedFixture, Key: CandidateSkippedFixture + ":" + group,
@@ -243,35 +220,11 @@ func SurfaceMoveCandidates(before, after []byte, commit string) ([]OptimizationC
 // or whose successful attempt the store does not hold, yields none: the
 // completion authority judges that, not the review.
 func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, repository, revision string) ([]OptimizationCandidate, error) {
-	if store == nil {
-		return nil, errors.New("plan: optimization review requires the store")
-	}
-	repository, commit, err := resolveCompletionRevision(ctx, repository, revision)
-	if err != nil {
+	landed, found, err := readLandedCompletion(ctx, store, repository, revision)
+	if err != nil || !found {
 		return nil, err
 	}
-	message, err := gitauthority.Query(ctx, repository, "log", "-1", "--format=%B", "--end-of-options", commit)
-	if err != nil {
-		return nil, err
-	}
-	trailers, hasCompletion, err := parseCompletionTrailers(string(message))
-	if err != nil {
-		return nil, fmt.Errorf("plan: optimization review of %.12s: %w", commit, err)
-	}
-	if !hasCompletion || !trailers.preparation.Valid() {
-		return nil, nil
-	}
-	attempts, err := runrecord.AttemptsForPreparation(ctx, store, trailers.preparation)
-	if err != nil {
-		return nil, err
-	}
-	index := slices.IndexFunc(attempts, func(attempt runrecord.AttemptRecord) bool {
-		return attempt.CodeCommit == commit && attempt.Outcome == runrecord.OutcomeSucceeded
-	})
-	if index < 0 {
-		return nil, nil
-	}
-	attempt := attempts[index]
+	repository, commit, attempt := landed.repository, landed.commit, landed.attempt
 	var candidates []OptimizationCandidate
 	children, err := store.Children(ctx, attempt.Result)
 	if err != nil {
@@ -288,13 +241,13 @@ func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, reposito
 		if !found || content.Descriptor.Schema != runrecord.SuiteCostSchema {
 			continue
 		}
-		fromCost, costErr := SuiteCostCandidates(content.Data, edge.Child)
-		if costErr != nil {
-			return nil, costErr
+		skipped, skipErr := SkippedFixtureCandidates(content.Data, edge.Child)
+		if skipErr != nil {
+			return nil, skipErr
 		}
-		candidates = append(candidates, fromCost...)
+		candidates = append(candidates, skipped...)
 	}
-	growth, err := storeGrowthOfCompletion(ctx, store, trailers.preparation)
+	growth, err := storeGrowthOfCompletion(ctx, store, landed.preparation)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +262,60 @@ func ReviewLandedCompletion(ctx context.Context, store *overgodb.Store, reposito
 		candidates = append(candidates, moves...)
 	}
 	return candidates, nil
+}
+
+// landedCompletion is a completion commit and the successful gate attempt
+// that landed it.
+type landedCompletion struct {
+	repository, commit string
+	preparation        artifact.ID
+	attempt            runrecord.AttemptRecord
+}
+
+// readLandedCompletion resolves revision to the successful attempt of its
+// prepared completion; a revision that is not one, or whose attempt the
+// store does not hold, is not found.
+func readLandedCompletion(ctx context.Context, store *overgodb.Store, repository, revision string) (landedCompletion, bool, error) {
+	if store == nil {
+		return landedCompletion{}, false, errors.New("plan: a landed completion is read from the store")
+	}
+	repository, commit, err := resolveCompletionRevision(ctx, repository, revision)
+	if err != nil {
+		return landedCompletion{}, false, err
+	}
+	message, err := gitauthority.Query(ctx, repository, "log", "-1", "--format=%B", "--end-of-options", commit)
+	if err != nil {
+		return landedCompletion{}, false, err
+	}
+	trailers, hasCompletion, err := parseCompletionTrailers(string(message))
+	if err != nil {
+		return landedCompletion{}, false, fmt.Errorf("plan: landed completion %.12s: %w", commit, err)
+	}
+	if !hasCompletion || !trailers.preparation.Valid() {
+		return landedCompletion{}, false, nil
+	}
+	attempts, err := runrecord.AttemptsForPreparation(ctx, store, trailers.preparation)
+	if err != nil {
+		return landedCompletion{}, false, err
+	}
+	index := slices.IndexFunc(attempts, func(attempt runrecord.AttemptRecord) bool {
+		return attempt.CodeCommit == commit && attempt.Outcome == runrecord.OutcomeSucceeded
+	})
+	if index < 0 {
+		return landedCompletion{}, false, nil
+	}
+	return landedCompletion{repository: repository, commit: commit, preparation: trailers.preparation, attempt: attempts[index]}, true, nil
+}
+
+// LandedGateResult reads the gate result that landed revision, when revision
+// is a prepared completion whose successful attempt the store holds.
+func LandedGateResult(ctx context.Context, store *overgodb.Store, repository, revision string) (runrecord.GateResult, bool, error) {
+	landed, found, err := readLandedCompletion(ctx, store, repository, revision)
+	if err != nil || !found {
+		return runrecord.GateResult{}, false, err
+	}
+	result, err := runrecord.RequireGateResult(ctx, store, landed.attempt.Result)
+	return result, err == nil, err
 }
 
 // storeGrowthOfCompletion measures what the store gained between the gate's

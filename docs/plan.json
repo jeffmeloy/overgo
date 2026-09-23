@@ -4,6 +4,48 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "inventory-tells-the-truth",
+      "title": "Make the validate inventory answer the same whatever root it is given and say what is proven (owner feedback 2026-09-22): -inventory models, a relative root, reports Qwen3.8-27B, granite, nemotron and timesfm-3.0 as unregistered and FireRedVAD as not a model, and prints recipe register commands that would register them twice, because registrations store absolute locations and the root is matched as given -- resolve it before matching. Four evidence entries (Qwen2.5-0.5B safetensors, a second RxBrain file, LiveEdit's bid-diffusion checkpoint, one Wan file) report that no owner judges their currency, so they stay stale however often the validators run: give each the owner that judges it or declare it excluded. And a directory's activated label hides which of its files carries the evidence (18 files are only registered in activated directories, such as the f16 GGUF the Carbon ropefix replaced and the safetensors behind each converted GGUF): name the proven file per directory. The rule under all three (owner 2026-09-22): the store already records the directory and file paths of each registered model, so the inventory, and every test or tool that now joins a models root with a directory name (internal/adaptiveparity among them), resolves a model's files through its registration instead.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make the validate inventory answer the same whatever root it is given and say what is proven (owner feedback 2026-09-22): -inventory models, a relative root, reports Qwen3.8-27B, granite, nemotron and timesfm-3.0 as unregistered and FireRedVAD as not a model, and prints recipe register commands that would register them twice, because registrations store absolute locations and the root is matched as given -- resolve it before matching. Four evidence entries (Qwen2.5-0.5B safetensors, a second RxBrain file, LiveEdit's bid-diffusion checkpoint, one Wan file) report that no owner judges their currency, so they stay stale however often the validators run: give each the owner that judges it or declare it excluded. And a directory's activated label hides which of its files carries the evidence (18 files are only registered in activated directories, such as the f16 GGUF the Carbon ropefix replaced and the safetensors behind each converted GGUF): name the proven file per directory. The rule under all three (owner 2026-09-22): the store already records the directory and file paths of each registered model, so the inventory, and every test or tool that now joins a models root with a directory name (internal/adaptiveparity among them), resolves a model's files through its registration instead.",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestInventoryResolvesARelativeRoot$' -count=1 \u0026\u0026 go test ./cmd/validate -run '^TestEveryEvidenceEntryHasACurrencyOwner$' -count=1 \u0026\u0026 go test ./cmd/validate -run '^TestInventoryNamesTheProvenFile$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "evidence-currency-per-model",
+      "title": "Key each model's evidence currency to the code that model runs, not to the whole inference surface (owner feedback 2026-09-22): commit e7ee897a added seven lines to internal/modelrecipe/compile.go for the transcription task and made all nine text models' evidence stale at once, because the surface digest covers every package of the set; so validated is true for a few hours after a validation campaign and false the rest of the time, and every such edit costs a re-validation campaign. Digest each model's own dependency closure -- the packages its recipe's modules reach -- keep test files excluded as now, and prove it by a production edit to a module one family does not run leaving that family's evidence current.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Key each model's evidence currency to the code that model runs, not to the whole inference surface (owner feedback 2026-09-22): commit e7ee897a added seven lines to internal/modelrecipe/compile.go for the transcription task and made all nine text models' evidence stale at once, because the surface digest covers every package of the set; so validated is true for a few hours after a validation campaign and false the rest of the time, and every such edit costs a re-validation campaign. Digest each model's own dependency closure -- the packages its recipe's modules reach -- keep test files excluded as now, and prove it by a production edit to a module one family does not run leaving that family's evidence current.",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestModelSurfaceIsItsOwnClosure$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "media-census-scope",
+      "title": "Hold the media census binding to the media models alone (measured 2026-09-22 at 3a331e81): TestImageVideoInventoryAcceptance refuses with live registered catalog is truncated, because checkCapabilityCensus bounds the live catalog by the bound census's own model count, so any model registered after the binding -- text or media -- fails the complete compatibility receipt, although the test's own comment says the disposition may carry text models forward. Compare the media-scope entries only, as the test's other assertion already does, so registering a text model no longer expires the media receipt.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold the media census binding to the media models alone (measured 2026-09-22 at 3a331e81): TestImageVideoInventoryAcceptance refuses with live registered catalog is truncated, because checkCapabilityCensus bounds the live catalog by the bound census's own model count, so any model registered after the binding -- text or media -- fails the complete compatibility receipt, although the test's own comment says the disposition may carry text models forward. Compare the media-scope entries only, as the test's other assertion already does, so registering a text model no longer expires the media receipt.",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestImageVideoInventoryAcceptance$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "automation-land-regenerates-derived-docs",
       "title": "Make the landing regenerate the source-derived documents itself in their binding order (closure rebind, census baseline, published census, api manifest) after the last source edit, instead of reporting them stale for an operator to re-run by hand: skipping one step cost a failed test run and the ritual was repeated three times in one row",
       "owner": "master-lead",
@@ -247,13 +289,13 @@
     },
     {
       "id": "compatibility-names-its-reads",
-      "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after.",
+      "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after. The inputs include docs/plan.json, which almost every landing edits (owner feedback 2026-09-22), so the receipt must stop keying to it.",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after.",
+          "title": "Make cmd/compatibility name what it reads so its receipt keys to its real inputs (measured 2026-09-22): the gate's input graph classes the package as an opaque source reader because main.go, media.go and media_coverage.go read paths the source does not name, which binds it to every root -- 5,860 inputs -- so the complete receipt that judges ten media and specialized models' currency expires on any change anywhere and costs a four-minute run to re-acquire after every landing. Name each read at its source, or route the reads through readers the graph attributes, until the package's inputs are its own sources, the documents its acceptances name and the packages it imports; prove it with a test in internal/gate over the real input graph, and measure the input count before and after. The inputs include docs/plan.json, which almost every landing edits (owner feedback 2026-09-22), so the receipt must stop keying to it.",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1"
         }
@@ -1043,7 +1085,11 @@
             "gate-drops-build-check/do",
             "row-check-proves-itself/do",
             "derived-cache-reuse/do",
-            "plan-store-reshaped/do"
+            "plan-store-reshaped/do",
+            "inventory-tells-the-truth/do",
+            "evidence-currency-per-model/do",
+            "media-census-scope/do",
+            "plan-evidence-feedback/do"
           ]
         }
       ]

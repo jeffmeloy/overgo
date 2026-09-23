@@ -77,6 +77,9 @@
       clear(panel);
       const capabilities = overgo.capabilities();
       if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
+      // The panel says it is loading until the agent reads it waits on return.
+      const loading = el("p", { class: "note", role: "status", text: "Loading the conversation…" });
+      panel.appendChild(loading);
       const modelID = capabilities.id;
       const served = overgo.servedModel();
       const servedModel = capabilities.model || (served && served.model);
@@ -107,6 +110,7 @@
       try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
       if (agents.length) tools = (await overgo.api.get("/agents/tools")).tools || [];
       if (disposed) return;
+      loading.remove();
       const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });
       agentHost.hidden = true;

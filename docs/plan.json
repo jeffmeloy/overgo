@@ -6,24 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-style-hardened-states",
-      "title": "Prove every workspace under extreme input, empty, loading and failure states with copy that names the recovery",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prove every workspace under extreme input, empty, loading and failure states with copy that names the recovery",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(HardenedStates|LayoutAudit)$' -require 'hardened states leg'",
-          "rationale": "Carried from professional_overgo_gui. Each workspace renders its empty, loading, failure and oversized-input states from fixtures; failure copy names the action that recovers; no raw route or Go error text reaches the page. Review each state in the browser pane at desktop and phone widths.",
-          "depends_on": [
-            "webui-every-tab-mounts-clean/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "gui-style-tokens",
       "title": "Publish the workbench's colour, spacing and type tokens as one design document the stylesheet must match, and measure contrast for every token pair in both schemes",
       "owner": "overgo_gui_cleanup",

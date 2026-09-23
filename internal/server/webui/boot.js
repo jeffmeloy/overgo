@@ -195,8 +195,8 @@
         }
       } catch (err) {
         if (!node.isConnected || controller.signal.aborted) return;
-        resource.failure = el('div', { class: 'artifact-load-error' }, failure(err),
-          el('button', { class: 'link-button', text: 'Retry', onclick: load }));
+        // The artifact's own Retry recovers it, in place of the tab reload.
+        resource.failure = el('div', { class: 'artifact-load-error' }, failure(err, el('button', { class: 'link-button', text: 'Retry', onclick: load })));
         node.after(resource.failure);
       } finally { if (resource.controller === controller) resource.controller = null; }
     };
@@ -213,10 +213,26 @@
 
   function errorBanner(message) { return el("div", { class: "err-banner", role: "alert", text: message }); }
 
-  // friendlyError: a 401 becomes the same actionable hint on every tab.
-  function friendlyError(err) { return err && err.status === 401 ? "API key required — open Settings and enter it under Connection." : String((err && err.message) || err); }
-  // failure: the one banner for a failed request, in the words friendlyError chooses.
-  function failure(err) { return errorBanner(friendlyError(err)); }
+  // friendlyError: the page's words for a failed request. A 401 names the key; an internal fault (500)
+  // or an unreachable server says which, never the server's internal text; a refusal, an unavailable
+  // service (503) among them, keeps its own words.
+  function friendlyError(err) {
+    if (err && err.status === 401) return "API key required — open Settings and enter it under Connection.";
+    if (err && err.status === 500) return "The server could not complete this request (HTTP 500).";
+    if (err && !err.status && err.name === "TypeError") return "The server could not be reached. Check that it is running.";
+    return String((err && err.message) || err);
+  }
+  // failure: the one banner for a failed request: friendlyError's words, the server's own text
+  // folded under Details, and the recovery: the caller's own control, else a reload of the tab it stands in.
+  function failure(err, recovery) {
+    const banner = errorBanner(friendlyError(err)), detail = String((err && err.message) || err);
+    if (detail !== banner.textContent) banner.append(" ", el("details", { class: "failure-detail" }, el("summary", { text: "Details" }), el("span", { class: "mono", text: detail })));
+    banner.append(" ", recovery || el("button", { class: "link-button", text: "Reload this tab", onclick: () => {
+      const panel = banner.closest(".panel");
+      if (panel) remountActive(null, panel.id.slice("panel-".length));
+    } }));
+    return banner;
+  }
   // cancelOperation: the one request that cancels a running operation.
   function cancelOperation(id) { return api.post("/operations/cancel", { id }); }
 
@@ -735,7 +751,7 @@
     tab.mounted = false;
     if (cleanup) { try { cleanup(); } catch (err) { errors.push(String(err && err.message || err)); } }
   }
-  function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
+  function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
   function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
   // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
   function renderRefusal(tab) { tab.panel.replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }

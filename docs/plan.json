@@ -1013,7 +1013,8 @@
             "plan-model-paths-scoped/do",
             "surface-without-capability-tables/do",
             "gate-suite-longest-tests/do",
-            "planning-validates-once/do"
+            "planning-validates-once/do",
+            "standard-names-once/do"
           ]
         }
       ]

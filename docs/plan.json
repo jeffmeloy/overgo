@@ -6,20 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-tensors-first-view",
-      "title": "Show the Tensors tab's profiles in seconds on a model's first view: measured 435 s for Qwen2.5-0.5B, almost all of it full reads and effective-rank computations the table does not need before a tensor is opened",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show the Tensors tab's profiles in seconds on a model's first view: measured 435 s for Qwen2.5-0.5B, almost all of it full reads and effective-rank computations the table does not need before a tensor is opened",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestAnalyzeTensorsProfilesBeforeSpectra$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "agent-workspace-alias-roots",
       "title": "Read the agent tool registry and agent session roots without paging the whole catalog",
       "owner": "overgo_gui_cleanup",

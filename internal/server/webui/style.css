@@ -408,7 +408,7 @@ button.pill { font:inherit; cursor:pointer; }
 .meter-track { width:64px; height:8px; border-radius:4px; background:var(--bg2); overflow:hidden; }
 .meter-fill { height:100%; background:var(--acc); }
 .tensor-table { width:100%; border-collapse:collapse; font-size:12px; }
-.cell { padding:5px 8px; border-bottom:1px solid var(--line-soft); } .cell.num { text-align:right; }
+.cell { padding:5px 8px; border-bottom:1px solid var(--line-soft); } .cell.num { text-align:right; white-space:nowrap; }
 .cell.head { padding:6px 8px; cursor:pointer; white-space:nowrap; text-align:left; } .cell.head.num { text-align:right; }
 label:has(input[type=checkbox]) { display:inline-flex; align-items:center; gap:6px; min-height:24px; cursor:pointer; }
 td > a { display:inline-flex; align-items:center; min-height:24px; }

@@ -40,18 +40,27 @@
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
       clear(panel);
-      panel.appendChild(el("div", { class: "note", text: "loading /analyze/tensors…" }));
+      panel.appendChild(el("div", { class: "note", text: "Reading tensor statistics…" }));
 
       let data;
       try {
         data = await overgo.api.get("/analyze/tensors");
       } catch (err) { clear(panel); panel.appendChild(overgo.errorBanner(overgo.friendlyError(err))); return; }
-      const rows = data.tensors || [];
+      let rows = data.tensors || [];
       clear(panel);
 
       panel.appendChild(el("div", { class: "section-title", text: "Tensor value statistics" }));
       panel.appendChild(el("div", { class: "note", text: data.count + " tensors · distribution-free (L-moments + energy) · sampled ≤ " +
         fmt.grouped(data.policy.max_samples_per_tensor) + " values/tensor · click a row for nearest-shape tensors" }));
+      // The first view is the sampled pass; effective ranks follow when the full pass ends.
+      const spectra = el("div", { class: "note", role: "status" });
+      panel.appendChild(spectra);
+      function showSpectra(answer) {
+        spectra.hidden = answer.spectra === "complete";
+        spectra.textContent = answer.spectra === "failed" ? "Effective ranks are unavailable: " + answer.spectra_failure
+          : "Computing effective ranks; the table updates when they are ready.";
+      }
+      showSpectra(data);
 
       let sortKey = "name";
       let sortAsc = true;
@@ -155,6 +164,15 @@
         }
       }
       draw();
+      const pending = new AbortController();
+      if (data.spectra === "pending") {
+        overgo.api.get("/analyze/tensors?wait=spectra", { signal: pending.signal }).then((answer) => {
+          rows = answer.tensors || [];
+          showSpectra(answer);
+          draw();
+        }, (err) => { if (err.name !== "AbortError") spectra.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); });
+      }
+      return () => pending.abort();
     },
   });
 })();

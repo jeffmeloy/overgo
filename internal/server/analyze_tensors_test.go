@@ -162,8 +162,9 @@ func TestAnalyzeTensorsSurfacesEffectiveRank(t *testing.T) {
 		{Name: "attn.weight", Shape: []uint64{4, 4}, Type: gguf.DTypeF32, Data: bytes.NewReader(testutil.Float32LE(ones))},
 	})
 
+	// The effective rank arrives with the full pass; the first view answers sampled profiles.
 	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
-	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors", "")
+	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors?wait=spectra", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", response.Code, response.Body.String())
 	}

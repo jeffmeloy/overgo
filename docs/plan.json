@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-style-tokens",
-      "title": "Publish the workbench's colour, spacing and type tokens as one design document the stylesheet must match, and measure contrast for every token pair in both schemes",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Publish the workbench's colour, spacing and type tokens as one design document the stylesheet must match, and measure contrast for every token pair in both schemes",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -run '^(TestDesignDocumentMatchesStylesheet|TestCraftFloorTokenContrast)$' -count=1",
-          "rationale": "Merges professional_overgo_gui rows gui-style-design-document and gui-style-craft-floor. style.css is the only token source; the design document is derived structure the test compares, never a second copy by hand. Contrast is computed for every foreground/background token pair in light and dark schemes against WCAG AA. Impeccable (C:/Users/jeffm/impeccable, read-only) supplies the craft-floor concepts only."
-        }
-      ]
-    },
-    {
       "id": "gui-style-typeset",
       "title": "Set one type scale and reading measure for the workbench and remove the eyebrow label",
       "owner": "overgo_gui_cleanup",

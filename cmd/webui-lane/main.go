@@ -37,15 +37,19 @@ func run() error {
 	journeys := flags.Bool("journeys", false, "run the model journeys ("+webuilane.ModelJourneyPrefix+"*), which build, serve or hash models, instead of the page acceptances")
 	screens := flags.String("screens", "", "write the captures (every tab and the picker, desktop and phone) as PNGs into this directory")
 	pageURL := flags.String("url", "", "capture and audit a running server's page at this address instead of running the tests")
+	design := flags.Bool("design", false, "derive "+webuilane.DesignDocumentPath+" from "+webuilane.StylesheetPath+" and write it, instead of running the tests")
 	var required []string
 	flags.Func("require", "a journey line the run must write (repeatable); its absence fails the lane", func(text string) error { required = append(required, text); return nil })
 	if err := flags.Parse(os.Args[1:]); err != nil || flags.NArg() != 0 {
-		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>]")
+		return errors.New("usage: webui-lane [-run <pattern>] [-require <text>]... [-screens <dir>] [-url <address>] | -design")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if *pageURL != "" {
 		return captureLive(ctx, os.Stdout, *pageURL, *screens)
+	}
+	if *design {
+		return writeDesign()
 	}
 	var captured bytes.Buffer
 	stdout := io.MultiWriter(os.Stdout, &captured)
@@ -226,4 +230,22 @@ func browserPackages(run string, listing io.Reader) ([]string, error) {
 		return nil, fmt.Errorf("browser selector %q matched no browser tests", run)
 	}
 	return packages, nil
+}
+
+// writeDesign derives the design document from the stylesheet, run from the
+// repository root, and writes it where the design test compares it.
+func writeDesign() error {
+	stylesheet, err := os.ReadFile(filepath.FromSlash(webuilane.StylesheetPath))
+	if err != nil {
+		return err
+	}
+	document, err := webuilane.ParseDesign(string(stylesheet))
+	if err != nil {
+		return err
+	}
+	encoded, err := webuilane.EncodeDesign(document)
+	if err != nil {
+		return err
+	}
+	return clioptions.WriteOutputFile(filepath.FromSlash(webuilane.DesignDocumentPath), encoded)
 }

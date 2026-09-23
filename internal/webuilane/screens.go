@@ -56,6 +56,10 @@ const (
 	layoutContrast = "low-contrast"
 	// layoutHeader: on a phone the header takes too much of the first screen before the content.
 	layoutHeader = "header-share"
+	// layoutUnlabelled: a control with no accessible name (a placeholder is not one).
+	layoutUnlabelled = "unlabelled-control"
+	// layoutIgnoredLabel: an aria-label on an element without a role, which assistive technology ignores.
+	layoutIgnoredLabel = "ignored-label"
 	// mountError: a tab mounted with an error banner in its panel or a page error.
 	mountError = "mount-error"
 )
@@ -261,18 +265,23 @@ func mountErrors(ctx context.Context, browser *Browser, tab string, seen *int) (
 }
 
 // CaptureSummary renders a capture walk's verdict on one line: the tabs
-// that mounted with an error, then the layout findings.
+// that mounted with an error, the unlabelled controls, then every layout
+// finding (unlabelled controls among them).
 func CaptureSummary(states int, findings []StateFinding) string {
 	failedTabs := map[string]bool{}
-	layout := 0
+	layout, unlabelled := 0, 0
 	for _, finding := range findings {
-		if finding.Finding.Kind == mountError {
+		switch finding.Finding.Kind {
+		case mountError:
 			failedTabs[finding.Finding.Selector] = true
-		} else {
+		case layoutUnlabelled:
+			unlabelled++
+			layout++
+		default:
 			layout++
 		}
 	}
-	return fmt.Sprintf("screens leg: tab mount errors: %d; captured %d states at %d viewports under %d colour schemes with %d layout findings", len(failedTabs), states, len(ScreenViewports), len(ColourSchemes), layout)
+	return fmt.Sprintf("screens leg: tab mount errors: %d; unlabelled controls: %d; captured %d states at %d viewports under %d colour schemes with %d layout findings", len(failedTabs), unlabelled, states, len(ScreenViewports), len(ColourSchemes), layout)
 }
 
 // layoutAuditScript is the audit with its fault kinds named from the
@@ -286,6 +295,7 @@ func layoutAuditScript() string {
 	return strings.NewReplacer(
 		"KIND_OVERFLOW", layoutOverflow, "KIND_OUTSIDE", layoutOutside, "KIND_OVERLAP", layoutOverlap,
 		"KIND_CLIPPED", layoutClipped, "KIND_SMALL", layoutSmall, "KIND_CONTRAST", layoutContrast, "KIND_HEADER", layoutHeader,
+		"KIND_UNLABELLED", layoutUnlabelled, "KIND_IGNORED_LABEL", layoutIgnoredLabel,
 	).Replace(layoutAuditTemplate)
 }
 
@@ -339,12 +349,27 @@ const layoutAuditTemplate = `(() => {
     const share = panels.getBoundingClientRect().top / window.innerHeight;
     if (share > headerShare) note("KIND_HEADER", panels, Math.round(share * 100) + "% of the first screen lies above the content");
   }
+  // A control's accessible name: aria-label, labelledby text, a label, a title, or a button's or link's own content.
+  const text = (node) => (node && node.textContent || "").trim();
+  const named = (node) => {
+    if ((node.getAttribute("aria-label") || "").trim() || (node.getAttribute("title") || "").trim()) return true;
+    const labelledBy = (node.getAttribute("aria-labelledby") || "").split(/s+/).filter(Boolean);
+    if (labelledBy.some((id) => text(document.getElementById(id)))) return true;
+    if (node.labels && [...node.labels].some((label) => text(label))) return true;
+    if (node.tagName === "INPUT") return ["submit", "button", "reset"].includes(node.type) && node.value.trim() !== "";
+    if (["SELECT", "TEXTAREA"].includes(node.tagName)) return false;
+    return text(node) !== "" || [...node.querySelectorAll("img[alt], [aria-label]")].some((child) => (child.getAttribute("alt") || child.getAttribute("aria-label") || "").trim());
+  };
+  for (const node of document.querySelectorAll("div[aria-label], span[aria-label]")) {
+    if (visible(node) && !node.getAttribute("role")) note("KIND_IGNORED_LABEL", node, "aria-label \"" + node.getAttribute("aria-label") + "\" on an element without a role");
+  }
   const controls = [...document.querySelectorAll("button, a[href], input, select, textarea, [role=button]")].filter((node) => visible(node) && node.type !== "hidden");
   for (const node of controls) {
     const rect = node.getBoundingClientRect();
     if (!scrollable(node) && (rect.right > width + 1 || rect.left < -1)) note("KIND_OUTSIDE", node, "spans " + Math.round(rect.left) + ".." + Math.round(rect.right) + "px of " + width);
     const target = (node.closest("label") || node).getBoundingClientRect();
     if (!node.disabled && (target.width < minimumControl || target.height < minimumControl)) note("KIND_SMALL", node, Math.round(target.width) + "x" + Math.round(target.height) + "px");
+    if (!named(node)) note("KIND_UNLABELLED", node, (node.getAttribute("placeholder") ? "placeholder \"" + node.getAttribute("placeholder") + "\" only" : "no name"));
   }
   for (const node of document.querySelectorAll(".card, .pill")) {
     const rect = node.getBoundingClientRect();

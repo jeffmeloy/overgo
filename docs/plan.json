@@ -6,26 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-control-labels",
-      "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "paydown": "webui-helper-consolidation",
-        "reason": "two audit fault kinds and the summary's unlabelled count; the audit script is a Go string"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Screens|LayoutAudit)$' -require 'unlabelled controls: 0'",
-          "rationale": "Audit: about 25 controls carry only a placeholder (agent, automations, artifacts, discovery, analyze_* layer and k fields, schema_form), boot.js:667 renders analysis field names as detached spans, and aria-label sits on role-less divs (conversation list, status dots) where it is ignored; status dots are colour and tooltip only. Acceptance: the audit gains an unlabelled-control fault kind measured at every captured state and viewport, and the leg reports zero. Inspect the changed tabs in the browser pane at desktop and phone widths."
-        }
-      ]
-    },
-    {
       "id": "webui-helper-consolidation",
       "title": "Consolidate the workbench's repeated client helpers onto single owners and delete dead markup, exports and inputs",
       "owner": "overgo_gui_cleanup",

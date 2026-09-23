@@ -34,7 +34,8 @@ func TestWebUIBrowserCaptureWaitsForTransition(t *testing.T) {
 // TestWebUIBrowserLayoutAudit pins the audit over a page built to fault in
 // every measured way: a block wider than the viewport, a control past its
 // edge and one too small, two fixed surfaces overlapping, a line cut
-// without an ellipsis, and text too faint to read; the same page with
+// without an ellipsis, text too faint to read, a control named only by
+// its placeholder and a label on a role-less element; the same page with
 // those faults absent audits clean, and the screenshot is a PNG.
 func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
@@ -52,8 +53,10 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		`<div style="position:fixed;top:0;left:0;width:100px;height:100px"></div>` +
 		`<div style="position:fixed;top:50px;left:50px;width:100px;height:100px"></div>` +
 		`<p style="white-space:nowrap;overflow:hidden;width:40px">a line of text far longer than its box</p>` +
+		`<input placeholder="only a placeholder" style="width:200px;height:30px"><div aria-label="ignored">dot</div>` +
 		`<p style="color:rgb(187,187,187)">faint words</p></body>`
 	clean := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><button style="width:40px;height:40px">fine</button>` +
+		`<label style="display:block">Named <input style="width:200px;height:30px"></label><select aria-label="Chosen" style="height:30px"><option>one</option></select><div role="img" aria-label="status">dot</div>` +
 		`<div role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap;clip-path:inset(50%)"><span>Response ready.</span></div>` +
 		`<p style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:40px">a line of text cut by design</p>` +
 		`<details id="collapsed" open><summary>Details</summary><p style="color:rgb(187,187,187)">hidden faint words</p><button style="width:10px;height:10px;padding:0">hidden tiny</button></details>` +
@@ -84,7 +87,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	for _, finding := range audit(faulty) {
 		kinds[finding.Kind] = true
 	}
-	for _, kind := range []string{layoutOverflow, layoutOutside, layoutSmall, layoutOverlap, layoutClipped, layoutContrast} {
+	for _, kind := range []string{layoutOverflow, layoutOutside, layoutSmall, layoutOverlap, layoutClipped, layoutContrast, layoutUnlabelled, layoutIgnoredLabel} {
 		if !kinds[kind] {
 			t.Errorf("the faulty page audited without %s", kind)
 		}
@@ -112,7 +115,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if err != nil || len(findings) != 1 || findings[0].Finding.Kind != layoutHeader {
 		t.Errorf("the tall header audited as %v, %v", findings, err)
 	}
-	if summary := CaptureSummary(3, nil); !strings.Contains(summary, "tab mount errors: 0;") || !strings.Contains(summary, "captured 3 states") || !strings.HasSuffix(summary, "0 layout findings") {
+	if summary := CaptureSummary(3, nil); !strings.Contains(summary, "tab mount errors: 0; unlabelled controls: 0;") || !strings.Contains(summary, "captured 3 states") || !strings.HasSuffix(summary, "0 layout findings") {
 		t.Errorf("summary = %q", summary)
 	}
 	// A tab that fails at every viewport counts once; its failures are not layout findings.

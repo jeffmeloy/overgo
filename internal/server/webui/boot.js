@@ -326,11 +326,22 @@
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
-  // artifactLink: the one link to a stored artifact (content, or the gallery entry).
-  const galleryRoute = "/artifacts?id=", contentRoute = "/artifacts/content?id=";
+  // contentURL: a stored artifact's bytes; el() fetches them through the authenticated client.
+  function contentURL(id) { return "/artifacts/content?id=" + encodeURIComponent(id); }
+  // openArtifact: the Artifacts tab shows one entry (null: the whole gallery) until another is chosen,
+  // across remounts. The hash opens the tab, now or once it registers; a mounted tab hears the event.
+  let artifactFocus = null;
+  function openArtifact(id) {
+    artifactFocus = id || null;
+    location.hash = "artifacts";
+    window.dispatchEvent(new Event("overgo-artifact-focus"));
+  }
+  function focusedArtifact() { return artifactFocus; }
+  // artifactLink: the one link to a stored artifact (its content, or its gallery entry in the Artifacts tab).
   function artifactLink(id, label, gallery) {
-    const route = gallery ? galleryRoute : contentRoute;
-    return el("a", { class: "mono", href: route + encodeURIComponent(id), target: "_blank", rel: "noopener", text: label || shortID(id) });
+    const text = label || shortID(id);
+    if (gallery) return el("a", { class: "mono", href: "#artifacts", text, onclick: (event) => { event.preventDefault(); openArtifact(id); } });
+    return el("a", { class: "mono", href: contentURL(id), target: "_blank", rel: "noopener", text });
   }
 
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
@@ -579,7 +590,7 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
+    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo, invalidateModel,
     displayToken, runner, poller, tabStream, stat, fold,

@@ -378,7 +378,7 @@ func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
 	for _, token := range []string{
 		"DPO loss", "GRPO loss", "Evaluator reward", "Margin decomposition", "Chosen / rejected pair", "Optimizer health",
 		"Checkpoint comparison", "policy_margin", "reference_margin", "relative_margin",
-		"mean_reward", "reward_dispersion", "gradient_l2", "update_l2", "/artifacts/content?id=",
+		"mean_reward", "reward_dispersion", "gradient_l2", "update_l2", "overgo.contentURL(",
 	} {
 		if !strings.Contains(training, token) {
 			t.Errorf("training evidence view missing %q", token)

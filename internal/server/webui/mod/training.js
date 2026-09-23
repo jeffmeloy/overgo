@@ -4,7 +4,7 @@
   const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
   async function readTrace(overgo, id) {
-    const trace = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(id));
+    const trace = await overgo.api.get(overgo.contentURL(id));
     return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null; }
 
   async function traceFromRun(overgo, run) {

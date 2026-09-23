@@ -112,7 +112,13 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if err != nil || len(findings) != 1 || findings[0].Finding.Kind != layoutHeader {
 		t.Errorf("the tall header audited as %v, %v", findings, err)
 	}
-	if summary := CaptureSummary(3, nil); !strings.Contains(summary, "captured 3 states") || !strings.HasSuffix(summary, "0 layout findings") {
+	if summary := CaptureSummary(3, nil); !strings.Contains(summary, "tab mount errors: 0;") || !strings.Contains(summary, "captured 3 states") || !strings.HasSuffix(summary, "0 layout findings") {
 		t.Errorf("summary = %q", summary)
+	}
+	// A tab that fails at every viewport counts once; its failures are not layout findings.
+	failed := LayoutFinding{Kind: mountError, Selector: "#panel-runs", Detail: "banner: refused"}
+	repeated := []StateFinding{{Viewport: "desktop", State: "runs", Finding: failed}, {Viewport: "phone", State: "runs", Finding: failed}}
+	if summary := CaptureSummary(2, repeated); !strings.Contains(summary, "tab mount errors: 1;") || !strings.HasSuffix(summary, "0 layout findings") {
+		t.Errorf("summary with one failing tab = %q", summary)
 	}
 }

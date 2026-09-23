@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -133,10 +134,18 @@ func writeGenerationError(response http.ResponseWriter, err error) {
 	writeError(response, http.StatusInternalServerError, "generation_error", err.Error())
 }
 
+// writeJSON encodes before the status is sent: an answer that cannot be
+// encoded is a server fault naming the cause, never an empty success.
 func writeJSON(response http.ResponseWriter, status int, value any) {
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(value); err != nil {
+		status = http.StatusInternalServerError
+		body.Reset()
+		_ = json.NewEncoder(&body).Encode(errorEnvelope("encoding_error", "the response could not be encoded: "+err.Error()))
+	}
 	response.Header().Set("Content-Type", "application/json")
 	response.WriteHeader(status)
-	_ = json.NewEncoder(response).Encode(value)
+	_, _ = response.Write(body.Bytes())
 }
 
 func writeSSE(response io.Writer, value any) error {

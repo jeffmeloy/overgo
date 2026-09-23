@@ -24,7 +24,7 @@
 
   function effrankText(t) {
     if (t.spectral_status === "computed") return t.effective_rank.toFixed(3);
-    if (t.spectral_status === "deferred") return "def";
+    if (t.spectral_status === "deferred") return "deferred"; // the read budget could not cover its spectrum
     return "—"; // not-applicable (1-D / non-matrix) or spectral off
   }
 

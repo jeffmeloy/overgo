@@ -13,6 +13,12 @@
         data = await overgo.api.get("/datasets");
       } catch (err) {
         clear(panel);
+        // A store with no dataset catalog yet is empty, not failing: name how to publish one.
+        if (err.status === 404) {
+          panel.append(el("div", { class: "section-title", text: "Dataset registry" }),
+            el("div", { class: "note", text: "This store has no dataset catalog yet. Register a directory with: go run ./cmd/dataset-catalog -register <name> -root <dir>" }));
+          return;
+        }
         const message = err.status === 501
           ? "Dataset browsing is not configured on this server."
           : overgo.friendlyError(err);

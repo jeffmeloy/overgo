@@ -38,9 +38,12 @@
       panel.appendChild(overgo.table(["order", "node", "module", "placement", "residency", "session"],
         Array.from(runtime.stages.entries(), ([index, stage]) => [index, stage.node.id, stage.module.id, stage.node.placement, stage.node.residency || "", stage.node.session || ""])));
 
+      // A recipe with no dependencies encodes its facts as null.
+      const facts = runtime.required_facts || [];
       panel.appendChild(el("div", { class: "section-title", text: "Required facts" }));
-      panel.appendChild(overgo.table(["role", "slot", "artifact"],
-        runtime.required_facts.map((fact) => [fact.role, fact.slot || 0, el("span", { class: "mono", title: fact.artifact, text: fmt.shortID(fact.artifact) })])));
+      panel.appendChild(facts.length ? overgo.table(["role", "slot", "artifact"],
+        facts.map((fact) => [fact.role, fact.slot || 0, el("span", { class: "mono", title: fact.artifact, text: fmt.shortID(fact.artifact) })]))
+        : el("div", { class: "note", text: "This recipe requires no stored facts." }));
 
       if (runtime.evidence && runtime.evidence.length) {
         panel.appendChild(el("div", { class: "section-title", text: "Admission evidence" }));

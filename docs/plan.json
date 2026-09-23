@@ -1,25 +1,10 @@
 {
   "campaign": "Integrated validation, GUI cleanup lane: validate, harden and simplify the HTML workbench",
-  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree.",
+  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree. Merged master 79f5dd18 on 2026-09-23 (8b77d24e): suites now run in parallel (TestSuitesRunInParallel), so every browser leg awaits the state it asserts instead of relying on serial timing, and the catalog gained an image-embedding task the workbench offers no surface for yet (row gui-declared-task-output names it rather than building one: capability freeze).",
   "lane": "overgo_gui_cleanup",
   "scope": "lane",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
-    {
-      "id": "webui-every-tab-mounts-clean",
-      "title": "Prove every workspace tab mounts without an error banner or page error, and open gallery artifacts through the authenticated client",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prove every workspace tab mounts without an error banner or page error, and open gallery artifacts through the authenticated client",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Screens|ArtifactLinks)$' -require 'tab mount errors: 0' -require 'artifact links leg'",
-          "rationale": "Audit: the screens walk checks overgo.errors once at start and never per tab, and thirteen tabs (generation, runtime, datasets, export-jobs, runs, peers, compositions, artifacts, vocab, lens, states, tensors, api) have no other browser test; evaluations.js and training.js open /artifacts?id= in a new tab, a bearer route that answers 401 with a key configured, and composer.js wraps images in a link el() turns into a download. One overgo.contentURL replaces nine hand-built content URLs. Acceptance: the walk records banners and page errors per tab and the leg prints zero; with an API key set, gallery links open the artifact inside the workbench."
-        }
-      ]
-    },
     {
       "id": "webui-control-labels",
       "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
@@ -47,6 +32,20 @@
           "status": "open",
           "verify": "go test ./internal/server -run '^TestWebUIClientHelpersHaveOneOwner$' -count=1",
           "rationale": "Audit: 51 errorBanner(friendlyError(...)) sites beside an overgo.reporter only agent.js uses; /operations/cancel called from four modules; artifactLink defined twice (evaluations.js, training.js); getKey/setKey/invalidateModel/evidenceLine exported but used only in boot.js; index.html #tabs unused; three permanently disabled inputs in compositions.js; two separate @media (max-width:860px) blocks; mixed tab and space indentation in recipe.js and runtime.js; loading copy exposes route paths. Consolidation removes code, so the acceptance is a ratchet test that holds each helper to one owner and forbids the dead identifiers; the full page lane must still pass."
+        }
+      ]
+    },
+    {
+      "id": "gui-declared-task-output",
+      "title": "Take each composer task's output kind from its declared output and name a served task the workbench offers no surface for (image-embedding first) instead of treating it as image output",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Take each composer task's output kind from its declared output and name a served task the workbench offers no surface for (image-embedding first) instead of treating it as image output",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserUnofferedTask$' -require 'unoffered task leg'"
         }
       ]
     },
@@ -204,7 +203,7 @@
           "id": "do",
           "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -require 'stream lifecycle leg' -require 'tab mount errors: 0' -require 'artifact links leg' -require 'unlabelled controls: 0' -require 'hardened states leg' -require 'typeset leg' -require 'session continuation leg' -require 'agent recovery leg' -require 'speculative decoding leg' -require 'model merge leg' -require 'conversation control leg' -require 'mobile interaction leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -require 'stream lifecycle leg' -require 'tab mount errors: 0' -require 'artifact links leg' -require 'unlabelled controls: 0' -require 'hardened states leg' -require 'typeset leg' -require 'session continuation leg' -require 'agent recovery leg' -require 'speculative decoding leg' -require 'model merge leg' -require 'conversation control leg' -require 'mobile interaction leg' -require 'unoffered task leg'",
           "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
           "depends_on": [
             "webui-client-contract/do",
@@ -412,6 +411,10 @@
       "row": "store-growth-ratchet"
     },
     {
+      "key": "store-growth:count:(schemaless)",
+      "reason": "one 603-byte record from the merge gate itself; bounded, no per-landing regrowth"
+    },
+    {
       "key": "store-growth:count:overgo.code-manifest-digest.v1",
       "row": "store-growth-ratchet"
     },
@@ -442,6 +445,10 @@
     {
       "key": "suite-cost:overgo/internal/gate",
       "row": "gate-suite-serial-floor"
+    },
+    {
+      "key": "suite-cost:overgo/internal/latentimage",
+      "reason": "master-owned device suite the lane merged unchanged; its cost belongs to master's suite rows"
     },
     {
       "key": "suite-cost:overgo/internal/plan",
@@ -478,6 +485,10 @@
     {
       "key": "surface-move:production-nodes:8527831950fae6a042d4e30b0da80b96b9940dfb",
       "row": "surface-move-preflight"
+    },
+    {
+      "key": "surface-move:production-nodes:8b77d24e0028cec6034701f9bae9b517e53f25a1",
+      "row": "webui-helper-consolidation"
     },
     {
       "key": "surface-move:production-nodes:b9b1107f7949575bb7c1d225f678179e49047862",

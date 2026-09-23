@@ -84,7 +84,7 @@
             actions.push(el("button", { class: "btn alt", text: "Decline", onclick: () => decide("decline") }));
           }
           const outputs = (item.outputs || []).map((id) => el("a", {
-            class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
+            class: "mono", href: overgo.contentURL(id), text: fmt.shortID(id),
           }));
           rows.push(el("div", { class: "card" },
             el("span", { class: "mono", text: fmt.shortID(item.id) }), " / " + item.state, outputs, actions));
@@ -98,7 +98,7 @@
           el("span", { class: "mono", text: fmt.shortID(run.id) }),
           " / " + run.outcome,
           ...((run.outputs || []).map((id) => el("a", {
-            href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
+            href: overgo.contentURL(id), text: fmt.shortID(id),
           }))))));
       }
 

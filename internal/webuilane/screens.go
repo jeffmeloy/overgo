@@ -56,6 +56,8 @@ const (
 	layoutContrast = "low-contrast"
 	// layoutHeader: on a phone the header takes too much of the first screen before the content.
 	layoutHeader = "header-share"
+	// mountError: a tab mounted with an error banner in its panel or a page error.
+	mountError = "mount-error"
 )
 
 // String renders a finding on one line for a log.
@@ -179,7 +181,7 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []St
 	if len(tabs) == 0 {
 		return 0, nil, errors.New("webui lane: the page mounted no tab")
 	}
-	states := 0
+	states, pageErrors := 0, 0
 	var findings []StateFinding
 	capture := func(viewport Viewport, state string) error {
 		measured, err := CaptureState(ctx, browser, dir, viewport, state)
@@ -209,6 +211,13 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []St
 				if err := browser.Eventually(ctx, `window.overgo.api.inFlight() === 0`); err != nil {
 					return states, findings, fmt.Errorf("%s %s settle: %w", viewport.Name, tab, err)
 				}
+				mounted, err := mountErrors(ctx, browser, tab, &pageErrors)
+				if err != nil {
+					return states, findings, err
+				}
+				for _, detail := range mounted {
+					findings = append(findings, StateFinding{Viewport: viewport.Name, State: tab + suffix, Finding: LayoutFinding{Kind: mountError, Selector: "#panel-" + tab, Detail: detail}})
+				}
 				if err := capture(viewport, tab+suffix); err != nil {
 					return states, findings, err
 				}
@@ -234,9 +243,36 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []St
 	return states, findings, browser.SetColorScheme(ctx, ColourSchemes[0])
 }
 
-// CaptureSummary renders a capture walk's verdict on one line.
+// mountErrors answers the error banners a settled tab's panel shows and the
+// page errors raised since the last check (seen counts those already read).
+func mountErrors(ctx context.Context, browser *Browser, tab string, seen *int) ([]string, error) {
+	var state struct {
+		Banners []string `json:"banners"`
+		Errors  []string `json:"errors"`
+	}
+	if err := browser.Evaluate(ctx, fmt.Sprintf(`({
+  banners: [...document.querySelectorAll("#panel-%s .err-banner")].map((node) => "banner: " + node.textContent),
+  errors: window.overgo.errors.slice(%d).map((message) => "page error: " + message),
+})`, tab, *seen), &state); err != nil {
+		return nil, err
+	}
+	*seen += len(state.Errors)
+	return append(state.Banners, state.Errors...), nil
+}
+
+// CaptureSummary renders a capture walk's verdict on one line: the tabs
+// that mounted with an error, then the layout findings.
 func CaptureSummary(states int, findings []StateFinding) string {
-	return fmt.Sprintf("screens leg: captured %d states at %d viewports under %d colour schemes with %d layout findings", states, len(ScreenViewports), len(ColourSchemes), len(findings))
+	failedTabs := map[string]bool{}
+	layout := 0
+	for _, finding := range findings {
+		if finding.Finding.Kind == mountError {
+			failedTabs[finding.Finding.Selector] = true
+		} else {
+			layout++
+		}
+	}
+	return fmt.Sprintf("screens leg: tab mount errors: %d; captured %d states at %d viewports under %d colour schemes with %d layout findings", len(failedTabs), states, len(ScreenViewports), len(ColourSchemes), layout)
 }
 
 // layoutAuditScript is the audit with its fault kinds named from the

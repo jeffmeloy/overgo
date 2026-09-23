@@ -413,6 +413,7 @@ button.pill { font:inherit; cursor:pointer; }
 label:has(input[type=checkbox]) { display:inline-flex; align-items:center; gap:6px; min-height:24px; cursor:pointer; }
 td > a { display:inline-flex; align-items:center; min-height:24px; }
 .link-button { min-width:24px; justify-content:center; }
+.grid td .link-button { justify-content:flex-start; text-align:left; }
 
 /* The work surface is flat: text, lists and separators. Existing workbench
    components share the same treatment while retaining their capabilities. */

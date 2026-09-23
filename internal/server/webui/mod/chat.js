@@ -263,7 +263,7 @@
         const lineage = await overgo.api.get("/artifacts/lineage?id=" + encodeURIComponent(artifact), options);
         const made = lineage.producers.find((item) => item.run === run) || lineage.producers[0];
         const input = made && made.inputs.find((item) => (item.schema || "").endsWith("-input.v1"));
-        return input && overgo.api.get("/artifacts/content?id=" + encodeURIComponent(input.id), options);
+        return input && overgo.api.get(overgo.contentURL(input.id), options);
       }
       async function openStep(step, artifact) {
         await composer.setMode(step.task);
@@ -616,7 +616,7 @@
           for (const item of (listed.artifacts || []).filter((item) => item.payload && (item.producers || []).length)) {
             const run = await overgo.api.get("/runs?id=" + encodeURIComponent(item.producers[0]));
             const made = generation.capabilities.find((capability) => capability.recipe === run.recipe);
-            const url = "/artifacts/content?id=" + encodeURIComponent(item.descriptor.id);
+            const url = overgo.contentURL(item.descriptor.id);
             const name = made ? made.name : fmt.shortID(run.recipe);
             rail.appendChild(el("button", { class: "intake-thumb", type: "button", "data-id": item.descriptor.id, "data-recipe": run.recipe, title: name,
               "aria-label": "open " + fmt.shortID(item.descriptor.id), onclick: () => openRecord(item, run, name, url) },

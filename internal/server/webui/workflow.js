@@ -142,7 +142,7 @@
     const kind = control.media ? control.media + "/" : "";
     const load = () => window.overgo.api.get("/artifacts?kind=file&newest=1&media=" + encodeURIComponent(kind) + "&limit=" + window.overgo.intakeStripLimit).then((listed) => {
       strip.replaceChildren(...(listed.artifacts || []).filter((item) => item.payload).map((item) => {
-        const id = item.descriptor.id, source = "/artifacts/content?id=" + encodeURIComponent(id);
+        const id = item.descriptor.id, source = window.overgo.contentURL(id);
         const preview = item.descriptor.media_type.startsWith("image/") ? el("img", { src: source, alt: "" }) : el("span", { class: "mono", text: item.descriptor.media_type });
         return el("button", { class: "intake-thumb", type: "button", "data-id": id, title: id, "aria-label": "use " + window.overgo.fmt.shortID(id), onclick: () => { input.value = id; input.dispatchEvent(new Event("change", { bubbles: true })); } }, preview);
       }));

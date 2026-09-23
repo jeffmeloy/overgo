@@ -159,7 +159,7 @@
 				const value = await overgo.api.get("/interactions/replay?response=" + encodeURIComponent(interaction.response));
 				// Media artifacts render as what they are (composer.js mediaPlayer); the rest stays in the raw trace view.
 				const inline = (value.media || []).map((item) => {
-				  const src = "/artifacts/content?id=" + encodeURIComponent(item.id);
+				  const src = overgo.contentURL(item.id);
 				  const kind = overgo.mediaKind(item.media_type || "");
 				  return kind === "document" ? el("a", { class: "mono", href: src, text: fmt.shortID(item.id) }) : overgo.mediaPlayer(kind, src, fmt.shortID(item.id));
 				});

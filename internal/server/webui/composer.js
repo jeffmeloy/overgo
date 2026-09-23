@@ -40,7 +40,7 @@
     if (lifecycle && lifecycle.accepted) await lifecycle.accepted(accepted.operation);
     const completed = await overgo.waitOperation(accepted.operation, lifecycle && lifecycle.observe, signal);
     if (completed.state !== "completed") { const err = new Error(completed.failure || completed.state); err.operationState = completed.state; throw err; }
-    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
+    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: overgo.contentURL(id) })) };
   }
 
   // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
@@ -332,7 +332,7 @@
 
   // mediaPlayer: the element that shows a media artifact as what it is (image, video, audio).
   function mediaPlayer(kind, url, caption) {
-    if (kind === "image") return el("a", { href: url, target: "_blank" }, el("img", { src: url, alt: caption || "" }));
+    if (kind === "image") return el("img", { src: url, alt: caption || "" });
     if (kind === "video") return el("video", { src: url, controls: "", class: "mw-420" });
     return el("audio", { controls: "", src: url });
   }
@@ -382,7 +382,7 @@
 
     // Stable flat file rows keep keyboard targets and playing previews intact
     // while read/upload state changes elsewhere in the list.
-    const attachmentURL = item => item.dataURL || (item.kind === 'audio' && item.artifact && '/artifacts/content?id=' + encodeURIComponent(item.artifact));
+    const attachmentURL = item => item.dataURL || (item.kind === 'audio' && item.artifact && overgo.contentURL(item.artifact));
     function attachmentPreview(item) {
       const url = attachmentURL(item);
       if (!url || item.pending || item.refusal) return null;
@@ -622,7 +622,7 @@
       item.attempt = attempt; item.cancel = () => controller.abort(); item.needsReattach = false;
       const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
       stage(item, 'fetching'); renderAttachments();
-      overgo.api.blob('/artifacts/content?id=' + encodeURIComponent(item.sourceArtifact), { signal: controller.signal }).then(blob => {
+      overgo.api.blob(overgo.contentURL(item.sourceArtifact), { signal: controller.signal }).then(blob => {
         if (!current()) return;
         item.file = new File([blob], item.name, { type: blob.type || item.mime });
         item.mime = item.file.type; item.kind = mediaKind(item.mime); item.size = item.file.size;

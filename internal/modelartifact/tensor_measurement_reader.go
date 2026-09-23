@@ -62,6 +62,8 @@ func MeasureGGUF(
 		return TensorMeasurementDocument{}, err
 	}
 	measurements := make([]TensorMeasurement, 0, len(file.Tensors))
+	// Every tensor is sampled first; the spectra then spend what the budget has left.
+	var spectra []func() error
 	meter := readMeter{limit: policy.MaxReadBytes, format: "GGUF"}
 	for _, tensor := range file.Tensors {
 		fact, ok := inventory.Tensor(tensor.Name)
@@ -80,14 +82,17 @@ func MeasureGGUF(
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		dims := tensor.Shape[:tensor.Dimensions]
-		if err := collectMatrixSpectrum(&measurement, &meter, dims, policy.SpectralMaxDim,
-			tensor.Size,
-			func() ([]float64, error) { return fullGGUFTensorValues(file, tensor) },
-		); err != nil {
+		index, dims := len(measurements), tensor.Shape[:tensor.Dimensions]
+		spectra = append(spectra, func() error {
+			return collectMatrixSpectrum(&measurements[index], &meter, dims, policy.SpectralMaxDim,
+				tensor.Size, func() ([]float64, error) { return fullGGUFTensorValues(file, tensor) })
+		})
+		measurements = append(measurements, measurement)
+	}
+	for _, spectrum := range spectra {
+		if err := spectrum(); err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		measurements = append(measurements, measurement)
 	}
 	return newTensorMeasurementDocument(inventory.ID, policy, meter.used, measurements)
 }
@@ -100,6 +105,8 @@ type readMeter struct {
 	limit  uint64
 	format string
 }
+
+func (m *readMeter) fits(bytes uint64) bool { return m.used <= m.limit && bytes <= m.limit-m.used }
 
 func (m *readMeter) charge(bytes uint64) error {
 	if m.used > m.limit || bytes > m.limit-m.used {
@@ -125,7 +132,9 @@ func collectMatrixSpectrum(
 		measurement.SpectralStatus = SpectralNotApplicable
 		return nil
 	}
-	if extents[0] > maxExtent || extents[1] > maxExtent {
+	// A matrix too large for the extent, or whose full read the remaining
+	// budget cannot cover, is deferred: the pass still measures every tensor.
+	if extents[0] > maxExtent || extents[1] > maxExtent || !meter.fits(fullBytes) {
 		measurement.SpectralStatus = SpectralDeferred
 		return nil
 	}
@@ -206,6 +215,8 @@ func MeasureSafetensors(
 		return TensorMeasurementDocument{}, err
 	}
 	measurements := make([]TensorMeasurement, 0, len(source.Tensors))
+	// Every tensor is sampled first; the spectra then spend what the budget has left.
+	var spectra []func() error
 	meter := readMeter{limit: policy.MaxReadBytes, format: "Safetensors"}
 	for _, name := range source.Names() {
 		tensor := source.Tensors[name]
@@ -250,13 +261,17 @@ func MeasureSafetensors(
 		if err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		if err := collectMatrixSpectrum(&measurement, &meter, tensor.Shape, policy.SpectralMaxDim,
-			elements*width,
-			func() ([]float64, error) { return readValues(elements) },
-		); err != nil {
+		index, shape := len(measurements), tensor.Shape
+		spectra = append(spectra, func() error {
+			return collectMatrixSpectrum(&measurements[index], &meter, shape, policy.SpectralMaxDim,
+				elements*width, func() ([]float64, error) { return readValues(elements) })
+		})
+		measurements = append(measurements, measurement)
+	}
+	for _, spectrum := range spectra {
+		if err := spectrum(); err != nil {
 			return TensorMeasurementDocument{}, err
 		}
-		measurements = append(measurements, measurement)
 	}
 	return newTensorMeasurementDocument(inventory.ID, policy, meter.used, measurements)
 }

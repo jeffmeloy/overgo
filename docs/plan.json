@@ -6,16 +6,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-tensors-latency",
-      "title": "Answer the Tensors tab in seconds on a served model: measured about 8 minutes against Qwen2.5-0.5B on a copy of the live store, where every other tab mounted in under a second",
+      "id": "webui-tensors-first-view",
+      "title": "Show the Tensors tab's profiles in seconds on a model's first view: measured 435 s for Qwen2.5-0.5B, almost all of it full reads and effective-rank computations the table does not need before a tensor is opened",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Answer the Tensors tab in seconds on a served model: measured about 8 minutes against Qwen2.5-0.5B on a copy of the live store, where every other tab mounted in under a second",
+          "title": "Show the Tensors tab's profiles in seconds on a model's first view: measured 435 s for Qwen2.5-0.5B, almost all of it full reads and effective-rank computations the table does not need before a tensor is opened",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestAnalyzeTensorsIsBounded$' -count=1"
+          "verify": "go test ./internal/server -run '^TestAnalyzeTensorsProfilesBeforeSpectra$' -count=1"
         }
       ]
     },
@@ -438,6 +438,10 @@
     {
       "key": "store-growth:bytes:overgo/code-manifest-analysis/v1",
       "row": "store-growth-ratchet"
+    },
+    {
+      "key": "store-growth:bytes:overgo/code-profile/v4",
+      "reason": "the gate's re-derivable code-profile cache, written by every landing; master's derived-cache-reuse and store-growth-ratchet rows own storing and releasing it, and this GUI lane changes no store policy"
     },
     {
       "key": "store-growth:bytes:overgo/gate-selection-cause/v1",

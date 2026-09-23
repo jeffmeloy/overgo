@@ -430,6 +430,9 @@ type hubWorkspace struct {
 type workbenchWorkspace struct {
 	catalogMemo      *discovery.Memo
 	browseRepository *overgodb.Store
+	// tensorMeasurements holds each served inventory's measurement under the
+	// configured policy, so the Tensors tab measures a model once per process.
+	tensorMeasurements sync.Map
 }
 
 // Handler is the assembly root: the shared core (configuration, evidence

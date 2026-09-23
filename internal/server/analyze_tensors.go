@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
@@ -62,7 +63,7 @@ type analyzeTensorsResponse struct {
 }
 
 func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Request) {
-	profiles, ok := h.characterizeLoadedModel(response)
+	profiles, ok := h.characterizeLoadedModel(request.Context(), response)
 	if !ok {
 		return
 	}
@@ -110,7 +111,7 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 	profiles, source := h.storeComponentPool(request)
 	if len(profiles) == 0 {
 		var ok bool
-		profiles, ok = h.characterizeLoadedModel(response)
+		profiles, ok = h.characterizeLoadedModel(request.Context(), response)
 		if !ok {
 			return
 		}
@@ -155,12 +156,7 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 	}
 	ctx := request.Context()
 	var profiles []analyzeTensor
-	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
-			Schema: modelartifact.TensorMeasurementSchema,
-		}}, Order: overgodb.DocumentOldestFirst,
-	}, modelartifact.ParseTensorMeasurementDocument, func(_ overgodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
+	err = visitTensorMeasurements(ctx, store, overgodb.DocumentOldestFirst, func(document modelartifact.TensorMeasurementDocument) error {
 		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
 		if err != nil || !ok {
 			return nil
@@ -183,7 +179,7 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 
 // characterizeLoadedModel opens the served model and profiles every tensor via
 // the shared measurement pipeline, or writes an HTTP error and returns false.
-func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analyzeTensor, bool) {
+func (h *Handler) characterizeLoadedModel(ctx context.Context, response http.ResponseWriter) ([]analyzeTensor, bool) {
 	if h.config.Analysis == (AnalysisPolicy{}) {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tensor analysis policy is unavailable")
 		return nil, false
@@ -204,7 +200,7 @@ func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analy
 		return nil, false
 	}
 	defer file.Close()
-	profiles, err := characterizeGGUF(file, h.config.Analysis.tensorMeasurementPolicy())
+	profiles, err := h.characterizeGGUF(ctx, file, h.config.Analysis.tensorMeasurementPolicy())
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
 		return nil, false
@@ -212,15 +208,16 @@ func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analy
 	return profiles, true
 }
 
-// characterizeGGUF builds the tensor inventory and measures every tensor through
-// the shared, identity-keyed measurement pipeline, pairing each characterization
-// with its storage and shape facts.
-func characterizeGGUF(file *gguf.File, policy modelartifact.MeasurementPolicy) ([]analyzeTensor, error) {
+// characterizeGGUF builds the tensor inventory and pairs each measurement
+// with its storage and shape facts. A full measuring pass reads every tensor
+// (minutes on a served model), so it runs once per inventory and policy: the
+// handler keeps the document, and a store keeps it across restarts.
+func (h *Handler) characterizeGGUF(ctx context.Context, file *gguf.File, policy modelartifact.MeasurementPolicy) ([]analyzeTensor, error) {
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
 		return nil, err
 	}
-	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, policy)
+	document, err := h.tensorMeasurement(ctx, inventory.TensorInventory, file, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -234,4 +231,74 @@ func characterizeGGUF(file *gguf.File, policy modelartifact.MeasurementPolicy) (
 		}
 	}
 	return profiles, nil
+}
+
+// measureGGUF is the full measuring pass; a test counts the passes through it.
+var measureGGUF = modelartifact.MeasureGGUF
+
+// tensorMeasurement answers an inventory's measurement under policy from the
+// handler, then from a committed document, and only then measures the file,
+// committing the result when the server holds a writable repository.
+func (h *Handler) tensorMeasurement(ctx context.Context, inventory modelartifact.TensorInventoryDocument, file *gguf.File, policy modelartifact.MeasurementPolicy) (modelartifact.TensorMeasurementDocument, error) {
+	if held, ok := h.tensorMeasurements.Load(inventory.ID); ok {
+		return held.(modelartifact.TensorMeasurementDocument), nil
+	}
+	store, storeErr := h.browseStore(ctx)
+	var document modelartifact.TensorMeasurementDocument
+	found := false
+	if storeErr == nil {
+		err := visitTensorMeasurements(ctx, store, overgodb.DocumentNewestFirst, func(stored modelartifact.TensorMeasurementDocument) error {
+			if !found && stored.Inventory == inventory.ID && stored.Policy == policy {
+				document, found = stored, true
+			}
+			return nil
+		})
+		if err != nil {
+			return modelartifact.TensorMeasurementDocument{}, err
+		}
+	}
+	if !found {
+		measured, err := measureGGUF(inventory, file, policy)
+		if err != nil {
+			return modelartifact.TensorMeasurementDocument{}, err
+		}
+		document = measured
+		// Only the serving repository is writable; a browse-only server keeps the measurement in memory.
+		if h.repository != nil {
+			if err := publishTensorMeasurement(ctx, h.repository, inventory, document); err != nil {
+				return modelartifact.TensorMeasurementDocument{}, err
+			}
+		}
+	}
+	h.tensorMeasurements.Store(inventory.ID, document)
+	return document, nil
+}
+
+// visitTensorMeasurements visits every committed tensor measurement in order.
+func visitTensorMeasurements(ctx context.Context, store *overgodb.Store, order overgodb.DocumentOrder, visit func(modelartifact.TensorMeasurementDocument) error) error {
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
+			Schema: modelartifact.TensorMeasurementSchema,
+		}}, Order: order,
+	}, modelartifact.ParseTensorMeasurementDocument, func(_ overgodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
+		return visit(document)
+	})
+	return err
+}
+
+// publishTensorMeasurement commits the measurement with the inventory it names.
+func publishTensorMeasurement(ctx context.Context, store *overgodb.Store, inventory modelartifact.TensorInventoryDocument, document modelartifact.TensorMeasurementDocument) error {
+	batch, err := document.Batch("tensor-measurement/" + document.ID.String())
+	if err != nil {
+		return err
+	}
+	inventoryContent, err := inventory.Content()
+	if err != nil {
+		return err
+	}
+	batch.Artifacts = append(batch.Artifacts, inventoryContent.Descriptor)
+	batch.Contents = append(batch.Contents, inventoryContent)
+	_, err = artifact.Publish(ctx, store, batch)
+	return err
 }

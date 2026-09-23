@@ -11,6 +11,7 @@ import (
 var ifevalTextOracle []byte
 
 func TestIFEvalTextContractAcceptance(t *testing.T) {
+	t.Parallel()
 	var oracle struct {
 		ReferenceVersion string `json:"reference_version"`
 		Sources          map[string]string

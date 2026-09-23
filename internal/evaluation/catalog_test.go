@@ -14,6 +14,7 @@ import (
 )
 
 func TestBenchmarkCatalogResolvesPinnedLocalDatasets(t *testing.T) {
+	t.Parallel()
 	names := []string{"bbh", "ifeval", "math", "mmlu-pro", "musr", "truthfulqa"}
 	root := t.TempDir()
 	data := []byte("{\"input\":\"question\",\"target\":\"answer\"}\n")

@@ -11,6 +11,7 @@ import (
 )
 
 func TestSFTEvaluationViewIsHeldOutAndAuthorityBound(t *testing.T) {
+	t.Parallel()
 	datasetID := testutil.ArtifactID(t, artifact.KindDataset, "SFT view dataset")
 	training, err := fixtureMembership(datasetID, "fit", dataset.Record{ID: "training", Group: "training-group"})
 	if err != nil {

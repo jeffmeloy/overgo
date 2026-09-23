@@ -3,6 +3,7 @@ package evaluation
 import "testing"
 
 func TestPromptingIsAPlanAuthority(t *testing.T) {
+	t.Parallel()
 	raw := ListingAuthorities()
 	templated := raw
 	templated.Execution.Prompting = PromptingChatTemplate

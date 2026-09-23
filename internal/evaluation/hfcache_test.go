@@ -17,6 +17,7 @@ import (
 // reader, and the active benchmark catalog publishes with one entry
 // per split.
 func TestHFCacheBenchmarkCatalog(t *testing.T) {
+	t.Parallel()
 	fixture, err := os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow"))
 	if err != nil {
 		t.Fatal(err)

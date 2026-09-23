@@ -14,6 +14,7 @@ import (
 )
 
 func TestOfflineArtifactGenerationRepeatedSeeds(t *testing.T) {
+	t.Parallel()
 	evidence := offlinePromotionEvidence(t, false)
 	policy := offlinePromotionPolicy(t)
 	promotion, err := PromoteOfflineArtifactGeneration(evidence, policy)
@@ -27,6 +28,7 @@ func TestOfflineArtifactGenerationRepeatedSeeds(t *testing.T) {
 }
 
 func TestOfflineArtifactGenerationPromotionRefusal(t *testing.T) {
+	t.Parallel()
 	policy := offlinePromotionPolicy(t)
 	unstable := offlinePromotionEvidence(t, true)
 	if _, err := PromoteOfflineArtifactGeneration(unstable, policy); err == nil {

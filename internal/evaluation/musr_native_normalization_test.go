@@ -15,6 +15,7 @@ import (
 var musrNormalizationOracle []byte
 
 func TestMuSRNativeNormalization(t *testing.T) {
+	t.Parallel()
 	var oracle struct {
 		Source   string `json:"native_source_sha256"`
 		Fixtures []struct {

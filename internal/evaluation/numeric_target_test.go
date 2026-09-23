@@ -7,6 +7,7 @@ import (
 )
 
 func TestNumericTargetEvaluationAvoidsShapeAndDistributionAssumptions(t *testing.T) {
+	t.Parallel()
 	quantile := 0.8
 	for _, modality := range []recipecontract.Modality{recipecontract.ModalityTimeSeries, recipecontract.ModalityTable} {
 		view := textTargetView(t, modality)

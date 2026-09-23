@@ -16,6 +16,7 @@ import (
 )
 
 func TestIFEvalTokenizerAcceptance(t *testing.T) {
+	t.Parallel()
 	tokenizer, err := compiledIFEvalTokenizer()
 	if err != nil {
 		t.Fatal(err)

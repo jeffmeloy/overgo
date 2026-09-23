@@ -9,6 +9,7 @@ import (
 )
 
 func TestWorkflowEvaluationBindsTrace(t *testing.T) {
+	t.Parallel()
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "evaluation trace recipe")
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "evaluation trace model")
 	request := testutil.ArtifactID(t, artifact.KindEvidence, "evaluation trace request")

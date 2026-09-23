@@ -17,6 +17,7 @@ import (
 )
 
 func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
 	decision, commit, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
 	if err != nil {
@@ -39,6 +40,7 @@ func TestEvidenceRouteSelectsUniqueDominantCapability(t *testing.T) {
 }
 
 func TestEvidenceRouteRefusesIncomparableFrontier(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, false)
 	decision, _, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
 	if err != nil {
@@ -50,6 +52,7 @@ func TestEvidenceRouteRefusesIncomparableFrontier(t *testing.T) {
 }
 
 func TestEvidenceRouteRejectsSyntheticCandidate(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
 	synthetic := testutil.ArtifactID(t, artifact.KindEvidence, "synthetic-route-probe")
 	testutil.PublishArtifact(t, fixture.store, synthetic)
@@ -60,6 +63,7 @@ func TestEvidenceRouteRejectsSyntheticCandidate(t *testing.T) {
 }
 
 func TestEvidenceRouteRejectsUnregisteredManual(t *testing.T) {
+	t.Parallel()
 	store := newCapabilityEvaluationStore(t)
 	var declaration agenttool.Manual
 	declaration.Name = "unregistered.inspect"
@@ -89,6 +93,7 @@ func TestEvidenceRouteRejectsUnregisteredManual(t *testing.T) {
 }
 
 func TestEvidenceRouteFallbackUsesTypedFailure(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceRouteFixture(t, true)
 	selected, _, err := CompileEvidenceRoute(t.Context(), fixture.store, fixture.request, fixture.candidates)
 	if err != nil {

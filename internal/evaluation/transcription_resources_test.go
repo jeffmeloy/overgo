@@ -28,6 +28,7 @@ type transcriptionResourceFixture struct {
 }
 
 func TestTranscriptionResourceEvidenceContract(t *testing.T) {
+	t.Parallel()
 	t.Run("native-execution-and-measurement-scope", testTranscriptionResourcesNativeExecution)
 	t.Run("refused-input-denominators", testTranscriptionResourcesFailureDenominators)
 	t.Run("stable-output-required", testTranscriptionResourcesStableOutput)

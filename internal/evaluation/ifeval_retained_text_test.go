@@ -31,6 +31,7 @@ type ifevalNativeScores struct {
 const retainedIFEvalDataset = "dataset:sha256:2823ef0130090d2c7f7b8c9f6a57963f8486dfa492c4f301cf9155ca8e4d7cd4"
 
 func TestIFEvalRetainedTextAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)
@@ -350,6 +351,7 @@ func checkNativeIFEvalCases(ctx context.Context, reader artifact.Reader, input n
 }
 
 func TestNativeIFEvalInputBinding(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

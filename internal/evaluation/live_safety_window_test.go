@@ -20,6 +20,7 @@ import (
 // count derives from the history size alone and shrinks as evidence
 // grows, and the published derivation cites its history evidence.
 func TestLiveSafetyWindowDerivation(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	historyEvidence := planID(t, artifact.KindEvidence, "safety-window-history")
 

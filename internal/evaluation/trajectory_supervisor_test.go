@@ -15,6 +15,7 @@ import (
 )
 
 func TestTrajectorySupervisorStopsExactNoProgress(t *testing.T) {
+	t.Parallel()
 	fixture := newTrajectorySupervisorFixture(t)
 	previous := fixture.exchange(t, "previous", `{}`, nil, nil, nil)
 	current := fixture.exchange(t, "current", `{}`, nil, nil, nil)
@@ -33,6 +34,7 @@ func TestTrajectorySupervisorStopsExactNoProgress(t *testing.T) {
 }
 
 func TestTrajectorySupervisorPermitsNewEvidence(t *testing.T) {
+	t.Parallel()
 	fixture := newTrajectorySupervisorFixture(t)
 	previousBase := fixture.baseExchange(t, "previous", `{}`)
 	currentBase := fixture.baseExchange(t, "current", `{}`)
@@ -75,6 +77,7 @@ func TestTrajectorySupervisorPermitsNewEvidence(t *testing.T) {
 }
 
 func TestTrajectorySupervisorIgnoresUnrelatedFreshIDs(t *testing.T) {
+	t.Parallel()
 	fixture := newTrajectorySupervisorFixture(t)
 	previous := fixture.exchange(t, "previous", `{}`, nil, nil, nil)
 	unrelated := testutil.ArtifactID(t, artifact.KindEvidence, "unrelated-trajectory-id")
@@ -90,6 +93,7 @@ func TestTrajectorySupervisorIgnoresUnrelatedFreshIDs(t *testing.T) {
 }
 
 func TestTrajectorySupervisorRejectsSyntheticTrace(t *testing.T) {
+	t.Parallel()
 	fixture := newTrajectorySupervisorFixture(t)
 	previous := fixture.exchange(t, "previous", `{}`, nil, nil, nil)
 	synthetic := testutil.ArtifactID(t, artifact.KindEvidence, "synthetic-trajectory")
@@ -100,6 +104,7 @@ func TestTrajectorySupervisorRejectsSyntheticTrace(t *testing.T) {
 }
 
 func TestRequireTrajectoryHealthDecisionRejectsForgedLineage(t *testing.T) {
+	t.Parallel()
 	fixture := newTrajectorySupervisorFixture(t)
 	previousBase := fixture.baseExchange(t, "previous", `{}`)
 	currentBase := fixture.baseExchange(t, "current", `{}`)

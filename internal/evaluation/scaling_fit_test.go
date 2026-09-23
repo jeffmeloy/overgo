@@ -8,6 +8,7 @@ import (
 )
 
 func TestScalingFitRefusesUnsupportedExtrapolationAndRegimeMixing(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	rational := func(numerator string) scalingRational { return scalingRational{Numerator: numerator, Denominator: "1"} }
 	regime := id(artifact.KindProfile, "regime")

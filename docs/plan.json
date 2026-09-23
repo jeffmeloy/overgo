@@ -18,20 +18,6 @@
       ]
     },
     {
-      "id": "evaluation-suite-wall",
-      "title": "Bound the internal/evaluation test wall (2m21s in the test phase, the costliest package of the rewrite-retirement landing after audioparity) by sharing its store and catalog fixtures across tests, with the bound proven from the suite-cost evidence",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound the internal/evaluation test wall (2m21s in the test phase, the costliest package of the rewrite-retirement landing after audioparity) by sharing its store and catalog fixtures across tests, with the bound proven from the suite-cost evidence",
-          "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestEvaluationSuiteWallBudget' -count=1"
-        }
-      ]
-    },
-    {
       "id": "surface-without-capability-tables",
       "title": "Stop text evidence expiring on non-text capability edits: after the identity-addressed stop, internal/modelrecipe still carries every capability's tables into the inference closure, because text inference validates its definitions against the one module catalog built from all of them -- the seven-line transcription edit (e7ee897a) expired all nine text models this way. Give inference its own catalog of the modules text inference names, then move the non-text capability tables (the linear capabilities, the audio contract, image and video) out of the package the runner imports, so an edit to them leaves the surface digest unchanged; a per-model closure does not help, since every text model shares one",
       "owner": "master-lead",

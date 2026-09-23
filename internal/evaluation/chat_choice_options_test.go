@@ -12,6 +12,7 @@ import (
 // the generated letter maps back to the candidate index. A suite whose
 // candidates are letters keeps the direct prompt.
 func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
+	t.Parallel()
 	textCase := MultipleChoiceCase{
 		Name: "bbh/boolean_expressions/test/0", Prompt: "Q: not ( True ) is\nA:",
 		Candidates: []string{" False", " True"}, Answer: 0,
@@ -54,6 +55,7 @@ func TestChatChoicePromptListsTextCandidatesAsLetteredOptions(t *testing.T) {
 // a case cannot be asked, and during the run when the first probe window
 // of generated answers names no candidate at all.
 func TestChatProtocolRefusesUnscorableSuites(t *testing.T) {
+	t.Parallel()
 	textCases := func(count int) []MultipleChoiceCase {
 		cases := make([]MultipleChoiceCase, count)
 		for index := range cases {

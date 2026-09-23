@@ -14,6 +14,7 @@ import (
 // produced it, answering to the same root as the attempt it evaluates,
 // and a causal binding whose fields disagree refuses.
 func TestRSICausalChainClosure(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, label string) artifact.ID { return testutil.ArtifactID(t, kind, label) }
 	proposal := id(artifact.KindEvidence, "evaluation-proposal")
 	motivation := id(artifact.KindEvidence, "evaluation-motivation")

@@ -8,6 +8,7 @@ import (
 )
 
 func TestMATHPinnedOracleParity(t *testing.T) {
+	t.Parallel()
 	const raw = "Work gives $\\frac12$."
 	compiled, err := CompileStructuredGenerated(StructuredGeneratedSuite{
 		Kind: StructuredGeneratedKind, Schema: "lm-eval/hendrycks-math/v1.0", Source: "fixture",

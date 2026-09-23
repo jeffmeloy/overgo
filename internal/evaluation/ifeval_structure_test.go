@@ -13,6 +13,7 @@ import (
 var ifevalStructureOracle []byte
 
 func TestIFEvalStructureContractAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("compiled criteria own their input values", func(t *testing.T) {
 		suite := InstructionRulesSuite{Kind: InstructionRulesKind, Schema: "native-count-ownership", Source: "fixture", Cases: []InstructionRulesCase{{Name: "count", Prompt: "Repeat cat.", MaxTokens: 1, Rules: []InstructionRule{{Name: "frequency", Kind: ifevalFrequency, Values: []string{"cat"}, Count: &CountRule{Relation: RelationAtLeast, Value: 2}}}}}}
 		compiled, err := CompileInstructionRules(suite)

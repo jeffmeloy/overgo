@@ -16,6 +16,7 @@ import (
 // token, a non-finite or positive likelihood refuses, and the report
 // publishes through the campaign ledger.
 func TestSequenceScoringPerplexity(t *testing.T) {
+	t.Parallel()
 	compiled, err := CompileSequenceScoring(SequenceScoringSuite{
 		Kind: SequenceScoringKind, Schema: "carbon/dna-heldout/v1", Source: "store/dna",
 		Cases: []SequenceScoringCase{

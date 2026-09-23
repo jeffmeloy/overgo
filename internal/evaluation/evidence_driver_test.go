@@ -34,6 +34,7 @@ type evidenceDriverFixture struct {
 }
 
 func TestEvidenceDriverConsumesCrossDomainCandidates(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
 	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
 	if err != nil {
@@ -77,6 +78,7 @@ func TestEvidenceDriverConsumesCrossDomainCandidates(t *testing.T) {
 }
 
 func TestEvidenceDerivedSelection(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
 	selected, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
 	if err != nil {
@@ -178,6 +180,7 @@ func TestEvidenceDerivedSelection(t *testing.T) {
 // incumbent/parent/joint/ablation arm, and emits evidence without mutating a
 // lifecycle or alias.
 func TestCrossDomainCandidateEvaluationAndAblationAttribution(t *testing.T) {
+	t.Parallel()
 	fixture := newEvidenceDriverFixture(t)
 	decision, err := CompileEvidenceDriverDecision(t.Context(), fixture.store, fixture.request)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 )
 
 func TestTextTargetModalitiesUseDeclaredScorers(t *testing.T) {
+	t.Parallel()
 	verifier := testutil.ArtifactID(t, artifact.KindProfile, "text target verifier")
 	likelihood := -1.25
 	for _, modality := range []recipecontract.Modality{

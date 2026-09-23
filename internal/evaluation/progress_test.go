@@ -3,6 +3,7 @@ package evaluation
 import "testing"
 
 func TestProgressTrackerReportsEveryCaseToTheBoundSink(t *testing.T) {
+	t.Parallel()
 	var seen []Progress
 	ctx := WithProgress(t.Context(), func(value Progress) { seen = append(seen, value) })
 	tracker := trackProgress(ctx, "store/bbh", 3)
@@ -27,6 +28,7 @@ func TestProgressTrackerReportsEveryCaseToTheBoundSink(t *testing.T) {
 }
 
 func TestProgressTrackerIsInertWithoutASink(t *testing.T) {
+	t.Parallel()
 	if tracker := trackProgress(t.Context(), "store/mmlu", 1); tracker != nil {
 		t.Fatal("unbound context produced a tracker")
 	}

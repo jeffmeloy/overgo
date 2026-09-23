@@ -12,6 +12,7 @@ import (
 )
 
 func TestPreferenceEvaluationBindsFrozenReferenceAndHeldoutSplit(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	datasetID := id(artifact.KindDataset, "preference dataset")
 	trainingID := id(artifact.KindDatasetShard, "preference training")

@@ -29,6 +29,7 @@ func (g *countingExactGenerator) Generate(
 }
 
 func TestExactFailureRetention(t *testing.T) {
+	t.Parallel()
 	for _, interruption := range []string{"none", "observer", "cancel", "generation"} {
 		t.Run(interruption, func(t *testing.T) {
 			suite := exactFixture()
@@ -134,6 +135,7 @@ func TestExactFailureRetention(t *testing.T) {
 }
 
 func TestResumeRejectsPartialOrForeignPlanResults(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	exact, plan := ledgerFixture(t, "environment")
 

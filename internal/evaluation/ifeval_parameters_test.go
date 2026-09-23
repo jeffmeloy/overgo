@@ -13,6 +13,7 @@ import (
 var ifevalLetterOracle []byte
 
 func TestIFEvalNativeParameterAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("legacy omitted operands retain identity", func(t *testing.T) {
 		legacy := json.RawMessage(`{"kind":"instruction-rules","schema":"legacy","source":"fixture","cases":[{"name":"one","prompt":"Count cats.","max_tokens":1,"rules":[{"name":"cats","kind":"substring-count","values":["cat"],"count":{"relation":"at-least","value":2}}]}]}`)
 		var suite InstructionRulesSuite

@@ -35,6 +35,7 @@ func (runtime terminalResourceRuntime) ScoreContinuations(
 }
 
 func TestResourceFitnessContract(t *testing.T) {
+	t.Parallel()
 	model := planID(t, artifact.KindModel, "resource model")
 	recipe := planID(t, artifact.KindRecipe, "resource recipe")
 	workload := planID(t, artifact.KindProfile, "compiled evaluation plan")

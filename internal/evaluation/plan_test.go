@@ -12,6 +12,7 @@ import (
 const planTestCommit = "0123456789abcdef0123456789abcdef01234567"
 
 func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
+	t.Parallel()
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +99,7 @@ func TestExactEvaluationPlanAuthorityContract(t *testing.T) {
 }
 
 func TestPlanRejectsInvalidEvaluationAuthority(t *testing.T) {
+	t.Parallel()
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)

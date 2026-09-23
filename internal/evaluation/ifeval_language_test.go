@@ -20,6 +20,7 @@ import (
 )
 
 func TestIFEvalLanguageAcceptance(t *testing.T) {
+	t.Parallel()
 	p, err := compiledIFEvalLanguage()
 	if err != nil {
 		t.Fatal(err)

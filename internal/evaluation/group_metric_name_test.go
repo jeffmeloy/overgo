@@ -9,6 +9,7 @@ import (
 // Group accuracy metrics ride the run-record label alphabet; a subset name
 // from a dataset never decides whether the evaluation can be recorded.
 func TestGroupAccuracyMetricNamesAreRecordLabels(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		"boolean_expressions":   "accuracy.boolean_expressions",
 		"murder_mysteries":      "accuracy.murder_mysteries",

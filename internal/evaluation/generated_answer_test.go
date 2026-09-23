@@ -8,6 +8,7 @@ import (
 )
 
 func TestGeneratedAnswerRetainsRawAndIdentifiesScoredView(t *testing.T) {
+	t.Parallel()
 	suite := GeneratedAnswerSuite{
 		Kind: GeneratedAnswerKind, Schema: "fixture/v1", Source: "fixture",
 		Transforms: []string{TransformTrimSpace, TransformLowercase},

@@ -32,6 +32,7 @@ type productionProbeFixture struct {
 }
 
 func TestProductionCapabilityProbeBindsExecutionPath(t *testing.T) {
+	t.Parallel()
 	fixture := newProductionProbeFixture(t, "binds-production-path")
 	result, commit, err := PublishProductionCapabilityProbe(t.Context(), fixture.store, fixture.request)
 	if err != nil {
@@ -68,6 +69,7 @@ func TestProductionCapabilityProbeBindsExecutionPath(t *testing.T) {
 }
 
 func TestProductionCapabilityProbeRejectsStaleOrSyntheticEvidence(t *testing.T) {
+	t.Parallel()
 	t.Run("stale terminal receipt", func(t *testing.T) {
 		fixture := newProductionProbeFixture(t, "stale-stage")
 		if _, err := runrecord.PublishStageReceipt(t.Context(), fixture.store, runrecord.StageReceipt{

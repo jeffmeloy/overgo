@@ -13,6 +13,7 @@ import (
 // publishes under its model's alias, reads back intact, re-declaration
 // replaces it, and an undeclared model reports absent.
 func TestPromptTemplateAuthority(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -59,6 +60,7 @@ func (s *prefixedFixtureScorer) ScoringPrefix() string { return s.prefix }
 // runtime declaring a scoring prefix scores every sequence inside it,
 // and one without scores from the empty context.
 func TestSequenceScoringUsesDeclaredPrefix(t *testing.T) {
+	t.Parallel()
 	compiled, err := CompileSequenceScoring(SequenceScoringSuite{
 		Kind: SequenceScoringKind, Schema: "carbon/dna-corpus/v1", Source: "store/dna",
 		Cases: []SequenceScoringCase{{Name: "seq-1", Group: "mrna_evo2", Text: "ACGTACGT"}},

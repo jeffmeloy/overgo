@@ -11,6 +11,7 @@ import (
 )
 
 func TestQwenFourRetainedBenchmarkAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

@@ -9,6 +9,7 @@ import (
 )
 
 func TestAlignmentScore(t *testing.T) {
+	t.Parallel()
 	reference := recipecontract.TimestampedAlignment{
 		Source:        recipecontract.AudioReference{Audio: testutil.ArtifactID(t, artifact.KindFile, "speech"), Profile: testutil.ArtifactID(t, artifact.KindProfile, "format")},
 		Transcription: testutil.ArtifactID(t, artifact.KindOutput, "transcript"),

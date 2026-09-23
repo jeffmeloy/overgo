@@ -18,6 +18,7 @@ import (
 // Retained answers can validate extraction without another model acquisition.
 // This checks the generated protocol; it grants no native likelihood credit.
 func TestMiniCPMRetainedChoiceAcceptance(t *testing.T) {
+	t.Parallel()
 	roots, err := dataroot.Resolve(testutil.RepoRoot(t))
 	if err != nil {
 		t.Fatal(err)

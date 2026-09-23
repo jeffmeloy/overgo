@@ -11,6 +11,7 @@ import (
 const shardCaseCount = 5
 
 func TestShardReportsMergeCanonicallyWithoutRetainedCampaign(t *testing.T) {
+	t.Parallel()
 	exact, err := CompileExact(exactFixture())
 	if err != nil {
 		t.Fatal(err)

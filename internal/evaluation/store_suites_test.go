@@ -28,6 +28,7 @@ func rawFields(t *testing.T, pairs map[string]any) map[string]json.RawMessage {
 // against the shapes the port's own fixtures use: lm_eval records
 // become exactly the suite cases the suite compilers admit.
 func TestStoreSuiteAssemblers(t *testing.T) {
+	t.Parallel()
 	mmlu, _, err := assembleMMLUSuite([]storeCase{{
 		entry: "mmlu/abstract_algebra/test", subset: "abstract_algebra", ordinal: 0,
 		fields: rawFields(t, map[string]any{
@@ -130,6 +131,7 @@ func TestStoreSuiteAssemblers(t *testing.T) {
 // publishes the catalog, and derivation compiles a runnable suite from
 // the store alone.
 func TestDeriveStoreSuites(t *testing.T) {
+	t.Parallel()
 	fixture, err := os.ReadFile(filepath.Join("..", "dataset", "testdata", "mmlu-dev.arrow"))
 	if err != nil {
 		t.Fatal(err)
@@ -184,6 +186,7 @@ func TestDeriveStoreSuites(t *testing.T) {
 // truncate to the fixed scoring window every model scores identically,
 // and rows inside the window pass through whole.
 func TestAssembleDNASuite(t *testing.T) {
+	t.Parallel()
 	long := strings.Repeat("ACGTCA", dnaScoringWindowChars/6+7)
 	assembled, dropped, err := assembleDNASuite([]storeCase{
 		{

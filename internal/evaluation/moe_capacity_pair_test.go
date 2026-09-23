@@ -8,6 +8,7 @@ import (
 )
 
 func TestCapacityEvaluationPairsConstrainedAndDroplessRuns(t *testing.T) {
+	t.Parallel()
 	id := func(kind artifact.Kind, name string) artifact.ID { return testutil.ArtifactID(t, kind, name) }
 	pair, err := moeCapacityPairCodec.New(moeCapacityPair{
 		Version: artifact.InitialDocumentVersion,

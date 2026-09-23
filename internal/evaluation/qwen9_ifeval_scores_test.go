@@ -15,12 +15,14 @@ import (
 )
 
 func TestQwenNineIFEvalScoresAcceptance(t *testing.T) {
+	t.Parallel()
 	checkFullNativeIFEvalScores(t,
 		"evidence:sha256:4e5eb501233489e0e4c54289971d5a67f729a5cf1c1153ed5d31e3eb2bd9c00e",
 		"evaluation/qwen9-ifeval-cc267157", "", "")
 }
 
 func TestNativeIFEvalInputControl(t *testing.T) {
+	t.Parallel()
 	checkFullNativeIFEvalScores(t,
 		"evidence:sha256:4e5eb501233489e0e4c54289971d5a67f729a5cf1c1153ed5d31e3eb2bd9c00e",
 		"evaluation/qwen9-ifeval-cc267157",
@@ -28,6 +30,7 @@ func TestNativeIFEvalInputControl(t *testing.T) {
 }
 
 func TestGemmaNativeIFEvalAcceptance(t *testing.T) {
+	t.Parallel()
 	t.Run("reference-control", TestNativeIFEvalInputControl)
 	var fixtures map[string]struct {
 		Request artifact.ID `json:"request"`

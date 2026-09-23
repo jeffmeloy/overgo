@@ -11,6 +11,7 @@ import (
 var ifevalJSONOracle []byte
 
 func TestIFEvalJSONAcceptance(t *testing.T) {
+	t.Parallel()
 	var oracle struct {
 		ReferenceVersion string            `json:"reference_version"`
 		Sources          map[string]string `json:"sources"`

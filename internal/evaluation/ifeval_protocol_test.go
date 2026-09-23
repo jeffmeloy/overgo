@@ -8,6 +8,7 @@ import (
 // lm_eval 0.4.9.1, ifeval.yaml task v4.0: max_gen_toks=1280.
 // instructions.py SHA256 1556285b56cb81a7a1ada79327cd8797681aed004160c7f87b3a94f3e10bae32.
 func TestIFEvalProtocolAcceptance(t *testing.T) {
+	t.Parallel()
 	assembled, dropped, err := assembleIFEvalSuite([]storeCase{{
 		entry: "ifeval/default/train", subset: "default", ordinal: 0,
 		fields: rawFields(t, map[string]any{

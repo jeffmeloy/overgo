@@ -37,6 +37,7 @@ func writeTensorFixture(t *testing.T) string {
 }
 
 func TestAnalyzeTensorsReturnsDistributionFreeProfiles(t *testing.T) {
+	t.Parallel()
 	path := writeTensorFixture(t)
 	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: path})
 
@@ -72,6 +73,7 @@ func TestAnalyzeTensorsReturnsDistributionFreeProfiles(t *testing.T) {
 }
 
 func TestAnalyzeTensorsRejectsNonGet(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeTensorFixture(t)})
 	response := serveTestRequest(handler, http.MethodPost, "/analyze/tensors", "")
 	if response.Code != http.StatusMethodNotAllowed {
@@ -106,6 +108,7 @@ func writeMultiTensorFixture(t *testing.T) string {
 }
 
 func TestAnalyzeTensorsSimilarRanksByShape(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeMultiTensorFixture(t)})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/tensors/similar?name=sym&k=3", "")
 	if response.Code != http.StatusOK {
@@ -136,6 +139,7 @@ func TestAnalyzeTensorsSimilarRanksByShape(t *testing.T) {
 }
 
 func TestAnalyzeTensorsSimilarValidation(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, tensorPathGenerator{fakeGenerator: &fakeGenerator{}, path: writeMultiTensorFixture(t)})
 	cases := []struct {
 		query string
@@ -154,6 +158,7 @@ func TestAnalyzeTensorsSimilarValidation(t *testing.T) {
 }
 
 func TestAnalyzeTensorsSurfacesEffectiveRank(t *testing.T) {
+	t.Parallel()
 	ones := make([]float32, 16) // 4x4 all-ones -> rank 1 -> effective rank 0.25
 	for i := range ones {
 		ones[i] = 1
@@ -181,6 +186,7 @@ func TestAnalyzeTensorsSurfacesEffectiveRank(t *testing.T) {
 }
 
 func TestAnalyzeModelAdvertisesTensorCapability(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/model", "")
 	var result analyzeModelResponse

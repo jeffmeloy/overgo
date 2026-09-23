@@ -13,6 +13,7 @@ import (
 
 // Exercise the wire result and its durable projection with the same generation.
 func TestResponsesIncompleteAtOutputLimit(t *testing.T) {
+	t.Parallel()
 	requestMessages := []map[string]string{
 		{"role": "user", "content": "previous question"},
 		{"role": "assistant", "content": "previous complete answer"},

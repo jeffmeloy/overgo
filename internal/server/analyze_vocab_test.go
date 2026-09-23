@@ -36,6 +36,7 @@ func newVocabGenerator() *vocabGenerator {
 }
 
 func TestAnalyzeVocabPagesAndReportsTypes(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, newVocabGenerator())
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/vocab?offset=1&limit=2", "")
 	if response.Code != http.StatusOK {
@@ -60,6 +61,7 @@ func TestAnalyzeVocabPagesAndReportsTypes(t *testing.T) {
 }
 
 func TestAnalyzeVocabFiltersByQuery(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, newVocabGenerator())
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/vocab?query=THE", "")
 	if response.Code != http.StatusOK {
@@ -82,6 +84,7 @@ func TestAnalyzeVocabFiltersByQuery(t *testing.T) {
 }
 
 func TestAnalyzeVocabClampsLimitAndTypeLabels(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, newVocabGenerator())
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/vocab?limit=100000", "")
 	var result analyzeVocabResponse
@@ -98,6 +101,7 @@ func TestAnalyzeVocabClampsLimitAndTypeLabels(t *testing.T) {
 }
 
 func TestAnalyzeVocabUnsupportedWhenNoVocabulary(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/analyze/vocab", "")
 	if response.Code != http.StatusNotImplemented {
@@ -113,6 +117,7 @@ func TestAnalyzeVocabUnsupportedWhenNoVocabulary(t *testing.T) {
 }
 
 func TestAnalyzeVocabRejectsNonGet(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, newVocabGenerator())
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/analyze/vocab", nil))

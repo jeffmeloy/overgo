@@ -8,6 +8,7 @@ import (
 )
 
 func TestWorkspaceManifest(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
 	if response.Code != http.StatusOK {
@@ -39,6 +40,7 @@ func TestWorkspaceManifest(t *testing.T) {
 }
 
 func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {
+	t.Parallel()
 	response := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/workspace/manifest", "")
 	var manifest workspaceManifestResponse
 	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &manifest) != nil {
@@ -55,6 +57,7 @@ func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {
 }
 
 func TestWebUIWorkspaceRoutes(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	boot := serveTestRequest(handler, http.MethodGet, "/boot.js", "").Body.String()
 	for _, expected := range []string{"/workspace/manifest", "bindWorkspaceManifest", "tab.enabled", "tab.refusal"} {

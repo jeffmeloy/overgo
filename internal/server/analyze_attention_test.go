@@ -13,6 +13,7 @@ import (
 // and the GQA head→kv-head mapping. Geometry: headDim=2, 2 query heads, 1 kv
 // head (group=2), 2 tokens, scale=1.
 func TestAttentionWeightsHostMath(t *testing.T) {
+	t.Parallel()
 	// Query Data index = d + head*headDim + token*headDim*heads (headDim=2, heads=2).
 	// head0 q=(1,0) both tokens; head1 q=(0,1) both tokens.
 	query := []float32{
@@ -69,6 +70,7 @@ func TestAttentionWeightsHostMath(t *testing.T) {
 // protects the index arithmetic from a capture whose data does not match its
 // declared geometry.
 func TestAttentionWeightsRejectsMismatchedGeometry(t *testing.T) {
+	t.Parallel()
 	capture := inference.AttentionCapture{
 		Heads: 2, KVHeads: 1, HeadDim: 2, Scale: 1,
 		Query: reference.Value{Data: []float32{1, 0, 0}}, // wrong length
@@ -80,6 +82,7 @@ func TestAttentionWeightsRejectsMismatchedGeometry(t *testing.T) {
 }
 
 func TestAttentionWeightsRejectsInvalidGQAAndNonFiniteInputs(t *testing.T) {
+	t.Parallel()
 	tests := []inference.AttentionCapture{
 		{Heads: 3, KVHeads: 2, HeadDim: 1, Scale: 1, Query: reference.Value{Data: make([]float32, 3)}, Key: reference.Value{Data: make([]float32, 2)}},
 		{Heads: 1, KVHeads: 1, HeadDim: 1, Scale: 1, Query: reference.Value{Data: []float32{float32(math.NaN())}}, Key: reference.Value{Data: []float32{1}}},

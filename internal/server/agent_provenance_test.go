@@ -18,6 +18,7 @@ import (
 // while an inspection's provenance carries no receipts and no
 // decision, because inspections are effect-free.
 func TestAgentProvenance(t *testing.T) {
+	t.Parallel()
 	handler := agentTestHandler(t, func(ctx context.Context, store *overgodb.Store) {
 		manuals, err := agenttool.StandardManuals()
 		if err != nil {

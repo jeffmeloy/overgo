@@ -90,6 +90,7 @@ func (w *stalledResponseWriter) SetWriteDeadline(time.Time) error {
 }
 
 func TestStoredResponseStopInterruptsStalledWrite(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	interrupted := make(chan struct{})
 	writer := &stalledResponseWriter{ResponseRecorder: httptest.NewRecorder(), blocked: make(chan struct{}), interrupted: interrupted,
@@ -141,6 +142,7 @@ func (w *disconnectedResponseWriter) Write(p []byte) (int, error) {
 }
 
 func TestStoredResponseDisconnectFinalization(t *testing.T) {
+	t.Parallel()
 	for _, event := range []string{"response.created", "response.output_item.added", "response.output_text.done"} {
 		for _, ending := range []struct{ tokens, status string }{{"2", "incomplete"}, {"3", "completed"}} {
 			t.Run(event+"/"+ending.status, func(t *testing.T) {
@@ -194,6 +196,7 @@ func TestStoredResponseDisconnectFinalization(t *testing.T) {
 }
 
 func TestStoredResponseTerminalControl(t *testing.T) {
+	t.Parallel()
 	for _, action := range []string{"cancel", "opaque cancel", "shutdown", "failure"} {
 		t.Run(action, func(t *testing.T) {
 			store, err := overgodb.Open(t.TempDir())
@@ -283,6 +286,7 @@ func TestStoredResponseTerminalControl(t *testing.T) {
 }
 
 func TestStoredResponseUnconfirmedRestart(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

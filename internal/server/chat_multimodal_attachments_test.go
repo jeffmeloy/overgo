@@ -14,6 +14,7 @@ import (
 // text-only serving fixture -- while an unsupported part type is a
 // typed invalid request, never silently dropped.
 func TestChatMultimodalAttachments(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	cases := []struct {
 		name, part, refusal string

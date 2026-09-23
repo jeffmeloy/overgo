@@ -57,6 +57,7 @@ func (generator *mediaToolGenerator) FormatChatWithOptions(
 }
 
 func TestResponsesImageContentPartProjectsPrompt(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -114,6 +115,7 @@ func TestResponsesImageContentPartProjectsPrompt(t *testing.T) {
 }
 
 func TestChatAndResponsesEncodedVideoProjection(t *testing.T) {
+	t.Parallel()
 	videoData := encodedGIFDataURI(t)
 	for _, test := range []struct {
 		name string
@@ -176,6 +178,7 @@ func encodedGIFDataURI(t *testing.T) string {
 }
 
 func TestResponsesMultipleImagesPreservesContentOrder(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
@@ -221,6 +224,7 @@ func TestResponsesMultipleImagesPreservesContentOrder(t *testing.T) {
 }
 
 func TestResponsesImageHistoryPreservesTurnPosition(t *testing.T) {
+	t.Parallel()
 	base := &fakeGenerator{}
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
@@ -273,6 +277,7 @@ func TestResponsesImageHistoryPreservesTurnPosition(t *testing.T) {
 }
 
 func TestResponsesMixedImageAudioPreservesChunkOrder(t *testing.T) {
+	t.Parallel()
 	base := &fakeGenerator{}
 	generator := &historyGenerator{fakeGenerator: base}
 	vision := &fakeHistoryProjector{}
@@ -319,6 +324,7 @@ func TestResponsesMixedImageAudioPreservesChunkOrder(t *testing.T) {
 }
 
 func TestResponsesMultimodalValidation(t *testing.T) {
+	t.Parallel()
 	vision := &fakeQwen3VLProjector{}
 	handler, err := New(Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
@@ -350,6 +356,7 @@ func TestResponsesMultimodalValidation(t *testing.T) {
 }
 
 func TestChatAndResponsesMultimodalFunctionTools(t *testing.T) {
+	t.Parallel()
 	input := image.NewRGBA(image.Rect(0, 0, 1, 1))
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, input); err != nil {
@@ -404,6 +411,7 @@ func TestChatAndResponsesMultimodalFunctionTools(t *testing.T) {
 }
 
 func TestAnthropicImageToolsAndTokenCounting(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
@@ -448,6 +456,7 @@ func TestAnthropicImageToolsAndTokenCounting(t *testing.T) {
 }
 
 func TestAnthropicThinkingBufferedStreamingImageAndReplay(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
@@ -548,6 +557,7 @@ func TestAnthropicThinkingBufferedStreamingImageAndReplay(t *testing.T) {
 }
 
 func TestAnthropicThinkingValidationAndToolPolicy(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		name     string
 		thinking string
@@ -579,6 +589,7 @@ func TestAnthropicThinkingValidationAndToolPolicy(t *testing.T) {
 }
 
 func TestBufferedResponsesFunctionCall(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		pieces: []string{
 			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
@@ -625,6 +636,7 @@ func TestBufferedResponsesFunctionCall(t *testing.T) {
 }
 
 func TestStreamingResponsesLifecycle(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -668,6 +680,7 @@ func TestStreamingResponsesLifecycle(t *testing.T) {
 }
 
 func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		pieces: []string{
 			`<tool_call><function=weather><parameter=city>`,
@@ -732,6 +745,7 @@ func TestStreamingResponsesFunctionCallLifecycle(t *testing.T) {
 }
 
 func TestStreamingResponsesStoresContinuationHistory(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{pieces: []string{"A"}}
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, generator))
 	stream := httptest.NewRecorder()
@@ -773,6 +787,7 @@ func TestStreamingResponsesStoresContinuationHistory(t *testing.T) {
 }
 
 func TestResponsesReasoningItemsBufferedAndStreaming(t *testing.T) {
+	t.Parallel()
 	for _, stream := range []bool{false, true} {
 		t.Run(fmt.Sprintf("stream=%v", stream), func(t *testing.T) {
 			generator := &reasoningGenerator{fakeGenerator: &fakeGenerator{
@@ -826,6 +841,7 @@ func TestResponsesReasoningItemsBufferedAndStreaming(t *testing.T) {
 }
 
 func TestResponsesReasoningInputItem(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
@@ -853,6 +869,7 @@ func TestResponsesReasoningInputItem(t *testing.T) {
 }
 
 func TestResponsesValidationAndMethod(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{}`,
@@ -876,6 +893,7 @@ func TestResponsesValidationAndMethod(t *testing.T) {
 }
 
 func TestResponsesInputTokensAuthentication(t *testing.T) {
+	t.Parallel()
 	handler, err := New(Config{
 		ModelID:            testModelID,
 		MaxTokens:          testMaxTokens,
@@ -911,6 +929,7 @@ func TestResponsesInputTokensAuthentication(t *testing.T) {
 }
 
 func TestAnthropicInputTokensTextForms(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"model":"test-model","messages":[{"role":"user","content":"hello"}]}`,
@@ -940,6 +959,7 @@ func TestAnthropicInputTokensTextForms(t *testing.T) {
 }
 
 func TestAnthropicInputTokensIncludeToolsAndResults(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	response := httptest.NewRecorder()
@@ -982,6 +1002,7 @@ func TestAnthropicInputTokensIncludeToolsAndResults(t *testing.T) {
 }
 
 func TestBufferedAnthropicMessages(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -1016,6 +1037,7 @@ func TestBufferedAnthropicMessages(t *testing.T) {
 }
 
 func TestBufferedAnthropicToolUse(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		pieces: []string{
 			`<tool_call><function=weather><parameter=city>Paris</parameter></function></tool_call>`,
@@ -1060,6 +1082,7 @@ func TestBufferedAnthropicToolUse(t *testing.T) {
 }
 
 func TestAnthropicMessagesStopAndValidation(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	stopped := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -1098,6 +1121,7 @@ func TestAnthropicMessagesStopAndValidation(t *testing.T) {
 }
 
 func TestStreamingAnthropicMessagesLifecycle(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(
@@ -1140,6 +1164,7 @@ func TestStreamingAnthropicMessagesLifecycle(t *testing.T) {
 }
 
 func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{
 		pieces: []string{
 			`<tool_call><function=weather><parameter=city>`,
@@ -1193,6 +1218,7 @@ func TestStreamingAnthropicToolUseLifecycle(t *testing.T) {
 }
 
 func TestParseAnthropicToolHistory(t *testing.T) {
+	t.Parallel()
 	messages, err := parseAnthropicMessages(
 		nil,
 		json.RawMessage(`[
@@ -1224,6 +1250,7 @@ func TestParseAnthropicToolHistory(t *testing.T) {
 }
 
 func TestAnthropicInputTokensValidationAndMethod(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{}`,
@@ -1258,6 +1285,7 @@ func TestAnthropicInputTokensValidationAndMethod(t *testing.T) {
 }
 
 func TestChatInputTokensValidationAuthenticationAndMethod(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"messages":[]}`,
@@ -1311,6 +1339,7 @@ func TestChatInputTokensValidationAuthenticationAndMethod(t *testing.T) {
 }
 
 func TestCompletionRejectsInvalidPromptShapesAndBatchBounds(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	largeBatch := make([]string, 65)
 	for index := range largeBatch {
@@ -1341,6 +1370,7 @@ func TestCompletionRejectsInvalidPromptShapesAndBatchBounds(t *testing.T) {
 }
 
 func TestApplyTemplate(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1362,6 +1392,7 @@ func TestApplyTemplate(t *testing.T) {
 }
 
 func TestApplyTemplateSuppliesToolsAndTemplateOptions(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{}
 	handler := newTestHandler(t, generator)
 	body := `{
@@ -1408,6 +1439,7 @@ func TestApplyTemplateSuppliesToolsAndTemplateOptions(t *testing.T) {
 }
 
 func TestApplyTemplateRejectsMethodAndInvalidMessages(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := httptest.NewRequest(http.MethodGet, "/apply-template", nil)
 	getResponse := httptest.NewRecorder()
@@ -1428,6 +1460,7 @@ func TestApplyTemplateRejectsMethodAndInvalidMessages(t *testing.T) {
 }
 
 func TestTokenizeAndDetokenizeEndpoints(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	tokenize := httptest.NewRequest(
 		http.MethodPost,
@@ -1461,6 +1494,7 @@ func TestTokenizeAndDetokenizeEndpoints(t *testing.T) {
 }
 
 func TestTokenizeMixedContentAndPinnedDefaults(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, test := range []struct {
 		name string
@@ -1500,6 +1534,7 @@ func TestTokenizeMixedContentAndPinnedDefaults(t *testing.T) {
 }
 
 func TestTokenizeWithPiecesPreservesInvalidUTF8AsBytes(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1536,6 +1571,7 @@ func TestTokenizeWithPiecesPreservesInvalidUTF8AsBytes(t *testing.T) {
 }
 
 func TestTokenizeRejectsInvalidMixedContent(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"content":[64]}`,
@@ -1550,6 +1586,7 @@ func TestTokenizeRejectsInvalidMixedContent(t *testing.T) {
 }
 
 func TestDetokenizeRejectsOutOfRangeToken(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1564,6 +1601,7 @@ func TestDetokenizeRejectsOutOfRangeToken(t *testing.T) {
 }
 
 func TestChatCompletionMultipleChoices(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1590,6 +1628,7 @@ func TestChatCompletionMultipleChoices(t *testing.T) {
 }
 
 func TestStreamingChatCompletion(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -1616,6 +1655,7 @@ func TestStreamingChatCompletion(t *testing.T) {
 }
 
 func TestRejectsInvalidRequest(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	for _, body := range []string{
 		`{"prompt":""}`,
@@ -1631,6 +1671,7 @@ func TestRejectsInvalidRequest(t *testing.T) {
 }
 
 func TestServerParksBoundedGenerationRequests(t *testing.T) {
+	t.Parallel()
 	blocking := &fakeGenerator{started: make(chan struct{}), release: make(chan struct{})}
 	handler := newTestHandler(t, blocking)
 	firstDone := make(chan struct{})
@@ -1664,6 +1705,7 @@ func TestServerParksBoundedGenerationRequests(t *testing.T) {
 }
 
 func TestCancellationPropagates(t *testing.T) {
+	t.Parallel()
 	blocking := &fakeGenerator{started: make(chan struct{}), release: make(chan struct{})}
 	handler := newTestHandler(t, blocking)
 	ctx, cancel := context.WithCancel(t.Context())

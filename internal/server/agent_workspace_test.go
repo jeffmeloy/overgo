@@ -44,6 +44,7 @@ func agentTestHandler(t *testing.T, register func(context.Context, *overgodb.Sto
 // coverage, an inspection step admits, and a mutation admits only with
 // approval -- the coordinator owning every rule.
 func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
+	t.Parallel()
 	// The serving executor refuses loopback endpoints by policy, so the
 	// fixture uses the store-inspection builtin for the inspection step
 	// and a mutation manual whose only role is exercising the approval
@@ -156,6 +157,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 // a step naming a tool the store never registered is refused, not
 // executed, and no durable interaction is written for it.
 func TestAgentWorkspaceRefusesUnregisteredTool(t *testing.T) {
+	t.Parallel()
 	handler := agentTestHandler(t, nil)
 	refused := serveTestRequest(handler, http.MethodPost, "/agent/step",
 		`{"session":"ghost","tool":"probe.absent"}`)
@@ -169,6 +171,7 @@ func TestAgentWorkspaceRefusesUnregisteredTool(t *testing.T) {
 // with its recorded step count and inspection state, so a restart
 // neither resets the mutation gate nor forks the interaction chain.
 func TestAgentWorkspaceRestoresSessionsAcrossRestart(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

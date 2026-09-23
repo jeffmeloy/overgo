@@ -14,6 +14,7 @@ import (
 // the same bounded causality answers — the reproducible-explanation
 // guarantee every other control stage stands on.
 func TestDeterministicRSIControlPlane(t *testing.T) {
+	t.Parallel()
 	base := t.TempDir()
 	sourceRoot := filepath.Join(base, "source")
 	ctx := t.Context()

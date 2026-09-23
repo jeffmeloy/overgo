@@ -55,6 +55,7 @@ type peerWorkspaceFixture struct {
 }
 
 func TestPeerControlAPI(t *testing.T) {
+	t.Parallel()
 	fixture := newPeerWorkspaceFixture(t, "peer-control-api", "")
 	peer, publication := publishPeerControlFixture(t, fixture, "api-peer")
 	inventory := serveTestRequest(fixture.handler, http.MethodGet, "/peers", "")
@@ -86,6 +87,7 @@ func TestPeerControlAPI(t *testing.T) {
 }
 
 func TestPeerControlAuthorization(t *testing.T) {
+	t.Parallel()
 	fixture := newPeerWorkspaceFixture(t, "peer-control-auth", testAPIKey)
 	unauthorized := serveTestRequest(fixture.handler, http.MethodGet, "/peers", "")
 	if unauthorized.Code != http.StatusUnauthorized {
@@ -101,6 +103,7 @@ func TestPeerControlAuthorization(t *testing.T) {
 }
 
 func TestPeerControlProjectionBounds(t *testing.T) {
+	t.Parallel()
 	fixture := newPeerWorkspaceFixture(t, "peer-control-bounds", "")
 	publishPeerControlFixture(t, fixture, "bounded-one")
 	publishPeerControlFixture(t, fixture, "bounded-two")
@@ -113,6 +116,7 @@ func TestPeerControlProjectionBounds(t *testing.T) {
 }
 
 func TestPeerControlRefusalReasons(t *testing.T) {
+	t.Parallel()
 	fixture := newPeerWorkspaceFixture(t, "peer-control-refusal", "")
 	response := serveTestRequest(fixture.handler, http.MethodPost, "/peers/placement", peerWorkspaceJSON(t, modelrecipe.PeerPlacementRequest{
 		Model: testutil.ArtifactID(t, artifact.KindModel, "missing-active-model"), Task: recipe.TaskGeneration,

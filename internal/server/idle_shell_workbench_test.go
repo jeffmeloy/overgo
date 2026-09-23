@@ -13,6 +13,7 @@ import (
 // idle shell answers downloads, validation and operations over the store
 // while no model serves; without one those routes refuse as before.
 func TestIdleShellDelegatesWorkbenchRoutes(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

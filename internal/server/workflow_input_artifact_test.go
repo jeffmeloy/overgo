@@ -10,6 +10,7 @@ import (
 // the page fills it from a media card's stored id, and a value that is no
 // artifact id is refused before any run, while a well-formed id passes.
 func TestWorkflowInputArtifactControl(t *testing.T) {
+	t.Parallel()
 	if !WorkflowControlArtifact.valid() {
 		t.Fatal("the artifact control type is not a valid capability control")
 	}

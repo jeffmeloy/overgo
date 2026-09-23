@@ -12,6 +12,7 @@ import (
 // in the clone leaves the source's bytes in place, and an existing
 // destination is refused.
 func TestCloneStoreSharesBlobsAndKeepsTheChain(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	fixture := newReleaseFixture(t)
 	if _, err := fixture.store.Snapshot(ctx); err != nil {

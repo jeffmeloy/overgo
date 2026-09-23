@@ -35,6 +35,7 @@ func (g *protocolAdmissionGenerator) Generate(ctx context.Context, prompt string
 }
 
 func TestProtocolContextOverflow(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)

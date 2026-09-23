@@ -16,6 +16,7 @@ import (
 // counts is an empty literal that is assigned and then filled; the empty
 // literal the package returns as a zero value builds nothing and is no site.
 func TestStoreAccessCensus(t *testing.T) {
+	t.Parallel()
 	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)

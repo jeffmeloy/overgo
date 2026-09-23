@@ -18,6 +18,7 @@ import (
 // audit clean, and the harness surface free of regressions against its
 // stored baseline. A budget widens only by a reviewed manifest edit.
 func TestStructureBudgetRatchets(t *testing.T) {
+	t.Parallel()
 	root := filepath.Join("..", "..")
 	budgets, err := repoanalysis.LoadStructureBudgets(filepath.Join(root, filepath.FromSlash(repoanalysis.StructureBudgetsFile)))
 	if err != nil {

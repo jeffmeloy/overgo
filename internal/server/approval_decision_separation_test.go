@@ -21,6 +21,7 @@ import (
 // agent grant are all refused; a grant naming the advertised request is
 // recorded with both identities and recovers the operation.
 func TestApprovalDecisionSeparation(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "separation-recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "separation-run")

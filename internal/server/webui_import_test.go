@@ -21,6 +21,7 @@ import (
 // attach, drop and paste, refuses from the document's bounds before
 // upload, and previews each kind.
 func TestFrontPageImport(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	manifest := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")

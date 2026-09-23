@@ -56,6 +56,7 @@ type agentWorkspaceFixture struct {
 }
 
 func TestAgentWorkspaceVertical(t *testing.T) {
+	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	definition := publishAgentFromAPI(t, fixture, nil, nil)
@@ -84,6 +85,7 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 }
 
 func TestAgentWorkspaceSSE(t *testing.T) {
+	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
@@ -107,6 +109,7 @@ func TestAgentWorkspaceSSE(t *testing.T) {
 }
 
 func TestAgentWorkspaceRetrievalEvidence(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -195,6 +198,7 @@ type agentAutomationGenerator struct {
 }
 
 func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
+	t.Parallel()
 	automation := newAutomationServerFixture(t)
 	defer automation.store.Close()
 	automationID := publishAutomationFromAPI(t, automation)
@@ -228,6 +232,7 @@ func TestAgentWorkspaceAutomationAttachment(t *testing.T) {
 }
 
 func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
+	t.Parallel()
 	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
 	defer fixture.store.Close()
 	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")

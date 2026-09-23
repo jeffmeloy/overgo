@@ -17,6 +17,7 @@ import (
 const operationEvidenceSecret = "transcript-content-must-stay-private"
 
 func TestOperationEvidenceProjection(t *testing.T) {
+	t.Parallel()
 	fixture, execution, status := operationEvidenceFixture(t)
 	defer fixture.store.Close()
 	response := serveTestRequest(
@@ -38,6 +39,7 @@ func TestOperationEvidenceProjection(t *testing.T) {
 }
 
 func TestOperationSummary(t *testing.T) {
+	t.Parallel()
 	projection := OperationEvidenceProjection{
 		Operation: &operation.Status{State: operation.StateCompleted, Attempts: []artifact.ID{{}, {}}},
 		Stages: []OperationEvidenceDocument[runrecord.StageReceipt]{
@@ -69,6 +71,7 @@ func TestOperationSummary(t *testing.T) {
 }
 
 func TestOperationProjectionBounds(t *testing.T) {
+	t.Parallel()
 	fixture, execution, status := operationEvidenceFixture(t)
 	defer fixture.store.Close()
 	publishOperationInteraction(t, fixture, execution.Operation, *status.Run, "resp_operation_second", "second private payload")
@@ -79,6 +82,7 @@ func TestOperationProjectionBounds(t *testing.T) {
 }
 
 func TestTracePayloadRedaction(t *testing.T) {
+	t.Parallel()
 	fixture, execution, _ := operationEvidenceFixture(t)
 	defer fixture.store.Close()
 	projection, err := fixture.handler.operationEvidenceSnapshot(t.Context(), execution.Operation, fixture.handler.config.MaxStoredResponses)

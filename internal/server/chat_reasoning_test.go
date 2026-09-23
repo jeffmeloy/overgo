@@ -80,6 +80,7 @@ func (g *declaredReasoningGenerator) NewChatOutputStreamForPrompt(prompt string,
 }
 
 func TestChatReasoningDeclaredChannels(t *testing.T) {
+	t.Parallel()
 	const gemma = "<|channel>thought\n<channel|>"
 	t.Run("token_event_decoder_reaches_generation", func(t *testing.T) {
 		for _, streaming := range []bool{false, true} {

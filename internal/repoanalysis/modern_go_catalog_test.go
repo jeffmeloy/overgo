@@ -8,6 +8,7 @@ import (
 )
 
 func TestModernGoCatalogMatchesPinnedSource(t *testing.T) {
+	t.Parallel()
 	if ModernGoCatalogRepository != "https://github.com/JetBrains/go-modern-guidelines" ||
 		ModernGoCatalogCommit != "40781f167719913666fe2a7dc1c77ea6f256df0a" ||
 		ModernGoCatalogPluginVersion != "v0.1.1" {
@@ -47,6 +48,7 @@ func TestModernGoCatalogMatchesPinnedSource(t *testing.T) {
 }
 
 func TestModernGoPriorCampaignReconciliation(t *testing.T) {
+	t.Parallel()
 	catalog := ModernGoCatalog()
 	commits := ModernGoPriorCampaign()
 	if len(commits) != 17 {
@@ -80,6 +82,7 @@ func TestModernGoPriorCampaignReconciliation(t *testing.T) {
 }
 
 func TestModernGoCatalogReturnsDetachedData(t *testing.T) {
+	t.Parallel()
 	first := ModernGoCatalog()
 	first[0].ID = "changed"
 	first[0].Examples[0].Before[0] = "changed"

@@ -13,6 +13,7 @@ import (
 // TestWebUIBrowserSamplingSettings changes the temperature in Settings,
 // sends a turn, and reads the resolved chain the turn's inspector shows.
 func TestWebUIBrowserSamplingSettings(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": sampling settings run through cmd/webui-lane")
 	}

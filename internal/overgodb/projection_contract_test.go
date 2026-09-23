@@ -13,6 +13,7 @@ import (
 // coordinator tests prove its behavior). Reflection appears only
 // here, to prove the compiled registry is closed over the aggregate.
 func TestProjectionContractIsClosedAndVersioned(t *testing.T) {
+	t.Parallel()
 	state := newCatalogState()
 	views := projections(&state)
 	facetFields := reflect.TypeOf(state).NumField()

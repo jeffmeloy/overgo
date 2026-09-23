@@ -16,6 +16,7 @@ import (
 // order, an absent id is the exact missing-content error, and content
 // presence for a mixed list answers in one acquisition.
 func TestHighFanoutReadsAreBatched(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {

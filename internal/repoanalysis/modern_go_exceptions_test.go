@@ -11,6 +11,7 @@ import (
 )
 
 func TestModernGoExceptionsAreExactOwnedAndTested(t *testing.T) {
+	t.Parallel()
 	census, baseline := modernGoRepositoryExceptionAuthority(t)
 	type group struct {
 		owner string
@@ -53,6 +54,7 @@ func TestModernGoExceptionsAreExactOwnedAndTested(t *testing.T) {
 }
 
 func TestModernGoExceptionsHaveRetirementTriggers(t *testing.T) {
+	t.Parallel()
 	_, baseline := modernGoRepositoryExceptionAuthority(t)
 	today := time.Now().UTC()
 	latest := today.AddDate(1, 0, 1)

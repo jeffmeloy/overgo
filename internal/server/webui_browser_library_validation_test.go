@@ -69,6 +69,7 @@ func laneHubServer(t *testing.T, file string) *httptest.Server {
 // the picker then serves it; a model registered with its projector
 // validates its text path and keeps the projector as its projection.
 func TestModelJourneyLibraryValidation(t *testing.T) {
+	t.Parallel()
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
 		t.Skip(testskip.Inapplicable + ": library validation runs through cmd/webui-lane -journeys")
 	}

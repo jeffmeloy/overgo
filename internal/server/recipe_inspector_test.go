@@ -77,6 +77,7 @@ func responseRecipeGenerator(t testing.TB, generator *fakeGenerator) *recipeInsp
 }
 
 func TestActiveRecipeInspectorUsesCompiledOrder(t *testing.T) {
+	t.Parallel()
 	modelID := testutil.ArtifactID(t, artifact.KindModel, "inspector-model")
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "inspector-recipe")
 	profileID := testutil.ArtifactID(t, artifact.KindProfile, "inspector-profile")

@@ -16,6 +16,7 @@ import (
 // tailing across a snapshot-driven rotation refreshes onto the
 // writer's head.
 func TestSegmentedBackupAndReadOnlyRefresh(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	copyScaleCorpus(t, root)

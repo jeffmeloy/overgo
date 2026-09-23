@@ -17,6 +17,7 @@ import (
 // edges are the definition's own. An operation with neither receipts
 // nor live status is a typed not-found.
 func TestWorkflowDAG(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	store := handler.repository
 	ctx := t.Context()

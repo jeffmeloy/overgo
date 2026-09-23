@@ -17,6 +17,7 @@ import (
 // head receives only the ordered coalesced change since, and a foreign
 // projection contract forces resync instead of an unbridgeable delta.
 func TestHeadBoundDeltaReconciliation(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

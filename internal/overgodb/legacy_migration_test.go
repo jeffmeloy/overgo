@@ -85,6 +85,7 @@ func writeLegacyInlineStore(t *testing.T, root string, commits int) []artifact.I
 // places each content by the size rule while artifact, content, alias, and
 // lineage semantics match the source exactly.
 func TestLegacyInlineToBlobRebuildRoundTrip(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	const commits = 24

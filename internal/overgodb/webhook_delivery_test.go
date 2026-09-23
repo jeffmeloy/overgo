@@ -12,6 +12,7 @@ import (
 )
 
 func TestWebhookDeliveryLedgerIdempotency(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)

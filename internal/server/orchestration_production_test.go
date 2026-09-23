@@ -20,6 +20,7 @@ type orchestrationValidationClock struct{ now time.Time }
 func (clock orchestrationValidationClock) Now() time.Time { return clock.now }
 
 func TestOrchestrationProductionVerticals(t *testing.T) {
+	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	manualDefinition := publishAutomationFromAPI(t, fixture)

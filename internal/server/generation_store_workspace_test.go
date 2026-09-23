@@ -112,6 +112,7 @@ func (r *recordingReporter) Publishing()              { r.published = true }
 // TestGenerationWorkspaceIdentityRefresh requires repeated listings to
 // retain the digest memo while still rejecting changed model bytes.
 func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -159,6 +160,7 @@ func TestGenerationWorkspaceIdentityRefresh(t *testing.T) {
 // declares, the run reaches the catalog's executor with the model bytes,
 // and the output comes back as a PNG artifact behind a run record.
 func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
@@ -252,6 +254,7 @@ func TestGenerationWorkspaceListsAndRunsStoreActivations(t *testing.T) {
 // activations through the real catalog and generates one image with the
 // cheapest of them, the host oscillator, publishing it as a PNG artifact.
 func TestGenerationWorkspaceServesStoreMedia(t *testing.T) {
+	t.Parallel()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration + ": generating from store models is integration")
 	}

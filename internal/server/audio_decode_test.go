@@ -12,6 +12,7 @@ import (
 )
 
 func TestAudioDecodeConsolidationAcceptance(t *testing.T) {
+	t.Parallel()
 	wav := testutil.MonoPCM16WAV(16000, []int16{16384, -16384})
 	encoded := base64.StdEncoding.EncodeToString(wav)
 	handler := &Handler{}

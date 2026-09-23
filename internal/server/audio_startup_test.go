@@ -39,6 +39,7 @@ func coldStartSpeechFixture(t *testing.T) (*IdleShell, *speechSurfaceGenerator) 
 }
 
 func TestAudioStartupCapabilities(t *testing.T) {
+	t.Parallel()
 	shell, _ := coldStartSpeechFixture(t)
 	response := httptest.NewRecorder()
 	shell.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/workspace/manifest", nil))
@@ -75,6 +76,7 @@ func TestAudioStartupCapabilities(t *testing.T) {
 }
 
 func TestWebUIBrowserAudioStartup(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": cold audio browser probe")
 	}

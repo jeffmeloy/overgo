@@ -17,6 +17,7 @@ import (
 )
 
 func TestRepositoryRemoteMediaPolicy(t *testing.T) {
+	t.Parallel()
 	policy, err := LoadRemoteMediaPolicy(filepath.Join("..", "..", "media_policy.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +29,7 @@ func TestRepositoryRemoteMediaPolicy(t *testing.T) {
 }
 
 func TestRemoteMediaPolicyRejectsOversizedDocument(t *testing.T) {
+	t.Parallel()
 	path := filepath.Join(t.TempDir(), "policy.json")
 	if err := os.WriteFile(path, bytes.Repeat([]byte{' '}, int(maxPolicyDocumentBytes)+1), 0o600); err != nil {
 		t.Fatal(err)
@@ -57,6 +59,7 @@ func testRemoteMediaPolicy(t *testing.T, target string) *RemoteMediaPolicy {
 }
 
 func TestRemoteMediaFetcherAllowlistRedirectAndContentType(t *testing.T) {
+	t.Parallel()
 	var encoded bytes.Buffer
 	if err := png.Encode(&encoded, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
 		t.Fatal(err)
@@ -91,6 +94,7 @@ func TestRemoteMediaFetcherAllowlistRedirectAndContentType(t *testing.T) {
 }
 
 func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	defer server.Close()
 	policy := testRemoteMediaPolicy(t, server.URL)
@@ -105,6 +109,7 @@ func TestRemoteMediaFetcherRejectsPrivateResolutionByDefault(t *testing.T) {
 }
 
 func TestBoundedBoundaryPolicyContract(t *testing.T) {
+	t.Parallel()
 	policy := testRemoteMediaPolicy(t, "https://media.example.com:443")
 	missingAllowlist := *policy
 	missingAllowlist.AllowedHosts = nil
@@ -133,6 +138,7 @@ func TestBoundedBoundaryPolicyContract(t *testing.T) {
 }
 
 func TestRemoteMediaFetcherEnforcesResponseByteLimit(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		response.Header().Set("Content-Type", "image/png")
 		_, _ = response.Write(bytes.Repeat([]byte{1}, 32))
@@ -150,6 +156,7 @@ func TestRemoteMediaFetcherEnforcesResponseByteLimit(t *testing.T) {
 }
 
 func TestRemoteMediaPolicyRequiresExplicitAllowlist(t *testing.T) {
+	t.Parallel()
 	policy := testRemoteMediaPolicy(t, "https://example.com:443")
 	policy.AllowedHosts = nil
 	if _, err := newRemoteMediaFetcher(policy); err == nil {

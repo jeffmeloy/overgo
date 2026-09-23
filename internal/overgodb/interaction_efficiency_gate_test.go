@@ -15,6 +15,7 @@ import (
 // reports are the exact counters, and the claim wins the gate on the closed
 // counter surface without shifting work anywhere else.
 func TestInteractionEfficiencyGate(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

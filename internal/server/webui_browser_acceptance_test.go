@@ -22,6 +22,7 @@ import (
 )
 
 func TestWebUIBrowserAcceptance(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		if _, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER")); err != nil {
 			t.Fatalf("browser acceptance prerequisite is absent; run go run ./cmd/webui-lane: %v", err)

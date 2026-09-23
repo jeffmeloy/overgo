@@ -12,6 +12,7 @@ import (
 )
 
 func TestShapeRunProjectsRecord(t *testing.T) {
+	t.Parallel()
 	run := runrecord.Run{
 		Outcome:    runrecord.OutcomeSucceeded,
 		Failure:    "",
@@ -39,6 +40,7 @@ func TestShapeRunProjectsRecord(t *testing.T) {
 }
 
 func TestBrowseRunsUnconfigured(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{}) // no OvergoDBPath
 	response := serveTestRequest(handler, http.MethodGet, "/runs", "")
 	if response.Code != http.StatusNotImplemented {
@@ -47,6 +49,7 @@ func TestBrowseRunsUnconfigured(t *testing.T) {
 }
 
 func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {
@@ -90,6 +93,7 @@ func TestBrowseRunsReadsOvergoDBRecords(t *testing.T) {
 }
 
 func TestRunDetailReconstructsImmutableEvidence(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

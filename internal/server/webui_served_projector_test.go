@@ -31,6 +31,7 @@ import (
 // model the check reports UNAVAILABLE. It serves a model, so it runs in the
 // lane's journey mode with the serving owners, not with every server suite.
 func TestModelJourneyServedProjector(t *testing.T) {
+	t.Parallel()
 	if os.Getenv(webuilane.ModelJourneyEnvironment) != "1" {
 		t.Skip(testskip.Inapplicable + ": a served model runs through cmd/webui-lane -journeys")
 	}

@@ -15,6 +15,7 @@ import (
 // reason and open falls back to the next verified anchor with identical
 // answers. Checkpoints accelerate; they are never authority.
 func TestProjectionCheckpointAnchorAndFallback(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	head, _, _ := copyScaleCorpus(t, root)
 	directory := filepath.Join(root, checkpointDirectory)

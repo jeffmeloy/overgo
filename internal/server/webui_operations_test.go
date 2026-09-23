@@ -16,6 +16,7 @@ import (
 // strip shows every operation with progress, cancel, the live event tail
 // and the durable receipt, and a model switch shows there as a local chip.
 func TestFrontPageOperations(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	health := serveTestRequest(handler, http.MethodGet, "/health", "")
 	var probe struct {

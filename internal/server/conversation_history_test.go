@@ -56,6 +56,7 @@ func conversationHistoryFixture(t testing.TB) (*Handler, string, string) {
 }
 
 func TestConversationHistoryPaging(t *testing.T) {
+	t.Parallel()
 	h, root, latest := conversationHistoryFixture(t)
 	list := func(path string) conversationListResponse {
 		t.Helper()
@@ -148,6 +149,7 @@ func TestConversationHistoryPaging(t *testing.T) {
 }
 
 func TestConversationHistoryRefresh(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writer, err := overgodb.Open(root)
 	if err != nil {

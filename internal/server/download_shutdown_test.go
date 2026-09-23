@@ -26,6 +26,7 @@ import (
 // unwound, refuses new admissions, and retains verified-source progress that
 // a new client can resume after shutdown.
 func TestDownloadShutdownOwnership(t *testing.T) {
+	t.Parallel()
 	transferStarted := make(chan struct{})
 	weights := []byte("weights")
 	digest := sha256.Sum256(weights)
@@ -122,6 +123,7 @@ func TestDownloadShutdownOwnership(t *testing.T) {
 }
 
 func TestDownloadJobCallerBudget(t *testing.T) {
+	t.Parallel()
 	hub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			_, _ = w.Write([]byte(`{"id":"acme/tiny","sha":"commit1","siblings":[{"rfilename":"weights.bin","size":8}]}`))

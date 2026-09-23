@@ -18,6 +18,7 @@ import (
 // address serves the same shell, and a development directory serves
 // assets from disk with caching disabled. The counts only tighten.
 func TestWebUIOneShell(t *testing.T) {
+	t.Parallel()
 	var documents []string
 	if err := fs.WalkDir(webuiFS, ".", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -95,6 +96,7 @@ func TestWebUIOneShell(t *testing.T) {
 // the client from that directory with caching off, so an edit shows on
 // reload without a rebuild; paths that escape the directory stay refused.
 func TestWebUIDevelopmentDirectory(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!DOCTYPE html><title>dev shell</title>"), 0o644); err != nil {
 		t.Fatal(err)

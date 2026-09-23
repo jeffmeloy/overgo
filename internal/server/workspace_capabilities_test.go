@@ -15,6 +15,7 @@ import (
 // decides a capability on its own: zero hard-coded accept lists, zero
 // reads of /props or /analyze/model for gating outside the shell.
 func TestWorkspaceCapabilityDocument(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
 	if response.Code != http.StatusOK {

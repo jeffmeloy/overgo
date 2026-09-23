@@ -21,6 +21,7 @@ import (
 // its boot routes answer, the catalog lists the store's rows, and an API
 // route refuses with the reason.
 func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
+	t.Parallel()
 	model, err := artifact.IdentifyBytes(artifact.KindModel, []byte("idle-model"))
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +102,7 @@ func TestIdleShellAnswersWhileNothingServes(t *testing.T) {
 }
 
 func TestIdleShellWriterLifetime(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writer, err := overgodb.Open(root)
 	if err != nil {
@@ -172,6 +174,7 @@ func TestIdleShellWriterLifetime(t *testing.T) {
 // intake over the borrowed store, and a local
 // registration reaches the model intake without a validation step.
 func TestIdleShellLibraryWritesOverTheOpenedStore(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	repository, err := overgodb.Open(root)
 	if err != nil {

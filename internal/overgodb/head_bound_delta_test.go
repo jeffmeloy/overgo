@@ -15,6 +15,7 @@ import (
 // diverged head or foreign projection contract forces resync instead of a
 // delta with a hole in it.
 func TestHeadBoundDeltaReconciliation(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

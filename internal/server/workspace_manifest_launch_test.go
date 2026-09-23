@@ -74,6 +74,7 @@ func workspaceTabsByID(t testing.TB, handler *Handler) map[string]workspaceTab {
 // builds its generator lists Train, Model Builder and Evaluations when the
 // launch enabled them, and refuses each with its reason when it did not.
 func TestWorkspaceManifestShippedLaunch(t *testing.T) {
+	t.Parallel()
 	enabled, err := New(Config{Evaluation: launchEvaluationWorkspace(t)}, launchWorkspaceGenerator(t, WorkflowTraining, WorkflowModelBuild))
 	if err != nil {
 		t.Fatal(err)

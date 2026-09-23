@@ -36,6 +36,7 @@ func (w *partWriter) Sync() error {
 }
 
 func TestLogAppendStreamsFrame(t *testing.T) {
+	t.Parallel()
 	file, err := os.CreateTemp(t.TempDir(), "repodb-log")
 	if err != nil {
 		t.Fatal(err)
@@ -85,6 +86,7 @@ func (w *faultWriter) Sync() error {
 }
 
 func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -126,6 +128,7 @@ func TestAppendFaultClosesEveryStoreSurfaceUntilReopen(t *testing.T) {
 }
 
 func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -153,6 +156,7 @@ func TestSyncFaultReplaysCompleteUncertainCommit(t *testing.T) {
 }
 
 func TestStreamingSnapshotFaultPreservesStore(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {

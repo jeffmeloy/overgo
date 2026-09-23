@@ -16,6 +16,7 @@ import (
 // response behind every message; and the front page opens the inspectors
 // over that record in a side panel without leaving the conversation.
 func TestFrontPageInspect(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	first := serveTestRequest(handler, http.MethodPost, "/v1/responses", `{"input":"hello there world","max_output_tokens":1}`)

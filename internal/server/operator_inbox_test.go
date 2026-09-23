@@ -20,6 +20,7 @@ import (
 // recovered operation leaves the inbox -- one list answers "what is
 // waiting on me", wired to the durable decision chain.
 func TestOperatorInbox(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	empty := serveTestRequest(handler, http.MethodGet, "/operations/inbox", "")
 	if empty.Code != http.StatusOK || !strings.Contains(empty.Body.String(), `"waiting":[]`) {

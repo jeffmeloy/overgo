@@ -18,6 +18,7 @@ import (
 )
 
 func TestServingObservationPublication(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -96,6 +97,7 @@ func TestServingObservationPublication(t *testing.T) {
 }
 
 func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -161,6 +163,7 @@ func TestRuntimeActivitySessionLedgerGUI(t *testing.T) {
 }
 
 func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	defer handler.Close()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -184,6 +187,7 @@ func TestOperationEventSSEUsesSharedEmitter(t *testing.T) {
 }
 
 func TestServingHardwareEvidenceUsesLifecycleBounds(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

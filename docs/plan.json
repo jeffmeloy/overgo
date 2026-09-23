@@ -987,7 +987,8 @@
             "gate-suite-longest-tests/do",
             "planning-validates-once/do",
             "standard-names-once/do",
-            "cmd-plan-suite-wall/do"
+            "cmd-plan-suite-wall/do",
+            "host-suites-parallel/do"
           ]
         }
       ]

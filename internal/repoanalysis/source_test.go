@@ -8,6 +8,7 @@ import (
 )
 
 func TestSourceSnapshotParseReuse(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	content := []byte("package p\nfunc same(v int) int { return v + 1 }\n")
 	for _, relative := range []string{"a/a.go", "b/b.go"} {
@@ -31,6 +32,7 @@ func TestSourceSnapshotParseReuse(t *testing.T) {
 }
 
 func TestSourceSnapshotOverlay(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	for name, content := range map[string]string{
 		"a/a.go": "package a\nfunc Before() {}\n",
@@ -70,6 +72,7 @@ func TestSourceSnapshotOverlay(t *testing.T) {
 }
 
 func TestGoStylePolicyAndBaseline(t *testing.T) {
+	t.Parallel()
 	base, err := (SourceSnapshot{}).Overlay(map[string][]byte{
 		"p/p.go": []byte("package p\nfunc before() {}\n"),
 	})

@@ -21,6 +21,7 @@ import (
 )
 
 func TestWebUIBrowserColdActivity(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": cold activity uses Chromium")
 	}
@@ -78,6 +79,7 @@ func TestWebUIBrowserColdActivity(t *testing.T) {
 }
 
 func TestWebUIBrowserBackgroundWork(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": background work runs through cmd/webui-lane")
 	}

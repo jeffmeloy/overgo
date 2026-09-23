@@ -15,6 +15,7 @@ import (
 // original, and the record is stored under its schema with both and the
 // instruction; an empty prompt is refused.
 func TestPromptEnhanceRewritesUnderTheInstruction(t *testing.T) {
+	t.Parallel()
 	generator := &fakeGenerator{pieces: []string{"a red square, ", "studio lighting"}}
 	handler := newTestHandlerWithRepository(t, generator)
 	page := serveTestRequest(handler, http.MethodPost, "/generation/enhance", `{"prompt":" a red square "}`)

@@ -22,6 +22,7 @@ import (
 )
 
 func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	roots := dataroot.Roots{Models: filepath.Join(root, "models"), Datasets: filepath.Join(root, "datasets"), Checkpoints: filepath.Join(root, "checkpoints")}
@@ -188,6 +189,7 @@ func TestTrainingWorkspacePublishesEvaluationRequiredDecision(t *testing.T) {
 }
 
 func TestTrainingWorkspaceAdmissionMatrix(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		objective  trainingprogram.ObjectiveKind

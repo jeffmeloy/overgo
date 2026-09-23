@@ -18,6 +18,7 @@ import (
 // introduction order. Deciding through the existing decision authority
 // empties the view; the endpoints add no decision authority of their own.
 func TestOperatorDecisionInteractionContract(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

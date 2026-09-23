@@ -51,6 +51,7 @@ func webuiJavaScript(t *testing.T) map[string]string {
 }
 
 func TestWebUIComposerBudget(t *testing.T) {
+	t.Parallel()
 	sources := webuiJavaScript(t)
 	composer, ok := sources["composer.js"]
 	if !ok {
@@ -111,6 +112,7 @@ func TestWebUIComposerBudget(t *testing.T) {
 // unnamed control, inline styling, a nested ternary, a timer literal or a
 // debt marker fails here, and each ceiling only tightens as rows pay it.
 func TestWebUIReviewRatchet(t *testing.T) {
+	t.Parallel()
 	var review webuilane.Review
 	largest := 0
 	for name, source := range webuiJavaScript(t) {

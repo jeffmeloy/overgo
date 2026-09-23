@@ -23,6 +23,7 @@ import (
 )
 
 func TestWorkbenchTransactionWriter(t *testing.T) {
+	// Serial: a helper it calls sets the process environment.
 	t.Run("served external evidence publication", testWorkbenchEvidencePublication)
 	t.Run("catalog observes activation and retirement", testWorkbenchCatalogRefresh)
 	t.Run("generation observes external activation", TestGenerationWorkspaceListsUnresolvableActivationWithRefusal)
@@ -73,6 +74,7 @@ type workbenchWriterReply struct {
 }
 
 func TestWorkbenchEvidenceProcess(t *testing.T) {
+	t.Parallel()
 	root := os.Getenv("OVERGO_TEST_WORKBENCH_REPOSITORY")
 	if root == "" {
 		return

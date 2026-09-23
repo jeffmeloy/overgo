@@ -21,6 +21,7 @@ const noChangeTests = 13
 // that still name ErrNoChange do not grow. An overlaid package that writes
 // the statement out is held to being found, so the walk is not vacuous.
 func TestIdempotentCommitHasOneOwner(t *testing.T) {
+	t.Parallel()
 	snapshot, err := DiscoverGo(filepath.Join("..", ".."), "internal", "cmd")
 	if err != nil {
 		t.Fatal(err)

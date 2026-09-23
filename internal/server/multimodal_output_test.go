@@ -17,6 +17,7 @@ import (
 // serves the bytes under that same type -- so the GUI renders an
 // image as an image, never as an opaque identity.
 func TestMultimodalOutputProjection(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

@@ -10,6 +10,7 @@ import (
 )
 
 func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -88,6 +89,7 @@ func TestCommitDeltaAtReturnsOneExactCanonicalTransaction(t *testing.T) {
 }
 
 func TestCommitDeltaAtDoesNotReadUnrelatedCoordinates(t *testing.T) {
+	t.Parallel()
 	const unrelatedCommitPopulation = 128
 
 	root := t.TempDir()

@@ -14,6 +14,7 @@ import (
 )
 
 func TestBrowseDatasetsUsesCatalog(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -36,6 +37,7 @@ func TestBrowseDatasetsUsesCatalog(t *testing.T) {
 }
 
 func TestBrowseDatasetsUnconfigured(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
 	if response.Code != http.StatusNotImplemented {
@@ -44,6 +46,7 @@ func TestBrowseDatasetsUnconfigured(t *testing.T) {
 }
 
 func TestBrowseDatasetsRequiresActiveCatalog(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/datasets", "")
 	if response.Code != http.StatusNotFound {
@@ -52,6 +55,7 @@ func TestBrowseDatasetsRequiresActiveCatalog(t *testing.T) {
 }
 
 func TestBrowseDatasetsRejectsNonGet(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, &fakeGenerator{})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/datasets", nil))

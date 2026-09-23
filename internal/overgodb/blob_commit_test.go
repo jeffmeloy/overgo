@@ -18,6 +18,7 @@ import (
 // unreachable blob; and the whole corpus replays from the envelope
 // journal plus blobs.
 func TestExternalBlobCommitAtomicity(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := t.TempDir()
 	store, err := Open(root)

@@ -27,6 +27,7 @@ func intakeRequest(handler http.Handler, mediaType, body string) *httptest.Respo
 // image is decoded against the image bounds; an undecodable type, an
 // oversized body, an empty one and a handler without a repository refuse.
 func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
+	t.Parallel()
 	repository, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -78,6 +79,7 @@ func TestArtifactIntakeStoresAcceptedFiles(t *testing.T) {
 }
 
 func TestArtifactIntakePreservesNativeAudio(t *testing.T) {
+	t.Parallel()
 	for _, first := range []string{"transcription", "attachment"} {
 		t.Run(first, func(t *testing.T) {
 			fixture := newTranscriptionHTTPFixture(t, nil)

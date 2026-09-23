@@ -9,12 +9,14 @@ import (
 )
 
 func TestDocsHoldNoUnplannedBinaries(t *testing.T) {
+	t.Parallel()
 	if err := ValidateDocsInventory(filepath.Join("..", "..")); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDocsInventoryPolicy(t *testing.T) {
+	t.Parallel()
 	for _, test := range []struct {
 		path    string
 		allowed bool
@@ -56,6 +58,7 @@ func TestDocsInventoryPolicy(t *testing.T) {
 }
 
 func TestReadmeReferences(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	for _, directory := range []string{"docs", "cmd/live"} {
 		if err := os.MkdirAll(filepath.Join(root, directory), 0o755); err != nil {

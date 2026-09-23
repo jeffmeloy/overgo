@@ -12,6 +12,7 @@ import (
 )
 
 func TestEveryApplicableModernGoGuidelineResolved(t *testing.T) {
+	t.Parallel()
 	census, baseline := modernGoRepositoryExceptionAuthority(t)
 	published, err := BuildModernGoPublishedCensus(census, baseline)
 	if err != nil {
@@ -40,6 +41,7 @@ func TestEveryApplicableModernGoGuidelineResolved(t *testing.T) {
 // computed on demand: no copy of it is kept in the tree to be checked against
 // the computation it came from.
 func TestModernGoBaselineHoldsOnlyReviewedThresholds(t *testing.T) {
+	t.Parallel()
 	census, baseline := modernGoRepositoryExceptionAuthority(t)
 	if err := ModernGoBaselineHolds(baseline, census); err != nil {
 		t.Fatal(err)
@@ -82,6 +84,7 @@ func TestModernGoBaselineHoldsOnlyReviewedThresholds(t *testing.T) {
 }
 
 func TestModernGoRatchetAtClosure(t *testing.T) {
+	t.Parallel()
 	census, baseline := modernGoRepositoryExceptionAuthority(t)
 	if err := ModernGoBaselineHolds(baseline, census); err != nil {
 		t.Fatal(err)

@@ -9,6 +9,7 @@ import (
 // Shannon entropy (nats) of the model's next-token distribution — a
 // distribution-free measurement, exercised here against closed-form values.
 func TestNativeTokenProbabilityEntropy(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 
 	cases := []struct {
@@ -44,6 +45,7 @@ func TestNativeTokenProbabilityEntropy(t *testing.T) {
 // assumption. A skewed distribution must have strictly lower entropy than the
 // uniform one over the same support.
 func TestNativeTokenProbabilityEntropyBoundedByUniform(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	uniform, err := handler.nativeTokenProbability(0, []float32{0, 0, 0, 0}, 1)
 	if err != nil {

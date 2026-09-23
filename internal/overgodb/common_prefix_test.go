@@ -9,6 +9,7 @@ import (
 )
 
 func TestCommonCommitPrefixFindsGreatestSharedCoordinate(t *testing.T) {
+	t.Parallel()
 	leftRoot := filepath.Join(t.TempDir(), "left")
 	left, err := Open(leftRoot)
 	if err != nil {
@@ -38,6 +39,7 @@ func TestCommonCommitPrefixFindsGreatestSharedCoordinate(t *testing.T) {
 }
 
 func TestCommonCommitPrefixDistinguishesIdenticalAndForeignStores(t *testing.T) {
+	t.Parallel()
 	leftRoot := filepath.Join(t.TempDir(), "left")
 	left, err := Open(leftRoot)
 	if err != nil {

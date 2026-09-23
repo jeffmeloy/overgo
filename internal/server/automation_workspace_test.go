@@ -30,6 +30,7 @@ type automationServerFixture struct {
 }
 
 func TestAutomationWorkspaceVertical(t *testing.T) {
+	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	definition := publishAutomationFromAPI(t, fixture)
@@ -71,6 +72,7 @@ func TestAutomationWorkspaceVertical(t *testing.T) {
 }
 
 func TestAutomationWorkspaceSSE(t *testing.T) {
+	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -93,6 +95,7 @@ func TestAutomationWorkspaceSSE(t *testing.T) {
 }
 
 func TestAutomationWorkspaceRefusal(t *testing.T) {
+	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	publishAutomationFromAPI(t, fixture)
@@ -107,6 +110,7 @@ func TestAutomationWorkspaceRefusal(t *testing.T) {
 }
 
 func TestAutomationWorkspaceNoDirectExecutor(t *testing.T) {
+	t.Parallel()
 	fixture := newAutomationServerFixture(t)
 	defer fixture.store.Close()
 	routes := serveTestRequest(fixture.handler, http.MethodGet, "/mod/automations.js", "").Body.String()

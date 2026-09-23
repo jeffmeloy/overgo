@@ -12,6 +12,7 @@ import (
 )
 
 func TestWebUIBrowserAudioOutput(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": authenticated media runs through cmd/webui-lane")
 	}

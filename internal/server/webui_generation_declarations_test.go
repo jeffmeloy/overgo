@@ -15,6 +15,7 @@ import (
 // renders its outputs as artifacts; the workflow tabs render controls from
 // the same helper; and no per-task request payload remains in the client.
 func TestFrontPageGenerationDeclarations(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
 	defer handler.Close()
 	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }

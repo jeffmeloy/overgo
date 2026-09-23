@@ -94,6 +94,7 @@ func querySurfaceDigest(t *testing.T, store *Store) string {
 // rebuild each answer the full query surface identically at the same
 // head.
 func TestProjectionRebuildEquivalence(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	copyScaleCorpus(t, root)
 

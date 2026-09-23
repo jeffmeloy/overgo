@@ -28,6 +28,7 @@ const (
 // later interaction reduction is compared against completed work, not
 // a smaller task.
 func TestInteractionEfficiencyBaseline(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := overgodb.Open(root)
 	if err != nil {

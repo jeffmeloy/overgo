@@ -11,6 +11,7 @@ import (
 )
 
 func TestDatasetCatalogCompactionRetainsAuthorityAndLocation(t *testing.T) {
+	t.Parallel()
 	ctx, root := t.Context(), t.TempDir()
 	path := filepath.Join(root, "fixture.txt")
 	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {

@@ -49,6 +49,7 @@ func copyScaleCorpus(t *testing.T, root string) (artifact.CommitID, string, uint
 }
 
 func TestSharedScaleCorpusIsolation(t *testing.T) {
+	t.Parallel()
 	first, second := t.TempDir(), t.TempDir()
 	head, _, size := copyScaleCorpus(t, first)
 	otherHead, _, otherSize := copyScaleCorpus(t, second)

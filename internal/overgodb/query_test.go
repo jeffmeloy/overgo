@@ -13,6 +13,7 @@ import (
 )
 
 func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -91,6 +92,7 @@ func TestQueryFiltersAndFollowsImmutableCatalog(t *testing.T) {
 }
 
 func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -184,6 +186,7 @@ func TestArtifactIntroductionBindsFirstDurableContentCommit(t *testing.T) {
 }
 
 func TestQueryBoundsAndCycleRejection(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -226,6 +229,7 @@ func TestQueryBoundsAndCycleRejection(t *testing.T) {
 }
 
 func TestServingObservationDescriptorIndexes(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -261,6 +265,7 @@ func TestServingObservationDescriptorIndexes(t *testing.T) {
 }
 
 func TestQueryCursorBindsHeadAndContract(t *testing.T) {
+	t.Parallel()
 	const pageSize = 2
 	store, err := Open(t.TempDir())
 	if err != nil {
@@ -302,6 +307,7 @@ func TestQueryCursorBindsHeadAndContract(t *testing.T) {
 }
 
 func TestQueryProjectionReturnsRequestedFactsOnly(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -324,6 +330,7 @@ func TestQueryProjectionReturnsRequestedFactsOnly(t *testing.T) {
 }
 
 func TestTypedDocumentScan(t *testing.T) {
+	t.Parallel()
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	var got []artifact.ID
@@ -340,6 +347,7 @@ func TestTypedDocumentScan(t *testing.T) {
 }
 
 func TestNewestFirstCursor(t *testing.T) {
+	t.Parallel()
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	query := DocumentQuery{Contracts: []artifact.DocumentContract{contract}, Order: DocumentNewestFirst, MaxResults: 1}
@@ -384,6 +392,7 @@ func TestNewestFirstCursor(t *testing.T) {
 }
 
 func TestAliasPrefix(t *testing.T) {
+	t.Parallel()
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	var got []DocumentView

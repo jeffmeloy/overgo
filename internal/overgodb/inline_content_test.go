@@ -16,6 +16,7 @@ import (
 // where replay alone places them. An inline content is released like any
 // other: its bytes stay in the frame and its readers see it gone.
 func TestSmallContentIsInline(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	root := filepath.Join(t.TempDir(), "store")
 	store, err := Open(root)

@@ -17,6 +17,7 @@ import (
 // corruption, and orphan safety -- an interrupted staging file is
 // never visible as a published blob.
 func TestBlobStorePublicationContract(t *testing.T) {
+	t.Parallel()
 	blobs := newBlobStore(t.TempDir())
 	payload := []byte("blob-owner contract payload")
 	id, err := artifact.IdentifyBytes(artifact.KindTensorSet, payload)
@@ -92,6 +93,7 @@ func TestBlobStorePublicationContract(t *testing.T) {
 // TestObservationChunkPublication proves retrying publication cannot bless a
 // same-sized corrupt orphan while an intact orphan remains idempotent.
 func TestObservationChunkPublication(t *testing.T) {
+	t.Parallel()
 	t.Run("same-sized corrupt orphan refuses retry", func(t *testing.T) {
 		blobs := newBlobStore(t.TempDir())
 		payload := []byte("bounded observation chunk")

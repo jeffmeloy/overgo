@@ -107,6 +107,7 @@ func scaleContent(ordinal int) []byte {
 // measurements, reported in the log for the campaign to compare
 // against, never thresholds.
 func TestStoreScaleContract(t *testing.T) {
+	t.Parallel()
 	rootA, rootB := t.TempDir(), t.TempDir()
 	first, err := buildScaleCorpus(t.Context(), rootA)
 	if err != nil {

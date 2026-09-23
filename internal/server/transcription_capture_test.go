@@ -13,6 +13,7 @@ import (
 )
 
 func TestTranscriptionCaptureDeclaration(t *testing.T) {
+	t.Parallel()
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	caps, err := fixture.workspace.WorkflowCapabilities(t.Context(), WorkflowGeneration)
 	if err != nil || len(caps) != 1 {
@@ -60,6 +61,7 @@ func TestTranscriptionCaptureDeclaration(t *testing.T) {
 }
 
 func TestNativeAudioFormatRefusal(t *testing.T) {
+	t.Parallel()
 	fixture := newTranscriptionHTTPFixture(t, nil)
 	wave := bytes.Clone(fixture.wave)
 	rate := binary.LittleEndian.Uint32(wave[24:28])

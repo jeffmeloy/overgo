@@ -35,6 +35,7 @@ func releaseEverything(artifact.Descriptor) bool { return true }
 // TestRetentionTypedLineage keeps what typed lineage reaches and releases
 // what only an untyped reference inside a document names.
 func TestRetentionTypedLineage(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	source, err := Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
@@ -89,6 +90,7 @@ func TestRetentionTypedLineage(t *testing.T) {
 // committed documents pin: retained when pinned with a missing pin counted,
 // never invented, and released once nothing pins it.
 func TestRetentionPinnedRootsSurvive(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	source, err := Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {
@@ -125,6 +127,7 @@ func TestRetentionPinnedRootsSurvive(t *testing.T) {
 // TestRetentionRefusesLiveStoreLocalAlias refuses a release while a
 // store-local authority is live, and such an alias can never be retired.
 func TestRetentionRefusesLiveStoreLocalAlias(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	source, err := Open(filepath.Join(t.TempDir(), "source"))
 	if err != nil {

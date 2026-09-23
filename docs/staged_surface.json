@@ -197,15 +197,6 @@
         "classification": "test-support",
         "evidence": "evidence:sha256:5ac10b047bf46ee86852ffdd833056897638384e21d6c6215ded10b6e9c8e27f"
       }
-    },
-    {
-      "package": "overgo/internal/testutil",
-      "name": "RequireParallel",
-      "reason": "One text scanner for the rule that a suite's tests run in parallel, shared by the gate, plan and plan-command suite tests instead of a copy each; test-support surface is test-consumed by design.",
-      "retained": {
-        "classification": "test-support",
-        "evidence": "evidence:sha256:477bbff2e9b2c144d6f555493b5db59f22fe98de02aa37d0f7b6a9ed9eeef5ad"
-      }
     }
   ]
 }

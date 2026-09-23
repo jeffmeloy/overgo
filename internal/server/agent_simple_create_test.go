@@ -17,6 +17,7 @@ import (
 // created agent immediately admits a step on its granted tool, and an
 // unregistered tool name refuses creation outright.
 func TestAgentSimpleCreate(t *testing.T) {
+	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

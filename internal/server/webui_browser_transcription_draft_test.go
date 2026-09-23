@@ -17,6 +17,7 @@ import (
 // replace as an explicit choice, and a late or failed answer never touches
 // the draft.
 func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
+	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
 		t.Skip(testskip.Inapplicable + ": transcription draft runs through cmd/webui-lane")
 	}

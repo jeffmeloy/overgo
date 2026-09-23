@@ -18,6 +18,7 @@ import (
 // restores the prior champion -- same alias target, byte-identical content --
 // after a promotion is reversed.
 func TestPromotionReversibleAndDrillRestoresChampion(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	store, err := Open(t.TempDir())
 	if err != nil {

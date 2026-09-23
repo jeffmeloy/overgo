@@ -8,6 +8,7 @@ import (
 )
 
 func TestWorkspaceSchema(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodGet, "/workspace/schema?id=automation-trigger", "")
 	if response.Code != http.StatusOK {
@@ -36,6 +37,7 @@ func TestWorkspaceSchema(t *testing.T) {
 }
 
 func TestWorkspaceFormRenderer(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	renderer := serveTestRequest(handler, http.MethodGet, "/schema_form.js", "").Body.String()
 	for _, expected := range []string{
@@ -53,6 +55,7 @@ func TestWorkspaceFormRenderer(t *testing.T) {
 }
 
 func TestWorkspaceUnsavedChanges(t *testing.T) {
+	t.Parallel()
 	renderer := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/schema_form.js", "").Body.String()
 	for _, expected := range []string{
 		"function dirty()", "beforeunload", "event.preventDefault()", "event.returnValue", "markSaved", "dispose()",

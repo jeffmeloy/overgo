@@ -50,6 +50,7 @@ func threeTokenStates() *statesGenerator {
 }
 
 func TestAnalyzeStatesReportsStructure(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, threeTokenStates())
 	// Request cosine explicitly for closed-form distances (0 and 1).
 	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"anything","layer":5,"metric":"cosine","k":2}`)
@@ -80,6 +81,7 @@ func TestAnalyzeStatesReportsStructure(t *testing.T) {
 // The default metric is the assumption-light one (Spearman rank correlation),
 // not a silently-privileged Euclidean/cosine geometry.
 func TestAnalyzeStatesDefaultsToSpearman(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, threeTokenStates())
 	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"anything"}`)
 	if response.Code != http.StatusOK {
@@ -95,6 +97,7 @@ func TestAnalyzeStatesDefaultsToSpearman(t *testing.T) {
 }
 
 func TestAnalyzeStatesSurfacesTruncation(t *testing.T) {
+	t.Parallel()
 	// Five tokens, but only three positions permitted → truncation is reported,
 	// not silent.
 	gen := &statesGenerator{
@@ -120,6 +123,7 @@ func TestAnalyzeStatesSurfacesTruncation(t *testing.T) {
 }
 
 func TestAnalyzeStatesRejectsInvalidMetric(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, threeTokenStates())
 	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x","metric":"banana"}`)
 	if response.Code != http.StatusBadRequest {
@@ -128,6 +132,7 @@ func TestAnalyzeStatesRejectsInvalidMetric(t *testing.T) {
 }
 
 func TestAnalyzeStatesUnsupportedWithoutCapture(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x"}`)
 	if response.Code != http.StatusNotImplemented {
@@ -136,6 +141,7 @@ func TestAnalyzeStatesUnsupportedWithoutCapture(t *testing.T) {
 }
 
 func TestAnalyzeStatesRejectsShortPrompt(t *testing.T) {
+	t.Parallel()
 	gen := &statesGenerator{tokens: []tokenizer.TokenID{7}, width: 2, vectors: []float32{1, 0}}
 	handler := newTestHandler(t, gen)
 	response := serveTestRequest(handler, http.MethodPost, "/analyze/states", `{"prompt":"x"}`)
@@ -145,6 +151,7 @@ func TestAnalyzeStatesRejectsShortPrompt(t *testing.T) {
 }
 
 func TestAnalyzeStatesRejectsNonPost(t *testing.T) {
+	t.Parallel()
 	handler := newTestHandler(t, threeTokenStates())
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/analyze/states", nil))

@@ -10,6 +10,7 @@ import (
 )
 
 func TestModernGoRewritePublication(t *testing.T) {
+	t.Parallel()
 	const source = "package sample\n\nvar A = 1\nvar B = 2\n"
 	first, second := strings.Index(source, "1"), strings.Index(source, "2")
 	finishError := errors.New("import repair refused")

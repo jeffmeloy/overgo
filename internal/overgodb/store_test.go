@@ -28,6 +28,7 @@ const (
 )
 
 func TestCanonicalCatalogOwnership(t *testing.T) {
+	t.Parallel()
 	state := newCatalogState()
 	if state.artifacts.records == nil || state.artifacts.byMedia == nil || state.artifacts.bySchema == nil ||
 		state.contents.locators == nil || state.lineage.parents == nil || state.locations.byArtifact == nil ||
@@ -37,6 +38,7 @@ func TestCanonicalCatalogOwnership(t *testing.T) {
 }
 
 func TestOvergoDBRuntimeAuthority(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	legacy := filepath.Join(root, "repodb.log")
 	if err := os.WriteFile(legacy, []byte("external legacy input"), storeFileMode); err != nil {
@@ -62,6 +64,7 @@ func TestOvergoDBRuntimeAuthority(t *testing.T) {
 }
 
 func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
+	t.Parallel()
 	state := newCatalogState()
 	batch := fixtureBatch(t)
 	state.apply(batch, nil, 1)
@@ -76,6 +79,7 @@ func TestLineageIndexesReferenceCanonicalEdges(t *testing.T) {
 }
 
 func TestContentUsesDescriptorAuthority(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -98,6 +102,7 @@ func TestContentUsesDescriptorAuthority(t *testing.T) {
 }
 
 func TestMetadataSnapshot(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -173,6 +178,7 @@ func fixtureBatch(t *testing.T) artifact.Batch {
 }
 
 func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -217,6 +223,7 @@ func TestCommitReplayAndReadOnlyQueries(t *testing.T) {
 }
 
 func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writer, err := Open(root)
 	if err != nil {
@@ -250,6 +257,7 @@ func TestReadOnlyRefreshAppliesCommittedTail(t *testing.T) {
 }
 
 func TestReadOnlyRefreshRejectsFork(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writer, err := Open(root)
 	if err != nil {
@@ -301,6 +309,7 @@ func TestReadOnlyRefreshRejectsFork(t *testing.T) {
 }
 
 func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -334,6 +343,7 @@ func TestCommitIsIdempotentByKeyAndContent(t *testing.T) {
 }
 
 func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -366,6 +376,7 @@ func TestCommitDeltaRetainsRequestIdentity(t *testing.T) {
 }
 
 func TestRepeatedFactsDoNotAdvance(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -391,6 +402,7 @@ func TestRepeatedFactsDoNotAdvance(t *testing.T) {
 }
 
 func TestFailedBatchPublishesNothing(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -422,6 +434,7 @@ func TestFailedBatchPublishesNothing(t *testing.T) {
 }
 
 func TestAliasCompareAndSet(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -450,6 +463,7 @@ func TestAliasCompareAndSet(t *testing.T) {
 }
 
 func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -487,6 +501,7 @@ func TestAliasTransitionRequiresExpectedBinding(t *testing.T) {
 }
 
 func TestAliasCompareAndSetRetirement(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -509,6 +524,7 @@ func TestAliasCompareAndSetRetirement(t *testing.T) {
 }
 
 func TestLineageCycleRejected(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -531,6 +547,7 @@ func TestLineageCycleRejected(t *testing.T) {
 }
 
 func TestLineageCycleWithinBatchRejected(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -552,6 +569,7 @@ func TestLineageCycleWithinBatchRejected(t *testing.T) {
 }
 
 func TestSecondWriterFailsClosed(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	first, err := Open(root)
 	if err != nil {
@@ -578,6 +596,7 @@ func TestSecondWriterFailsClosed(t *testing.T) {
 }
 
 func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	writer, err := Open(root)
 	if err != nil {
@@ -599,6 +618,7 @@ func TestReadOnlyStoreCanOpenBesideWriter(t *testing.T) {
 }
 
 func TestTornTailRecovered(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -641,6 +661,7 @@ func TestTornTailRecovered(t *testing.T) {
 }
 
 func TestCompleteCorruptFrameRejected(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	store, err := Open(root)
 	if err != nil {
@@ -678,6 +699,7 @@ func TestCompleteCorruptFrameRejected(t *testing.T) {
 }
 
 func TestConcurrentCommitsSerialize(t *testing.T) {
+	t.Parallel()
 	store, err := Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

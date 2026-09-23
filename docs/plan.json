@@ -1076,7 +1076,8 @@
             "evidence-currency-per-model/do",
             "media-census-scope/do",
             "plan-evidence-feedback/do",
-            "model-paths-from-registrations/do"
+            "model-paths-from-registrations/do",
+            "preflight-rebinds-closure-drift/do"
           ]
         }
       ]
@@ -1278,6 +1279,10 @@
     {
       "key": "store-growth:count:overgo/stage-receipt/v2",
       "row": "store-growth-ratchet"
+    },
+    {
+      "key": "suite-cost:overgo/cmd/compatibility",
+      "reason": "the package ran its media acceptances once, 57 s, with no regression against its own history; a ranking always has a first, which automation-review-suite-cost-regression exists to stop filing"
     },
     {
       "key": "suite-cost:overgo/internal/audioparity",

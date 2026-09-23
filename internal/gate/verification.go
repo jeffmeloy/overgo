@@ -1467,6 +1467,18 @@ func (g *gateContext) stepMagics() (bool, error) {
 		return false, err
 	}
 	report, err := closurescan.ValidatePermanentActiveAuthority(snapshot, documents, aliases)
+	if err != nil && g.preflight && staleClosureAuthorityFailure(err) {
+		// Judge the drift the gate would rebind as rebound, so only literals
+		// no decision covers stop the preflight.
+		rebound, reboundAliases, moved, projectErr := projectedMagicBindings(snapshot, documents, aliases)
+		if projectErr != nil {
+			return false, errors.Join(err, projectErr)
+		}
+		if moved != 0 {
+			report, err = closurescan.ValidatePermanentActiveAuthority(snapshot, rebound, reboundAliases)
+			g.note(fmt.Sprintf("preflight: %d closure decision(s) moved offset; the gate rebinds them", moved))
+		}
+	}
 	uncatalogued, isUncatalogued := errors.AsType[*closurescan.UncataloguedPolicyError](err)
 	// The preflight writes no store: uncatalogued sites go straight to
 	// their proposal rows, whose history matches carry what a rebind

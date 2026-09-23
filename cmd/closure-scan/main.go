@@ -764,34 +764,34 @@ func importClosureDocumentsWith(
 		}
 	}
 
-	var projection closureProjection
+	var projection closurescan.Projection
 	if reuseReview && !reviewCallsites {
 		projection = reviewed.projection
 	} else {
-		projection, err = projectActiveClosures(index, candidates, documents, sourceAliases, sameStore, reviewCallsites, retired)
+		projection, err = closurescan.ProjectActiveClosures(index, candidates, documents, sourceAliases, sameStore, reviewCallsites, retired)
 		if err != nil {
 			return count, unmatched, first, aliases, err
 		}
 	}
-	rebound = append(rebound, projection.rebound...)
-	retirements = append(retirements, projection.retirements...)
-	retired, claimedAliases := maps.Clone(projection.retired), maps.Clone(projection.claimed)
-	unmatched += projection.unmatched
-	first = cmp.Or(first, projection.first)
+	rebound = append(rebound, projection.Rebound...)
+	retirements = append(retirements, projection.Retirements...)
+	retired, claimedAliases := maps.Clone(projection.Retired), maps.Clone(projection.Claimed)
+	unmatched += projection.Unmatched
+	first = cmp.Or(first, projection.First)
 	if sameStore && retireUnmatched {
 		// A decision whose declaration still matches and whose uses moved is
 		// not stale: retiring it throws away a reviewed understanding that
 		// -review-callsites carries forward unchanged.
-		drifted := slices.DeleteFunc(slices.Clone(projection.pending), func(retry closurePending) bool {
-			return retry.reason != string(closurescan.DriftCallsite)
+		drifted := slices.DeleteFunc(slices.Clone(projection.Pending), func(retry closurescan.Pending) bool {
+			return retry.Reason != string(closurescan.DriftCallsite)
 		})
 		if len(drifted) != 0 {
 			return count, unmatched, first, aliases, fmt.Errorf(
 				"closure-scan: %d decision(s), first %s, drifted only at their callsites and are not stale; rerun the import with -review-callsites to keep their reviewed text, and retire what remains after it",
-				len(drifted), drifted[0].document.Name)
+				len(drifted), drifted[0].Document.Name)
 		}
-		for _, retry := range projection.pending {
-			document, previousAlias := retry.document, retry.previousAlias
+		for _, retry := range projection.Pending {
+			document, previousAlias := retry.Document, retry.PreviousAlias
 			if !retired[previousAlias] {
 				unmatchedRetirements = append(unmatchedRetirements, artifact.AliasRemoval(previousAlias, document.ID))
 				retired[previousAlias] = true
@@ -1601,7 +1601,7 @@ func commitClosureDocumentsAtHead(
 	fixtures []artifact.Descriptor,
 	expectedHead *artifact.CommitID,
 ) (int, artifact.CommitID, error) {
-	if err := requireUniqueClosureDocumentAliases(documents); err != nil {
+	if err := closurescan.RequireUniqueDocumentAliases(documents); err != nil {
 		return 0, artifact.CommitID{}, err
 	}
 	store, err := overgodb.OpenContext(context.Background(), storePath)
@@ -1698,23 +1698,6 @@ func commitClosureDocumentsAtHead(
 		return 0, artifact.CommitID{}, err
 	}
 	return len(files), commit, nil
-}
-
-func requireUniqueClosureDocumentAliases(documents []closureledger.Document) error {
-	claims := map[string]artifact.ID{}
-	for _, document := range documents {
-		for _, binding := range document.Bindings {
-			alias, err := closureledger.ActiveAlias(binding)
-			if err != nil {
-				return err
-			}
-			if prior, found := claims[alias]; found && prior != document.ID {
-				return fmt.Errorf("closure-scan: conflicting reviewed decisions claim alias %s", alias)
-			}
-			claims[alias] = document.ID
-		}
-	}
-	return nil
 }
 
 func bindClosureOperationKey(operation closureCommitOperation, batch *artifact.Batch) error {

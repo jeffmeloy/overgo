@@ -46,6 +46,133 @@
       ]
     },
     {
+      "id": "gate-telemetry-size",
+      "title": "Write gate telemetry at the size its readers use (store assessment 2026-09-22, seq 52976): gate-selection-cause holds 107 MB over 270 gates, about 400 KB each, and gate-suite-cost 44 MB over 220, yet neither is read by any gate decision -- only by plan -history -phases and the optimization review. Record selection causes as the per-gate histogram that history reads plus the packages selected under uncertainty, and give both schemas a telemetry class with a horizon of recent gates. Telemetry is not a derived cache: git cannot recompute it, so it gets its own horizon in internal/storepolicy rather than joining the cache list.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Write gate telemetry at the size its readers use (store assessment 2026-09-22, seq 52976): gate-selection-cause holds 107 MB over 270 gates, about 400 KB each, and gate-suite-cost 44 MB over 220, yet neither is read by any gate decision -- only by plan -history -phases and the optimization review. Record selection causes as the per-gate histogram that history reads plus the packages selected under uncertainty, and give both schemas a telemetry class with a horizon of recent gates. Telemetry is not a derived cache: git cannot recompute it, so it gets its own horizon in internal/storepolicy rather than joining the cache list.",
+          "status": "open",
+          "verify": "go test ./internal/runrecord -run '^TestSelectionCauseRecordIsASummary$' -count=1 \u0026\u0026 go test ./internal/storepolicy -run '^TestTelemetryKeepsAHorizon$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "derived-cache-reuse",
+      "title": "Store a derived cache only when a later gate reads it: code-profile and modern-Go memos cost about 3 MB of new blobs per gate, and about half of all gates are refused, so their candidate profiles are never read again. Measure the reuse from the gate's own cache hits first; keep in the store only what a later gate reads (the landed candidate is the next gate's base) and hold the rest in memory for the gate that computed it. Removes writes rather than scheduling their release.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store a derived cache only when a later gate reads it: code-profile and modern-Go memos cost about 3 MB of new blobs per gate, and about half of all gates are refused, so their candidate profiles are never read again. Measure the reuse from the gate's own cache hits first; keep in the store only what a later gate reads (the landed candidate is the next gate's base) and hold the rest in memory for the gate that computed it. Removes writes rather than scheduling their release.",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestDerivedCacheStoredOnlyWhenReused$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-small-record-horizon",
+      "title": "Stop the two fastest-growing small-record schemas from growing without bound: agent-obligation/v1 (54,372 records, +4.6k since 09-19) keeps open obligations and discharged ones within a horizon, and gate-package-receipt/v1 (31,722, +4.3k) becomes one receipt per gate naming its packages, which a lookup by package reads newest first. Records a landed commit or an accepted protocol names stay. These rows fill the lineage and artifact checkpoints that every open decodes, so shrinking them shortens every open without new loading machinery.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop the two fastest-growing small-record schemas from growing without bound: agent-obligation/v1 (54,372 records, +4.6k since 09-19) keeps open obligations and discharged ones within a horizon, and gate-package-receipt/v1 (31,722, +4.3k) becomes one receipt per gate naming its packages, which a lookup by package reads newest first. Records a landed commit or an accepted protocol names stay. These rows fill the lineage and artifact checkpoints that every open decodes, so shrinking them shortens every open without new loading machinery.",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestPackageReceiptIsOnePerGate$' -count=1 \u0026\u0026 go test ./internal/runrecord -run '^TestDischargedObligationsExpire$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-benchmark-record-redundancy",
+      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
+          "status": "open",
+          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-growth-ratchet",
+      "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning: after a landing's deferred lanes finish, cmd/loop runs the existing store-precheck swap once releasable bytes or commits since the last checkpoint pass a measured threshold -- release derived caches and telemetry past its horizon, pack small blobs, write a checkpoint, prune superseded snapshot generations and seal a backup. Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration: the retention rule stays the lists in internal/storepolicy.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning: after a landing's deferred lanes finish, cmd/loop runs the existing store-precheck swap once releasable bytes or commits since the last checkpoint pass a measured threshold -- release derived caches and telemetry past its horizon, pack small blobs, write a checkpoint, prune superseded snapshot generations and seal a backup. Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration: the retention rule stays the lists in internal/storepolicy.",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "depends_on": [
+            "gate-telemetry-size/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "overgodb-compaction-cadence",
+      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "depends_on": [
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projection-generation-pruning",
+      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "depends_on": [
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "store-open-lineage-cost",
+      "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
+          "rationale": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
+          "depends_on": [
+            "store-small-record-horizon/do",
+            "store-benchmark-record-redundancy/do",
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
       "id": "gate-suite-serial-floor",
       "title": "Bound the internal/gate test wall (157 s in the owner phase, paid by every control-plane row; 938 s before the shared live-checkout fixture and parallel tests) through the two levers that work left open: the serial floor of tests that cannot share the fixture, and the device-lane projector reach that pulls device packages into a host suite",
       "owner": "master-lead",
@@ -157,76 +284,6 @@
           "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-benchmark-record-redundancy",
-      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
-          "status": "open",
-          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "projection-generation-pruning",
-      "title": "Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestSnapshotPrunesSuperseded' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-growth-ratchet",
-      "title": "Declare each document schema's retention class (claim, derived cache, operational) and discovery mode at its JSONContract so the commit coordinator refuses an unclassed schema and the release policy is derived from declarations rather than an allowlist; garbage-collect the derived class and ratchet store growth per gate so bloat is a finding, not a surprise",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare each document schema's retention class (claim, derived cache, operational) and discovery mode at its JSONContract so the commit coordinator refuses an unclassed schema and the release policy is derived from declarations rather than an allowlist; garbage-collect the derived class and ratchet store growth per gate so bloat is a finding, not a surprise",
-          "status": "open",
-          "verify": "test -f internal/overgodb/growth_ratchet_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestStoreGrowthRatchet' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "overgodb-compaction-cadence",
-      "title": "Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding",
-          "status": "open",
-          "verify": "test -f internal/overgodb/compaction_cadence_test.go \u0026\u0026 go test ./internal/overgodb -run '^TestCompactionCadence' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-open-lineage-cost",
-      "title": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1"
         }
       ]
     },
@@ -998,7 +1055,9 @@
             "rae-generation-path/do",
             "plan-reordered/do",
             "gate-drops-build-check/do",
-            "row-check-proves-itself/do"
+            "row-check-proves-itself/do",
+            "derived-cache-reuse/do",
+            "plan-store-reshaped/do"
           ]
         }
       ]

@@ -4,115 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-small-record-horizon",
-      "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
-          "status": "open",
-          "verify": "go test ./internal/storepolicy -run '^TestLegacySmallRecordsAreReleasable$' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-benchmark-record-redundancy",
-      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): large datasets are already references -- dataset/v1 is 90 records and 0.2 MB of locations and digests -- but ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB, a tenth of the store's records) and the typed evaluation datasets built from those rows hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). One copy is justified: a score binds to the exact question bytes and the sources are unversioned files outside git. Keep the assembled set as the claim, reference the source by location and digest with the import spec, stop minting per-row records, and class the existing ones as releasable once nothing reads them",
-          "status": "open",
-          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
-        }
-      ]
-    },
-    {
-      "id": "store-growth-ratchet",
-      "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning: after a landing's deferred lanes finish, cmd/loop runs the existing store-precheck swap once releasable bytes or commits since the last checkpoint pass a measured threshold -- release derived caches and telemetry past its horizon, pack small blobs, write a checkpoint, prune superseded snapshot generations and seal a backup. Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration: the retention rule stays the lists in internal/storepolicy.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning: after a landing's deferred lanes finish, cmd/loop runs the existing store-precheck swap once releasable bytes or commits since the last checkpoint pass a measured threshold -- release derived caches and telemetry past its horizon, pack small blobs, write a checkpoint, prune superseded snapshot generations and seal a backup. Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration: the retention rule stays the lists in internal/storepolicy.",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "depends_on": [
-            "gate-telemetry-size/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "overgodb-compaction-cadence",
-      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "depends_on": [
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "projection-generation-pruning",
-      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "depends_on": [
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "store-open-lineage-cost",
-      "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
-          "depends_on": [
-            "store-small-record-horizon/do",
-            "store-benchmark-record-redundancy/do",
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "model-paths-from-registrations",
-      "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's directory and file paths). About 45 test sites join roots.Models with a directory name -- internal/adaptiveparity, internal/seq2seq, internal/seriesforecast, internal/latentvideo, internal/mediacapability, internal/speechsynth, internal/tabularicl, internal/oscillatorimage, cmd/compatibility, cmd/vqaparity -- and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store, not under the models root). Give tests one resolver by registration, move the sites to it, and prove a site resolves a model the models root does not hold",
+      "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's paths). About 45 test sites join roots.Models with a directory name and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store). The resolver lives in its own small package, internal/modeltest, because internal/testutil is imported by 646 test files and must not take on the store stack. Move the sites outside the pinned media runtime to it now; the ones under internal/latentvideo and internal/oscillatorimage follow reviewed-delta-registry, which makes a test-only change there cheap",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's directory and file paths). About 45 test sites join roots.Models with a directory name -- internal/adaptiveparity, internal/seq2seq, internal/seriesforecast, internal/latentvideo, internal/mediacapability, internal/speechsynth, internal/tabularicl, internal/oscillatorimage, cmd/compatibility, cmd/vqaparity -- and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store, not under the models root). Give tests one resolver by registration, move the sites to it, and prove a site resolves a model the models root does not hold",
+          "title": "Find every model's files through its registration in the store, not by joining a models root with a directory name (owner 2026-09-22: the store records each registered model's paths). About 45 test sites join roots.Models with a directory name and fail or skip when local-models.json points the root elsewhere, as it does now (FireRedVAD lives beside the audio reference store). The resolver lives in its own small package, internal/modeltest, because internal/testutil is imported by 646 test files and must not take on the store stack. Move the sites outside the pinned media runtime to it now; the ones under internal/latentvideo and internal/oscillatorimage follow reviewed-delta-registry, which makes a test-only change there cheap",
           "status": "open",
-          "verify": "go test ./internal/testutil -run '^TestRegisteredModelResolvesThroughTheStore$' -count=1"
+          "verify": "go test ./internal/modeltest -run '^TestRegisteredModelResolvesThroughTheStore$' -count=1"
         }
       ]
     },
@@ -242,6 +143,105 @@
           "title": "Decide what a capability claim's source binding is for, then stop the compatibility reports churning (measured 2026-09-21): compatibility.json and docs/COMPATIBILITY.md were rewritten by 60 of the last 60 landings, each by a changed file:sha256 of the source file that implements a claim. Unlike the tree hash removed from three other documents, this is a deliberate evidence binding between a claim and the exact code behind it -- but the gate's mechanical repair refreshes it at every landing unreviewed, so it signals nothing. Owner decision first: either the binding means re-verify when the code moves, and then a refresh must re-run the claim's oracle instead of rewriting the hash, or it means nothing and leaves both documents. Then docs/model_compatibility.json and docs/media_report.json, projections of the store with no reader but their writer, leave the tree, and the measurements in docs/performance_sweep_baseline.json move to a store record while its reviewed thresholds stay",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-growth-ratchet",
+      "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning. OWNER DECISION FIRST (found 2026-09-23): the whole pipeline already exists as store-precheck -swap (seal a backup, clone, release unreachable caches, pack, run the consumer checks, swap), so the step is only cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold -- but each run keeps the superseded store beside the new one and seals another backup, so a cadence without pruning recreates the copies the store assessment found, and pruning deletes stores and backups, which needs the owner's yes. The question: may the upkeep delete superseded stores and sealed backups older than the newest verified pair of each? Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep the store at rest in one step, which also closes overgodb-compaction-cadence and projection-generation-pruning. OWNER DECISION FIRST (found 2026-09-23): the whole pipeline already exists as store-precheck -swap (seal a backup, clone, release unreachable caches, pack, run the consumer checks, swap), so the step is only cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold -- but each run keeps the superseded store beside the new one and seals another backup, so a cadence without pruning recreates the copies the store assessment found, and pruning deletes stores and backups, which needs the owner's yes. The question: may the upkeep delete superseded stores and sealed backups older than the newest verified pair of each? Measured 2026-09-22: loose blobs grew about 373 MB over 70 landings since the last swap, and the newest backup is about 3,765 commits behind the head. No gate check, no per-gate refusal and no per-schema declaration",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "depends_on": [
+            "gate-telemetry-size/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "store-small-record-horizon",
+      "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Declare which small records the store upkeep may release (measured 2026-09-23): all 54,352 stored agent-obligation/v1 documents but 20 are go-test package obligations, and none has been written since f169de9f (2026-09-22) made each package obligation a line in its preparation's listing document rather than a record of its own -- so they are legacy, and a receipt names its obligation by identity only. Package receipts stay one per package per run, because each is the reuse key the gate reads to skip a package; what grows is the chain each receipt's previous link keeps. Declare the legacy go-test obligations and every receipt more than a short history behind its package's head as releasable, so store-growth-ratchet's upkeep releases them and the lineage and artifact checkpoints every open decodes shrink",
+          "status": "open",
+          "verify": "go test ./internal/storepolicy -run '^TestLegacySmallRecordsAreReleasable$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "store-benchmark-record-redundancy",
+      "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB) and the typed evaluation datasets built from them hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). Constraints found 2026-09-23 before building: the store suites assemble every case from the per-row records, reviewed IFEval parameter bindings cite individual record identities, and every active catalog names imports that list those identities. So keep each row's identity -- the content address of the same record, recomputed in memory from one rows document per import -- and read rows through the import, with the records already held still readable, rather than change any identity that stored evidence cites",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop storing benchmark text twice (owner question 2026-09-20, measured): ImportBenchmark stores every imported row as a benchmark-record of its own (24,318 records, 24.3 MB) and the typed evaluation datasets built from them hold the same text again (multiple-choice-dataset, 6 records, 23.1 MB). Constraints found 2026-09-23 before building: the store suites assemble every case from the per-row records, reviewed IFEval parameter bindings cite individual record identities, and every active catalog names imports that list those identities. So keep each row's identity -- the content address of the same record, recomputed in memory from one rows document per import -- and read rows through the import, with the records already held still readable, rather than change any identity that stored evidence cites",
+          "status": "open",
+          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "overgodb-compaction-cadence",
+      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Run the in-place derived-cache release on the growth ratchet's measured size trigger as a gate-adjacent step, on a hard-linked candidate clone that the plan completion authority, store-check and the closure ledger must pass before it is swapped into service, so the store never regrows unnoticed and a compaction can never break a binding. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "depends_on": [
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projection-generation-pruning",
+      "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Absorbed by store-growth-ratchet, the one upkeep step at rest: Prune superseded snapshot and checkpoint generations at Snapshot with the fallback depth stated explicitly, so projections stop accumulating a generation per maintenance pass. Close this row as a plan-only landing once that row's check passes; build nothing of its own.",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "depends_on": [
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "store-open-lineage-cost",
+      "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Defer decoding the large checkpoint facets until a command asks for them, only if a read-only open is still slow once store-small-record-horizon, store-benchmark-record-redundancy and store-growth-ratchet have shrunk what it decodes and replays; re-measure first, and the measured design and the two implementations that do not work are in this step's rationale",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
+          "rationale": "Load the large facets when a command first asks for them. Re-measured 2026-09-22 at 0ac54ac5: a bare read-only open of overgodb-store is 1.7 s, above the 1.4 s recorded, because the redundancy rows that were to shrink it wait on owner decisions. The seven members total 189 MB, lineage 88.3 and artifacts 46.5, and they already load concurrently, so an open is bounded by its largest decode. Reading every member costs 36 ms and digesting every payload 67 ms, so the verification this keeps is about a tenth of a second; the typed decode that builds the maps is the rest. Two obvious implementations do not work, measured 2026-09-22 at 88de0d06. Laziness inside the facet fails because its read methods take value receivers and catalogState.delta is itself a value receiver, so a lazy restore would populate a throwaway copy. Re-replaying the journal on first use fails because replay seeks the shared log file, so a later replay moves the writer's cursor; it would need a second read-only reader. What is left is to defer at the store, which already owns the lock: keep the verified payload and the commits applied since, apply to a deferred facet only once it is loaded, and have each reader take the write lock through a double check because an RWMutex does not upgrade. Restore that way, drain the pending commits, and hold it with a test that a deferred facet answers exactly as an eager one after a commit.",
+          "depends_on": [
+            "store-small-record-horizon/do",
+            "store-benchmark-record-redundancy/do",
+            "store-growth-ratchet/do"
+          ]
         }
       ]
     },
@@ -1023,7 +1023,8 @@
             "model-paths-from-registrations/do",
             "preflight-rebinds-closure-drift/do",
             "plan-closure-rows-reconciled/do",
-            "plan-small-records-rescoped/do"
+            "plan-small-records-rescoped/do",
+            "plan-model-paths-scoped/do"
           ]
         }
       ]

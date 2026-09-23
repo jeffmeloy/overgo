@@ -247,9 +247,30 @@ func (h *Handler) aliasNamesUnder(ctx context.Context, kind artifact.Kind, root 
 	}
 }
 
+// activeAgentNames lists the names under the active-agent root in one pass
+// over the activation documents the root binds (runrecord owns their
+// contract). The manifest asks on every page load, and a catalog query paging
+// every artifact to reach its aliases held the whole shell for tens of
+// seconds on a real store.
+func (h *Handler) activeAgentNames(ctx context.Context) ([]string, error) {
+	activation := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema}
+	var names []string
+	_, err := h.repository.VisitDocuments(ctx, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{activation}, AliasPrefixes: []string{runrecord.AgentActiveAliasRoot},
+		Order: overgodb.DocumentOldestFirst,
+	}, func(document overgodb.DocumentView) error {
+		for _, alias := range document.Aliases {
+			if name, found := strings.CutPrefix(alias, runrecord.AgentActiveAliasRoot); found {
+				names = append(names, name)
+			}
+		}
+		return nil
+	})
+	return names, err
+}
+
 func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, error) {
-	var anyKind artifact.Kind // every kind: activations are evidence, but the alias root is the authority
-	names, err := h.aliasNamesUnder(ctx, anyKind, runrecord.AgentActiveAliasRoot)
+	names, err := h.activeAgentNames(ctx)
 	if err != nil {
 		return nil, err
 	}

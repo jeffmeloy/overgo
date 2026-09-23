@@ -1,8 +1,274 @@
 {
-  "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Priority: improve robustness and cut gate, automation and runtime wall time and peak memory by consolidating duplicated logic into fewer general components, never by adding instrumentation or a framework. Net AST nodes stay flat or fall: every addition deletes at least as much, a new general component replaces the copies it subsumes, and the clone and harness ratchets hold the floor. Do safe, behavior-preserving consolidations first, the ones existing tests and the ratchets already cover; take deeper execution-core and command-surface simplification behind the model-regression baseline so a removal never loses proven behavior. Preserve the capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework. Preserve acceptance and independent model progress; these priorities add no automation prerequisite to model validation. Document order ranks ready work; depends_on names actual producers. A step's machine check is its verify, set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. GUI and audio retain their lanes. Master execution proceeds under role master-lead. docs/plan.json is the sole live plan.",
+  "campaign": "Integrated validation, GUI cleanup lane: validate, harden and simplify the HTML workbench",
+  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree.",
+  "lane": "overgo_gui_cleanup",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "webui-client-contract",
+      "title": "Make every workbench request match the route it calls: real methods in the route explorer, the schema its handler decodes, and a static guard over the client's route literals",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make every workbench request match the route it calls: real methods in the route explorer, the schema its handler decodes, and a static guard over the client's route literals",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestWebUIRouteSchemasMatchHandlerBodies$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserRouteExplorer$' -require 'route explorer leg'",
+          "rationale": "Audit: mod/api.js:27 sends every non-GET explorer row as POST, so the DELETE /hub/downloads row starts a download, and GET rows drop their form values; /automations/schedule is bound to the automation-trigger schema while its handler decodes AutomationExecutionInput; composer.js:98 fills tool_end.result from item.arguments; automations.js reads dead PascalCase fields and prints 'accepted / ' with an empty id. Acceptance: a Go test holds every schema the explorer binds to the JSON fields of the body its handler decodes (the automation definition and trigger schemas and the flat peer placement form describe parts of a body, not a body, and are unbound); a browser leg filters the 139-row table, sends the DELETE and GET /hub/downloads rows and observes the declared method and query reach the server. Query rows take a one-line input."
+        }
+      ]
+    },
+    {
+      "id": "agent-workspace-alias-roots",
+      "title": "Read the agent tool registry and agent session roots without paging the whole catalog",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Read the agent tool registry and agent session roots without paging the whole catalog",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestAgentWorkspaceRootsReadOnlyTheirDocuments$' -count=1",
+          "rationale": "Follow-up to webui-manifest-latency: /agent/tools (tool.registered.) and /agent/sessions (interaction/response/) still reach their alias roots through aliasNamesUnder, the paged catalog query that cost tens of seconds per call on the live store, so the Agent tab stalls when opened. Read each root from the documents it binds; keep the stale-registration report for a tool alias whose target no longer resolves to a manual."
+        }
+      ]
+    },
+    {
+      "id": "webui-stream-lifecycle",
+      "title": "Release every stream, poller and listener a tab opens, report or reconnect ended streams, and stop background polling while hidden",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Release every stream, poller and listener a tab opens, report or reconnect ended streams, and stop background polling while hidden",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserStreamLifecycle$' -require 'stream lifecycle leg'",
+          "rationale": "Audit: mod/peers.js:164 discards the runtimeEvents unsubscribe (a leaked subscriber per mount, rendering into detached DOM, double evidence fetch); mod/inbox.js:51 opens its own /agents/stream for events the shared stream already carries and refetches per event; agent, automations, peers and inbox tabs go silently stale when a stream ends; boot.js:281 adds a visibilitychange listener per poller that is never removed and boot.js:276 rethrows inside a timer; the status probe refetches /catalog/models every 10 s even while hidden; navigator.clipboard.writeText rejects unhandled on insecure origins; failed key changes stack banners; dataset previews and history loads race without abort. Acceptance: the browser journey mounts and leaves each streaming tab repeatedly, the server-side stream count returns to baseline, an ended stream is reported or resumed, a hidden page issues no catalog probes and overgo.errors stays empty."
+        }
+      ]
+    },
+    {
+      "id": "webui-every-tab-mounts-clean",
+      "title": "Prove every workspace tab mounts without an error banner or page error, and open gallery artifacts through the authenticated client",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prove every workspace tab mounts without an error banner or page error, and open gallery artifacts through the authenticated client",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Screens|ArtifactLinks)$' -require 'tab mount errors: 0' -require 'artifact links leg'",
+          "rationale": "Audit: the screens walk checks overgo.errors once at start and never per tab, and thirteen tabs (generation, runtime, datasets, export-jobs, runs, peers, compositions, artifacts, vocab, lens, states, tensors, api) have no other browser test; evaluations.js and training.js open /artifacts?id= in a new tab, a bearer route that answers 401 with a key configured, and composer.js wraps images in a link el() turns into a download. One overgo.contentURL replaces nine hand-built content URLs. Acceptance: the walk records banners and page errors per tab and the leg prints zero; with an API key set, gallery links open the artifact inside the workbench."
+        }
+      ]
+    },
+    {
+      "id": "webui-control-labels",
+      "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserLayoutAudit$' -require 'unlabelled controls: 0'",
+          "rationale": "Audit: about 25 controls carry only a placeholder (agent, automations, artifacts, discovery, analyze_* layer and k fields, schema_form), boot.js:667 renders analysis field names as detached spans, and aria-label sits on role-less divs (conversation list, status dots) where it is ignored; status dots are colour and tooltip only. Acceptance: the audit gains an unlabelled-control fault kind measured at every captured state and viewport, and the leg reports zero. Inspect the changed tabs in the browser pane at desktop and phone widths."
+        }
+      ]
+    },
+    {
+      "id": "webui-helper-consolidation",
+      "title": "Consolidate the workbench's repeated client helpers onto single owners and delete dead markup, exports and inputs",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Consolidate the workbench's repeated client helpers onto single owners and delete dead markup, exports and inputs",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestWebUIClientHelpersHaveOneOwner$' -count=1",
+          "rationale": "Audit: 51 errorBanner(friendlyError(...)) sites beside an overgo.reporter only agent.js uses; /operations/cancel called from four modules; artifactLink defined twice (evaluations.js, training.js); getKey/setKey/invalidateModel/evidenceLine exported but used only in boot.js; index.html #tabs unused; three permanently disabled inputs in compositions.js; two separate @media (max-width:860px) blocks; mixed tab and space indentation in recipe.js and runtime.js; loading copy exposes route paths. Consolidation removes code, so the acceptance is a ratchet test that holds each helper to one owner and forbids the dead identifiers; the full page lane must still pass."
+        }
+      ]
+    },
+    {
+      "id": "webui-lane-trigger-coverage",
+      "title": "Run the browser lane for every change to the workbench's declarations, routes and GUI tests",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the browser lane for every change to the workbench's declarations, routes and GUI tests",
+          "status": "open",
+          "verify": "go test ./internal/automationcheck -run '^TestWebUIPathsCoverWorkspaceDeclarations$' -count=1",
+          "rationale": "Audit: internal/automationcheck/webui.go selects the lane by path prefix and misses workspace_manifest.json, workspace_schema.json, workspace_routes.go, gui_mobile_evidence_test.go and peer_workspace_gui_test.go, so edits there skip every browser test. Acceptance: a test enumerates the files the embedded workbench and its route table read and requires each to select the lane."
+        }
+      ]
+    },
+    {
+      "id": "agent-route-consolidation",
+      "title": "Serve the agent workspace from one route prefix and retire the duplicate singular agent routes",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Serve the agent workspace from one route prefix and retire the duplicate singular agent routes",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestAgentRoutesHaveOnePrefix$' -count=1",
+          "rationale": "Audit: /agent/step and /agent/approval duplicate /agents/step and /agents/approval and are reached only by tests; /agent/tools, /agent/sessions and /agent/provenance stay singular beside every other /agents/* route. Removing the duplicates shrinks the route table; the acceptance holds the agent family to one prefix and the client and tests to it."
+        }
+      ]
+    },
+    {
+      "id": "gui-style-hardened-states",
+      "title": "Prove every workspace under extreme input, empty, loading and failure states with copy that names the recovery",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prove every workspace under extreme input, empty, loading and failure states with copy that names the recovery",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(HardenedStates|LayoutAudit)$' -require 'hardened states leg'",
+          "rationale": "Carried from professional_overgo_gui. Each workspace renders its empty, loading, failure and oversized-input states from fixtures; failure copy names the action that recovers; no raw route or Go error text reaches the page. Review each state in the browser pane at desktop and phone widths.",
+          "depends_on": [
+            "webui-every-tab-mounts-clean/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-style-tokens",
+      "title": "Publish the workbench's colour, spacing and type tokens as one design document the stylesheet must match, and measure contrast for every token pair in both schemes",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish the workbench's colour, spacing and type tokens as one design document the stylesheet must match, and measure contrast for every token pair in both schemes",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -run '^(TestDesignDocumentMatchesStylesheet|TestCraftFloorTokenContrast)$' -count=1",
+          "rationale": "Merges professional_overgo_gui rows gui-style-design-document and gui-style-craft-floor. style.css is the only token source; the design document is derived structure the test compares, never a second copy by hand. Contrast is computed for every foreground/background token pair in light and dark schemes against WCAG AA. Impeccable (C:/Users/jeffm/impeccable, read-only) supplies the craft-floor concepts only."
+        }
+      ]
+    },
+    {
+      "id": "gui-style-typeset",
+      "title": "Set one type scale and reading measure for the workbench and remove the eyebrow label",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Set one type scale and reading measure for the workbench and remove the eyebrow label",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Typeset|LayoutAudit)$' -require 'typeset leg'",
+          "rationale": "Carried from professional_overgo_gui. The browser leg measures computed font sizes against the declared role scale and the conversation's line length against the measure at every captured viewport. Review typography in the browser pane before landing.",
+          "depends_on": [
+            "gui-style-tokens/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-chat-sessions",
+      "title": "Continue a stopped or resumed conversation exactly through inference sessions instead of replaying and re-prefilling its text",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Continue a stopped or resumed conversation exactly through inference sessions instead of replaying and re-prefilling its text",
+          "status": "open",
+          "verify": "test -f internal/server/response_session_test.go \u0026\u0026 go test ./internal/server -run '^TestResponsesContinueSavedSession$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SessionContinuation|LayoutAudit)$' -require 'session continuation leg'",
+          "rationale": "Carried from professional_overgo_gui. Map previous_response_id on /v1/responses to a saved inference session bound to the model fingerprint and sampler state; continuing after Stop produces the same tokens as an uninterrupted greedy run with no re-prefill; a session from another model or sampler is refused with its reason."
+        }
+      ]
+    },
+    {
+      "id": "gui-agent-sessions",
+      "title": "Resume agent sessions after interruption and stream tool output into the thread",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resume agent sessions after interruption and stream tool output into the thread",
+          "status": "open",
+          "verify": "test -f internal/server/agent_session_recovery_test.go \u0026\u0026 go test ./internal/server -run '^TestAgentSessionRecoveryAndStreaming$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AgentRecovery|LayoutAudit)$' -require 'agent recovery leg'",
+          "rationale": "Carried from professional_overgo_gui, after agent-route-consolidation so it builds on the single /agents/* prefix.",
+          "depends_on": [
+            "agent-route-consolidation/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gui-speculative-decoding",
+      "title": "Offer speculative decoding in Settings only when the served recipe declares a draft head, with depth taken from the declaration",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Offer speculative decoding in Settings only when the served recipe declares a draft head, with depth taken from the declaration",
+          "status": "open",
+          "verify": "test -f internal/server/speculative_option_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeculativeDecodingDeclaredOption$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SpeculativeDecoding|LayoutAudit)$' -require 'speculative decoding leg'",
+          "rationale": "Carried from professional_overgo_gui. No option appears for a recipe without a draft head; the turn inspector shows accepted draft tokens."
+        }
+      ]
+    },
+    {
+      "id": "gui-model-merge",
+      "title": "Merge registered models from Model Builder into a new artifact with lineage",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge registered models from Model Builder into a new artifact with lineage",
+          "status": "open",
+          "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -require 'model merge leg'",
+          "rationale": "Carried from professional_overgo_gui; its launch-reachability prerequisite is complete on master (workspace reachability leg passes)."
+        }
+      ]
+    },
+    {
+      "id": "gui-cleanup-signoff",
+      "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -require 'stream lifecycle leg' -require 'tab mount errors: 0' -require 'artifact links leg' -require 'unlabelled controls: 0' -require 'hardened states leg' -require 'typeset leg' -require 'session continuation leg' -require 'agent recovery leg' -require 'speculative decoding leg' -require 'model merge leg' -require 'conversation control leg' -require 'mobile interaction leg'",
+          "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
+          "depends_on": [
+            "webui-client-contract/do",
+            "webui-stream-lifecycle/do",
+            "webui-every-tab-mounts-clean/do",
+            "webui-control-labels/do",
+            "webui-helper-consolidation/do",
+            "webui-lane-trigger-coverage/do",
+            "agent-route-consolidation/do",
+            "gui-style-hardened-states/do",
+            "gui-style-tokens/do",
+            "gui-style-typeset/do",
+            "gui-chat-sessions/do",
+            "gui-agent-sessions/do",
+            "gui-speculative-decoding/do",
+            "gui-model-merge/do"
+          ]
+        }
+      ]
+    },
     {
       "id": "inventory-tells-the-truth",
       "title": "Make the validate inventory answer the same whatever root it is given and say what is proven (owner feedback 2026-09-22): -inventory models, a relative root, reports Qwen3.8-27B, granite, nemotron and timesfm-3.0 as unregistered and FireRedVAD as not a model, and prints recipe register commands that would register them twice, because registrations store absolute locations and the root is matched as given -- resolve it before matching. Four evidence entries (Qwen2.5-0.5B safetensors, a second RxBrain file, LiveEdit's bid-diffusion checkpoint, one Wan file) report that no owner judges their currency, so they stay stale however often the validators run: give each the owner that judges it or declare it excluded. And a directory's activated label hides which of its files carries the evidence (18 files are only registered in activated directories, such as the f16 GGUF the Carbon ropefix replaced and the safetensors behind each converted GGUF): name the proven file per directory. The rule under all three (owner 2026-09-22): the store already records the directory and file paths of each registered model, so the inventory, and every test or tool that now joins a models root with a directory name (internal/adaptiveparity among them), resolves a model's files through its registration instead.",
@@ -346,6 +612,7 @@
     {
       "id": "decode-attention-per-key-cost",
       "title": "Recover small-head decode throughput without losing long-context correctness",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -363,6 +630,7 @@
     {
       "id": "gemma-12b-accuracy",
       "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -521,6 +789,7 @@
     {
       "id": "failure-recovery",
       "title": "Run independent host recovery drills before closing reliability claims",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -555,6 +824,7 @@
     {
       "id": "model-regression-baseline",
       "title": "Publish an accepted, immutable baseline before simplification",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -576,6 +846,7 @@
     {
       "id": "benchmark-completion",
       "title": "Complete current-surface benchmarks and matched comparisons",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -596,6 +867,7 @@
     {
       "id": "simplify-prefill-paths",
       "title": "Unify measured prefill policy where reference parity permits",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -616,6 +888,7 @@
     {
       "id": "simplify-execution-core",
       "title": "Remove costly execution duplication behind the regression gate",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -633,6 +906,7 @@
     {
       "id": "simplify-command-surface",
       "title": "Consolidate public APIs and shipped binaries after their contract prerequisites",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -656,6 +930,7 @@
     {
       "id": "simplify-checkpoint-locations",
       "title": "Remove dependence on retired checkpoint paths with reversible relocation",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -675,6 +950,7 @@
     {
       "id": "final-model-validation",
       "title": "Prove the final text execution surface and long-lived serving behavior",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -696,6 +972,7 @@
     {
       "id": "simplify-capability-report",
       "title": "Publish capability preserved or improved per unit of mechanism removed",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -784,6 +1061,7 @@
     {
       "id": "campaign-closeout",
       "title": "Close only after all capability and reliability branches are accounted for",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {

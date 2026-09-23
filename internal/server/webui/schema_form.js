@@ -41,7 +41,7 @@
           [{ value: "true", label: "True" }, { value: "false", label: "False" }] : field.options;
         for (const option of options || []) input.appendChild(el("option", { value: option.value, text: option.label }));
       } else if (field.type === "string-list") {
-        input = el("textarea", { class: "text", rows: "4", placeholder: "One value per line" });
+        input = el("textarea", { class: "text", "aria-label": field.label, rows: "4", placeholder: "One value per line" });
       } else {
         input = el("input", {
           class: "text", "aria-label": field.label, type: field.type === "integer" || field.type === "number" ? "number" : "text",

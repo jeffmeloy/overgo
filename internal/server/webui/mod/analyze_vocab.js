@@ -13,7 +13,7 @@
       let timer = null;
 
       clear(panel);
-      const search = el("input", { class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
+      const search = el("input", { "aria-label": "Search tokens", class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
       const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next ›");

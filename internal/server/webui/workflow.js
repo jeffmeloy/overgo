@@ -131,14 +131,14 @@
       })));
     }
     if (frames && frames.control.bounds.rate) chips.push(...durationPresets.map((seconds) => chip(seconds + " s", () => { frames.input.value = snap(frames, seconds * frames.control.bounds.rate); })));
-    return chips.length ? el("div", { class: "preset-chips", "aria-label": "presets" }, ...chips) : null;
+    return chips.length ? el("div", { class: "preset-chips", role: "group", "aria-label": "Presets" }, ...chips) : null;
   }
 
   // intakeStrip: the store's recent stored files of the slot's media kind (attachments the
   // composer stored, media that came out of a capability), one click filling the slot.
   function intakeStrip(control, input) {
     const el = window.overgo.el;
-    const strip = el("div", { class: "intake-strip", "aria-label": "recent " + (control.media || "stored files") });
+    const strip = el("div", { class: "intake-strip", role: "group", "aria-label": "Recent " + (control.media || "stored files") });
     const kind = control.media ? control.media + "/" : "";
     const load = () => window.overgo.api.get("/artifacts?kind=file&newest=1&media=" + encodeURIComponent(kind) + "&limit=" + window.overgo.intakeStripLimit).then((listed) => {
       strip.replaceChildren(...(listed.artifacts || []).filter((item) => item.payload).map((item) => {

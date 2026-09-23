@@ -784,9 +784,9 @@
   function toolStep(host, options) {
     const api = overgo.api;
     const select = el("select", { class: "text", "aria-label": "tool" });
-    const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
+    const args = el("textarea", { "aria-label": "Tool arguments (JSON)", class: "text", rows: "2", placeholder: "Strict JSON arguments" });
     const decisionHost = el("div");
-    const guard = el("span", { class: "note", "aria-label": "guardrails" });
+    const guard = el("span", { class: "note", role: "status", "aria-label": "Guardrails" });
     const review = el("button", { class: "btn alt", text: "Review decision" });
     const execute = el("button", { class: "btn alt", text: "Execute inspection" });
     const approve = el("button", { class: "btn", text: "Approve and execute", disabled: true });

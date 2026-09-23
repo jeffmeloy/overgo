@@ -41,8 +41,8 @@
 
       // The creation surface: a name, plain instructions, tool checkboxes; every identity derives at /agents/create.
       function renderCreate() {
-        const name = el("input", { class: "text", placeholder: "agent name (lowercase)" });
-        const instructions = el("textarea", { class: "text", rows: "3", placeholder: "what should this agent do?" });
+        const name = el("input", { "aria-label": "Agent name", class: "text", placeholder: "agent name (lowercase)" });
+        const instructions = el("textarea", { "aria-label": "Agent instructions", class: "text", rows: "3", placeholder: "what should this agent do?" });
         const boxes = tools.map((tool) => {
           const box = el("input", { type: "checkbox" });
           return { tool, box, row: el("label", { class: "note" }, box, " " + tool.name + " / " + tool.effect) };
@@ -162,7 +162,7 @@
       let toolSurface = null;
       function renderTools() {
         if (!toolSurface) {
-          const session = el("input", { class: "text", placeholder: "session identity", value: autoSession });
+          const session = el("input", { "aria-label": "Session identity", class: "text", placeholder: "session identity", value: autoSession });
           const sessionListHost = el("div");
           const listSessions = el("button", { class: "btn alt", text: "Sessions" });
           // The session list: every durable session with its steps against the bound, resumable by one click.
@@ -191,7 +191,7 @@
 
       function renderRetrieval() {
         const [projection, policy, query, limit] = ["retrieval projection identity", "rerank policy identity", "retrieval query", "result limit"]
-          .map((placeholder) => el("input", { class: "text", placeholder }));
+          .map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
         const results = el("div");
         const search = el("button", { class: "btn", text: "Search", disabled: !selected });
         search.addEventListener("click", async () => {
@@ -211,8 +211,8 @@
       function renderAutomations() {
         const agent = activeAgent();
         const select = el("select", { class: "text", "aria-label": "automation" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
-        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", placeholder }));
-        const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
+        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
+        const inputs = el("textarea", { "aria-label": "Tool inputs (JSON)", class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
         run.addEventListener("click", async () => {
           try {

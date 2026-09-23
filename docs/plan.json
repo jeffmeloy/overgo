@@ -10,12 +10,17 @@
       "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
       "owner": "overgo_gui_cleanup",
       "status": "open",
+      "budget": {
+        "nodes": 60,
+        "paydown": "webui-helper-consolidation",
+        "reason": "two audit fault kinds and the summary's unlabelled count; the audit script is a Go string"
+      },
       "steps": [
         {
           "id": "do",
           "title": "Give every workbench control an accessible name and make the layout audit refuse unlabelled controls",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserLayoutAudit$' -require 'unlabelled controls: 0'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(Screens|LayoutAudit)$' -require 'unlabelled controls: 0'",
           "rationale": "Audit: about 25 controls carry only a placeholder (agent, automations, artifacts, discovery, analyze_* layer and k fields, schema_form), boot.js:667 renders analysis field names as detached spans, and aria-label sits on role-less divs (conversation list, status dots) where it is ignored; status dots are colour and tooltip only. Acceptance: the audit gains an unlabelled-control fault kind measured at every captured state and viewport, and the leg reports zero. Inspect the changed tabs in the browser pane at desktop and phone widths."
         }
       ]

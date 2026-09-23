@@ -697,12 +697,12 @@
   function embed(id, host, seed) { const tab = tabs.find((t) => t.id === id); if (!tab) throw new Error("no workspace tab " + id); clear(host); return tab.mount(host, window.overgo, seed); }
   // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
   function analysisSurface(panel, seed, options) {
-    const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
+    const prompt = el("textarea", { "aria-label": "Prompt to analyze", class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
     const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
       onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
@@ -739,7 +739,8 @@
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
     const node = document.getElementById(id);
-    if (node) { node.className = "dot " + state; node.title = title; }
+    // The dot speaks its state; its colour and tooltip show it.
+    if (node) { node.className = "dot " + state; node.title = title; node.setAttribute("aria-label", title); }
   }
   let statusAttempt = 0;
   async function refreshStatus() {

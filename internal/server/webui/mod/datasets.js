@@ -32,7 +32,7 @@
         el("span", { class: "note", text: data.count + " datasets" }),
         el("span", { class: "note mono", text: data.catalog })));
 
-      const search = el("input", { class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
+      const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
       const host = el("div");
       const preview = el("div");
       panel.append(search, host, preview);

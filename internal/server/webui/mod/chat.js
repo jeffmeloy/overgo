@@ -113,8 +113,8 @@
       const agentSession = "front-" + new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
       const histories = new Map();
 
-      const system = el("textarea", { class: "text system-prompt", placeholder: "system prompt (optional)" });
-      const facts = el("div", { class: "statgrid", "aria-label": "context meter" });
+      const system = el("textarea", { "aria-label": "System prompt", class: "text system-prompt", placeholder: "system prompt (optional)" });
+      const facts = el("div", { class: "statgrid", role: "group", "aria-label": "Context meter" });
       const temperature = el("input", { class: "keyfield w-80", type: "number", min: 0, step: "any", value: params.temperature, "aria-label": "temperature", "data-draft-setting": "temperature" });
       const maxTokens = el("input", { class: "keyfield w-90", type: "number", min: 1, step: 1, value: Math.min(params.max_tokens, tokenLimit), max: tokenLimit, "aria-label": "max tokens", "data-draft-setting": "tokens" });
       system.dataset.draftSetting = "system";
@@ -253,7 +253,7 @@
           ...lineage.producers.map((run) => runLine("made by", run, run.inputs.map((input) => ({ id: input.id, name: inputName(input) })))),
           ...lineage.consumers.map((run) => runLine("used by", run, run.outputs.map((id) => ({ id, name: "" })))),
           lineage.producers.length + lineage.consumers.length ? null : el("span", { class: "note", text: "no run recorded around it" }),
-          el("div", { class: "row", "aria-label": "next steps" }, ...lineage.next.map((step) => el("button", { class: "chip", text: step.name + " · " + step.label, onclick: () => openStep(step, event.artifact) }))));
+          el("div", { class: "row", role: "group", "aria-label": "Next steps" }, ...lineage.next.map((step) => el("button", { class: "chip", text: step.name + " · " + step.label, onclick: () => openStep(step, event.artifact) }))));
         card.querySelector(".lineage") ? card.querySelector(".lineage").replaceWith(block) : card.appendChild(block);
       }
       // openStep: the composer in the step's mode with its model picked and the artifact in the declared slot.
@@ -564,7 +564,7 @@
           value: capability.recipe, text: capability.name || fmt.shortID(capability.recipe), disabled: !!capability.refusal, title: capability.refusal || "" })));
         // The gallery rail: the store's outputs of the mode's kind newest first, each thumb named by the
         // capability that made it; "this model" keeps the picked one's. A thumb opens the record.
-        const rail = el("div", { class: "intake-strip gallery", "aria-label": "recent " + overgo.outputKind(mode) + " outputs" });
+        const rail = el("div", { class: "intake-strip gallery", role: "group", "aria-label": "Recent " + overgo.outputKind(mode) + " outputs" });
         const only = el("input", { type: "checkbox", "aria-label": "this model only" });
         const filterRail = () => { for (const thumb of rail.children) thumb.hidden = only.checked && thumb.dataset.recipe !== picker.value; };
         const select = () => {

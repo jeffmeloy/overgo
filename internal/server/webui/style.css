@@ -238,6 +238,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .preview-text { white-space:pre-wrap; overflow-wrap:anywhere; font:12px var(--mono); }
 textarea.text { min-height:90px; resize:vertical; font-family:var(--mono); }
 .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.inline-field { display:inline-flex; gap:6px; align-items:center; }
 .note { color:var(--faint); font:13px/1.5 var(--font); }
 .err-banner { color:var(--err); font:12.5px var(--mono); background:color-mix(in srgb, var(--err) 10%, transparent);
   border:1px solid color-mix(in srgb, var(--err) 30%, transparent); border-radius:var(--radius-s); padding:10px 12px; margin:10px 0; }

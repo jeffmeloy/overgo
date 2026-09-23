@@ -32,9 +32,9 @@
       function renderInventory() {
         const table = el("table", { class: "grid" }, overgo.headerRow(["name", "definition", "state", "actions"]));
         for (const item of inventory) {
-          const input = el("textarea", { class: "text", rows: "2", placeholder: '{"prompt":"hello"}' });
-          const destination = el("input", { class: "text", placeholder: "allowlisted destination" });
-          const key = el("input", { class: "text", value: "manual", placeholder: "idempotency key" });
+          const input = el("textarea", { "aria-label": "Trigger inputs (JSON)", class: "text", rows: "2", placeholder: '{"prompt":"hello"}' });
+          const destination = el("input", { "aria-label": "Allowlisted destination", class: "text", placeholder: "allowlisted destination" });
+          const key = el("input", { "aria-label": "Idempotency key", class: "text", value: "manual", placeholder: "idempotency key" });
           const run = el("button", { class: "btn", text: "Run", disabled: !!item.refusal });
           const schedule = el("button", { class: "btn alt", text: "Scan schedule", disabled: !!item.refusal });
           async function execute(path) {

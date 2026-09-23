@@ -34,7 +34,8 @@ setTimeout(tick, 1000); setInterval(poll, interval);
 // TODO: later
 `
 	review := ReviewMeasures(source)
-	want := Review{SilentFallbacks: 2, WindowDialogs: 2, UnnamedControls: 2, UnnamedButtons: 1, InlineStyles: 1, NestedTernaries: 1, TimerLiterals: 1, DebtMarkers: 1}
+	// four and eleven carry only a placeholder, which names nothing.
+	want := Review{SilentFallbacks: 2, WindowDialogs: 2, UnnamedControls: 4, UnnamedButtons: 1, InlineStyles: 1, NestedTernaries: 1, TimerLiterals: 1, DebtMarkers: 1}
 	if review != want {
 		t.Fatalf("review = %+v, want %+v", review, want)
 	}

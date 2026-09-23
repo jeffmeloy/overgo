@@ -12,8 +12,8 @@
           "id": "do",
           "title": "Recover small-head decode throughput without losing long-context correctness",
           "status": "open",
-          "verify": "go test ./internal/cuda/executor -run DecodeAttention -count=1",
-          "rationale": "Qwen2.5-0.5B short-context decode fell from 295 to 139 tok/s; E4B held within 3%. Take capacity-sized host upload out of BenchmarkDecodeAttention's timed loop and run it with -bench and device opt-in. Compare isolated before/after runs across short, 4096-boundary, tile-boundary and long contexts. Keep split-key correctness, NLL and memory; bind kernel parity plus end-to-end Qwen and E4B checks. Reuse the MiniCPM split derivation; no competing policy.",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run DecodeAttention -count=1",
+          "rationale": "Measured 2026-09-23 at HEAD (long-form ladder, guard corpus, Qwen2.5-0.5B f16): decode 473 tok/s at 1024 keys against 295 before and 139 after the tiled split-key kernel, 306 at 8192 (137 then), 166 at 16384 (113), context gain positive at every rung, 4 launches per step. Later kernel changes recovered the loss. What remains is the benchmark: it timed only full caches, so it gains short contexts in long caches and per-step device counters.",
           "depends_on": [
             "model-regression-gate/do"
           ]
@@ -630,7 +630,8 @@
             "device-measurement-deadlock/do",
             "registry-document-class/do",
             "device-holders-rescoped/do",
-            "suite-cost-rescoped/do"
+            "suite-cost-rescoped/do",
+            "decode-check-on-device/do"
           ]
         }
       ]

@@ -36,6 +36,38 @@ func TestIDRoundTrip(t *testing.T) {
 	}
 }
 
+// TestIDDecodesInPlace holds an identity's JSON decode to its own bytes: a
+// store open decodes every identity it holds, so a plain quoted identity
+// parses without a nested JSON decode, and an escaped or malformed one still
+// decodes or refuses as JSON does.
+func TestIDDecodesInPlace(t *testing.T) {
+	id, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ID
+	if allocations := testing.AllocsPerRun(100, func() {
+		if err := decoded.UnmarshalJSON(encoded); err != nil {
+			t.Fatal(err)
+		}
+	}); allocations > 2 || decoded != id {
+		t.Fatalf("decoding an identity allocated %.0f times, decoded %v", allocations, decoded)
+	}
+	escaped := bytes.Replace(encoded, []byte(":"), []byte(`:`), 1)
+	if err := decoded.UnmarshalJSON(escaped); err != nil || decoded != id {
+		t.Fatalf("escaped identity = %v, %v", decoded, err)
+	}
+	for _, malformed := range []string{`"model:sha256:"`, `"model:sha256:` + id.DigestHex() + `:x"`, `"` + id.String()} {
+		if err := decoded.UnmarshalJSON([]byte(malformed)); err == nil {
+			t.Fatalf("%s decoded", malformed)
+		}
+	}
+}
+
 func TestIdentityIncludesKind(t *testing.T) {
 	model, err := IdentifyBytes(KindModel, []byte(fixtureModelPayload))
 	if err != nil {

@@ -590,14 +590,13 @@ func compareLocation(left, right artifact.Location) int {
 	return cmp.Compare(left.Value, right.Value)
 }
 
+// indexDescriptor files id under key. A record is filed once, when it first
+// states the key, and a query orders what it selects itself, so the index
+// appends: kept sorted, restoring a checkpoint moved each index once per
+// record it held.
 func indexDescriptor(index map[string][]artifact.ID, key string, id artifact.ID) {
-	if key == "" {
-		return
-	}
-	ids := index[key]
-	offset, found := slices.BinarySearchFunc(ids, id, artifact.CompareID)
-	if !found {
-		index[key] = slices.Insert(ids, offset, id)
+	if key != "" {
+		index[key] = append(index[key], id)
 	}
 }
 

@@ -225,9 +225,9 @@ func TestSmallBlobsArePacked(t *testing.T) {
 // memory: both stream each member through one buffer, so what they allocate
 // stays a small fraction of the payload volume they move, where reading the
 // members and the pack whole allocated it several times over. The pack still
-// serves every member byte for byte. The test is not parallel, so no other
-// test allocates while it measures.
+// serves every member byte for byte.
 func TestPackStreamsItsMembers(t *testing.T) {
+	// Serial: it measures the process's allocations, so no other test may allocate beside it.
 	store, err := Open(filepath.Join(t.TempDir(), "store"))
 	if err != nil {
 		t.Fatal(err)

@@ -786,7 +786,8 @@
             "modern-census-by-package/do",
             "plan-unknowns-by-digest/do",
             "store-telemetry-by-reference/do",
-            "budget-from-measured-growth/do"
+            "budget-from-measured-growth/do",
+            "store-open-decode-cost/do"
           ]
         }
       ]

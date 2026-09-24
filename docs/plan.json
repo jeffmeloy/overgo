@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "surface-aware-dispatch",
-      "title": "Re-acquire the text guards once per settled inference surface",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-acquire the text guards once per settled inference surface",
-          "status": "open",
-          "verify": "go run ./cmd/longform -guard-coverage -all -corpus cmd/longform/testdata/guard-corpus.txt -budget 1m -baseline evidence:sha256:5f3d1144eeb682eceeeaf91263abda432c9e4ed596aff021bc8150698d9c644f -baseline evidence:sha256:2577fc09c10133e7f60154de23aa42f22a37c4fd8851ee13aa0113a1a4e7ec3a -baseline evidence:sha256:a831397826c94e118e1015cca90c2781a4c876740aa55fee57368e905da83a86 -baseline evidence:sha256:f936746b486c51ec92278fe57796ab79429d7bc41e0b425f806d6905adf1bece -baseline evidence:sha256:ad4fbdd530a482a973bdadc479f70b01eb702399f6c15d84241f3b5830883f11 -baseline evidence:sha256:d75349658c27561b1982743f533cfdc99759afd0c80a776fb48b60a101f4c8b3 -baseline evidence:sha256:c9baf16740b8ebe69244e4097f9a0a2a22de2f3837f0757e976015b011c56087 -baseline evidence:sha256:2e63a5e62fa6a9ab525595be55e64e7986faa3616bf3aeded814a1bd7693cad9 -baseline evidence:sha256:859633b96ae94da224c17c2d5d2c6e16ed52b4bfee1477c6734acb2d4da98beb -baseline evidence:sha256:d28898e7c0de2d514785ac8eb324093465904c472c691962ba1f4432ff636310",
-          "rationale": "Text guards have been stale since 01cbf544; ed4d2b3a and 2a9b5df6 moved the surface again. Land the rows that move it in a batch, then run longform -guard -publish -all once on a free GPU. The row closes when guard coverage is complete at HEAD."
-        }
-      ]
-    },
-    {
       "id": "validate-all-models",
       "title": "Validate every registered model",
       "owner": "master-lead",

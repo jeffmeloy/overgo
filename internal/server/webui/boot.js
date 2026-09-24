@@ -303,8 +303,8 @@
   }
   const requestedViews = new Map();
   function requestView(owner, id) { requestedViews.set(owner, id); window.dispatchEvent(new CustomEvent("overgo-view", { detail: { owner, view: id } })); }
-  // viewsOf: the views a tab shows, each with whether it serves and, if not, why and what enables it.
-  function viewsOf(owner) { return views.filter((v) => v.view_of === owner).map((v) => ({ id: v.id, label: v.label, enabled: tabSupported(v), reason: refusalLine(v) })); }
+  // viewsOf: the views a tab shows, each with whether it serves; embed shows a refused one's reason.
+  function viewsOf(owner) { return views.filter((v) => v.view_of === owner).map((v) => ({ id: v.id, label: v.label, enabled: tabSupported(v) })); }
   function requestedView(owner) { return requestedViews.get(owner) || ""; }
 
   // contentURL: a stored artifact's bytes; el() fetches them through the authenticated client.
@@ -413,10 +413,14 @@
       // onRelease: undone when the workspace ends, at once if it has.
       onRelease(release) { if (lifetime.signal.aborted) release(); else releases.push(release); },
       // embed: another tab mounted into host (the inspector); it ends with the next embed there or with this workspace.
+      // A refused tab shows its refusal instead, after the one it replaces has ended, so nothing that one
+      // started can paint over the refusal.
       embed(id, host, seed) {
         const tab = tabs.find((t) => t.id === id) || views.find((v) => v.id === id);
         if (!tab) throw new Error("no workspace tab " + id);
         if (host.workspace) host.workspace.release();
+        host.workspace = null;
+        if (!tabSupported(tab)) { renderRefusal(tab, host); return undefined; }
         host.workspace = workspace(host, life);
         clear(host);
         return tab.mount(host, host.workspace, seed);
@@ -815,7 +819,7 @@
   function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
   function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
   // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
-  function renderRefusal(tab) { tab.panel.replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
+  function renderRefusal(tab, host) { (host || tab.panel).replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
 
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {

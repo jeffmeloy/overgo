@@ -56,6 +56,12 @@ const (
 	layoutContrast = "low-contrast"
 	// layoutHeader: on a phone the header takes too much of the first screen before the content.
 	layoutHeader = "header-share"
+	// layoutUnlabelled: a control with no accessible name (a placeholder is not one).
+	layoutUnlabelled = "unlabelled-control"
+	// layoutIgnoredLabel: an aria-label on an element without a role, which assistive technology ignores.
+	layoutIgnoredLabel = "ignored-label"
+	// mountError: a tab mounted with an error banner in its panel or a page error.
+	mountError = "mount-error"
 )
 
 // String renders a finding on one line for a log.
@@ -114,19 +120,18 @@ func (browser *Browser) SetColorScheme(ctx context.Context, scheme string) error
 	}, nil)
 }
 
-// CaptureState sets the viewport, captures the page as it stands (into dir
-// as <viewport>-<state>.png when dir is set) and audits its layout; the
-// findings carry the viewport and state.
-func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Viewport, state string) ([]StateFinding, error) {
+// SettleViewport sizes the page to the viewport and waits until it has
+// painted and every finite transition has ended; perpetual spinners and
+// deliberately paused animations do not hold it. It captures and audits
+// nothing, for a leg that measures the page itself.
+func SettleViewport(ctx context.Context, browser *Browser, viewport Viewport) error {
 	if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
-		return nil, err
+		return err
 	}
-	// Paint the new viewport, then await finite visual transitions. Perpetual
-	// spinners and deliberately paused animations do not block capture.
 	if err := browser.Eventually(ctx, fmt.Sprintf("window.innerWidth === %d && window.innerHeight === %d", viewport.Width, viewport.Height)); err != nil {
-		return nil, err
+		return err
 	}
-	if err := browser.Evaluate(ctx, `(async () => {
+	return browser.Evaluate(ctx, `(async () => {
       await new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(settled)));
       for (;;) {
         const moving = document.getAnimations().filter((animation) =>
@@ -135,7 +140,14 @@ func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Vi
         if (!moving.length) return true;
         await Promise.all(moving.map((animation) => animation.finished.catch(() => {})));
       }
-    })()`, nil); err != nil {
+    })()`, nil)
+}
+
+// CaptureState sets the viewport, captures the page as it stands (into dir
+// as <viewport>-<state>.png when dir is set) and audits its layout; the
+// findings carry the viewport and state.
+func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Viewport, state string) ([]StateFinding, error) {
+	if err := SettleViewport(ctx, browser, viewport); err != nil {
 		return nil, err
 	}
 	if dir != "" {
@@ -179,7 +191,7 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []St
 	if len(tabs) == 0 {
 		return 0, nil, errors.New("webui lane: the page mounted no tab")
 	}
-	states := 0
+	states, pageErrors := 0, 0
 	var findings []StateFinding
 	capture := func(viewport Viewport, state string) error {
 		measured, err := CaptureState(ctx, browser, dir, viewport, state)
@@ -209,6 +221,13 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []St
 				if err := browser.Eventually(ctx, `window.overgo.api.inFlight() === 0`); err != nil {
 					return states, findings, fmt.Errorf("%s %s settle: %w", viewport.Name, tab, err)
 				}
+				mounted, err := mountErrors(ctx, browser, tab, &pageErrors)
+				if err != nil {
+					return states, findings, err
+				}
+				for _, detail := range mounted {
+					findings = append(findings, StateFinding{Viewport: viewport.Name, State: tab + suffix, Finding: LayoutFinding{Kind: mountError, Selector: "#panel-" + tab, Detail: detail}})
+				}
 				if err := capture(viewport, tab+suffix); err != nil {
 					return states, findings, err
 				}
@@ -234,9 +253,41 @@ func CaptureStates(ctx context.Context, browser *Browser, dir string) (int, []St
 	return states, findings, browser.SetColorScheme(ctx, ColourSchemes[0])
 }
 
-// CaptureSummary renders a capture walk's verdict on one line.
+// mountErrors answers the error banners a settled tab's panel shows and the
+// page errors raised since the last check (seen counts those already read).
+func mountErrors(ctx context.Context, browser *Browser, tab string, seen *int) ([]string, error) {
+	var state struct {
+		Banners []string `json:"banners"`
+		Errors  []string `json:"errors"`
+	}
+	if err := browser.Evaluate(ctx, fmt.Sprintf(`({
+  banners: [...document.querySelectorAll("#panel-%s .err-banner")].map((node) => "banner: " + node.textContent),
+  errors: window.overgo.errors.slice(%d).map((message) => "page error: " + message),
+})`, tab, *seen), &state); err != nil {
+		return nil, err
+	}
+	*seen += len(state.Errors)
+	return append(state.Banners, state.Errors...), nil
+}
+
+// CaptureSummary renders a capture walk's verdict on one line: the tabs
+// that mounted with an error, the unlabelled controls, then every layout
+// finding (unlabelled controls among them).
 func CaptureSummary(states int, findings []StateFinding) string {
-	return fmt.Sprintf("screens leg: captured %d states at %d viewports under %d colour schemes with %d layout findings", states, len(ScreenViewports), len(ColourSchemes), len(findings))
+	failedTabs := map[string]bool{}
+	layout, unlabelled := 0, 0
+	for _, finding := range findings {
+		switch finding.Finding.Kind {
+		case mountError:
+			failedTabs[finding.Finding.Selector] = true
+		case layoutUnlabelled:
+			unlabelled++
+			layout++
+		default:
+			layout++
+		}
+	}
+	return fmt.Sprintf("screens leg: tab mount errors: %d; unlabelled controls: %d; captured %d states at %d viewports under %d colour schemes with %d layout findings", len(failedTabs), unlabelled, states, len(ScreenViewports), len(ColourSchemes), layout)
 }
 
 // layoutAuditScript is the audit with its fault kinds named from the
@@ -250,6 +301,7 @@ func layoutAuditScript() string {
 	return strings.NewReplacer(
 		"KIND_OVERFLOW", layoutOverflow, "KIND_OUTSIDE", layoutOutside, "KIND_OVERLAP", layoutOverlap,
 		"KIND_CLIPPED", layoutClipped, "KIND_SMALL", layoutSmall, "KIND_CONTRAST", layoutContrast, "KIND_HEADER", layoutHeader,
+		"KIND_UNLABELLED", layoutUnlabelled, "KIND_IGNORED_LABEL", layoutIgnoredLabel,
 	).Replace(layoutAuditTemplate)
 }
 
@@ -303,12 +355,27 @@ const layoutAuditTemplate = `(() => {
     const share = panels.getBoundingClientRect().top / window.innerHeight;
     if (share > headerShare) note("KIND_HEADER", panels, Math.round(share * 100) + "% of the first screen lies above the content");
   }
+  // A control's accessible name: aria-label, labelledby text, a label, a title, or a button's or link's own content.
+  const text = (node) => (node && node.textContent || "").trim();
+  const named = (node) => {
+    if ((node.getAttribute("aria-label") || "").trim() || (node.getAttribute("title") || "").trim()) return true;
+    const labelledBy = (node.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean);
+    if (labelledBy.some((id) => text(document.getElementById(id)))) return true;
+    if (node.labels && [...node.labels].some((label) => text(label))) return true;
+    if (node.tagName === "INPUT") return ["submit", "button", "reset"].includes(node.type) && node.value.trim() !== "";
+    if (["SELECT", "TEXTAREA"].includes(node.tagName)) return false;
+    return text(node) !== "" || [...node.querySelectorAll("img[alt], [aria-label]")].some((child) => (child.getAttribute("alt") || child.getAttribute("aria-label") || "").trim());
+  };
+  for (const node of document.querySelectorAll("div[aria-label], span[aria-label]")) {
+    if (visible(node) && !node.getAttribute("role")) note("KIND_IGNORED_LABEL", node, "aria-label \"" + node.getAttribute("aria-label") + "\" on an element without a role");
+  }
   const controls = [...document.querySelectorAll("button, a[href], input, select, textarea, [role=button]")].filter((node) => visible(node) && node.type !== "hidden");
   for (const node of controls) {
     const rect = node.getBoundingClientRect();
     if (!scrollable(node) && (rect.right > width + 1 || rect.left < -1)) note("KIND_OUTSIDE", node, "spans " + Math.round(rect.left) + ".." + Math.round(rect.right) + "px of " + width);
     const target = (node.closest("label") || node).getBoundingClientRect();
     if (!node.disabled && (target.width < minimumControl || target.height < minimumControl)) note("KIND_SMALL", node, Math.round(target.width) + "x" + Math.round(target.height) + "px");
+    if (!named(node)) note("KIND_UNLABELLED", node, (node.getAttribute("placeholder") ? "placeholder \"" + node.getAttribute("placeholder") + "\" only" : "no name"));
   }
   for (const node of document.querySelectorAll(".card, .pill")) {
     const rect = node.getBoundingClientRect();

@@ -14,7 +14,7 @@ import (
 // every byte the measurement reads -- sampled or spectral, either format --
 // charges the recorded budget through the single read meter. Spectral
 // collection can no longer read a full tensor for free, a budget that covers
-// sampling but not the spectral read refuses instead of under-reporting, and
+// sampling but not the spectral read defers the spectrum without reading it, and
 // a nonzero spectral policy refuses documents whose measurements carry no
 // spectral verdict.
 func TestMeasurementChargesReadBudget(t *testing.T) {
@@ -53,11 +53,20 @@ func TestMeasurementChargesReadBudget(t *testing.T) {
 		t.Fatalf("spectral read not charged: sampled=%d spectral=%d", sampled.ReadBytes, spectral.ReadBytes)
 	}
 
-	// A budget that fits sampling but not the full spectral read refuses.
-	if _, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
+	// A budget that fits sampling but not the full spectral read defers the
+	// spectrum without reading it: recorded bytes are exactly the sampled ones.
+	// (A refusal here once failed a served model's whole pass after minutes.)
+	deferred, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
 		MaxSamplesPerTensor: 4, MaxReadBytes: sampled.ReadBytes + 8, SpectralMaxDim: 8,
+	})
+	if err != nil || deferred.Measurements[0].SpectralStatus != SpectralDeferred || deferred.ReadBytes != sampled.ReadBytes {
+		t.Fatalf("under-budget spectral read: status=%q read=%d sampled=%d err=%v", deferred.Measurements[0].SpectralStatus, deferred.ReadBytes, sampled.ReadBytes, err)
+	}
+	// Sampling itself still refuses a budget it cannot fit.
+	if _, err := MeasureGGUF(inventory.TensorInventory, file, MeasurementPolicy{
+		MaxSamplesPerTensor: 4, MaxReadBytes: sampled.ReadBytes - 1,
 	}); err == nil || !strings.Contains(err.Error(), "read budget") {
-		t.Fatalf("under-budget spectral read accepted: %v", err)
+		t.Fatalf("under-budget sampled read accepted: %v", err)
 	}
 
 	// A nonzero spectral policy refuses measurements without a verdict.

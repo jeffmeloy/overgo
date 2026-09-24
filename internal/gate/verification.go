@@ -1888,6 +1888,17 @@ func (g *gateContext) withCandidateWorktree(tree string, use func(string) error)
 	if gateCandidateWorktreeAddedHook != nil {
 		gateCandidateWorktreeAddedHook(g.repo)
 	}
+	// A merge candidate records the incoming parent the merge commit will have,
+	// so checks that read lineage see the history being merged.
+	if incoming, err := gitAuthorityOutput(g.repo, "rev-parse", "-q", "--verify", "MERGE_HEAD^{commit}"); err == nil {
+		marker, err := gitMetadataPath(worktree, "MERGE_HEAD")
+		if err != nil {
+			return err
+		}
+		if err := os.WriteFile(marker, []byte(strings.TrimSpace(string(incoming))+"\n"), gatePrivateFileMode); err != nil {
+			return err
+		}
+	}
 	if _, err := gitWriterCommand(worktree, "read-tree", tree); err != nil {
 		return err
 	}

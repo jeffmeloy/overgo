@@ -165,9 +165,9 @@ server between the agent and the tool.
 - The serving executor refuses loopback, private, and link-local
   destinations and redirects at dial time; the operator executor admits
   private destinations.
-- The workbench exposes the same authority through `/agent/tools`,
-  `/agent/step`, `/agent/approval`, `/agent/provenance`, and
-  `/agent/sessions`, and the Agent tab shows effect classes, mutation
+- The workbench exposes the same authority through `/agents/tools`,
+  `/agents/step`, `/agents/approval`, `/agents/provenance`, and
+  `/agents/sessions`, and the Agent tab shows effect classes, mutation
   approvals, and the step timeline.
 
 ## Workbench and APIs

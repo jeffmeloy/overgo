@@ -93,7 +93,7 @@ func TestFrontPageConversations(t *testing.T) {
 
 	sources := webuiJavaScript(t)
 	chat := sources["mod/chat.js"]
-	for _, needle := range []string{`"/v1/responses"`, "previous_response_id", `"/interactions/follow?response="`, `"/interactions/messages?response="`, "overgo.streams.responses(", "INFLIGHT_STORAGE", "context meter", "instructions"} {
+	for _, needle := range []string{`"/v1/responses"`, "previous_response_id", `"/interactions/follow?response="`, `"/interactions/messages?response="`, "overgo.streams.responses(", "INFLIGHT_STORAGE", "Context meter", "instructions"} {
 		if !strings.Contains(chat, needle) {
 			t.Errorf("chat.js lacks %s", needle)
 		}

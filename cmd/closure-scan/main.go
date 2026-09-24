@@ -889,6 +889,12 @@ func importClosureDocumentsWith(
 			claimedAliases[alias] = true
 		}
 	}
+	// Only a rebound document has had its reviewed text matched at a current
+	// site, so only it may carry its owner forward to the file as it is now.
+	rebound, err = currentClosureOwners(root, rebound)
+	if err != nil {
+		return count, unmatched, first, aliases, err
+	}
 	var reboundClaims int
 	unmatchedRetirements, reboundClaims, err = excludeReboundClosureRetirements(unmatchedRetirements, rebound)
 	if err != nil {
@@ -1717,6 +1723,38 @@ func bindClosureOperationKey(operation closureCommitOperation, batch *artifact.B
 	digest := sha256.Sum256(encoded)
 	batch.Key = string(operation) + hex.EncodeToString(digest[:])
 	return nil
+}
+
+// currentClosureOwners re-keys a binding its source store left at an earlier
+// identity of its file (a rebind keeps the line and owner of a declaration
+// that did not move in any reviewed way) to the file as it is now, so a
+// document imported from another store names the file this store records.
+// The reviewed text and every other binding fact travel unchanged.
+func currentClosureOwners(root string, documents []closureledger.Document) ([]closureledger.Document, error) {
+	current := slices.Clone(documents)
+	for index, document := range current {
+		bindings, fixture, stale := slices.Clone(document.Bindings), document.Fixture, false
+		for position, binding := range bindings {
+			id, _, _, err := fileArtifact(root, binding.File)
+			if err != nil || id == binding.Owner {
+				continue
+			}
+			if fixture == binding.Owner {
+				fixture = id
+			}
+			bindings[position].Owner, stale = id, true
+		}
+		if !stale {
+			continue
+		}
+		rebound, err := closureledger.New(document.Name, document.Value, document.Tier, document.Status,
+			document.Understanding, bindings, document.ClosurePath, document.RerankTrigger, fixture)
+		if err != nil {
+			return nil, fmt.Errorf("closure %s: re-key to the current file: %w", document.Name, err)
+		}
+		current[index] = rebound
+	}
+	return current, nil
 }
 
 func fileArtifact(root, relative string) (artifact.ID, artifact.Descriptor, artifact.LocationEvent, error) {

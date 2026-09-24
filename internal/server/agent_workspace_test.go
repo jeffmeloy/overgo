@@ -73,7 +73,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 		}
 	})
 
-	catalog := serveTestRequest(handler, http.MethodGet, "/agent/tools", "")
+	catalog := serveTestRequest(handler, http.MethodGet, "/agents/tools", "")
 	if catalog.Code != http.StatusOK {
 		t.Fatalf("catalog status=%d body=%s", catalog.Code, catalog.Body.String())
 	}
@@ -94,14 +94,14 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 		t.Fatalf("catalog projection = %+v", tools)
 	}
 
-	inspect := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	inspect := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"s1","tool":"store.head"}`)
 	if inspect.Code != http.StatusOK || !strings.Contains(inspect.Body.String(), `"steps":1`) {
 		t.Fatalf("inspection step status=%d body=%s", inspect.Code, inspect.Body.String())
 	}
 	// The approval gate refuses before the mutation's transport runs, so
 	// the projection surfaces the coordinator's typed refusal.
-	refused := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	refused := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"s1","tool":"store.commit"}`)
 	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "preflight") {
 		t.Fatalf("unapproved mutation status=%d body=%s", refused.Code, refused.Body.String())
@@ -110,7 +110,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	// The approval preview projects the decision facts without
 	// publishing or executing: no decision yet, the mutation effect, and
 	// the exact bytes a grant would bind.
-	preview := serveTestRequest(handler, http.MethodPost, "/agent/approval",
+	preview := serveTestRequest(handler, http.MethodPost, "/agents/approval",
 		`{"session":"s1","tool":"store.commit","arguments":{}}`)
 	if preview.Code != http.StatusOK ||
 		!strings.Contains(preview.Body.String(), `"effect":"mutation"`) ||
@@ -133,17 +133,17 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 	if err := json.Unmarshal(preview.Body.Bytes(), &previewed); err != nil || previewed.Operation == "" {
 		t.Fatalf("preview operation = %q, %v", previewed.Operation, err)
 	}
-	blind := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	blind := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"s1","tool":"store.commit","arguments":{},"approve":true}`)
 	if blind.Code != http.StatusBadRequest {
 		t.Fatalf("boolean grant status=%d body=%s", blind.Code, blind.Body.String())
 	}
-	approved := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	approved := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"s1","tool":"store.commit","arguments":{},"approval":"`+previewed.Operation+`"}`)
 	if approved.Code != http.StatusOK || !strings.Contains(approved.Body.String(), `"steps":2`) {
 		t.Fatalf("approved mutation status=%d body=%s", approved.Code, approved.Body.String())
 	}
-	next := serveTestRequest(handler, http.MethodPost, "/agent/approval",
+	next := serveTestRequest(handler, http.MethodPost, "/agents/approval",
 		`{"session":"s1","tool":"store.commit","arguments":{}}`)
 	if next.Code != http.StatusOK ||
 		!strings.Contains(next.Body.String(), `"call_id":"s1-step-3"`) ||
@@ -159,7 +159,7 @@ func TestAgentWorkspaceProjectsCatalogAndStepsGatedly(t *testing.T) {
 func TestAgentWorkspaceRefusesUnregisteredTool(t *testing.T) {
 	t.Parallel()
 	handler := agentTestHandler(t, nil)
-	refused := serveTestRequest(handler, http.MethodPost, "/agent/step",
+	refused := serveTestRequest(handler, http.MethodPost, "/agents/step",
 		`{"session":"ghost","tool":"probe.absent"}`)
 	if refused.Code != http.StatusUnprocessableEntity || !strings.Contains(refused.Body.String(), "unregistered") {
 		t.Fatalf("unregistered tool status=%d body=%s", refused.Code, refused.Body.String())
@@ -195,7 +195,7 @@ func TestAgentWorkspaceRestoresSessionsAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	step := serveTestRequest(first, http.MethodPost, "/agent/step", `{"session":"restart-1","tool":"store.head"}`)
+	step := serveTestRequest(first, http.MethodPost, "/agents/step", `{"session":"restart-1","tool":"store.head"}`)
 	if step.Code != http.StatusOK || !strings.Contains(step.Body.String(), `"steps":1`) {
 		t.Fatalf("first step status=%d body=%s", step.Code, step.Body.String())
 	}
@@ -207,7 +207,7 @@ func TestAgentWorkspaceRestoresSessionsAcrossRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer second.Close()
-	resumed := serveTestRequest(second, http.MethodPost, "/agent/step", `{"session":"restart-1","tool":"store.head"}`)
+	resumed := serveTestRequest(second, http.MethodPost, "/agents/step", `{"session":"restart-1","tool":"store.head"}`)
 	if resumed.Code != http.StatusOK ||
 		!strings.Contains(resumed.Body.String(), `"steps":2`) ||
 		!strings.Contains(resumed.Body.String(), `"inspected":true`) {

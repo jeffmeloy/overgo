@@ -11,18 +11,26 @@
       const enrollmentHost = el("div");
       const placementHost = el("div");
       const evidenceHost = el("div");
-      panel.append(
+      panel.replaceChildren(
         el("div", { class: "section-title", text: "Peer control plane" }), status,
         el("div", { class: "section-title", text: "Inventory, peer labels, and capacity" }), inventoryHost,
         el("div", { class: "section-title", text: "Peer detail" }), detailHost,
         el("div", { class: "section-title", text: "Enrollment" }), enrollmentHost,
         el("div", { class: "section-title", text: "Placement rules" }), placementHost,
         el("div", { class: "section-title", text: "Staging, attempts, and logs" }), evidenceHost);
+      // Operations come from the global runtime stream alone, so each transition reads its evidence once.
+      // The tab hears them from the start of its mount, so one that ends while the mount reads is not
+      // missed; a mount a remount replaced no longer stands in the page and reads nothing; an evidence
+      // read that fails says so where the evidence would stand. The peer stream carries the inventory,
+      // and cleanup (or a failed mount) releases both.
+      const showEvidence = (data) => { if (evidenceHost.isConnected && data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.failure(err))); };
+      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
+      const release = (err) => { unsubscribe(); throw err; };
 
       const [enrollmentSchema, placementSchema] = await Promise.all([
         api.get("/workspace/schema?id=peer-enrollment"),
         api.get("/workspace/schema?id=peer-placement"),
-      ]);
+      ]).catch(release);
       const enrollmentForm = overgo.schemaForm(enrollmentSchema, {});
       const placementForm = overgo.schemaForm(placementSchema, {
         task: "generation", minimum_replicas: 1, maximum_replicas: 1,
@@ -90,7 +98,7 @@
           await api.post("/peers/state", { peer, state, changed_unix_ns: 0 });
           status.textContent = state + " / " + fmt.shortID(peer);
           await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { status.replaceChildren(overgo.failure(err)); }
       }
 
       enroll.addEventListener("click", async () => {
@@ -101,7 +109,7 @@
           status.textContent = "enrolled / " + fmt.shortID(result.peer);
           selectedPeer = result.peer;
           await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { status.replaceChildren(overgo.failure(err)); }
       });
 
       function placementRequest(value) {
@@ -128,7 +136,7 @@
           for (const refusal of compiledPlan.refusals || []) replicaCards.push(overgo.errorBanner(refusal.reason + " / " + refusal.detail));
           evidenceHost.replaceChildren(...replicaCards);
           status.textContent = "placement compiled / " + fmt.shortID(compiledPlan.identity);
-        } catch (err) { compiledPlan = null; reconcile.disabled = true; status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { compiledPlan = null; reconcile.disabled = true; status.replaceChildren(overgo.failure(err)); }
       });
 
       reconcile.addEventListener("click", async () => {
@@ -141,28 +149,21 @@
           });
           status.textContent = "reconciliation admitted / " + fmt.shortID(result.operation);
           openGlobalOperation(result.operation);
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { status.replaceChildren(overgo.failure(err)); }
       });
 
       async function renderEvidence(operation) {
         const evidence = await api.get("/peers/evidence?operation=" + encodeURIComponent(operation));
         if (!(evidence.attempts || []).length) return;
         evidenceHost.replaceChildren(overgo.table(["phase", "outcome", "attempt", "failure / log", "artifacts"], (evidence.attempts || []).map(({ value: attempt }) => [
-          attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map(artifactLink)))])));
+          attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map((id) => overgo.artifactLink(id))))])));
       }
 
-      // An evidence read that fails says so where the evidence would stand.
-      const showEvidence = (data) => { if (data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)))); };
-      await refreshInventory();
-      const stream = new AbortController();
-      api.events("/peers/stream", (event, data) => {
+      await refreshInventory().catch(release);
+      const stopStream = overgo.tabStream("/peers/stream", (event, data) => {
         if (event === "peer.inventory") { inventory = data; renderInventory(); }
-        if (event === "operation") showEvidence(data);
-      }, { signal: stream.signal }).catch((err) => {
-        if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      });
-      overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
-      return () => { stream.abort(); enrollmentForm.dispose(); placementForm.dispose(); };
+      }, status);
+      return () => { stopStream(); unsubscribe(); enrollmentForm.dispose(); placementForm.dispose(); };
     },
   });
 })();

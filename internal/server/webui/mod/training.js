@@ -1,10 +1,9 @@
 (function () {
   "use strict";
 
-  const artifactLink = (overgo, id, label) => overgo.artifactLink(id, label, true);
 
   async function readTrace(overgo, id) {
-    const trace = await overgo.api.get("/artifacts/content?id=" + encodeURIComponent(id));
+    const trace = await overgo.api.get(overgo.contentURL(id));
     return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null; }
 
   async function traceFromRun(overgo, run) {
@@ -71,9 +70,9 @@
     ];
     host.replaceChildren(
       overgo.el("div", { class: "row artifact-links" },
-        artifactLink(overgo, run || trace.run, "run " + overgo.fmt.shortID(run || trace.run)),
-        checkpoint ? artifactLink(overgo, checkpoint, "checkpoint " + overgo.fmt.shortID(checkpoint)) : null,
-        artifactLink(overgo, id, "trace " + overgo.fmt.shortID(id))),
+        overgo.artifactLink(run || trace.run, "run " + overgo.fmt.shortID(run || trace.run), true),
+        checkpoint ? overgo.artifactLink(checkpoint, "checkpoint " + overgo.fmt.shortID(checkpoint), true) : null,
+        overgo.artifactLink(id, "trace " + overgo.fmt.shortID(id), true)),
       overgo.el("div", { class: "evidence-grid" },
         ...objectiveBlocks,
         seriesBlock(overgo, "Optimizer health / gradient L2", [
@@ -98,8 +97,8 @@
     return overgo.el("section", { class: "evidence-block" },
       overgo.el("div", { class: "section-title", text: "Checkpoint comparison" }),
       overgo.el("div", { class: "row artifact-links" },
-        artifactLink(overgo, baseline.checkpoint, "baseline " + overgo.fmt.shortID(baseline.checkpoint)),
-        artifactLink(overgo, current.checkpoint, "current " + overgo.fmt.shortID(current.checkpoint))), table);
+        overgo.artifactLink(baseline.checkpoint, "baseline " + overgo.fmt.shortID(baseline.checkpoint), true),
+        overgo.artifactLink(current.checkpoint, "current " + overgo.fmt.shortID(current.checkpoint), true)), table);
   }
 
   window.overgo.trainingEvidence = {
@@ -153,20 +152,20 @@
               overgo.stat("Outcome", run.outcome),
               overgo.stat("Inputs", (run.inputs || []).length),
               overgo.stat("Outputs", (run.outputs || []).length)),
-            el("div", { class: "row" }, artifactLink(overgo, run.id), pin), evidence);
+            el("div", { class: "row" }, overgo.artifactLink(run.id, null, true), pin), evidence);
           if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
-        } catch (err) { detail.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { detail.replaceChildren(overgo.failure(err)); }
       }
 
       function outcomeClass(outcome) { return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : ""); }
       async function load() {
-        host.replaceChildren(el("div", { class: "note", text: "loading /runs" }));
+        host.replaceChildren(el("div", { class: "note", text: "Loading runs…" }));
         let data;
         try {
           const query = new URLSearchParams({ limit: String(limit) });
           if (cursor) query.set("cursor", cursor);
           data = await overgo.api.get("/runs?" + query);
-        } catch (err) { const message = err.status === 501 ? "Run browsing is not configured." : overgo.friendlyError(err); host.replaceChildren(overgo.errorBanner(message)); return; }
+        } catch (err) { host.replaceChildren(err.status === 501 ? overgo.errorBanner("Run browsing is not configured.") : overgo.failure(err)); return; }
         nextCursor = data.next || "";
         const first = data.count === 0 ? 0 : start + 1;
         const last = start + data.runs.length;

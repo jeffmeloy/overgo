@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "merge-ff9acf5f2e2c",
-      "title": "Merge the GUI cleanup lane at ff9acf5f2e2c",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge the GUI cleanup lane at ff9acf5f2e2c",
-          "status": "open",
-          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./cmd/closure-scan -run '^TestClosureOwnerRekeysOnlyVerifiedRebinds$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestTensorPassSurvivesPublishFailure$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "browser-waits-fail-fast",
       "title": "Fail a browser leg when the browser stops answering, and name the leg",
       "owner": "master-lead",

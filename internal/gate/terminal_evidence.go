@@ -58,7 +58,13 @@ var packageReceiptCodec = artifact.JSONDocumentCodec(
 type packageEvidenceLedger struct {
 	store       *overgodb.Store
 	environment artifact.ID
-	obligations map[string]runrecord.AgentObligation
+	// environmentDocument is the environment the obligations name. A run that
+	// never prepared (the deferred lanes re-run on their own) meets it first
+	// here, so the obligations publish it rather than naming it bare: the lane
+	// outcome publishes the same identity with its content, and a bare
+	// declaration first makes that commit conflict.
+	environmentDocument artifact.Content
+	obligations         map[string]runrecord.AgentObligation
 	// listings: the per-preparation obligations document each package's
 	// obligation is listed in; a receipt descends from it.
 	listings map[string]artifact.ID
@@ -75,7 +81,11 @@ func (g *gateContext) openPackageEvidence() (*packageEvidenceLedger, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &packageEvidenceLedger{store: store, environment: g.environment.ID,
+	environmentDocument, err := g.environment.Content()
+	if err != nil {
+		return nil, err
+	}
+	return &packageEvidenceLedger{store: store, environment: g.environment.ID, environmentDocument: environmentDocument,
 		obligations: map[string]runrecord.AgentObligation{}, listings: map[string]artifact.ID{}, previous: map[string]artifact.ID{}}, nil
 }
 
@@ -101,6 +111,9 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 	}
 	store := ledger.store
 	if err := store.Refresh(ctx); err != nil {
+		return err
+	}
+	if err := ledger.publishEnvironment(ctx); err != nil {
 		return err
 	}
 	batch := artifact.Batch{}
@@ -166,6 +179,22 @@ func (ledger *packageEvidenceLedger) prepare(ctx context.Context, packages []str
 	batch.Contents = []artifact.Content{content}
 	batch.Lineage = artifact.UniqueDependencyLineage(listing.ID, parents...)
 	_, err = store.CommitAs(ctx, gateProducer, batch)
+	return err
+}
+
+// publishEnvironment commits the environment document under its own key when
+// the store lacks it, so the obligations that name it never declare it bare
+// and their own batch stays the same on every re-preparation.
+func (ledger *packageEvidenceLedger) publishEnvironment(ctx context.Context) error {
+	_, published, err := ledger.store.Artifact(ctx, ledger.environment)
+	if err != nil || published {
+		return err
+	}
+	_, err = artifact.Publish(ctx, ledger.store, artifact.Batch{
+		Key:       packageObligationsAlias + "environment/" + ledger.environment.String(),
+		Artifacts: []artifact.Descriptor{ledger.environmentDocument.Descriptor},
+		Contents:  []artifact.Content{ledger.environmentDocument},
+	})
 	return err
 }
 

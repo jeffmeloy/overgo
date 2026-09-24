@@ -70,7 +70,7 @@ func responseRecipeGenerator(t testing.TB, generator *fakeGenerator) *recipeInsp
 	}
 	return &recipeInspectorGenerator{fakeGenerator: generator, description: modelrecipe.RuntimeDescription{
 		Task:     recipe.TaskInference,
-		Identity: modelrecipe.ProgramIdentity{Model: modelID, Recipe: definition.ID},
+		Identity: modelrecipe.ProgramIdentity{Model: modelID, Profile: testutil.ArtifactID(t, artifact.KindProfile, "response-profile"), Definition: definition.ID, Recipe: definition.ID},
 		Stages:   program.Stages(), Outputs: definition.Outputs,
 		CacheIdentity: definition.ID, Interaction: scope,
 	}}

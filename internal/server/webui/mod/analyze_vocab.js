@@ -13,7 +13,7 @@
       let timer = null;
 
       clear(panel);
-      const search = el("input", { class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
+      const search = el("input", { "aria-label": "Search tokens", class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
       const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next ›");
@@ -33,7 +33,7 @@
         let data;
         try {
           data = await overgo.api.get("/analyze/vocab?" + params.toString());
-        } catch (err) { host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); return; }
+        } catch (err) { host.replaceChildren(overgo.failure(err)); return; }
         // Clamp a past-the-end page back to the last populated window.
         if (data.tokens.length === 0 && offset > 0 && data.matched > 0) { offset = Math.max(0, Math.floor((data.matched - 1) / limit) * limit); return load(); }
         const first = data.matched === 0 ? 0 : offset + 1;

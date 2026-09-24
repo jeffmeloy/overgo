@@ -16,7 +16,7 @@ import (
 type Review struct {
 	SilentFallbacks int `json:"silent_fallbacks"` // .catch swallowing to null/{}/[]/false without a reviewed comment after it
 	WindowDialogs   int `json:"window_dialogs"`   // alert/confirm/prompt calls
-	UnnamedControls int `json:"unnamed_controls"` // el("input"/"select") without aria-label, placeholder, a file/checkbox/hidden type or a wrapping label on the line
+	UnnamedControls int `json:"unnamed_controls"` // el("input"/"select"/"textarea") without aria-label, a file/checkbox/hidden type or a wrapping label on the line (a placeholder is not a name)
 	UnnamedButtons  int `json:"unnamed_buttons"`  // el("button", {...}) closed on its attributes without text, aria-label, title or a child
 	InlineStyles    int `json:"inline_styles"`    // style: "..." attributes in el() calls
 	NestedTernaries int `json:"nested_ternaries"` // a ternary inside a ternary's branch on one line
@@ -27,9 +27,9 @@ type Review struct {
 var (
 	silentFallbackPattern = regexp.MustCompile(`\.catch\(\([^)]*\) => (?:null|\{\s*\}|\[\]|false|undefined|""|0)\)(\s*/\*)?`)
 	windowDialogPattern   = regexp.MustCompile(`(?:^|[\s(=!&|,])(?:window\.)?(?:alert|confirm|prompt)\(`)
-	controlPattern        = regexp.MustCompile(`el\("(?:input|select)"`)
+	controlPattern        = regexp.MustCompile(`el\("(?:input|select|textarea)"`)
 	buttonPattern         = regexp.MustCompile(`el\("button"`)
-	namedControlPattern   = regexp.MustCompile(`aria-label|placeholder|type: "(?:file|checkbox|hidden)"`)
+	namedControlPattern   = regexp.MustCompile(`aria-label|type: "(?:file|checkbox|hidden)"`)
 	namedButtonPattern    = regexp.MustCompile(`aria-label|title:|\btext[:,}]|\}, \S`)
 	inlineStylePattern    = regexp.MustCompile(`style: "`)
 	nestedTernaryPattern  = regexp.MustCompile(`\?[^:\n]*\?[^:\n]*:`)

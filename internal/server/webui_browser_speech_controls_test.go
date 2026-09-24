@@ -73,7 +73,7 @@ func TestWebUIBrowserSpeechControls(t *testing.T) {
 	}
 	defer store.Close()
 	generator := &speechSurfaceGenerator{generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "speech-surface"), capability: WorkflowCapability{
-		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface"), Name: "Pocket-TTS (UI fixture)",
+		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "speech-surface"), Name: "Pocket-TTS (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}},
 		Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}},
 		Controls: []WorkflowControl{
 			{Name: "text", Type: WorkflowControlText, Required: true},

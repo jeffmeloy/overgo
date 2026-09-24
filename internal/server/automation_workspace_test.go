@@ -117,7 +117,7 @@ func TestAutomationWorkspaceNoDirectExecutor(t *testing.T) {
 	// A decision goes through the shell's decideOperation, which binds the advertised approval request to /operations/decision.
 	for _, expected := range []string{
 		"/automations/definitions", "/automations/activate", "/automations/run", "/automations/schedule",
-		"/automations/history", "/automations/stream", "/operations/cancel", "overgo.decideOperation(", "schemaForm",
+		"/automations/history", "/automations/stream", "overgo.cancelOperation(", "overgo.decideOperation(", "schemaForm",
 	} {
 		if !strings.Contains(routes, expected) {
 			t.Errorf("automation GUI lacks %q", expected)

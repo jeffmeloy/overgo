@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/binaryschema"
@@ -59,19 +62,38 @@ type analyzeTensorsResponse struct {
 	Policy  modelartifact.MeasurementPolicy `json:"policy"`
 	Count   int                             `json:"count"`
 	Tensors []analyzeTensor                 `json:"tensors"`
+	// Spectra is complete once the effective ranks are measured, pending while
+	// the full pass runs (the profiles are the sampled ones), or failed.
+	Spectra        string `json:"spectra"`
+	SpectraFailure string `json:"spectra_failure,omitzero"`
 }
 
+// The full pass's states: the Tensors tab shows sampled profiles while pending.
+const (
+	spectraComplete = "complete"
+	spectraPending  = "pending"
+	spectraFailed   = "failed"
+)
+
+// analyzeTensors answers the sampled profiles at once while the full pass
+// runs; ?wait=spectra holds the request until that pass ends.
 func (h *Handler) analyzeTensors(response http.ResponseWriter, request *http.Request) {
-	profiles, ok := h.characterizeLoadedModel(response)
+	profiles, state, pass, ok := h.characterizeLoadedModel(request.Context(), response, request.URL.Query().Get("wait") == "spectra")
 	if !ok {
 		return
 	}
-	writeJSON(response, http.StatusOK, analyzeTensorsResponse{
+	// The state is the one read with the profiles, so complete never labels sampled ones.
+	result := analyzeTensorsResponse{
 		Model:   h.config.ModelID,
 		Policy:  h.config.Analysis.tensorMeasurementPolicy(),
 		Count:   len(profiles),
 		Tensors: profiles,
-	})
+		Spectra: state,
+	}
+	if result.Spectra == spectraFailed {
+		result.SpectraFailure = pass.failure.Error()
+	}
+	writeJSON(response, http.StatusOK, result)
 }
 
 // tensorSimilarNeighbor is one nearby tensor and its shape-feature distance.
@@ -110,19 +132,21 @@ func (h *Handler) analyzeTensorsSimilar(response http.ResponseWriter, request *h
 	profiles, source := h.storeComponentPool(request)
 	if len(profiles) == 0 {
 		var ok bool
-		profiles, ok = h.characterizeLoadedModel(response)
+		profiles, _, _, ok = h.characterizeLoadedModel(request.Context(), response, false)
 		if !ok {
 			return
 		}
 		source = "loaded-model"
 	}
+	// Both pools name each profile's model by its inventory's owner, so the
+	// served model is preferred by that name, never by its display name.
 	targetIndex := -1
-	targetModel := request.URL.Query().Get("model")
+	targetModel, served := request.URL.Query().Get("model"), h.servedTensorModel()
 	pool := make([]tensorstats.Characterization, len(profiles))
 	for i, profile := range profiles {
 		pool[i] = profile.Characterization
 		if profile.Name == name && (targetModel == "" || profile.Model == targetModel) &&
-			(targetIndex < 0 || profile.Model == h.config.ModelID) {
+			(targetIndex < 0 || profile.Model == served) {
 			targetIndex = i
 		}
 	}
@@ -155,12 +179,7 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 	}
 	ctx := request.Context()
 	var profiles []analyzeTensor
-	_, err = overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
-			Schema: modelartifact.TensorMeasurementSchema,
-		}}, Order: overgodb.DocumentOldestFirst,
-	}, modelartifact.ParseTensorMeasurementDocument, func(_ overgodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
+	err = visitTensorMeasurements(ctx, store, overgodb.DocumentOldestFirst, func(document modelartifact.TensorMeasurementDocument) error {
 		inventory, ok, err := modelartifact.ReadTensorInventoryDocument(ctx, store, document.Inventory)
 		if err != nil || !ok {
 			return nil
@@ -183,55 +202,295 @@ func (h *Handler) storeComponentPool(request *http.Request) ([]analyzeTensor, st
 
 // characterizeLoadedModel opens the served model and profiles every tensor via
 // the shared measurement pipeline, or writes an HTTP error and returns false.
-func (h *Handler) characterizeLoadedModel(response http.ResponseWriter) ([]analyzeTensor, bool) {
+func (h *Handler) characterizeLoadedModel(ctx context.Context, response http.ResponseWriter, wait bool) ([]analyzeTensor, string, *tensorPass, bool) {
 	if h.config.Analysis == (AnalysisPolicy{}) {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "tensor analysis policy is unavailable")
-		return nil, false
+		return nil, "", nil, false
 	}
 	api, ok := h.generator.(ModelPropertiesAPI)
 	if !ok {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model properties are unavailable")
-		return nil, false
+		return nil, "", nil, false
 	}
 	path := api.ModelProperties().Path
 	if path == "" {
 		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "model path is unavailable for tensor analysis")
-		return nil, false
+		return nil, "", nil, false
 	}
 	file, err := gguf.Open(path)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "model_read_failed", "open model: "+err.Error())
-		return nil, false
+		return nil, "", nil, false
 	}
 	defer file.Close()
-	profiles, err := characterizeGGUF(file, h.config.Analysis.tensorMeasurementPolicy())
+	profiles, state, pass, err := h.characterizeGGUF(ctx, path, file, h.config.Analysis.tensorMeasurementPolicy(), wait)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "tensor_characterization_failed", err.Error())
-		return nil, false
+		return nil, "", nil, false
 	}
-	return profiles, true
+	return profiles, state, pass, true
 }
 
-// characterizeGGUF builds the tensor inventory and measures every tensor through
-// the shared, identity-keyed measurement pipeline, pairing each characterization
-// with its storage and shape facts.
-func characterizeGGUF(file *gguf.File, policy modelartifact.MeasurementPolicy) ([]analyzeTensor, error) {
+// tensorFile is a model file's identity on disk: a changed path, size or
+// modification time is a model to inventory again.
+type tensorFile struct {
+	path     string
+	size     int64
+	modified int64
+}
+
+// servedTensorModel names the served model as the tensor pool names each
+// model, by its inventory's owner, from the cached inventory; empty when no
+// model file is served.
+func (h *Handler) servedTensorModel() string {
+	api, ok := h.generator.(ModelPropertiesAPI)
+	if !ok || api.ModelProperties().Path == "" {
+		return ""
+	}
+	inventory, err := h.servedTensorInventory(api.ModelProperties().Path, nil)
+	if err != nil {
+		return ""
+	}
+	return inventory.Owner.String()
+}
+
+// servedTensorInventory answers the model file's tensor inventory, hashing
+// the file only when its identity on disk changed; a nil file is opened only
+// when the inventory must be built.
+func (h *Handler) servedTensorInventory(path string, file *gguf.File) (modelartifact.TensorInventoryDocument, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return modelartifact.TensorInventoryDocument{}, err
+	}
+	key := tensorFile{path: path, size: info.Size(), modified: info.ModTime().UnixNano()}
+	if held, ok := h.tensorInventories.Load(key); ok {
+		return held.(modelartifact.TensorInventoryDocument), nil
+	}
+	if file == nil {
+		if file, err = gguf.Open(path); err != nil {
+			return modelartifact.TensorInventoryDocument{}, err
+		}
+		defer file.Close()
+	}
 	inventory, err := modelartifact.FromGGUF(file, artifact.KindModel)
 	if err != nil {
-		return nil, err
+		return modelartifact.TensorInventoryDocument{}, err
 	}
-	document, err := modelartifact.MeasureGGUF(inventory.TensorInventory, file, policy)
+	h.tensorInventories.Store(key, inventory.TensorInventory)
+	return inventory.TensorInventory, nil
+}
+
+// characterizeGGUF pairs each measurement of the model's tensors with its
+// storage and shape facts and answers the full pass's state that goes with
+// those profiles. A full measuring pass reads every tensor (minutes on a
+// served model), so it runs once per inventory and policy: the handler keeps
+// the document, and a store keeps it across restarts.
+func (h *Handler) characterizeGGUF(ctx context.Context, path string, file *gguf.File, policy modelartifact.MeasurementPolicy, wait bool) ([]analyzeTensor, string, *tensorPass, error) {
+	inventory, err := h.servedTensorInventory(path, file)
 	if err != nil {
-		return nil, err
+		return nil, "", nil, err
 	}
+	pass, err := h.tensorMeasurement(ctx, path, inventory, file, policy)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	document, state, err := pass.document(ctx, wait)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	model := inventory.Owner.String()
 	profiles := make([]analyzeTensor, len(document.Measurements))
 	for i, measurement := range document.Measurements {
-		fact, _ := inventory.TensorInventory.Tensor(measurement.Name)
+		fact, _ := inventory.Tensor(measurement.Name)
 		profiles[i] = analyzeTensor{
+			Model:             model,
 			Storage:           fact.Storage,
 			Shape:             fact.Shape,
 			TensorMeasurement: measurement,
 		}
 	}
-	return profiles, nil
+	return profiles, state, pass, nil
+}
+
+// measureGGUF is the full measuring pass; a test counts the passes through it.
+var measureGGUF = modelartifact.MeasureGGUF
+
+// tensorPass is one inventory's measurement: the sampled profiles answer at
+// once, and the full pass (minutes on a served model) runs once in the
+// background; done closes when full or failure is set. A finished
+// measurement answers whether or not its commit to the store has succeeded;
+// published says it has, and publishing orders the attempts.
+type tensorPass struct {
+	sampled    modelartifact.TensorMeasurementDocument
+	full       modelartifact.TensorMeasurementDocument
+	failure    error
+	done       chan struct{}
+	publishing sync.Mutex
+	published  bool
+}
+
+func (pass *tensorPass) state() string {
+	select {
+	case <-pass.done:
+		if pass.failure != nil {
+			return spectraFailed
+		}
+		return spectraComplete
+	default:
+		return spectraPending
+	}
+}
+
+// document answers the full measurement once it exists, else the sampled one,
+// with the state read once so the two always agree; wait holds the caller
+// until the full pass ends.
+func (pass *tensorPass) document(ctx context.Context, wait bool) (modelartifact.TensorMeasurementDocument, string, error) {
+	if wait {
+		select {
+		case <-pass.done:
+		case <-ctx.Done():
+			return modelartifact.TensorMeasurementDocument{}, "", ctx.Err()
+		}
+	}
+	state := pass.state()
+	if state == spectraComplete {
+		return pass.full, state, nil
+	}
+	return pass.sampled, state, nil
+}
+
+// tensorMeasurement answers an inventory's pass under policy: the handler's,
+// then a committed full document, else a sampling pass at once while one full
+// pass runs in the background and commits its document to the writable
+// repository.
+func (h *Handler) tensorMeasurement(ctx context.Context, path string, inventory modelartifact.TensorInventoryDocument, file *gguf.File, policy modelartifact.MeasurementPolicy) (*tensorPass, error) {
+	if held, ok := h.tensorPasses.Load(inventory.ID); ok {
+		pass := held.(*tensorPass)
+		// A measurement whose commit failed is committed again by the next request.
+		if pass.state() == spectraComplete {
+			h.publishTensorPass(pass, inventory)
+		}
+		return pass, nil
+	}
+	pass := &tensorPass{done: make(chan struct{})}
+	found := false
+	if store, err := h.browseStore(ctx); err == nil {
+		pass.full, found, err = findTensorMeasurement(ctx, store, inventory.ID, policy)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if found {
+		pass.published = true
+		close(pass.done)
+	} else {
+		// The sampling pass names no spectral extent, so it computes no spectra.
+		sampling := modelartifact.MeasurementPolicy{MaxSamplesPerTensor: policy.MaxSamplesPerTensor, MaxReadBytes: policy.MaxReadBytes}
+		sampled, err := measureGGUF(inventory, file, sampling)
+		if err != nil {
+			return nil, err
+		}
+		pass.sampled = sampled
+	}
+	held, loaded := h.tensorPasses.LoadOrStore(inventory.ID, pass)
+	if !loaded && !found {
+		go h.completeTensorPass(pass, path, inventory, policy)
+	}
+	return held.(*tensorPass), nil
+}
+
+// completeTensorPass runs the full measuring pass on its own handle of the
+// model file, answers it, then commits it when the server can write.
+func (h *Handler) completeTensorPass(pass *tensorPass, path string, inventory modelartifact.TensorInventoryDocument, policy modelartifact.MeasurementPolicy) {
+	measured := func() error {
+		defer close(pass.done)
+		file, err := gguf.Open(path)
+		if err != nil {
+			pass.failure = err
+			return err
+		}
+		defer file.Close()
+		pass.full, pass.failure = measureGGUF(inventory, file, policy)
+		return pass.failure
+	}
+	if measured() == nil {
+		h.publishTensorPass(pass, inventory)
+	}
+}
+
+// publishTensorPass commits a finished measurement once. A failed commit
+// leaves the measurement answering and is tried again on the next request;
+// once the handler closes nothing is committed.
+func (h *Handler) publishTensorPass(pass *tensorPass, inventory modelartifact.TensorInventoryDocument) {
+	if h.repository == nil || h.tensorLifetime == nil {
+		return
+	}
+	pass.publishing.Lock()
+	defer pass.publishing.Unlock()
+	h.tensorPublishes.RLock()
+	defer h.tensorPublishes.RUnlock()
+	if pass.published || h.tensorLifetime.Err() != nil {
+		return
+	}
+	pass.published = publishTensorMeasurement(h.tensorLifetime, h.repository, inventory, pass.full) == nil
+}
+
+// visitTensorMeasurements visits every committed tensor measurement in order.
+func visitTensorMeasurements(ctx context.Context, store *overgodb.Store, order overgodb.DocumentOrder, visit func(modelartifact.TensorMeasurementDocument) error) error {
+	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
+		Contracts: []artifact.DocumentContract{{
+			Kind: artifact.KindTensorInventory, MediaType: modelartifact.TensorMeasurementMediaType,
+			Schema: modelartifact.TensorMeasurementSchema,
+		}}, Order: order,
+	}, modelartifact.ParseTensorMeasurementDocument, func(_ overgodb.DocumentView, document modelartifact.TensorMeasurementDocument) error {
+		return visit(document)
+	})
+	return err
+}
+
+// errHandlerClosed ends the handler's background measurement lifetime.
+var errHandlerClosed = errors.New("server: handler closed")
+
+// errMeasurementFound ends a measurement visit at its match.
+var errMeasurementFound = errors.New("server: tensor measurement found")
+
+// findTensorMeasurement answers the newest committed measurement of the
+// inventory under the policy, reading measurements newest first and stopping
+// at the match: each one it reads is a whole document to decode.
+func findTensorMeasurement(ctx context.Context, store *overgodb.Store, inventory artifact.ID, policy modelartifact.MeasurementPolicy) (modelartifact.TensorMeasurementDocument, bool, error) {
+	var match modelartifact.TensorMeasurementDocument
+	err := visitTensorMeasurements(ctx, store, overgodb.DocumentNewestFirst, func(stored modelartifact.TensorMeasurementDocument) error {
+		if stored.Inventory != inventory || stored.Policy != policy {
+			return nil
+		}
+		match = stored
+		return errMeasurementFound
+	})
+	if errors.Is(err, errMeasurementFound) {
+		return match, true, nil
+	}
+	return modelartifact.TensorMeasurementDocument{}, false, err
+}
+
+// publishTensorMeasurement commits the measurement with the inventory it names.
+func publishTensorMeasurement(ctx context.Context, store *overgodb.Store, inventory modelartifact.TensorInventoryDocument, document modelartifact.TensorMeasurementDocument) error {
+	batch, err := document.Batch("tensor-measurement/" + document.ID.String())
+	if err != nil {
+		return err
+	}
+	inventoryContent, err := inventory.Content()
+	if err != nil {
+		return err
+	}
+	batch.Artifacts = append(batch.Artifacts, inventoryContent.Descriptor)
+	batch.Contents = append(batch.Contents, inventoryContent)
+	// The inventory names its model; the link is recorded when the store
+	// knows the model, as a registered one it serves always is.
+	if _, known, err := store.Artifact(ctx, inventory.Owner); err != nil {
+		return err
+	} else if known {
+		batch.Lineage = append(batch.Lineage, inventory.Lineage()...)
+	}
+	_, err = artifact.Publish(ctx, store, batch)
+	return err
 }

@@ -89,6 +89,8 @@
       if (!response.ok) await readJSON(response);
       for await (const { event, data } of sseEvents(response)) handler(event, data);
     },
+    // delete: a DELETE with its inputs in the query; the server answers JSON.
+    async delete(path, opts) { return readJSON(await this.stream(path, null, Object.assign({ method: "DELETE" }, opts))); },
     // blob: an artifact's bytes (a media output taken back as input).
     async blob(path, opts) { return (await this.stream(path, null, Object.assign({ method: "GET" }, opts))).blob(); },
   };
@@ -123,8 +125,9 @@
   // /analyze/model serves the Model tab and the lens; one cached promise per
   // page load, cleared on rejection and on a key change.
   let modelPromise = null;
+  let servedCatalog = null; // the catalog listing read for the served model; a key change or model change reads it again
   function modelInfo() { return modelPromise || (modelPromise = api.get("/analyze/model").catch((err) => { modelPromise = null; throw err; })); }
-  function invalidateModel() { modelPromise = null; }
+  function invalidateModel() { modelPromise = null; servedCatalog = null; }
 
   // Minimal hyperscript: el("div", {class:"x"}, child, child...).
   function el(tag, attrs, ...children) {
@@ -192,8 +195,8 @@
         }
       } catch (err) {
         if (!node.isConnected || controller.signal.aborted) return;
-        resource.failure = el('div', { class: 'artifact-load-error' }, errorBanner(friendlyError(err)),
-          el('button', { class: 'link-button', text: 'Retry', onclick: load }));
+        // The artifact's own Retry recovers it, in place of the tab reload.
+        resource.failure = el('div', { class: 'artifact-load-error' }, failure(err, el('button', { class: 'link-button', text: 'Retry', onclick: load })));
         node.after(resource.failure);
       } finally { if (resource.controller === controller) resource.controller = null; }
     };
@@ -210,8 +213,28 @@
 
   function errorBanner(message) { return el("div", { class: "err-banner", role: "alert", text: message }); }
 
-  // friendlyError: a 401 becomes the same actionable hint on every tab.
-  function friendlyError(err) { return err && err.status === 401 ? "API key required — open Settings and enter it under Connection." : String((err && err.message) || err); }
+  // friendlyError: the page's words for a failed request. A 401 names the key; an internal fault (500)
+  // or an unreachable server says which, never the server's internal text; a refusal, an unavailable
+  // service (503) among them, keeps its own words.
+  function friendlyError(err) {
+    if (err && err.status === 401) return "API key required — open Settings and enter it under Connection.";
+    if (err && err.status === 500) return "The server could not complete this request (HTTP 500).";
+    if (err && !err.status && err.name === "TypeError") return "The server could not be reached. Check that it is running.";
+    return String((err && err.message) || err);
+  }
+  // failure: the one banner for a failed request: friendlyError's words, the server's own text
+  // folded under Details, and the recovery: the caller's own control, else a reload of the tab it stands in.
+  function failure(err, recovery) {
+    const banner = errorBanner(friendlyError(err)), detail = String((err && err.message) || err);
+    if (detail !== banner.textContent) banner.append(" ", el("details", { class: "failure-detail" }, el("summary", { text: "Details" }), el("span", { class: "mono", text: detail })));
+    banner.append(" ", recovery || el("button", { class: "link-button", text: "Reload this tab", onclick: () => {
+      const panel = banner.closest(".panel");
+      if (panel) remountActive(null, panel.id.slice("panel-".length));
+    } }));
+    return banner;
+  }
+  // cancelOperation: the one request that cancels a running operation.
+  function cancelOperation(id) { return api.post("/operations/cancel", { id }); }
 
   // Number formatting helpers (grouping, byte sizes, compact counts).
   function grouped(n) { return Number(n).toLocaleString("en-US"); }
@@ -243,7 +266,7 @@
   // button; an abort goes to onCancel, any other failure to onError.
   // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
   // tick, the offline probe, and the status re-probe.
-  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000, streamReconnectMS = 2000;
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -262,7 +285,9 @@
     };
   }
 
-  function poller(task, interval) {
+  // poller: task every interval while started and the page is visible. A failed tick is reported
+  // (onError, else the page's error record) and the next tick still runs; stop releases the listener.
+  function poller(task, interval, onError) {
     let active = false;
     let controller = null;
     let timer = null;
@@ -274,12 +299,37 @@
       const current = new AbortController();
       controller = current;
       try { await task(current.signal); }
-      catch (err) { if (!err || err.name !== "AbortError") throw err; } finally { if (controller === current) controller = null; schedule(); }
+      catch (err) {
+        if (err && err.name === "AbortError") return;
+        if (onError) onError(err); else errors.push(String(err && err.message || err));
+      } finally { if (controller === current) controller = null; schedule(); }
     }
-    function start() { if (active) return; active = true; activePollers++; if (!document.hidden) tick(); }
-    function stop() { if (active) activePollers--; active = false; cancel(); }
-    document.addEventListener("visibilitychange", () => { cancel(); if (active && !document.hidden) tick(); });
+    function visibility() { cancel(); if (active && !document.hidden) tick(); }
+    function start() { if (active) return; active = true; activePollers++; document.addEventListener("visibilitychange", visibility); if (!document.hidden) tick(); }
+    function stop() { if (active) activePollers--; active = false; document.removeEventListener("visibilitychange", visibility); cancel(); }
     return { start, stop };
+  }
+
+  // tabStream: a tab's own event stream. It reconnects after the server ends it cleanly, reports a
+  // failed connection in host with a Reconnect control, and returns the stop the tab's cleanup calls.
+  function tabStream(path, handler, host) {
+    let controller = null;
+    let timer = null;
+    let stopped = false;
+    function connect() {
+      timer = null;
+      const current = new AbortController();
+      controller = current;
+      api.events(path, handler, { signal: current.signal }).then(() => {
+        if (!stopped && controller === current) timer = setTimeout(connect, streamReconnectMS);
+      }, (err) => {
+        if (stopped || controller !== current || (err && err.name === "AbortError")) return;
+        const retry = el("button", { class: "btn alt", text: "Reconnect", onclick: () => { host.replaceChildren(); connect(); } });
+        host.replaceChildren(errorBanner("Live updates stopped: " + friendlyError(err)), retry);
+      });
+    }
+    connect();
+    return function stop() { stopped = true; if (timer != null) clearTimeout(timer); if (controller) controller.abort(); };
   }
 
   function stat(label, value, unit) {
@@ -296,18 +346,29 @@
   const tabs = [];
   function registerTab(tab) { tabs.push(tab); }
 
-  // artifactLink: the one link to a stored artifact (content, or the gallery entry).
-  const galleryRoute = "/artifacts?id=", contentRoute = "/artifacts/content?id=";
+  // contentURL: a stored artifact's bytes; el() fetches them through the authenticated client.
+  function contentURL(id) { return "/artifacts/content?id=" + encodeURIComponent(id); }
+  // openArtifact: the Artifacts tab shows one entry (null: the whole gallery) until another is chosen,
+  // across remounts. The hash opens the tab, now or once it registers; a mounted tab hears the event.
+  let artifactFocus = null;
+  function openArtifact(id) {
+    artifactFocus = id || null;
+    location.hash = "artifacts";
+    window.dispatchEvent(new Event("overgo-artifact-focus"));
+  }
+  function focusedArtifact() { return artifactFocus; }
+  // artifactLink: the one link to a stored artifact (its content, or its gallery entry in the Artifacts tab).
   function artifactLink(id, label, gallery) {
-    const route = gallery ? galleryRoute : contentRoute;
-    return el("a", { class: "mono", href: route + encodeURIComponent(id), target: "_blank", rel: "noopener", text: label || shortID(id) });
+    const text = label || shortID(id);
+    if (gallery) return el("a", { class: "mono", href: "#artifacts", text, onclick: (event) => { event.preventDefault(); openArtifact(id); } });
+    return el("a", { class: "mono", href: contentURL(id), target: "_blank", rel: "noopener", text });
   }
 
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
   // node, or text shown mono after the first column), a grid table from both.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
   // reporter: a host's error reporter, the shape every module spells as showError.
-  function reporter(host) { return (err) => host.replaceChildren(errorBanner(friendlyError(err))); }
+  function reporter(host) { return (err) => host.replaceChildren(failure(err)); }
   function tableRow(cells, attrs) {
     return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
   }
@@ -549,10 +610,10 @@
   }
 
   window.overgo = {
-    api, el, clear, errorBanner, friendlyError, registerTab, artifactLink, downloadBlob, headerRow, tableRow, table, evidenceLine, servedModel, modelSwitching, bindTaskModel,
+    api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
-    getKey, setKey, modelInfo, invalidateModel,
-    displayToken, runner, poller, stat, fold,
+    getKey, setKey, modelInfo,
+    displayToken, runner, poller, tabStream, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
   };
 
@@ -581,7 +642,9 @@
       capabilityDocument = next.model || null;
       for (const tab of tabs) {
         if (!target || tab.id === target) {
-          if (!target && tab.onDeactivate) tab.onDeactivate();
+          // Every released tab deactivates, a reloaded one too: a tab holding a subscription
+          // (Runtime, Activity) would otherwise keep the old one and refuse the new view's.
+          if (tab.onDeactivate) tab.onDeactivate();
           releaseTab(tab);
         }
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
@@ -656,15 +719,16 @@
   function embed(id, host, seed) { const tab = tabs.find((t) => t.id === id); if (!tab) throw new Error("no workspace tab " + id); clear(host); return tab.mount(host, window.overgo, seed); }
   // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
   function analysisSurface(panel, seed, options) {
-    const prompt = el("textarea", { class: "text", placeholder: "prompt to analyze…" });
+    const prompt = el("textarea", { "aria-label": "Prompt to analyze", class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
     const cancel = el("button", { class: "btn alt", hidden: true }, "cancel");
     const out = el("div");
-    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.flatMap(([label, input]) => [el("span", { class: "note", text: label }), input]), run, cancel),
+    panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
-      onError: (err) => out.replaceChildren(errorBanner(friendlyError(err))),
+      // The surface also stands in the inspector, outside any tab; running again recovers either.
+      onError: (err) => out.replaceChildren(failure(err, el("button", { class: "link-button", text: "Run again", onclick: () => surface.execute() }))),
       onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
     });
     const surface = { prompt, out, execute() { out.replaceChildren(el("div", { class: "note", text: options.busy })); runAction(options.execute); } };
@@ -677,7 +741,11 @@
     try {
       const result = tab.mount(tab.panel, window.overgo);
       // A module that returns a function hands back its cleanup (streams, forms); a remount runs it first.
-      tab.ready = Promise.resolve(result).then((value) => { if (typeof value === "function" && tab.mountAttempt === attempt) tab.cleanup = value; return tab.mountAttempt === attempt; }, failed);
+      // A mount a remount superseded while it was still reading releases what it opened at once.
+      tab.ready = Promise.resolve(result).then((value) => {
+        if (typeof value === "function") { if (tab.mountAttempt === attempt) tab.cleanup = value; else value(); }
+        return tab.mountAttempt === attempt;
+      }, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
   function releaseTab(tab) {
@@ -686,7 +754,7 @@
     tab.mounted = false;
     if (cleanup) { try { cleanup(); } catch (err) { errors.push(String(err && err.message || err)); } }
   }
-  function renderMountError(tab, err) { tab.panel.replaceChildren(errorBanner(String(err && err.message || err))); }
+  function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
   function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
   // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
   function renderRefusal(tab) { tab.panel.replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
@@ -694,7 +762,8 @@
   // dot: one header status dot (server, swap proxy, device) with its state and its fact as the title.
   function dot(id, state, title) {
     const node = document.getElementById(id);
-    if (node) { node.className = "dot " + state; node.title = title; }
+    // The dot speaks its state; its colour and tooltip show it.
+    if (node) { node.className = "dot " + state; node.title = title; node.setAttribute("aria-label", title); }
   }
   let statusAttempt = 0;
   async function refreshStatus() {
@@ -716,8 +785,14 @@
       servedEvidence = '';
       renderModelSelection();
       if (health && health.model) {
-        // A catalog that fails to list says so under the pill instead of an empty evidence line.
-        const catalog = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+        // The catalog is read when the served model changes, not on every status probe; a catalog that
+        // fails to list says so under the pill instead of an empty evidence line, and is read again next time.
+        if (!servedCatalog || servedCatalog.model !== health.model) {
+          const listing = await api.get("/catalog/models").catch((err) => ({ models: [], refusal: "catalog: " + friendlyError(err) }));
+          servedCatalog = { model: health.model, listing };
+        }
+        const catalog = servedCatalog.listing;
+        if (catalog.refusal) servedCatalog = null;
         if (attempt !== statusAttempt) return;
         servedEntry = catalog.models.find((item) => (item.location || "").split(/[\\/]/).pop() === health.model || item.model === health.model) || null;
         servedEvidence = servedEntry ? evidenceLine(servedEntry) : catalog.refusal || '';
@@ -782,7 +857,7 @@
           window.overgo.localOperation(Object.assign(chip, { state: "failed", failure: "the requested model was not served" }));
           const command = 'overgo_gui.bat "' + (item.location || name) + '"';
           const copy = el("button", { class: "btn alt", text: "copy launch" });
-          copy.addEventListener("click", () => navigator.clipboard.writeText(command));
+          copy.addEventListener("click", () => navigator.clipboard.writeText(command).then(() => { copy.textContent = "copied"; }, () => { copy.textContent = "copy unavailable: select the command"; }));
           if (panel !== currentPanel) return;
           panel.replaceChildren(
             el("div", { class: "note", text: "this server runs without the swap proxy; relaunch it on the model instead" }),
@@ -976,7 +1051,8 @@
     } catch (err) {
       if (err.status === 401) {
         clear(panels);
-        panels.appendChild(el("div", { class: "center tall" }, errorBanner(friendlyError(err))));
+        panels.appendChild(el("div", { class: "center tall" }, failure(err,
+          el("button", { class: "link-button", text: "Open Settings", onclick: () => document.getElementById("settings-toggle").click() }))));
       } else offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
       return;
     }
@@ -987,7 +1063,11 @@
     try {
       await loadWorkspaceModules(workspaceManifest);
       bindWorkspaceManifest(workspaceManifest);
-    } catch (err) { panels.appendChild(errorBanner(friendlyError(err))); return; }
+    } catch (err) {
+      // No tab stands yet, so the page itself is what reloads.
+      panels.appendChild(failure(err, el("button", { class: "link-button", text: "Reload the page", onclick: () => location.reload() })));
+      return;
+    }
     for (const section of sectionsPresent()) {
       const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
       const group = el("div", { class: "nav-group" }, button);
@@ -1010,7 +1090,10 @@
       window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
-      setInterval(refreshStatus, statusRefreshMS);
+      // A hidden page does not probe; it probes once when shown again.
+      const probeVisible = () => { if (!document.hidden) refreshStatus(); };
+      setInterval(probeVisible, statusRefreshMS);
+      document.addEventListener("visibilitychange", probeVisible);
     }
     const start = location.hash.slice(1);
     applyCapabilities();
@@ -1034,7 +1117,15 @@
     setKey(keyInput.value.trim(), keyRemember.checked);
     invalidateModel(); // the cached model was fetched under the old key
     const refresh = shellWired ? remountActive() : initShell().then(() => shellWired ? remountActive() : initShell());
-    refresh.catch(err => { document.getElementById("connection-alert").hidden = false; document.getElementById("conversation-settings").appendChild(errorBanner(friendlyError(err))); });
+    refresh.catch(err => {
+      document.getElementById("connection-alert").hidden = false;
+      // One key-change failure shows at a time; the next attempt replaces it.
+      const settings = document.getElementById("conversation-settings"), banner = failure(err,
+        el("button", { class: "link-button", text: "Try again", onclick: () => document.getElementById("api-key").dispatchEvent(new Event("change")) }));
+      banner.dataset.keyFailure = "";
+      const previous = settings.querySelector("[data-key-failure]");
+      if (previous) previous.replaceWith(banner); else settings.appendChild(banner);
+    });
   });
   initShell();
 })();

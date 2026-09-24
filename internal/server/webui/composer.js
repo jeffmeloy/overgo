@@ -40,7 +40,7 @@
     if (lifecycle && lifecycle.accepted) await lifecycle.accepted(accepted.operation);
     const completed = await overgo.waitOperation(accepted.operation, lifecycle && lifecycle.observe, signal);
     if (completed.state !== "completed") { const err = new Error(completed.failure || completed.state); err.operationState = completed.state; throw err; }
-    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: "/artifacts/content?id=" + encodeURIComponent(id) })) };
+    return { run: completed.run, data: (completed.outputs || []).map((id) => ({ url: overgo.contentURL(id) })) };
   }
 
   // replay: the stored request of a record resubmitted (unchanged, or varied by the page) as a new
@@ -49,7 +49,7 @@
     let completed;
     try { completed = await run(capability, input, signal, null, lifecycle); }
     catch (err) { if (err.operationState === 'cancelled') { yield { type: 'cancelled' }; return; } throw err; }
-    for await (const event of media(outputKind(capability.task), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
+    for await (const event of media(outputKind(capability), completed, label + " of " + fmt.shortID(parent), { run: completed.run, recipe: capability.recipe })) {
       if (event.type === "media" && event.artifact === parent) event.caption += " — the same output: the store memoized the unchanged request";
       yield event;
     }
@@ -58,8 +58,14 @@
   // generation: one run of a declared capability through the generic run route:
   // the operation's outputs land as media events, each an artifact with provenance,
   // or as the assistant's text when the task answers in text; the output's kind
-  // follows the server's task vocabulary, not a model list.
-  const outputKind = (task) => task === "speech" ? "audio" : task === "vqa" || task === "transcription" ? "text" : task.startsWith("video") ? "video" : "image";
+  // follows the capability's declared output, not its task name or a model list.
+  const outputSurfaces = { image: "image", video: "video", audio: "audio", text: "text", transcription: "text" };
+  const declaredOutput = (capability) => ((capability && capability.outputs) || [])[0]?.data || "";
+  const outputKind = (capability) => outputSurfaces[declaredOutput(capability)] || null;
+  // offered: the capability as the page lists it; one whose output the page cannot show is listed
+  // with that refusal instead of being run and shown as something it is not.
+  const offered = (capability) => capability.refusal || outputKind(capability) ? capability :
+    { ...capability, refusal: "The workbench cannot show " + (declaredOutput(capability) || "undeclared") + " output yet" };
   // bodyControl: the declared text control the message body feeds (a prompt, a text, a question).
   const bodyControl = (controls) => (controls || []).find((control) => control.type === "text" && ["prompt", "text", "question"].includes(control.name));
   async function* generation(selection, text, signal) {
@@ -75,7 +81,7 @@
       else yield { type: "error", message: err.message, status: err.operationUnconfirmed ? 'unknown' : 'failed' };
       return;
     }
-    if (outputKind(capability.task) !== "text") { yield* media(outputKind(capability.task), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
+    if (outputKind(capability) !== "text") { yield* media(outputKind(capability), completed, text, { run: completed.run, recipe: capability.recipe }); return; }
     // Text outputs only: a run's document outputs (a transcription record) stay stored beside them.
     for (const output of completed.data) { const blob = await overgo.api.blob(output.url); if (blob.type.startsWith("text/")) yield { type: "token", text: await blob.text() }; }
     yield { type: "done" };
@@ -91,7 +97,7 @@
       if (event === "response.created") yield { type: "created", id };
       else if (event === "response.output_text.delta") yield { type: "token", text: parsed.delta || "" };
       else if (event === "response.output_item.added" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_start", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
-      else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, result: parsed.item.arguments };
+      else if (event === "response.output_item.done" && parsed.item && parsed.item.type === "function_call") yield { type: "tool_end", id: parsed.item.id, name: parsed.item.name, arguments: parsed.item.arguments };
       else if (event === "response.failed") {
         yield { type: "error", id, status: "failed", message: String(parsed.delta || (parsed.error && parsed.error.message) || "The turn failed.") };
         return;
@@ -189,9 +195,8 @@
     function toolCard(call) {
       const status = el("span", { class: "tag", text: "running" });
       const arrow = el("span", { class: "arrow", text: "▸" });
-      const bodyNode = el("div", { class: "tool-body", hidden: true },
-        el("div", { class: "note", text: "input" }),
-        el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) }));
+      const input = el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) });
+      const bodyNode = el("div", { class: "tool-body", hidden: true }, el("div", { class: "note", text: "input" }), input);
       bodyNode.id = "tool-" + crypto.randomUUID();
       const header = el("button", { class: "tool-header row", type: "button", "aria-expanded": "false", "aria-controls": bodyNode.id }, arrow, el("span", { class: "mono", text: call.name }), status);
       header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; header.setAttribute("aria-expanded", String(!bodyNode.hidden)); arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
@@ -200,8 +205,15 @@
       scroll();
       const started = Date.now();
       return {
-        end(result) {
+        // end: a tool run's result, or a model's completed call (final arguments, no result).
+        end(result, finalArguments) {
           const elapsed = ((Date.now() - started) / 1000).toFixed(1) + "s";
+          if (finalArguments !== undefined) input.textContent = typeof finalArguments === "string" ? finalArguments : JSON.stringify(finalArguments, null, 2);
+          if (result === undefined) {
+            status.textContent = "requested · " + elapsed;
+            scroll();
+            return;
+          }
           const failed = !!(result && result.error);
           status.className = failed ? "tag tag-danger" : "tag";
           status.textContent = failed ? "error · " + elapsed : "done · " + elapsed;
@@ -278,7 +290,7 @@
             case "tool_end": {
               const id = event.id || event.name + ":" + (open.size - 1);
               const card = open.get(id) || toolCard(event);
-              card.end(event.error ? { error: event.error } : event.result);
+              card.end(event.error ? { error: event.error } : event.result, event.arguments);
               open.delete(id);
               thinking(true);
               break;
@@ -326,7 +338,7 @@
 
   // mediaPlayer: the element that shows a media artifact as what it is (image, video, audio).
   function mediaPlayer(kind, url, caption) {
-    if (kind === "image") return el("a", { href: url, target: "_blank" }, el("img", { src: url, alt: caption || "" }));
+    if (kind === "image") return el("img", { src: url, alt: caption || "" });
     if (kind === "video") return el("video", { src: url, controls: "", class: "mw-420" });
     return el("audio", { controls: "", src: url });
   }
@@ -376,7 +388,7 @@
 
     // Stable flat file rows keep keyboard targets and playing previews intact
     // while read/upload state changes elsewhere in the list.
-    const attachmentURL = item => item.dataURL || (item.kind === 'audio' && item.artifact && '/artifacts/content?id=' + encodeURIComponent(item.artifact));
+    const attachmentURL = item => item.dataURL || (item.kind === 'audio' && item.artifact && overgo.contentURL(item.artifact));
     function attachmentPreview(item) {
       const url = attachmentURL(item);
       if (!url || item.pending || item.refusal) return null;
@@ -616,7 +628,7 @@
       item.attempt = attempt; item.cancel = () => controller.abort(); item.needsReattach = false;
       const current = () => !disposed && attachments.includes(item) && item.attempt === attempt;
       stage(item, 'fetching'); renderAttachments();
-      overgo.api.blob('/artifacts/content?id=' + encodeURIComponent(item.sourceArtifact), { signal: controller.signal }).then(blob => {
+      overgo.api.blob(overgo.contentURL(item.sourceArtifact), { signal: controller.signal }).then(blob => {
         if (!current()) return;
         item.file = new File([blob], item.name, { type: blob.type || item.mime });
         item.mime = item.file.type; item.kind = mediaKind(item.mime); item.size = item.file.size;
@@ -778,9 +790,9 @@
   function toolStep(host, options) {
     const api = overgo.api;
     const select = el("select", { class: "text", "aria-label": "tool" });
-    const args = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON arguments" });
+    const args = el("textarea", { "aria-label": "Tool arguments (JSON)", class: "text", rows: "2", placeholder: "Strict JSON arguments" });
     const decisionHost = el("div");
-    const guard = el("span", { class: "note", "aria-label": "guardrails" });
+    const guard = el("span", { class: "note", role: "status", "aria-label": "Guardrails" });
     const review = el("button", { class: "btn alt", text: "Review decision" });
     const execute = el("button", { class: "btn alt", text: "Execute inspection" });
     const approve = el("button", { class: "btn", text: "Approve and execute", disabled: true });
@@ -837,6 +849,7 @@
   overgo.generate = generate;
   overgo.bodyControl = bodyControl;
   overgo.outputKind = outputKind;
+  overgo.offered = offered;
   overgo.toolStep = toolStep;
   overgo.mediaPlayer = mediaPlayer;
   overgo.mediaKind = mediaKind;

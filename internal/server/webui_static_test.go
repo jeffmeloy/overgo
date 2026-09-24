@@ -322,7 +322,7 @@ func TestWebUIAuthUX(t *testing.T) {
 		}
 	}
 	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
-		if !strings.Contains(get(asset), "friendlyError") {
+		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") {
 			t.Errorf("%s does not route errors through friendlyError", asset)
 		}
 	}
@@ -378,7 +378,7 @@ func TestRLWorkspaceRendersMeasuredEvidence(t *testing.T) {
 	for _, token := range []string{
 		"DPO loss", "GRPO loss", "Evaluator reward", "Margin decomposition", "Chosen / rejected pair", "Optimizer health",
 		"Checkpoint comparison", "policy_margin", "reference_margin", "relative_margin",
-		"mean_reward", "reward_dispersion", "gradient_l2", "update_l2", "/artifacts/content?id=",
+		"mean_reward", "reward_dispersion", "gradient_l2", "update_l2", "overgo.contentURL(",
 	} {
 		if !strings.Contains(training, token) {
 			t.Errorf("training evidence view missing %q", token)
@@ -396,7 +396,7 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 	handler := newTestHandler(t, &fakeGenerator{})
 	workflow := serveTestRequest(handler, http.MethodGet, "/workflow.js", "").Body.String()
 	jobs := serveTestRequest(handler, http.MethodGet, "/mod/jobs.js", "").Body.String()
-	for _, token := range []string{`"/" + definition.scope + "/run"`, "overgo.waitOperation", "/operations/cancel"} {
+	for _, token := range []string{`"/" + definition.scope + "/run"`, "overgo.waitOperation", "overgo.cancelOperation("} {
 		if !strings.Contains(workflow, token) {
 			t.Errorf("generic workflow missing %q", token)
 		}
@@ -411,13 +411,14 @@ func TestRLWorkspaceUsesGenericWorkflowEndpoints(t *testing.T) {
 
 // TestWebUIShellCache guards the shared /analyze/model cache (fetched once for
 // capability gating, the Model tab, and the lens vocab size) and the periodic
-// health re-probe so a dropped/restored server updates the status pill.
+// health re-probe so a dropped/restored server updates the status pill; the
+// re-probe runs only while the page is visible.
 func TestWebUIShellCache(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
 	get := func(p string) string { return serveTestRequest(handler, http.MethodGet, p, "").Body.String() }
 	boot := get("/boot.js")
-	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(refreshStatus"} {
+	for _, needle := range []string{"modelInfo", "invalidateModel", "setInterval(probeVisible", "if (!document.hidden) refreshStatus()"} {
 		if !strings.Contains(boot, needle) {
 			t.Errorf("boot.js missing %q", needle)
 		}

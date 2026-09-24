@@ -131,18 +131,18 @@
       })));
     }
     if (frames && frames.control.bounds.rate) chips.push(...durationPresets.map((seconds) => chip(seconds + " s", () => { frames.input.value = snap(frames, seconds * frames.control.bounds.rate); })));
-    return chips.length ? el("div", { class: "preset-chips", "aria-label": "presets" }, ...chips) : null;
+    return chips.length ? el("div", { class: "preset-chips", role: "group", "aria-label": "Presets" }, ...chips) : null;
   }
 
   // intakeStrip: the store's recent stored files of the slot's media kind (attachments the
   // composer stored, media that came out of a capability), one click filling the slot.
   function intakeStrip(control, input) {
     const el = window.overgo.el;
-    const strip = el("div", { class: "intake-strip", "aria-label": "recent " + (control.media || "stored files") });
+    const strip = el("div", { class: "intake-strip", role: "group", "aria-label": "Recent " + (control.media || "stored files") });
     const kind = control.media ? control.media + "/" : "";
     const load = () => window.overgo.api.get("/artifacts?kind=file&newest=1&media=" + encodeURIComponent(kind) + "&limit=" + window.overgo.intakeStripLimit).then((listed) => {
       strip.replaceChildren(...(listed.artifacts || []).filter((item) => item.payload).map((item) => {
-        const id = item.descriptor.id, source = "/artifacts/content?id=" + encodeURIComponent(id);
+        const id = item.descriptor.id, source = window.overgo.contentURL(id);
         const preview = item.descriptor.media_type.startsWith("image/") ? el("img", { src: source, alt: "" }) : el("span", { class: "mono", text: item.descriptor.media_type });
         return el("button", { class: "intake-thumb", type: "button", "data-id": id, title: id, "aria-label": "use " + window.overgo.fmt.shortID(id), onclick: () => { input.value = id; input.dispatchEvent(new Event("change", { bubbles: true })); } }, preview);
       }));
@@ -216,7 +216,7 @@
 
         let capabilities;
         try { capabilities = await api.get("/" + definition.scope + "/capabilities"); }
-        catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); run.disabled = true; return; }
+        catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = true; return; }
         // A task is served by every model activated for it: the recipe is the
         // identity, the model's name the label, and a refused one says why.
         for (const capability of capabilities) {
@@ -235,7 +235,7 @@
         cancel.addEventListener("click", async () => {
           if (operation) {
             cancel.disabled = true;
-            await api.post("/operations/cancel", { id: operation });
+            await overgo.cancelOperation(operation);
           }
         });
         function renderOperation(current) {
@@ -264,7 +264,7 @@
             status.textContent = "running / " + fmt.shortID(operation);
             const completed = await overgo.waitOperation(operation, renderOperation);
             if (completed && completed.state === "completed" && definition.renderEvidence) await definition.renderEvidence(evidence, completed, overgo);
-          } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
+          } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.disabled = false; cancel.hidden = true; }
         });
       },
     });

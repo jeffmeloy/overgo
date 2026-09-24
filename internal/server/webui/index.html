@@ -11,11 +11,10 @@
 <div class="shell front">
   <nav class="sidebar" id="navigation" aria-label="Workspace navigation">
     <button id="navigation-close" class="btn alt" aria-label="Close navigation">Close</button>
-    <a class="brand" href="/"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span><span class="sub">workbench</span></a>
+    <a class="brand" href="/"><span class="wordmark"><span class="caret">&rsaquo;</span>overgo</span></a>
     <button id="workbench-toggle" class="btn alt" title="Show or hide the workbench sections beside the conversation">Workbench</button>
-    <div id="conversation-list" class="conversations" aria-label="Conversations"></div>
+    <div id="conversation-list" class="conversations" role="group" aria-label="Conversations"></div>
     <div id="sections"></div>
-    <div id="tabs" style="display:none"></div>
     <div class="foot"><span class="note" id="footer-note"></span></div>
   </nav>
   <button id="navigation-backdrop" hidden aria-label="Close navigation" tabindex="-1"></button>
@@ -41,7 +40,7 @@
     <h3>Connection</h3>
     <label class="setting-field">API key <input class="text" id="api-key" type="password" placeholder="API key (if required)" autocomplete="off" spellcheck="false"></label>
     <label class="key-remember"><input type="checkbox" id="api-key-remember"> Remember on this browser</label>
-    <div class="row connection-status"><span class="pill" id="status-pill">probing…</span><span class="dots" aria-label="status"><span id="server-dot" class="dot" title="server"></span><span id="proxy-dot" class="dot" title="swap proxy"></span><span id="device-dot" class="dot" title="device"></span></span></div>
+    <div class="row connection-status"><span class="pill" id="status-pill">probing…</span><span class="dots" role="group" aria-label="Connection status"><span id="server-dot" class="dot" role="img" title="server" aria-label="server"></span><span id="proxy-dot" class="dot" role="img" title="swap proxy" aria-label="swap proxy"></span><span id="device-dot" class="dot" role="img" title="device" aria-label="device"></span></span></div>
   </section>
   <details class="settings-section"><summary>Model details</summary><div id="model-details"></div><p class="note" id="model-evidence"></p></details>
 </dialog>

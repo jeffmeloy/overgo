@@ -41,8 +41,8 @@
 
       // The creation surface: a name, plain instructions, tool checkboxes; every identity derives at /agents/create.
       function renderCreate() {
-        const name = el("input", { class: "text", placeholder: "agent name (lowercase)" });
-        const instructions = el("textarea", { class: "text", rows: "3", placeholder: "what should this agent do?" });
+        const name = el("input", { "aria-label": "Agent name", class: "text", placeholder: "agent name (lowercase)" });
+        const instructions = el("textarea", { "aria-label": "Agent instructions", class: "text", rows: "3", placeholder: "what should this agent do?" });
         const boxes = tools.map((tool) => {
           const box = el("input", { type: "checkbox" });
           return { tool, box, row: el("label", { class: "note" }, box, " " + tool.name + " / " + tool.effect) };
@@ -162,13 +162,13 @@
       let toolSurface = null;
       function renderTools() {
         if (!toolSurface) {
-          const session = el("input", { class: "text", placeholder: "session identity", value: autoSession });
+          const session = el("input", { "aria-label": "Session identity", class: "text", placeholder: "session identity", value: autoSession });
           const sessionListHost = el("div");
           const listSessions = el("button", { class: "btn alt", text: "Sessions" });
           // The session list: every durable session with its steps against the bound, resumable by one click.
           listSessions.addEventListener("click", async () => {
             try {
-              const listing = await api.get("/agent/sessions");
+              const listing = await api.get("/agents/sessions");
               sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
                 const resume = el("button", { class: "btn alt", text: "Resume" });
                 resume.addEventListener("click", () => { session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id; renderEvidence(session.value); });
@@ -191,7 +191,7 @@
 
       function renderRetrieval() {
         const [projection, policy, query, limit] = ["retrieval projection identity", "rerank policy identity", "retrieval query", "result limit"]
-          .map((placeholder) => el("input", { class: "text", placeholder }));
+          .map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
         const results = el("div");
         const search = el("button", { class: "btn", text: "Search", disabled: !selected });
         search.addEventListener("click", async () => {
@@ -211,8 +211,8 @@
       function renderAutomations() {
         const agent = activeAgent();
         const select = el("select", { class: "text", "aria-label": "automation" }, ...((agent && agent.automations) || []).map((item) => el("option", { value: item.id, text: item.name })));
-        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", placeholder }));
-        const inputs = el("textarea", { class: "text", rows: "2", placeholder: "Strict JSON inputs" });
+        const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
+        const inputs = el("textarea", { "aria-label": "Tool inputs (JSON)", class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
         run.addEventListener("click", async () => {
           try {
@@ -230,7 +230,7 @@
       // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
       async function renderProvenance(host, session, step) {
         try {
-          const walk = await api.get("/agent/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
+          const walk = await api.get("/agents/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
           const parts = [
             el("div", {}, "interaction ", artifactLink(walk.interaction), " / transcript ", artifactLink(walk.transcript)),
             el("div", {}, "tool " + walk.tool + " / manual ", walk.manual ? artifactLink(walk.manual) : el("span", { text: "by name" })),
@@ -273,18 +273,15 @@
 
       function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations(); }
 
-      tools = (await api.get("/agent/tools")).tools || [];
+      tools = (await api.get("/agents/tools")).tools || [];
       inventory = await api.get("/agents");
       renderAll();
-      const stream = new AbortController();
-      api.events("/agents/stream", (event, data) => {
+      const stopStream = overgo.tabStream("/agents/stream", (event, data) => {
         if (event === "agent.inventory") { inventory = data; renderAll(); }
         if (event === "operation" && data.status && data.status.id) status.textContent =
           "operation " + fmt.shortID(data.status.id) + " / " + data.status.state;
-      }, { signal: stream.signal }).catch((err) => {
-        if (err.name !== "AbortError") showError(err);
-      });
-      return () => { stream.abort(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); if (chatThread) chatThread.dispose(); };
+      }, status);
+      return () => { stopStream(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); if (chatThread) chatThread.dispose(); };
     },
   });
 })();

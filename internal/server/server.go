@@ -430,6 +430,17 @@ type hubWorkspace struct {
 type workbenchWorkspace struct {
 	catalogMemo      *discovery.Memo
 	browseRepository *overgodb.Store
+	// tensorPasses holds each served inventory's measurement pass under the
+	// configured policy, so the Tensors tab measures a model once per process.
+	tensorPasses sync.Map
+	// tensorInventories holds each model file's inventory by the file's
+	// identity on disk, so a request never hashes an unchanged model again.
+	tensorInventories sync.Map
+	// tensorLifetime ends when the handler closes: a background measurement
+	// then commits nothing, and Close waits out any commit already running.
+	tensorLifetime     context.Context
+	stopTensorLifetime context.CancelCauseFunc
+	tensorPublishes    sync.RWMutex
 }
 
 // Handler is the assembly root: the shared core (configuration, evidence
@@ -621,6 +632,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			browseRepository: browseRepository,
 		},
 	}
+	handler.tensorLifetime, handler.stopTensorLifetime = context.WithCancelCause(context.Background())
 	if identity, ok := generator.(interface{ ModelID() artifact.ID }); ok {
 		handler.modelArtifact = identity.ModelID()
 	}
@@ -656,6 +668,13 @@ func (h *Handler) Close() error {
 		return nil
 	}
 	h.inflight.shutdown()
+	// A background tensor measurement commits nothing once the handler closes.
+	if h.stopTensorLifetime != nil {
+		h.stopTensorLifetime(errHandlerClosed)
+	}
+	// A commit already past the lifetime check finishes before the store closes.
+	h.tensorPublishes.Lock()
+	defer h.tensorPublishes.Unlock()
 	// Downloads shut down first: the registry cancels in-flight transfers,
 	// records the interruption on each job, and waits for their goroutines,
 	// so nothing below closes out from under a disk write.

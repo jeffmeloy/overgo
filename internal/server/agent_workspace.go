@@ -92,7 +92,9 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
 		return
 	}
-	if body.Session == "" || body.Tool == "" || request.URL.Path == "/agents/step" && body.Agent == "" {
+	// A step names its session and tool; an agent name binds the session to that active agent,
+	// and without one the session is the coordinator's own.
+	if body.Session == "" || body.Tool == "" {
 		writeError(response, http.StatusBadRequest, "invalid_request", "session and tool are required")
 		return
 	}
@@ -120,7 +122,7 @@ func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request)
 	// An approved step first RECORDS the operator's grant as a durable
 	// decision bound to the exact tool identity and argument bytes; the
 	// proposal gate then verifies that committed decision. The grant must
-	// name the operation identity the /agent/approval preview projected --
+	// name the operation identity the /agents/approval preview projected --
 	// a step request cannot approve state its operator never saw.
 	if body.Approval != "" {
 		approved, parseErr := artifact.ParseID(body.Approval)
@@ -165,7 +167,7 @@ type agentStepRequest struct {
 	Session   string          `json:"session"`
 	Tool      string          `json:"tool"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
-	// Approval names the operation identity the /agent/approval preview
+	// Approval names the operation identity the /agents/approval preview
 	// projected for this step; a boolean can no longer grant blind.
 	Approval string `json:"approval,omitzero"`
 }
@@ -231,7 +233,7 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
 		return
 	}
-	names, err := h.aliasNamesUnder(request.Context(), artifact.KindEvidence, runrecord.InteractionResponseAliasRoot)
+	names, err := responseInteractionNames(request.Context(), h.repository)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return

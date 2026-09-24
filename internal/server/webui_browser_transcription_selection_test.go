@@ -47,11 +47,16 @@ func TestTranscriptionSelectedRecipe(t *testing.T) {
 			}
 		})
 	}
+	// The response can precede the operation's completion record, so the test waits for it.
 	statuses := fixture.handler.operations.List()
-	if len(statuses) != 1 || statuses[0].State != operation.StateCompleted {
+	if len(statuses) != 1 {
 		t.Fatalf("unexpected operations: %+v", statuses)
 	}
-	run, err := runrecord.RequireExactRun(t.Context(), fixture.store, *statuses[0].Run)
+	completed, err := fixture.handler.operations.Wait(t.Context(), statuses[0].ID)
+	if err != nil || completed.State != operation.StateCompleted {
+		t.Fatalf("operation %+v, %v", completed, err)
+	}
+	run, err := runrecord.RequireExactRun(t.Context(), fixture.store, *completed.Run)
 	if err != nil || run.Recipe != choices[0].Recipe {
 		t.Fatalf("selected run=%+v err=%v", run, err)
 	}

@@ -72,7 +72,7 @@
     pending.add(id); detailHost.querySelectorAll('button').forEach(button => { if (button.textContent !== 'Close') button.disabled = true; });
     let failed = false;
     try {
-      await api.post("/operations/cancel", { id });
+      await overgo.cancelOperation(id);
     } catch (err) { failed = true; if (selected === id) renderDetailError(host, err, () => cancelOperation(host, id)); }
     finally { pending.delete(id); if (!failed && selected === id) loadDetail(host, id); }
   }
@@ -100,7 +100,7 @@
   function renderDetailError(host, err, retry) {
     if (retry) actionError = { id: selected, err, retry };
     detailHost.hidden = false;
-    detailHost.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)), el('button', { class: 'btn alt', text: retry ? 'Retry action' : 'Retry details', onclick: retry || (() => loadDetail(host, selected)) }));
+    detailHost.replaceChildren(overgo.failure(err, el('button', { class: 'btn alt', text: retry ? 'Retry action' : 'Retry details', onclick: retry || (() => loadDetail(host, selected)) })));
   }
 
   function openActivity() {
@@ -116,8 +116,8 @@
   }
   function renderConnection() {
     streamHost.replaceChildren();
-    if (connectionError) streamHost.append(overgo.errorBanner(overgo.friendlyError(connectionError)),
-      el('button', { class: 'btn alt', text: 'Retry connection', onclick: event => { event.currentTarget.disabled = true; overgo.runtimeEvents.restart(); } }),
+    if (connectionError) streamHost.append(overgo.failure(connectionError,
+      el('button', { class: 'btn alt', text: 'Retry connection', onclick: event => { event.currentTarget.disabled = true; overgo.runtimeEvents.restart(); } })),
       el('button', { class: 'link-button', text: 'Connection settings', onclick: () => { closeActivity(); document.getElementById('settings-toggle').click(); } }));
     renderStrip(shellHost);
   }

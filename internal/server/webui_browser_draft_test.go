@@ -135,7 +135,7 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	settle(`!overgo.modelSwitching() && draftInput().value==='Typing during the switch'`)
 	// An older rejected mount cannot replace the newer conversation.
 	check(`(() => {
-   let first=true;overgo.api.get=async function(path,options){if(path==='/agents'){if(first){first=false;return [{state:'active',name:'delayed'}];}return [];}if(path==='/agent/tools')return new Promise((resolve,reject)=>window.rejectDraftMount=reject);return draftOriginalGet.call(this,path,options);};
+   let first=true;overgo.api.get=async function(path,options){if(path==='/agents'){if(first){first=false;return [{state:'active',name:'delayed'}];}return [];}if(path==='/agents/tools')return new Promise((resolve,reject)=>window.rejectDraftMount=reject);return draftOriginalGet.call(this,path,options);};
    overgo.openConversation(null);return true;
  })()`)
 	settle(`typeof rejectDraftMount==='function'`)

@@ -273,7 +273,12 @@ func testPackageLedgerCost(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		seed := artifact.Batch{Key: "ledger-cost/seed"}
+		// A landing's preparation publishes its environment before any obligation names it.
+		environment, err := lifecycleTestEnvironment(t).Content()
+		if err != nil {
+			t.Fatal(err)
+		}
+		seed := artifact.Batch{Key: "ledger-cost/seed", Artifacts: []artifact.Descriptor{environment.Descriptor}, Contents: []artifact.Content{environment}}
 		for index := range seedArtifacts {
 			seed.Artifacts = append(seed.Artifacts, artifact.Descriptor{ID: testutil.ArtifactID(t, artifact.KindEvidence, fmt.Sprintf("seed/%d", index))})
 		}

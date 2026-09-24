@@ -32,9 +32,9 @@
       function renderInventory() {
         const table = el("table", { class: "grid" }, overgo.headerRow(["name", "definition", "state", "actions"]));
         for (const item of inventory) {
-          const input = el("textarea", { class: "text", rows: "2", placeholder: '{"prompt":"hello"}' });
-          const destination = el("input", { class: "text", placeholder: "allowlisted destination" });
-          const key = el("input", { class: "text", value: "manual", placeholder: "idempotency key" });
+          const input = el("textarea", { "aria-label": "Trigger inputs (JSON)", class: "text", rows: "2", placeholder: '{"prompt":"hello"}' });
+          const destination = el("input", { "aria-label": "Allowlisted destination", class: "text", placeholder: "allowlisted destination" });
+          const key = el("input", { "aria-label": "Idempotency key", class: "text", value: "manual", placeholder: "idempotency key" });
           const run = el("button", { class: "btn", text: "Run", disabled: !!item.refusal });
           const schedule = el("button", { class: "btn alt", text: "Scan schedule", disabled: !!item.refusal });
           async function execute(path) {
@@ -43,8 +43,10 @@
                 name: item.name, key: key.value, destination: destination.value,
                 inputs: JSON.parse(input.value || "{}"),
               });
-              status.textContent = "accepted / " + fmt.shortID(result.operation || (result.execution && result.execution.operation));
-            } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+              // A scheduled scan answers {execution, fired}; a scan with no due slot starts nothing.
+              if (result.fired === false) status.textContent = "not due / nothing started";
+              else status.textContent = "accepted / " + fmt.shortID(result.operation || result.execution.operation);
+            } catch (err) { status.replaceChildren(overgo.failure(err)); }
           }
           run.addEventListener("click", () => execute("/automations/run"));
           schedule.addEventListener("click", () => execute("/automations/schedule"));
@@ -60,11 +62,11 @@
         try {
           const definition = definitionForm.value();
           const created = await api.post("/automations/definitions", { name: definition.name, recipe: definition.recipe, trigger: triggerForm.value(), delivery: deliveryForm.value(), });
-          await api.post("/automations/activate", { definition: created.ID || created.id });
+          await api.post("/automations/activate", { definition: created.id });
           definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
-          status.textContent = "activated / " + fmt.shortID(created.ID || created.id);
+          status.textContent = "activated / " + fmt.shortID(created.id);
           await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { status.replaceChildren(overgo.failure(err)); }
       });
 
       function renderOperations(operations) {
@@ -73,16 +75,16 @@
           const actions = [];
           if (!["completed", "cancelled", "failed", "blocked"].includes(item.state)) {
             actions.push(el("button", { class: "btn alt", text: "Cancel", onclick: () =>
-              api.post("/operations/cancel", { id: item.id }) }));
+              overgo.cancelOperation(item.id) }));
           }
           for (const recovery of (item.recovery && item.recovery.actions) || []) {
             // The shell's decision binds the advertised approval request; a refusal shows in the status line.
-            const decide = (answer) => overgo.decideOperation(item.id, recovery.code, answer).catch((err) => status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))));
+            const decide = (answer) => overgo.decideOperation(item.id, recovery.code, answer).catch((err) => status.replaceChildren(overgo.failure(err)));
             actions.push(el("button", { class: "btn", text: "Grant " + recovery.summary, onclick: () => decide("grant") }));
             actions.push(el("button", { class: "btn alt", text: "Decline", onclick: () => decide("decline") }));
           }
           const outputs = (item.outputs || []).map((id) => el("a", {
-            class: "mono", href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
+            class: "mono", href: overgo.contentURL(id), text: fmt.shortID(id),
           }));
           rows.push(el("div", { class: "card" },
             el("span", { class: "mono", text: fmt.shortID(item.id) }), " / " + item.state, outputs, actions));
@@ -93,24 +95,21 @@
       async function refreshHistory() {
         const history = await api.get("/automations/history");
         historyHost.replaceChildren(...history.map((run) => el("div", { class: "card" },
-          el("span", { class: "mono", text: fmt.shortID(run.ID || run.id) }),
-          " / " + (run.Outcome || run.outcome),
-          ...((run.Outputs || run.outputs || []).map((id) => el("a", {
-            href: "/artifacts/content?id=" + encodeURIComponent(id), text: fmt.shortID(id),
+          el("span", { class: "mono", text: fmt.shortID(run.id) }),
+          " / " + run.outcome,
+          ...((run.outputs || []).map((id) => el("a", {
+            href: overgo.contentURL(id), text: fmt.shortID(id),
           }))))));
       }
 
       await Promise.all([refreshInventory(), refreshHistory()]);
-      const stream = new AbortController();
-      api.events("/automations/stream", (event, data) => {
+      const stopStream = overgo.tabStream("/automations/stream", (event, data) => {
         if (event === "automation.inventory") { inventory = data; renderInventory(); }
         if (event === "operation.snapshot") renderOperations(data);
         if (event === "operation") renderOperations([data.status]);
-      }, { signal: stream.signal }).catch((err) => {
-        if (err.name !== "AbortError") status.replaceChildren(overgo.errorBanner(overgo.friendlyError(err)));
-      });
+      }, status);
       return () => {
-        stream.abort(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
+        stopStream(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
       };
     },
   });

@@ -45,10 +45,12 @@ type ProjectedCompletionEvidence struct {
 	ContractDigest string      `json:"contract_digest"`
 	Manifest       artifact.ID `json:"manifest"`
 	CodeManifest   artifact.ID `json:"code_manifest"`
-	Attempt        artifact.ID `json:"attempt"`
-	Result         artifact.ID `json:"result"`
-	Finalization   artifact.ID `json:"finalization"`
-	RetiredItem    bool        `json:"retired_item,omitzero"`
+	// A completion that predates gate attempts carries no attempt, result or
+	// finalization; it keeps its place in the snapshot with all three absent.
+	Attempt      artifact.ID `json:"attempt,omitzero"`
+	Result       artifact.ID `json:"result,omitzero"`
+	Finalization artifact.ID `json:"finalization,omitzero"`
+	RetiredItem  bool        `json:"retired_item,omitzero"`
 }
 
 // ProjectedRetirementEvidence binds one item tombstone in an audited authority
@@ -682,11 +684,18 @@ func validateProjectedCompletionEvidence(value ProjectedCompletionEvidence) erro
 		!validAutomationDetail(value.Verify) || !validDigestText(value.ContractDigest) ||
 		value.ContractDigest == strings.Repeat("0", hex.EncodedLen(sha256.Size)) ||
 		value.Manifest.Kind() != artifact.KindRecipe ||
-		value.CodeManifest.Kind() != artifact.KindProfile || value.Attempt.Kind() != artifact.KindEvidence ||
-		value.Result.Kind() != artifact.KindEvidence || value.Finalization.Kind() != artifact.KindEvidence {
+		value.CodeManifest.Kind() != artifact.KindProfile || !projectedGateEvidence(value) {
 		return errors.New("plan: invalid projected completion evidence")
 	}
 	return nil
+}
+
+// projectedGateEvidence accepts a prepared completion (attempt, result and
+// finalization all gate evidence) or a legacy one (all three absent), never a mix.
+func projectedGateEvidence(value ProjectedCompletionEvidence) bool {
+	gate := []artifact.ID{value.Attempt, value.Result, value.Finalization}
+	return !slices.ContainsFunc(gate, func(id artifact.ID) bool { return id.Kind() != artifact.KindEvidence }) ||
+		!slices.ContainsFunc(gate, artifact.ID.Valid)
 }
 
 type completionAuthorityDigestDocument struct {

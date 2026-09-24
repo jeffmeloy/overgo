@@ -85,7 +85,7 @@ func TestWebUIBrowserMediaCapture(t *testing.T) {
   window.captureGet=overgo.api.get;
   const caps=overgo.capabilities();caps.modes.push({id:'capture-fixture',label:'Capture fixture',enabled:true});
   const captureCaps=structuredClone(caps);
-  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'capture-fixture',recipe:'capture-fixture-recipe',name:'Synthetic media fixture',controls:[{name:'audio',label:'Audio input',type:'artifact',media:'audio'},{name:'image',label:'Image input',type:'artifact',media:'image'}]}];const result=await captureGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(captureCaps);return result;};
+  overgo.api.get=async function(path,options){if(path==='/generation/capabilities')return [{task:'capture-fixture',recipe:'capture-fixture-recipe',outputs:[{data:'image'}],name:'Synthetic media fixture',controls:[{name:'audio',label:'Audio input',type:'artifact',media:'audio'},{name:'image',label:'Image input',type:'artifact',media:'image'}]}];const result=await captureGet.call(this,path,options);if(path==='/workspace/manifest')result.model=structuredClone(captureCaps);return result;};
   window.captureOld=document.querySelector('.composer');overgo.openConversation(null);
   window.captureDialog=()=>document.querySelector('.capture-dialog');
   window.captureOpen=()=>document.querySelector('.composer .attach-button').click();

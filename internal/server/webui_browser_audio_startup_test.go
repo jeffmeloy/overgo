@@ -28,7 +28,7 @@ func coldStartSpeechFixture(t *testing.T) (*IdleShell, *speechSurfaceGenerator) 
 	}
 	t.Cleanup(func() { _ = store.Close() })
 	generator := &speechSurfaceGenerator{retired: true, generationWorkspaceGenerator: &generationWorkspaceGenerator{fakeGenerator: &fakeGenerator{}, repository: store, run: testutil.ArtifactID(t, artifact.KindRun, "cold-speech-run"), capability: WorkflowCapability{
-		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "cold-speech-recipe"), Name: "Local speech (UI fixture)", Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}, Controls: []WorkflowControl{{Name: "text", Type: WorkflowControlText, Required: true}, {Name: "voice", Type: WorkflowControlText, Required: true, Choices: []string{"alba", "marius"}}},
+		Task: recipe.TaskSpeech, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "cold-speech-recipe"), Name: "Local speech (UI fixture)", Outputs: []recipe.Output{{Name: "audio", Data: recipe.DataAudio}}, Stages: []recipe.Stage{{Node: recipe.Node{ID: "generate", Module: "test.generate"}}}, Controls: []WorkflowControl{{Name: "text", Type: WorkflowControlText, Required: true}, {Name: "voice", Type: WorkflowControlText, Required: true, Choices: []string{"alba", "marius"}}},
 	}}}
 	handler, err := New(Config{Repository: store, RuntimePolicy: testRuntimePolicy()}, &coldStartWorkflow{GenerationRefused: GenerationRefused{Reason: "No chat model is loaded"}, WorkflowWorkspaceAPI: generator})
 	if err != nil {

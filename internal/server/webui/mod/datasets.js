@@ -6,17 +6,20 @@
     async mount(panel, overgo) {
       const { el, clear } = overgo;
       clear(panel);
-      panel.appendChild(el("div", { class: "note", text: "loading /datasets…" }));
+      panel.appendChild(el("div", { class: "note", text: "Loading datasets…" }));
 
       let data;
       try {
         data = await overgo.api.get("/datasets");
       } catch (err) {
         clear(panel);
-        const message = err.status === 501
-          ? "Dataset browsing is not configured on this server."
-          : overgo.friendlyError(err);
-        panel.appendChild(overgo.errorBanner(message));
+        // A store with no dataset catalog yet is empty, not failing: name how to publish one.
+        if (err.status === 404) {
+          panel.append(el("div", { class: "section-title", text: "Dataset registry" }),
+            el("div", { class: "note", text: "This store has no dataset catalog yet. Register a directory with: go run ./cmd/dataset-catalog -register <name> -root <dir>" }));
+          return;
+        }
+        panel.appendChild(err.status === 501 ? overgo.errorBanner("Dataset browsing is not configured on this server.") : overgo.failure(err));
         return;
       }
 
@@ -26,14 +29,20 @@
         el("span", { class: "note", text: data.count + " datasets" }),
         el("span", { class: "note mono", text: data.catalog })));
 
-      const search = el("input", { class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
+      const search = el("input", { "aria-label": "Filter datasets", class: "text mw-440 my-8", type: "search", placeholder: "filter by name / source / modality / format…", });
       const host = el("div");
       const preview = el("div");
       panel.append(search, host, preview);
 
+      // The latest chosen dataset owns the preview: choosing another aborts the earlier read.
+      let previewing = null;
       async function showPreview(name) {
+        if (previewing) previewing.abort();
+        const current = new AbortController();
+        previewing = current;
         try {
-          const result = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 });
+          const result = await overgo.api.post("/datasets/preview", { name, position: 0, limit: 1 }, { signal: current.signal });
+          if (previewing !== current) return;
           preview.replaceChildren(
             el("div", { class: "section-title", text: name }),
             ...result.examples.map((example) => el("div", { class: "dataset-example" },
@@ -42,7 +51,7 @@
                 el("span", { class: "tag", text: value.role + " / " + value.modality }),
                 value.text ? el("pre", { class: "preview-text", text: value.text }) :
                   el("span", { class: "note", text: value.encoding + " / " + value.bytes + " bytes" }))))));
-        } catch (err) { preview.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { if (previewing === current && err.name !== "AbortError") preview.replaceChildren(overgo.failure(err)); }
       }
 
       function render() {

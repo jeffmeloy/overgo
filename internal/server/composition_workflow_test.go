@@ -52,7 +52,7 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 	for _, token := range []string{
 		`api.get("/compositions")`, `api.post("/compositions/activate"`,
 		`api.post("/compositions/generate"`, "Open promoted generation",
-		"compatible", "recipe graph", "Bridge training controls and metrics",
+		"compatible", "recipe graph", "Bridge training",
 		"Evaluation and promotion history", "Runtime memory and latency evidence",
 		"contract-tested", "cuda-verified", "production-active",
 	} {

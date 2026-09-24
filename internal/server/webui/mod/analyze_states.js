@@ -17,8 +17,8 @@
         el("option", { value: "spearman" }, "spearman (rank)"),
         el("option", { value: "cosine" }, "cosine"),
         el("option", { value: "euclidean" }, "euclidean"));
-      const layer = el("input", { class: "keyfield w-80", type: "number", placeholder: "mid", min: "0" });
-      const k = el("input", { class: "keyfield w-80", type: "number", placeholder: "auto", min: "1", max: "20" });
+      const layer = el("input", { "aria-label": "Layer", class: "keyfield w-80", type: "number", placeholder: "mid", min: "0" });
+      const k = el("input", { "aria-label": "Neighbours (k)", class: "keyfield w-80", type: "number", placeholder: "auto", min: "1", max: "20" });
       const maxPos = el("input", { class: "keyfield w-80", type: "number", value: "48", min: "2", max: "64", "aria-label": "positions" });
       const { prompt, out } = overgo.analysisSurface(panel, seed, {
         defaultPrompt: "The quick brown fox jumps over the lazy dog", runLabel: "capture", busy: "capturing…",

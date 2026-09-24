@@ -43,7 +43,7 @@
       }
 
       // ---- hub search ----
-      const query = el("input", { class: "text", placeholder: "search the Hugging Face hub" });
+      const query = el("input", { "aria-label": "Search the Hugging Face hub", class: "text", placeholder: "search the Hugging Face hub" });
       const kind = el("select", { class: "text w-130", "aria-label": "search kind" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
       const searchNote = el("span", { class: "note" });
       const resultsBody = el("tbody");
@@ -97,7 +97,7 @@
             report(el("span", { class: "note" }, "registered ", overgo.artifactLink(stage.registered.recipe || stage.registered.dataset),
               stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
             refreshCatalog();
-          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+          } catch (err) { report(overgo.failure(err)); }
           finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered || stage.pending, onclick: async () => {
@@ -112,7 +112,7 @@
               report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
               if (!disposed && panel.classList.contains('active')) overgo.showOperation(admitted.operation);
             }
-          } catch (err) { report(overgo.errorBanner(overgo.friendlyError(err))); }
+          } catch (err) { report(overgo.failure(err)); }
           finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         cell.append(register, validate, stage.host);
@@ -141,8 +141,8 @@
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "state", "file", "progress", "register · validate"])), localBody, jobsBody));
 
       // ---- a local model: a GGUF (or its directory) already on disk, with its projector, rides the same lifecycle ----
-      const localModel = el("input", { class: "text", placeholder: "model GGUF or directory on disk" });
-      const localProjector = el("input", { class: "text", placeholder: "projector GGUF (optional)" });
+      const localModel = el("input", { "aria-label": "Model GGUF or directory on disk", class: "text", placeholder: "model GGUF or directory on disk" });
+      const localProjector = el("input", { "aria-label": "Projector GGUF (optional)", class: "text", placeholder: "projector GGUF (optional)" });
       const localButton = el("button", { class: "btn alt", text: "register a local model", onclick: () => {
         const path = localModel.value.trim(); if (!path) return;
         const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };

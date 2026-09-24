@@ -282,7 +282,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	say(t, ctx, browser, "Reply with the single word hello.")
 	settle("streamed first reply", `document.querySelectorAll("#panel-chat .msg.assistant").length === 1 &&
       document.querySelector("#panel-chat .msg.assistant .body").textContent.trim().length > 0 &&
-      document.querySelector('[aria-label="context meter"]').textContent.includes("Input") && !document.querySelector(".composer .btn").disabled`)
+      document.querySelector('[aria-label="Context meter"]').textContent.includes("Input") && !document.querySelector(".composer .btn").disabled`)
 
 	// 2b. The conversation renames in place: the rail's rename control turns the
 	// title into a field, Enter saves through the label route, the rail relists.
@@ -371,7 +371,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       return true;
     })()`)
 	settle("tool step card", `[...document.querySelectorAll("#panel-chat .tool-call .tag")].some((tag) => tag.textContent.startsWith("done")) &&
-      document.querySelector('[aria-label="guardrails"]').textContent.includes("remaining")`)
+      document.querySelector('[aria-label="Guardrails"]').textContent.includes("remaining")`)
 	captureStates("thread-tool")
 	say(t, ctx, browser, "Say hi in one word.")
 	settle("agent chat reply", `document.querySelectorAll("#panel-chat .msg.assistant").length >= 1 &&
@@ -542,12 +542,12 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		settle("the image card shows the run that made it", `(() => { const block = document.querySelector("#panel-chat .msg.media .lineage");
       return !!block && block.textContent.includes("made by run") && block.textContent.includes("request ") && block.textContent.includes("prompt "); })()`)
 		var steps []string
-		if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='next steps'] .chip")].map((chip) => chip.textContent)`, &steps); err != nil {
+		if err := browser.Evaluate(ctx, `[...document.querySelectorAll("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip")].map((chip) => chip.textContent)`, &steps); err != nil {
 			t.Fatal(err)
 		}
 		t.Logf("lineage leg: the image's next steps are %q", steps)
 		if len(steps) > 0 {
-			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#panel-chat .msg.media .lineage [aria-label='next steps'] .chip").click(); return true; })()`)
+			assertBrowserPredicate(t, ctx, browser, `(() => { document.querySelector("#panel-chat .msg.media .lineage [aria-label='Next steps'] .chip").click(); return true; })()`)
 			settle("the next step opened its mode with the image in the slot", `(() => {
       const slot = [...document.querySelectorAll(".mode-controls label.control")].find((label) => label.querySelector("input") && label.querySelector("input").value === `+strconv.Quote(generated)+`);
       return !!slot && document.querySelector('.composer select[aria-label="mode"]').value !== "image-gen"; })()`)

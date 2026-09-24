@@ -59,22 +59,18 @@
 
       function render(item) {
         const card = el("section", { class: "composition-card" });
-		const generated = el("div", { class: "note" });
+        const generated = el("div", { class: "note" });
         card.append(
           el("div", { class: "row" },
             el("span", { class: "tag " + (item.compatible ? "user_defined" : "control"), text: item.compatible ? "compatible" : "refused" }),
             item.active ? el("span", { class: "tag user_defined", text: "active" }) : null,
             id(overgo, item.recipe),
-			!item.active && item.compatible ? el("button", { class: "btn", text: "Activate", onclick: () => activate(item.recipe) }) : null,
-			item.active && item.generation ? el("button", { class: "btn", text: "Open promoted generation", onclick: () => generate(item, generated) }) : null),
+            !item.active && item.compatible ? el("button", { class: "btn", text: "Activate", onclick: () => activate(item.recipe) }) : null,
+            item.active && item.generation ? el("button", { class: "btn", text: "Open promoted generation", onclick: () => generate(item, generated) }) : null),
           item.refusal ? overgo.errorBanner(item.refusal) : null,
-		  graph(overgo, item.graph), completion(overgo, item.completion || {}), generated);
+          graph(overgo, item.graph), completion(overgo, item.completion || {}), generated);
         if (item.training) {
-          card.append(el("div", { class: "section-title", text: "Bridge training controls and metrics" }),
-            el("div", { class: "control-grid" },
-              el("label", { class: "control" }, "Dataset", el("input", { class: "text", placeholder: "dataset artifact", disabled: true })),
-              el("label", { class: "control" }, "Epochs", el("input", { class: "text", type: "number", min: "1", value: "1", disabled: true })),
-              el("label", { class: "control" }, "Resume checkpoint", el("input", { class: "text", placeholder: "checkpoint artifact", disabled: true }))),
+          card.append(el("div", { class: "section-title", text: "Bridge training" }),
             el("div", { class: "note", text: "policy " + fmt.shortID(item.training.policy) + " · bridge-only optimizer · checkpoint/resume · " + item.training.metric_names.join(", ") }));
         }
         if (item.evaluation) {
@@ -103,13 +99,13 @@
       }
 
       async function load() {
-        host.replaceChildren(el("div", { class: "note", text: "loading /compositions" }));
+        host.replaceChildren(el("div", { class: "note", text: "Loading compositions…" }));
         try {
           const data = await overgo.api.get("/compositions");
           status.textContent = data.compositions.length + " composition recipes";
           host.replaceChildren(...data.compositions.map(render));
           if (!data.compositions.length) host.appendChild(el("div", { class: "note", text: "No composition recipes are published." }));
-        } catch (err) { host.replaceChildren(overgo.errorBanner(overgo.friendlyError(err))); }
+        } catch (err) { host.replaceChildren(overgo.failure(err)); }
       }
       refresh.onclick = load;
       await load();

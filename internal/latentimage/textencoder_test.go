@@ -402,3 +402,41 @@ func VerifyEncoderCheckpoint(modelDir string) (*EncoderWitness, error) {
 	}
 	return w, nil
 }
+
+// EncodeSelectedLayers streams the Qwen3-VL text encoder over promptIDs from the
+// real checkpoint under modelDir (never resident beyond one layer + the token
+// embedding rows) and returns the tapped hidden states. Telemetry/structural:
+// the values are finite and correctly shaped, NOT bit-exact vs the CUDA path.
+func EncodeSelectedLayers(modelDir string, spec *Spec, promptIDs []int) (*SelectedHiddenStates, error) {
+	return EncodeSelectedLayersMasked(modelDir, spec, promptIDs, nil)
+}
+
+// EncoderTensorShapes returns the name -> torch shape ([out,in] for Linear
+// weights) manifest the encoder forward consumes, derived entirely from spec:
+// the token embedding plus every decoder layer's norms, GQA projections, per-head
+// q/k norms, and SwiGLU MLP. This is the capability-retention contract for the
+// text-conditioning encoder (visual.* and the final norm are out of this path).
+func EncoderTensorShapes(e TextEncoderSpec) map[string][]int {
+	h := e.Hidden
+	qDim := e.Heads * e.HeadDim
+	kvDim := e.KVHeads * e.HeadDim
+	inter := e.Intermediate
+	shapes := map[string][]int{
+		textEncoderPrefix + "embed_tokens.weight": {e.VocabSize, h},
+	}
+	for l := range e.HiddenLayers {
+		p := fmt.Sprintf("%slayers.%d.", textEncoderPrefix, l)
+		shapes[p+"input_layernorm.weight"] = []int{h}
+		shapes[p+"post_attention_layernorm.weight"] = []int{h}
+		shapes[p+"self_attn.q_proj.weight"] = []int{qDim, h}
+		shapes[p+"self_attn.k_proj.weight"] = []int{kvDim, h}
+		shapes[p+"self_attn.v_proj.weight"] = []int{kvDim, h}
+		shapes[p+"self_attn.o_proj.weight"] = []int{h, qDim}
+		shapes[p+"self_attn.q_norm.weight"] = []int{e.HeadDim}
+		shapes[p+"self_attn.k_norm.weight"] = []int{e.HeadDim}
+		shapes[p+"mlp.gate_proj.weight"] = []int{inter, h}
+		shapes[p+"mlp.up_proj.weight"] = []int{inter, h}
+		shapes[p+"mlp.down_proj.weight"] = []int{h, inter}
+	}
+	return shapes
+}

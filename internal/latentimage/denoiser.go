@@ -137,35 +137,6 @@ func prod(shape []int) int {
 	return product
 }
 
-// NewDenoiser binds a weight store to the spec, validating that every tensor in
-// the derived manifest is present with the exact element count (capability
-// retention) and that no extra image-path tensor is silently ignored.
-func NewDenoiser(t TransformerSpec, eps float64, timestep media.SinusoidalProgram, store map[string][]float32) (*Denoiser, error) {
-	if !checked.PositiveFinite64(eps) {
-		return nil, fmt.Errorf("denoiser: eps must be positive, got %g", eps)
-	}
-	if err := timestep.Validate(); err != nil {
-		return nil, fmt.Errorf("denoiser: invalid timestep program: %w", err)
-	}
-	if !checked.Equal(timestep.Dimensions, t.TimestepEmbed) {
-		return nil, fmt.Errorf("denoiser: timestep dimensions=%d want=%d", timestep.Dimensions, t.TimestepEmbed)
-	}
-	t.ModFields = t.ModFieldsOr6()
-	shapes := DenoiserTensorShapes(t)
-	var bytes int64
-	for name, shape := range shapes {
-		v, ok := store[name]
-		if !ok {
-			return nil, fmt.Errorf("denoiser: missing tensor %s (want %v)", name, shape)
-		}
-		if want := prod(shape); len(v) != want {
-			return nil, fmt.Errorf("denoiser: tensor %s len=%d want %d (shape %v)", name, len(v), want, shape)
-		}
-		bytes += int64(len(v)) * 4
-	}
-	return &Denoiser{T: t, Eps: eps, Timestep: timestep, store: store, WeightBytes: bytes}, nil
-}
-
 func (d *Denoiser) w(name string) []float32 { return d.store[name] }
 
 // ---- host math primitives (f64 accumulation) -------------------------------

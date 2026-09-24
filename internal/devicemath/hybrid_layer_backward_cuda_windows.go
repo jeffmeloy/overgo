@@ -11,28 +11,6 @@ import (
 	"overgo/internal/tensor/dtype"
 )
 
-// HybridDecoderLayerBackwardDevice is the device VJP of hostmath's qwen3.5 hybrid
-// decoder layer (hostmath.HybridDecoderLayerForward). It composes the existing,
-// individually parity-verified device ops -- LinearForwardT/LinearBackwardT,
-// RMSNormForward/RMSNormBackward, RoPEHalfForward/RoPEHalfBackward (partial rope
-// via a per-head gather/scatter of the first RopeWidth dims), the resident causal
-// GQA attention forward/backward, and the SwiGLU (GatedMLPBackwardT) block --
-// wired with the two pre-norms and two residuals exactly as
-// hostmath.HybridDecoderLayerBackward.
-//
-// Because the host forward cache (hybridLayerCache) is package-private, the
-// device path recomputes the forward intermediates it needs on device (from the
-// same verified forward ops) rather than receiving the cache; the recomputed
-// activations match the host cache within the ops' parity, so the composed grads
-// match hostmath.HybridDecoderLayerBackward to the ~1e-4 kernel-parity class.
-//
-// MILESTONE 1b: both mix variants. full_attention routes through the resident
-// causal GQA attention forward/backward; linear_attention (GDN mix) routes
-// through GatedDeltaMixBackwardDevice (device L2Norm/ShortConv/GDN backward).
-func HybridDecoderLayerBackwardDevice(worker *device.Worker, x []float32, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state, dOut []float32) (hostmath.HybridDecoderLayerGrads, error) {
-	return hybridLayerBackwardW(worker, x, hybridHostMatW(w), w, d, state, dOut)
-}
-
 // hybridLayerBackwardW is HybridDecoderLayerBackwardDevice over resident-or-host
 // matrix weights (mw); VECTOR weights stay host-owned via w. Unlike the original
 // host shortcut, the GDN residual mixOut is recomputed on DEVICE from mw (via

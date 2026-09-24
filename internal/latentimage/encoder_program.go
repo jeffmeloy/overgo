@@ -50,14 +50,6 @@ type EncoderProgram struct {
 // masked softmax result is identical to adaptive's replace-with-lowest form.
 const padKeyBias = float32(-3.402823466e38)
 
-// CompileEncoderProgram builds the maskless-causal Qwen3-VL selected-layer
-// encoder graph for a sequence of seq tokens (unchanged behavior). matmulType
-// selects rank-2 weight storage (dtype.F32 exact reference/CUDA parity path,
-// dtype.BF16 device resident path).
-func CompileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type) (*EncoderProgram, error) {
-	return compileEncoderProgram(e, eps, seq, matmulType, nil)
-}
-
 // CompileEncoderProgramMasked builds the encoder graph with an additive per-key
 // pad mask applied in the causal GQA: mask[i]==false marks token i as an
 // unattended KEY (the Krea [prefix][prompt][pad][suffix] pad region). len(mask)

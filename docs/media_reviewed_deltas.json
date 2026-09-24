@@ -308,6 +308,116 @@
         ]
       },
       "scope": "Test-only declarations leave production files: a parity oracle, two checkpoint verifiers and a whole-video decode move unchanged into their packages' tests, with the types and helper the oracle alone used. No production function a media path calls is added, removed or changed. The receipt re-runs the three packages on the device, naming the moved oracle's gradient check and the denoiser, encoder and VAE tests beside the moved code."
+    },
+    {
+      "changes": {
+        "internal/devicemath/attention_cuda_windows.go": {
+          "after_sha256": "cf5b66f0b41b65939e070e8d15e80887e4dca316ca1fa69df3de42ce5fb44fee",
+          "before_sha256": "25e4a4dbba00142c6f13cd0a557386d1bcd92dc714cb933e2159cad4bf66f86a",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/cross_entropy_resident_cuda_windows.go": {
+          "after_sha256": "c7d54d4acf8724761c789eab4e2678eddd975066711545fec367d73272f7d9fd",
+          "before_sha256": "5ece6ed4579f86d776bb039daefe95fa8badcc48e83aaa6b650fe54a134b3561",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/gated_mlp_cuda_windows.go": {
+          "after_sha256": "963d181452703efc1aa16760943657438b2b0cce6a4727bba19084279efe474e",
+          "before_sha256": "d6a925c15f15c266495af4bad292b01f74dee343a68f5cb05ceded1ad0040d74",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/gated_mlp_resident_cuda_windows.go": {
+          "after_sha256": "e68b94485bd604b7c11270ea5c0ec9d1694768c2ec85c0ad56ee5bb67e4cf1b4",
+          "before_sha256": "a5d7b578cdae5d74e6781cfab69eb7a21896d70f922e04b37de9eed21b10b89d",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/hybrid_layer_backward_cuda_windows.go": {
+          "after_sha256": "9fd017cf53c706084e571b314f8b22c6d9ee867332e1d5c9a0e71eb811567650",
+          "before_sha256": "e29e960c5cec728a2e65debff2609e328dce14bcbe895ca33a643f6c15b4356f",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/hybrid_layer_forward_cuda_windows.go": {
+          "after_sha256": "b3be62020df5807ee0470b7e39a35d4bb29a862f9f409bed82418aaab9a23e0b",
+          "before_sha256": "5b1e96da1c06c874bcd9a67f08409384ce7e451d14e9d2457171132517c60239",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/linear_cuda_windows.go": {
+          "after_sha256": "9215620678e59f2b6edb712d64bb33d7f6ea681261ac0bcbdd0b147c901e7849",
+          "before_sha256": "eeac8f00e7cae76261f25d30632afb0434618f59d1b63fa217c9ab64a1e2ef07",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/madnorm_cuda_windows.go": {
+          "after_sha256": "75e04fee74ea99ecc1723873c2e879e9312fb2824345981d7e1798b584a6e6d4",
+          "before_sha256": "8ee53b5257dc61f6854ac62aee6834aff963b142258a2381da007c2df7321d66",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/stack_resident_across_cuda_windows.go": {
+          "after_sha256": "56fcd9f04e42ba5112f8ed10d35a66183fb9b13c8e6c6ab7a433831ebb25e740",
+          "before_sha256": "432baf3cad743a416fcddcbe7b7b510f9a898eaf0be778fcf6c59dc86298d464",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/training_glue_resident_cuda_windows.go": {
+          "after_sha256": "c7d54d4acf8724761c789eab4e2678eddd975066711545fec367d73272f7d9fd",
+          "before_sha256": "b2e431834fad90ea190cdfea75c7a18a716d0fdfcf63e13eba4bf442d7cc5adb",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/devicemath/windowed_attention_backward_cuda_windows.go": {
+          "after_sha256": "dffd04b5ef2660519100a2ded59125800f8fa2b7abe5feb8093f2276354f09e5",
+          "before_sha256": "538cd8bc7856d3e7e3316c87b4522de62ec65e5a53247944562e12355d90969a",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/latentimage/denoiser.go": {
+          "after_sha256": "b637a140c835ed75e32cb10112c337a17f83acf00671d3a445cc4f428caac693",
+          "before_sha256": "d0177c13c6046be00c6ff65f87d70e6387ce9b6c1f706927cfe4c9671dca4548",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/latentimage/discovery.go": {
+          "after_sha256": "339ecb7f91c31e3faa0dfb0271ce15ed78aafbe05bb8ff6047ad0550a3d002c2",
+          "before_sha256": "ef8a014a9acaf64b0c7e092bf75c6266630b5d167e37d7e59263fde2b074f26c",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/latentimage/encoder_program.go": {
+          "after_sha256": "ff69daa62b52c6c674ca0603eaba394a1d3bf476faafec9e08cee2dd3d9d3a6b",
+          "before_sha256": "1106f7c88d1f113b3e9f3e7cf0d59c95bb7c4c10f80422422b9c0a8914ac4262",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/latentimage/textencoder.go": {
+          "after_sha256": "2c6ca0504892a75e8b6970ece7fdaa2a22478344bccb05b726ebcfbd4f2fc4ea",
+          "before_sha256": "df5ac7183e600b6d05e692c9617f47b64be83584d7a6fb51bf90ec6fe4c2484a",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/latentvideo/denoiser.go": {
+          "after_sha256": "e8c2ea7e019c928ed1fe504a1267d25372eadc5dc261522197afc1168cb27c9e",
+          "before_sha256": "d06d45e78ac235f018d950a0b5cc7c36206a9ce18e94bb9a426f2e1ede1d434b",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        },
+        "internal/routedlm/positions.go": {
+          "after_sha256": "509ee99e30fdbe25ba28c247463b8eb9e3ac8b13fa943e496ade8211d40a1d29",
+          "before_sha256": "54eb6c2fcd11f4ad231b030b9aa2dc0a2550f30c5dac7c7dbc727b749c690db8",
+          "reason": "only exported declarations that no production code calls move out of this file, unchanged, into its package's tests; every function a media path calls is untouched."
+        }
+      },
+      "evidence": "evidence:sha256:6ec344dc07dc06f47b1b55ba1cc091768787b9d9aa9eccd75be55588020f6e83",
+      "id": "test-only-device-entry-points-to-tests",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/devicemath": [
+          "TestResidentTrainingGlueMatchesHost",
+          "TestLinearBackwardTResidentMatchesShared",
+          "TestGatedMLPBackwardGradCheck"
+        ],
+        "overgo/internal/latentimage": [
+          "TestDenoiserForwardFiniteDeterministic",
+          "TestEncoderForwardSyntheticFinite"
+        ],
+        "overgo/internal/latentvideo": [
+          "TestDiTTrainerDerivedHyperparameters"
+        ],
+        "overgo/internal/routedlm": [
+          "TestBlockPositionsAndCausalWindowsImageBlock"
+        ]
+      },
+      "scope": "Test-only entry points leave the pinned media packages' production files: device training wrappers in devicemath, program and shape helpers in latentimage and latentvideo, and a window helper in routedlm move unchanged into their packages' tests. No function a media path calls is added, removed or changed. The receipt re-runs the four packages on the device, naming tests of the moved wrappers beside the media tests."
     }
   ],
   "paths": [

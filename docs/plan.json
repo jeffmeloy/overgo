@@ -854,7 +854,8 @@
             "env-gated-tests-run-or-go/do",
             "move-test-only-oracles/do",
             "delete-hypervector-index/do",
-            "move-test-only-entry-points/do"
+            "move-test-only-entry-points/do",
+            "move-test-only-device-entry-points/do"
           ]
         }
       ]

@@ -1,7 +1,11 @@
 package latentimage
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -123,4 +127,39 @@ func TestRecognizeNonPipeline(t *testing.T) {
 	if ok || spec != nil {
 		t.Fatalf("empty dir recognized: ok=%v spec=%v", ok, spec)
 	}
+}
+
+// Enumerate scans the immediate subdirectories of root and returns a
+// MediaModel for each that RecognizePipeline classifies. Directories that are
+// not this pipeline are skipped silently (discovery may probe anything); a
+// malformed matching artifact is a hard error. Results are dir-sorted.
+func Enumerate(root string) ([]MediaModel, error) {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, fmt.Errorf("latentimage: enumerate %s: %w", root, err)
+	}
+	var models []MediaModel
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(root, entry.Name())
+		spec, ok, err := RecognizePipeline(dir)
+		if err != nil {
+			return nil, fmt.Errorf("latentimage: enumerate %s: %w", entry.Name(), err)
+		}
+		if !ok {
+			continue
+		}
+		models = append(models, MediaModel{
+			Dir:     dir,
+			Family:  spec.Family,
+			Kind:    mediaKind,
+			Status:  StatusRecognized,
+			Serving: false,
+			Spec:    spec,
+		})
+	}
+	slices.SortFunc(models, func(left, right MediaModel) int { return strings.Compare(left.Dir, right.Dir) })
+	return models, nil
 }

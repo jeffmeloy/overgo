@@ -55,21 +55,6 @@
       ]
     },
     {
-      "id": "store-queries-bounded",
-      "title": "Make store queries proportional to the results they return",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make store queries proportional to the results they return",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestQueryScansProportionalToItsPage$' -count=1",
-          "rationale": "VisitDocuments (documents.go:55) walks the whole artifact history under the read lock on every call. After the page fills it keeps scanning to count Matched. A cursor does not seek; it rescans from the start and skips, so paging a collection is quadratic, and every artifact is tested against the query contracts. Seek from the cursor over the existing descriptor indexes, stop after the page plus one match, and make an exact total an explicit census operation. Current-state readers resolve an alias or run a bounded query instead of rebuilding latest from history. Done when records scanned per query track the page size, not the store size."
-        }
-      ]
-    },
-    {
       "id": "store-benchmark-record-redundancy",
       "title": "Publish one durable record per meaningful transition",
       "owner": "master-lead",

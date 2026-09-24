@@ -334,15 +334,15 @@ func TestTypedDocumentScan(t *testing.T) {
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	var got []artifact.ID
-	page, err := store.VisitDocuments(t.Context(), DocumentQuery{
-		Contracts: []artifact.DocumentContract{contract}, Order: DocumentOldestFirst,
-	}, func(view DocumentView) error {
+	query := DocumentQuery{Contracts: []artifact.DocumentContract{contract}, Order: DocumentOldestFirst}
+	page, err := store.VisitDocuments(t.Context(), query, func(view DocumentView) error {
 		got = append(got, view.Content.Descriptor.ID)
 		return nil
 	})
-	if err != nil || !slices.Equal(got, []artifact.ID{contents[0].Descriptor.ID, contents[1].Descriptor.ID}) ||
-		page.Matched != len(contents) || page.Truncated {
-		t.Fatalf("document scan = (%v, %+v, %v)", got, page, err)
+	count, countErr := store.CountDocuments(t.Context(), query)
+	if err != nil || countErr != nil || !slices.Equal(got, []artifact.ID{contents[0].Descriptor.ID, contents[1].Descriptor.ID}) ||
+		count != len(contents) || page.Truncated {
+		t.Fatalf("document scan = (%v, %+v, %d, %v, %v)", got, page, count, err, countErr)
 	}
 }
 
@@ -396,15 +396,17 @@ func TestAliasPrefix(t *testing.T) {
 	store, contract, contents := documentQueryFixture(t)
 	defer store.Close()
 	var got []DocumentView
-	page, err := store.VisitDocuments(t.Context(), DocumentQuery{
+	query := DocumentQuery{
 		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{"fixture/active/"}, Order: DocumentOldestFirst,
-	}, func(view DocumentView) error {
+	}
+	page, err := store.VisitDocuments(t.Context(), query, func(view DocumentView) error {
 		got = append(got, view)
 		return nil
 	})
-	if err != nil || len(got) != 1 || got[0].Content.Descriptor.ID != contents[1].Descriptor.ID ||
-		!slices.Equal(got[0].Aliases, []string{"fixture/active/current"}) || page.Matched != 1 {
-		t.Fatalf("aliased documents = (%+v, %+v, %v)", got, page, err)
+	count, countErr := store.CountDocuments(t.Context(), query)
+	if err != nil || countErr != nil || len(got) != 1 || got[0].Content.Descriptor.ID != contents[1].Descriptor.ID ||
+		!slices.Equal(got[0].Aliases, []string{"fixture/active/current"}) || count != 1 {
+		t.Fatalf("aliased documents = (%+v, %+v, %d, %v, %v)", got, page, count, err, countErr)
 	}
 }
 

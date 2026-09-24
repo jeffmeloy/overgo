@@ -6,20 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "review-tensor-pass",
-      "title": "Keep a finished tensor measurement when its publish fails, look the pass up before hashing the model, answer one consistent state, match the served model in similarity, link the inventory to its model, and stop passes on shutdown",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep a finished tensor measurement when its publish fails, look the pass up before hashing the model, answer one consistent state, match the served model in similarity, link the inventory to its model, and stop passes on shutdown",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestTensorPassSurvivesPublishFailure$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "review-webui-harness",
       "title": "Bound every new browser leg by a deadline and trim its captures, fix the unlabelled-control whitespace split, make Reload recover every tab, measure the button text pair actually rendered, and prove the page resumes probing when shown",
       "owner": "overgo_gui_cleanup",

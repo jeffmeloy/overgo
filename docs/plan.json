@@ -1,8 +1,53 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
+  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "verifier-one-parser",
+      "title": "Parse every verify command once, and reuse acceptance only for an equivalent execution",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Parse every verify command once, and reuse acceptance only for an equivalent execution",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestVerifierParsedOnce$' -count=1",
+          "rationale": "Review 2026-09-23 (P1): acceptance reuse approves a verifier from matching test names that passed in a package run, but a full-suite run and a filtered -run can differ through shared setup or selector-dependent behaviour, and it drops a test -f guard without checking the file (acceptance_reuse.go:134). Acceptance reuse and checkpoint memoization parse verify commands separately, with different quoting, flag and guard handling (acceptance_reuse.go:23, checkpoint_memo.go:31). Parse once into a structured invocation used for execution, dependency discovery and evidence matching, keep file guards, reuse only an equivalent execution context, and delete the competing parsers."
+        }
+      ]
+    },
+    {
+      "id": "fsatomic-release-not-exit",
+      "title": "Let an atomic replace proceed when the holder releases the file, not when it exits",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Let an atomic replace proceed when the holder releases the file, not when it exits",
+          "status": "open",
+          "verify": "go test ./internal/fsatomic -run '^TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive$' -count=1",
+          "rationale": "Review 2026-09-23 (P1): the Windows replace from 92781cc0 waits on the holding process's exit (replace_windows.go:141). A long-lived process that releases its mapping and stays alive blocks publication indefinitely. The test released the file and exited, so it missed this. Retry on release: re-attempt the rename whenever the holder list changes or shrinks, and name the holder while waiting."
+        }
+      ]
+    },
+    {
+      "id": "pack-index-bounds",
+      "title": "Bound a pack index by its file before allocating",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound a pack index by its file before allocating",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestPackIndexRejectsImpossibleCounts$' -count=1",
+          "rationale": "Review 2026-09-23 (P2): readPackIndex allocates from the header's entry count before checking the file length or arithmetic bounds (blob_pack.go:77). A damaged count causes an excessive allocation or a panic before checksum validation. Reject any count whose index cannot fit in the file, and any overflow, before allocating."
+        }
+      ]
+    },
     {
       "id": "browser-waits-fail-fast",
       "title": "Fail a browser leg when the browser stops answering, and name the leg",
@@ -65,7 +110,67 @@
           "title": "Land every change through one entry point",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestLandingOnePath$' -count=1",
-          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each own claims, budgets and ship sets. On 2026-09-23 three plan-only commits existed only to change a check, a merge into master needed its row published first, claims were released by hand before every edit, and budgets were guessed three times. One path should reuse the worker's claim, take the budget from the measured delta, split a check change into its own commit, and file a first-parent merge's row itself. Retire the other paths."
+          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each own claim, budget, ship-set and recovery handling (land.go:96). On 2026-09-23 three plan-only commits existed only to change a check, and a merge into master needed its row published first. Keep the command interfaces, but make each invoke one landing implementation, with the differences passed as data: reuse the worker's claim, take the budget from the measured delta, split a check change into its own commit, file a first-parent merge's row. Done when ordinary changes, plan edits and merges share preparation and publication, and the separate orchestration and recovery branches are deleted."
+        }
+      ]
+    },
+    {
+      "id": "preflight-gate-one-execution",
+      "title": "Make preflight and the commit gate two stages of one execution",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make preflight and the commit gate two stages of one execution",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestUnchangedCandidateRepeatsNoPureCheck$' -count=1",
+          "rationale": "Preflight runs the gate's own check definitions, and the gate then repeats every successful check (preflight.go:107). Retain pure checks' results against their exact inputs. When the candidate freezes, re-run only checks whose inputs changed or whose contract needs live state. Claims, current policy and publication stay fresh. Done when an unchanged candidate repeats no pure static check and a changed input invalidates exactly its checks."
+        }
+      ]
+    },
+    {
+      "id": "inference-inputs-one-definition",
+      "title": "Derive validation selection and evidence identity from one dependency description",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Derive validation selection and evidence identity from one dependency description",
+          "status": "open",
+          "verify": "go test ./internal/longform -run '^TestImpactIsTheSurface$' -count=1",
+          "rationale": "longform.Affected (impact.go:20) and inferencesurface (surface.go:45) decide the relevant inputs separately; they disagreed on embedded files and go.mod until ed4d2b3a. One owner should supply both the selected input set and its digest. Then split unrelated capability dependencies only where measured invalidation shows a benefit, with no new exclusion table. Done when no input change can be unaffected for scheduling yet invalidate retained evidence, or the reverse."
+        }
+      ]
+    },
+    {
+      "id": "one-claim-primitive",
+      "title": "Share claim mechanics across locks while keeping each resource's rules",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Share claim mechanics across locks while keeping each resource's rules",
+          "status": "open",
+          "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
+          "rationale": "processlock, authoritylock, device resource jobs, the gate lanes lock and plan row claims each repeat holder identity, acquisition, cancellation, release, liveness and diagnostics. Share those. Keep the different rules: database exclusion, durable task ownership, capacity-based GPU admission. Release happens when ownership ends; process exit is crash recovery, not the normal release. Done when the repeated liveness and recovery code is deleted, and a test shows a process releasing a resource, staying alive, and the next owner proceeding."
+        }
+      ]
+    },
+    {
+      "id": "pack-bounded-streaming",
+      "title": "Stream pack construction and verification in bounded memory",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stream pack construction and verification in bounded memory",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestPackingHoldsBoundedMemory$' -count=1",
+          "rationale": "Packing accumulates payloads in memory, and verification reads the whole pack (blob_pack.go:153). Share one bounded entry-reading and hashing path between lookup and verification, and stream pack construction through the existing atomic publication. No new storage framework. Done when peak working memory stays bounded as payload volume grows, with index memory accounted for separately."
         }
       ]
     },
@@ -81,21 +186,6 @@
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestConsolidationInventory$' -count=1",
           "rationale": "Owner direction 2026-09-23: fewer components, more efficiency, more robustness. Count per kind: store schemas, docs JSON documents, locks and claims, environment test gates, landing entry points, clone groups. Classify every JSON outside the store and every tmp writer as reviewed source in git, derived record in the store, or process state in the runtime directory. Rank candidates by nodes removed times landings affected, and file the top ones as rows."
-        }
-      ]
-    },
-    {
-      "id": "inference-inputs-one-definition",
-      "title": "Compute what inference depends on in one place",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compute what inference depends on in one place",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestImpactIsTheSurface$' -count=1",
-          "rationale": "longform.Affected and inferencesurface each derived the inference inputs, and they disagreed on embedded files and go.mod until ed4d2b3a. Impact selection should ask the surface's owner, so the two cannot drift again."
         }
       ]
     },
@@ -171,21 +261,6 @@
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestOneSizeRatchet$' -count=1",
           "rationale": "Row node budgets, the harness surface baseline, structure budgets, the clone ratchet and the profile delta each measure growth. One small landing tripped three of them on 2026-09-23, and row budgets were guessed three times. Keep one measure with one baseline, derive a row's budget from its measured delta, and delete the rest."
-        }
-      ]
-    },
-    {
-      "id": "one-claim-primitive",
-      "title": "Hold every lock and claim through one primitive",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Hold every lock and claim through one primitive",
-          "status": "open",
-          "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
-          "rationale": "processlock, authoritylock, the device resource jobs, the gate lanes lock and plan row claims each have their own acquire, release and recovery rules. Keep one primitive that names its holder and releases when the holder exits."
         }
       ]
     },
@@ -762,7 +837,13 @@
             "store-bare-record-fill/do",
             "one-claim-primitive/do",
             "device-claim-everywhere/do",
-            "capability-test-gates/do"
+            "capability-test-gates/do",
+            "replan-review-feedback/do",
+            "verifier-one-parser/do",
+            "fsatomic-release-not-exit/do",
+            "pack-index-bounds/do",
+            "preflight-gate-one-execution/do",
+            "pack-bounded-streaming/do"
           ]
         }
       ]
@@ -1032,6 +1113,10 @@
     {
       "key": "surface-move:production-nodes:4e87eb1e0a20f326a18e5e7f4cc95eec7b5357ad",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:78e0cb48efa83d7d2dc80597a284e31bc462773a",
+      "row": "row-scope-budget-surface"
     },
     {
       "key": "surface-move:production-nodes:8527831950fae6a042d4e30b0da80b96b9940dfb",

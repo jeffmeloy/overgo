@@ -1,7 +1,6 @@
 package runrecord
 
 import (
-	"cmp"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -16,25 +15,20 @@ type GoTestTarget struct {
 	paths   [][]*regexp.Regexp
 }
 
-var goTestRunFlag = regexp.MustCompile(`(?:^|[ \t])-run(?:=|[ \t]+)(?:'([^']*)'|"([^"]*)"|([^ \t;&|]+))`)
-
-// GoTestTargets compiles every Go -run selector in command. requireTarget
-// rejects broad or non-Go declarations; false permits whole-package evidence.
+// GoTestTargets compiles every -run selector of a parsed verifier.
+// requireTarget rejects broad or non-Go declarations; false permits
+// whole-package evidence.
 func GoTestTargets(command string, requireTarget bool) ([]*GoTestTarget, error) {
-	if requireTarget && !strings.Contains(command, "go test") {
+	parsed, err := ParseVerify(command)
+	if err != nil {
+		return nil, err
+	}
+	if requireTarget && len(parsed.GoTests()) == 0 {
 		return nil, fmt.Errorf("verifier %q is not a go test command", command)
 	}
-	matches := goTestRunFlag.FindAllStringSubmatch(command, -1)
-	if len(matches) == 0 && requireTarget {
+	targets := parsed.Targets()
+	if len(targets) == 0 && requireTarget {
 		return nil, fmt.Errorf("go test verifier must declare its acceptance target with -run")
-	}
-	var targets []*GoTestTarget
-	for _, match := range matches {
-		target, err := compileGoTestSelector(cmp.Or(match[1], match[2], match[3]))
-		if err != nil {
-			return nil, err
-		}
-		targets = append(targets, target)
 	}
 	return targets, nil
 }

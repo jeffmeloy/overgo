@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "verifier-one-parser",
-      "title": "Parse every verify command once, and reuse acceptance only for an equivalent execution",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Parse every verify command once, and reuse acceptance only for an equivalent execution",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestVerifierParsedOnce$' -count=1",
-          "rationale": "Review 2026-09-23 (P1): acceptance reuse approves a verifier from matching test names that passed in a package run, but a full-suite run and a filtered -run can differ through shared setup or selector-dependent behaviour, and it drops a test -f guard without checking the file (acceptance_reuse.go:134). Acceptance reuse and checkpoint memoization parse verify commands separately, with different quoting, flag and guard handling (acceptance_reuse.go:23, checkpoint_memo.go:31). Parse once into a structured invocation used for execution, dependency discovery and evidence matching, keep file guards, reuse only an equivalent execution context, and delete the competing parsers."
-        }
-      ]
-    },
-    {
       "id": "fsatomic-release-not-exit",
       "title": "Let an atomic replace proceed when the holder releases the file, not when it exits",
       "owner": "master-lead",

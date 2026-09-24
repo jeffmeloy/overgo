@@ -134,7 +134,7 @@ func GoTestJSONShortReport(out string) (GoTestReport, error) {
 
 // GoTestJSONReader streams test evidence, retaining bounded failure
 // diagnostics and completed verdicts even when a later event is malformed.
-func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe func(string, bool, map[string]string) error) (GoTestReport, error) {
+func GoTestJSONReader(reader io.Reader, short bool, diagnosticBytes int, observe func(string, bool) error) (GoTestReport, error) {
 	if diagnosticBytes <= 0 {
 		return GoTestReport{}, fmt.Errorf("diagnostic byte limit must be positive")
 	}
@@ -157,7 +157,7 @@ type goTestEvent struct {
 	Elapsed                                   *float64
 }
 
-func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool, map[string]string) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
+func readGoTestJSON(reader io.Reader, short, allowAuxiliary bool, diagnosticBytes int, observe func(string, bool) error, eventObserved func(goTestEvent)) (report GoTestReport, err error) {
 	digest := sha256.New()
 	reader = io.TeeReader(reader, digest)
 	scanner := bufio.NewScanner(reader)
@@ -357,26 +357,17 @@ func FailureSummary(out string) string {
 	return strings.Join(summary, "\n")
 }
 
-var goTestShortFlag = regexp.MustCompile(`(?:^|[ \t])-short(?:=true)?(?:[ \t;&|]|$)`)
-
-// JSONCommand enables structured events for every go test in a verifier.
-func JSONCommand(command string) string {
-	if !strings.Contains(command, "go test -json") {
-		command = strings.ReplaceAll(command, "go test ", "go test -json ")
-	}
-	return command
-}
-
 // VerifyGoTestEvidence accepts a passing explicit -run oracle or a complete
 // broad run that executed tests. Targeted runs do not credit unrelated skips;
 // broad runs own and therefore reject every skip or unavailable fixture.
 func VerifyGoTestEvidence(command, out string) error {
-	targets, err := runrecord.GoTestTargets(command, false)
+	parsed, err := runrecord.ParseVerify(command)
 	if err != nil {
 		return err
 	}
+	targets, short, auxiliary := parsed.Targets(), parsed.Short(), auxiliaryOutput(parsed)
 	if len(targets) == 0 {
-		report, err := goTestJSONReport(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
+		report, err := goTestJSONReport(out, short, auxiliary)
 		if err != nil {
 			return err
 		}
@@ -388,18 +379,14 @@ func VerifyGoTestEvidence(command, out string) error {
 		}
 		return nil
 	}
-	reports, err := goTestInvocationReports(out, goTestShortFlag.MatchString(command), hasNonTestCommand(command))
+	reports, err := goTestInvocationReports(out, short, auxiliary)
 	if err != nil {
 		return err
 	}
 	if len(reports) == 0 {
 		return fmt.Errorf("go test selectors require complete per-invocation evidence: targets=%d packages=%d", len(targets), len(reports))
 	}
-	segments, err := goTestSegments(command)
-	if err != nil {
-		return err
-	}
-	return verifyInvocations(segments, reports)
+	return verifyInvocations(goTestSegments(parsed), reports)
 }
 
 func verifyTarget(target *runrecord.GoTestTarget, report GoTestReport) error {
@@ -434,16 +421,15 @@ func verifyTarget(target *runrecord.GoTestTarget, report GoTestReport) error {
 	return nil
 }
 
-// hasNonTestCommand permits explicitly mixed shell verifiers to carry ordinary
-// output between structured go-test event streams. JSON-looking lines remain
-// strict so malformed test events cannot disappear as auxiliary output.
-func hasNonTestCommand(command string) bool {
-	for segment := range strings.SplitSeq(command, "&&") {
-		if trimmed := strings.TrimSpace(segment); trimmed != "" && !strings.HasPrefix(trimmed, "go test ") {
-			return true
-		}
-	}
-	return false
+// auxiliaryOutput permits explicitly mixed shell verifiers to carry ordinary
+// output between structured go-test event streams: any segment other than a
+// bare go test, an environment-prefixed one included, may write it. JSON-
+// looking lines remain strict so malformed test events cannot disappear as
+// auxiliary output.
+func auxiliaryOutput(parsed runrecord.VerifyCommand) bool {
+	return slices.ContainsFunc(parsed.Segments, func(segment runrecord.VerifySegment) bool {
+		return segment.Kind != runrecord.SegmentGoTest || len(segment.Env) != 0
+	})
 }
 
 // VerifyGoTestNames parses out once and verifies that every named test passed
@@ -518,33 +504,18 @@ type goTestSegment struct {
 // invocation: the selector answers for the reports its packages produced and
 // the broad invocation for its own, so an unselected invocation is not read
 // as the selector matching nothing.
-func goTestSegments(command string) ([]goTestSegment, error) {
+func goTestSegments(parsed runrecord.VerifyCommand) []goTestSegment {
 	var segments []goTestSegment
-	for segment := range strings.SplitSeq(command, "&&") {
-		trimmed := strings.TrimSpace(segment)
-		start := strings.Index(trimmed, "go test ")
-		if start < 0 {
-			continue
-		}
-		targets, err := runrecord.GoTestTargets(trimmed, false)
-		if err != nil {
-			return nil, err
-		}
-		if len(targets) > 1 {
-			return nil, fmt.Errorf("go test invocation declares %d -run selectors", len(targets))
-		}
-		item := goTestSegment{}
-		if len(targets) == 1 {
-			item.target = targets[0]
-		}
-		for token := range strings.FieldsSeq(trimmed[start+len("go test "):]) {
-			if arg, found := strings.CutPrefix(token, "./"); found {
-				item.packages = append(item.packages, arg)
+	for _, test := range parsed.GoTests() {
+		item := goTestSegment{target: test.Target}
+		for _, argument := range test.Packages {
+			if relative, found := strings.CutPrefix(argument, "./"); found {
+				item.packages = append(item.packages, relative)
 			}
 		}
 		segments = append(segments, item)
 	}
-	return segments, nil
+	return segments
 }
 
 // owns reports whether the segment's package arguments name a report's

@@ -36,7 +36,7 @@ func TestPackageObligationsAreOneDocumentPerLanding(t *testing.T) {
 			t.Fatalf("%s is listed in %s, not the preparation's one document", pkg, ledger.listings[pkg])
 		}
 	}
-	if err := ledger.record(t.Context(), "fixture/good", true, map[string]string{"TestGood": "pass"}); err != nil {
+	if err := ledger.record(t.Context(), "fixture/good", true); err != nil {
 		t.Fatal(err)
 	}
 

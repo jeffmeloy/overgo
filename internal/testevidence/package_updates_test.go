@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"maps"
 	"net"
 	"os"
 	"slices"
@@ -63,7 +62,7 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 		report, runErr = RunGoTestCommand(ctx, processcontrol.Command{
 			Path: os.Args[0], Args: []string{"-test.run=^TestSlowPublicationProcess$"},
 			Env: append(os.Environ(), "OVERGO_TEST_SLOW_PUBLICATION="+drained.Addr().String()),
-		}, GoTestOptions{DiagnosticBytes: 1024, Observe: func(name string, passed bool, tests map[string]string) error {
+		}, GoTestOptions{DiagnosticBytes: 1024, Observe: func(name string, passed bool) error {
 			if name == "first" {
 				close(entered)
 				<-release
@@ -101,28 +100,21 @@ func TestTerminalPublicationDoesNotBlockOutput(t *testing.T) {
 func TestQueuedPublicationPreservesRevocationsAndErrors(t *testing.T) {
 	failure := errors.New("publication unavailable")
 	var received []bool
-	var receivedTests []map[string]string
-	observe, flush := queuedPackageUpdates(func(_ string, passed bool, tests map[string]string) error {
+	observe, flush := queuedPackageUpdates(func(_ string, passed bool) error {
 		received = append(received, passed)
-		receivedTests = append(receivedTests, tests)
 		if passed {
 			return failure
 		}
 		return nil
 	})
-	tests := map[string]string{"TestWorks": "pass"}
-	_ = observe("package", true, tests)
-	tests["TestWorks"] = "fail"
-	_ = observe("package", false, nil)
+	_ = observe("package", true)
+	_ = observe("package", false)
 	if err := flush(); !errors.Is(err, failure) || !slices.Equal(received, []bool{true, false}) {
 		t.Fatalf("publication failure or revocation lost: %v, %v", received, err)
 	}
-	if receivedTests[0]["TestWorks"] != "pass" || len(receivedTests[1]) != 0 {
-		t.Fatal("queued named verdict mutated or revocation retained passing names")
-	}
 }
 
-func TestPackageNamedVerdicts(t *testing.T) {
+func TestPackageCreditTransitions(t *testing.T) {
 	start := packageEvent("start", "example", "", "")
 	passed := packageEvent("run", "example", "TestWorks", "") + packageEvent("pass", "example", "TestWorks", "")
 	terminal := packageEvent("pass", "example", "", "")
@@ -130,30 +122,30 @@ func TestPackageNamedVerdicts(t *testing.T) {
 	for _, tc := range []struct {
 		name, stream string
 		short        bool
-		want         map[string]string
+		credited     bool
 	}{
-		{"passed", start + passed + terminal, false, map[string]string{"TestWorks": "pass"}},
-		{"short exclusion", start + passed + skipped + terminal, true, map[string]string{"TestWorks": "pass", "TestIntegration": "skip"}},
-		{"complete exclusion", start + passed + skipped + terminal, false, nil},
-		{"missing assertion", start + terminal, false, nil},
-		{"missing start", start + packageEvent("pass", "example", "TestWorks", "") + terminal, false, nil},
-		{"duplicate", start + passed + passed + terminal, false, nil},
-		{"failed", start + strings.ReplaceAll(passed, `"pass"`, `"fail"`) + terminal, false, nil},
-		{"unfinished", start + packageEvent("run", "example", "TestWorks", "") + terminal, false, nil},
-		{"late unavailable", start + passed + terminal + packageEvent("output", "example", "TestWorks", "UNAVAILABLE: fixture"), false, nil},
-		{"malformed tail", start + passed + terminal + "{invalid\n", false, nil},
+		{"passed", start + passed + terminal, false, true},
+		{"short exclusion", start + passed + skipped + terminal, true, true},
+		{"complete exclusion", start + passed + skipped + terminal, false, false},
+		{"missing assertion", start + terminal, false, false},
+		{"missing start", start + packageEvent("pass", "example", "TestWorks", "") + terminal, false, false},
+		{"duplicate", start + passed + passed + terminal, false, false},
+		{"failed", start + strings.ReplaceAll(passed, `"pass"`, `"fail"`) + terminal, false, false},
+		{"unfinished", start + packageEvent("run", "example", "TestWorks", "") + terminal, false, false},
+		{"late unavailable", start + passed + terminal + packageEvent("output", "example", "TestWorks", "UNAVAILABLE: fixture"), false, false},
+		{"malformed tail", start + passed + terminal + "{invalid\n", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var got map[string]string
-			_, _ = GoTestJSONReader(strings.NewReader(tc.stream), tc.short, len(tc.stream), func(pkg string, credit bool, tests map[string]string) error {
-				if pkg != "example" || !credit && len(tests) != 0 {
-					t.Fatal("invalid named transition")
+			credited := false
+			_, _ = GoTestJSONReader(strings.NewReader(tc.stream), tc.short, len(tc.stream), func(pkg string, credit bool) error {
+				if pkg != "example" {
+					t.Fatal("credit transition for an unexpected package")
 				}
-				got = maps.Clone(tests)
+				credited = credit
 				return nil
 			})
-			if !maps.Equal(got, tc.want) {
-				t.Fatalf("named verdicts=%v want=%v", got, tc.want)
+			if credited != tc.credited {
+				t.Fatalf("credited=%v want=%v", credited, tc.credited)
 			}
 		})
 	}
@@ -180,7 +172,7 @@ func TestTerminalPackageUpdates(t *testing.T) {
 			updates := make(chan bool, 2)
 			finished := make(chan GoTestReport, 1)
 			go func() {
-				report, _ := GoTestJSONReader(reader, false, 1024, func(pkg string, passed bool, tests map[string]string) error {
+				report, _ := GoTestJSONReader(reader, false, 1024, func(pkg string, passed bool) error {
 					if pkg != "good" {
 						return errors.New("unexpected package credited")
 					}
@@ -225,7 +217,7 @@ func TestTerminalPackageUpdates(t *testing.T) {
 			strings.Replace(good, `"Action":"pass"`, `"Action":"skip"`, 1),
 		} {
 			calls := 0
-			_, err := GoTestJSONReader(strings.NewReader(transcript), false, 1024, func(string, bool, map[string]string) error { calls++; return nil })
+			_, err := GoTestJSONReader(strings.NewReader(transcript), false, 1024, func(string, bool) error { calls++; return nil })
 			if err != nil || calls != 0 {
 				t.Fatalf("vacuous stream credited: calls=%d error=%v", calls, err)
 			}

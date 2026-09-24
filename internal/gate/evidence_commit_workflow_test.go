@@ -50,7 +50,7 @@ func TestEvidenceCommitWorkflow(t *testing.T) {
 	}
 	contended := make(chan error, 1)
 	acquisitions["fixture/good"]++
-	go func() { contended <- ledger.record(t.Context(), "fixture/good", true, nil) }()
+	go func() { contended <- ledger.record(t.Context(), "fixture/good", true) }()
 	if err := lock.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestEvidenceCommitWorkflow(t *testing.T) {
 		t.Fatalf("restart lost exact receipts: pending=%v reused=%d err=%v", pending, reused, err)
 	}
 	acquisitions["fixture/pending"]++
-	if err := ledger.record(t.Context(), "fixture/pending", true, nil); err != nil {
+	if err := ledger.record(t.Context(), "fixture/pending", true); err != nil {
 		t.Fatal(err)
 	}
 	if acquisitions["fixture/good"] != 1 || acquisitions["fixture/pending"] != 1 {

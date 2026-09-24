@@ -34,21 +34,6 @@
       ]
     },
     {
-      "id": "land-row-from-mixed-tree",
-      "title": "Retired: land one finished row from a tree that holds another",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: land one finished row from a tree that holds another",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Two finished rows in one tree needed their files set aside by hand twice on one day; working one row at a time avoids it, and admitting unshipped work would require every admission-time read to take the candidate, a large change for a rare case. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "preflight-gate-one-execution",
       "title": "Retired: share preflight results with the commit gate",
       "owner": "master-lead",

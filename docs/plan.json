@@ -5,16 +5,33 @@
   "items": [
     {
       "id": "landing-one-path",
-      "title": "Land every change through one entry point",
+      "title": "Remove landing friction: claim reuse, measured budgets, one plan-edit path",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Land every change through one entry point",
+          "title": "Remove landing friction: claim reuse, measured budgets, one plan-edit path",
           "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestLandingOnePath$' -count=1",
-          "rationale": "loop -land, a direct gate run and gate -merge (plan -edit -publish is retired by retire-plan-edit-publish) each own claim, budget, ship-set and recovery handling (land.go:96). On 2026-09-23 three plan-only commits existed only to change a check, and a merge into master needed its row published first. Keep the command interfaces, but make each invoke one landing implementation, with the differences passed as data (claim reuse lands first as claim-renewal): take the budget from the measured delta, split a check change into its own commit, file a first-parent merge's row. On 2026-09-24 two finished rows in one tree could not land one at a time: scope refuses unshipped Go by design, so one row's files were set aside by hand. The single path should land one row's paths from its own candidate. Done when ordinary changes, plan edits and merges share preparation and publication, and the separate orchestration and recovery branches are deleted."
+          "verify": "go test ./internal/gate -run '^(TestHolderAmendsItsOwnClaim|TestScopeBudgetAdmitsDeclaredGrowth)$' -count=1 \u0026\u0026 go test ./cmd/plan -run '^TestPlanHelpContract$' -count=1",
+          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each owned claim, budget, ship-set and recovery handling. The friction that cost landings on 2026-09-23 and 24 is removed by three slices: a claim's holder amends its own row and dispatch renews the claim (a70978c8); a declared reason admits a row's measured growth, so no node count is guessed (1735f670); and the separate plan edit-and-publish path is retired (e90e71d9). cmd/loop already shares one lane wait between the driver and loop -land. A check change rides any other row's landing instead of a vehicle. What remains would add code, not delete it: landing one row from a tree that holds another moves to land-row-from-mixed-tree, and merge rows stay pre-filed because merges are rare. Done when the three slices' checks hold."
+        }
+      ]
+    },
+    {
+      "id": "gemma-12b-accuracy",
+      "title": "Find why the Gemma 12B twins score worse than E4B",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find why the Gemma 12B twins score worse than E4B",
+          "status": "open",
+          "verify": "go test ./internal/longform -run '^TestGemmaTwelveScoresNoWorseThanE4B$' -count=1",
+          "rationale": "The premise that instruction framing explains the 12B's high raw NLL is falsified. Measured 2026-09-24 at 180a7a3c, on the guard corpus's SHORT shape (160-token prompt, next 64 tokens) at three windows (byte offsets 0, 20107, 60322). Raw NLL: 12B fp8-native 8.505 / 7.987 / 1.200, 12B fp8-bf16 8.503 / 7.979 / 1.385, E4B control 6.500 / 6.069 / 0.603. Chat NLL, with the text as one user turn in the model's own template and thinking off: 6.876 / 5.671 / 1.799, 7.018 / 5.652 / 1.808, and 5.776 / 5.154 / 0.893. Chat framing lowers NLL on hard prose windows and raises it on the easy one for every model, the control included. In every window and both framings the 12B scores 0.5-1.2 nats worse than the 4B-class E4B, and its two precisions agree, so the suspect is the shared 12B path (architecture handling: attention pattern, sliding window, scaling, softcapping), not the fp8 kernels. Greedy 256-token chat replies loop for both 12B precisions (longest repeated spans 105-197 tokens) and never for E4B. The chat-framing probe is tmp/chat_rung.go. Next: compare the 12B's per-layer hidden states or logits against the adaptive_new port source on one prompt to find where it departs. Done when the 12B scores no worse than E4B on the same windows, held by TestGemmaTwelveScoresNoWorseThanE4B.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
         }
       ]
     },
@@ -30,21 +47,6 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestUnchangedCandidateRepeatsNoPureCheck$' -count=1",
           "rationale": "Preflight runs the gate's own check definitions, and the gate then repeats every successful check (preflight.go:107). Retain pure checks' results against their exact inputs. When the candidate freezes, re-run only checks whose inputs changed or whose contract needs live state. Claims, current policy and publication stay fresh. Done when an unchanged candidate repeats no pure static check and a changed input invalidates exactly its checks."
-        }
-      ]
-    },
-    {
-      "id": "one-claim-primitive",
-      "title": "Share claim mechanics across locks while keeping each resource's rules",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Share claim mechanics across locks while keeping each resource's rules",
-          "status": "open",
-          "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
-          "rationale": "processlock, authoritylock, device resource jobs, the gate lanes lock and plan row claims each repeat holder identity, acquisition, cancellation, release, liveness and diagnostics. Share those. Keep the different rules: database exclusion, durable task ownership, capacity-based GPU admission. Release happens when ownership ends; process exit is crash recovery, not the normal release. Done when the repeated liveness and recovery code is deleted, and a test shows a process releasing a resource, staying alive, and the next owner proceeding."
         }
       ]
     },
@@ -75,6 +77,36 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestStoreCopyingHoldsBoundedMemory$' -count=1",
           "rationale": "Three measured points; the first, pack construction and verification, lands as pack-streams-members. Checkpoint creation serializes, restores and serializes a projection again to prove canonical form (checkpoints.go:57); retention copies catalog and graph state before computing reachability (retention.go:72). Share one bounded entry-reading and hashing path between lookup and verification, stream packs through the existing atomic publication, bound checkpoint concurrency, and traverse retention over the smallest stable representation. Keep every integrity check. Done when peak memory stays bounded as payload volume grows, with index memory accounted separately."
+        }
+      ]
+    },
+    {
+      "id": "land-row-from-mixed-tree",
+      "title": "Land one finished row from a tree that holds another",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Land one finished row from a tree that holds another",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestPathScopedLandingIgnoresUnshippedWork$' -count=1",
+          "rationale": "Residual of landing-one-path. On 2026-09-24 two finished rows in one tree could not land one at a time: scope refuses any unshipped verification input, so one row's files were copied aside and restored by hand, twice. A gate that measured and verified only its candidate (HEAD plus its paths), with every admission-time read taken from that candidate, could admit unshipped work safely. Low priority while one row at a time is in flight. Done when a path-scoped landing passes beside unrelated unshipped Go, and every check it runs reads the candidate."
+        }
+      ]
+    },
+    {
+      "id": "one-claim-primitive",
+      "title": "Share claim mechanics across locks while keeping each resource's rules",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Share claim mechanics across locks while keeping each resource's rules",
+          "status": "open",
+          "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
+          "rationale": "processlock, authoritylock, device resource jobs, the gate lanes lock and plan row claims each record and report holders their own way. Measured 2026-09-24 (read-only survey): the repeats are in acquisition and probing, not liveness -- create-directory-and-acquire in authoritylock, the lanes runner and the campaign lock; an acquire-and-close busy probe in three places; PID liveness layered on an OS lock in the campaign lock and an unread PID in gate_lanes.json; holder naming only in processcontrol and fsatomic. Sharing them (processlock.AcquireState, Held, a BusyError that names holders through fsatomic) removes about 45 production lines. Risks: a probe briefly holds the lock and can make a racing acquirer see busy; merging the Windows cancellation bridges risks use-after-free. The exclusive GPU claim cannot release before process exit (a job object cannot drop a process), so \"release when ownership ends\" does not hold for it without a different claim design. Done when the shared helpers replace the repeats, the PID liveness is deleted, and a cross-process test shows a process releasing a lock, staying alive, and the next owner proceeding."
         }
       ]
     },
@@ -338,7 +370,7 @@
           "title": "Defer decoding large store facets until first use, if opens are still slow",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestLineageCheckpointLoadCost' -count=1",
-          "rationale": "Re-measure first, after the other store rows shrink the facets. 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one.",
+          "rationale": "Re-measured 2026-09-24 after store-open-decode-cost (180a7a3c): an open takes about 1.05-1.5 s and allocates 1.8 GB; checkpoint decode is 56% of it (lineage 0.6 s) and replaying the 8,100 commits since the last checkpoint is 32%. Before that, 2026-09-22: a read-only open is 1.7 s, bounded by the largest decode (lineage 88.3 MB of 189 MB), with verification about 0.1 s. Laziness inside the facet fails (value receivers) and re-replaying the journal fails (shared file cursor). Defer at the store, which owns the lock: keep the verified payload and pending commits, apply on first load behind a double-checked write lock, and test that a deferred facet answers exactly as an eager one.",
           "depends_on": [
             "store-small-record-horizon/do",
             "store-benchmark-record-redundancy/do",
@@ -428,23 +460,6 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
           "rationale": "The input graph treats the package as an opaque reader, binding it to every root (269 packages) including docs/plan.json, so the complete receipt for ten media and specialized models expires on every landing and costs a four-minute rerun. Found 2026-09-23, three sources of the binding: (1) reads join a root parameter that production only ever passes as \".\", which in-package parameter propagation in the classifier would name; (2) the operator verbs (claim, record-verification, webui-report) read flag paths and can move to their own command; (3) -check reads the source files docs/compatibility.json binds to each claim, so part of the broad binding is correct until compatibility-reports-leave-the-tree decides what that binding means. Waits on that decision; (1) and (2) alone leave the package opaque."
-        }
-      ]
-    },
-    {
-      "id": "gemma-12b-accuracy",
-      "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestGemmaTwelveChatRung$' -count=1",
-          "rationale": "Raw NLLs 6.94/6.97 vs E4B 4.21 are explained by instruction framing. Add chat template, thinking off, 256 greedy tokens, chat continuation NLL and repetition diagnostics beside raw continuation; verify both precisions and the small control.",
-          "depends_on": [
-            "model-regression-gate/do"
-          ]
         }
       ]
     },
@@ -788,7 +803,9 @@
             "store-telemetry-by-reference/do",
             "budget-from-measured-growth/do",
             "store-open-decode-cost/do",
-            "retire-plan-edit-publish/do"
+            "retire-plan-edit-publish/do",
+            "land-row-from-mixed-tree/do",
+            "file-measured-rescopes/do"
           ]
         }
       ]

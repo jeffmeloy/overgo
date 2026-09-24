@@ -44,6 +44,11 @@
       "title": "Let a claim's holder amend its own row",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 160,
+        "paydown": "landing-one-path",
+        "reason": "claim renewal: the holder's amendment is permitted and dispatch renews its claim; landing-one-path deletes the separate orchestration branches"
+      },
       "steps": [
         {
           "id": "do",
@@ -51,6 +56,21 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestHolderAmendsItsOwnClaim$' -count=1",
           "rationale": "First slice of landing-one-path. Any amendment to a claimed row was refused, even by the worker that held the claim. So each budget re-declaration on 2026-09-23 took three commands: release the claim, re-budget, re-claim. The claim store already supports renewal (a lease derived from the one it replaces, by the same worker, task, role and worktree), but dispatch never used it. Done when the holder amends its row in place, another worker still needs a handoff, the old claim does not admit the amended row, and the holder's next dispatch renews the claim to the amended contract."
+        }
+      ]
+    },
+    {
+      "id": "paths-candidate-measurement",
+      "title": "Measure a path-scoped candidate, not the working tree",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure a path-scoped candidate, not the working tree",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestPathScopedCandidateMeasuresOnlyItsPaths$' -count=1",
+          "rationale": "2026-09-24: gate -paths for inference-inputs-one-definition shipped only internal/inferencesurface and internal/longform files. It was still refused a harness-surface raise of 140 production nodes, which came from unshipped claim-renewal edits in internal/plan. The mechanical-repair stage reads the source snapshot from the working tree (sourceRoot falls back to the repository when no candidate root is set). Done when every measurement a path-scoped gate makes reads the candidate it commits, so unshipped work neither blocks nor raises a landing."
         }
       ]
     },
@@ -81,25 +101,6 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestUnchangedCandidateRepeatsNoPureCheck$' -count=1",
           "rationale": "Preflight runs the gate's own check definitions, and the gate then repeats every successful check (preflight.go:107). Retain pure checks' results against their exact inputs. When the candidate freezes, re-run only checks whose inputs changed or whose contract needs live state. Claims, current policy and publication stay fresh. Done when an unchanged candidate repeats no pure static check and a changed input invalidates exactly its checks."
-        }
-      ]
-    },
-    {
-      "id": "inference-inputs-one-definition",
-      "title": "Derive validation selection and evidence identity from one dependency description",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 60,
-        "reason": "impact selection asks the surface's owner; the surface owns path normalization"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Derive validation selection and evidence identity from one dependency description",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestImpactIsTheSurface$' -count=1",
-          "rationale": "longform.Affected (impact.go:20) and inferencesurface (surface.go:45) decide the relevant inputs separately; they disagreed on embedded files and go.mod until ed4d2b3a. One owner should supply both the selected input set and its digest. Then split unrelated capability dependencies only where measured invalidation shows a benefit, with no new exclusion table. Done when no input change can be unaffected for scheduling yet invalidate retained evidence, or the reverse."
         }
       ]
     },
@@ -812,7 +813,8 @@
             "merge-ba5c27d0b64f/do",
             "file-colibri2-merge-row/do",
             "claim-renewal/do",
-            "file-guard-coverage-check/do"
+            "file-guard-coverage-check/do",
+            "paths-candidate-measurement/do"
           ]
         }
       ]

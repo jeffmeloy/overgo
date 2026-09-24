@@ -20,12 +20,13 @@ import (
 // the gate recomputes from the tree at a source identity. The modern-Go
 // computation memo is the same thing and joined them when the record census
 // found it holding 552 MB in no releasable class: its one reader takes a
-// released memo as a miss and recomputes.
+// released memo, or a released part of one, as a miss and recomputes.
 var DerivedCacheSchemas = []string{
 	codemanifest.Schema,
 	codeprofile.EvidenceSchema,
 	automationcheck.ManifestAnalysisSchema,
 	repoanalysis.ModernGoComputationSchema,
+	repoanalysis.ModernGoCensusPartSchema,
 }
 
 // DerivedCache reports a descriptor whose bytes are a re-derivable cache.

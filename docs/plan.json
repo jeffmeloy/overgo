@@ -782,7 +782,8 @@
             "paths-candidate-measurement/do",
             "pack-streams-members/do",
             "stored-analysis-sheds-impact-lists/do",
-            "webui-refusal-race/do"
+            "webui-refusal-race/do",
+            "modern-census-by-package/do"
           ]
         }
       ]

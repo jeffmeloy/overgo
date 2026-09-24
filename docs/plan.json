@@ -13,8 +13,8 @@
           "id": "do",
           "title": "Delete production code only tests call",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
-          "rationale": "Landed slices: 7694f00e, 22b5d515, afcee829, 5e1be7c0, 39934bd8 (about 17,000 production nodes). Remaining (tmp/consolidation_probe.go . deadpkg): hostmath oracles used by inference tests (need a shared test package), trainingprogram and trainingdata entry points, sensenovarecipe, speechsynth (GUI lane), controllertrain (owner decision row), and the exempt test-helper packages. Next: decide per remaining package, then make the probe a repoanalysis ratchet. Done when TestNoTestOnlyProductionExports holds the count at zero outside declared test-helper packages."
+          "verify": "go test ./internal/codeprofile -run '^TestGateRejectsNewUnconsumedProductionSurface$' -count=1",
+          "rationale": "From consolidation-inventory (2026-09-24). Landed slices: 7694f00e (SFT targets deleted, -8,491 production nodes), 22b5d515 and 39934bd8 (test-only oracles and device and media entry points moved into tests, with reviewed media deltas), afcee829 (superseded hypervector index deleted), 5e1be7c0 (training and catalog entry points moved into tests): about 17,400 production nodes in all. What remains is used by tests in other packages -- adaptiveparity's parity tests against the reference codebase and cmd/training-objective's tests (trainingprogram objective matrices, trainingdata processors, hybridtrain artifact loading, hostmath oracles) -- or is owned elsewhere (speechsynth by the GUI lane, controllertrain by an owner decision). That is cross-package test support, not dead code. The gate's unconsumed-surface rule already refuses any new test-only export, which is the ratchet this row wanted. Done when that rule holds."
         }
       ]
     },
@@ -781,7 +781,8 @@
             "delete-hypervector-index/do",
             "move-test-only-entry-points/do",
             "move-test-only-device-entry-points/do",
-            "plan-refactor/do"
+            "plan-refactor/do",
+            "file-exports-closing-check/do"
           ]
         }
       ]

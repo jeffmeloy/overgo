@@ -34,21 +34,6 @@
       ]
     },
     {
-      "id": "pack-bounded-streaming",
-      "title": "Retired: bound peak memory at the store's remaining copying points",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: bound peak memory at the store's remaining copying points",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Its first point landed as pack-streams-members (7f140ee2: packing 94.5 MB -\u003e 1.6 MB allocated). The remaining points, checkpoint writing and retention copies, run only during compaction and have no deterministic memory check; store-open-lineage-cost keeps the open-time checkpoint cost. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "land-row-from-mixed-tree",
       "title": "Retired: land one finished row from a tree that holds another",
       "owner": "master-lead",

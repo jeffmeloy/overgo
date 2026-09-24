@@ -57,9 +57,6 @@ type OperationEvidenceProjection struct {
 }
 
 func (h *Handler) operationEvidence(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	id, err := artifact.ParseID(request.URL.Query().Get("id"))
 	if err != nil || id.Kind() != artifact.KindEvidence {
 		writeError(response, http.StatusBadRequest, "invalid_operation", "operation evidence identity is required")

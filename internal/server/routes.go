@@ -17,20 +17,11 @@ const (
 
 type routeHandler func(*Handler, http.ResponseWriter, *http.Request)
 
-type workflowRouteAction string
-
-const (
-	workflowCapabilitiesAction workflowRouteAction = "capabilities"
-	workflowRunAction          workflowRouteAction = "run"
-)
-
 type routeDescriptor struct {
 	Path           string
 	Authentication routeAuthentication
 	Methods        []string
 	Handler        routeHandler
-	Workflow       WorkflowKind
-	WorkflowAction workflowRouteAction
 	// Inventory: a successful call other than a GET changes the inventory its
 	// path's first segment names, and the event hub tells every workspace.
 	Inventory bool
@@ -103,15 +94,15 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/evaluations/report", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).evaluationReport},
 	{Path: "/evaluations/failures", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).evaluationFailures},
 	{Path: "/evaluations/compare", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).evaluationCompare},
-	{Path: "/generation/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowGeneration, WorkflowAction: workflowCapabilitiesAction},
-	{Path: "/generation/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowGeneration, WorkflowAction: workflowRunAction},
+	{Path: "/generation/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowGeneration, (*Handler).workflowCapabilities)},
+	{Path: "/generation/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowGeneration, (*Handler).workflowRun)},
 	{Path: "/generation/enhance", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).promptEnhance},
-	{Path: "/training/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowTraining, WorkflowAction: workflowCapabilitiesAction},
-	{Path: "/training/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowTraining, WorkflowAction: workflowRunAction},
-	{Path: "/model-builder/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowModelBuild, WorkflowAction: workflowCapabilitiesAction},
-	{Path: "/model-builder/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowModelBuild, WorkflowAction: workflowRunAction},
-	{Path: "/export/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Workflow: WorkflowExport, WorkflowAction: workflowCapabilitiesAction},
-	{Path: "/export/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Workflow: WorkflowExport, WorkflowAction: workflowRunAction},
+	{Path: "/training/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowCapabilities)},
+	{Path: "/training/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowTraining, (*Handler).workflowRun)},
+	{Path: "/model-builder/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowModelBuild, (*Handler).workflowCapabilities)},
+	{Path: "/model-builder/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowModelBuild, (*Handler).workflowRun)},
+	{Path: "/export/capabilities", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: workflowRoute(WorkflowExport, (*Handler).workflowCapabilities)},
+	{Path: "/export/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: workflowRoute(WorkflowExport, (*Handler).workflowRun)},
 	{Path: "/artifacts", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactGallery},
 	{Path: "/artifacts/content", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).artifactContent},
 	{Path: "/artifacts/intake", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).artifactIntake, Inventory: true},
@@ -135,9 +126,9 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/hub/downloads", Authentication: routeBearer, Methods: []string{http.MethodGet, http.MethodPost, http.MethodDelete}, Handler: (*Handler).hubDownloads},
 	{Path: "/library/register", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryRegister, Inventory: true},
 	{Path: "/library/validate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).libraryValidate, Inventory: true},
-	{Path: "/agents/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentTools},
-	{Path: "/agents/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentProvenance},
-	{Path: "/agents/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentSessionList},
+	{Path: "/agents/tools", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentTools)},
+	{Path: "/agents/provenance", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentProvenance)},
+	{Path: "/agents/sessions", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentSessionList)},
 	// The workbench's own routes: the manifest, schema and route table are
 	// public like the shell they feed; the operations evidence and the
 	// automation, peer and agent workspaces take the bearer credential. They
@@ -153,31 +144,31 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/interactions/cancel", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).conversationCancel},
 	{Path: "/interactions/inspect", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).conversationInspect},
 	{Path: "/operations/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).operationEvidence},
-	{Path: "/automations", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).automationWorkspace},
-	{Path: "/automations/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace, Inventory: true},
-	{Path: "/automations/activate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace, Inventory: true},
-	{Path: "/automations/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace},
-	{Path: "/automations/schedule", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace, Inventory: true},
-	{Path: "/automations/history", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).automationWorkspace},
-	{Path: "/peers", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).peerWorkspace},
-	{Path: "/peers/enroll", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace, Inventory: true},
-	{Path: "/peers/capability", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace, Inventory: true},
-	{Path: "/peers/heartbeat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace},
-	{Path: "/peers/state", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace, Inventory: true},
-	{Path: "/peers/placement", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace, Inventory: true},
-	{Path: "/peers/reconcile", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace, Inventory: true},
-	{Path: "/peers/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).peerWorkspace},
-	{Path: "/agents", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentControl},
-	{Path: "/agents/create", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl, Inventory: true},
-	{Path: "/agents/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl, Inventory: true},
-	{Path: "/agents/activate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl, Inventory: true},
-	{Path: "/agents/state", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl, Inventory: true},
-	{Path: "/agents/step", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
-	{Path: "/agents/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
-	{Path: "/agents/chat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
-	{Path: "/agents/retrieval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
-	{Path: "/agents/automation", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
-	{Path: "/agents/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentControl},
+	{Path: "/automations", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: automationRoute((*Handler).automationInventory)},
+	{Path: "/automations/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationDefine), Inventory: true},
+	{Path: "/automations/activate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationActivate), Inventory: true},
+	{Path: "/automations/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationRun)},
+	{Path: "/automations/schedule", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: automationRoute((*Handler).automationSchedule), Inventory: true},
+	{Path: "/automations/history", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: automationRoute((*Handler).automationHistory)},
+	{Path: "/peers", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: peerRoute((*Handler).peerInventory)},
+	{Path: "/peers/enroll", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerEnroll), Inventory: true},
+	{Path: "/peers/capability", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerCapability), Inventory: true},
+	{Path: "/peers/heartbeat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerHeartbeat)},
+	{Path: "/peers/state", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerState), Inventory: true},
+	{Path: "/peers/placement", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerPlacement), Inventory: true},
+	{Path: "/peers/reconcile", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: peerRoute((*Handler).peerReconcile), Inventory: true},
+	{Path: "/peers/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: peerRoute((*Handler).peerEvidence)},
+	{Path: "/agents", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentList)},
+	{Path: "/agents/create", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentSimpleCreate), Inventory: true},
+	{Path: "/agents/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentDefine), Inventory: true},
+	{Path: "/agents/activate", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentActivate), Inventory: true},
+	{Path: "/agents/state", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentTransition), Inventory: true},
+	{Path: "/agents/step", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentStep)},
+	{Path: "/agents/approval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentApprovalPreview)},
+	{Path: "/agents/chat", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentChat)},
+	{Path: "/agents/retrieval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentRetrieve)},
+	{Path: "/agents/automation", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: agentRoute((*Handler).agentAutomate)},
+	{Path: "/agents/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: agentRoute((*Handler).agentObservables)},
 }
 
 var routesByPath = compileRouteIndex(routeCatalog)
@@ -199,8 +190,7 @@ func APIManifestRoutes() []apimanifest.Route {
 func compileRouteIndex(routes []routeDescriptor) map[string]routeDescriptor {
 	index := make(map[string]routeDescriptor, len(routes))
 	for _, route := range routes {
-		workflow := route.Workflow != "" && route.WorkflowAction != ""
-		if route.Path == "" || len(route.Methods) == 0 || (route.Handler == nil) == !workflow || index[route.Path].Path != "" {
+		if route.Path == "" || len(route.Methods) == 0 || route.Handler == nil || index[route.Path].Path != "" {
 			panic("server: invalid or duplicate route")
 		}
 		index[route.Path] = route
@@ -213,18 +203,6 @@ func resolveRoute(path string) (routeDescriptor, bool) {
 		return route, true
 	}
 	return versionedRouteFallback, strings.HasPrefix(path, versionedRouteFallback.Path)
-}
-
-func (r routeDescriptor) serve(h *Handler, response http.ResponseWriter, request *http.Request) {
-	if r.Handler != nil {
-		r.Handler(h, response, request)
-		return
-	}
-	if r.WorkflowAction == workflowCapabilitiesAction {
-		h.workflowCapabilities(response, request, r.Workflow)
-		return
-	}
-	h.workflowRun(response, request, r.Workflow)
 }
 
 func (r routeDescriptor) accepts(method string) bool {

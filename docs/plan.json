@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-route-dispatch",
-      "title": "Make the route table the only dispatcher: one handler per path, shared workspace preconditions as wrappers, and no handler-level method checks",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Make the route table the only dispatcher: one handler per path, shared workspace preconditions as wrappers, and no handler-level method checks",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestRouteTableIsTheOnlyDispatcher$' -count=1",
-          "rationale": "Survey: agentControl, peerWorkspace and automationWorkspace re-dispatch 28 paths with switches after the route table chose them (three default 404 branches can never run), 40 of 43 requireMethod calls repeat the method check the table already enforces, and a missing agent runtime answers 501 in one place and 503 in another. Register each path with its own handler, move each workspace precondition into one wrapper, delete the redundant checks, and hold it with a source test."
-        }
-      ]
-    },
-    {
       "id": "arch-store-read-paths",
       "title": "Make every per-request store read scale with its answer: alias names through the alias index, the timeline by its alias, and conversations, pending decisions and the tensor pool from projections advanced by store deltas",
       "owner": "overgo_gui_cleanup",

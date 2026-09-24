@@ -789,7 +789,7 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		return
 	}
 	if routed {
-		route.serve(h, response, request)
+		route.Handler(h, response, request)
 		return
 	}
 	h.serveWebUI(response, request)

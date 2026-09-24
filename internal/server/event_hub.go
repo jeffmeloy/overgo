@@ -137,7 +137,7 @@ func (recorder *statusRecorder) Unwrap() http.ResponseWriter { return recorder.R
 // a GET succeeds, tells every workspace which inventory it changed.
 func (h *Handler) serveInventoryChange(route routeDescriptor, response http.ResponseWriter, request *http.Request) {
 	recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
-	route.serve(h, recorder, request)
+	route.Handler(h, recorder, request)
 	if request.Method != http.MethodGet && recorder.status < http.StatusMultipleChoices {
 		segment, _, _ := strings.Cut(strings.TrimPrefix(route.Path, "/"), "/")
 		h.events.publish("workspace.changed", workspaceChange{Inventory: "/" + segment})

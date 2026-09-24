@@ -71,9 +71,6 @@ func turnFailureStatus(failure string) string {
 // conversationInspect answers GET /interactions/inspect?response= with the
 // turn's run record.
 func (h *Handler) conversationInspect(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	responseID := request.URL.Query().Get("response")
 	result := turnInspection{Response: responseID, Statuses: turnStatuses, Reproducible: h.environment.Reproducible()}
 	if turn, found := h.inflight.lookup(responseID); found {

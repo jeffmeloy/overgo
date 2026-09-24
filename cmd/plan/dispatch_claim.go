@@ -40,7 +40,7 @@ func saveCapturedPlanMutation(root string, before, document plan.Plan) error {
 		return err
 	}
 	defer store.Close()
-	if err := plan.ValidateClaimedPlan(context.Background(), store, before, document); err != nil {
+	if err := plan.ValidateClaimedPlan(context.Background(), store, root, before, document); err != nil {
 		return err
 	}
 	return plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document)

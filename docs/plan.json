@@ -40,26 +40,6 @@
       ]
     },
     {
-      "id": "claim-renewal",
-      "title": "Let a claim's holder amend its own row",
-      "owner": "master-lead",
-      "status": "open",
-      "budget": {
-        "nodes": 160,
-        "paydown": "landing-one-path",
-        "reason": "claim renewal: the holder's amendment is permitted and dispatch renews its claim; landing-one-path deletes the separate orchestration branches"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Let a claim's holder amend its own row",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestHolderAmendsItsOwnClaim$' -count=1",
-          "rationale": "First slice of landing-one-path. Any amendment to a claimed row was refused, even by the worker that held the claim. So each budget re-declaration on 2026-09-23 took three commands: release the claim, re-budget, re-claim. The claim store already supports renewal (a lease derived from the one it replaces, by the same worker, task, role and worktree), but dispatch never used it. Done when the holder amends its row in place, another worker still needs a handoff, the old claim does not admit the amended row, and the holder's next dispatch renews the claim to the amended contract."
-        }
-      ]
-    },
-    {
       "id": "paths-candidate-measurement",
       "title": "Measure a path-scoped candidate, not the working tree",
       "owner": "master-lead",

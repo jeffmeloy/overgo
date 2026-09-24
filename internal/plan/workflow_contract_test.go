@@ -223,8 +223,8 @@ func TestAtomicDispatchClaim(t *testing.T) {
 		}
 		document.Items[0].Steps[0].Verify = "go test ./internal/artifact"
 		view, err = selectDispatch(t.Context(), store, document, worklease.UnassignedRole, lease.Worktree, lease.Worker, "", testCompletionAuthority(t, document))
-		if err != nil || view.Waiting == "" || view.Complete {
-			t.Fatalf("changed contract silently resumed: %+v %v", view, err)
+		if err != nil || view.Claim != nil || view.amends == nil || view.amends.ID != lease.ID || view.Waiting != "" {
+			t.Fatalf("changed contract resumed without renewal: %+v %v", view, err)
 		}
 	})
 	t.Run("competing workers share one atomic winner", func(t *testing.T) {

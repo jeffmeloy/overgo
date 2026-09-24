@@ -10,12 +10,16 @@
       "title": "Preserve literal Kimi control markers in untrusted text",
       "owner": "colibri2",
       "status": "open",
+      "budget": {
+        "nodes": 108,
+        "reason": "Preflight measured 108 production AST nodes for explicit literal-text encoding in declared HF and native GGUF tokenizers, including forwarding that intent through placeholder-run assembly."
+      },
       "steps": [
         {
           "id": "do",
           "title": "Preserve literal Kimi control markers in untrusted text",
           "status": "open",
-          "verify": "go test ./internal/hfbpe -run '^TestKimiLiteralControlText$' -count=1",
+          "verify": "go test ./internal/hfbpe -run '^TestKimiLiteralControlText$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestKimiNativeLiteralControlText$' -count=1",
           "rationale": "The independent Kimi K3 tokenizer compatibility review shows that an allow_special_tokens:false request can silently become a control-token ID. Add an explicit literal-text encoding path for untrusted user and tool content in both declared HF and native GGUF adapters, while preserving deliberate structural token insertion. Existing GGUF ParseSpecial:false still matches TokenUserDefined; test the complete added-token policy rather than assuming it escapes every literal. Pin the published ordinary and structural vectors, distinguish special from ordinary added-token decoding, and bind the eventual served chat-template path before claiming safe Kimi prompts.",
           "depends_on": [
             "colibri-kimi-token-identity/do",

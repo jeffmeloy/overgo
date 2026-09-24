@@ -3,7 +3,7 @@ package tensorcatalog
 import (
 	"fmt"
 	"slices"
-	"sort"
+
 	"strconv"
 	"strings"
 
@@ -129,30 +129,6 @@ func ValidateInfo(info gguf.TensorInfo, requirement Requirement) error {
 	}
 	if len(requirement.Storages) > 0 && !slices.Contains(requirement.Storages, info.Type) {
 		return fmt.Errorf("tensor %q storage %s, want one of %v", info.Name, info.Type, requirement.Storages)
-	}
-	return nil
-}
-
-func Validate(
-	tensors map[string]gguf.TensorInfo,
-	prefix string,
-	requirements []Requirement,
-) error {
-	ordered := slices.Clone(requirements)
-	sort.SliceStable(ordered, func(left, right int) bool { return ordered[left].Name < ordered[right].Name })
-	for _, requirement := range ordered {
-		name := prefix + requirement.Name
-		info, ok := tensors[name]
-		if !ok {
-			if requirement.Optional {
-				continue
-			}
-			return fmt.Errorf("missing tensor %q", name)
-		}
-		requirement.Name = name
-		if err := ValidateInfo(info, requirement); err != nil {
-			return err
-		}
 	}
 	return nil
 }

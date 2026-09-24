@@ -1,6 +1,9 @@
 package tensorcatalog
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/gguf"
@@ -78,4 +81,28 @@ func TestShapeAndIndexedCount(t *testing.T) {
 	if _, err := IndexedCount(shapes, "layer.", ".weight"); err == nil {
 		t.Fatal("nonzero starting index accepted")
 	}
+}
+
+func Validate(
+	tensors map[string]gguf.TensorInfo,
+	prefix string,
+	requirements []Requirement,
+) error {
+	ordered := slices.Clone(requirements)
+	slices.SortStableFunc(ordered, func(left, right Requirement) int { return strings.Compare(left.Name, right.Name) })
+	for _, requirement := range ordered {
+		name := prefix + requirement.Name
+		info, ok := tensors[name]
+		if !ok {
+			if requirement.Optional {
+				continue
+			}
+			return fmt.Errorf("missing tensor %q", name)
+		}
+		requirement.Name = name
+		if err := ValidateInfo(info, requirement); err != nil {
+			return err
+		}
+	}
+	return nil
 }

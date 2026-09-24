@@ -383,6 +383,7 @@
     {
       "id": "gemma-12b-accuracy",
       "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -496,6 +497,7 @@
     {
       "id": "failure-recovery",
       "title": "Run host recovery drills before closing reliability claims",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -530,6 +532,7 @@
     {
       "id": "model-regression-baseline",
       "title": "Publish an accepted baseline before simplification",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -551,6 +554,7 @@
     {
       "id": "benchmark-completion",
       "title": "Complete current-surface benchmarks and matched comparisons",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -571,6 +575,7 @@
     {
       "id": "simplify-prefill-paths",
       "title": "Unify prefill policy where reference parity permits",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -591,6 +596,7 @@
     {
       "id": "simplify-execution-core",
       "title": "Remove costly execution duplication behind the regression gate",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -608,6 +614,7 @@
     {
       "id": "simplify-command-surface",
       "title": "Consolidate duplicated APIs and shipped binaries",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -631,6 +638,7 @@
     {
       "id": "simplify-checkpoint-locations",
       "title": "Relocate checkpoints off retired paths, reversibly",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -650,6 +658,7 @@
     {
       "id": "final-model-validation",
       "title": "Prove the final text surface and long-lived serving",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -671,6 +680,7 @@
     {
       "id": "simplify-capability-report",
       "title": "Report capability kept or gained per unit of mechanism removed",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -738,6 +748,7 @@
     {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -842,7 +853,8 @@
             "retire-unreferenced-commands/do",
             "env-gated-tests-run-or-go/do",
             "move-test-only-oracles/do",
-            "delete-hypervector-index/do"
+            "delete-hypervector-index/do",
+            "move-test-only-entry-points/do"
           ]
         }
       ]

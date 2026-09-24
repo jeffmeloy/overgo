@@ -4094,17 +4094,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/tensorcatalog/catalog.go",
-      "symbol": "Validate",
-      "owner": "overgo/internal/tensorcatalog",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/tensorcatalog -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/tensorstats/similarity.go",
       "symbol": "Nearest",
       "owner": "overgo/internal/tensorstats",
@@ -4709,5 +4698,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "7f9c4767eb5c226581aff8cd7b7a517a2b75c51c62ddc2f6c09393a078c534f6"
+  "exceptions_sha256": "c30fba23856986f2ae3fa96a81e5829c89d9c3ecac768546a989341f9370bbc5"
 }

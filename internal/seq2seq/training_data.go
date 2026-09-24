@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"overgo/internal/hostmath"
-	"overgo/internal/optimizer"
 	"overgo/internal/tensor/dtype"
 	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
@@ -356,66 +355,6 @@ func newTrainingLayout(model *Model) trainingLayout {
 	layout.embedding = nextParameter(&cursor, model.Dims.Vocab*d)
 	layout.count = cursor
 	return layout
-}
-
-// NewTrainer binds declared decoder parameters to compiled execution and Muon.
-func NewTrainer(model *Model, steps int, baseLR, momentum float64) (*Trainer, error) {
-	if model == nil || steps <= 0 {
-		return nil, errors.New("seq2seq: invalid trainer")
-	}
-	layout := newTrainingLayout(model)
-	bindings := trainingParameterBindings(model, layout)
-	groups := make([]optimizer.GroupSpec, len(bindings))
-	parameters := make([]trainingprogram.ParameterSpec, len(bindings))
-	for index, binding := range bindings {
-		groups[index] = optimizer.GroupSpec{Name: binding.name, Start: binding.span.start, End: binding.span.end, Rows: binding.rows, Cols: binding.cols}
-		parameters[index] = trainingprogram.ParameterSpec{Name: binding.name, Rows: binding.rows, Cols: binding.cols, Trainable: true}
-	}
-	plan, err := optimizer.CompilePlan(layout.count, groups)
-	if err != nil {
-		return nil, err
-	}
-	program, err := trainingprogram.CompileTrainingProgram(trainingprogram.ProgramSpec{
-		Objective: trainingprogram.ObjectiveTokenPrediction,
-		Operators: []trainingprogram.OperatorSpec{
-			{ID: trainingForward, Phase: trainingprogram.PhaseForward},
-			{ID: trainingBackward, Phase: trainingprogram.PhaseBackward},
-			{ID: trainingMuon, Phase: trainingprogram.PhaseOptimize},
-		},
-		Parameters: parameters,
-		Optimizer:  plan,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if baseLR <= 0 {
-		baseLR = trainingprogram.BuiltinOptimizerPolicy().BaseLearningRate(layout.count)
-	}
-	weights := make([]float32, layout.count)
-	for _, binding := range bindings {
-		binding.load(weights)
-	}
-	gradients := make([]float32, layout.count)
-	muon, err := newTrainingOptimizer(weights, gradients, plan, optimizer.Config{
-		BaseLearningRate: baseLR, Momentum: momentum, Steps: steps, Schedule: optimizer.ScheduleConstant,
-	})
-	if err != nil {
-		return nil, err
-	}
-	trainer := &Trainer{
-		model: model, layout: layout, bindings: bindings, program: program, weights: weights, gradients: gradients, optimizer: muon,
-	}
-	execution, err := trainingprogram.Bind(program, []trainingprogram.Binding[trainingStep]{
-		{Operator: trainingForward, Execute: trainer.forward},
-		{Operator: trainingBackward, Execute: trainer.backward},
-		{Operator: trainingMuon, Execute: trainer.optimize},
-	})
-	if err != nil {
-		_ = muon.Close()
-		return nil, err
-	}
-	trainer.execution = execution
-	return trainer, nil
 }
 
 func copyBF16ToFloat32(dst []float32, src []uint16) {

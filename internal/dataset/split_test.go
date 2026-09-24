@@ -1,6 +1,8 @@
 package dataset
 
 import (
+	"errors"
+
 	"reflect"
 	"testing"
 
@@ -111,4 +113,16 @@ func TestSplitPublicationRejectsCrossWiredPlan(t *testing.T) {
 	if _, err := first.PublicationBatch("fixture/cross-wired", nil); err == nil {
 		t.Fatal("cross-wired split plan accepted")
 	}
+}
+
+// DuplicateLineage returns a validated duplicate-to-canonical lineage edge.
+func DuplicateLineage(duplicate, canonical artifact.ID) (artifact.Lineage, error) {
+	edge := artifact.Lineage{Child: duplicate, Parent: canonical, Relation: artifact.RelationDuplicateOf}
+	if duplicate.Kind() != canonical.Kind() {
+		return artifact.Lineage{}, errors.New("dataset: duplicate kinds differ")
+	}
+	if err := edge.Validate(); err != nil {
+		return artifact.Lineage{}, err
+	}
+	return edge, nil
 }

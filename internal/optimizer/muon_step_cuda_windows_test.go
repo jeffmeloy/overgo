@@ -3,6 +3,8 @@
 package optimizer
 
 import (
+	"fmt"
+
 	"math"
 	"math/rand"
 	"testing"
@@ -220,4 +222,26 @@ func TestDeviceMuonStepPlanMatchesHost(t *testing.T) {
 	if maxW > tolerance || maxM > tolerance {
 		t.Fatalf("weight %.3e / momentum %.3e > %.1e", maxW, maxM, tolerance)
 	}
+}
+
+// DeviceMuonPlanResident applies and clears one flat resident Muon plan.
+func DeviceMuonPlanResident(
+	worker *device.Worker,
+	weights, gradients, momentum driver.DevicePtr,
+	plan Plan,
+	step int,
+	config Config,
+) error {
+	if worker == nil || weights == 0 || gradients == 0 || momentum == 0 || plan.Identity() == "" || step <= 0 {
+		return fmt.Errorf("DeviceMuonPlanResident: invalid buffer, plan, or step")
+	}
+	if err := config.Validate(); err != nil {
+		return err
+	}
+	session, err := NewResidentMuonPlan(worker, plan, config)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+	return session.Step(weights, gradients, momentum, step)
 }

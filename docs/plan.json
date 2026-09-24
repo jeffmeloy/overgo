@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "fsatomic-release-not-exit",
-      "title": "Let an atomic replace proceed when the holder releases the file, not when it exits",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Let an atomic replace proceed when the holder releases the file, not when it exits",
-          "status": "open",
-          "verify": "go test ./internal/fsatomic -run '^TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive$' -count=1",
-          "rationale": "Review 2026-09-23 (P1): the Windows replace from 92781cc0 waits on the holding process's exit (replace_windows.go:141). A long-lived process that releases its mapping and stays alive blocks publication indefinitely. The test released the file and exited, so it missed this. Retry on release: re-attempt the rename whenever the holder list changes or shrinks, and name the holder while waiting."
-        }
-      ]
-    },
-    {
       "id": "pack-index-bounds",
       "title": "Bound a pack index by its file before allocating",
       "owner": "master-lead",
@@ -1155,6 +1140,10 @@
     {
       "key": "surface-move:production-nodes:dc8d00b949a0fc3fd358fd18eeb599f64cd1fae1",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:e05dbe44a4060e344cb3a321a8cc88b6a7fc6a41",
+      "row": "store-benchmark-record-redundancy"
     },
     {
       "key": "surface-move:production-nodes:f12613eda4c9e4afc89cf2477055fd85e2bab635",

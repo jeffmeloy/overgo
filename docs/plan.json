@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "paths-candidate-measurement",
-      "title": "Confirm a path-scoped gate measures what it commits",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Confirm a path-scoped gate measures what it commits",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestScopeRefusesUnplannedVerificationInputButAllowsResearchDocument$' -count=1",
-          "rationale": "2026-09-24: gate -paths for inference-inputs-one-definition shipped only internal/inferencesurface and internal/longform files. It was still refused a harness-surface raise of 140 production nodes, which came from unshipped claim-renewal edits in internal/plan. The mechanical-repair stage reads the source snapshot from the working tree (sourceRoot falls back to the repository when no candidate root is set). Found no defect in outcomes: scope refuses any unshipped verification input (admission.go stepScope), so a gate that passes scope has the same Go sources in its working tree as in its candidate, and the working-tree snapshot measures exactly what it commits. Only the order of the two refusals differed. Landing two rows from one tree belongs to landing-one-path. Done when the check that makes the snapshot equal the candidate holds: unshipped Go is refused and an unshipped research document is not."
-        }
-      ]
-    },
-    {
       "id": "stored-analysis-sheds-impact-lists",
       "title": "Store the manifest analysis without its reachable-symbol lists",
       "owner": "master-lead",

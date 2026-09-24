@@ -58,7 +58,7 @@ func run(args []string, output io.Writer) error {
 	proposals := flags.Bool("proposals", false, "list committed bridge proposals with their blocked state, blocker and required verifier")
 	admissions := flags.Bool("admissions", false, "list admission bindings: per-generation proposer/evaluator/decider authority domains and prior-generation approvals")
 	composed := flags.Bool("composed", false, "list composed model artifacts with their recipes, parents and constituent counts")
-	retrieve := flags.String("retrieve", "", "hypervector retrieval: rank the catalog against the named component (lexical organ + distributional signal)")
+	retrieve := flags.String("retrieve", "", "exact retrieval: rank the catalog against the named component through the exact inverted index (lexical organ + distributional signal)")
 	gapTargets := flags.Bool("gap-targets", false, "derive typed capability-gap targets (frontier, regression, weakest-domain) from admitted evaluation evidence")
 	verifications := flags.Bool("verifications", false, "derive the model verification matrix from committed records: strongest evidenced tier per capability")
 	configs := flags.Bool("configs", false, "list committed model-config declarations: sequence extensions and generation essentials with source digests")

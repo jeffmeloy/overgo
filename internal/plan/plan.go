@@ -60,9 +60,10 @@ type Step struct {
 }
 
 // Budget is the scope a row declared through the plan. A row without one
-// maintains: it may not grow production nodes at all. Nodes bounds the
-// growth, Paydown names the open row that pays for a harness baseline raise,
-// and Reason records why.
+// maintains: it may not grow production nodes at all. Reason records why the
+// row grows, and admits the growth the gate measures; Nodes, when declared,
+// caps it -- negative for a row that must shrink. Paydown names the open row
+// that pays for a harness baseline raise.
 type Budget struct {
 	Nodes   int    `json:"nodes"`
 	Paydown string `json:"paydown,omitzero"`

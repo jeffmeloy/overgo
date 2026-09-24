@@ -10,33 +10,36 @@ import (
 	"overgo/internal/plan"
 )
 
-// TestScopeBudgetForcesReplan holds a landing to the scope its row declared
+// TestScopeBudgetAdmitsDeclaredGrowth holds a landing to the scope its row declared
 // through the plan: an undeclared row maintains, so any growth is refused
-// while a shrinking change is not; a declared budget admits growth up to it
-// and no further; every refusal names re-budgeting through the plan or
-// splitting; and a harness raise finds its paydown row only while that row
-// is open.
-func TestScopeBudgetForcesReplan(t *testing.T) {
+// while a shrinking change is not; a declared reason admits the growth the
+// gate measures, with no number to guess; a declared cap bounds it, and a
+// negative cap holds a paydown row to shrinking; every refusal names
+// declaring through the plan or splitting; and a harness raise finds its
+// paydown row only while that row is open.
+func TestScopeBudgetAdmitsDeclaredGrowth(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
-		name          string
-		budget, grown int
-		refused       string
+		name    string
+		budget  plan.Budget
+		grown   int
+		refused string
 	}{
 		{name: "an undeclared row that shrinks", grown: -40},
 		{name: "an undeclared row that holds", grown: 0},
-		{name: "an undeclared row that grows", grown: 1, refused: "declared budget of 0"},
-		{name: "growth up to the budget", budget: 100, grown: 100},
-		{name: "growth over the budget", budget: 100, grown: 101, refused: "declared budget of 100"},
-		{name: "a paydown row that does not shrink", budget: -50, grown: -49, refused: "declared budget of -50"},
+		{name: "an undeclared row that grows", grown: 1, refused: "no declared reason"},
+		{name: "a declared reason with no cap", budget: plan.Budget{Reason: "stores the census by package"}, grown: 651},
+		{name: "growth up to the cap", budget: plan.Budget{Nodes: 100, Reason: "capped"}, grown: 100},
+		{name: "growth over the cap", budget: plan.Budget{Nodes: 100, Reason: "capped"}, grown: 101, refused: "declared cap of 100"},
+		{name: "a paydown row that does not shrink", budget: plan.Budget{Nodes: -50, Reason: "pays down"}, grown: -49, refused: "declared cap of -50"},
 	} {
 		err := scopeBudgetAdmission("the-row/do", test.budget, test.grown)
 		switch {
 		case test.refused == "" && err != nil:
 			t.Fatalf("%s was refused: %v", test.name, err)
 		case test.refused != "" && (err == nil || !strings.Contains(err.Error(), test.refused) ||
-			!strings.Contains(err.Error(), "-budget") || !strings.Contains(err.Error(), "the-row") || !strings.Contains(err.Error(), "split")):
-			t.Fatalf("%s = %v, want a refusal naming %q, the re-budget command and the split", test.name, err, test.refused)
+			!strings.Contains(err.Error(), "-budget -reason") || !strings.Contains(err.Error(), "the-row") || !strings.Contains(err.Error(), "split")):
+			t.Fatalf("%s = %v, want a refusal naming %q, the declaration command and the split", test.name, err, test.refused)
 		}
 	}
 

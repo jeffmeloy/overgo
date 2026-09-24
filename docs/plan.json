@@ -5,16 +5,16 @@
   "items": [
     {
       "id": "store-benchmark-record-redundancy",
-      "title": "Publish one durable record per meaningful transition",
+      "title": "Stop re-storing whole-graph documents at every landing",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Publish one durable record per meaningful transition",
+          "title": "Stop re-storing whole-graph documents at every landing",
           "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestOneRecordPerTransition$' -count=1",
-          "rationale": "Content addressing removes identical bytes, not the same fact in different envelopes. A completed check publishes its result once. Package receipts, batch progress, plan completion, benchmark rows and reports reference that result rather than repeat its measurements, environment or source manifest. Related facts and alias moves ride one existing transaction. Heartbeats and partial output stay out of the durable catalog. Evidence schemas change, so readers accept the old and new shapes until retained evidence migrates. Measured 2026-09-24 at a70978c8: a code landing adds about 5.7 MB, of which about 5.2 MB repeats the previous landing's copies. Slices in order: (1) the stored code-manifest-analysis drops Impact.Reachable and Impact.Uncertainty, which no stored reader reads (about 1.54 MB per landing); (2) the modern-Go census is stored as per-package content-addressed pieces under a small index (3.1 MB, 99.9% repeated); (3) the analysis plan's Unknown list becomes a digest and count, which moves recipe identity; (4) merge authority references the previous authority instead of re-embedding its history; (5) the selection cause references one reader graph. Per-package receipts stay one commit each: TestTerminalEvidenceProcess holds their crash durability. Done when bytes and records added per landing fall and the duplicated envelopes are deleted from the writers."
+          "verify": "go test ./internal/automationcheck -run '^(TestStoredAnalysisOmitsImpactLists|TestPlanDigestsItsUnknowns)$' -count=1 \u0026\u0026 go test ./internal/repoanalysis -run '^TestModernGoCensusPartsRejoin$' -count=1",
+          "rationale": "Content addressing removes identical bytes, not the same fact in different envelopes. A completed check publishes its result once. Package receipts, batch progress, plan completion, benchmark rows and reports reference that result rather than repeat its measurements, environment or source manifest. Related facts and alias moves ride one existing transaction. Heartbeats and partial output stay out of the durable catalog. Evidence schemas change, so readers accept the old and new shapes until retained evidence migrates. Measured 2026-09-24 at a70978c8: a code landing adds about 5.7 MB, of which about 5.2 MB repeats the previous landing's copies. Three slices landed: the stored analysis drops the impact lists no reader reads (7bf5cbd1); the modern-Go census is stored as a header and per-package parts (00dfd63d); the plan binds its unknowns by digest (7f700241). The code landing after them added 0.27 MB. Per-package receipts stay one commit each: TestTerminalEvidenceProcess holds their crash durability. The remaining repeats (suite cost, selection cause, merge authority) are smaller and move to store-telemetry-by-reference. Done when the three slices' checks hold."
         }
       ]
     },
@@ -90,6 +90,21 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestStoreCopyingHoldsBoundedMemory$' -count=1",
           "rationale": "Three measured points; the first, pack construction and verification, lands as pack-streams-members. Checkpoint creation serializes, restores and serializes a projection again to prove canonical form (checkpoints.go:57); retention copies catalog and graph state before computing reachability (retention.go:72). Share one bounded entry-reading and hashing path between lookup and verification, stream packs through the existing atomic publication, bound checkpoint concurrency, and traverse retention over the smallest stable representation. Keep every integrity check. Done when peak memory stays bounded as payload volume grows, with index memory accounted separately."
+        }
+      ]
+    },
+    {
+      "id": "store-telemetry-by-reference",
+      "title": "Store gate telemetry and merge authority by reference",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store gate telemetry and merge authority by reference",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateTelemetryReferencesItsGraph$' -count=1",
+          "rationale": "Follow-up of store-benchmark-record-redundancy, measured at 7f700241. A code landing still stores the suite cost (103 KB: 1,094 test rows each repeating the package; package_execution_cost.go:85) and the selection cause (52 KB, 96% of its reader graph repeated from the previous landing; batch_cost.go:205). A merge landing re-embeds the audited completions and retirements of every earlier merge (673 KB, 88% repeated; projected_merge_authority.go:175). Group suite rows under their package; store the reader graph as its own content that the cause references; have merge authority reference the previous authority and store only the entries since. Readers accept the old shapes. Done when each document stores only what changed since its predecessor, and the repeated copies are deleted from the writers."
         }
       ]
     },
@@ -784,7 +799,9 @@
             "stored-analysis-sheds-impact-lists/do",
             "webui-refusal-race/do",
             "modern-census-by-package/do",
-            "plan-unknowns-by-digest/do"
+            "plan-unknowns-by-digest/do",
+            "store-telemetry-by-reference/do",
+            "budget-from-measured-growth/do"
           ]
         }
       ]

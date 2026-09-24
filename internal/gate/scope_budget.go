@@ -39,15 +39,22 @@ func (g *gateContext) admitScopeBudget(base, candidate codeprofile.Profile) erro
 		return err
 	}
 	grown := candidate.Runtime.Nodes + candidate.Automation.Nodes - base.Runtime.Nodes - base.Automation.Nodes
-	return scopeBudgetAdmission(g.planRef, budget.Nodes, grown)
+	return scopeBudgetAdmission(g.planRef, budget, grown)
 }
 
-func scopeBudgetAdmission(reference string, budget, grown int) error {
-	if grown <= budget {
+// scopeBudgetAdmission admits growth a row declared: a declared reason admits
+// the growth the gate measures, and a declared cap -- negative for a row that
+// must shrink -- bounds it. An undeclared row maintains.
+func scopeBudgetAdmission(reference string, budget plan.Budget, grown int) error {
+	if grown <= budget.Nodes || budget.Nodes == 0 && budget.Reason != "" {
 		return nil
 	}
+	declared := "no declared reason"
+	if budget.Nodes != 0 {
+		declared = fmt.Sprintf("a declared cap of %d", budget.Nodes)
+	}
 	item, _, _ := strings.Cut(reference, "/")
-	return fmt.Errorf("scope budget: production nodes grew %+d against a declared budget of %d; re-budget the row through the plan (`go run ./cmd/plan -budget -nodes <n> -reason <why> %s`) or split it", grown, budget, item)
+	return fmt.Errorf("scope budget: production nodes grew %+d with %s; declare why the row grows through the plan (`go run ./cmd/plan -budget -reason <why> %s`) or split it", grown, declared, item)
 }
 
 // openPaydown names the open row this gate's row declared as paying for a

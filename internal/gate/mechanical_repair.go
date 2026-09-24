@@ -315,7 +315,7 @@ func (g *gateContext) harnessSurfaceUpdate() ([]byte, error) {
 			return nil, err
 		}
 		if paydown == "" {
-			return nil, fmt.Errorf("the repair would move a reviewed threshold in %s: %s; shrink the change, or declare the open row that pays the raise down through the plan (`go run ./cmd/plan -budget -nodes <n> -paydown <open item> -reason <why> <item>`)", harnessSurfaceBaselineFile, strings.Join(deltas, "; "))
+			return nil, fmt.Errorf("the repair would move a reviewed threshold in %s: %s; shrink the change, or declare the open row that pays the raise down through the plan (`go run ./cmd/plan -budget -paydown <open item> -reason <why> <item>`)", harnessSurfaceBaselineFile, strings.Join(deltas, "; "))
 		}
 		g.note(fmt.Sprintf("harness surface raised against paydown row %s: %s", paydown, strings.Join(deltas, "; ")))
 	}

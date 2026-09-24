@@ -73,10 +73,10 @@ func main() {
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	sealHorizon := flag.Bool("seal-horizon", false, "write docs/plan_proof_horizon.json at HEAD with the completions the authority just proved; land it with the row in flight, after which completions at or before it are accepted from Git alone")
-	budget := flag.Bool("budget", false, "declare an open item's scope: -budget <item-id> -nodes <n> -reason <why> [-paydown <open item>]; an undeclared row may not grow production nodes")
+	budget := flag.Bool("budget", false, "declare an open item's scope: -budget <item-id> -reason <why> [-nodes <cap>] [-paydown <open item>]; the reason admits the measured growth, and an undeclared row may not grow production nodes")
 	// The default is the zero budget: a row that declares no growth maintains.
 	var nodes int
-	flag.IntVar(&nodes, "nodes", nodes, "with -budget: the production-node growth the row may add")
+	flag.IntVar(&nodes, "nodes", nodes, "with -budget: an optional cap on the production-node growth the row may add; the declared -reason alone admits the measured growth")
 	paydown := flag.String("paydown", "", "with -budget: the open item that pays for a harness baseline raise")
 	assign := flag.Bool("assign", false, "record an open item's owning lane: -assign <item-id> -owner <lane>; another lane never dispatches it")
 	owner := flag.String("owner", "", "with -assign: the owning lane")
@@ -250,7 +250,7 @@ func run(c cli, args []string) error {
 		return errors.New("plan: direct pruning is retired; cmd/gate atomically commits and prunes the current row")
 	case c.budget:
 		if len(args) != 1 {
-			return errors.New("usage: plan -budget <item-id> -nodes <n> -reason <why> [-paydown <open item>]")
+			return errors.New("usage: plan -budget <item-id> -reason <why> [-nodes <cap>] [-paydown <open item>]")
 		}
 		declared := plan.Budget{Nodes: c.nodes, Paydown: c.paydown, Reason: strings.TrimSpace(c.reviewReason)}
 		return mutatePlan(commandWorktree, role, "budgeted item "+args[0], func(document plan.Plan) (plan.Plan, error) {

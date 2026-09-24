@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "closure-ledger-one-step",
-      "title": "Record a move or deletion in the closure ledger with one command",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record a move or deletion in the closure ledger with one command",
-          "status": "open",
-          "verify": "go test ./cmd/closure-scan -run '^TestMovedLiteralKeepsItsCatalogEntry$' -count=1",
-          "rationale": "Automation friction, measured over this campaign's consolidation landings: every move or deletion needs closure-scan -import-store -review-callsites, then -retire-unmatched (which fails when run first), then -check-all -require-no-stale -require-no-uncatalogued-production, and every moved literal needs a hand-written -catalog entry (tier, understanding, closure path, rerank trigger) although its value, meaning and catalog entry did not change. Make one closure-scan invocation run the sequence in its required order, and re-bind a literal whose value and enclosing declaration moved unchanged to its existing catalog entry instead of reporting it uncatalogued. A changed or new literal still needs its own entry. Done when TestMovedLiteralKeepsItsCatalogEntry moves a catalogued literal between files and the one command leaves the ledger clean with no -catalog call."
-        }
-      ]
-    },
-    {
       "id": "plan-retire-in-one-landing",
       "title": "Retire several rows in one plan-only landing",
       "owner": "master-lead",

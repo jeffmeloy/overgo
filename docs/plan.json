@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "stored-analysis-sheds-impact-lists",
-      "title": "Store the manifest analysis without its reachable-symbol lists",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store the manifest analysis without its reachable-symbol lists",
-          "status": "open",
-          "verify": "go test ./internal/automationcheck -run '^TestStoredAnalysisOmitsImpactLists$' -count=1",
-          "rationale": "Slice 1 of store-benchmark-record-redundancy. Measured at a70978c8: the stored code-manifest-analysis was 2.21 MB per code landing, 2.17 MB of it repeating the previous landing's. Impact.Reachable (967 KB) and Impact.Uncertainty (569 KB) are read by no reader of the stored document: completion reads only the plan, and recovery only parses it. Both re-derive from the two manifests it names. Recipe identity does not move: the plan is unchanged. Done when the stored analysis carries neither list, and its size does not grow with the reachable set."
-        }
-      ]
-    },
-    {
       "id": "store-benchmark-record-redundancy",
       "title": "Publish one durable record per meaningful transition",
       "owner": "master-lead",

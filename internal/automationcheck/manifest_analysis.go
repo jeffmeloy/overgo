@@ -33,7 +33,11 @@ var manifestAnalysisCodec = artifact.JSONDocumentCodec(
 	func(value *ManifestAnalysis, id artifact.ID) { value.ID = id }, cloneManifestAnalysis,
 )
 
-// NewManifestAnalysis validates and identifies one analysis document.
+// NewManifestAnalysis validates and identifies one analysis document. The
+// document keeps the impact's seeds, packages and external inputs but not its
+// reachable symbols or their uncertainty: no reader of the stored analysis
+// consumes them, they re-derive from the two manifests it names, and they
+// were most of its bytes, repeated almost unchanged at every landing.
 func NewManifestAnalysis(
 	delta codemanifest.Delta,
 	impact codemanifest.Impact,
@@ -41,6 +45,7 @@ func NewManifestAnalysis(
 	selection SelectionMetrics,
 	measurements ManifestMeasurements,
 ) (ManifestAnalysis, error) {
+	impact.Reachable, impact.Uncertainty = nil, nil
 	return manifestAnalysisCodec.NewInitial(ManifestAnalysis{
 		Delta: delta, Impact: impact,
 		Plan: plan, Selection: selection, Measurements: measurements,

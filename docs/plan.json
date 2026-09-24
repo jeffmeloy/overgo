@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "delete-test-only-exports",
-      "title": "Delete production code only tests call",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Delete production code only tests call",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile -run '^TestGateRejectsNewUnconsumedProductionSurface$' -count=1",
-          "rationale": "From consolidation-inventory (2026-09-24). Landed slices: 7694f00e (SFT targets deleted, -8,491 production nodes), 22b5d515 and 39934bd8 (test-only oracles and device and media entry points moved into tests, with reviewed media deltas), afcee829 (superseded hypervector index deleted), 5e1be7c0 (training and catalog entry points moved into tests): about 17,400 production nodes in all. What remains is used by tests in other packages -- adaptiveparity's parity tests against the reference codebase and cmd/training-objective's tests (trainingprogram objective matrices, trainingdata processors, hybridtrain artifact loading, hostmath oracles) -- or is owned elsewhere (speechsynth by the GUI lane, controllertrain by an owner decision). That is cross-package test support, not dead code. The gate's unconsumed-surface rule already refuses any new test-only export, which is the ratchet this row wanted. Done when that rule holds."
-        }
-      ]
-    },
-    {
       "id": "store-bare-record-fill",
       "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
       "owner": "master-lead",

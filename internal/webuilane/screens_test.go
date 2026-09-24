@@ -56,6 +56,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		`<input placeholder="only a placeholder" style="width:200px;height:30px"><div aria-label="ignored">dot</div>` +
 		`<p style="color:rgb(187,187,187)">faint words</p></body>`
 	clean := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><button style="width:40px;height:40px">fine</button>` +
+		`<span id="size-label">Size</span><input aria-labelledby="size-label" style="width:200px;height:30px">` +
 		`<label style="display:block">Named <input style="width:200px;height:30px"></label><select aria-label="Chosen" style="height:30px"><option>one</option></select><div role="img" aria-label="status">dot</div>` +
 		`<div role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap;clip-path:inset(50%)"><span>Response ready.</span></div>` +
 		`<p style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:40px">a line of text cut by design</p>` +

@@ -130,9 +130,6 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 		state := visit(tab, "overgo.api.inFlight() === 0")
 		if state.Banners > 0 {
 			failed++
-			if _, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), webuilane.ScreenViewports[0], "failure-"+tab); err != nil {
-				t.Fatal(err)
-			}
 			if !strings.Contains(state.Text, "The server could not complete this request (HTTP 500).") {
 				findings = append(findings, "failure: "+tab+" does not say the server could not complete the request")
 			}
@@ -158,8 +155,9 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	for _, viewport := range webuilane.ScreenViewports {
 		for _, tab := range tabs {
 			visit(tab, "overgo.api.inFlight() === 0")
-			// CaptureState sizes the viewport and awaits the page's transitions before it audits.
-			measured, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "oversized-"+tab)
+			// CaptureState sizes the viewport and awaits the page's transitions before it
+			// audits; the screens leg keeps the pictures, so this leg writes none.
+			measured, err := webuilane.CaptureState(ctx, browser, "", viewport, "oversized-"+tab)
 			if err != nil {
 				t.Fatal(err)
 			}

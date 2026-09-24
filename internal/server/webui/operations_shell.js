@@ -100,7 +100,7 @@
   function renderDetailError(host, err, retry) {
     if (retry) actionError = { id: selected, err, retry };
     detailHost.hidden = false;
-    detailHost.replaceChildren(overgo.failure(err), el('button', { class: 'btn alt', text: retry ? 'Retry action' : 'Retry details', onclick: retry || (() => loadDetail(host, selected)) }));
+    detailHost.replaceChildren(overgo.failure(err, el('button', { class: 'btn alt', text: retry ? 'Retry action' : 'Retry details', onclick: retry || (() => loadDetail(host, selected)) })));
   }
 
   function openActivity() {
@@ -116,8 +116,8 @@
   }
   function renderConnection() {
     streamHost.replaceChildren();
-    if (connectionError) streamHost.append(overgo.failure(connectionError),
-      el('button', { class: 'btn alt', text: 'Retry connection', onclick: event => { event.currentTarget.disabled = true; overgo.runtimeEvents.restart(); } }),
+    if (connectionError) streamHost.append(overgo.failure(connectionError,
+      el('button', { class: 'btn alt', text: 'Retry connection', onclick: event => { event.currentTarget.disabled = true; overgo.runtimeEvents.restart(); } })),
       el('button', { class: 'link-button', text: 'Connection settings', onclick: () => { closeActivity(); document.getElementById('settings-toggle').click(); } }));
     renderStrip(shellHost);
   }

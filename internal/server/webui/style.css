@@ -78,7 +78,7 @@ button, input, select, textarea, summary { touch-action:manipulation; }
 .btn {
   appearance:none; border:0; cursor:pointer; text-decoration:none; text-align:center;
   font:600 var(--t-md)/1 var(--font); border-radius:5px; padding:11px 18px; min-height:40px;
-  background:var(--acc); color:var(--bg0);
+  background:var(--acc); color:var(--on-accent);
   transition:filter .15s, transform .06s;
 }
 .btn:hover { filter:brightness(1.1); }

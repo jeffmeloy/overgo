@@ -5,6 +5,7 @@
       "name": "dark",
       "colours": {
         "acc": "#68cfc5",
+        "acc-soft": "rgba(104,207,197,.10)",
         "amber": "#e8b34b",
         "bg0": "#151819",
         "bg1": "#1b1f20",
@@ -124,6 +125,11 @@
         },
         {
           "foreground": "ink",
+          "background": "acc-soft",
+          "ratio": 8.81
+        },
+        {
+          "foreground": "ink",
           "background": "bg0",
           "ratio": 15.08
         },
@@ -173,6 +179,7 @@
       "name": "light",
       "colours": {
         "acc": "#17695f",
+        "acc-soft": "rgba(23,105,95,.08)",
         "amber": "#a14a05",
         "bg0": "#fafaf7",
         "bg1": "#f1f3ef",
@@ -289,6 +296,11 @@
           "foreground": "faint",
           "background": "bg3",
           "ratio": 4.63
+        },
+        {
+          "foreground": "ink",
+          "background": "acc-soft",
+          "ratio": 10.46
         },
         {
           "foreground": "ink",

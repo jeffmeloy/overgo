@@ -31,7 +31,7 @@ type streamLifecycleGenerator struct {
 // none of its own (each peers mount once leaked a runtime listener, and the
 // inbox held a stream of its own), one operation reads its peer evidence once, a stream
 // the server ends cleanly is opened again, and a hidden page stops probing
-// health and the catalog.
+// health and the catalog and probes health at once when shown again.
 func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
@@ -173,6 +173,28 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	if hidden["health"] != hiddenFrom["health"] || hidden["catalog"] != hiddenFrom["catalog"] {
 		t.Errorf("a hidden page probed the server: before %v, after %v", hiddenFrom, hidden)
 	}
+	// Shown again, the page probes health at once rather than at its next interval.
+	var resumed map[string]float64
+	if err := browser.Evaluate(ctx, `(async () => {
+  const pageFetch = window.fetch;
+  const probed = new Promise((resolve) => {
+    window.fetch = (input, init) => {
+      const answer = pageFetch(input, init);
+      if (String(input instanceof Request ? input.url : input).endsWith('/health')) answer.finally(resolve);
+      return answer;
+    };
+  });
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+  document.dispatchEvent(new Event('visibilitychange'));
+  await probed;
+  window.fetch = pageFetch;
+  return await pageFetch('/__lifecycle').then((answer) => answer.json());
+})()`, &resumed); err != nil {
+		t.Fatalf("a page shown again never probed health (hidden counts %v): %v", hidden, err)
+	}
+	if resumed["health"] <= hidden["health"] {
+		t.Errorf("a page shown again did not probe health: hidden %v, shown %v", hidden, resumed)
+	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	t.Log("stream lifecycle leg: remounting every stream-owning workspace aborts every stream it replaces and reads each operation's evidence once, a cleanly ended stream reconnects, and a hidden page stops probing")
+	t.Log("stream lifecycle leg: remounting every stream-owning workspace aborts every stream it replaces and reads each operation's evidence once, a cleanly ended stream reconnects, a hidden page stops probing, and a page shown again resumes probing")
 }

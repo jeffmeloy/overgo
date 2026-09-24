@@ -85,7 +85,8 @@ func TestWebUIBrowserTypeset(t *testing.T) {
 		for _, tab := range tabs {
 			assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = `+strconv.Quote(tab)+`; return true; })()`)
 			settle(`!!document.querySelector("#panel-` + tab + `.active") && overgo.api.inFlight() === 0`)
-			if _, err := webuilane.CaptureState(ctx, browser, os.Getenv("OVERGO_WEBUI_LANE_SCREENS"), viewport, "typeset-"+tab); err != nil {
+			// The screens leg captures and audits every tab; this leg only measures type.
+			if err := webuilane.SettleViewport(ctx, browser, viewport); err != nil {
 				t.Fatal(err)
 			}
 			states++

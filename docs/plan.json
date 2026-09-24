@@ -7,13 +7,18 @@
   "items": [
     {
       "id": "review-webui-harness",
-      "title": "Bound every new browser leg by a deadline and trim its captures, fix the unlabelled-control whitespace split, make Reload recover every tab, measure the button text pair actually rendered, and prove the page resumes probing when shown",
+      "title": "Owner decision: bound each browser page leg by a deadline. A fixed per-leg deadline adds a timer that docs/fixed_timer_baseline.json refuses (the ratchet only shrinks); the lane already names a hung leg as unfinished",
       "owner": "overgo_gui_cleanup",
       "status": "open",
+      "budget": {
+        "nodes": 700,
+        "paydown": "arch-route-dispatch",
+        "reason": "leg deadline helper and its census test, painted-pair contrast derivation with a colour parser, failure recoveries per tab"
+      },
       "steps": [
         {
           "id": "do",
-          "title": "Bound every new browser leg by a deadline and trim its captures, fix the unlabelled-control whitespace split, make Reload recover every tab, measure the button text pair actually rendered, and prove the page resumes probing when shown",
+          "title": "Owner decision: bound each browser page leg by a deadline. A fixed per-leg deadline adds a timer that docs/fixed_timer_baseline.json refuses (the ratchet only shrinks); the lane already names a hung leg as unfinished",
           "status": "open",
           "verify": "go test ./internal/webuilane -run '^TestBrowserLegsCarryADeadline$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(StreamLifecycle|HardenedStates)$' -require 'resumes probing'"
         }

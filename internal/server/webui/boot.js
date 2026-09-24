@@ -642,7 +642,9 @@
       capabilityDocument = next.model || null;
       for (const tab of tabs) {
         if (!target || tab.id === target) {
-          if (!target && tab.onDeactivate) tab.onDeactivate();
+          // Every released tab deactivates, a reloaded one too: a tab holding a subscription
+          // (Runtime, Activity) would otherwise keep the old one and refuse the new view's.
+          if (tab.onDeactivate) tab.onDeactivate();
           releaseTab(tab);
         }
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
@@ -725,7 +727,8 @@
     panel.append(prompt, el("div", { class: "row my-10" }, ...options.fields.map(([label, input]) => el("label", { class: "inline-field" }, el("span", { class: "note", text: label }), input)), run, cancel),
       ...(options.note ? [el("div", { class: "note", text: options.note })] : []), out);
     const runAction = runner(run, cancel, {
-      onError: (err) => out.replaceChildren(failure(err)),
+      // The surface also stands in the inspector, outside any tab; running again recovers either.
+      onError: (err) => out.replaceChildren(failure(err, el("button", { class: "link-button", text: "Run again", onclick: () => surface.execute() }))),
       onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
     });
     const surface = { prompt, out, execute() { out.replaceChildren(el("div", { class: "note", text: options.busy })); runAction(options.execute); } };
@@ -1048,7 +1051,8 @@
     } catch (err) {
       if (err.status === 401) {
         clear(panels);
-        panels.appendChild(el("div", { class: "center tall" }, failure(err)));
+        panels.appendChild(el("div", { class: "center tall" }, failure(err,
+          el("button", { class: "link-button", text: "Open Settings", onclick: () => document.getElementById("settings-toggle").click() }))));
       } else offlineCard(panels, "no server at " + location.origin + " (" + friendlyError(err) + ")");
       return;
     }
@@ -1059,7 +1063,11 @@
     try {
       await loadWorkspaceModules(workspaceManifest);
       bindWorkspaceManifest(workspaceManifest);
-    } catch (err) { panels.appendChild(failure(err)); return; }
+    } catch (err) {
+      // No tab stands yet, so the page itself is what reloads.
+      panels.appendChild(failure(err, el("button", { class: "link-button", text: "Reload the page", onclick: () => location.reload() })));
+      return;
+    }
     for (const section of sectionsPresent()) {
       const button = el("button", { class: "section", onclick: () => selectSection(section.id) }, section.label);
       const group = el("div", { class: "nav-group" }, button);
@@ -1112,7 +1120,8 @@
     refresh.catch(err => {
       document.getElementById("connection-alert").hidden = false;
       // One key-change failure shows at a time; the next attempt replaces it.
-      const settings = document.getElementById("conversation-settings"), banner = failure(err);
+      const settings = document.getElementById("conversation-settings"), banner = failure(err,
+        el("button", { class: "link-button", text: "Try again", onclick: () => document.getElementById("api-key").dispatchEvent(new Event("change")) }));
       banner.dataset.keyFailure = "";
       const previous = settings.querySelector("[data-key-failure]");
       if (previous) previous.replaceWith(banner); else settings.appendChild(banner);

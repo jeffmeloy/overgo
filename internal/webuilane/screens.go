@@ -120,19 +120,18 @@ func (browser *Browser) SetColorScheme(ctx context.Context, scheme string) error
 	}, nil)
 }
 
-// CaptureState sets the viewport, captures the page as it stands (into dir
-// as <viewport>-<state>.png when dir is set) and audits its layout; the
-// findings carry the viewport and state.
-func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Viewport, state string) ([]StateFinding, error) {
+// SettleViewport sizes the page to the viewport and waits until it has
+// painted and every finite transition has ended; perpetual spinners and
+// deliberately paused animations do not hold it. It captures and audits
+// nothing, for a leg that measures the page itself.
+func SettleViewport(ctx context.Context, browser *Browser, viewport Viewport) error {
 	if err := browser.SetViewport(ctx, viewport.Width, viewport.Height); err != nil {
-		return nil, err
+		return err
 	}
-	// Paint the new viewport, then await finite visual transitions. Perpetual
-	// spinners and deliberately paused animations do not block capture.
 	if err := browser.Eventually(ctx, fmt.Sprintf("window.innerWidth === %d && window.innerHeight === %d", viewport.Width, viewport.Height)); err != nil {
-		return nil, err
+		return err
 	}
-	if err := browser.Evaluate(ctx, `(async () => {
+	return browser.Evaluate(ctx, `(async () => {
       await new Promise((settled) => requestAnimationFrame(() => requestAnimationFrame(settled)));
       for (;;) {
         const moving = document.getAnimations().filter((animation) =>
@@ -141,7 +140,14 @@ func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Vi
         if (!moving.length) return true;
         await Promise.all(moving.map((animation) => animation.finished.catch(() => {})));
       }
-    })()`, nil); err != nil {
+    })()`, nil)
+}
+
+// CaptureState sets the viewport, captures the page as it stands (into dir
+// as <viewport>-<state>.png when dir is set) and audits its layout; the
+// findings carry the viewport and state.
+func CaptureState(ctx context.Context, browser *Browser, dir string, viewport Viewport, state string) ([]StateFinding, error) {
+	if err := SettleViewport(ctx, browser, viewport); err != nil {
 		return nil, err
 	}
 	if dir != "" {
@@ -353,7 +359,7 @@ const layoutAuditTemplate = `(() => {
   const text = (node) => (node && node.textContent || "").trim();
   const named = (node) => {
     if ((node.getAttribute("aria-label") || "").trim() || (node.getAttribute("title") || "").trim()) return true;
-    const labelledBy = (node.getAttribute("aria-labelledby") || "").split(/s+/).filter(Boolean);
+    const labelledBy = (node.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean);
     if (labelledBy.some((id) => text(document.getElementById(id)))) return true;
     if (node.labels && [...node.labels].some((label) => text(label))) return true;
     if (node.tagName === "INPUT") return ["submit", "button", "reset"].includes(node.type) && node.value.trim() !== "";

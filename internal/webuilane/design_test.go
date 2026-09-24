@@ -53,6 +53,35 @@ func TestDesignDocumentMatchesStylesheet(t *testing.T) {
 	}
 }
 
+// TestDesignMeasuresThePairsTheStylesheetPaints derives the pairs to measure
+// from the stylesheet's own rules: the check once measured on-accent on the
+// accent while buttons painted bg0 on it, and never measured ink on the
+// translucent highlight of the active tab, so pairs read on screen went
+// unmeasured. A translucent background counts at the worst surface under it.
+func TestDesignMeasuresThePairsTheStylesheetPaints(t *testing.T) {
+	t.Parallel()
+	document, _ := derivedDesign(t)
+	for _, scheme := range document.Schemes {
+		measured := map[string]bool{}
+		for _, pair := range scheme.Contrast {
+			measured[pair.Foreground+" on "+pair.Background] = true
+		}
+		for _, painted := range []string{"on-accent on acc", "ink on acc-soft"} {
+			if !measured[painted] {
+				t.Errorf("%s: the stylesheet paints %s and the design does not measure it", scheme.Name, painted)
+			}
+		}
+	}
+	rule := ".x { color:var(--ink); /* note; */ background:var(--acc-soft); } .y { color:red; background:var(--bg0); }"
+	if pairs := paintedPairs(rule); len(pairs) != 1 || pairs[0] != [2]string{"ink", "acc-soft"} {
+		t.Fatalf("painted pairs of %q = %v", rule, pairs)
+	}
+	soft, _ := parseColour("rgba(255,255,255,.5)")
+	if seen := soft.over(colour{alpha: 1}); seen.channels[0] != 127.5 || seen.alpha != 1 {
+		t.Fatalf("half white over black = %+v", seen)
+	}
+}
+
 // TestCraftFloorTokenContrast measures every text token on every surface,
 // and the accent's own text on the accent, in both colour schemes: each pair
 // reads at the level-AA ratio. Dark error red on the raised surfaces and
@@ -69,8 +98,8 @@ func TestCraftFloorTokenContrast(t *testing.T) {
 			}
 		}
 	}
-	if want := 2 * (len(textTokens)*len(surfaceTokens) + 1); pairs != want {
-		t.Fatalf("measured %d pairs, want %d", pairs, want)
+	if least := 2 * len(textTokens) * len(surfaceTokens); pairs <= least {
+		t.Fatalf("measured %d pairs, want every text token on every surface (%d) and the painted pairs beside", pairs, least)
 	}
 	if _, err := contrastRatio("#fff", "#000"); err != nil {
 		t.Fatal(err)

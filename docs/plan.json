@@ -139,21 +139,6 @@
       ]
     },
     {
-      "id": "row-scope-budget-surface",
-      "title": "Retired: one growth measure with one baseline",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: one growth measure with one baseline",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Its guessed-budget half landed as budget-from-measured-growth (1735f670: a declared reason admits the measured growth). Its other half, deleting the harness surface baseline and the clone ratchet, contradicts the doctrine, which keeps both ratchets as floors. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "device-claim-everywhere",
       "title": "Have every GPU user take the device claim lanes wait on",
       "owner": "master-lead",

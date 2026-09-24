@@ -10,7 +10,6 @@
     id: "attention",
     async mount(panel, overgo, seed) {
       const { el, clear, displayToken } = overgo;
-      clear(panel);
 
       const layer = el("input", { "aria-label": "Layer", class: "keyfield w-80", type: "number", placeholder: "mid", min: "0" });
       const maxPos = el("input", { class: "keyfield w-80", type: "number", value: "32", min: "2", max: "48", "aria-label": "positions" });

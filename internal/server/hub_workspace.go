@@ -1,12 +1,13 @@
 package server
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -218,6 +219,40 @@ type downloadRegistry struct {
 	// returns only after the last one unwound; closed refuses new work.
 	transfers sync.WaitGroup
 	closed    bool
+	// changed closes when a job changes as a reader shows it (its state,
+	// file or whole percent), so the runtime stream publishes jobs only
+	// when they read differently.
+	changed chan struct{}
+}
+
+// watch answers the jobs and the signal that closes on their next change.
+func (r *downloadRegistry) watch() ([]DownloadJob, <-chan struct{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.changed == nil {
+		r.changed = make(chan struct{})
+	}
+	return r.snapshotLocked(), r.changed
+}
+
+// observe records a transfer's progress; watchers wake only when the job
+// reads differently (another file, another whole percent), so a transfer
+// publishes at most one change per percent of each file.
+func (r *downloadRegistry) observe(job *DownloadJob, progress hfhub.Progress) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if job.File != progress.Path || wholePercent(job.Received, job.Total) != wholePercent(progress.Received, progress.Total) {
+		r.changedLocked()
+	}
+	job.File, job.Received, job.Total = progress.Path, progress.Received, progress.Total
+}
+
+// changedLocked wakes every watcher; the caller holds mu.
+func (r *downloadRegistry) changedLocked() {
+	if r.changed != nil {
+		close(r.changed)
+		r.changed = nil
+	}
 }
 
 func newDownloadRegistry(maxRunning, maxRetained int) downloadRegistry {
@@ -261,6 +296,7 @@ func (r *downloadRegistry) admit(job *DownloadJob, cancel context.CancelFunc) er
 	r.jobs[job.ID] = job
 	r.cancels[job.ID] = cancel
 	r.transfers.Add(1)
+	r.changedLocked()
 	return nil
 }
 
@@ -285,6 +321,7 @@ func (r *downloadRegistry) shutdown() {
 		}
 		job.State, job.Error = downloadStateCancelled, "server shutdown interrupted the transfer"
 	}
+	r.changedLocked()
 	r.mu.Unlock()
 	r.transfers.Wait()
 }
@@ -302,6 +339,7 @@ func (r *downloadRegistry) cancel(id uint64) (string, bool) {
 			stop()
 		}
 		job.State = downloadStateCancelled
+		r.changedLocked()
 	}
 	return job.State, true
 }
@@ -309,11 +347,15 @@ func (r *downloadRegistry) cancel(id uint64) (string, bool) {
 func (r *downloadRegistry) snapshot() []DownloadJob {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.snapshotLocked()
+}
+
+func (r *downloadRegistry) snapshotLocked() []DownloadJob {
 	listed := make([]DownloadJob, 0, len(r.jobs))
 	for _, job := range r.jobs {
 		listed = append(listed, *job)
 	}
-	sort.Slice(listed, func(left, right int) bool { return listed[left].ID > listed[right].ID })
+	slices.SortFunc(listed, func(left, right DownloadJob) int { return cmp.Compare(right.ID, left.ID) })
 	return listed
 }
 
@@ -432,22 +474,28 @@ func (h *Handler) runHubDownload(ctx context.Context, client *hfhub.Client, kind
 	defer h.downloads.transfers.Done()
 	resolved, err := client.Download(ctx, hfhub.DownloadRequest{
 		Kind: kind, Repository: body.Repository, Revision: body.Revision, Destination: destination,
-		Observe: func(progress hfhub.Progress) {
-			h.downloads.mu.Lock()
-			job.File, job.Received, job.Total = progress.Path, progress.Received, progress.Total
-			h.downloads.mu.Unlock()
-		},
+		Observe: func(progress hfhub.Progress) { h.downloads.observe(job, progress) },
 	})
 	h.downloads.mu.Lock()
 	defer h.downloads.mu.Unlock()
 	if job.State == downloadStateCancelled {
 		return
 	}
+	defer h.downloads.changedLocked()
 	if err != nil {
 		job.State, job.Error = downloadStateFailed, err.Error()
 		return
 	}
 	job.State, job.Files, job.Revision = downloadStateSucceeded, len(resolved.Files), resolved.Revision
+}
+
+// wholePercent is the transferred share a reader shows, in whole percent;
+// an unknown total shows none, as zero does.
+func wholePercent(received, total int64) int64 {
+	if total <= 0 {
+		return 0
+	}
+	return received * 100 / total
 }
 
 // hubDestination confines job directories to the configured root.

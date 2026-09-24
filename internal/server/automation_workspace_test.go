@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -71,29 +70,6 @@ func TestAutomationWorkspaceVertical(t *testing.T) {
 	}
 }
 
-func TestAutomationWorkspaceSSE(t *testing.T) {
-	t.Parallel()
-	fixture := newAutomationServerFixture(t)
-	defer fixture.store.Close()
-	ctx, cancel := context.WithCancel(t.Context())
-	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, 4)}
-	done := make(chan struct{})
-	go func() {
-		fixture.handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/automations/stream", nil).WithContext(ctx))
-		close(done)
-	}()
-	for range 2 {
-		<-recorder.flushes
-	}
-	cancel()
-	<-done
-	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
-		!strings.Contains(recorder.Body.String(), "event: automation.inventory") ||
-		!strings.Contains(recorder.Body.String(), "event: operation.snapshot") {
-		t.Fatalf("automation SSE headers=%v body=%s", recorder.Header(), recorder.Body.String())
-	}
-}
-
 func TestAutomationWorkspaceRefusal(t *testing.T) {
 	t.Parallel()
 	fixture := newAutomationServerFixture(t)
@@ -117,7 +93,7 @@ func TestAutomationWorkspaceNoDirectExecutor(t *testing.T) {
 	// A decision goes through the shell's decideOperation, which binds the advertised approval request to /operations/decision.
 	for _, expected := range []string{
 		"/automations/definitions", "/automations/activate", "/automations/run", "/automations/schedule",
-		"/automations/history", "/automations/stream", "overgo.cancelOperation(", "overgo.decideOperation(", "schemaForm",
+		"/automations/history", "overgo.subscribe(", "overgo.cancelOperation(", "overgo.decideOperation(", "schemaForm",
 	} {
 		if !strings.Contains(routes, expected) {
 			t.Errorf("automation GUI lacks %q", expected)

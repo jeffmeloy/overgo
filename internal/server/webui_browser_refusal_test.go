@@ -42,23 +42,26 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 		}
 	}
 	settle(`!!document.querySelector('#panel-chat.active') && window.overgo.errors.length === 0`)
-	// 1. The refused Attention tab stays listed, and a click shows its reason and the enabling action instead of the module.
+	// 1. Inspect lists its refused Attention view, and choosing it shows the reason and the enabling action
+	// instead of the module.
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'inspect'; return true; })()`)
+	settle(`!!document.querySelector('#panel-inspect.active .view-chooser')`)
 	assertBrowserPredicate(t, ctx, browser, `(() => {
-  const button = [...document.querySelectorAll('button.tab')].find((candidate) => candidate.textContent === 'Attention');
-  if (!button || button.hidden || button.getAttribute('aria-disabled') !== 'true') return false;
-  button.click();
+  const chip = [...document.querySelectorAll('#panel-inspect .view-chooser button')].find((candidate) => candidate.textContent === 'Attention');
+  if (!chip) return false;
+  chip.click();
   return true;
 })()`)
 	settle(`(() => {
-  const line = document.querySelector('#panel-attention.active .workspace-refusal');
+  const line = document.querySelector('#panel-inspect.active .workspace-refusal');
   return !!line && line.getAttribute('role') === 'status' && line.textContent.includes('unavailable') && line.textContent.includes('Serve a local model');
 })()`)
-	// The fragment reaches the same refusal, never the module.
+	// A view's fragment reaches the same refusal, never the module.
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)
 	settle(`!!document.querySelector('#panel-chat.active')`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'attention'; return true; })()`)
-	settle(`!!document.querySelector('#panel-attention.active .workspace-refusal') && !document.querySelector('#panel-attention select, #panel-attention textarea, #panel-attention canvas')`)
-	t.Log("workspace refusal leg: the refused tab answers a click and a fragment with its reason and enabling action")
+	settle(`!!document.querySelector('#panel-inspect.active .workspace-refusal') && !document.querySelector('#panel-inspect select, #panel-inspect textarea, #panel-inspect canvas')`)
+	t.Log("workspace refusal leg: the refused view answers a choice and a fragment with its reason and enabling action")
 
 	// 2. The Inbox listens on the shell's shared runtime stream and opens none of its own; a remount
 	// (a key change re-reads every mounted tab and restarts the shared stream) leaves exactly one live one.

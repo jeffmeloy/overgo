@@ -37,6 +37,20 @@ func TestWorkspaceManifest(t *testing.T) {
 			t.Fatalf("workspace manifest lacks %q", required)
 		}
 	}
+	// Five places; the analysis tabs are Inspect's views, with no navigation entry of their own.
+	views := 0
+	for _, tab := range manifest.Tabs {
+		if tab.ViewOf == "" {
+			continue
+		}
+		views++
+		if tab.ViewOf != "inspect" || tab.Section != "inspect" || !seen[tab.ViewOf] {
+			t.Errorf("view %+v does not belong to Inspect", tab)
+		}
+	}
+	if len(manifest.Sections) != 5 || views != 6 {
+		t.Fatalf("workspace manifest has %d places and %d views, want 5 and 6", len(manifest.Sections), views)
+	}
 }
 
 func TestWorkspaceManifestCapabilityRefusal(t *testing.T) {

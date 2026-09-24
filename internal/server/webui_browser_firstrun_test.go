@@ -774,12 +774,12 @@ func TestModelJourneyFirstRun(t *testing.T) {
 			modified = modified || setting.Key == "vcs.modified" && setting.Value == "true"
 		}
 		if stamped && modified {
-			retirement = `document.querySelector("[data-lane-retirement]")?.textContent === "executable was built from modified source; exact code revision unavailable"`
+			retirement = `(document.querySelector("[data-lane-retirement]")?.textContent || "").includes("executable was built from modified source; exact code revision unavailable")`
 		}
 		if !stamped {
 			// Match the child's fallback directory, not the gate's candidate tree.
 			if _, err := runrecord.VerifyingCommit(serverDir); err != nil {
-				retirement = `document.querySelector("[data-lane-retirement]")?.textContent === ` + strconv.Quote(err.Error())
+				retirement = `(document.querySelector("[data-lane-retirement]")?.textContent || "").includes(` + strconv.Quote(err.Error()) + `)`
 			}
 		}
 		settle("the retirement follows the served binary's source identity", retirement)

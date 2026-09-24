@@ -51,18 +51,14 @@
     return body;
   }
 
-  // inFlight counts the shell's requests still awaiting a response and
-  // activePollers the pollers with a tick scheduled; a page with either is
-  // still working, whatever the work behind it costs, and a page with
-  // neither has settled.
+  // inFlight counts the shell's requests still awaiting a response; a page
+  // with none has settled, whatever the work behind them costs.
   let inFlight = 0;
-  let activePollers = 0;
   async function tracked(request) {
     inFlight++;
     try { return await request; } finally { inFlight--; }
   }
   const api = {
-    pending() { return inFlight + activePollers; },
     inFlight() { return inFlight; },
     async get(path, opts) {
       const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
@@ -262,12 +258,12 @@
   // displayToken: an empty, whitespace or multiline token piece made visible.
   function displayToken(text) { if (text === "" || text == null) return "∅"; if (/^\s+$/.test(text)) return "␠".repeat(text.length); return text.replace(/\n/g, "⏎"); }
 
-  // runner: one exclusive, cancelable async action bound to a run and a cancel
-  // button; an abort goes to onCancel, any other failure to onError.
   // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
   // tick, the offline probe, and the status re-probe.
-  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000, streamReconnectMS = 2000;
-  function runner(runButton, cancelButton, handlers) {
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
+  // runner: one exclusive, cancelable async action bound to a run and a cancel button, ended too by the
+  // lifetime of the workspace it runs in; an abort goes to onCancel, any other failure to onError.
+  function runner(runButton, cancelButton, handlers, lifetime) {
     handlers = handlers || {};
     let controller = null;
     cancelButton.addEventListener("click", () => controller && controller.abort());
@@ -277,59 +273,12 @@
       cancelButton.hidden = false;
       controller = new AbortController();
       try {
-        await task(controller.signal);
+        await task(AbortSignal.any([controller.signal, lifetime]));
       } catch (err) {
         if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
         else if (handlers.onError) handlers.onError(err);
       } finally { runButton.disabled = false; cancelButton.hidden = true; controller = null; }
     };
-  }
-
-  // poller: task every interval while started and the page is visible. A failed tick is reported
-  // (onError, else the page's error record) and the next tick still runs; stop releases the listener.
-  function poller(task, interval, onError) {
-    let active = false;
-    let controller = null;
-    let timer = null;
-
-    function cancel() { if (timer != null) clearTimeout(timer); timer = null; if (controller) controller.abort(); }
-    function schedule() { if (active && !document.hidden) timer = setTimeout(tick, interval); }
-    async function tick() {
-      if (!active || document.hidden || controller) return;
-      const current = new AbortController();
-      controller = current;
-      try { await task(current.signal); }
-      catch (err) {
-        if (err && err.name === "AbortError") return;
-        if (onError) onError(err); else errors.push(String(err && err.message || err));
-      } finally { if (controller === current) controller = null; schedule(); }
-    }
-    function visibility() { cancel(); if (active && !document.hidden) tick(); }
-    function start() { if (active) return; active = true; activePollers++; document.addEventListener("visibilitychange", visibility); if (!document.hidden) tick(); }
-    function stop() { if (active) activePollers--; active = false; document.removeEventListener("visibilitychange", visibility); cancel(); }
-    return { start, stop };
-  }
-
-  // tabStream: a tab's own event stream. It reconnects after the server ends it cleanly, reports a
-  // failed connection in host with a Reconnect control, and returns the stop the tab's cleanup calls.
-  function tabStream(path, handler, host) {
-    let controller = null;
-    let timer = null;
-    let stopped = false;
-    function connect() {
-      timer = null;
-      const current = new AbortController();
-      controller = current;
-      api.events(path, handler, { signal: current.signal }).then(() => {
-        if (!stopped && controller === current) timer = setTimeout(connect, streamReconnectMS);
-      }, (err) => {
-        if (stopped || controller !== current || (err && err.name === "AbortError")) return;
-        const retry = el("button", { class: "btn alt", text: "Reconnect", onclick: () => { host.replaceChildren(); connect(); } });
-        host.replaceChildren(errorBanner("Live updates stopped: " + friendlyError(err)), retry);
-      });
-    }
-    connect();
-    return function stop() { stopped = true; if (timer != null) clearTimeout(timer); if (controller) controller.abort(); };
   }
 
   function stat(label, value, unit) {
@@ -344,7 +293,19 @@
   }
 
   const tabs = [];
+  // views: registered tabs another tab shows (Inspect's analysis views); they have no navigation entry.
+  const views = [];
   function registerTab(tab) { tabs.push(tab); }
+  // routeOf: the tab a hash opens and the view it asks that tab to show.
+  function routeOf(id) {
+    const view = views.find((v) => v.id === id);
+    return view ? { tab: view.view_of, view: view.id } : { tab: tabs.some((t) => t.id === id) ? id : "", view: "" };
+  }
+  const requestedViews = new Map();
+  function requestView(owner, id) { requestedViews.set(owner, id); window.dispatchEvent(new CustomEvent("overgo-view", { detail: { owner, view: id } })); }
+  // viewsOf: the views a tab shows, each with whether it serves and, if not, why and what enables it.
+  function viewsOf(owner) { return views.filter((v) => v.view_of === owner).map((v) => ({ id: v.id, label: v.label, enabled: tabSupported(v), reason: refusalLine(v) })); }
+  function requestedView(owner) { return requestedViews.get(owner) || ""; }
 
   // contentURL: a stored artifact's bytes; el() fetches them through the authenticated client.
   function contentURL(id) { return "/artifacts/content?id=" + encodeURIComponent(id); }
@@ -367,8 +328,111 @@
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
   // node, or text shown mono after the first column), a grid table from both.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
-  // reporter: a host's error reporter, the shape every module spells as showError.
-  function reporter(host) { return (err) => host.replaceChildren(failure(err)); }
+
+  // workspace: the one lifecycle a mounted tab runs under. The shell opens one per mount and releases it
+  // with the tab (a remount, a key change, a superseded or failed mount); the tab reads, subscribes and
+  // listens through it, so everything it opened ends with it. It stands in for window.overgo, which it extends.
+  function workspace(host, parent) {
+    const lifetime = new AbortController();
+    const releases = [];
+    const shown = [];
+    let active = false;
+    const stopOf = (started) => typeof started === "function" ? started : null;
+    const disposed = (surface) => { life.onRelease(() => surface.dispose()); return surface; };
+    const life = Object.create(window.overgo);
+    Object.assign(life, {
+      signal: lifetime.signal,
+      // load: the read a mount stands on; answers null after a failure, which the host shows with the tab's reload.
+      async load(get, options) {
+        const { loading = "Loading…" } = options || {};
+        if (loading) host.replaceChildren(el("div", { class: "note", text: loading }));
+        try {
+          const value = await get(lifetime.signal);
+          if (lifetime.signal.aborted) return null;
+          host.replaceChildren();
+          return value;
+        } catch (err) {
+          if (!lifetime.signal.aborted && !(err && err.name === "AbortError")) host.replaceChildren(failure(err));
+          return null;
+        }
+      },
+      // read: host shows one load's answer; the newest read wins, an empty answer shows options.empty's
+      // words, and a failure offers to read again.
+      read(host, load, render, options) {
+        const { loading = "Loading…", empty = null } = options || {};
+        let current = null;
+        return async function run() {
+          if (current) current.abort();
+          const attempt = new AbortController();
+          current = attempt;
+          const signal = AbortSignal.any([lifetime.signal, attempt.signal]);
+          if (loading) host.replaceChildren(el("div", { class: "note", text: loading }));
+          try {
+            const value = await load(signal);
+            if (signal.aborted) return;
+            const emptyWords = empty && empty(value);
+            if (emptyWords) host.replaceChildren(el("div", { class: "note", text: emptyWords }));
+            else render(value);
+          } catch (err) {
+            if (signal.aborted || (err && err.name === "AbortError")) return;
+            host.replaceChildren(failure(err, el("button", { class: "link-button", text: "Try again", onclick: run })));
+          }
+        };
+      },
+      // subscribe: runtime stream events until the workspace ends; options.whileShown: only while the tab shows.
+      subscribe(handler, options) {
+        if (options && options.whileShown) life.whileActive(() => window.overgo.runtimeEvents.subscribe(handler));
+        else life.onRelease(window.overgo.runtimeEvents.subscribe(handler));
+      },
+      listen(target, type, handler) { target.addEventListener(type, handler); life.onRelease(() => target.removeEventListener(type, handler)); },
+      // Forms, threads and composers are disposed with the workspace.
+      schemaForm: (...args) => disposed(window.overgo.schemaForm(...args)),
+      thread: (...args) => disposed(window.overgo.thread(...args)),
+      composer: (...args) => disposed(window.overgo.composer(...args)),
+      runner: (runButton, cancelButton, handlers) => runner(runButton, cancelButton, handlers, lifetime.signal),
+      analysisSurface: (panel, seed, options) => analysisSurface(panel, seed, options, lifetime.signal),
+      // whileActive: start runs each time the tab shows; the stop it answers runs when it hides or ends.
+      whileActive(start) {
+        const entry = { start, stop: null };
+        shown.push(entry);
+        if (active) entry.stop = stopOf(start());
+      },
+      setActive(on) {
+        if (on === active || (on && lifetime.signal.aborted)) return;
+        active = on;
+        for (const entry of shown) {
+          if (on) entry.stop = stopOf(entry.start());
+          else if (entry.stop) { const stop = entry.stop; entry.stop = null; stop(); }
+        }
+      },
+      // act: one user action; its failure shows in host, a workspace that ended says nothing.
+      async act(host, action) {
+        try { return await action(lifetime.signal); }
+        catch (err) { if (!lifetime.signal.aborted && !(err && err.name === "AbortError")) host.replaceChildren(failure(err)); }
+      },
+      // onRelease: undone when the workspace ends, at once if it has.
+      onRelease(release) { if (lifetime.signal.aborted) release(); else releases.push(release); },
+      // embed: another tab mounted into host (the inspector); it ends with the next embed there or with this workspace.
+      embed(id, host, seed) {
+        const tab = tabs.find((t) => t.id === id) || views.find((v) => v.id === id);
+        if (!tab) throw new Error("no workspace tab " + id);
+        if (host.workspace) host.workspace.release();
+        host.workspace = workspace(host, life);
+        clear(host);
+        return tab.mount(host, host.workspace, seed);
+      },
+      release() {
+        if (lifetime.signal.aborted) return;
+        life.setActive(false);
+        lifetime.abort();
+        for (const release of releases.splice(0).reverse()) {
+          try { release(); } catch (err) { errors.push(String(err && err.message || err)); }
+        }
+      },
+    });
+    if (parent) parent.onRelease(() => life.release());
+    return life;
+  }
   function tableRow(cells, attrs) {
     return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
   }
@@ -500,7 +564,7 @@
     rememberConversation(item);
     const tab = tabs.find(tab => tab.id === "chat");
     if (tab) {
-      if (tab.onDeactivate) tab.onDeactivate();
+      releaseTab(tab);
       tab.mountAttempt = {};
       clear(tab.panel);
     }
@@ -611,9 +675,9 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
-    conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
+    conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
-    displayToken, runner, poller, tabStream, stat, fold,
+    displayToken, stat, fold, workspace, viewsOf, requestedView,
     fmt: { grouped, bytes, compact, shortID },
   };
 
@@ -640,20 +704,15 @@
       if (attempt !== remountAttempt || (targetTab && targetTab.mountAttempt !== targetAttempt)) return false;
       workspaceManifest = next;
       capabilityDocument = next.model || null;
-      for (const tab of tabs) {
-        if (!target || tab.id === target) {
-          // Every released tab deactivates, a reloaded one too: a tab holding a subscription
-          // (Runtime, Activity) would otherwise keep the old one and refuse the new view's.
-          if (tab.onDeactivate) tab.onDeactivate();
-          releaseTab(tab);
-        }
+      for (const tab of [...tabs, ...views]) {
+        if (!tab.view_of && (!target || tab.id === target)) releaseTab(tab);
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
         const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
         if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; tab.action = declared.action; }
       }
       applyCapabilities();
       const current = target || location.hash.slice(1) || (tabs[0] && tabs[0].id);
-      if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
+      if (current && (capabilityDocument || routeOf(location.hash.slice(1)).tab)) {
         const ready = await activate(current);
         if (attempt !== remountAttempt) return false;
         if (!ready) throw new Error("The selected workspace could not load. Choose the model again to retry.");
@@ -680,6 +739,9 @@
   }
 
   function activate(id) {
+    const route = routeOf(id);
+    if (route.view) requestView(route.tab, route.view);
+    id = route.tab;
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
     window.dispatchEvent(new Event("overgo-panel-change"));
@@ -691,12 +753,12 @@
       const on = t.id === id;
       const wasActive = t.panel.classList.contains("active");
       if (!on && t.id === "chat") t.mountAttempt = {};
-      if (!on && wasActive && t.onDeactivate) t.onDeactivate();
+      if (!on && wasActive && t.life) t.life.setActive(false);
       t.button.classList.toggle("active", on);
       t.panel.classList.toggle("active", on);
       if (on && !tabSupported(t)) { renderRefusal(t); continue; }
       if (on && !t.mounted) { t.mounted = true; safeMount(t); }
-      if (on && t.onActivate) t.onActivate();
+      if (on && t.life) t.life.setActive(true);
     }
     syncSectionUI();
     syncColdStart();
@@ -715,10 +777,8 @@
     if (first) activate(first.id);
   }
 
-  // embed: a registered tab mounted into another host with a seed (the inspector opens analysis tabs over one turn).
-  function embed(id, host, seed) { const tab = tabs.find((t) => t.id === id); if (!tab) throw new Error("no workspace tab " + id); clear(host); return tab.mount(host, window.overgo, seed); }
   // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
-  function analysisSurface(panel, seed, options) {
+  function analysisSurface(panel, seed, options, lifetime) {
     const prompt = el("textarea", { "aria-label": "Prompt to analyze", class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
@@ -730,29 +790,27 @@
       // The surface also stands in the inspector, outside any tab; running again recovers either.
       onError: (err) => out.replaceChildren(failure(err, el("button", { class: "link-button", text: "Run again", onclick: () => surface.execute() }))),
       onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
-    });
+    }, lifetime);
     const surface = { prompt, out, execute() { out.replaceChildren(el("div", { class: "note", text: options.busy })); runAction(options.execute); } };
     return surface;
   }
+  // safeMount: the tab mounts under a workspace of its own; releasing the tab releases it, and whatever a
+  // superseded mount opens after its release ends at once.
   function safeMount(tab) {
     const attempt = {};
     tab.mountAttempt = attempt;
+    tab.life = workspace(tab.panel);
+    tab.panel.replaceChildren();
     const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
-      const result = tab.mount(tab.panel, window.overgo);
-      // A module that returns a function hands back its cleanup (streams, forms); a remount runs it first.
-      // A mount a remount superseded while it was still reading releases what it opened at once.
-      tab.ready = Promise.resolve(result).then((value) => {
-        if (typeof value === "function") { if (tab.mountAttempt === attempt) tab.cleanup = value; else value(); }
-        return tab.mountAttempt === attempt;
-      }, failed);
+      tab.ready = Promise.resolve(tab.mount(tab.panel, tab.life)).then(() => tab.mountAttempt === attempt, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
   function releaseTab(tab) {
-    const cleanup = tab.cleanup;
-    tab.cleanup = null;
+    const life = tab.life;
+    tab.life = null;
     tab.mounted = false;
-    if (cleanup) { try { cleanup(); } catch (err) { errors.push(String(err && err.message || err)); } }
+    if (life) life.release();
   }
   function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
   function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
@@ -807,7 +865,7 @@
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
   function libraryStarters() {
     const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
-    return [el("button", { class: "btn alt", text: "register a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
+    return [el("button", { class: "btn alt", text: "add a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
       el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
   }
   function wireModelPicker() {
@@ -979,7 +1037,8 @@
       if (!implementation) { errors.push("Workspace tab " + declaration.id + " did not register from its module"); continue; }
       ordered.push(Object.assign(implementation, declaration));
     }
-    tabs.splice(0, tabs.length, ...ordered);
+    tabs.splice(0, tabs.length, ...ordered.filter((tab) => !tab.view_of));
+    views.splice(0, views.length, ...ordered.filter((tab) => tab.view_of));
   }
 
   // ---- one loader: the manifest names each tab's module (default: the tab id); the libraries load in
@@ -1087,7 +1146,7 @@
       shellWired = true;
       document.getElementById("workbench-toggle").addEventListener("click", () =>
         setFront(!document.querySelector(".shell").classList.contains("front")));
-      window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
+      window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && routeOf(id).tab) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
       // A hidden page does not probe; it probes once when shown again.

@@ -29,6 +29,9 @@ type workspaceTabDeclaration struct {
 	// empty means the file is named after the tab. The shell's loader reads
 	// it, so a tab is a manifest entry plus a module file and nothing else.
 	Module string `json:"module,omitzero"`
+	// ViewOf names the tab this one is a view of: it has no navigation entry
+	// of its own and its owner shows it (Inspect's analysis views).
+	ViewOf string `json:"view_of,omitzero"`
 }
 
 // module returns the client module file name (without directory or
@@ -66,6 +69,7 @@ type workspaceTab struct {
 	Label   string `json:"label"`
 	Section string `json:"section"`
 	Module  string `json:"module"`
+	ViewOf  string `json:"view_of,omitzero"`
 	Enabled bool   `json:"enabled"`
 	Refusal string `json:"refusal,omitzero"`
 	// Action names what would enable a refused workspace.
@@ -75,7 +79,7 @@ type workspaceTab struct {
 // workspaceEnablingAction says what enables the capability a refused tab needs.
 func workspaceEnablingAction(capability string) string {
 	switch capability {
-	case "analysis.logits", "analysis.vocabulary", "analysis.hidden-states", "analysis.attention", "analysis.tensors", "model.properties":
+	case "analysis", "analysis.logits", "analysis.vocabulary", "analysis.hidden-states", "analysis.attention", "analysis.tensors", "model.properties":
 		return "Serve a local model; analysis reads its logits, states and tensors."
 	case "agent":
 		return "Define an agent in the store; the coordinator opens with it."
@@ -120,7 +124,7 @@ func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.
 	for index, tab := range declaration.Tabs {
 		enabled, refusal := h.workspaceCapability(request.Context(), tab.Capability)
 		result.Tabs[index] = workspaceTab{
-			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), Enabled: enabled, Refusal: refusal,
+			ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), ViewOf: tab.ViewOf, Enabled: enabled, Refusal: refusal,
 		}
 		if !enabled {
 			result.Tabs[index].Action = workspaceEnablingAction(tab.Capability)
@@ -164,6 +168,16 @@ func parseWorkspaceManifest() (workspaceManifestDeclaration, error) {
 		}
 		tabs[tab.ID] = struct{}{}
 	}
+	// A view belongs to a declared tab in its section that is not itself a view.
+	for _, tab := range declaration.Tabs {
+		if tab.ViewOf == "" {
+			continue
+		}
+		owner := slices.IndexFunc(declaration.Tabs, func(candidate workspaceTabDeclaration) bool { return candidate.ID == tab.ViewOf })
+		if owner < 0 || declaration.Tabs[owner].ViewOf != "" || declaration.Tabs[owner].Section != tab.Section {
+			return workspaceManifestDeclaration{}, errors.New("server: workspace view names no tab that shows it")
+		}
+	}
 	return declaration, nil
 }
 
@@ -185,6 +199,10 @@ func (h *Handler) workspaceCapability(ctx context.Context, capability string) (b
 		supported = analysis.Tensors
 	case "model.properties":
 		_, supported = h.generator.(ModelPropertiesAPI)
+	case "analysis":
+		// Inspect opens when it has a view to show.
+		_, properties := h.generator.(ModelPropertiesAPI)
+		supported = properties || analysis.Logits || analysis.Vocabulary || analysis.HiddenStates || analysis.Attention || analysis.Tensors
 	case "agent":
 		supported = h.agentCoordinator != nil
 	case "repository", "operations":

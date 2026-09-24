@@ -11,7 +11,6 @@
     id: "states",
     async mount(panel, overgo, seed) {
       const { el, clear, displayToken } = overgo;
-      clear(panel);
 
       const metric = el("select", { class: "keyfield w-150", "aria-label": "metric" },
         el("option", { value: "spearman" }, "spearman (rank)"),

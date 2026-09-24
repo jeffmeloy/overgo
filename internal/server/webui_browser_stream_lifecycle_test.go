@@ -26,12 +26,13 @@ type streamLifecycleGenerator struct {
 	*PeerWorkspace
 }
 
-// TestWebUIBrowserStreamLifecycle remounts the stream-owning workspaces in a
-// real browser: every stream a remount replaces is aborted and the inbox opens
-// none of its own (each peers mount once leaked a runtime listener, and the
-// inbox held a stream of its own), one operation reads its peer evidence once, a stream
-// the server ends cleanly is opened again, and a hidden page stops probing
-// health and the catalog and probes health at once when shown again.
+// TestWebUIBrowserStreamLifecycle remounts the live workspaces in a real
+// browser over one event stream: the automations, peers, inbox and library
+// tabs open no stream and poll nothing of their own (each once held its own
+// stream or poller), every runtime stream a remount replaces is aborted, the
+// runtime stream the server ends cleanly is opened again, one operation reads
+// its peer evidence once, and a hidden page stops probing health and the
+// catalog and probes health at once when shown again.
 func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	t.Parallel()
 	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
@@ -57,18 +58,19 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		path := request.URL.Path
 		if path == "/__lifecycle" {
 			mu.Lock()
-			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"]}
+			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"],
+				"retired": hits["/automations/stream"] + hits["/peers/stream"] + hits["/agents/stream"] + hits["/hub/downloads"]}
 			mu.Unlock()
 			_ = json.NewEncoder(response).Encode(counts)
 			return
 		}
 		mu.Lock()
 		hits[path]++
-		endNow := path == "/automations/stream" && !endedOnce
+		endNow := path == "/runtime/activity/stream" && !endedOnce
 		endedOnce = endedOnce || endNow
 		mu.Unlock()
 		if endNow {
-			// The first automation stream ends cleanly at once, the way a server restart ends it.
+			// The first runtime stream ends cleanly at once, the way a server restart ends it.
 			response.Header().Set("Content-Type", "text/event-stream")
 			response.WriteHeader(http.StatusOK)
 			return
@@ -113,29 +115,40 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 })()`)
 	visit := func() {
 		t.Helper()
-		for _, tab := range []string{"automations", "peers", "inbox"} {
+		for _, tab := range []string{"automations", "peers", "inbox", "library"} {
 			assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = '`+tab+`'; return true; })()`)
 			settle(`(() => { const panel = document.querySelector('#panel-` + tab + `.active'); return !!panel && panel.children.length > 0 && !panel.querySelector('.workspace-refusal'); })()`)
 		}
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)
 	}
 	visit()
-	// The server ended the first automation stream cleanly; the tab opens it again on its own.
-	settle(`(window.laneStreams['/automations/stream'] || []).length >= 2`)
+	// The server ended the page's first runtime stream cleanly; the page opens it again on its own.
+	lifecycle := func() map[string]float64 {
+		t.Helper()
+		var counts map[string]float64
+		if err := browser.Evaluate(ctx, `fetch('/__lifecycle').then((answer) => answer.json())`, &counts); err != nil {
+			t.Fatal(err)
+		}
+		return counts
+	}
+	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.runtime >= 2)`)
 	// Each key change remounts every workspace and restarts the shared stream.
-	for range 3 {
+	const remounts = 3
+	for range remounts {
 		assertBrowserPredicate(t, ctx, browser, `(() => { const key = document.getElementById('api-key'); key.value = key.value === '' ? 'lane-remount' : ''; key.dispatchEvent(new Event('change')); return true; })()`)
 		visit()
 	}
-	// Every stream a remount replaced was aborted: each owner keeps only its latest request live
-	// (the first automation stream, which the server ended, is past), and the inbox opened none.
-	// A tab opens its stream after its first reads, so the state is awaited, not sampled.
+	// The runtime stream is the page's only stream: every one a remount replaced was aborted and
+	// the latest stays live. A remount reopens it after its first reads, so the state is awaited.
 	settle(`(() => {
   const streams = window.laneStreams;
-  const replacedAborted = (path, skip) => (streams[path] || []).slice(skip, -1).every((signal) => signal.aborted);
-  return !streams['/agents/stream'] && (streams['/peers/stream'] || []).length >= 2 &&
-    replacedAborted('/automations/stream', 1) && replacedAborted('/peers/stream', 0) && replacedAborted('/runtime/activity/stream', 0);
+  const runtime = streams['/runtime/activity/stream'] || [];
+  return Object.keys(streams).every((path) => path === '/runtime/activity/stream') && runtime.length >= ` + strconv.Itoa(remounts) + ` &&
+    runtime.slice(0, -1).every((signal) => signal.aborted) && !runtime.at(-1).aborted;
 })()`)
+	if counts := lifecycle(); counts["retired"] != 0 {
+		t.Errorf("the page reached a retired tab stream or the download poll %v times", counts["retired"])
+	}
 	// One finished operation reaches the page through the shared runtime stream. The server
 	// subscribes a stream before answering it, so the operation waits for the latest stream's
 	// answer; one submitted while a remount reopens the stream reaches no subscriber.
@@ -196,5 +209,5 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		t.Errorf("a page shown again did not probe health: hidden %v, shown %v", hidden, resumed)
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	t.Log("stream lifecycle leg: remounting every stream-owning workspace aborts every stream it replaces and reads each operation's evidence once, a cleanly ended stream reconnects, a hidden page stops probing, and a page shown again resumes probing")
+	t.Logf("one event stream leg: the automations, peers, inbox and library tabs remounted %d times over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a hidden page stopped probing, and a page shown again resumes probing", remounts)
 }

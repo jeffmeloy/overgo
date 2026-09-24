@@ -7,10 +7,9 @@
   window.overgo.registerTab({
     id: "api",
     async mount(panel, overgo) {
-      const { el, clear } = overgo;
-      clear(panel);
-      let table;
-      try { table = await overgo.api.get("/workspace/routes"); } catch (err) { panel.appendChild(overgo.failure(err)); return; }
+      const { el } = overgo;
+      const table = await overgo.load((signal) => overgo.api.get("/workspace/routes", { signal }), { loading: "Loading the route table…" });
+      if (!table) return;
       const count = el("div", { class: "note", text: table.routes.length + " routes from the server's route table" });
       const filter = el("input", { class: "text", type: "search", "aria-label": "Filter routes", placeholder: "Filter by path or method" });
       panel.append(filter, count);

@@ -79,7 +79,7 @@ func TestFrontPageInspect(t *testing.T) {
 	if !strings.Contains(get("/composer.js"), "overgo.inspectTurn(message.response)") {
 		t.Error("the thread does not offer inspection on an assistant turn")
 	}
-	if !strings.Contains(get("/boot.js"), "function embed(id, host, seed)") {
+	if !strings.Contains(get("/boot.js"), "embed(id, host, seed) {") {
 		t.Error("boot.js cannot embed a tab's inspector into another host")
 	}
 	for _, module := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {

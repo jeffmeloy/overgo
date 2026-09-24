@@ -70,42 +70,8 @@ func (h *Handler) automationWorkspace(response http.ResponseWriter, request *htt
 		}
 		history, err := workspace.AutomationHistory(request.Context())
 		writeAutomationResult(response, http.StatusOK, history, err)
-	case "/automations/stream":
-		h.automationStream(response, request, workspace)
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "automation route is absent")
-	}
-}
-
-func (h *Handler) automationStream(response http.ResponseWriter, request *http.Request, workspace AutomationWorkspaceAPI) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
-	events, unsubscribe, err := h.operations.Subscribe()
-	if err != nil {
-		writeGenerationError(response, err)
-		return
-	}
-	defer unsubscribe()
-	flusher, ok := beginSSE(response)
-	if !ok {
-		return
-	}
-	stream := newSSEEmitter(request.Context(), response, flusher)
-	inventory, err := workspace.AutomationInventory(request.Context())
-	if err != nil || stream.named("automation.inventory", inventory) != nil ||
-		stream.named("operation.snapshot", h.operations.List()) != nil {
-		return
-	}
-	for {
-		select {
-		case <-request.Context().Done():
-			return
-		case event, open := <-events:
-			if !open || stream.named("operation", event) != nil {
-				return
-			}
-		}
 	}
 }
 

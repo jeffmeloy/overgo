@@ -340,25 +340,28 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 })()`)
 	settle(`document.querySelector('.operation-detail').textContent.includes('Download result')`)
 	check(`(() => {backgroundProbe.stale_receipt_is_ignored=!document.querySelector('.operation-detail').textContent.includes('Obsolete receipt');document.querySelector('[aria-label="Close activity"]').click();overgo.api.get=backgroundGet;return true;})()`)
-	// Stream fallback keeps a blocked receipt alive and releases requests on abort.
+	// The runtime stream alone carries a wait to its end, with no long poll beside it: a wait
+	// releases on abort through an interrupted stream, keeps waiting through a blocked state,
+	// ends on a transition, and ends refused when a reconnect no longer holds its operation;
+	// a late transition never regresses a finished operation.
 	check(`(async () => {
-  let rejectStream,publishStream,waitSignal,waits=0;
+  let rejectStream,publishStream,waits=0;
   overgo.api.events=async function(path,publish,options){publishStream=publish;return new Promise((resolve,reject)=>{rejectStream=reject;options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true});});};
-  overgo.api.get=async function(path,options){if(path.startsWith('/operations/wait?id=fallback-fixture')){waits++;waitSignal=options.signal;return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));}return backgroundGet.call(this,path,options);};
-  overgo.runtimeEvents.restart();const abort=new AbortController();const waiting=overgo.waitOperation('fallback-fixture',null,abort.signal).catch(error=>error.name);
-  rejectStream(new Error('Controlled stream interruption'));await new Promise(requestAnimationFrame);abort.abort();backgroundProbe.fallback_aborts=await waiting==='AbortError' && waits===1 && waitSignal.aborted;
-  overgo.api.get=async function(path,options){if(path.startsWith('/operations/wait?id=fallback-blocked'))return {id:'fallback-blocked',state:'blocked'};return backgroundGet.call(this,path,options);};
-  let finished=false,observed=false;const blocked=overgo.waitOperation('fallback-blocked',status=>{if(status.state==='blocked')observed=true;}).then(status=>{finished=true;return status;});
-  await new Promise(requestAnimationFrame);backgroundProbe.blocked_fallback_keeps_waiting=observed && !finished;
-  overgo.runtimeEvents.restart();publishStream('operation.snapshot',[{id:'fallback-blocked',task:'fixture',state:'completed'}]);await blocked;
-  let connectionError=false;const stop=overgo.runtimeEvents.subscribe(name=>{if(name==='stream.error')connectionError=true;});await new Promise(requestAnimationFrame);stop();backgroundProbe.reconnected_stream_clears_failure=!connectionError;
-  let receiptSignal;
-  overgo.api.get=async function(path,options){if(path.startsWith('/operations/wait?id=omitted-completion')){receiptSignal=options.signal;return {id:'omitted-completion',state:'completed'};}return backgroundGet.call(this,path,options);};
-  // Keep the activity connection open without publishing this completion.
-  window.backgroundOmittedCompletion=false;
-  overgo.waitOperation('omitted-completion').then(status=>{backgroundOmittedCompletion=status.state==='completed' && receiptSignal.aborted;});
-  await new Promise(requestAnimationFrame);
-  backgroundProbe.completion_without_activity_event=backgroundOmittedCompletion;
+  overgo.api.get=async function(path,options){if(path.startsWith('/operations/wait'))waits++;return backgroundGet.call(this,path,options);};
+  overgo.runtimeEvents.restart();const abort=new AbortController();const waiting=overgo.waitOperation('abort-fixture',null,abort.signal).catch(error=>error.name);
+  rejectStream(new Error('Controlled stream interruption'));await new Promise(requestAnimationFrame);abort.abort();backgroundProbe.wait_releases_on_abort=await waiting==='AbortError';
+  let finished=false,observed=false;const blocked=overgo.waitOperation('stream-blocked',status=>{if(status.state==='blocked')observed=true;}).then(status=>{finished=true;return status;});
+  overgo.runtimeEvents.restart();publishStream('operation.snapshot',[{id:'stream-blocked',task:'fixture',state:'blocked'}]);await new Promise(requestAnimationFrame);
+  backgroundProbe.blocked_operation_keeps_waiting=observed && !finished;
+  publishStream('operation',{sequence:1,status:{id:'stream-blocked',task:'fixture',state:'completed'}});await blocked;
+  publishStream('operation',{sequence:2,status:{id:'stream-blocked',task:'fixture',state:'running'}});
+  let connectionError=false,replayed=[];const stop=overgo.runtimeEvents.subscribe((name,value)=>{if(name==='stream.error')connectionError=true;if(name==='operation.snapshot')replayed=value;});await new Promise(requestAnimationFrame);stop();
+  backgroundProbe.reconnected_stream_clears_failure=!connectionError;
+  backgroundProbe.finished_operation_stays_finished=replayed.some(item=>item.id==='stream-blocked' && item.state==='completed');
+  const retired=overgo.waitOperation('retired-fixture').catch(error=>error.status);await new Promise(requestAnimationFrame);
+  overgo.runtimeEvents.restart();publishStream('operation.snapshot',[]);
+  backgroundProbe.reconnect_without_operation_ends_wait=await retired===404;
+  backgroundProbe.no_long_poll_beside_the_stream=waits===0;
   overgo.api.events=backgroundEvents;overgo.api.get=backgroundGet;overgo.runtimeEvents.restart();return true;
 })()`)
 	// Exercise a real structured busy response through the browser API boundary.

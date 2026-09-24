@@ -26,18 +26,19 @@ func TestOneWorkbenchEventStream(t *testing.T) {
 		}
 	}
 
-	// A transfer wakes watchers once per file and whole percent, not per chunk.
-	registry := newDownloadRegistry(1, 1)
+	// A transfer publishes once per file and whole percent, not per chunk,
+	// and what it publishes is the progress it just recorded.
+	var published []DownloadJob
+	registry := newDownloadRegistry(1, 1, func(_ string, value any) { published = value.([]DownloadJob) })
 	job := &DownloadJob{ID: 1, State: downloadStateRunning}
+	registry.jobs = map[uint64]*DownloadJob{job.ID: job}
 	woke := func(progress hfhub.Progress) bool {
-		_, changed := registry.watch()
+		published = nil
 		registry.observe(job, progress)
-		select {
-		case <-changed:
-			return true
-		default:
-			return false
+		if published != nil && (published[0].File != progress.Path || published[0].Received != progress.Received) {
+			t.Errorf("progress %+v published as %+v", progress, published[0])
 		}
+		return published != nil
 	}
 	for _, step := range []struct {
 		progress hfhub.Progress

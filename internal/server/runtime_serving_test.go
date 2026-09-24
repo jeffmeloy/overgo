@@ -156,11 +156,13 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 		}
 		handler.servingEvents.mu.Lock()
 		failedCursor := handler.servingEvents.cursor
+		handler.servingEvents.mu.Unlock()
+		handler.events.mu.Lock()
 		buffered := 0
-		for channel := range handler.servingEvents.watches {
+		for channel := range handler.events.subscribers {
 			buffered += len(channel)
 		}
-		handler.servingEvents.mu.Unlock()
+		handler.events.mu.Unlock()
 		if failedCursor != initial.Cursor || buffered != 0 {
 			t.Fatalf("failed publication emitted an event: cursor=%d buffered=%d", failedCursor, buffered)
 		}
@@ -176,9 +178,9 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 			t.Fatalf("event preceded durable publication: %+v, %v", retained, err)
 		}
 		probe.stop()
-		handler.servingEvents.mu.Lock()
-		watchers := len(handler.servingEvents.watches)
-		handler.servingEvents.mu.Unlock()
+		handler.events.mu.Lock()
+		watchers := len(handler.events.subscribers)
+		handler.events.mu.Unlock()
 		if watchers != 0 {
 			t.Fatalf("cancelled stream retained %d subscriptions", watchers)
 		}
@@ -224,9 +226,9 @@ func TestRuntimeStreamDeliversServingObservation(t *testing.T) {
 		for range turns {
 			servingStreamTurn(t, handler)
 		}
+		// The stream a queue behind resyncs: every snapshot again, in place of the lost events.
 		probe.release(t)
-		var snapshot runtimeActivityResponse
-		probe.next(t, "runtime.activity", &snapshot)
+		snapshot := servingStreamInitial(t, probe)
 		if snapshot.Cursor != uint64(turns) || snapshot.Count != handler.config.MaxStoredResponses || !snapshot.Truncated {
 			t.Fatalf("overflow was silently dropped: %+v", snapshot)
 		}

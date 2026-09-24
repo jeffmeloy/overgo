@@ -56,7 +56,8 @@ func TestGlobalOperationShellSSE(t *testing.T) {
 		handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/runtime/activity/stream", nil).WithContext(ctx))
 		close(done)
 	}()
-	for range 3 {
+	// The stream's four snapshots: sessions, activity, operations and downloads.
+	for range 4 {
 		<-recorder.flushes
 	}
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "global-shell-sse-recipe")

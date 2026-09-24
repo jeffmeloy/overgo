@@ -82,13 +82,18 @@ func (h *Handler) runtimeActivity(response http.ResponseWriter, request *http.Re
 	writeJSON(response, http.StatusOK, activity)
 }
 
+// runtimeActivitySnapshot reads the serving cursor first and the store after,
+// outside the publication lock: every record at or before the cursor is
+// durable, and a later one the reads also find arrives again as an event the
+// client folds in by its ID.
 func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityResponse, error) {
 	h.servingEvents.mu.Lock()
-	defer h.servingEvents.mu.Unlock()
+	cursor := h.servingEvents.cursor
+	h.servingEvents.mu.Unlock()
 	store, err := h.browseStore(ctx)
 	if errors.Is(err, errBrowseRepositoryUnavailable) {
 		return runtimeActivityResponse{
-			Cursor: h.servingEvents.cursor, Limit: h.config.MaxStoredResponses,
+			Cursor: cursor, Limit: h.config.MaxStoredResponses,
 			Activity: []servingActivity{}, Operations: h.operations.List(),
 		}, nil
 	}
@@ -122,7 +127,7 @@ func (h *Handler) runtimeActivitySnapshot(ctx context.Context) (runtimeActivityR
 	interactions, interactionsTruncated, err := projectedDocuments(ctx, store,
 		runrecord.InteractionMediaType, runrecord.InteractionSchema, runrecord.InteractionResponseAliasRoot, h.config.MaxStoredResponses)
 	return runtimeActivityResponse{
-		Cursor: h.servingEvents.cursor, Limit: h.config.MaxStoredResponses,
+		Cursor: cursor, Limit: h.config.MaxStoredResponses,
 		Count: len(activity), PublishFail: h.observationErrors.Load(), Activity: activity, Operations: h.operations.List(),
 		Stages: stages, Decisions: decisions, Interactions: interactions,
 		Truncated: page.Truncated || stagesTruncated || decisionsTruncated || interactionsTruncated,
@@ -147,65 +152,61 @@ func projectedDocuments(
 }
 
 func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *http.Request) {
-	events, unsubscribe, err := h.operations.Subscribe()
+	events, unsubscribe, err := h.events.subscribe(h.config.MaxStoredResponses)
 	if err != nil {
 		writeGenerationError(response, err)
 		return
 	}
 	defer unsubscribe()
-	serving, unsubscribeServing := h.servingEvents.subscribe(h.config.MaxStoredResponses)
-	defer unsubscribeServing()
 	flusher, ok := beginSSE(response)
 	if !ok {
 		return
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
-	if stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
-		return
+	// snapshots sends every state a stream shows, at connect and when it fell
+	// a queue behind; serving events at or before its cursor are already in it.
+	var cursor uint64
+	snapshots := func() error {
+		if err := stream.named("runtime.sessions", h.runtimeSessionsSnapshot()); err != nil {
+			return err
+		}
+		activity, err := h.runtimeActivitySnapshot(request.Context())
+		if err != nil {
+			return err
+		}
+		if err := stream.named("runtime.activity", activity); err != nil {
+			return err
+		}
+		cursor = activity.Cursor
+		if err := stream.named("operation.snapshot", h.operations.List()); err != nil {
+			return err
+		}
+		return stream.named("hub.downloads", h.downloads.snapshot())
 	}
-	activity, err := h.runtimeActivitySnapshot(request.Context())
-	if err != nil || stream.named("runtime.activity", activity) != nil {
-		return
-	}
-	cursor := activity.Cursor
-	if stream.named("operation.snapshot", h.operations.List()) != nil {
-		return
-	}
-	downloads, downloadsChanged := h.downloads.watch()
-	if stream.named("hub.downloads", downloads) != nil {
+	if snapshots() != nil {
 		return
 	}
 	for {
 		select {
 		case <-request.Context().Done():
 			return
-		case <-downloadsChanged:
-			downloads, downloadsChanged = h.downloads.watch()
-			if stream.named("hub.downloads", downloads) != nil {
-				return
-			}
-		case event, open := <-serving:
+		case event, open := <-events:
 			if !open {
 				return
 			}
-			if event.Cursor <= cursor {
-				continue
-			}
-			if event.Activity == nil {
-				activity, err := h.runtimeActivitySnapshot(request.Context())
-				if err != nil || stream.named("runtime.activity", activity) != nil {
-					return
+			switch event.name {
+			case hubResync:
+				err = snapshots()
+			case "runtime.serving":
+				serving := event.value.(runtimeServingEvent)
+				if serving.Cursor <= cursor {
+					continue
 				}
-				cursor = activity.Cursor
-			} else {
-				if stream.named("runtime.serving", event) != nil {
-					return
-				}
-				cursor = event.Cursor
+				cursor, err = serving.Cursor, stream.named(event.name, serving)
+			default:
+				err = stream.named(event.name, event.value)
 			}
-		case event, open := <-events:
-			if !open || stream.named("operation", event) != nil ||
-				stream.named("runtime.sessions", h.runtimeSessionsSnapshot()) != nil {
+			if err != nil {
 				return
 			}
 		}

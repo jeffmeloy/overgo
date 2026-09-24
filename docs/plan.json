@@ -6,17 +6,17 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-event-hub",
-      "title": "Fan operation and serving events out from one server hub: one operations subscription, one sessions snapshot per event, store reads outside the serving lock, and change events that keep inventories live",
+      "id": "gui-live-inventories",
+      "title": "Keep inventories live from the event hub: publish a workspace change after each mutating route, and refresh the reads that show it in place of a manual reload",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Fan operation and serving events out from one server hub: one operations subscription, one sessions snapshot per event, store reads outside the serving lock, and change events that keep inventories live",
+          "title": "Keep inventories live from the event hub: publish a workspace change after each mutating route, and refresh the reads that show it in place of a manual reload",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestEventHubFansOutOnce$' -count=1",
-          "rationale": "Survey: two fan-out implementations (operation.Manager keeps only the latest event per subscriber and caps subscribers at MaxStoredResponses; servingEvents resyncs on overflow), one operations subscription per connection, runtime.sessions rebuilt per connection per event, and runtimeActivitySnapshot runs four store queries while holding servingEvents.mu, which blocks serving publication. One server hub subscribes once, computes each snapshot once, reads the store outside the lock, and emits workspace change events after mutations so inventories stay live; with a real buffer, terminal operation events are never dropped and waitOperation loses its long-poll fallback."
+          "verify": "go test ./internal/server -run '^TestMutationsRefreshTheirInventories$' -count=1",
+          "rationale": "Split from arch-event-hub (2026-09-24): once one hub carries every runtime event, a mutating route publishes a workspace change there and the tabs' reads that show the changed inventory refresh themselves, so a person never reloads a tab to see what they just registered, retired or approved."
         }
       ]
     },
@@ -46,7 +46,7 @@
           "title": "Make every per-request store read scale with its answer: alias names through the alias index, the timeline by its alias, and conversations, pending decisions and the tensor pool from projections advanced by store deltas",
           "status": "open",
           "verify": "go test ./internal/server -run '^TestStoreReadsScaleWithTheirAnswer$' -count=1",
-          "rationale": "Survey: /interactions, /agents/sessions, /automations, /operations/decisions, /operations/timeline and /analyze/tensors/similar read the whole store per request (the live store answered /agents in 35 s before the lane fixed two of them); automation inventory pages a Kind-less alias projection whose cost grows with the square of the store; browseStore takes the cross-process write lock to refresh a read. In the lane: alias-name reads through VisitAliases, the timeline filtered by its alias, a storeProjection helper advanced by DeltasSince (resync on retention or rebuild) for conversations, pending decisions and the tensor pool. Proposed to master rather than done here: VisitDocuments picks candidates from its media and schema indexes and stops counting past MaxResults, which cuts every full scan at its root (overgodb is master's substrate, and an edit there moves the inference surface)."
+          "rationale": "Survey: /interactions, /agents/sessions, /automations, /operations/decisions, /operations/timeline and /analyze/tensors/similar read the whole store per request (the live store answered /agents in 35 s before the lane fixed two of them); automation inventory pages a Kind-less alias projection whose cost grows with the square of the store; browseStore takes the cross-process write lock to refresh a read. Master landed the root fix this row proposed (8a77c2d8, store-queries-bounded, merged at 39934bd80daa): a document query walks only its schemas' positions, seeks past its cursor and stops one past the page, and DocumentPage.Matched gave way to CountDocuments. Remaining in the lane: alias-name reads through VisitAliases, the timeline filtered by its alias, and a storeProjection helper advanced by DeltasSince (resync on retention or rebuild) for conversations, pending decisions and the tensor pool; re-measure each route on the live store first and drop what the bounded query already fixed."
         }
       ]
     },
@@ -175,7 +175,7 @@
     },
     {
       "id": "review-webui-harness",
-      "title": "Held by master row browser-waits-fail-fast: fail a browser leg when the browser stops answering, and name the leg; closes on master's own check once a master merge brings the fix",
+      "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "budget": {
@@ -186,23 +186,25 @@
       "steps": [
         {
           "id": "do",
-          "title": "Held by master row browser-waits-fail-fast: fail a browser leg when the browser stops answering, and name the leg; closes on master's own check once a master merge brings the fix",
+          "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
           "status": "open",
-          "verify": "go test ./internal/webuilane -run '^TestBrowserLegsCarryADeadline$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(StreamLifecycle|HardenedStates)$' -require 'resumes probing'"
+          "verify": "go test ./internal/webuilane -run '^TestBrowserLegFailsWhenTheBrowserStopsAnswering$' -count=1",
+          "rationale": "Held by master row browser-waits-fail-fast, which landed and merged into the lane at 75b235e356b5: a browser wait fails when its page target crashes or detaches instead of hanging to the test timeout. The lane's fixed per-leg deadline was refused by the fixed-timer census; master's check is this row's acceptance. Closes on the next landing that touches the web UI harness."
         }
       ]
     },
     {
       "id": "review-environment-repair",
-      "title": "Held by master row store-bare-record-fill: let a batch carrying content fill a bare store record; closes on master's own check once a master merge brings the fix",
+      "title": "Close on master's store-bare-record-fill (merged at 75b235e356b5): a batch carrying content fills a bare store record",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Held by master row store-bare-record-fill: let a batch carrying content fill a bare store record; closes on master's own check once a master merge brings the fix",
+          "title": "Close on master's store-bare-record-fill (merged at 75b235e356b5): a batch carrying content fills a bare store record",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestEnvironmentRecordRepairsBareRecords$' -count=1"
+          "verify": "go test ./internal/overgodb -run '^TestBatchFillsBareRecord$' -count=1",
+          "rationale": "Held by master row store-bare-record-fill, which landed and merged into the lane at 75b235e356b5; master's check is this row's acceptance, and a merged-master record fill also slots the record into its schema's positions (8a77c2d8). Closes on the next landing that touches environment records."
         }
       ]
     },
@@ -420,6 +422,10 @@
       "row": "store-growth-ratchet"
     },
     {
+      "key": "store-growth:bytes:overgo/modern-go-census-part/v1",
+      "reason": "master's per-package modern-Go census documents (00dfd63d9) written by the merge gate's census; the census substrate is master's, which owns its store diet"
+    },
+    {
       "key": "store-growth:bytes:overgo/modern-go-computation/v1",
       "row": "store-growth-ratchet"
     },
@@ -486,6 +492,10 @@
     {
       "key": "surface-move:production-nodes:00b49160532265a7eea191429073651bff3be82a",
       "row": "automation-harness-surface-remainder"
+    },
+    {
+      "key": "surface-move:production-nodes:38f8a354ac0fefbec2051a7905eb7d32dafcf028",
+      "reason": "the growth is master's merged code (75b235e356b5), owned and reviewed on master; the lane's paydown row arch-route-dispatch carries the lane's own reduction"
     },
     {
       "key": "surface-move:production-nodes:490d85f6260422ba9139cd21efdfb2295950a066",

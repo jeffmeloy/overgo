@@ -24,7 +24,8 @@
           "depends_on": [
             "colibri-fixtures/do",
             "colibri-text-semantics/pretokenizer",
-            "colibri-text-semantics/bpe-shared"
+            "colibri-text-semantics/bpe-shared",
+            "colibri-kimi-split/do"
           ],
           "capabilities": [
             "shared-components",

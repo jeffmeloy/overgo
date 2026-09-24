@@ -42,6 +42,30 @@ func EnsureStateDirectory(root string) error {
 	return fmt.Errorf("process state: write ignore rule: %w", err)
 }
 
+// StateFile is the path of a named file in the state directory of the
+// checkout at root, the directory created on first use. A file an older
+// binary left at its location before the directory existed is carried
+// across once -- renamed into place, or dropped when the directory already
+// holds a newer one -- so it is neither lost nor left in the tree as
+// untracked dirt.
+func StateFile(root, name, legacy string) (string, error) {
+	if err := EnsureStateDirectory(root); err != nil {
+		return "", err
+	}
+	path := filepath.Join(root, StateDirectory, name)
+	old := filepath.Join(root, filepath.FromSlash(legacy))
+	if _, err := os.Lstat(old); errors.Is(err, os.ErrNotExist) {
+		return path, nil
+	}
+	if _, err := os.Lstat(path); err == nil {
+		return path, os.Remove(old)
+	}
+	if err := os.Rename(old, path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", fmt.Errorf("process state: carry %s across: %w", legacy, err)
+	}
+	return path, nil
+}
+
 // placeIgnoreRule stages the rule and renames it into place, so git never
 // reads a rule file that is half written.
 func placeIgnoreRule(directory, ignore string) error {

@@ -24,6 +24,15 @@ const CampaignEnvironment = "OVERGO_CAMPAIGN_SESSION"
 const campaignLocatorPath = processlock.StateDirectory + "/loop_supervisor.json"
 const campaignLockPath = processlock.StateDirectory + "/loop_supervisor.lock"
 const campaignFileMode = 0o600
+
+const (
+	// LoopConfigFile names the machine-local loop configuration in the
+	// checkout's process state.
+	LoopConfigFile = "loop.json"
+	// LegacyLoopConfigFile is where the loop configuration lived before the
+	// state directory; it is carried across on first use.
+	LegacyLoopConfigFile = "docs/loop.json"
+)
 const campaignNonceBytes = 32
 
 type campaignLocator struct {
@@ -157,7 +166,9 @@ func RequireCampaign(root, worker string) error {
 	var owner campaignLocator
 	if err := jsonfile.DecodeStrict(filepath.Join(root, campaignLocatorPath), &owner); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if _, configErr := os.Stat(filepath.Join(root, "docs/loop.json")); errors.Is(configErr, os.ErrNotExist) {
+			// A state directory that cannot be read admits nothing unconfigured.
+			config, configErr := processlock.StateFile(root, LoopConfigFile, LegacyLoopConfigFile)
+			if _, statErr := os.Stat(config); configErr == nil && errors.Is(statErr, os.ErrNotExist) {
 				return nil
 			}
 		}

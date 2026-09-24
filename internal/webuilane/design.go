@@ -270,17 +270,8 @@ func (c colour) over(ground colour) colour {
 	return seen
 }
 
-// contrastRatio is the WCAG ratio of two colour values, rounded to
-// hundredths so the derived document is stable.
-func contrastRatio(foreground, background string) (float64, error) {
-	a, ok := parseColour(foreground)
-	b, okBackground := parseColour(background)
-	if !ok || !okBackground {
-		return 0, fmt.Errorf("%q or %q is not a colour", foreground, background)
-	}
-	return contrast(a, b), nil
-}
-
+// contrast is the WCAG ratio of two colours, rounded to hundredths so the
+// derived document is stable.
 func contrast(foreground, background colour) float64 {
 	a, b := relativeLuminance(foreground), relativeLuminance(background)
 	return math.Round((max(a, b)+0.05)/(min(a, b)+0.05)*100) / 100

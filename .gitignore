@@ -20,10 +20,4 @@ coverage.out
 local-models.json
 /.profile_tmp/
 /.tools/
-docs/.loop_state
 docs/plan_stop.json
-
-# transient loop-control markers
-docs/.dispatch
-docs/.loop_pause
-docs/loop.json

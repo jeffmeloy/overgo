@@ -114,21 +114,19 @@ func RecordDisposition(document Plan, review OptimizationDisposition) (Plan, err
 	return document, nil
 }
 
-// suiteCostRecord is the plan's reading of the gate's suite-cost document:
-// the fixtures each invocation skipped.
-type suiteCostRecord struct {
-	Invocations []struct {
-		Step    string   `json:"step"`
-		Skipped []string `json:"skipped"`
-	} `json:"invocations"`
-}
-
 // SkippedFixtureCandidates names, per step and package, the fixtures of the
 // landing's suite that ran without credit. The costliest package is not a
 // candidate: every suite has one, so it was filed whatever the suite did,
 // and the suite wall ratchet holds the wall against the retained records.
 func SkippedFixtureCandidates(data []byte, evidence artifact.ID) ([]OptimizationCandidate, error) {
-	var record suiteCostRecord
+	// The plan reads, of the gate's suite-cost document, the fixtures each
+	// invocation skipped.
+	var record struct {
+		Invocations []struct {
+			Step    string   `json:"step"`
+			Skipped []string `json:"skipped"`
+		} `json:"invocations"`
+	}
 	if err := json.Unmarshal(data, &record); err != nil {
 		return nil, fmt.Errorf("plan: decode suite cost evidence: %w", err)
 	}

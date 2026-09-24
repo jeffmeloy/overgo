@@ -101,10 +101,12 @@ func TestCraftFloorTokenContrast(t *testing.T) {
 	if least := 2 * len(textTokens) * len(surfaceTokens); pairs <= least {
 		t.Fatalf("measured %d pairs, want every text token on every surface (%d) and the painted pairs beside", pairs, least)
 	}
-	if _, err := contrastRatio("#fff", "#000"); err != nil {
-		t.Fatal(err)
+	white, okWhite := parseColour("#fff")
+	black, okBlack := parseColour("#000000")
+	if !okWhite || !okBlack {
+		t.Fatal("short and long hex colours must parse")
 	}
-	if ratio, _ := contrastRatio("#ffffff", "#000000"); ratio != 21 {
+	if ratio := contrast(white, black); ratio != 21 {
 		t.Fatalf("white on black = %v, want 21", ratio)
 	}
 }

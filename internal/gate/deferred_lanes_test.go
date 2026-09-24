@@ -1,6 +1,7 @@
 package gate
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -15,6 +16,27 @@ import (
 	"overgo/internal/runrecord"
 	"overgo/internal/testutil"
 )
+
+func TestDeferredDeviceAloneHasNoMissingJourneyDependency(t *testing.T) {
+	checks := []automationcheck.Invocation{
+		{Check: automationcheck.Descriptor{Name: testPlanCheckName}},
+		{Check: automationcheck.Descriptor{Name: testDeviceCheckName, Dependencies: []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}}},
+	}
+	wired := wireLaneRunnerDependencies(checks)
+	dependencies := wired[1].Check.Dependencies
+	if !slices.Contains(dependencies, testPlanCheckName) || slices.Contains(dependencies, automationcheck.ModelJourneyCheckName) {
+		t.Fatalf("device-only dependencies = %v", dependencies)
+	}
+	var order []string
+	results, err := automationcheck.ExecuteDAG(t.Context(), wired, map[string]bool{testOwnersCheckName: true},
+		func(_ context.Context, invocation automationcheck.Invocation) (automationcheck.Evidence, error) {
+			order = append(order, invocation.Check.Name)
+			return automationcheck.Evidence{}, nil
+		})
+	if err != nil || len(results) != len(wired) || !slices.Equal(order, []string{testPlanCheckName, testDeviceCheckName}) {
+		t.Fatalf("device-only DAG = order %v, results %d, error %v", order, len(results), err)
+	}
+}
 
 // Publication leaves no source delta, but cannot retire admitted work.
 func TestDeferredLaneSelectionSurvivesPublication(t *testing.T) {
@@ -182,10 +204,11 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err := g.closeStore(); err != nil {
 		t.Fatal(err)
 	}
-	// The runner satisfies the owners' tests without executing them, so the
-	// device group must follow the test plan directly; the first live run
-	// started test-device beside test-plan and found no scope.
-	wired := wireLaneRunnerDependencies(slices.Clone(invocations))
+	// The runner satisfies the owners' tests without executing them, and
+	// selects test-plan with the deferred lanes. This gate-phase fixture
+	// omits test-plan, so add it to the runner selection being tested.
+	runnerChecks := append(slices.Clone(invocations), automationcheck.Invocation{Check: automationcheck.Descriptor{Name: testPlanCheckName}})
+	wired := wireLaneRunnerDependencies(runnerChecks)
 	for _, invocation := range wired {
 		if invocation.Check.Name == testDeviceCheckName && !slices.Contains(invocation.Check.Dependencies, testPlanCheckName) {
 			t.Fatalf("runner left test-device without the test plan: %v", invocation.Check.Dependencies)

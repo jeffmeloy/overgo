@@ -77,7 +77,7 @@ func groundedDoctrineDecisions() []string {
 func TestRSICampaignRatchetAndParallelStructure(t *testing.T) {
 	t.Parallel()
 	document := loadCampaignPlan(t)
-	if document.Lane == "colibri" {
+	if document.Lane == "colibri" || document.Lane == "colibri2" {
 		assertColibriCampaign(t, document)
 		return
 	}

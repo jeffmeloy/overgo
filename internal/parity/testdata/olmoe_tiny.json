@@ -1,0 +1,135 @@
+{
+  "format": "GGUF-v3-independent-python",
+  "architecture": "olmoe",
+  "sha256": "191e65fe8477cd1e50a9d14ee832aa6bf10b39980b61189831f2f44f2a05a5d1",
+  "tensors": [
+    {
+      "name": "token_embd.weight",
+      "shape": [
+        8,
+        32
+      ],
+      "sha256": "169be60dbe9b93c0dca178f423bfa49d0d409ad7dbd95a3bf0eaf7a10abf96ec"
+    },
+    {
+      "name": "output_norm.weight",
+      "shape": [
+        8
+      ],
+      "sha256": "3773b4529fb278ba3e5977397398d910c05bbb8bace2da93ce09aa098236b396"
+    },
+    {
+      "name": "output.weight",
+      "shape": [
+        8,
+        32
+      ],
+      "sha256": "597dcec70938ba95b59bee2cc91878ef63aff386fbb943762ab1edc4979d9dc2"
+    },
+    {
+      "name": "blk.0.attn_norm.weight",
+      "shape": [
+        8
+      ],
+      "sha256": "3d2bf7020f9ed9d588c11c012f720ed7eafd5592e8ed96862b029f43756ea92d"
+    },
+    {
+      "name": "blk.0.attn_q.weight",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "c269fd2aedab0c130c600bb6858e9614ffdb07ed552fd164d7e542d18db50000"
+    },
+    {
+      "name": "blk.0.attn_k.weight",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "a44582404e2d48c59252ae7f7cb2bdee0f047349a78a668f2aa07b1b9c080881"
+    },
+    {
+      "name": "blk.0.attn_v.weight",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "29b920db6f9c87b0254ddcece896e51e9a7f8ba8120c9c5437b07ccd12f27f7a"
+    },
+    {
+      "name": "blk.0.attn_output.weight",
+      "shape": [
+        8,
+        8
+      ],
+      "sha256": "dd26dda981f1022b7b8efecaabd87e9a68645c2632c2fbb63fef87c40c4f1b96"
+    },
+    {
+      "name": "blk.0.attn_q_norm.weight",
+      "shape": [
+        8
+      ],
+      "sha256": "c292e9db3b7fe75102c0c6be853ee5d4997a76535f52b9bc07ac09b535587e9f"
+    },
+    {
+      "name": "blk.0.attn_k_norm.weight",
+      "shape": [
+        8
+      ],
+      "sha256": "f76b021fc33ab45a86d343a59b86cecabd6b282a2c6361468c10e4a6d655ffc8"
+    },
+    {
+      "name": "blk.0.ffn_norm.weight",
+      "shape": [
+        8
+      ],
+      "sha256": "7045d5f5208d0995687d1cd3c91e671c00546e3a8950de31a7970c3dc309f070"
+    },
+    {
+      "name": "blk.0.ffn_gate_inp.weight",
+      "shape": [
+        8,
+        4
+      ],
+      "sha256": "3ad578581ed7e7ff7a28f34390ea8b15a4e68af52e2db4f2a6c82d42e5e07bd4"
+    },
+    {
+      "name": "blk.0.ffn_gate_exps.weight",
+      "shape": [
+        8,
+        12,
+        4
+      ],
+      "sha256": "f1ec52bd0dca70079f4a825e1a5f109798690a0fad9dd95655731b0992a588c7"
+    },
+    {
+      "name": "blk.0.ffn_up_exps.weight",
+      "shape": [
+        8,
+        12,
+        4
+      ],
+      "sha256": "f5942ce754d3afcbf7a0e265fb718e98faa6ae93ec7810a4d4ecda49df1a5c1b"
+    },
+    {
+      "name": "blk.0.ffn_down_exps.weight",
+      "shape": [
+        12,
+        8,
+        4
+      ],
+      "sha256": "541268b6a5665a1fa9d75a1b028e157afd955e16c0a66a3288db62d859baa966"
+    }
+  ],
+  "q_row_sums": [
+    0.25,
+    0.0,
+    -0.25,
+    0.5625,
+    -0.75,
+    1.125,
+    -1.25,
+    1.6875
+  ]
+}

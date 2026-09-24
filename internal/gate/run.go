@@ -278,7 +278,7 @@ func Run(options Options) (runErr error) {
 		indexBefore: indexBefore, mergeBefore: mergeBefore,
 		// A failed obligation forces the lanes inline; a merge and a checkpoint
 		// publication keep their declared graph.
-		laneDebt: laneDebt, deferLanes: laneDebt == nil && !*merge && checkpoint == "" && !readOnlyPlan,
+		laneDebt: laneDebt, serializeLanes: *merge || laneDebt != nil, deferLanes: laneDebt == nil && !*merge && checkpoint == "" && !readOnlyPlan,
 		planProjection: planProjection, mergeSourceStore: mergeSourceStore,
 	}
 	defer func() { runErr = errors.Join(runErr, g.closeStore()) }()

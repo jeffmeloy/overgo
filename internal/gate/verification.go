@@ -108,6 +108,13 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies["device"] = []string{testDeviceCheckName}
 	dependencies[automationcheck.WebUICheckName] = []string{testOwnersCheckName}
 	dependencies[automationcheck.ModelJourneyCheckName] = []string{testOwnersCheckName}
+	if g.serializeLanes {
+		// A merge or failed-lane replay already costs a full inline run.
+		// Keep browser, model and CUDA waves apart: shared device leases
+		// admit both even when their combined VRAM does not fit.
+		dependencies[automationcheck.ModelJourneyCheckName] = []string{automationcheck.WebUICheckName}
+		dependencies[testDeviceCheckName] = []string{automationcheck.ModelJourneyCheckName}
+	}
 	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]

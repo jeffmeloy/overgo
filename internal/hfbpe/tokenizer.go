@@ -17,6 +17,7 @@ import (
 
 	"overgo/internal/binaryschema"
 	"overgo/internal/jsonfile"
+	"overgo/internal/tokenizer"
 )
 
 type Tokenizer struct {
@@ -32,25 +33,40 @@ type Tokenizer struct {
 	decodeMarker      string
 	stripDecodePrefix bool
 	omitSpecial       map[int]bool
+	normalizeNFC      bool
+	normalizerErr     error
+	preTokenize       preTokenizerStage
+	preTokenizerErr   error
 }
 
 type tokenizerJSON struct {
 	AddedTokens []struct {
-		ID      int    `json:"id"`
-		Content string `json:"content"`
-		Special bool   `json:"special"`
+		ID         int    `json:"id"`
+		Content    string `json:"content"`
+		Special    bool   `json:"special"`
+		Normalized *bool  `json:"normalized"`
+		SingleWord bool   `json:"single_word"`
+		LStrip     bool   `json:"lstrip"`
+		RStrip     bool   `json:"rstrip"`
 	} `json:"added_tokens"`
-	Normalizer json.RawMessage `json:"normalizer"`
-	Decoder    struct {
+	Normalizer   json.RawMessage `json:"normalizer"`
+	PreTokenizer json.RawMessage `json:"pre_tokenizer"`
+	Decoder      struct {
 		Type          string `json:"type"`
 		Replacement   string `json:"replacement"`
 		PrependScheme string `json:"prepend_scheme"`
 	} `json:"decoder"`
 	Model struct {
-		Type         string            `json:"type"`
-		Vocab        map[string]int    `json:"vocab"`
-		Merges       []json.RawMessage `json:"merges"`
-		ByteFallback bool              `json:"byte_fallback"`
+		Type                    string            `json:"type"`
+		Vocab                   map[string]int    `json:"vocab"`
+		Merges                  []json.RawMessage `json:"merges"`
+		ByteFallback            bool              `json:"byte_fallback"`
+		Dropout                 *float64          `json:"dropout"`
+		UnkToken                *string           `json:"unk_token"`
+		ContinuingSubwordPrefix *string           `json:"continuing_subword_prefix"`
+		EndOfWordSuffix         *string           `json:"end_of_word_suffix"`
+		FuseUnk                 bool              `json:"fuse_unk"`
+		IgnoreMerges            bool              `json:"ignore_merges"`
 	} `json:"model"`
 }
 
@@ -78,18 +94,13 @@ func Load(dir string) (*Tokenizer, error) {
 		t.decodeMarker = tj.Decoder.Replacement
 		t.stripDecodePrefix = tj.Decoder.PrependScheme != "never"
 	}
-	if len(tj.Normalizer) > 0 {
-		var norm struct {
-			Type    string `json:"type"`
-			Pattern struct {
-				String string `json:"String"`
-			} `json:"pattern"`
-			Content string `json:"content"`
-		}
-		if json.Unmarshal(tj.Normalizer, &norm) == nil &&
-			norm.Type == "Replace" && norm.Pattern.String == " " && norm.Content != "" {
-			t.spaceMarker = norm.Content
-		}
+	t.configureNormalizer(tj.Normalizer)
+	t.configurePreTokenizer(tj.PreTokenizer)
+	if t.preTokenizerErr == nil && t.preTokenize != nil &&
+		(tj.Model.ByteFallback || tj.Model.Dropout != nil || tj.Model.UnkToken != nil ||
+			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "") ||
+			tj.Model.FuseUnk || tj.Model.IgnoreMerges) {
+		t.preTokenizerErr = fmt.Errorf("declared BPE options require an unsupported encoding path")
 	}
 	for i, raw := range tj.Model.Merges {
 		var pair [2]string
@@ -105,6 +116,9 @@ func Load(dir string) (*Tokenizer, error) {
 		return nil, fmt.Errorf("merges[%d]: unrecognized wire format", i)
 	}
 	for _, a := range tj.AddedTokens {
+		if (t.normalizeNFC || t.preTokenize != nil) && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
+			t.normalizerErr = fmt.Errorf("declared tokenizer added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
+		}
 		t.special[a.Content] = a.ID
 		t.specials = append(t.specials, a.Content)
 		if a.Special {
@@ -157,11 +171,23 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 	if t.decodeMarker != "" {
 		return nil, fmt.Errorf("metaspace decoding is supported; its normalization and encoding pipeline is not compiled")
 	}
+	if t.normalizerErr != nil {
+		return nil, t.normalizerErr
+	}
+	if t.preTokenizerErr != nil {
+		return nil, t.preTokenizerErr
+	}
+	if (t.normalizeNFC || t.preTokenize != nil) && !utf8.ValidString(text) {
+		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
+	}
 	var ids []int
 	for _, seg := range t.splitOnSpecials(text) {
 		if id, ok := t.special[seg]; ok {
 			ids = append(ids, id)
 			continue
+		}
+		if t.normalizeNFC {
+			seg = tokenizer.NormalizeNFC(seg)
 		}
 		if t.spaceMarker != "" {
 			segIDs, err := t.encodeSentencepiece(seg)
@@ -171,10 +197,25 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 			ids = append(ids, segIDs...)
 			continue
 		}
-		for _, piece := range gpt2Pretokenize(seg) {
+		var pieces []string
+		if t.preTokenize == nil {
+			pieces = gpt2Pretokenize(seg)
+		} else {
+			pieces = t.preTokenize(seg)
+		}
+		for _, piece := range pieces {
 			var sb strings.Builder
 			for i := range len(piece) {
-				sb.WriteRune(t.b2u[piece[i]])
+				encoded := string(t.b2u[piece[i]])
+				// Hugging Face BPE with no unknown token or byte fallback
+				// drops absent initial byte symbols before ranked merging.
+				// Preserve the deployed undeclared scanner's error contract.
+				if t.preTokenize != nil && !t.byteFallback {
+					if _, present := t.vocab[encoded]; !present {
+						continue
+					}
+				}
+				sb.WriteString(encoded)
 			}
 			for _, tok := range t.bpe(sb.String()) {
 				id, ok := t.vocab[tok]
@@ -352,31 +393,10 @@ func (t *Tokenizer) splitOnSpecials(text string) []string {
 }
 
 func (t *Tokenizer) bpe(word string) []string {
-	parts := strings.Split(word, "")
-	if len(parts) < 2 {
-		if word == "" {
-			return nil
-		}
-		return parts
-	}
-	for {
-		bestRank := -1
-		bestPos := -1
-		for i := 0; i+1 < len(parts); i++ {
-			if r, ok := t.mergeRank[parts[i]+" "+parts[i+1]]; ok {
-				if bestRank == -1 || r < bestRank {
-					bestRank = r
-					bestPos = i
-				}
-			}
-		}
-		if bestPos < 0 {
-			break
-		}
-		merged := parts[bestPos] + parts[bestPos+1]
-		parts = append(parts[:bestPos], append([]string{merged}, parts[bestPos+2:]...)...)
-	}
-	return parts
+	return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
+		rank, ok := t.mergeRank[left+" "+right]
+		return rank, ok
+	})
 }
 
 // gpt2Pretokenize: hand-written scanner reproducing the GPT-2/Qwen2 regex

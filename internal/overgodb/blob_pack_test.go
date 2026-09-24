@@ -2,13 +2,43 @@ package overgodb
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"overgo/internal/artifact"
 )
+
+// TestPackIndexRejectsImpossibleCounts holds the pack reader to its file: a
+// header whose entry count cannot fit in the file -- a damaged count, the
+// largest count, one entry too many -- is refused before it sizes an
+// allocation, and a count that fits still reads its verified index.
+func TestPackIndexRejectsImpossibleCounts(t *testing.T) {
+	t.Parallel()
+	entries := bytes.Repeat([]byte{1}, 2*packEntryBytes)
+	digest := sha256.Sum256(entries)
+	write := func(count uint64) string {
+		path := filepath.Join(t.TempDir(), blobPackFilename)
+		header := append([]byte(blobPackMagic), binary.BigEndian.AppendUint64(nil, count)...)
+		if err := os.WriteFile(path, slices.Concat(header, entries, digest[:]), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	for _, count := range []uint64{math.MaxUint64, math.MaxUint64 / packEntryBytes, 3} {
+		if index := readPackIndex(write(count)); index != nil {
+			t.Fatalf("count %d read an index of %d bytes from a two-entry file", count, len(index))
+		}
+	}
+	if index := readPackIndex(write(2)); !bytes.Equal(index, entries) {
+		t.Fatalf("a count that fits read %d bytes, want the two entries", len(index))
+	}
+}
 
 // TestMergeBlobTreesCarriesThePack holds the merge a rebuild uses to the one
 // thing a pack changes. Loose blobs are named for their content, so a merge

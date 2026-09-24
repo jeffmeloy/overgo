@@ -74,7 +74,19 @@ func readPackIndex(path string) []byte {
 	if _, err := io.ReadFull(file, header); err != nil || string(header[:len(blobPackMagic)]) != blobPackMagic {
 		return nil
 	}
-	index := make([]byte, binary.BigEndian.Uint64(header[len(blobPackMagic):])*uint64(packEntryBytes)+sha256.Size)
+	info, err := file.Stat()
+	if err != nil {
+		return nil
+	}
+	// The index and its digest must fit in the file after the header, so a
+	// damaged count is refused before it sizes an allocation; the division
+	// also keeps the product from overflowing.
+	count := binary.BigEndian.Uint64(header[len(blobPackMagic):])
+	room := info.Size() - int64(packHeaderBytes) - sha256.Size
+	if room < 0 || count > uint64(room)/uint64(packEntryBytes) {
+		return nil
+	}
+	index := make([]byte, count*uint64(packEntryBytes)+sha256.Size)
 	if _, err := io.ReadFull(file, index); err != nil {
 		return nil
 	}

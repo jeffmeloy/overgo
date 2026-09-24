@@ -9,6 +9,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/plan"
+	"overgo/internal/runrecord"
 )
 
 // checkpointMemoEntry: stable cache slot + memo input of one checkpoint.
@@ -25,31 +26,31 @@ func checkpointMemoKey(planRef string, batch *plan.VerificationBatch) string {
 	return planRef
 }
 
-// verifierInputs: every command of a verifier -> package arguments of each
-// go test segment and the paths of each `test -f` guard; any other segment
-// makes the verifier uncacheable with the reason.
+// verifierInputs: every command of a parsed verifier -> package arguments
+// of each go test segment and the paths of each `test -f` guard. A composite
+// command, an environment prefix or any other segment makes the verifier
+// uncacheable with the reason, since the memo input could not describe what
+// it reads.
 func verifierInputs(verify string) (packages, guards []string, err error) {
-	for segment := range strings.SplitSeq(verify, "&&") {
-		fields := strings.Fields(segment)
+	parsed, err := runrecord.ParseVerify(verify)
+	if err != nil {
+		return nil, nil, err
+	}
+	if parsed.Composite {
+		return nil, nil, errors.New("verifier composes shell commands or expands a variable")
+	}
+	for _, segment := range parsed.Segments {
 		switch {
-		case len(fields) == 0:
-			return nil, nil, errors.New("empty command segment")
-		case len(fields) >= 3 && fields[0] == "test" && fields[1] == "-f":
-			guards = append(guards, fields[2])
-		case len(fields) >= 2 && fields[0] == "go" && fields[1] == "test":
-			count := 0
-			for _, field := range fields[2:] {
-				if strings.HasPrefix(field, "-") {
-					break
-				}
-				packages = append(packages, field)
-				count++
-			}
-			if count == 0 {
-				return nil, nil, errors.New("go test segment names no package")
-			}
+		case len(segment.Env) != 0:
+			return nil, nil, fmt.Errorf("segment %q sets its environment", strings.Join(segment.Fields, " "))
+		case segment.Kind == runrecord.SegmentFileGuard:
+			guards = append(guards, segment.Path)
+		case segment.Kind == runrecord.SegmentGoTest && len(segment.Packages) == 0:
+			return nil, nil, errors.New("go test segment names no package")
+		case segment.Kind == runrecord.SegmentGoTest:
+			packages = append(packages, segment.Packages...)
 		default:
-			return nil, nil, fmt.Errorf("segment %q is not go test or a file guard", strings.Join(fields, " "))
+			return nil, nil, fmt.Errorf("segment %q is not go test or a file guard", strings.Join(segment.Fields, " "))
 		}
 	}
 	if len(packages) == 0 {

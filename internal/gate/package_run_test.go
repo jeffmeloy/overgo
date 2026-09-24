@@ -23,23 +23,22 @@ func TestPackageRunRecordsReceipt(t *testing.T) {
 		name    string
 		passed  bool
 		observe bool
-		tests   map[string]string
 	}{
-		{name: "passed", passed: true, observe: true, tests: map[string]string{"TestImageVideoWanAcceptance": "pass"}},
+		{name: "passed", passed: true, observe: true},
 		{name: "failed", passed: false, observe: true},
 		{name: "no verdict", observe: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
 			g, inputs := terminalEvidenceFixture(t, root)
-			run := func(_ context.Context, packages []string, short bool, observe func(string, bool, map[string]string) error, _ bool) (testevidence.GoTestReport, error) {
+			run := func(_ context.Context, packages []string, short bool, observe func(string, bool) error, _ bool) (testevidence.GoTestReport, error) {
 				if len(packages) != 1 || packages[0] != pkg || short {
 					t.Fatalf("run received packages=%v short=%v", packages, short)
 				}
 				if !tc.observe {
 					return testevidence.GoTestReport{}, nil
 				}
-				if err := observe(pkg, tc.passed, tc.tests); err != nil {
+				if err := observe(pkg, tc.passed); err != nil {
 					return testevidence.GoTestReport{}, err
 				}
 				if !tc.passed {
@@ -70,7 +69,7 @@ func TestPackageRunRecordsReceipt(t *testing.T) {
 			if err != nil || !found {
 				t.Fatalf("receipt found=%v err=%v", found, err)
 			}
-			if receipt.Passed != tc.passed || tc.passed && receipt.Tests["TestImageVideoWanAcceptance"] != "pass" {
+			if receipt.Passed != tc.passed || len(receipt.Tests) != 0 {
 				t.Fatalf("receipt = %+v", receipt)
 			}
 		})

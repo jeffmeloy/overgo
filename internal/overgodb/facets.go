@@ -113,10 +113,27 @@ func (f artifactFacet) record(id artifact.ID) (*artifactRecord, bool) {
 	return record, ok
 }
 
+// bare reports a descriptor that names an identity and nothing else: what a
+// batch declares for a document it references without carrying.
+func bare(descriptor artifact.Descriptor) bool {
+	return descriptor == artifact.Descriptor{ID: descriptor.ID}
+}
+
+// fills reports an incoming descriptor that completes a bare record: it
+// states the facts the record lacks and the same batch carries the content
+// they describe, which the content facet holds to the identity. It is the
+// one way a declared identity gains its facts after it was first named.
+func fills(existing, incoming artifact.Descriptor, batch artifact.Batch) bool {
+	return bare(existing) && !bare(incoming) &&
+		slices.ContainsFunc(batch.Contents, func(content artifact.Content) bool { return content.Descriptor == incoming })
+}
+
 func (f artifactFacet) validate(batch artifact.Batch) (map[artifact.ID]struct{}, error) {
 	added := make(map[artifact.ID]struct{}, len(batch.Artifacts))
 	for _, descriptor := range batch.Artifacts {
-		if record, ok := f.records[descriptor.ID]; ok && record.descriptor != descriptor {
+		// A bare declaration of a known identity adds nothing; a full one
+		// fills a bare record only beside its content.
+		if record, ok := f.records[descriptor.ID]; ok && record.descriptor != descriptor && !bare(descriptor) && !fills(record.descriptor, descriptor, batch) {
 			return nil, fmt.Errorf("%w: %s", ErrArtifactConflict, descriptor.ID)
 		}
 		added[descriptor.ID] = struct{}{}
@@ -130,7 +147,13 @@ func (f artifactFacet) validate(batch artifact.Batch) (map[artifact.ID]struct{},
 }
 
 func (f *artifactFacet) add(descriptor artifact.Descriptor, sequence uint64) {
-	if _, found := f.records[descriptor.ID]; found {
+	if record, found := f.records[descriptor.ID]; found {
+		// A fill keeps the record's first sequence and gains its facts.
+		if bare(record.descriptor) && !bare(descriptor) {
+			record.descriptor = descriptor
+			indexDescriptor(f.byMedia, descriptor.MediaType, descriptor.ID)
+			indexDescriptor(f.bySchema, descriptor.Schema, descriptor.ID)
+		}
 		return
 	}
 	f.records[descriptor.ID] = &artifactRecord{descriptor: descriptor, sequence: sequence}
@@ -163,7 +186,8 @@ func (f *artifactFacet) applyCommit(delta artifact.Batch, _ map[artifact.ID]cont
 
 func (f artifactFacet) delta(batch artifact.Batch, delta *artifact.Batch) {
 	for _, descriptor := range batch.Artifacts {
-		if !f.has(descriptor.ID) {
+		// A fill is journaled like a new descriptor, so replay regains it.
+		if record, found := f.records[descriptor.ID]; !found || bare(record.descriptor) && !bare(descriptor) {
 			delta.Artifacts = append(delta.Artifacts, descriptor)
 		}
 	}

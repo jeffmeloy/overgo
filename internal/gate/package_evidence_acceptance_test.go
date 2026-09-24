@@ -136,8 +136,8 @@ func TestIndependentPackageEvidenceAcceptance(t *testing.T) {
 			t.Fatal(err)
 		}
 		receipt, found, err := packageReceiptCodec.Resolve(t.Context(), ledger.store, packageReceiptAlias+ledger.obligations["example/other"].ID.String())
-		if err != nil || !found || !receipt.Passed || !maps.Equal(receipt.Tests, map[string]string{"TestRequired": "pass", "TestIntegration": "skip"}) {
-			t.Fatalf("named verdicts did not survive sibling failure and restart: %+v %v", receipt, err)
+		if err != nil || !found || !receipt.Passed || len(receipt.Tests) != 0 {
+			t.Fatalf("passing receipt did not survive sibling failure and restart: %+v %v", receipt, err)
 		}
 		pending, reused, err := g.packageCachePartition(packages, "short", inputs)
 		if err != nil || reused != 1 || !slices.Equal(pending, []string{"example/app"}) {

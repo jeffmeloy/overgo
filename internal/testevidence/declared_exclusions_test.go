@@ -20,8 +20,8 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 			packageEvent("skip", "example", "TestElsewhere", "") + packageEvent("pass", "example", "", "")
 	}
 	var observed []string
-	observe := func(pkg string, passed bool, tests map[string]string) error {
-		observed = append(observed, pkg+" passed="+map[bool]string{true: "true", false: "false"}[passed]+" elsewhere="+tests["TestElsewhere"]+" applies="+tests["TestApplies"])
+	observe := func(pkg string, passed bool) error {
+		observed = append(observed, pkg+" passed="+map[bool]string{true: "true", false: "false"}[passed])
 		return nil
 	}
 	report, err := readGoTestJSON(strings.NewReader(stream(testskip.Inapplicable+": applies to another campaign lane")), false, false, 0, observe, nil)
@@ -31,7 +31,7 @@ func TestCompleteRunRecordsDeclaredExclusions(t *testing.T) {
 	if report.PassedPackages != 1 || report.PassedTests != 1 || len(report.ClassifiedSkipped) != 1 || len(report.Skipped) != 0 {
 		t.Fatalf("declared exclusion report = %+v", report)
 	}
-	if len(observed) != 1 || observed[0] != "example passed=true elsewhere=skip applies=pass" {
+	if len(observed) != 1 || observed[0] != "example passed=true" {
 		t.Fatalf("observed = %v", observed)
 	}
 	if err := RequireComplete(report); err != nil {

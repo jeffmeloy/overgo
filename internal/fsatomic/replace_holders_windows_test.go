@@ -14,7 +14,7 @@ import (
 	"testing"
 )
 
-const mappedReaderEnvironment = "OVERGO_FSATOMIC_MAPPED_READER"
+const holderEnvironment = "OVERGO_FSATOMIC_HOLDER"
 
 // mapForReading maps path read-only through a handle that shares every
 // access, the way a background git status maps a worktree file it hashes,
@@ -45,16 +45,31 @@ func mapForReading(t *testing.T, path string) func() {
 	}
 }
 
-// TestWriteWaitsOnMappedReader replaces a destination another process has
-// mapped: the replace finds that process through the Restart Manager, waits
-// on it rather than on a timer, and completes once it exits. A holder the
-// writer cannot wait on -- the writer's own process -- is refused by name.
-func TestWriteWaitsOnMappedReader(t *testing.T) {
-	if target := os.Getenv(mappedReaderEnvironment); target != "" {
-		release := mapForReading(t, target)
-		fmt.Println("mapped")
+// TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive holds the replace to
+// the release of the file, never the holder's lifetime. A holder mapping the
+// destination with full sharing -- a background git status -- does not block
+// the replace at all. A holder that denies deletion is named, and once it
+// closes the file while staying alive the next replace goes through. A holder
+// in this process is named the same way.
+func TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive(t *testing.T) {
+	if target := os.Getenv(holderEnvironment); target != "" {
+		input := bufio.NewReader(os.Stdin)
+		if mode, _ := input.ReadString('\n'); strings.TrimSpace(mode) == "shared" {
+			release := mapForReading(t, target)
+			fmt.Println("holding")
+			_, _ = input.ReadString('\n')
+			release()
+		} else {
+			file, err := os.Open(target) // no delete sharing
+			if err != nil {
+				t.Fatal(err)
+			}
+			fmt.Println("holding")
+			_, _ = input.ReadString('\n')
+			_ = file.Close()
+		}
+		fmt.Println("released")
 		_, _ = io.Copy(io.Discard, os.Stdin)
-		release()
 		return
 	}
 	directory := t.TempDir()
@@ -62,63 +77,76 @@ func TestWriteWaitsOnMappedReader(t *testing.T) {
 	if err := os.WriteFile(target, []byte("before"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("another process", func(t *testing.T) {
+	replaceWith := func(content string) error {
 		source := filepath.Join(directory, "next.json")
-		if err := os.WriteFile(source, []byte("after"), 0o600); err != nil {
+		if err := os.WriteFile(source, []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestWriteWaitsOnMappedReader$")
-		child.Env = append(os.Environ(), mappedReaderEnvironment+"="+target)
-		stdin, err := child.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
+		return Replace(source, target)
+	}
+	requireTarget := func(want string) {
+		t.Helper()
+		if data, err := os.ReadFile(target); err != nil || string(data) != want {
+			t.Fatalf("destination = %q %v, want %q", data, err, want)
 		}
-		stdout, err := child.StdoutPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := child.Start(); err != nil {
-			t.Fatal(err)
-		}
-		if line, err := bufio.NewReader(stdout).ReadString('\n'); err != nil || strings.TrimSpace(line) != "mapped" {
-			t.Fatalf("the reader did not map the file: %q %v", line, err)
-		}
-		waiting := make(chan uint32, 1)
-		waitingOnHolder = func(holder uint32) { waiting <- holder }
-		defer func() { waitingOnHolder = func(uint32) {} }()
-		done := make(chan error, 1)
-		go func() { done <- Replace(source, target) }()
-		select {
-		case holder := <-waiting:
-			if holder != uint32(child.Process.Pid) {
-				t.Errorf("waited on process %d, not the reader %d", holder, child.Process.Pid)
+	}
+	for _, mode := range []string{"shared", "denying"} {
+		t.Run(mode+" holder", func(t *testing.T) {
+			child := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestReplaceProceedsWhenTheHolderReleasesAndStaysAlive$")
+			child.Env = append(os.Environ(), holderEnvironment+"="+target)
+			stdin, err := child.StdinPipe()
+			if err != nil {
+				t.Fatal(err)
 			}
-		case err := <-done:
-			t.Fatalf("the replace finished while the reader held the file: %v", err)
-		}
-		if err := stdin.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if err := <-done; err != nil {
-			t.Fatalf("the replace failed after the reader released the file: %v", err)
-		}
-		if err := child.Wait(); err != nil {
-			t.Fatal(err)
-		}
-		if data, err := os.ReadFile(target); err != nil || string(data) != "after" {
-			t.Fatalf("destination = %q %v, want the replacement", data, err)
-		}
-	})
+			stdout, err := child.StdoutPipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := child.Start(); err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = stdin.Close(); _ = child.Wait() }()
+			lines := bufio.NewReader(stdout)
+			expect := func(want string) {
+				t.Helper()
+				if line, err := lines.ReadString('\n'); err != nil || strings.TrimSpace(line) != want {
+					t.Fatalf("holder said %q %v, want %q", line, err, want)
+				}
+			}
+			if _, err := fmt.Fprintln(stdin, mode); err != nil {
+				t.Fatal(err)
+			}
+			expect("holding")
+			if mode == "shared" {
+				if err := replaceWith("shared " + mode); err != nil {
+					t.Fatalf("a delete-sharing holder blocked the replace: %v", err)
+				}
+				requireTarget("shared " + mode)
+				return
+			}
+			err = replaceWith("while held")
+			if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("process %d", child.Process.Pid)) {
+				t.Fatalf("a holder denying deletion was not named: %v", err)
+			}
+			if _, err := fmt.Fprintln(stdin, "release"); err != nil {
+				t.Fatal(err)
+			}
+			expect("released")
+			// The holder is still running: its release alone must be enough.
+			if err := replaceWith("after release"); err != nil {
+				t.Fatalf("the replace failed after the living holder released the file: %v", err)
+			}
+			requireTarget("after release")
+		})
+	}
 	t.Run("this process", func(t *testing.T) {
-		source := filepath.Join(directory, "again.json")
-		if err := os.WriteFile(source, []byte("again"), 0o600); err != nil {
+		held, err := os.Open(target)
+		if err != nil {
 			t.Fatal(err)
 		}
-		release := mapForReading(t, target)
-		defer release()
-		err := Replace(source, target)
-		if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("process %d", os.Getpid())) {
-			t.Fatalf("a holder that cannot be waited on was not named: %v", err)
+		defer held.Close()
+		if err := replaceWith("again"); err == nil || !strings.Contains(err.Error(), fmt.Sprintf("process %d", os.Getpid())) {
+			t.Fatalf("a holder in this process was not named: %v", err)
 		}
 	})
 }

@@ -66,7 +66,7 @@ func PackageRun(ctx context.Context, repo, storePath, spec string, output io.Wri
 	if err != nil {
 		return err
 	}
-	run := func(ctx context.Context, packages []string, short bool, observe func(string, bool, map[string]string) error, leased bool) (testevidence.GoTestReport, error) {
+	run := func(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error) {
 		if len(devices) != 0 {
 			return g.runDeviceBatch(ctx, packages, short, observe, g.runGoTestsAdmitted)
 		}

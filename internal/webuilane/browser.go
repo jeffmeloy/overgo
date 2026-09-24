@@ -153,8 +153,12 @@ func Open(ctx context.Context, executable, pageURL string) (*Browser, error) {
 	if err != nil {
 		return nil, errors.Join(err, browser.Close())
 	}
-	if err := browser.Call(ctx, "Runtime.enable", nil, nil); err != nil {
-		return nil, errors.Join(err, browser.Close())
+	// Inspector reports the renderer's crash or the target's detach, which
+	// end every wait on the page.
+	for _, domain := range []string{"Runtime.enable", "Inspector.enable"} {
+		if err := browser.Call(ctx, domain, nil, nil); err != nil {
+			return nil, errors.Join(err, browser.Close())
+		}
 	}
 	// Downloads belong to this run and leave with its temporary profile;
 	// the browser reports each download's progress as events.
@@ -385,6 +389,17 @@ type cdpEvent struct {
 // retainedEventPrefix selects the events the socket keeps between calls.
 const retainedEventPrefix = "Browser.download"
 
+// targetEnded reports an event after which the page never answers: its
+// renderer crashed or the target detached from this session. Any wait on
+// the page fails at once, naming it, instead of reading a reply that will
+// not come.
+func targetEnded(event cdpEvent) error {
+	if event.Method != "Inspector.targetCrashed" && event.Method != "Inspector.detached" {
+		return nil
+	}
+	return fmt.Errorf("webui lane: the page target ended (%s %s)", event.Method, event.Params)
+}
+
 func dialWebSocket(ctx context.Context, rawURL string) (*webSocket, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme != "ws" || parsed.Host == "" {
@@ -469,6 +484,9 @@ func (socket *webSocket) call(ctx context.Context, method string, parameters any
 			continue
 		}
 		if envelope.ID != id {
+			if err := targetEnded(envelope.cdpEvent); err != nil {
+				return fmt.Errorf("DevTools %s: %w", method, err)
+			}
 			socket.retainEvent(envelope.cdpEvent)
 			continue
 		}
@@ -532,6 +550,9 @@ func (socket *webSocket) awaitEvent(ctx context.Context, observe func(method str
 		var event cdpEvent
 		if json.Unmarshal(message, &event) != nil || event.Method == "" {
 			continue
+		}
+		if err := targetEnded(event); err != nil {
+			return err
 		}
 		if observe(event.Method, event.Params) {
 			return nil

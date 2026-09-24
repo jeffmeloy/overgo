@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,8 +62,8 @@ func TestTerminalEvidenceProcess(t *testing.T) {
 `)
 	}()
 	observe := g.packagePassObserver(t.Context(), ledger, "complete", inputs)
-	_, err = testevidence.GoTestJSONReader(reader, false, 1024, func(pkg string, passed bool, tests map[string]string) error {
-		if err := observe(pkg, passed, tests); err != nil {
+	_, err = testevidence.GoTestJSONReader(reader, false, 1024, func(pkg string, passed bool) error {
+		if err := observe(pkg, passed); err != nil {
 			return err
 		}
 		// The parent reads this announcement from the child's output.
@@ -105,12 +104,12 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 				if err := competitor.prepare(t.Context(), packages, "complete", inputs, other.retryCache); err != nil {
 					t.Fatal(err)
 				}
-				if err := competitor.record(t.Context(), "fixture/good", false, nil); err != nil {
+				if err := competitor.record(t.Context(), "fixture/good", false); err != nil {
 					t.Fatal(err)
 				}
 				want = overgodb.ErrAliasConflict
 			}
-			if err := g.packagePassObserver(t.Context(), ledger, "complete", inputs)("fixture/good", true, nil); !errors.Is(err, want) {
+			if err := g.packagePassObserver(t.Context(), ledger, "complete", inputs)("fixture/good", true); !errors.Is(err, want) {
 				t.Fatalf("publication error=%v want=%v", err, want)
 			}
 			pending, reused, err := g.packageCachePartition(packages, "complete", inputs)
@@ -140,7 +139,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 		done := make(chan error, 1)
 		// The live writer leaves the publication no early success; an early
 		// refusal answers the receive below with its error.
-		go func() { done <- ledger.record(ctx, "fixture/good", true, nil) }()
+		go func() { done <- ledger.record(ctx, "fixture/good", true) }()
 		if err := lock.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -216,23 +215,15 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	receipt, found, err := packageReceiptCodec.Resolve(t.Context(), ledger.store, packageReceiptAlias+ledger.obligations["fixture/good"].ID.String())
-	if err != nil || !found || !maps.Equal(receipt.Tests, map[string]string{"TestWorks": "pass"}) {
-		t.Fatalf("named verdict lost after process death: %+v %v", receipt, err)
-	}
-	// A skip in a complete verdict map is a declared exclusion, a test that
-	// stated why it cannot apply here; the receipt keeps it as such.
-	if err := ledger.record(t.Context(), "fixture/good", true, map[string]string{"TestWorks": "pass", "TestExcluded": "skip"}); err != nil {
-		t.Fatalf("complete profile refused a declared exclusion: %v", err)
-	}
-	if receipt, found, err := packageReceiptCodec.Resolve(t.Context(), ledger.store, packageReceiptAlias+ledger.obligations["fixture/good"].ID.String()); err != nil || !found || receipt.Tests["TestExcluded"] != "skip" || !receipt.Passed {
-		t.Fatalf("declared exclusion lost from the receipt: %+v %v", receipt, err)
+	if err != nil || !found || !receipt.Passed || len(receipt.Tests) != 0 {
+		t.Fatalf("passing receipt lost after process death, or named verdicts still written: %+v %v", receipt, err)
 	}
 	pending, reused, err := g.packageCachePartition(packages, "complete", inputs)
 	if err != nil || reused != 1 || !slices.Equal(pending, []string{"fixture/pending"}) {
 		t.Fatalf("restart pending=%v reused=%d error=%v", pending, reused, err)
 	}
 	requireStoredPackageObligation(t, filepath.Join(root, StorePath), ledger.obligations["fixture/pending"].ID)
-	if err := g.packagePassObserver(t.Context(), ledger, "complete", inputs)("fixture/good", false, nil); err != nil {
+	if err := g.packagePassObserver(t.Context(), ledger, "complete", inputs)("fixture/good", false); err != nil {
 		t.Fatal(err)
 	}
 	if err := ledger.prepare(t.Context(), packages, "complete", inputs, g.retryCache); err != nil {
@@ -258,7 +249,7 @@ func TestTerminalEvidenceRestart(t *testing.T) {
 	}
 	cancelled, stop := context.WithCancelCause(t.Context())
 	stop(errors.New("test interrupted after terminal evidence"))
-	if err := g.packagePassObserver(cancelled, ledger, "complete", inputs)("fixture/new", true, nil); err != nil {
+	if err := g.packagePassObserver(cancelled, ledger, "complete", inputs)("fixture/new", true); err != nil {
 		t.Fatalf("cancellation discarded an observed terminal fact: %v", err)
 	}
 	t.Log("kill/restart: one terminal receipt recovered without tmp cache; incomplete, revoked, changed and new obligations remain uncredited")
@@ -314,7 +305,7 @@ func testPackageLedgerCost(t *testing.T) {
 				}
 				opened++
 			}
-			if err := ledger.record(t.Context(), pkg, true, nil); err != nil {
+			if err := ledger.record(t.Context(), pkg, true); err != nil {
 				t.Fatal(err)
 			}
 		}

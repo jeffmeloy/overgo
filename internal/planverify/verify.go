@@ -41,11 +41,12 @@ func Execute(ctx context.Context, directory, command string, overrides []string)
 	if err != nil {
 		return "", err
 	}
-	structuredGoTest := strings.Contains(command, "go test")
-	executable := command
-	if structuredGoTest {
-		executable = testevidence.JSONCommand(command)
+	parsed, err := runrecord.ParseVerify(command)
+	if err != nil {
+		return "", err
 	}
+	structuredGoTest := len(parsed.GoTests()) != 0
+	executable := parsed.JSONCommand(command)
 	first, err := executeShell(ctx, shell, directory, executable, environment)
 	if err != nil {
 		detail := clioptions.Tail(first, clioptions.DiagnosticTailBytes)

@@ -1594,7 +1594,8 @@
             "fsatomic-release-not-exit/do",
             "pack-index-bounds/do",
             "preflight-gate-one-execution/do",
-            "pack-bounded-streaming/do"
+            "pack-bounded-streaming/do",
+            "colibri2-review-classification/do"
           ]
         }
       ]

@@ -34,21 +34,6 @@
       ]
     },
     {
-      "id": "preflight-gate-one-execution",
-      "title": "Retired: share preflight results with the commit gate",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: share preflight results with the commit gate",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Preflight runs about 20 s of static checks that the gate repeats, but gate checks are bound to the frozen candidate's manifest plan, which preflight does not compute, and only loop -land runs a preflight; the gate already reuses its own earlier passes. Sharing would cost about as much planning time as it saves. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "one-claim-primitive",
       "title": "Retired: share claim mechanics across locks",
       "owner": "master-lead",

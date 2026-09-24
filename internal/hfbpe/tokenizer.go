@@ -393,31 +393,10 @@ func (t *Tokenizer) splitOnSpecials(text string) []string {
 }
 
 func (t *Tokenizer) bpe(word string) []string {
-	parts := strings.Split(word, "")
-	if len(parts) < 2 {
-		if word == "" {
-			return nil
-		}
-		return parts
-	}
-	for {
-		bestRank := -1
-		bestPos := -1
-		for i := 0; i+1 < len(parts); i++ {
-			if r, ok := t.mergeRank[parts[i]+" "+parts[i+1]]; ok {
-				if bestRank == -1 || r < bestRank {
-					bestRank = r
-					bestPos = i
-				}
-			}
-		}
-		if bestPos < 0 {
-			break
-		}
-		merged := parts[bestPos] + parts[bestPos+1]
-		parts = append(parts[:bestPos], append([]string{merged}, parts[bestPos+2:]...)...)
-	}
-	return parts
+	return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
+		rank, ok := t.mergeRank[left+" "+right]
+		return rank, ok
+	})
 }
 
 // gpt2Pretokenize: hand-written scanner reproducing the GPT-2/Qwen2 regex

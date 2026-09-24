@@ -53,7 +53,7 @@ func encodePlaceholderRuns(
 	addSpecial := options.AddSpecial
 	appendText := func(part string) error {
 		encoded, encodeErr := encode(part, EncodeOptions{
-			AddSpecial: addSpecial, ParseSpecial: options.ParseSpecial,
+			AddSpecial: addSpecial, ParseSpecial: options.ParseSpecial, LiteralText: options.LiteralText,
 		})
 		if encodeErr != nil {
 			return encodeErr

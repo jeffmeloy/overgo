@@ -15,6 +15,7 @@ import (
 type EncodeOptions struct {
 	AddSpecial   bool
 	ParseSpecial bool
+	LiteralText  bool // Treat every input byte as data, including added-token spellings.
 }
 
 type segment struct {
@@ -31,7 +32,7 @@ func (v *Vocab) Encode(text string, options EncodeOptions) ([]TokenID, error) {
 	// under auto-tags, otherwise when the text carries the declared tags.
 	// Non-tagged segments recurse into the base path tag-free, so this
 	// cannot loop.
-	if v.dna != nil && len(v.dna.specialTokens) >= dnaSpecialCount &&
+	if !options.LiteralText && v.dna != nil && len(v.dna.specialTokens) >= dnaSpecialCount &&
 		(v.dna.autoTags || strings.Contains(text, v.dna.specialTokens[dnaSpecialBegin]) ||
 			strings.Contains(text, v.dna.specialTokens[dnaSpecialEnd])) {
 		return v.encodeWithDNA(text, options)
@@ -41,7 +42,7 @@ func (v *Vocab) Encode(text string, options EncodeOptions) ([]TokenID, error) {
 		output = append(output, v.BOS)
 	}
 	previousSpecial := true
-	for _, item := range v.partitionSpecial(text, options.ParseSpecial) {
+	for _, item := range v.partitionSpecial(text, options.ParseSpecial, options.LiteralText) {
 		if item.tokenID != NullToken {
 			output = append(output, item.tokenID)
 			previousSpecial = true
@@ -176,14 +177,14 @@ func (v *Vocab) applyBPE(word string) []string {
 	})
 }
 
-func (v *Vocab) partitionSpecial(text string, parseSpecial bool) []segment {
+func (v *Vocab) partitionSpecial(text string, parseSpecial, literal bool) []segment {
 	if text == "" {
 		return nil
 	}
 	eligible := make([]TokenID, 0, len(v.special))
 	for _, id := range v.special {
 		kind := v.Tokens[id].Type
-		if parseSpecial || kind == TokenUserDefined {
+		if !literal && (parseSpecial || kind == TokenUserDefined) {
 			eligible = append(eligible, id)
 		}
 	}

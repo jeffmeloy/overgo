@@ -177,8 +177,18 @@ func (t *Tokenizer) buildByteAlphabet() {
 	}
 }
 
-// Encode: text -> token ids under the declared scheme.
+// Encode: text -> token ids under the declared scheme, recognizing added tokens.
 func (t *Tokenizer) Encode(text string) ([]int, error) {
+	return t.encode(text, true)
+}
+
+// EncodeLiteral treats text as data, even when it spells an added token.
+// Callers assembling prompts should insert intended control IDs separately.
+func (t *Tokenizer) EncodeLiteral(text string) ([]int, error) {
+	return t.encode(text, false)
+}
+
+func (t *Tokenizer) encode(text string, parseAdded bool) ([]int, error) {
 	if t.decodeMarker != "" {
 		return nil, fmt.Errorf("metaspace decoding is supported; its normalization and encoding pipeline is not compiled")
 	}
@@ -192,8 +202,12 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
 	}
 	var ids []int
-	for _, seg := range t.splitOnSpecials(text) {
-		if id, ok := t.special[seg]; ok {
+	segments := []string{text}
+	if parseAdded {
+		segments = t.splitOnSpecials(text)
+	}
+	for _, seg := range segments {
+		if id, ok := t.special[seg]; ok && parseAdded {
 			ids = append(ids, id)
 			continue
 		}

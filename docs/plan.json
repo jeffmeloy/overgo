@@ -4,17 +4,16 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "store-bare-record-fill",
-      "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
+      "id": "merge-38f8a354ac0f",
+      "title": "Merge the GUI cleanup lane at 38f8a354ac0f",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
+          "title": "Merge the GUI cleanup lane at 38f8a354ac0f",
           "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestOnePublicationPath$' -count=1",
-          "rationale": "Integrity and blocking first. A store that already holds a bare descriptor refuses the later batch carrying its content (artifactFacet.validate), which blocks lane outcomes; 66420d36 avoids new bare records but repairs none. Build on the commit coordinator (commit_coordinator.go:44) so every caller shares idempotent publication, content verification, alias compare-and-set and conflict reporting. Treat descriptor-exists and content-available as distinct states, with one supported path to fill an existing descriptor with matching, verified content. A caller declares whether its decision depends on the whole head. Alias-local operations take only their alias precondition, so unrelated writers do not invalidate them. Keep expensive preparation outside the write lock. Done when the bare-record repair works, the per-caller publication and retry code is deleted, and writer wait is measured before and after."
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/server -run '^TestWebUITabsLoadThroughOneResource$' -count=1"
         }
       ]
     },
@@ -126,6 +125,21 @@
           "status": "open",
           "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
           "rationale": "processlock, authoritylock, device resource jobs, the gate lanes lock and plan row claims each repeat holder identity, acquisition, cancellation, release, liveness and diagnostics. Share those. Keep the different rules: database exclusion, durable task ownership, capacity-based GPU admission. Release happens when ownership ends; process exit is crash recovery, not the normal release. Done when the repeated liveness and recovery code is deleted, and a test shows a process releasing a resource, staying alive, and the next owner proceeding."
+        }
+      ]
+    },
+    {
+      "id": "store-bare-record-fill",
+      "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestOnePublicationPath$' -count=1",
+          "rationale": "Integrity and blocking first. A store that already holds a bare descriptor refuses the later batch carrying its content (artifactFacet.validate), which blocks lane outcomes; 66420d36 avoids new bare records but repairs none. Build on the commit coordinator (commit_coordinator.go:44) so every caller shares idempotent publication, content verification, alias compare-and-set and conflict reporting. Treat descriptor-exists and content-available as distinct states, with one supported path to fill an existing descriptor with matching, verified content. A caller declares whether its decision depends on the whole head. Alias-local operations take only their alias precondition, so unrelated writers do not invalidate them. Keep expensive preparation outside the write lock. Done when the bare-record repair works, the per-caller publication and retry code is deleted, and writer wait is measured before and after."
         }
       ]
     },
@@ -802,7 +816,9 @@
             "replan-store-simplification/do",
             "store-queries-bounded/do",
             "store-bounded-segments/do",
-            "store-bare-descriptor-fill/do"
+            "store-bare-descriptor-fill/do",
+            "merge-38f8a354ac0f/do",
+            "file-gui-merge-row/do"
           ]
         }
       ]

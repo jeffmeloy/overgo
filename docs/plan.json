@@ -816,7 +816,8 @@
             "pack-bounded-streaming/do",
             "replan-store-simplification/do",
             "store-queries-bounded/do",
-            "store-bounded-segments/do"
+            "store-bounded-segments/do",
+            "store-bare-descriptor-fill/do"
           ]
         }
       ]

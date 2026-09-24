@@ -6,28 +6,23 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-kimi-token-identity",
-      "title": "Prove full Kimi tokenizer IDs against an independent reference",
+      "id": "colibri-kimi-control-literals",
+      "title": "Preserve literal Kimi control markers in untrusted text",
       "owner": "colibri2",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Prove full Kimi tokenizer IDs against an independent reference",
+          "title": "Preserve literal Kimi control markers in untrusted text",
           "status": "open",
-          "verify": "go test ./internal/hfbpe -run '^TestKimiDeclaredTokenizerReference$' -count=1",
-          "rationale": "The pinned tiny Colibri fixture now covers the Kimi Split boundary and ignore_merges whole-piece behavior but aliases special IDs and does not prove real Kimi token identities. Pin a full Kimi tokenizer artifact, its source revision and independent reference vectors before comparing shared hfbpe encode/decode IDs and byte boundaries across Han/Latin, contractions, whitespace and special tokens. Keep unsupported declarations as explicit refusals. This is tokenizer parity, not a Kimi K2 model-quality claim.",
+          "verify": "go test ./internal/hfbpe -run '^TestKimiLiteralControlText$' -count=1",
+          "rationale": "The independent Kimi K3 tokenizer compatibility review shows that an allow_special_tokens:false request can silently become a control-token ID. Add an explicit literal-text encoding path for untrusted user and tool content while preserving deliberate structural token insertion and existing GGUF ParseSpecial semantics. Pin ordinary and literal-control IDs, distinguish special from ordinary added-token decoding, and bind the eventual served chat-template path before claiming safe Kimi prompts.",
           "depends_on": [
-            "colibri-kimi-split/do",
-            "colibri-text-semantics/pretokenizer",
-            "colibri-text-semantics/bpe-shared",
-            "colibri-plan-39934/do",
-            "colibri-kimi-rank-bpe/do"
+            "colibri-kimi-token-identity/do"
           ],
           "capabilities": [
             "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
+            "correctness-and-quality"
           ]
         }
       ]
@@ -49,7 +44,8 @@
             "colibri-text-semantics/pretokenizer",
             "colibri-text-semantics/bpe-shared",
             "colibri-kimi-split/do",
-            "colibri-kimi-token-identity/do"
+            "colibri-kimi-token-identity/do",
+            "colibri-kimi-control-literals/do"
           ],
           "capabilities": [
             "shared-components",

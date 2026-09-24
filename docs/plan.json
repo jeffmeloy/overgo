@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "pack-index-bounds",
-      "title": "Bound a pack index by its file before allocating",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bound a pack index by its file before allocating",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestPackIndexRejectsImpossibleCounts$' -count=1",
-          "rationale": "Review 2026-09-23 (P2): readPackIndex allocates from the header's entry count before checking the file length or arithmetic bounds (blob_pack.go:77). A damaged count causes an excessive allocation or a panic before checksum validation. Reject any count whose index cannot fit in the file, and any overflow, before allocating."
-        }
-      ]
-    },
-    {
       "id": "store-bare-record-fill",
       "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
       "owner": "master-lead",

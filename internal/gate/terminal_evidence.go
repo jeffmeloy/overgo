@@ -28,7 +28,9 @@ type packageReceipt struct {
 	Obligation artifact.ID `json:"obligation"`
 	Previous   artifact.ID `json:"previous,omitzero"`
 	Passed     bool        `json:"passed"`
-	// Absent on historical receipts; those carry no named-test evidence.
+	// Tests is read only from historical receipts; nothing consumes the
+	// named verdicts since acceptance stopped reusing package runs, so new
+	// receipts leave it empty.
 	Tests map[string]string `json:"tests,omitempty"`
 }
 
@@ -198,17 +200,13 @@ func (ledger *packageEvidenceLedger) publishEnvironment(ctx context.Context) err
 	return err
 }
 
-func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, passed bool, tests map[string]string) error {
+func (ledger *packageEvidenceLedger) record(ctx context.Context, pkg string, passed bool) error {
 	obligation, found := ledger.obligations[pkg]
 	if !found {
 		return fmt.Errorf("package evidence: undeclared package %q", pkg)
 	}
-	// A verdict map carries a skip only for a declared exclusion: in a short
-	// run one excluded by -short, in a complete run one that states why it
-	// cannot apply here. An unowned skip leaves the package unpassed and
-	// never reaches this record.
 	previous := ledger.previous[pkg]
-	receipt, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation.ID, Previous: previous, Passed: passed, Tests: tests})
+	receipt, err := packageReceiptCodec.NewInitial(packageReceipt{Obligation: obligation.ID, Previous: previous, Passed: passed})
 	if err != nil {
 		return err
 	}

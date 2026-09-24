@@ -42,11 +42,16 @@ func assertColibriCampaign(t *testing.T, document Plan) {
 	}
 }
 
-// first-parent-target lane merges use the build verifier emitted by
-// cmd/plan.mergeVerify. The gate separately proves the parent receipts;
-// the full compatibility verifier remains mandatory for non-lane merges.
+// First-parent-target lane merges retain the build verifier emitted by
+// cmd/plan.mergeVerify. A merge may add a differential named test before it.
+// The full compatibility verifier remains mandatory for non-lane merges.
 func preparedColibriMergeBoundary(item Item) bool {
-	return (item.Owner == "colibri" || item.Owner == "colibri2") && preparedMergeShape(item) && item.Steps[0].Verify == "go build ./..."
+	if (item.Owner != "colibri" && item.Owner != "colibri2") || !preparedMergeShape(item) {
+		return false
+	}
+	verify := item.Steps[0].Verify
+	return verify == "go build ./..." ||
+		(strings.HasPrefix(verify, "go test ./") && strings.HasSuffix(verify, " && go build ./..."))
 }
 
 func TestColibriPreparedMergeBoundary(t *testing.T) {
@@ -60,6 +65,11 @@ func TestColibriPreparedMergeBoundary(t *testing.T) {
 	if !preparedColibriMergeBoundary(item) || preparedMergeBoundary(item) {
 		t.Fatal("Colibri2 build boundary must be accepted only as a lane merge")
 	}
+	item.Steps[0].Verify = "go test ./internal/runrecord -run ^TestParseVerify$ -count=1 && go build ./..."
+	if !preparedColibriMergeBoundary(item) {
+		t.Fatal("lane merge must admit a differential named test followed by the build")
+	}
+	item.Steps[0].Verify = "go build ./..."
 	item.Owner = "colibri"
 	for _, mutate := range []func(*Item){
 		func(item *Item) { item.Owner = "master-lead" },

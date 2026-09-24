@@ -108,6 +108,13 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 	dependencies["device"] = []string{testDeviceCheckName}
 	dependencies[automationcheck.WebUICheckName] = []string{testOwnersCheckName}
 	dependencies[automationcheck.ModelJourneyCheckName] = []string{testOwnersCheckName}
+	if g.serializeLanes {
+		// A merge or failed-lane replay already costs a full inline run.
+		// Keep browser, model and CUDA waves apart: shared device leases
+		// admit both even when their combined VRAM does not fit.
+		dependencies[automationcheck.ModelJourneyCheckName] = []string{automationcheck.WebUICheckName}
+		dependencies[testDeviceCheckName] = []string{automationcheck.ModelJourneyCheckName}
+	}
 	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {
 		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
@@ -1328,13 +1335,13 @@ func (g *gateContext) packageCachePartition(packages []string, mode string, inpu
 	return pending, reused, nil
 }
 
-func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool, map[string]string) error) (testevidence.GoTestReport, error) {
+func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
 	return g.runGoTestsAdmitted(ctx, packages, short, observe, true)
 }
 
 // testRunner runs packages as runGoTestsAdmitted does; the device batch
 // takes it so a test can stand in for go test.
-type testRunner func(ctx context.Context, packages []string, short bool, observe func(string, bool, map[string]string) error, leased bool) (testevidence.GoTestReport, error)
+type testRunner func(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error)
 
 // runDeviceBatch runs one device batch under the shared lease and, when its
 // only failures were refused exclusive claims, runs each refused package
@@ -1343,7 +1350,7 @@ type testRunner func(ctx context.Context, packages []string, short bool, observe
 // gate's own, and admits once no other process holds the device. The wait
 // for a foreign holder ends when that holder releases the device or exits;
 // the caller's context bounds the wait and each run alike.
-func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short bool, observe func(string, bool, map[string]string) error, run testRunner) (testevidence.GoTestReport, error) {
+func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short bool, observe func(string, bool) error, run testRunner) (testevidence.GoTestReport, error) {
 	report, err := run(ctx, batch, short, observe, true)
 	if err == nil || !report.ContentionOnly() {
 		return report, err
@@ -1374,7 +1381,7 @@ func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short 
 
 // goTestOptions binds the evidence observer and the progress line each
 // package prints as its step reports it.
-func (g *gateContext) goTestOptions(short bool, observe func(string, bool, map[string]string) error) testevidence.GoTestOptions {
+func (g *gateContext) goTestOptions(short bool, observe func(string, bool) error) testevidence.GoTestOptions {
 	return testevidence.GoTestOptions{Short: short, DiagnosticBytes: clioptions.DiagnosticTailBytes, Observe: observe, Progress: g.packageProgress}
 }
 
@@ -1399,7 +1406,7 @@ func (g *gateContext) progressWriter() io.Writer {
 // runGoTestsAdmitted runs the packages under the gate's shared device lease
 // when leased, else with no lease, so a package claiming the device
 // exclusively is not refused by the gate's own lease.
-func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string, short bool, observe func(string, bool, map[string]string) error, leased bool) (testevidence.GoTestReport, error) {
+func (g *gateContext) runGoTestsAdmitted(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error) {
 	args := []string{"test", "-json", "-count=1", "-failfast"}
 	if short {
 		args = append(args, "-short")
@@ -1724,14 +1731,12 @@ func (g *gateContext) verifyAcceptedCandidate(verify string, complete bool) erro
 	if err := g.requirePreparedCandidate(g.manifestPlan.CandidateTree); err != nil {
 		return err
 	}
-	verdict, reused, err := g.reuseAcceptanceVerdict(context.Background(), verify)
+	// A package run never stands in for the verifier: a filtered -run and a
+	// whole-package run can differ through shared setup, and a guard the
+	// verifier checks must be checked.
+	verdict, err := g.executeCandidateVerifier(tree, verify)
 	if err != nil {
 		return err
-	}
-	if !reused {
-		if verdict, err = g.executeCandidateVerifier(tree, verify); err != nil {
-			return err
-		}
 	}
 	if verdict != runrecord.ClassifyVerifyCommand(verify) {
 		return errors.New("acceptance: verifier returned the wrong classifier verdict")

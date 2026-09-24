@@ -257,7 +257,7 @@ func runDeferredLanes(repo, storePath string, execute func(*gateContext, runreco
 	}
 	g := &gateContext{
 		repo: repo, storePath: storePath, store: store, start: time.Now(), clock: processmeasure.NewStopwatch(),
-		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{},
+		stepEvidence: map[string]string{}, terminal: map[string]automationcheck.Evidence{}, serializeLanes: true,
 	}
 	defer func() { runErr = errors.Join(runErr, g.closeStore()) }()
 	current, found, err := runrecord.CurrentGateLaneObligation(context.Background(), store)
@@ -473,13 +473,20 @@ func deferredResolutionFailure(started processmeasure.Stopwatch, steps []runreco
 // the runner satisfies those without executing them.
 func wireLaneRunnerDependencies(checks []automationcheck.Invocation) []automationcheck.Invocation {
 	for index := range checks {
-		if checks[index].Check.Name != testDeviceCheckName {
-			continue
+		dependencies := slices.Clone(checks[index].Check.Dependencies)
+		switch checks[index].Check.Name {
+		case automationcheck.ModelJourneyCheckName:
+			if !slices.Contains(dependencies, automationcheck.WebUICheckName) {
+				dependencies = append(dependencies, automationcheck.WebUICheckName)
+			}
+		case testDeviceCheckName:
+			for _, prerequisite := range []string{testPlanCheckName, automationcheck.ModelJourneyCheckName} {
+				if !slices.Contains(dependencies, prerequisite) {
+					dependencies = append(dependencies, prerequisite)
+				}
+			}
 		}
-		dependencies := checks[index].Check.Dependencies
-		if !slices.Contains(dependencies, testPlanCheckName) {
-			checks[index].Check.Dependencies = append(slices.Clone(dependencies), testPlanCheckName)
-		}
+		checks[index].Check.Dependencies = dependencies
 	}
 	return checks
 }

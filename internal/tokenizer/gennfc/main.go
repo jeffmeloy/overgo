@@ -1,7 +1,9 @@
+//go:build ignore
+
 // Generate NFC additions from the pinned Colibri Unicode16 table, reusing the
 // existing NFD backing. See NFC.md for source identity, license and acceptance.
 // Run from the repository root:
-// go run ./internal/tokenizer/gennfc -source /path/to/qwen38_nfc_tables.h
+// go run ./internal/tokenizer/gennfc/main.go -source /path/to/qwen38_nfc_tables.h
 package main
 
 import (

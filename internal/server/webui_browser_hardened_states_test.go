@@ -118,7 +118,8 @@ func TestWebUIBrowserHardenedStates(t *testing.T) {
 	}
 	remount(`"loading"`)
 	for _, tab := range tabs {
-		if state := visit(tab, "true"); state.Blank {
+		visible := `!!(() => { const panel = document.querySelector("#panel-` + tab + `"); return panel && (panel.innerText.trim() || panel.querySelector("input, select, textarea, button, canvas, svg, img, video, audio")); })()`
+		if state := visit(tab, visible); state.Blank {
 			findings = append(findings, "loading: "+tab+" stands blank while its reads are held")
 		}
 	}

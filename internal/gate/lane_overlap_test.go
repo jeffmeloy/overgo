@@ -7,13 +7,11 @@ import (
 	"overgo/internal/automationcheck"
 )
 
-// TestDeferredLaneOverlapWiring holds the deferred runner's schedule against the
-// same frozen candidate: the runner wires the device test group to follow the
-// test plan it consumes, the peer lanes -- device, browser and model journeys --
-// depend on none of one another so they co-schedule in one wave, and each holds
-// its shared resource non-exclusively, so ordinary correctness lanes overlap
-// while a declared exclusive measurement still serializes.
-func TestDeferredLaneOverlapWiring(t *testing.T) {
+// TestDeferredLaneSerialWiring keeps replayed browser, model and CUDA checks
+// in separate waves after a failed obligation. Ordinary gates retain their
+// shared schedule, but replay must not repeat the VRAM and browser contention
+// that made the obligation fail.
+func TestDeferredLaneSerialWiring(t *testing.T) {
 	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/server/webui_shell.go"}}
 	byName := map[string]automationcheck.Descriptor{}
@@ -27,8 +25,10 @@ func TestDeferredLaneOverlapWiring(t *testing.T) {
 	for _, invocation := range wireLaneRunnerDependencies(invocations) {
 		wired[invocation.Check.Name] = invocation.Check.Dependencies
 	}
-	if !slices.Contains(wired[testDeviceCheckName], testPlanCheckName) {
-		t.Fatalf("the device test group is not wired to the test plan it consumes: %v", wired[testDeviceCheckName])
+	if !slices.Contains(wired[testDeviceCheckName], testPlanCheckName) ||
+		!slices.Contains(wired[testDeviceCheckName], automationcheck.ModelJourneyCheckName) ||
+		!slices.Contains(wired[automationcheck.ModelJourneyCheckName], automationcheck.WebUICheckName) {
+		t.Fatalf("deferred lane order lost: device=%v model=%v", wired[testDeviceCheckName], wired[automationcheck.ModelJourneyCheckName])
 	}
 
 	peers := []string{"device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
@@ -46,6 +46,28 @@ func TestDeferredLaneOverlapWiring(t *testing.T) {
 			if resource.Exclusive {
 				t.Fatalf("lane %s holds %s exclusively and cannot overlap shared correctness work", lane, resource.Name)
 			}
+		}
+	}
+}
+
+// A merge or failed-lane replay pays for one reliable pass by ordering the
+// browser and model journeys before the CUDA package batch. Normal gates keep
+// their existing overlap; this checks the exceptional schedule itself.
+func TestMergeReplaySerializesHeavyLanes(t *testing.T) {
+	t.Parallel()
+	checks := (&gateContext{repo: t.TempDir(), serializeLanes: true}).pipelineChecks()
+	byName := map[string]automationcheck.Descriptor{}
+	for _, check := range checks {
+		byName[check.Descriptor.Name] = check.Descriptor
+	}
+	for name, prerequisite := range map[string]string{
+		automationcheck.WebUICheckName:        testOwnersCheckName,
+		automationcheck.ModelJourneyCheckName: automationcheck.WebUICheckName,
+		testDeviceCheckName:                   automationcheck.ModelJourneyCheckName,
+		"device":                              testDeviceCheckName,
+	} {
+		if !slices.Equal(byName[name].Dependencies, []string{prerequisite}) {
+			t.Errorf("%s dependencies = %v; want %s", name, byName[name].Dependencies, prerequisite)
 		}
 	}
 }

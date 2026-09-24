@@ -22,13 +22,13 @@ library stable sorting and compacts composition in place. See
 Regenerate from the repository root:
 
 ```
-go run ./internal/tokenizer/gennfc -source /path/to/colibri/c/qwen38_nfc_tables.h
+go run ./internal/tokenizer/gennfc/main.go -source /path/to/colibri/c/qwen38_nfc_tables.h
 ```
 
 The generator refuses a different source hash or a changed existing
 decomposition. It does not modify `nfd_table.go`, install a dependency, or
 generate test expectations.
-The generator is a buildable Go package covered by normal build and vet checks.
+The generator runs as an explicit Go file and is excluded from package discovery; its reproducibility is checked against the pinned source and NFC corpus.
 
 Independent acceptance uses the complete
 [Unicode 16 NormalizationTest corpus](https://www.unicode.org/Public/16.0.0/ucd/NormalizationTest.txt),

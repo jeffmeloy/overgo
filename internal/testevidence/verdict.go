@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+
+	"overgo/internal/runrecord"
 )
 
 // RepeatAgreement requires two evidence outputs of the same bitwise-
@@ -18,7 +20,11 @@ func RepeatAgreement(first, second string) error {
 // RepeatAgreementForCommand permits ordinary output only when the verifier is
 // explicitly mixed, matching VerifyGoTestEvidence's evidence boundary.
 func RepeatAgreementForCommand(command, first, second string) error {
-	return repeatAgreement(first, second, hasNonTestCommand(command))
+	parsed, err := runrecord.ParseVerify(command)
+	if err != nil {
+		return err
+	}
+	return repeatAgreement(first, second, auxiliaryOutput(parsed))
 }
 
 func repeatAgreement(first, second string, allowAuxiliary bool) error {

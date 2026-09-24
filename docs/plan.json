@@ -34,21 +34,6 @@
       ]
     },
     {
-      "id": "browser-waits-fail-fast",
-      "title": "Fail a browser leg when the browser stops answering, and name the leg",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fail a browser leg when the browser stops answering, and name the leg",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -run '^TestBrowserLegFailsWhenTheBrowserStopsAnswering$' -count=1",
-          "rationale": "The webui lane after 2a9b5df6 lost 20 minutes: TestWebUIBrowserAudioOutput blocked in webSocket.readText waiting for a DevTools reply that never came, and the package timeout reported only a stack. Every browser wait uses t.Context, with no deadline. The fixed-timer census refuses a fixed per-leg deadline, so derive the failure: the browser process exited, the socket closed, or the page made no progress across a derived interval. Report the leg by name."
-        }
-      ]
-    },
-    {
       "id": "surface-aware-dispatch",
       "title": "Re-acquire the text guards once per settled inference surface",
       "owner": "master-lead",

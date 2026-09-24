@@ -14,7 +14,7 @@
           "title": "Delete production code only tests call",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
-          "rationale": "From consolidation-inventory (2026-09-24): 228 exported internal declarations (3,089 lines, 22,224 AST nodes) have no non-test reference. The largest: internal/speechsynth/document_runtime.go DocumentProgram and RegisterDocumentRuntime (221 lines); internal/hybridtrain artifact.go LoadRecurrentLayerArtifact and stack.go BuildModel (227); trainingprogram CompileMemorySchedule, CompileTrainingObjectiveMatrix, CompileObjectiveMatrix and EvaluateNative (about 200, 137 dependent packages); parity oracles kept in production files (hostmath/e4b_backward.go 138 of 218 lines, thoughtbank/mhc_backward.go 180, latentvideo/vae.go 77, devicemath/layer_cuda_windows.go 54) belong in _test.go. The probe is tmp/consolidation_probe.go (mode dead). Delete or move them in slices by package, then make the probe a repoanalysis ratchet so none returns. Done when TestNoTestOnlyProductionExports holds the count at zero outside declared test-helper packages."
+          "rationale": "From consolidation-inventory (2026-09-24). Landed slices: move-test-only-oracles (22b5d515, -3,322 production nodes) and delete-hypervector-index (afcee829, -1,373), beside delete-sft-evaluation-targets (7694f00e, -8,491). Remaining by package (tmp/consolidation_probe.go . deadpkg): devicemath 277 lines and hostmath 342 (pinned media paths: each move needs a reviewed media delta), hybridtrain 227, trainingprogram 196, trainingdata 148, seq2seq 58 (training code that may be wired by probes or lanes next), speechsynth 166 (GUI lane owns the document runtime), controllertrain (owner decision row), and test-helper packages (testutil, modelrecipetest, speechrecognitiontest, repositorytest, modeltest, testprocess, testvocab, cuda/testutil), which are exempt. Next: decide per training package whether its test-only entry points are a parked capability or dead, then move or delete; then make the probe a repoanalysis ratchet. Done when TestNoTestOnlyProductionExports holds the count at zero outside declared test-helper packages."
         }
       ]
     },
@@ -135,21 +135,6 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestStoragePolicyIsDeclaredOnContracts$' -count=1",
           "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy."
-        }
-      ]
-    },
-    {
-      "id": "consolidation-inventory",
-      "title": "Measure duplication and file consolidation rows by payoff",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure duplication and file consolidation rows by payoff",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "Owner direction 2026-09-23: fewer components, more efficiency, more robustness. The read-only inventory (2026-09-24, probes tmp/consolidation_probe.go and tmp/envgate_probe.go) counted 323 schema constants (335 declared schema strings never written to the master store, 66 codecs written but never read), 180 OVERGO_* variables (151 only in tests), 102 commands (34 unreferenced), 228 test-only exported declarations (3,089 lines) and one package with no production importer. Its top candidates are filed as rows: delete-sft-evaluation-targets, delete-test-only-exports, env-gated-tests-run-or-go, and the owner decisions retire-controller-cluster and retire-unreferenced-commands. Earlier surveys covered locks (one-claim-primitive), generated docs (generated-docs-into-store) and tmp (tmp-refuses-undeclared-entries). Done when the candidates are filed."
         }
       ]
     },

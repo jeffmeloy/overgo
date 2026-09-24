@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
 // CausalityProjectionVersion identifies the indexed causal query contract.
@@ -154,7 +153,7 @@ func (f *causalityFacet) checkpoint() ([]byte, error) {
 
 func (f *causalityFacet) restore(data []byte) error {
 	var links []artifact.CausalLink
-	if err := strictjson.DecodeBytes(data, &links); err != nil {
+	if err := json.Unmarshal(data, &links); err != nil {
 		return fmt.Errorf("causality checkpoint: %w", err)
 	}
 	*f = newCausalityFacet()

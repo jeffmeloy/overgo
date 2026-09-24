@@ -28,6 +28,9 @@ const (
 	// recomputable from the tree at its source identity, so a released memo is
 	// a miss and the store may let its bytes go.
 	ModernGoComputationSchema = "overgo/modern-go-computation/v1"
+	// ModernGoCensusPartSchema is one package's part of a stored census
+	// computation, recomputable the same way.
+	ModernGoCensusPartSchema = "overgo/modern-go-census-part/v1"
 )
 
 // ModernGoExample is one before-and-after example from the pinned catalog.

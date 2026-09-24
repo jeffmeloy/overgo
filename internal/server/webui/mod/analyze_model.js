@@ -5,16 +5,10 @@
   window.overgo.registerTab({
     id: "model",
     async mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
-      clear(panel);
-      panel.appendChild(el("div", { class: "note", text: "Loading the model…" }));
-
-      let data;
-      try {
-        data = await overgo.modelInfo();
-      } catch (err) { clear(panel); panel.appendChild(overgo.failure(err)); return; }
+      const { el, fmt } = overgo;
+      const data = await overgo.load(() => overgo.modelInfo(), { loading: "Loading the model…" });
+      if (!data) return;
       const m = data.model, d = data.derived;
-      clear(panel);
 
       // --- facts -------------------------------------------------------------
       panel.appendChild(el("div", { class: "section-title", text: "Model" }));

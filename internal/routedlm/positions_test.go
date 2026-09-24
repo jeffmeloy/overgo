@@ -100,3 +100,23 @@ func TestSegmentWindowsMatchSegmentRange(t *testing.T) {
 		}
 	}
 }
+
+// BlockCausalWindows: per-row [start, end) attention windows from row
+// positions — start is always 0 (full-prefix visibility) and end extends
+// through the row's shared-time block, the blockCausalEnds semantics in the
+// same window shape SegmentWindows produces.
+func BlockCausalWindows(positions []RowPosition) ([][2]int, error) {
+	times := make([]int, len(positions))
+	for row, pos := range positions {
+		times[row] = pos.Time
+	}
+	ends, err := BlockCausalEnds(times)
+	if err != nil {
+		return nil, err
+	}
+	windows := make([][2]int, len(ends))
+	for row, end := range ends {
+		windows[row] = [2]int{0, int(end) + 1}
+	}
+	return windows, nil
+}

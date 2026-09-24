@@ -81,6 +81,8 @@ type artifactRecord struct {
 	manifest    artifact.Manifest
 	sequence    uint64
 	hasManifest bool
+	// position is the record's place in bySequence.
+	position int
 }
 
 // artifactFacet owns descriptors, manifests, and the media, schema,
@@ -91,11 +93,14 @@ type artifactFacet struct {
 	bySchema   map[string][]artifact.ID
 	byKind     map[artifact.Kind][]artifact.ID
 	bySequence []artifact.ID
+	// schemaPositions holds each schema's bySequence positions ascending,
+	// so a document read walks its schema in commit order from a cursor.
+	schemaPositions map[string][]int
 }
 
 func newArtifactFacet() artifactFacet {
 	return artifactFacet{
-		records: map[artifact.ID]*artifactRecord{},
+		records: map[artifact.ID]*artifactRecord{}, schemaPositions: map[string][]int{},
 		byMedia: map[string][]artifact.ID{}, bySchema: map[string][]artifact.ID{},
 		byKind: map[artifact.Kind][]artifact.ID{},
 	}
@@ -153,14 +158,28 @@ func (f *artifactFacet) add(descriptor artifact.Descriptor, sequence uint64) {
 			record.descriptor = descriptor
 			indexDescriptor(f.byMedia, descriptor.MediaType, descriptor.ID)
 			indexDescriptor(f.bySchema, descriptor.Schema, descriptor.ID)
+			f.indexSchemaPosition(descriptor.Schema, record.position)
 		}
 		return
 	}
-	f.records[descriptor.ID] = &artifactRecord{descriptor: descriptor, sequence: sequence}
+	f.records[descriptor.ID] = &artifactRecord{descriptor: descriptor, sequence: sequence, position: len(f.bySequence)}
+	f.indexSchemaPosition(descriptor.Schema, len(f.bySequence))
 	indexDescriptor(f.byMedia, descriptor.MediaType, descriptor.ID)
 	indexDescriptor(f.bySchema, descriptor.Schema, descriptor.ID)
 	f.byKind[descriptor.ID.Kind()] = append(f.byKind[descriptor.ID.Kind()], descriptor.ID)
 	f.bySequence = append(f.bySequence, descriptor.ID)
+}
+
+// indexSchemaPosition files a record's position under its schema in
+// ascending order; a new record appends, a filled one slots in.
+func (f *artifactFacet) indexSchemaPosition(schema string, position int) {
+	if schema == "" {
+		return
+	}
+	positions := f.schemaPositions[schema]
+	if at, found := slices.BinarySearch(positions, position); !found {
+		f.schemaPositions[schema] = slices.Insert(positions, at, position)
+	}
 }
 
 func (f *artifactFacet) setManifest(manifest artifact.Manifest) {
@@ -571,14 +590,13 @@ func compareLocation(left, right artifact.Location) int {
 	return cmp.Compare(left.Value, right.Value)
 }
 
+// indexDescriptor files id under key. A record is filed once, when it first
+// states the key, and a query orders what it selects itself, so the index
+// appends: kept sorted, restoring a checkpoint moved each index once per
+// record it held.
 func indexDescriptor(index map[string][]artifact.ID, key string, id artifact.ID) {
-	if key == "" {
-		return
-	}
-	ids := index[key]
-	offset, found := slices.BinarySearchFunc(ids, id, artifact.CompareID)
-	if !found {
-		index[key] = slices.Insert(ids, offset, id)
+	if key != "" {
+		index[key] = append(index[key], id)
 	}
 }
 

@@ -16,29 +16,6 @@ type GatedMLPGrads struct {
 	DWDown []float32 // [inter, d]
 }
 
-// GatedMLPBackward computes the gradients of the SwiGLU block
-//
-//	g = X·Wgate ; a = silu(g) ; u = X·Wup ; h = a⊙u ; Y = h·Wdown
-//
-// given the output cotangent dY[rows,d] and the forward's saved activations
-// g, a, u, h (all [rows,inter]). It composes the device LinearBackward and
-// SiLUBackward operators with host elementwise glue -- no new kernel. This is
-// the MLP-half of a transformer layer's device backward. Correctness-first: each
-// sub-op takes its own device context; a fused resident version is a later
-// optimization.
-func GatedMLPBackward(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
-	return gatedMLPBackward(worker, "GatedMLPBackward", LinearBackward, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
-}
-
-// GatedMLPBackwardT is GatedMLPBackward for densecausal's HF weight layout, where
-// every projection is Y = X·Wᵀ with W stored [out,in] (gate/up are [inter,d],
-// down is [d,inter]). Uses LinearBackwardT for the three projections; the
-// activation glue is identical. Returns dX[rows,d] and the three weight grads in
-// [out,in] layout.
-func GatedMLPBackwardT(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
-	return gatedMLPBackward(worker, "GatedMLPBackwardT", LinearBackwardT, x, wGate, wUp, wDown, g, a, u, h, dY, rows, d, inter)
-}
-
 type linearBackwardOperator func(
 	worker *device.Worker,
 	x, weight, gradient []float32,

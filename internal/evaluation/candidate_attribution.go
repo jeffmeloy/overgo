@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/runrecord"
 )
@@ -498,7 +499,7 @@ func canonicalizeCrossDomainEvaluationContract(value *CrossDomainEvaluationContr
 	positive := false
 	for index, requirement := range value.Requirements {
 		if strings.TrimSpace(requirement.Name) != requirement.Name || requirement.Name == "" ||
-			!finite(requirement.MinimumImprovement) || requirement.MinimumImprovement <= 0 ||
+			!checked.Finite64(requirement.MinimumImprovement) || requirement.MinimumImprovement <= 0 ||
 			requirement.Direction != runrecord.DirectionMinimize && requirement.Direction != runrecord.DirectionMaximize ||
 			index > 0 && requirement.Name == value.Requirements[index-1].Name {
 			return errors.New("evaluation: invalid candidate fitness requirement")
@@ -517,8 +518,8 @@ func canonicalizeCrossDomainEvaluationContract(value *CrossDomainEvaluationContr
 	})
 	for _, tradeoff := range value.AcceptedTradeoffs {
 		if tradeoff.RegressedMetric == tradeoff.ImprovedMetric || tradeoff.Authority.Kind() != artifact.KindEvidence ||
-			!finite(tradeoff.MaximumRegression) || tradeoff.MaximumRegression <= 0 ||
-			!finite(tradeoff.MinimumImprovement) || tradeoff.MinimumImprovement <= 0 ||
+			!checked.Finite64(tradeoff.MaximumRegression) || tradeoff.MaximumRegression <= 0 ||
+			!checked.Finite64(tradeoff.MinimumImprovement) || tradeoff.MinimumImprovement <= 0 ||
 			!hasFitnessRequirement(value.Requirements, tradeoff.RegressedMetric) ||
 			!hasFitnessRequirement(value.Requirements, tradeoff.ImprovedMetric) {
 			return errors.New("evaluation: invalid accepted candidate tradeoff")
@@ -595,7 +596,7 @@ func canonicalizeCandidateMetrics(values *[]runrecord.Metric) error {
 	*values = slices.Clone(*values)
 	slices.SortFunc(*values, func(left, right runrecord.Metric) int { return strings.Compare(left.Name, right.Name) })
 	for index, metric := range *values {
-		if strings.TrimSpace(metric.Name) != metric.Name || metric.Name == "" || !finite(metric.Value) ||
+		if strings.TrimSpace(metric.Name) != metric.Name || metric.Name == "" || !checked.Finite64(metric.Value) ||
 			metric.Direction != runrecord.DirectionMinimize && metric.Direction != runrecord.DirectionMaximize ||
 			index > 0 && metric.Name == (*values)[index-1].Name {
 			return errors.New("evaluation: invalid candidate fitness vector")

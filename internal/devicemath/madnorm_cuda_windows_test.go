@@ -3,6 +3,8 @@
 package devicemath
 
 import (
+	"fmt"
+
 	"math"
 	"math/rand"
 	"testing"
@@ -102,4 +104,19 @@ func TestMADNormBackwardResidentMatchesShared(t *testing.T) {
 	if delta != 0 {
 		t.Fatalf("resident MADNorm VJP differs: %.3e", delta)
 	}
+}
+
+// MADNormBackwardResident writes the rank/MAD input VJP between device buffers.
+func MADNormBackwardResident(
+	worker *device.Worker,
+	incoming, input, output, gradient driver.DevicePtr,
+	rows, width int,
+	epsilon float64,
+) error {
+	if worker == nil || incoming == 0 || input == 0 || output == 0 || gradient == 0 || rows <= 0 || width <= 0 || epsilon <= 0 || math.IsNaN(epsilon) || math.IsInf(epsilon, 0) {
+		return fmt.Errorf("MADNormBackwardResident: invalid buffer, geometry, or epsilon")
+	}
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.MADNormBackward(incoming, input, output, gradient, rows, width, epsilon)
+	})
 }

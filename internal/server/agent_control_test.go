@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"slices"
 	"strings"
@@ -81,30 +80,6 @@ func TestAgentWorkspaceVertical(t *testing.T) {
 		`{"agent":"research-agent","messages":[{"role":"user","content":"hello"}]}`)
 	if chat.Code != http.StatusOK || !strings.Contains(chat.Body.String(), `"choices"`) {
 		t.Fatalf("agent chat status=%d body=%s", chat.Code, chat.Body.String())
-	}
-}
-
-func TestAgentWorkspaceSSE(t *testing.T) {
-	t.Parallel()
-	fixture := newAgentWorkspaceFixture(t, nil, nil, nil)
-	defer fixture.store.Close()
-	activateDefinitionFromAPI(t, fixture.handler, publishAgentFromAPI(t, fixture, nil, nil), "/agents/activate")
-	ctx, cancel := context.WithCancel(t.Context())
-	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, agentWorkspaceCandidates)}
-	done := make(chan struct{})
-	go func() {
-		fixture.handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/agents/stream", nil).WithContext(ctx))
-		close(done)
-	}()
-	for range 2 {
-		<-recorder.flushes
-	}
-	cancel()
-	<-done
-	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
-		!strings.Contains(recorder.Body.String(), "event: agent.inventory") ||
-		!strings.Contains(recorder.Body.String(), "event: operation.snapshot") {
-		t.Fatalf("agent SSE headers=%v body=%s", recorder.Header(), recorder.Body.String())
 	}
 }
 
@@ -239,7 +214,7 @@ func TestAgentWorkspaceNoHiddenReasoning(t *testing.T) {
 	javascript := serveTestRequest(fixture.handler, http.MethodGet, "/mod/agent.js", "").Body.String()
 	for _, expected := range []string{
 		"schemaForm", "/agents/chat", "overgo.toolStep(", "/agents/retrieval", "/agents/automation", "/agents/evidence",
-		"/agents/stream", "PopStateEvent", "overgo.artifactLink",
+		"overgo.subscribe(", "PopStateEvent", "overgo.artifactLink",
 	} {
 		if !strings.Contains(javascript, expected) {
 			t.Errorf("agent GUI lacks %q", expected)

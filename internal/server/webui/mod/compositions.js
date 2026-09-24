@@ -28,8 +28,7 @@
   window.overgo.registerTab({
     id: "compositions",
     async mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
-      clear(panel);
+      const { el, fmt } = overgo;
       const status = el("span", { class: "note" });
       const host = el("div");
       const refresh = el("button", { class: "btn alt", text: "Refresh" });
@@ -98,15 +97,10 @@
         return card;
       }
 
-      async function load() {
-        host.replaceChildren(el("div", { class: "note", text: "Loading compositions…" }));
-        try {
-          const data = await overgo.api.get("/compositions");
-          status.textContent = data.compositions.length + " composition recipes";
-          host.replaceChildren(...data.compositions.map(render));
-          if (!data.compositions.length) host.appendChild(el("div", { class: "note", text: "No composition recipes are published." }));
-        } catch (err) { host.replaceChildren(overgo.failure(err)); }
-      }
+      const load = overgo.read(host, (signal) => overgo.api.get("/compositions", { signal }), (data) => {
+        status.textContent = data.compositions.length + " composition recipes";
+        host.replaceChildren(...data.compositions.map(render));
+      }, { loading: "Loading compositions…", empty: (data) => !data.compositions.length && "No composition recipes are published." });
       refresh.onclick = load;
       await load();
     },

@@ -184,3 +184,11 @@ func TestEncoderProgramMaskedMatchesHostReference(t *testing.T) {
 	}
 	t.Logf("masked encoder graph vs masked host: max_abs=%.3e; masked-vs-maskless delta=%.3e (mask active)", maxAbs, diff)
 }
+
+// CompileEncoderProgram builds the maskless-causal Qwen3-VL selected-layer
+// encoder graph for a sequence of seq tokens (unchanged behavior). matmulType
+// selects rank-2 weight storage (dtype.F32 exact reference/CUDA parity path,
+// dtype.BF16 device resident path).
+func CompileEncoderProgram(e TextEncoderSpec, eps float32, seq int, matmulType dtype.Type) (*EncoderProgram, error) {
+	return compileEncoderProgram(e, eps, seq, matmulType, nil)
+}

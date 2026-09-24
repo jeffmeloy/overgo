@@ -26,10 +26,10 @@ func TestDerivedCacheCoversModernGoComputation(t *testing.T) {
 }
 
 // TestDerivedCacheNamesOnlyRecomputableSchemas holds the class list to the
-// three owner-ruled schemas and the modern-Go memo, and refuses the evidence
+// three owner-ruled schemas and the modern-Go memo with its parts, and refuses the evidence
 // schemas a release must never touch.
 func TestDerivedCacheNamesOnlyRecomputableSchemas(t *testing.T) {
-	if len(DerivedCacheSchemas) != len([]string{"manifest", "profile", "analysis", "modern-go memo"}) {
+	if len(DerivedCacheSchemas) != len([]string{"manifest", "profile", "analysis", "modern-go memo", "modern-go memo part"}) {
 		t.Fatalf("derived cache schemas = %v", DerivedCacheSchemas)
 	}
 	for _, schema := range DerivedCacheSchemas {

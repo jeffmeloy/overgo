@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"overgo/internal/artifact"
@@ -36,6 +37,9 @@ type Dispatch struct {
 	Claim     *worklease.Lease `json:"claim,omitempty"`
 	ClaimID   artifact.ID      `json:"claim_id,omitzero"`
 	Waiting   string           `json:"waiting,omitzero"`
+	// amends is the holder's own claim on the dispatched row, whose contract
+	// the holder amended: acquisition renews it rather than claiming anew.
+	amends *worklease.Lease
 }
 
 // dispatchCacheFile keeps the last resolved dispatch in the checkout's
@@ -254,7 +258,11 @@ func ResolveDispatch(ctx context.Context, root string, request DispatchRequest) 
 			return Dispatch{}, branchErr
 		}
 		acquisition, _ := store.Head()
-		lease, leaseErr := worklease.New(worklease.Lease{Task: reference, Worktree: filepath.ToSlash(repository), Branch: strings.TrimSpace(string(branch)), Role: role, Worker: worker, TargetHead: head, Contract: contract, Acquisition: acquisition.String(), ConflictsWith: []string{}, Claims: worklease.WorkspaceClaims{WholeWorktree: true}})
+		var previous artifact.ID
+		if key.Dispatch.amends != nil {
+			previous = key.Dispatch.amends.ID
+		}
+		lease, leaseErr := worklease.New(worklease.Lease{Task: reference, Worktree: filepath.ToSlash(repository), Branch: strings.TrimSpace(string(branch)), Role: role, Worker: worker, TargetHead: head, Contract: contract, Acquisition: acquisition.String(), Previous: previous, ConflictsWith: []string{}, Claims: worklease.WorkspaceClaims{WholeWorktree: true}})
 		if leaseErr != nil {
 			return Dispatch{}, leaseErr
 		}
@@ -398,10 +406,20 @@ func readDispatchAlias(ctx context.Context, reader artifact.Reader, alias string
 	return &lease, nil
 }
 
-// ValidateClaimedPlan refuses contract edits beneath active work. Release or
-// explicit handoff precedes amendment; unrelated steps remain editable.
-func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, before, after Plan) error {
+// ValidateClaimedPlan refuses contract edits beneath another worker's active
+// work: that worker's release or handoff precedes amendment. The claim's own
+// holder, in its own worktree, amends its row directly; its next dispatch
+// renews the claim to the amended contract. Unclaimed steps remain editable.
+func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, root string, before, after Plan) error {
 	if err := Validate(after); err != nil {
+		return err
+	}
+	worker, err := dispatchWorker("")
+	if err != nil {
+		return err
+	}
+	worktree, err := filepath.Abs(root)
+	if err != nil {
 		return err
 	}
 	visited := map[string]bool{}
@@ -430,7 +448,7 @@ func ValidateClaimedPlan(ctx context.Context, reader artifact.Reader, before, af
 				if err != nil {
 					return err
 				}
-				if lease != nil {
+				if lease != nil && (worker == "" || lease.Worker != worker || !strings.EqualFold(lease.Worktree, filepath.ToSlash(worktree))) {
 					return fmt.Errorf("plan: %s is claimed by worker %s; release exact claim %s for handoff before editing its contract", ref, lease.Worker, lease.ID)
 				}
 			}
@@ -447,24 +465,27 @@ func validateDispatchContract(document Plan, lease worklease.Lease, role string,
 	if !found || item.Status != StatusOpen || step.Status != StatusOpen {
 		return errors.New("plan: claimed row is no longer open; reconcile its completion or handoff")
 	}
+	ready, err := dispatchPriority(document, role, authority)
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(ready, func(ref Ref) bool { return ref.String() == lease.Task }) {
+		return errors.New("plan: claimed row is no longer eligible for this role")
+	}
 	contract, err := dispatchContract(item, step)
 	if err != nil {
 		return err
 	}
 	if contract != lease.Contract {
-		return errors.New("plan: claimed row contract changed; explicit handoff required")
+		return errContractAmended
 	}
-	ready, err := dispatchPriority(document, role, authority)
-	if err != nil {
-		return err
-	}
-	for _, ref := range ready {
-		if ref.String() == lease.Task {
-			return nil
-		}
-	}
-	return errors.New("plan: claimed row is no longer eligible for this role")
+	return nil
 }
+
+// errContractAmended is a claim whose open, eligible row was amended after
+// it was claimed: only the holder can amend it, and its next dispatch renews
+// the claim to the amended contract.
+var errContractAmended = errors.New("plan: claimed row contract was amended; re-claim the row to renew its claim")
 
 // RequireDispatch rechecks the exact executable claim at admission and commit.
 // Legacy callers retain current-row admission only while no dispatch claim owns
@@ -544,10 +565,16 @@ func selectDispatch(ctx context.Context, reader artifact.Reader, document Plan, 
 		if err := worklease.ResolveOwner(ctx, reader, *lease); err != nil {
 			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
 		}
-		if err := validateDispatchContract(document, *lease, role, authority); err != nil {
+		err = validateDispatchContract(document, *lease, role, authority)
+		item, step, _ := dispatchStep(document, lease.Task)
+		if errors.Is(err, errContractAmended) {
+			amended := stepDispatch(item, step, nil)
+			amended.amends = lease
+			return amended, nil
+		}
+		if err != nil {
 			return finishDispatch(Dispatch{Claim: lease, Waiting: err.Error()}), nil
 		}
-		item, step, _ := dispatchStep(document, lease.Task)
 		return stepDispatch(item, step, lease), nil
 	}
 	ordered, err := dispatchPriority(document, role, authority)

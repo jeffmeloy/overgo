@@ -146,20 +146,6 @@ func (b blobStore) reader(id artifact.ID) (*blobReader, error) {
 	return &blobReader{file: file, remaining: size}, nil
 }
 
-// payload reads the whole blob and holds it to its identity.
-func (b blobStore) payload(id artifact.ID) ([]byte, error) {
-	reader, err := b.reader(id)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-	data, err := io.ReadAll(reader)
-	if digest := sha256.Sum256(data); err == nil && hex.EncodeToString(digest[:]) != id.DigestHex() {
-		err = fmt.Errorf("overgodb: blob %s bytes do not hash to their identity", id)
-	}
-	return data, err
-}
-
 // blobReader closes its file the moment the stream is exhausted --
 // at end of file OR after the final expected byte -- so callers that
 // read exactly the descriptor size through a bare io.Reader never
@@ -201,19 +187,29 @@ func (r *blobReader) Close() error {
 // verify re-derives the blob's digest from its bytes and compares it
 // to the identity that addresses it.
 func (b blobStore) verify(id artifact.ID) error {
+	_, err := b.copyVerified(io.Discard, id, nil)
+	return err
+}
+
+// copyVerified streams the blob's bytes into destination through buffer and
+// holds them to the identity that addresses it, returning how many it wrote:
+// the one bounded read that verification and packing share, whatever the
+// blob's size. A nil buffer takes io.Copy's own.
+func (b blobStore) copyVerified(destination io.Writer, id artifact.ID, buffer []byte) (int64, error) {
 	file, err := b.reader(id)
 	if err != nil {
-		return fmt.Errorf("overgodb: verify blob %s: %w", id, err)
+		return 0, fmt.Errorf("overgodb: read blob %s: %w", id, err)
 	}
 	defer file.Close()
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return fmt.Errorf("overgodb: hash blob %s: %w", id, err)
+	written, err := io.CopyBuffer(io.MultiWriter(destination, hash), file, buffer)
+	if err != nil {
+		return written, fmt.Errorf("overgodb: copy blob %s: %w", id, err)
 	}
 	if hex.EncodeToString(hash.Sum(nil)) != id.DigestHex() {
-		return fmt.Errorf("overgodb: blob %s bytes do not hash to their identity", id)
+		return written, fmt.Errorf("overgodb: blob %s bytes do not hash to their identity", id)
 	}
-	return nil
+	return written, nil
 }
 
 // remove deletes the published blob for id and reports whether a file

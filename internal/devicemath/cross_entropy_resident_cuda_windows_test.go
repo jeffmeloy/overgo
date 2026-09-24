@@ -3,6 +3,11 @@
 package devicemath
 
 import (
+	"context"
+	"fmt"
+	"overgo/internal/checked"
+	"overgo/internal/cuda/driver"
+
 	"math"
 	"math/rand"
 	"testing"
@@ -63,4 +68,43 @@ func TestSoftmaxCrossEntropyBackwardResidentMatchesHost(t *testing.T) {
 	if gradientDelta > 2e-7 || lossDelta > 2e-6 {
 		t.Fatalf("resident CE differs: gradient=%.3e loss=%.3e", gradientDelta, lossDelta)
 	}
+}
+
+// AllocResidentU32 allocates and initializes persistent device indices.
+func AllocResidentU32(worker *device.Worker, values []uint32) (driver.DevicePtr, error) {
+	if worker == nil || len(values) == 0 {
+		return 0, fmt.Errorf("AllocResidentU32: values absent")
+	}
+	bytes, ok := checked.Bytes(uint64(len(values)), 4)
+	if !ok {
+		return 0, fmt.Errorf("AllocResidentU32: size overflow")
+	}
+	var pointer driver.DevicePtr
+	err := worker.Do(context.Background(), func(state *device.State) error {
+		allocated, err := state.Driver.MemAlloc(bytes)
+		if err != nil {
+			return err
+		}
+		if err := state.Driver.MemcpyHtoD(allocated, driver.Bytes(values)); err != nil {
+			_ = state.Driver.MemFree(allocated)
+			return err
+		}
+		pointer = allocated
+		return nil
+	})
+	return pointer, err
+}
+
+// SoftmaxCrossEntropyBackwardResident replaces logits with mean CE gradients.
+func SoftmaxCrossEntropyBackwardResident(
+	worker *device.Worker,
+	logits, targets, losses driver.DevicePtr,
+	rows, classes int,
+) error {
+	if worker == nil || logits == 0 || targets == 0 || losses == 0 || rows <= 0 || classes <= 0 || uint64(rows) > math.MaxUint32 || uint64(classes) > math.MaxUint32 {
+		return fmt.Errorf("SoftmaxCrossEntropyBackwardResident: invalid buffer or geometry")
+	}
+	return WithResidentOps(worker, func(ops *ResidentOps) error {
+		return ops.SoftmaxCrossEntropy(logits, targets, losses, rows, classes)
+	})
 }

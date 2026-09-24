@@ -192,3 +192,32 @@ func (index *ExactComponentIndex) Search(query CatalogComponent, limit int) ([]E
 	}
 	return hits, nil
 }
+
+// logBucket: coarse magnitude decade.
+func logBucket(value float64) int {
+	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return -100
+	}
+	bucket := int(math.Floor(math.Log10(value)))
+	if bucket < -12 {
+		bucket = -12
+	}
+	if bucket > 12 {
+		bucket = 12
+	}
+	return bucket
+}
+
+// ratioBucket quantizes a bounded L-moment ratio into tenths.
+func ratioBucket(value float64) int {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return -100
+	}
+	if value > 1 {
+		value = 1
+	}
+	if value < -1 {
+		value = -1
+	}
+	return int(math.Round(value * 10))
+}

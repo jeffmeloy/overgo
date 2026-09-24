@@ -10,6 +10,7 @@ import (
 
 	"overgo/internal/agenttool"
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/executionfailure"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
@@ -918,7 +919,7 @@ func canonicalizeImprovementEndpoint(endpoint *ImprovementFitnessEndpoint) error
 	}
 	endpoint.Quality = slices.Clone(endpoint.Quality)
 	for index, metric := range endpoint.Quality {
-		if metric.Name == "" || !finite(metric.Value) ||
+		if metric.Name == "" || !checked.Finite64(metric.Value) ||
 			metric.Direction != runrecord.DirectionMinimize && metric.Direction != runrecord.DirectionMaximize ||
 			index > 0 && endpoint.Quality[index-1].Name >= metric.Name {
 			return errors.New("evaluation: invalid improvement fitness quality metric")

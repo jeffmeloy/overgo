@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
 	"overgo/internal/gosource"
+	"overgo/internal/overgodb"
 	"overgo/internal/repoanalysis"
 )
 
@@ -134,26 +136,59 @@ func (g *gateContext) computeModernGo(ctx context.Context, _ automationcheck.Inv
 		return false, "", err
 	}
 	batch := artifact.Batch{Key: modernCensusCheckName + "/" + input.ID.String()}
-	candidateContent, err := artifact.JSONContent(modernCensusContract, candidate)
+	candidateID, err := stageModernGoCensus(ctx, store, &batch, candidate)
 	if err != nil {
 		return false, "", err
 	}
-	batch.Contents = append(batch.Contents, candidateContent)
-	references := modernGoReferences{Candidate: candidateContent.Descriptor.ID, Base: candidateContent.Descriptor.ID,
-		CandidateKey: input.CandidateKey, Prior: prior}
+	references := modernGoReferences{Candidate: candidateID, Base: candidateID, CandidateKey: input.CandidateKey, Prior: prior}
 	if input.Base.Identity() != input.Source.Identity() {
-		baseContent, err := artifact.JSONContent(modernCensusContract, previous)
-		if err != nil {
+		if references.Base, err = stageModernGoCensus(ctx, store, &batch, previous); err != nil {
 			return false, "", err
 		}
-		batch.Contents = append(batch.Contents, baseContent)
-		references.Base = baseContent.Descriptor.ID
 	}
 	if _, err := artifact.Publish(ctx, store, batch); err != nil {
 		return false, "", err
 	}
 	encoded, err := json.Marshal(references)
 	return false, string(encoded), err
+}
+
+// storedModernGoCensus is a census as the store holds it: the header of its
+// split by package and the parts, each its own content. Parts of unchanged
+// packages are the bytes the store already holds, so a landing adds only the
+// parts of the packages it changed. A census stored whole has no parts.
+type storedModernGoCensus struct {
+	repoanalysis.ModernGoCensus
+	Parts []artifact.ID `json:"parts,omitempty"`
+}
+
+var modernCensusPartContract = artifact.JSONContract(artifact.KindProfile, repoanalysis.ModernGoCensusPartSchema)
+
+// stageModernGoCensus adds a census's header, and the parts the store does not
+// yet hold, to batch, and returns the header's identity.
+func stageModernGoCensus(ctx context.Context, store *overgodb.Store, batch *artifact.Batch, census repoanalysis.ModernGoCensus) (artifact.ID, error) {
+	header, parts := census.SplitByPackage()
+	stored := storedModernGoCensus{ModernGoCensus: header}
+	for _, part := range parts {
+		content, err := artifact.JSONContent(modernCensusPartContract, part)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		stored.Parts = append(stored.Parts, content.Descriptor.ID)
+		held, err := store.HasContent(ctx, content.Descriptor.ID)
+		if err != nil {
+			return artifact.ID{}, err
+		}
+		if !held && !slices.ContainsFunc(batch.Contents, func(staged artifact.Content) bool { return staged.Descriptor.ID == content.Descriptor.ID }) {
+			batch.Contents = append(batch.Contents, content)
+		}
+	}
+	content, err := artifact.JSONContent(modernCensusContract, stored)
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	batch.Contents = append(batch.Contents, content)
+	return content.Descriptor.ID, nil
 }
 
 func (input *modernGoInput) compute() (repoanalysis.ModernGoCensus, repoanalysis.ModernGoCensus, error) {
@@ -223,13 +258,24 @@ func (g *gateContext) readModernGoOutput(evidence automationcheck.Evidence) (rep
 		if err != nil || !found {
 			return empty, false, err
 		}
-		var output repoanalysis.ModernGoCensus
-		if content.Descriptor.Schema != modernCensusContract.Schema || json.Unmarshal(content.Data, &output) != nil ||
-			output.SourceIdentity != source || output.TargetGo != input.TargetGo ||
-			output.BuildContext != input.Selection.Context || output.CatalogSHA256 != repoanalysis.ModernGoCatalogSHA256 {
+		var stored storedModernGoCensus
+		if content.Descriptor.Schema != modernCensusContract.Schema || json.Unmarshal(content.Data, &stored) != nil ||
+			stored.SourceIdentity != source || stored.TargetGo != input.TargetGo ||
+			stored.BuildContext != input.Selection.Context || stored.CatalogSHA256 != repoanalysis.ModernGoCatalogSHA256 {
 			return empty, false, nil
 		}
-		return output, true, nil
+		// A released part is a miss, as a released census is.
+		parts := make([]repoanalysis.ModernGoCensus, len(stored.Parts))
+		for index, id := range stored.Parts {
+			part, found, err := artifact.ReadContent(context.Background(), store, id)
+			if err != nil || !found {
+				return empty, false, err
+			}
+			if part.Descriptor.Schema != modernCensusPartContract.Schema || json.Unmarshal(part.Data, &parts[index]) != nil {
+				return empty, false, nil
+			}
+		}
+		return repoanalysis.JoinModernGoCensus(stored.ModernGoCensus, parts), true, nil
 	}
 	candidate, found, err := read(references.Candidate, input.Source.Identity())
 	if err != nil || !found {

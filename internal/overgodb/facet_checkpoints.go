@@ -11,12 +11,13 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
-	"overgo/internal/strictjson"
 )
 
-// Per-facet canonical checkpoint bodies. Every serialization is sorted
-// and strict-decoded, so serializing a restored checkpoint reproduces
-// it byte for byte; the loader's fixed-point check depends on that.
+// Per-facet canonical checkpoint bodies. Every serialization is sorted, so
+// serializing a restored checkpoint reproduces it byte for byte. The writer
+// proves that once, which also refuses a body with unknown or repeated
+// fields; an open trusts the digest and version it checks, so a restore
+// decodes without proving strictness again.
 
 type artifactCheckpointEntry struct {
 	Descriptor artifact.Descriptor `json:"descriptor"`
@@ -40,7 +41,7 @@ func (f *artifactFacet) checkpoint() ([]byte, error) {
 
 func (f *artifactFacet) restore(data []byte) error {
 	var entries []artifactCheckpointEntry
-	if err := strictjson.DecodeBytes(data, &entries); err != nil {
+	if err := json.Unmarshal(data, &entries); err != nil {
 		return fmt.Errorf("artifacts checkpoint: %w", err)
 	}
 	*f = newArtifactFacet()
@@ -79,7 +80,7 @@ func (f *contentFacet) checkpoint() ([]byte, error) {
 
 func (f *contentFacet) restore(data []byte) error {
 	var entries []contentCheckpointEntry
-	if err := strictjson.DecodeBytes(data, &entries); err != nil {
+	if err := json.Unmarshal(data, &entries); err != nil {
 		return fmt.Errorf("contents checkpoint: %w", err)
 	}
 	*f = newContentFacet()
@@ -108,7 +109,7 @@ func (f *lineageFacet) checkpoint() ([]byte, error) {
 
 func (f *lineageFacet) restore(data []byte) error {
 	var edges []artifact.Lineage
-	if err := strictjson.DecodeBytes(data, &edges); err != nil {
+	if err := json.Unmarshal(data, &edges); err != nil {
 		return fmt.Errorf("lineage checkpoint: %w", err)
 	}
 	*f = newLineageFacet()
@@ -129,7 +130,7 @@ func (f *locationFacet) checkpoint() ([]byte, error) {
 
 func (f *locationFacet) restore(data []byte) error {
 	var locations []artifact.Location
-	if err := strictjson.DecodeBytes(data, &locations); err != nil {
+	if err := json.Unmarshal(data, &locations); err != nil {
 		return fmt.Errorf("locations checkpoint: %w", err)
 	}
 	*f = newLocationFacet()
@@ -150,7 +151,7 @@ func (f *aliasFacet) checkpoint() ([]byte, error) {
 
 func (f *aliasFacet) restore(data []byte) error {
 	var entries []snapshotAlias
-	if err := strictjson.DecodeBytes(data, &entries); err != nil {
+	if err := json.Unmarshal(data, &entries); err != nil {
 		return fmt.Errorf("aliases checkpoint: %w", err)
 	}
 	*f = newAliasFacet()
@@ -183,7 +184,7 @@ func (f *commitFacet) checkpoint() ([]byte, error) {
 
 func (f *commitFacet) restore(data []byte) error {
 	var entries []commitCheckpointEntry
-	if err := strictjson.DecodeBytes(data, &entries); err != nil {
+	if err := json.Unmarshal(data, &entries); err != nil {
 		return fmt.Errorf("commits checkpoint: %w", err)
 	}
 	*f = newCommitFacet()

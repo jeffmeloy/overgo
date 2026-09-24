@@ -30,7 +30,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/inbox.js", "text/javascript; charset=utf-8", "/operations/inbox"},
 		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
 		{"/mod/discovery.js", "text/javascript; charset=utf-8", "/hub/search"},
-		{"/mod/runtime.js", "text/javascript; charset=utf-8", "runtimeEvents"},
+		{"/mod/runtime.js", "text/javascript; charset=utf-8", "whileShown"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
 		{"/mod/model_builder.js", "text/javascript; charset=utf-8", `scope: "model-builder"`},
@@ -39,8 +39,8 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/compositions.js", "text/javascript; charset=utf-8", "/compositions/activate"},
 		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},
 		{"/mod/evaluations.js", "text/javascript; charset=utf-8", "/evaluations/capabilities"},
-		{"/mod/automations.js", "text/javascript; charset=utf-8", "/automations/stream"},
-		{"/mod/peers.js", "text/javascript; charset=utf-8", "/peers/stream"},
+		{"/mod/automations.js", "text/javascript; charset=utf-8", "/automations/history"},
+		{"/mod/peers.js", "text/javascript; charset=utf-8", "/peers/evidence"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
 		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
@@ -91,7 +91,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
 	runtime := get("/mod/runtime.js")
-	for _, token := range []string{"runtimeEvents.subscribe", "onActivate", "onDeactivate", "runtime.sessions", "runtime.activity"} {
+	for _, token := range []string{"overgo.subscribe(", "whileShown: true", "runtime.sessions", "runtime.activity"} {
 		if !strings.Contains(runtime, token) {
 			t.Errorf("runtime module missing %q", token)
 		}
@@ -105,9 +105,15 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		t.Error("runtime monitor requests retained text")
 	}
 	boot := get("/boot.js")
-	for _, token := range []string{"function poller", "document.hidden", "t.onActivate", "t.onDeactivate"} {
+	for _, token := range []string{"document.hidden", "t.life.setActive(true)", "t.life.setActive(false)"} {
 		if !strings.Contains(boot, token) {
 			t.Errorf("boot lifecycle missing %q", token)
+		}
+	}
+	// Live state arrives on the one runtime stream; the shell keeps no poller and no per-tab stream.
+	for _, retired := range []string{"function poller", "function tabStream"} {
+		if strings.Contains(boot, retired) {
+			t.Errorf("boot keeps retired live-state path %q", retired)
 		}
 	}
 	if !strings.Contains(get("/workspace/manifest"), `"id":"runtime"`) {
@@ -322,7 +328,9 @@ func TestWebUIAuthUX(t *testing.T) {
 		}
 	}
 	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
-		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") {
+		// A tab's reads report through its workspace (overgo.read / overgo.load), which renders overgo.failure.
+		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") &&
+			!strings.Contains(source, "overgo.read(") && !strings.Contains(source, "overgo.load(") {
 			t.Errorf("%s does not route errors through friendlyError", asset)
 		}
 	}

@@ -98,20 +98,6 @@ func LinearBackwardT(worker *device.Worker, x, w, dY []float32, rows, in, outDim
 	return linearBackward(worker, "LinearBackwardT", linearOutputInput, x, w, dY, rows, in, outDim)
 }
 
-// LinearBackwardTResident writes the HF-layout VJP between resident buffers.
-func LinearBackwardTResident(
-	worker *device.Worker,
-	x, weight, dY, dX, dWeight driver.DevicePtr,
-	rows, in, out int,
-) error {
-	if worker == nil || x == 0 || weight == 0 || dY == 0 || dX == 0 || dWeight == 0 || rows <= 0 || in <= 0 || out <= 0 {
-		return fmt.Errorf("LinearBackwardTResident: invalid buffer or geometry")
-	}
-	return WithResidentOps(worker, func(ops *ResidentOps) error {
-		return ops.LinearBackwardT(x, weight, dY, dX, dWeight, rows, in, out)
-	})
-}
-
 func linearBackward(
 	worker *device.Worker,
 	operator string,
@@ -166,14 +152,6 @@ func linearBackward(
 		return nil, nil, err
 	}
 	return dX, dW, nil
-}
-
-// LinearForwardT: HF-layout Y = X·Wᵀ via one cuBLAS GEMM.
-func LinearForwardT(worker *device.Worker, x, w []float32, rows, in, out int) ([]float32, error) {
-	if rows <= 0 || in <= 0 || out <= 0 || len(x) != rows*in || len(w) != out*in {
-		return nil, fmt.Errorf("LinearForwardT: shape mismatch (rows=%d in=%d out=%d x=%d w=%d)", rows, in, out, len(x), len(w))
-	}
-	return linearForwardTW(worker, x, hostW(w), rows, in, out)
 }
 
 // linearForwardTW is LinearForwardT over a linWeight: the weight is uploaded

@@ -1,6 +1,12 @@
 package latentvideo
 
 import (
+	"fmt"
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
+	"runtime"
+	"time"
+
 	"math"
 	"testing"
 
@@ -273,4 +279,87 @@ func TestVAEDecodeRejectsInvalidInputs(t *testing.T) {
 	if _, err := DecodeLatentVideo("missing.pth", plan, bad, make([]float32, 2), 1, 1, 1, sink); err == nil {
 		t.Fatal("zero std accepted")
 	}
+}
+
+// DecodeLatentVideo streams the decode one latent frame at a time: denorm
+// (z*std+mean), the compiled op chain with per-op temporal caches, clamp to
+// [-1,1], then per-frame emission through the sink. Weights load once and
+// stay resident (the reference chunk-major graph residency); peak host
+// memory is weights plus one chunk's activations.
+func DecodeLatentVideo(checkpoint string, plan VAEDecoderPlan, stats VAELatentStats, z []float32, latentFrames, latentH, latentW int, sink VideoFrameSink) (VAEDecodeStats, error) {
+	decodeStats, geometry, err := prepareVAEDecode("vae decode", "host_streamed_chunks", plan, len(plan.Operations), stats, z, latentFrames, latentH, latentW, sink)
+	if err != nil {
+		return decodeStats, err
+	}
+	spatial := geometry.spatial
+	var baseline runtime.MemStats
+	runtime.ReadMemStats(&baseline)
+	samplePeak := func() {
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		if ms.HeapAlloc > baseline.HeapAlloc && ms.HeapAlloc-baseline.HeapAlloc > decodeStats.PeakHeapAllocBytes {
+			decodeStats.PeakHeapAllocBytes = ms.HeapAlloc - baseline.HeapAlloc
+		}
+	}
+	started := time.Now()
+	reader, err := pytorchzip.Open(checkpoint)
+	if err != nil {
+		return decodeStats, err
+	}
+	defer reader.Close()
+	weights, err := loadVAEDecoderOps(reader, plan)
+	if err != nil {
+		return decodeStats, err
+	}
+	samplePeak()
+	states := make([]vaeOpState, len(plan.Operations))
+	frameScratch := make([]float32, 0)
+	frameIndex := tensor.FirstOffset
+	for chunkIndex := range latentFrames {
+		x := make([]float32, plan.ZDim*spatial)
+		denormalizeLatentChunk(x, z, stats, plan.ZDim, latentFrames, spatial, chunkIndex)
+		volume, err := media.ExecuteCodecProgram("vae decode", plan.CodecProgram, states, media.CodecVolume[[]float32]{
+			Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
+		}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], state *vaeOpState, current media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+			next, frames, height, width, runErr := runVAEOp(operation, weights[index], state, chunkIndex, current.Storage, current.Frames, current.Height, current.Width)
+			samplePeak()
+			return media.CodecVolume[[]float32]{Storage: next, Channels: operation.OutputChannels, Frames: frames, Height: height, Width: width}, runErr
+		})
+		if err != nil {
+			return decodeStats, fmt.Errorf("vae decode chunk %d: %w", chunkIndex, err)
+		}
+		x, frames, h, w := volume.Storage, volume.Frames, volume.Height, volume.Width
+		if !checked.Equal(h, geometry.height) || !checked.Equal(w, geometry.width) {
+			return decodeStats, fmt.Errorf("vae decode chunk %d output %dx%d, want %dx%d", chunkIndex, w, h, geometry.width, geometry.height)
+		}
+		media.ClampNormalizedF32InPlace(x)
+		chunkSpatial, ok := checked.MulInt(h, w)
+		if !ok {
+			return decodeStats, fmt.Errorf("vae decode chunk %d spatial geometry overflows", chunkIndex)
+		}
+		frameElements, ok := checked.MulInt(geometry.channels, chunkSpatial)
+		if !ok {
+			return decodeStats, fmt.Errorf("vae decode chunk %d frame geometry overflows", chunkIndex)
+		}
+		if cap(frameScratch) < frameElements {
+			frameScratch = make([]float32, frameElements)
+		}
+		frame := frameScratch[:frameElements]
+		for chunkFrame := range frames {
+			for ch := range geometry.channels {
+				copy(frame[ch*chunkSpatial:(ch+tensor.SingletonExtent)*chunkSpatial], x[(ch*frames+chunkFrame)*chunkSpatial:])
+			}
+			if err := sink(frameIndex, frame, h, w); err != nil {
+				return decodeStats, fmt.Errorf("vae decode frame sink %d: %w", frameIndex, err)
+			}
+			frameIndex++
+		}
+		samplePeak()
+	}
+	if !checked.Equal(frameIndex, geometry.frames) {
+		return decodeStats, fmt.Errorf("vae decode produced %d frames, want %d", frameIndex, geometry.frames)
+	}
+	decodeStats.OutputFrames = frameIndex
+	decodeStats.DecodeWallSec = time.Since(started).Seconds()
+	return decodeStats, nil
 }

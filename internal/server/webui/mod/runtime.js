@@ -1,37 +1,19 @@
 (function () {
   "use strict";
-  let runtimeView = null;
-  let runtimeUnsubscribe = null;
-  let activityView = null;
-  let activityUnsubscribe = null;
 
   function present(value, format) { return value == null ? "unknown" : String(format ? format(value) : value); }
 
-  function activateRuntime() { if (!runtimeUnsubscribe && runtimeView) runtimeUnsubscribe = window.overgo.runtimeEvents.subscribe(runtimeView); }
-
-  function deactivateRuntime() { if (runtimeUnsubscribe) runtimeUnsubscribe(); runtimeUnsubscribe = null; }
-
-  function activateActivity() { if (!activityUnsubscribe && activityView) activityUnsubscribe = window.overgo.runtimeEvents.subscribe(activityView); }
-
-  function deactivateActivity() { if (activityUnsubscribe) activityUnsubscribe(); activityUnsubscribe = null; }
-
   window.overgo.registerTab({
     id: "runtime",
-    onActivate: activateRuntime,
-    onDeactivate: deactivateRuntime,
     async mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
-      clear(panel);
+      const { el, fmt } = overgo;
       const identity = el("div", { class: "note" });
       const summary = el("div", { class: "statgrid" });
       const error = el("div");
       const slots = el("div");
       panel.append(el("div", { class: "section-title", text: "Runtime" }), identity, summary, error, slots);
 
-      try {
-        const info = await overgo.modelInfo();
-        identity.textContent = info.model.name || info.model.id || "";
-      } catch (err) { error.replaceChildren(overgo.failure(err)); }
+      await overgo.read(error, () => overgo.modelInfo(), (info) => { identity.textContent = info.model.name || info.model.id || ""; }, { loading: null })();
 
       function render(data) {
         error.replaceChildren();
@@ -63,18 +45,15 @@
         slots.replaceChildren(table);
       }
 
-      runtimeView = (name, value) => { if (name === "runtime.sessions") render(value); if (name === "stream.error") error.replaceChildren(overgo.failure(value)); };
-      activateRuntime();
+      // The sessions view listens only while it shows.
+      overgo.subscribe((name, value) => { if (name === "runtime.sessions") render(value); if (name === "stream.error") error.replaceChildren(overgo.failure(value)); }, { whileShown: true });
     },
   });
 
   window.overgo.registerTab({
     id: "activity",
-    onActivate: activateActivity,
-    onDeactivate: deactivateActivity,
     async mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
-      clear(panel);
+      const { el, fmt } = overgo;
       const summary = el("div", { class: "statgrid" });
       const error = el("div");
       const operations = el("div");
@@ -91,25 +70,23 @@
       // The DAG view is the recipe graph joined with durable stage
       // receipts: each node badged by its lifecycle state, waiting nodes
       // pointing at the Inbox where their decision lives.
-      async function renderDAG(operation) {
-        try {
-          const dag = await overgo.api.get("/operations/dag?id=" + encodeURIComponent(operation));
-          const nodes = el("div", { class: "row" });
-          for (const node of dag.nodes || []) {
-            const stateClass = node.state === "failed" ? "tag tag-danger"
-              : node.state === "completed" ? "tag user_defined" : "tag control";
-            nodes.append(el("div", { class: "card" },
-              el("div", { class: "mono", text: node.id }),
-              el("div", { class: "note", text: node.module }),
-              el("span", { class: stateClass, text: node.state + (node.failure ? " / " + node.failure : "") }),
-              node.state === "waiting" ? el("div", { class: "note", text: "decision waits in the Inbox" }) : ""));
-          }
-          const edges = el("div", { class: "note" },
-            (dag.edges || []).map((edge) => edge.from + " → " + edge.to).join("   "));
-          dagHost.replaceChildren(
-            el("div", { class: "section-title", text: "Workflow " + fmt.shortID(operation) }), nodes, edges);
-        } catch (err) { error.replaceChildren(overgo.failure(err)); }
-      }
+      let shownDAG = "";
+      const showDAG = overgo.read(dagHost, (signal) => overgo.api.get("/operations/dag?id=" + encodeURIComponent(shownDAG), { signal }), (dag) => {
+        const nodes = el("div", { class: "row" });
+        for (const node of dag.nodes || []) {
+          const stateClass = node.state === "failed" ? "tag tag-danger"
+            : node.state === "completed" ? "tag user_defined" : "tag control";
+          nodes.append(el("div", { class: "card" },
+            el("div", { class: "mono", text: node.id }),
+            el("div", { class: "note", text: node.module }),
+            el("span", { class: stateClass, text: node.state + (node.failure ? " / " + node.failure : "") }),
+            node.state === "waiting" ? el("div", { class: "note", text: "decision waits in the Inbox" }) : ""));
+        }
+        const edges = el("div", { class: "note" },
+          (dag.edges || []).map((edge) => edge.from + " → " + edge.to).join("   "));
+        dagHost.replaceChildren(
+          el("div", { class: "section-title", text: "Workflow " + fmt.shortID(shownDAG) }), nodes, edges);
+      }, { loading: "Loading the workflow…" });
 
       function renderOperations() {
         const table = el("table", { class: "grid" }, overgo.headerRow(["state", "task", "recipe", "progress", "attempts", "run", "outputs", "failure", "decision", "dag"]));
@@ -124,10 +101,23 @@
             el("span", { text: item.task }), fmt.shortID(item.recipe),
             progress.total == null ? present(progress.completed) : progress.completed + " / " + progress.total,
             fmt.grouped((item.attempts || []).length), fmt.shortID(item.run), (item.outputs || []).map(fmt.shortID).join(", "),
-            el("span", { text: item.failure || "" }), decision, el("button", { class: "btn alt", text: "DAG", onclick: () => renderDAG(item.id) })]));
+            el("span", { text: item.failure || "" }), decision, el("button", { class: "btn alt", text: "DAG", onclick: () => { shownDAG = item.id; showDAG(); } })]));
         }
         operations.replaceChildren(table, dagHost);
       }
+
+      let replayed = "";
+      const showReplay = overgo.read(replay, (signal) => overgo.api.get("/interactions/replay?response=" + encodeURIComponent(replayed), { signal }), (value) => {
+        // Media artifacts render as what they are (composer.js mediaPlayer); the rest stays in the raw trace view.
+        const inline = (value.media || []).map((item) => {
+          const src = overgo.contentURL(item.id);
+          const kind = overgo.mediaKind(item.media_type || "");
+          return kind === "document" ? el("a", { class: "mono", href: src, text: fmt.shortID(item.id) }) : overgo.mediaPlayer(kind, src, fmt.shortID(item.id));
+        });
+        replay.replaceChildren(
+          ...(inline.length ? [el("div", { class: "row" }, ...inline)] : []),
+          el("pre", { class: "mono", text: JSON.stringify(value, null, 2) }));
+      }, { loading: "Loading the replay…" });
 
       function render(data) {
         error.replaceChildren();
@@ -154,33 +144,20 @@
         for (const interaction of data.interactions || []) interactionTable.appendChild(el("tr", {},
           el("td", { class: "mono", text: interaction.response }), el("td", { class: "mono", text: interaction.node }),
           el("td", { class: "mono", text: fmt.shortID(interaction.trace) }), el("td", {},
-            el("button", { class: "btn alt", text: "Replay", onclick: async () => {
-              try {
-                const value = await overgo.api.get("/interactions/replay?response=" + encodeURIComponent(interaction.response));
-                // Media artifacts render as what they are (composer.js mediaPlayer); the rest stays in the raw trace view.
-                const inline = (value.media || []).map((item) => {
-                  const src = overgo.contentURL(item.id);
-                  const kind = overgo.mediaKind(item.media_type || "");
-                  return kind === "document" ? el("a", { class: "mono", href: src, text: fmt.shortID(item.id) }) : overgo.mediaPlayer(kind, src, fmt.shortID(item.id));
-                });
-                replay.replaceChildren(
-                  ...(inline.length ? [el("div", { class: "row" }, ...inline)] : []),
-                  el("pre", { class: "mono", text: JSON.stringify(value, null, 2) }));
-              } catch (err) { replay.replaceChildren(overgo.failure(err)); }
-            } }))));
+            el("button", { class: "btn alt", text: "Replay", onclick: () => { replayed = interaction.response; showReplay(); } }))));
         workflow.replaceChildren(
           overgo.fold("Workflow stages", false, stageTable),
           overgo.fold("Tool decisions", false, decisionTable),
           overgo.fold("Interaction replay", true, interactionTable));
       }
 
-      activityView = (name, value) => {
+      // The activity view listens only while it shows.
+      overgo.subscribe((name, value) => {
         if (name === "runtime.activity") render(value);
         if (name === "operation.snapshot") { current.clear(); for (const item of value) current.set(item.id, item); renderOperations(); }
         if (name === "operation") { current.set(value.status.id, value.status); renderOperations(); }
         if (name === "stream.error") error.replaceChildren(overgo.failure(value));
-      };
-      activateActivity();
+      }, { whileShown: true });
     },
   });
 })();

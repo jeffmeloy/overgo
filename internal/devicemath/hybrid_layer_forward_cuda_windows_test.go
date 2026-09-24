@@ -131,3 +131,23 @@ func TestHybridDecoderLayerForwardDeviceMatchesHost(t *testing.T) {
 		}
 	})
 }
+
+// HybridDecoderLayerForwardDevice is the device forward of hostmath's qwen3.5
+// hybrid decoder layer (hostmath.HybridDecoderLayerForward). It composes the
+// same individually parity-verified device ops the backward already uses --
+// RMSNormForward, LinearForwardT, SiLUGateForward for the two pre-norms/residuals
+// and the SwiGLU MLP, and the mix forward (attentionMixForwardDevice for
+// full_attention incl. partial rope, gatedDeltaMixForwardDevice for the GDN
+// linear_attention mix) -- wired exactly as the host golden:
+//
+//	h   = x + Mix(RMSNorm(x, InputNorm))
+//	out = h + MLP(RMSNorm(h, PostNorm))
+//
+// It returns the layer output and the forward cache (HybridLayerDeviceCache) the
+// resident-loop backward consumes. state is the GDN input state (nil/ignored for
+// attention layers). The recomputed activations match the host cache within the
+// ops' fp32 parity, so `out` matches hostmath.HybridDecoderLayerForward to the
+// ~1e-4 kernel-parity class.
+func HybridDecoderLayerForwardDevice(worker *device.Worker, x []float32, w hostmath.HybridLayerWeights, d hostmath.HybridLayerDims, state []float32) ([]float32, HybridLayerDeviceCache, error) {
+	return hybridLayerForwardW(worker, x, hybridHostMatW(w), w, d, state)
+}

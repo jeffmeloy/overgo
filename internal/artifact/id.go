@@ -14,7 +14,6 @@ import (
 
 const (
 	idAlgorithm         = "sha256"
-	idParts             = 3
 	digestBytes         = sha256.Size
 	digestHex           = digestBytes * 2
 	identifyBufferBytes = 1 << 20
@@ -133,20 +132,21 @@ func Identify(kind Kind, reader io.Reader) (ID, uint64, error) {
 }
 
 func ParseID(value string) (ID, error) {
-	parts := strings.Split(value, ":")
-	if len(parts) != idParts || parts[1] != idAlgorithm || len(parts[2]) != digestHex {
+	kindText, rest, _ := strings.Cut(value, ":")
+	algorithm, digestText, found := strings.Cut(rest, ":")
+	if !found || algorithm != idAlgorithm || len(digestText) != digestHex {
 		return ID{}, fmt.Errorf("artifact: invalid ID %q", value)
 	}
-	kind, err := ParseKind(parts[0])
+	kind, err := ParseKind(kindText)
 	if err != nil {
 		return ID{}, err
 	}
-	decoded, err := hex.DecodeString(parts[2])
-	if err != nil {
+	// The digest decodes into the identity itself: a store open parses
+	// every identity it holds.
+	var digest [digestBytes]byte
+	if _, err := hex.Decode(digest[:], []byte(digestText)); err != nil {
 		return ID{}, fmt.Errorf("artifact: invalid ID digest: %w", err)
 	}
-	var digest [digestBytes]byte
-	copy(digest[:], decoded)
 	return ID{kind: kind, digest: digest}, nil
 }
 
@@ -201,6 +201,13 @@ func (id ID) MarshalJSON() ([]byte, error) {
 }
 
 func (id *ID) UnmarshalJSON(data []byte) error {
+	// An identity never needs escaping, so a plain quoted one is parsed in
+	// place; anything else goes through the JSON decoder and its errors.
+	if inner, quoted := bytes.CutPrefix(data, []byte{'"'}); quoted {
+		if inner, quoted = bytes.CutSuffix(inner, []byte{'"'}); quoted && bytes.IndexByte(inner, '\\') < 0 {
+			return id.UnmarshalText(inner)
+		}
+	}
 	var value string
 	if err := json.Unmarshal(data, &value); err != nil {
 		return fmt.Errorf("artifact: decode ID: %w", err)

@@ -185,3 +185,63 @@ func TestPersistentGateStop(t *testing.T) {
 		t.Fatalf("maintenance resumed loop: %+v %v", active, err)
 	}
 }
+
+// TestHolderAmendsItsOwnClaim binds claim renewal: the worker holding a row
+// amends that row's contract in place -- another worker still needs a
+// handoff -- the amended row is not admitted under the old claim, and the
+// holder's next dispatch renews the claim, derived from the one it replaces,
+// to the contract the gate then admits.
+func TestHolderAmendsItsOwnClaim(t *testing.T) {
+	if isolatedProcess(t) {
+		return
+	}
+	t.Setenv(plan.AutomationRoleEnvironment, worklease.UnassignedRole)
+	before := plan.Plan{Items: []plan.Item{{ID: "row", Status: plan.StatusOpen, Steps: []plan.Step{
+		{ID: "do", Status: plan.StatusOpen, Verify: "go test ./internal/plan"},
+	}}}}
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "docs"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.Save(filepath.Join(root, plan.Path), before); err != nil {
+		t.Fatal(err)
+	}
+	initializePlanBindingRepo(t, root)
+	t.Setenv(plan.AutomationWorkerEnvironment, "claim-worker")
+	claimed, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{Acquire: true, Reference: "row/do"})
+	if err != nil || claimed.Claim == nil {
+		t.Fatalf("executable dispatch=%+v %v", claimed, err)
+	}
+	after := before
+	after.Items = []plan.Item{before.Items[0]}
+	after.Items[0].Steps = []plan.Step{before.Items[0].Steps[0]}
+	after.Items[0].Steps[0].Verify = "go test ./internal/gate"
+	store, err := overgodb.OpenReadOnly(filepath.Join(root, gateStorePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(plan.AutomationWorkerEnvironment, "other-worker")
+	if err := plan.ValidateClaimedPlan(t.Context(), store, root, before, after); err == nil {
+		t.Fatal("another worker amended a claimed row without a handoff")
+	}
+	t.Setenv(plan.AutomationWorkerEnvironment, "claim-worker")
+	if err := plan.ValidateClaimedPlan(t.Context(), store, root, before, after); err != nil {
+		t.Fatalf("holder amendment refused: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := plan.Save(filepath.Join(root, plan.Path), after); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkPlanBindingForTest(root, "row/do"); err == nil {
+		t.Fatal("amended row admitted under the claim of its old contract")
+	}
+	renewed, err := plan.ResolveDispatch(t.Context(), root, plan.DispatchRequest{Acquire: true, Reference: "row/do"})
+	if err != nil || renewed.Claim == nil || renewed.Claim.ID == claimed.Claim.ID || renewed.Claim.Previous != claimed.Claim.ID {
+		t.Fatalf("renewal=%+v %v", renewed, err)
+	}
+	if _, _, admitted, err := resolvePlanBinding(root, gateStorePath, "row/do"); err != nil || admitted == nil || admitted.ID != renewed.Claim.ID {
+		t.Fatalf("renewed claim admission=%+v %v", admitted, err)
+	}
+}

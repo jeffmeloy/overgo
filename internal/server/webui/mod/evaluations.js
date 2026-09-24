@@ -11,11 +11,10 @@
   window.overgo.registerTab({
     id: "evaluations",
     async mount(panel, overgo) {
-      const { api, el, clear, fmt } = overgo;
-      clear(panel);
+      const { api, el, fmt } = overgo;
       const model = el("select", { class: "text", "aria-label": "model" });
       const suiteHost = el("div", { class: "control-grid" });
-      const run = el("button", { class: "btn", text: "Run" });
+      const run = el("button", { class: "btn", text: "Run", disabled: true });
       const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
       const status = el("div", { class: "note" });
       const progress = el("progress", { class: "workflow-progress", value: 0, max: 1, hidden: true });
@@ -29,11 +28,7 @@
         el("div", { class: "section-title", text: "Available plans" }), matrix,
         el("div", { class: "section-title", text: "Previous runs" }), history, detail);
 
-      let capabilities;
-      try { capabilities = await api.get("/evaluations/capabilities"); }
-      catch (err) { status.replaceChildren(overgo.failure(err)); run.disabled = true; return; }
-      const models = [...new Set(capabilities.map((item) => item.model))];
-      for (const id of models) model.appendChild(el("option", { value: id, text: fmt.shortID(id) }));
+      let capabilities = [];
       const fields = new Map();
 
       function selectedCapabilities() { return capabilities.filter((item) => item.model === model.value); }
@@ -60,53 +55,57 @@
         liveMetrics.replaceChildren(...((current.metrics || []).length ? [metricTable(overgo, current.metrics)] : []));
       }
 
-      async function showReport(entry) {
+      // The detail shows the newest inspection or comparison; an earlier one still reading is aborted.
+      let inspected = null, compared = null;
+      const showDetail = overgo.read(detail, (signal) => inspected ? Promise.all([
+        api.get("/evaluations/report?id=" + encodeURIComponent(inspected.report), { signal }),
+        api.get("/evaluations/failures?id=" + encodeURIComponent(inspected.report), { signal }),
+        api.get("/runs?id=" + encodeURIComponent(inspected.run), { signal }),
+      ]) : api.get("/evaluations/compare?left=" + encodeURIComponent(compared[0].evaluation) + "&right=" + encodeURIComponent(compared[1].evaluation), { signal }),
+      (answer) => inspected ? renderReport(inspected, ...answer) : renderComparison(answer));
+      function showReport(entry) {
         if (!entry.report) return;
-        detail.replaceChildren(el("div", { class: "note", text: "loading " + fmt.shortID(entry.report) }));
-        try {
-          const [report, failures, runDetail] = await Promise.all([
-            api.get("/evaluations/report?id=" + encodeURIComponent(entry.report)),
-            api.get("/evaluations/failures?id=" + encodeURIComponent(entry.report)),
-            api.get("/runs?id=" + encodeURIComponent(entry.run)),
-          ]);
-          const observations = report.body && Array.isArray(report.body.observations) ? report.body.observations : [];
-          detail.replaceChildren(
-            el("div", { class: "section-title", text: "Report" }),
-            el("div", { class: "row artifact-links" }, overgo.artifactLink(entry.run, "run " + fmt.shortID(entry.run), true),
-              overgo.artifactLink(entry.report, "report " + fmt.shortID(entry.report), true)),
-            el("div", { class: "statgrid" }, overgo.stat("Failures", failures.length),
-              overgo.stat("Inputs", (runDetail.inputs || []).length), overgo.stat("Outputs", (runDetail.outputs || []).length)),
-            metricTable(overgo, entry.metrics),
-            ...failures.map((failure) => recordTable(overgo, failure.observation)),
-            ...observations.map((observation) => recordTable(overgo, observation)));
-        } catch (err) { detail.replaceChildren(overgo.failure(err)); }
+        inspected = entry;
+        showDetail();
+      }
+      function renderReport(entry, report, failures, runDetail) {
+        const observations = report.body && Array.isArray(report.body.observations) ? report.body.observations : [];
+        detail.replaceChildren(
+          el("div", { class: "section-title", text: "Report" }),
+          el("div", { class: "row artifact-links" }, overgo.artifactLink(entry.run, "run " + fmt.shortID(entry.run), true),
+            overgo.artifactLink(entry.report, "report " + fmt.shortID(entry.report), true)),
+          el("div", { class: "statgrid" }, overgo.stat("Failures", failures.length),
+            overgo.stat("Inputs", (runDetail.inputs || []).length), overgo.stat("Outputs", (runDetail.outputs || []).length)),
+          metricTable(overgo, entry.metrics),
+          ...failures.map((failure) => recordTable(overgo, failure.observation)),
+          ...observations.map((observation) => recordTable(overgo, observation)));
       }
 
       let baseline = null;
-      async function compare(entry) {
+      function compare(entry) {
         if (!baseline) { baseline = entry; status.textContent = "baseline / " + fmt.shortID(entry.evaluation); return; }
-        try {
-          const comparison = await api.get("/evaluations/compare?left=" + encodeURIComponent(baseline.evaluation) +
-            "&right=" + encodeURIComponent(entry.evaluation));
-          const table = overgo.table(["metric", "baseline", "current", "delta", "result"], (comparison.metrics || []).map((metric) => [
-            metric.name, String(metric.left), String(metric.right), String(metric.delta), el("span", { text: metric.improved ? "improved" : "not improved" })]));
-          detail.replaceChildren(el("div", { class: "section-title", text: "Comparison" }), table);
-          baseline = null;
-        } catch (err) { detail.replaceChildren(overgo.failure(err)); }
+        inspected = null;
+        compared = [baseline, entry];
+        baseline = null;
+        showDetail();
+      }
+      function renderComparison(comparison) {
+        const table = overgo.table(["metric", "baseline", "current", "delta", "result"], (comparison.metrics || []).map((metric) => [
+          metric.name, String(metric.left), String(metric.right), String(metric.delta), el("span", { text: metric.improved ? "improved" : "not improved" })]));
+        detail.replaceChildren(el("div", { class: "section-title", text: "Comparison" }), table);
       }
 
-      async function loadHistory() {
-        if (!model.value) return;
-        try {
-          const entries = await api.get("/evaluations/history?model=" + encodeURIComponent(model.value));
-          const table = overgo.table(["outcome", "commit", "metrics", "run", "actions"], entries.map((entry) => [entry.outcome, (entry.code_commit || "").slice(0, 10),
-            el("span", { text: (entry.metrics || []).map((item) => item.name + "=" + item.value + " " + item.direction).join(", ") || "-" }),
-            overgo.artifactLink(entry.run, null, true),
-            el("span", { class: "row" }, entry.report ? el("button", { class: "btn alt", text: "Inspect", onclick: () => showReport(entry) }) : null,
-              entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)]));
-          history.replaceChildren(table);
-        } catch (err) { history.replaceChildren(overgo.failure(err)); }
-      }
+      const loadHistory = overgo.read(history, (signal) => {
+        if (!model.value) return [];
+        return api.get("/evaluations/history?model=" + encodeURIComponent(model.value), { signal });
+      }, (entries) => {
+        const table = overgo.table(["outcome", "commit", "metrics", "run", "actions"], entries.map((entry) => [entry.outcome, (entry.code_commit || "").slice(0, 10),
+          el("span", { text: (entry.metrics || []).map((item) => item.name + "=" + item.value + " " + item.direction).join(", ") || "-" }),
+          overgo.artifactLink(entry.run, null, true),
+          el("span", { class: "row" }, entry.report ? el("button", { class: "btn alt", text: "Inspect", onclick: () => showReport(entry) }) : null,
+            entry.evaluation ? el("button", { class: "btn alt", text: "Compare", onclick: () => compare(entry) }) : null)]));
+        history.replaceChildren(table);
+      }, { empty: (entries) => !entries.length && "No evaluation has run for this model yet." });
 
       let operation = null;
       cancel.addEventListener("click", async () => {
@@ -126,8 +125,15 @@
         } catch (err) { status.replaceChildren(overgo.failure(err)); } finally { operation = null; run.disabled = false; cancel.hidden = true; }
       });
       model.addEventListener("change", () => { renderCapabilities(); loadHistory(); });
-      renderCapabilities();
-      await loadHistory();
+      const loadCapabilities = overgo.read(status, (signal) => api.get("/evaluations/capabilities", { signal }), (value) => {
+        capabilities = value;
+        status.replaceChildren();
+        for (const id of new Set(capabilities.map((item) => item.model))) model.appendChild(el("option", { value: id, text: fmt.shortID(id) }));
+        run.disabled = false;
+        renderCapabilities();
+      }, { loading: "Loading evaluation plans…" });
+      await loadCapabilities();
+      if (capabilities.length) await loadHistory();
     },
   });
 })();

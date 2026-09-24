@@ -84,3 +84,14 @@ func TestGatedMLPBackwardTResidentMatchesPerOp(t *testing.T) {
 	})
 	t.Logf("MLP backward per-call: per-op %v, resident %v (%.2fx)", perOpT, resT, float64(perOpT)/float64(resT))
 }
+
+// GatedMLPBackwardTResident is the resident counterpart to GatedMLPBackwardT: it
+// runs the entire densecausal-convention SwiGLU MLP backward inside ONE
+// worker.Do, with a single cuBLAS handle and ops_f32 module, uploading the
+// inputs once and keeping every intermediate gradient (dh, da, du, dg, dXgate,
+// dXup) resident on the device -- no per-op host round-trips. Only dX and the
+// three weight grads come back. Same math as GatedMLPBackwardT; this addresses
+// SQA finding 2/3 (residency) for the MLP block.
+func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
+	return gatedMLPBackwardTW(worker, x, mlpMatW{hostW(wGate), hostW(wUp), hostW(wDown)}, g, a, u, h, dY, rows, d, inter)
+}

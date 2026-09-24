@@ -24,11 +24,12 @@ import (
 	"overgo/internal/webuilane"
 )
 
-// laneHubServer serves one repository whose single file is a real GGUF on
-// disk, the shape the workbench's discovery surface consumes.
 const laneHubRepository = "lane/validated"
 
-func laneHubServer(t *testing.T, file string) *httptest.Server {
+// hubFixtureServer serves the lane repository whose single file is file, the
+// shape the workbench's discovery surface consumes; a journey hands it a real
+// GGUF, a page leg a few fixture bytes.
+func hubFixtureServer(t *testing.T, file string) *httptest.Server {
 	t.Helper()
 	handle, err := os.Open(file)
 	if err != nil {
@@ -94,7 +95,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	if err != nil || receipt.ExitCode != 0 {
 		t.Fatalf("library validation unavailable: the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
-	hub := laneHubServer(t, small)
+	hub := hubFixtureServer(t, small)
 	// The private store starts as the data root's copy: the registered
 	// architecture profiles the Library registers against live there, and
 	// nothing the journey writes reaches the data root.
@@ -154,19 +155,9 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 		t.Helper()
 		if err := browser.Eventually(ctx, expression); err != nil {
 			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), pending: window.overgo.api.pending(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
+			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), inFlight: window.overgo.api.inFlight(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
-	}
-	// rowButton: the lifecycle control of the Library row that names the model.
-	rowButton := func(rowText, label string) string {
-		return `(() => {
-  const rows = [...document.querySelectorAll("#panel-library tr")].filter((candidate) => candidate.textContent.includes(` + strconv.Quote(rowText) + `));
-  const button = rows.flatMap((row) => [...row.querySelectorAll("button")]).find((candidate) => candidate.textContent === ` + strconv.Quote(label) + ` && !candidate.disabled);
-  if (!button) return false;
-  button.click();
-  return true;
-})()`
 	}
 	rowNote := func(rowText, text string) string {
 		return `[...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(rowText) + `) && row.textContent.includes(` + strconv.Quote(text) + `))`
@@ -213,40 +204,35 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 })()`)
 	settle("library on the cold page", `!!document.querySelector("#panel-library.active input[placeholder='search the Hugging Face hub']")`)
 
-	// 1. The hub download: search, download and register against the store behind the cold proxy.
+	// 1. The hub model in one action: search, then add, which downloads, registers and validates it
+	// against the store behind the cold proxy.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   const query = document.querySelector("#panel-library input[placeholder='search the Hugging Face hub']");
   query.value = 'validated';
   [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "search").click();
   return true;
 })()`)
-	settle("hub search lists the lane repository", `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "download")`)
-	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "download").click(); return true; })()`)
+	settle("hub search lists the lane repository", `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "add")`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "add").click(); return true; })()`)
 	settle("download succeeded", rowNote(laneHubRepository, "done"))
-	settle("register control of the row", rowButton(laneHubRepository, "register"))
 	settle("downloaded model registered", rowNote(laneHubRepository, "registered"))
-	t.Log("download leg: the hub download registered through the cold proxy's workbench")
+	downloadValidated := validated(laneHubRepository, "downloaded model validation")
+	t.Logf("download leg: one add downloaded, registered and validated the hub model through the cold proxy's workbench (completed=%v)", downloadValidated)
 
-	// 2. A model registered with its projector from disk keeps the projector as its projection candidate.
+	// 2. A local model added with its projector keeps the projector as its projection candidate, and
+	// its text path validates as an operation the workbench behind the shell runs.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   document.querySelector("#panel-library input[placeholder='model GGUF or directory on disk']").value = `+strconv.Quote(projectedLocation)+`;
   document.querySelector("#panel-library input[placeholder='projector GGUF (optional)']").value = `+strconv.Quote(projectorPath)+`;
-  [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "register a local model").click();
+  [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "add a local model").click();
   return true;
 })()`)
-	settle("register control of the row", rowButton(projectedLocation, "register"))
 	settle("local model registered with its projector", rowNote(projectedLocation, "with projector"))
-
-	// 3. Both validate as operations the workbench behind the shell runs; the projector pair validates its text path.
-	settle("validate control of the row", rowButton(projectedLocation, "validate"))
 	projectorValidated := validated(projectedLocation, "projector validation")
 	if projectorValidated {
 		assertBrowserPredicate(t, ctx, browser, rowNote(projectedLocation, "projector"))
 	}
 	t.Logf("projector leg: %s admitted its text validation with projector %s registered (completed=%v)", projectedName, filepath.Base(projectorPath), projectorValidated)
-	settle("validate control of the row", rowButton(laneHubRepository, "validate"))
-	downloadValidated := validated(laneHubRepository, "downloaded model validation")
-	t.Logf("validation leg: the downloaded model's validation admitted through the cold proxy's workbench (completed=%v)", downloadValidated)
 
 	// 4. A model the store activates serves from the picker: the validated
 	// download on a clean checkout, otherwise the projector pair the copied

@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"maps"
 	"path"
 	"slices"
 	"strings"
@@ -64,6 +65,65 @@ type ModernGoCensus struct {
 	CatalogCommit  string            `json:"catalog_commit"`
 	CatalogSHA256  string            `json:"catalog_sha256"`
 	Findings       []ModernGoFinding `json:"findings"`
+}
+
+// SplitByPackage parts the census into a header -- every finding, no sites --
+// and one census per package holding that package's sites. A package whose
+// sites did not change parts into the same bytes, so a stored census moves
+// only the parts of the packages that changed.
+func (c ModernGoCensus) SplitByPackage() (ModernGoCensus, []ModernGoCensus) {
+	header := c
+	header.Findings = slices.Clone(c.Findings)
+	packages := map[string]bool{}
+	for index, finding := range header.Findings {
+		for _, site := range slices.Concat(finding.Candidates, finding.Adopted) {
+			packages[site.Package] = true
+		}
+		header.Findings[index].Candidates, header.Findings[index].Adopted = nil, nil
+	}
+	var parts []ModernGoCensus
+	for _, pkg := range slices.Sorted(maps.Keys(packages)) {
+		elsewhere := func(site ModernGoSite) bool { return site.Package != pkg }
+		var part ModernGoCensus
+		for _, finding := range c.Findings {
+			sites := ModernGoFinding{ID: finding.ID,
+				Candidates: slices.DeleteFunc(slices.Clone(finding.Candidates), elsewhere),
+				Adopted:    slices.DeleteFunc(slices.Clone(finding.Adopted), elsewhere)}
+			if len(sites.Candidates)+len(sites.Adopted) != 0 {
+				part.Findings = append(part.Findings, sites)
+			}
+		}
+		parts = append(parts, part)
+	}
+	return header, parts
+}
+
+// JoinModernGoCensus is SplitByPackage's inverse: each header finding gains
+// its sites from every part, in the census's site order. A header that
+// already holds its sites -- a census stored whole -- joins unchanged.
+func JoinModernGoCensus(header ModernGoCensus, parts []ModernGoCensus) ModernGoCensus {
+	joined := header
+	joined.Findings = slices.Clone(header.Findings)
+	at := make(map[string]int, len(joined.Findings))
+	for index, finding := range joined.Findings {
+		at[finding.ID] = index
+	}
+	for _, part := range parts {
+		for _, finding := range part.Findings {
+			index, found := at[finding.ID]
+			if !found {
+				continue
+			}
+			target := &joined.Findings[index]
+			target.Candidates = append(slices.Clip(target.Candidates), finding.Candidates...)
+			target.Adopted = append(slices.Clip(target.Adopted), finding.Adopted...)
+		}
+	}
+	for index := range joined.Findings {
+		sortModernGoSites(joined.Findings[index].Candidates)
+		sortModernGoSites(joined.Findings[index].Adopted)
+	}
+	return joined
 }
 
 // CandidateCount returns the complete broad-match denominator.

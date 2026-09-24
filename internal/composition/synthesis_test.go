@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
-	"overgo/internal/organ"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipe"
 	"overgo/internal/safetensors"
@@ -30,20 +29,14 @@ func TestCompositeSynthesisUsesComponentSessionLifetimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contract := organ.Classify(synthesisComponentTensor, "f32", "", "text", "")
-	index, err := NewHypervectorIndex([]CatalogComponent{{Model: donor, Name: synthesisComponentTensor, Contract: contract}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	hits, err := index.Search(CatalogComponent{Model: target, Name: synthesisComponentTensor, Contract: contract}, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
 	ranker, err := TrainProposalRanker(nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	proposal, err := NewBridgeProposal(target, Candidates(hits, target), ranker,
+	// The donor's matching component is the one candidate; retrieval is not
+	// what this test holds.
+	candidates := []BridgeCandidate{{Donor: donor, Component: synthesisComponentTensor}}
+	proposal, err := NewBridgeProposal(target, candidates, ranker,
 		"go test ./internal/composition -run '^TestCompositeSynthesisUsesComponentSessionLifetimes$' -count=1",
 		"bridge requires measured held-out evidence")
 	if err != nil {

@@ -156,7 +156,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/automations/run", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace},
 	{Path: "/automations/schedule", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).automationWorkspace},
 	{Path: "/automations/history", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).automationWorkspace},
-	{Path: "/automations/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).automationWorkspace},
 	{Path: "/peers", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).peerWorkspace},
 	{Path: "/peers/enroll", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace},
 	{Path: "/peers/capability", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace},
@@ -165,7 +164,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/peers/placement", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace},
 	{Path: "/peers/reconcile", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).peerWorkspace},
 	{Path: "/peers/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).peerWorkspace},
-	{Path: "/peers/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).peerWorkspace},
 	{Path: "/agents", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentControl},
 	{Path: "/agents/create", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
 	{Path: "/agents/definitions", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
@@ -177,7 +175,6 @@ var routeCatalog = []routeDescriptor{
 	{Path: "/agents/retrieval", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
 	{Path: "/agents/automation", Authentication: routeBearer, Methods: []string{http.MethodPost}, Handler: (*Handler).agentControl},
 	{Path: "/agents/evidence", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentControl},
-	{Path: "/agents/stream", Authentication: routeBearer, Methods: []string{http.MethodGet}, Handler: (*Handler).agentControl},
 }
 
 var routesByPath = compileRouteIndex(routeCatalog)

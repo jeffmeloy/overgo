@@ -1,6 +1,9 @@
 package modelartifact
 
 import (
+	"context"
+	"errors"
+
 	"bytes"
 	"math"
 	"testing"
@@ -103,4 +106,42 @@ func TestTensorInventoryAcceptsProjectorOwner(t *testing.T) {
 	if err != nil || !found || loaded.ID != document.ID {
 		t.Fatalf("loaded projector inventory = (%s, %t, %v)", loaded.ID, found, err)
 	}
+}
+
+// LoadTensorInventory resolves the unique inventory derived from its owner.
+func LoadTensorInventory(
+	ctx context.Context,
+	store artifact.Reader,
+	owner artifact.ID,
+) (TensorInventoryDocument, bool, error) {
+	if store == nil || !tensorBearingKind(owner.Kind()) {
+		return TensorInventoryDocument{}, false, errors.New("tensor inventory: invalid owner lookup")
+	}
+	edges, err := store.Children(ctx, owner)
+	if err != nil {
+		return TensorInventoryDocument{}, false, err
+	}
+	var found TensorInventoryDocument
+	matched := false
+	for _, edge := range edges {
+		if edge.Relation != artifact.RelationDerivedFrom || edge.Child.Kind() != artifact.KindTensorInventory {
+			continue
+		}
+		if matched {
+			return TensorInventoryDocument{}, false, errors.New("tensor inventory: multiple owner inventories")
+		}
+		document, ok, contentErr := tensorInventoryCodec.Read(ctx, store, edge.Child)
+		if contentErr != nil {
+			return TensorInventoryDocument{}, false, contentErr
+		}
+		if !ok {
+			return TensorInventoryDocument{}, false, errors.New("tensor inventory: content is absent or incompatible")
+		}
+		found = document
+		if found.Owner != owner || found.ID != edge.Child {
+			return TensorInventoryDocument{}, false, errors.New("tensor inventory: owner lineage mismatch")
+		}
+		matched = true
+	}
+	return found, matched, nil
 }

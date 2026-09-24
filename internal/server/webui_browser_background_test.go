@@ -256,8 +256,7 @@ func TestWebUIBrowserBackgroundWork(t *testing.T) {
 	settle(`!!document.querySelector('#panel-library.active input[placeholder="model GGUF or directory on disk"]')`)
 	check(`(() => {
   const panel=document.querySelector('#panel-library');panel.querySelector('input[placeholder="model GGUF or directory on disk"]').value='fixture.gguf';
-  [...panel.querySelectorAll('button')].find(button=>button.textContent==='register a local model').click();
-  [...panel.querySelectorAll('button')].find(button=>button.textContent==='register').click();return true;
+  [...panel.querySelectorAll('button')].find(button=>button.textContent==='add a local model').click();return true;
 })()`)
 	settle(`document.querySelector('#panel-library').textContent.includes('Controlled registration failure')`)
 	check(`(() => {

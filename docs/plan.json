@@ -4,34 +4,17 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gemma-12b-accuracy",
-      "title": "Find why the Gemma 12B twins score worse than E4B",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Find why the Gemma 12B twins score worse than E4B",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestGemmaTwelveScoresNoWorseThanE4B$' -count=1",
-          "rationale": "The premise that instruction framing explains the 12B's high raw NLL is falsified. Measured 2026-09-24 at 180a7a3c, on the guard corpus's SHORT shape (160-token prompt, next 64 tokens) at three windows (byte offsets 0, 20107, 60322). Raw NLL: 12B fp8-native 8.505 / 7.987 / 1.200, 12B fp8-bf16 8.503 / 7.979 / 1.385, E4B control 6.500 / 6.069 / 0.603. Chat NLL, with the text as one user turn in the model's own template and thinking off: 6.876 / 5.671 / 1.799, 7.018 / 5.652 / 1.808, and 5.776 / 5.154 / 0.893. Chat framing lowers NLL on hard prose windows and raises it on the easy one for every model, the control included. In every window and both framings the 12B scores 0.5-1.2 nats worse than the 4B-class E4B, and its two precisions agree, so the suspect is the shared 12B path (architecture handling: attention pattern, sliding window, scaling, softcapping), not the fp8 kernels. Greedy 256-token chat replies loop for both 12B precisions (longest repeated spans 105-197 tokens) and never for E4B. The chat-framing probe is tmp/chat_rung.go. Next: compare the 12B's per-layer hidden states or logits against the adaptive_new port source on one prompt to find where it departs. Done when the 12B scores no worse than E4B on the same windows, held by TestGemmaTwelveScoresNoWorseThanE4B.",
-          "depends_on": [
-            "model-regression-gate/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "preflight-gate-one-execution",
-      "title": "Make preflight and the commit gate two stages of one execution",
+      "id": "delete-test-only-exports",
+      "title": "Delete production code only tests call",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make preflight and the commit gate two stages of one execution",
+          "title": "Delete production code only tests call",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestUnchangedCandidateRepeatsNoPureCheck$' -count=1",
-          "rationale": "Preflight runs the gate's own check definitions, and the gate then repeats every successful check (preflight.go:107). Retain pure checks' results against their exact inputs. When the candidate freezes, re-run only checks whose inputs changed or whose contract needs live state. Claims, current policy and publication stay fresh. Done when an unchanged candidate repeats no pure static check and a changed input invalidates exactly its checks."
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
+          "rationale": "From consolidation-inventory (2026-09-24): 228 exported internal declarations (3,089 lines, 22,224 AST nodes) have no non-test reference. The largest: internal/speechsynth/document_runtime.go DocumentProgram and RegisterDocumentRuntime (221 lines); internal/hybridtrain artifact.go LoadRecurrentLayerArtifact and stack.go BuildModel (227); trainingprogram CompileMemorySchedule, CompileTrainingObjectiveMatrix, CompileObjectiveMatrix and EvaluateNative (about 200, 137 dependent packages); parity oracles kept in production files (hostmath/e4b_backward.go 138 of 218 lines, thoughtbank/mhc_backward.go 180, latentvideo/vae.go 77, devicemath/layer_cuda_windows.go 54) belong in _test.go. The probe is tmp/consolidation_probe.go (mode dead). Delete or move them in slices by package, then make the probe a repoanalysis ratchet so none returns. Done when TestNoTestOnlyProductionExports holds the count at zero outside declared test-helper packages."
         }
       ]
     },
@@ -81,6 +64,21 @@
       ]
     },
     {
+      "id": "preflight-gate-one-execution",
+      "title": "Make preflight and the commit gate two stages of one execution",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make preflight and the commit gate two stages of one execution",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestUnchangedCandidateRepeatsNoPureCheck$' -count=1",
+          "rationale": "Preflight runs the gate's own static check definitions (about 20 s measured 2026-09-24: modern-go 16.6 s, architecture 4.5 s, the rest under 3 s each), and the gate then repeats them against the frozen candidate; the gate already reuses its own earlier passes through the retry cache. The obstacle measured 2026-09-24: gate checks are bound to the manifest plan of the frozen candidate (bindCheckExecution in verification.go), and cache slots key on the bound invocation, which preflight does not compute; computing the manifest plan in preflight costs the gate's planning time (about 24 s), so sharing needs a reuse key on the unbound check and its input fingerprint, validated against the bound invocation at the gate. Only loop -land runs preflight; a direct gate saves nothing. Done when an unchanged candidate repeats no pure static check after a preflight, and a changed input invalidates exactly its checks."
+        }
+      ]
+    },
+    {
       "id": "one-claim-primitive",
       "title": "Share claim mechanics across locks while keeping each resource's rules",
       "owner": "master-lead",
@@ -111,6 +109,21 @@
       ]
     },
     {
+      "id": "env-gated-tests-run-or-go",
+      "title": "Run or delete tests no lane enables",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run or delete tests no lane enables",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestEveryTestGateIsSetByALane$' -count=1",
+          "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate but compile in every gate that selects their package. Give each a lane that runs it, or delete it. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds."
+        }
+      ]
+    },
+    {
       "id": "store-small-record-horizon",
       "title": "Declare storage class and retention on the document contract",
       "owner": "master-lead",
@@ -135,8 +148,8 @@
           "id": "do",
           "title": "Measure duplication and file consolidation rows by payoff",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestConsolidationInventory$' -count=1",
-          "rationale": "Owner direction 2026-09-23: fewer components, more efficiency, more robustness. Count per kind: store schemas, docs JSON documents, locks and claims, environment test gates, landing entry points, clone groups. Classify every JSON outside the store and every tmp writer as reviewed source in git, derived record in the store, or process state in the runtime directory. Rank candidates by nodes removed times landings affected, and file the top ones as rows."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "Owner direction 2026-09-23: fewer components, more efficiency, more robustness. The read-only inventory (2026-09-24, probes tmp/consolidation_probe.go and tmp/envgate_probe.go) counted 323 schema constants (335 declared schema strings never written to the master store, 66 codecs written but never read), 180 OVERGO_* variables (151 only in tests), 102 commands (34 unreferenced), 228 test-only exported declarations (3,089 lines) and one package with no production importer. Its top candidates are filed as rows: delete-sft-evaluation-targets, delete-test-only-exports, env-gated-tests-run-or-go, and the owner decisions retire-controller-cluster and retire-unreferenced-commands. Earlier surveys covered locks (one-claim-primitive), generated docs (generated-docs-into-store) and tmp (tmp-refuses-undeclared-entries). Done when the candidates are filed."
         }
       ]
     },
@@ -379,6 +392,53 @@
           "depends_on": [
             "dinov2-embedding-capability/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "gemma-12b-accuracy",
+      "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+          "status": "open",
+          "verify": "go test ./internal/longform -run '^TestGemmaTwelveScoresNoWorseThanE4B$' -count=1",
+          "rationale": "OWNER DECISION: download the unquantized google/gemma-4-12B-it checkpoint? The instruction-framing premise is falsified, and the runtime is cleared. Measured 2026-09-24: on the guard corpus's SHORT shape at byte offsets 0/20107/60322, the 12B twins (both converted from the third-party vrfai ModelOpt FP8 quant, models/gemma-4-12B-it-fp8) score raw NLL 8.5/8.0/1.2-1.4 against E4B's 6.5/6.1/0.6, and chat framing (tmp/chat_rung.go) leaves them 0.5-1.2 nats worse everywhere. On a plain English paragraph the 12B scores 3.17 nats per token against E4B's 1.48. overgo's 12B graph matches the transformers gemma4_unified reference point by point (value from the raw key projection with an unscaled v_norm on k_eq_v global layers, 25% proportional rope, one global KV head, attention scale 1, layer scalar, final softcap 30): layer outputs agree within 2.6e-4 of a Go transcription of the reference layer, GPU agrees with the host executor, the runner agrees with a 48-layer host chain, logits agree with adaptive_new's transformers golden within about 0.2, and the GGUF matches the safetensors. So transformers would score these weights the same, and the leading suspect is the FP8 quant itself. Probes are in tmp (g4_layer_ref.go, g4_host_nll.go, g4_golden.go, g4_gguf_vs_st.go, g4_fp8_scale.go, chat_rung.go). Next, with the owner's yes: convert the bf16 checkpoint and run tmp/chat_rung.go and g4_host_nll.go on it; if it scores at or below E4B, retire or re-source the FP8 12B twins. Done when a 12B checkpoint scores no worse than E4B on the same windows, held by TestGemmaTwelveScoresNoWorseThanE4B.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retire-controller-cluster",
+      "title": "Retire the unimported controller training cluster (owner decision)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire the unimported controller training cluster (owner decision)",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
+          "rationale": "OWNER DECISION: may the controller training cluster be deleted? From consolidation-inventory (2026-09-24): internal/controllertrain has no production importer; internal/controlleraction is imported only by cmd/controller-action, which nothing refers to; none of the controller-* schemas has ever been written to the master store. About 2,790 production and 2,140 test lines, plus internal/trainingprogram/objective_composition_cuda_windows_test.go. It may be a parked capability rather than dead code, so it waits on the owner. Done when the cluster is gone and nothing builds against it."
+        }
+      ]
+    },
+    {
+      "id": "retire-unreferenced-commands",
+      "title": "Retire commands nothing refers to (owner decision)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire commands nothing refers to (owner decision)",
+          "status": "open",
+          "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
+          "rationale": "OWNER DECISION: which of these commands are still run by hand? From consolidation-inventory (2026-09-24): 20 cmd/ commands are not released and nothing in code, docs, scripts or the plan refers to them: seam-align (504 lines, with internal/composition/improvement_loop.go 223), audio-inspect 380, latentvideo-run 274, mechanism-census 206, coverage-lanes 158, buildscrub 132, hf-hub 132, activation-cases 115, inspect-safetensors 109, dataset-catalog 108, remote-provider 107, sealed-authority 91, tool-workflow 81, model-config 79, router-observation 73, model-build 71, profile-catalog 54, rerank 52 -- about 2,900 lines. Keep the ones the owner names, delete the rest, and add a commanddoc check that every command has a declared caller. Done when TestEveryCommandHasACaller holds."
         }
       ]
     },
@@ -790,7 +850,12 @@
             "store-open-decode-cost/do",
             "retire-plan-edit-publish/do",
             "land-row-from-mixed-tree/do",
-            "file-measured-rescopes/do"
+            "file-measured-rescopes/do",
+            "delete-sft-evaluation-targets/do",
+            "delete-test-only-exports/do",
+            "retire-controller-cluster/do",
+            "retire-unreferenced-commands/do",
+            "env-gated-tests-run-or-go/do"
           ]
         }
       ]

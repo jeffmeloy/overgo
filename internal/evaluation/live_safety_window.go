@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/runrecord"
 )
 
@@ -79,7 +80,7 @@ func DeriveLiveSafetyWindow(
 	}
 	sorted := slices.Clone(history)
 	for _, value := range sorted {
-		if !finite(value) {
+		if !checked.Finite64(value) {
 			return LiveSafetyWindow{}, errors.New("evaluation: safety window history holds a non-finite observation")
 		}
 	}

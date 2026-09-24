@@ -2972,28 +2972,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/evaluation/media_target.go",
-      "symbol": "ScoreMediaTargets",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/media_target.go",
-      "symbol": "canonicalizeMediaTargetPlan",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/evaluation/multiple_choice.go",
       "symbol": "aggregateAccuracy",
       "owner": "overgo/internal/evaluation",
@@ -3005,41 +2983,8 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/evaluation/numeric_target.go",
-      "symbol": "ScoreNumericTargets",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/numeric_target.go",
-      "symbol": "canonicalizeNumericTargetPlan",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/evaluation/plan.go",
       "symbol": "canonicalizeAgentTrajectoryAuthorities",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/preference_target.go",
-      "symbol": "ScorePreferenceTargets",
       "owner": "overgo/internal/evaluation",
       "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
       "oracle": "go test ./internal/evaluation -count=1",
@@ -3068,28 +3013,6 @@
       "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/text_target.go",
-      "symbol": "ScoreTextTargets",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/text_target.go",
-      "symbol": "canonicalizeTextTargetPlan",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
     },
     {
       "guideline": "slices_sort_func",
@@ -4797,5 +4720,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "8c3ec47de9ef8f9d7c657f444143bb543df5d996619ec717fcb61e17c408f83a"
+  "exceptions_sha256": "a0d9792d6818bac5355285526fb5949b6aa44666c41b85a3f2e3249a827ea439"
 }

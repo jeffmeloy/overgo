@@ -889,6 +889,12 @@ func importClosureDocumentsWith(
 			claimedAliases[alias] = true
 		}
 	}
+	// Only a rebound document has had its reviewed text matched at a current
+	// site, so only it may carry its owner forward to the file as it is now.
+	rebound, err = currentClosureOwners(root, rebound)
+	if err != nil {
+		return count, unmatched, first, aliases, err
+	}
 	var reboundClaims int
 	unmatchedRetirements, reboundClaims, err = excludeReboundClosureRetirements(unmatchedRetirements, rebound)
 	if err != nil {
@@ -1602,10 +1608,6 @@ func commitClosureDocumentsAtHead(
 	expectedHead *artifact.CommitID,
 ) (int, artifact.CommitID, error) {
 	if err := closurescan.RequireUniqueDocumentAliases(documents); err != nil {
-		return 0, artifact.CommitID{}, err
-	}
-	documents, err := currentClosureOwners(root, documents)
-	if err != nil {
 		return 0, artifact.CommitID{}, err
 	}
 	store, err := overgodb.OpenContext(context.Background(), storePath)

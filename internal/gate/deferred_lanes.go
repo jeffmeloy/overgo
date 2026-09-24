@@ -433,6 +433,17 @@ func (g *gateContext) executeDeferredLanes(obligation runrecord.GateLaneObligati
 			checks = append(checks, check)
 		}
 		checks = wireLaneRunnerDependencies(checks)
+		present := make(map[string]bool, len(checks))
+		for _, check := range checks {
+			present[check.Check.Name] = true
+		}
+		for _, check := range checks {
+			for _, prerequisite := range check.Check.Dependencies {
+				if !present[prerequisite] && !satisfied[prerequisite] {
+					return fmt.Errorf("gate: deferred %s lacks prerequisite %s in selected or gate-satisfied checks", check.Check.Name, prerequisite)
+				}
+			}
+		}
 		cache := g.loadRetryCache()
 		results, err := g.executeChecks(checks, satisfied, inputs, &cache, nil, nil)
 		if err != nil {
@@ -472,16 +483,26 @@ func deferredResolutionFailure(started processmeasure.Stopwatch, steps []runreco
 // plan it consumes: in the gate the owners' tests stand between them, and
 // the runner satisfies those without executing them.
 func wireLaneRunnerDependencies(checks []automationcheck.Invocation) []automationcheck.Invocation {
+	present := make(map[string]bool, len(checks))
+	for _, check := range checks {
+		present[check.Check.Name] = true
+	}
 	for index := range checks {
 		dependencies := slices.Clone(checks[index].Check.Dependencies)
 		switch checks[index].Check.Name {
 		case automationcheck.ModelJourneyCheckName:
-			if !slices.Contains(dependencies, automationcheck.WebUICheckName) {
+			if !present[automationcheck.WebUICheckName] {
+				dependencies = slices.DeleteFunc(dependencies, func(name string) bool { return name == automationcheck.WebUICheckName })
+			}
+			if present[automationcheck.WebUICheckName] && !slices.Contains(dependencies, automationcheck.WebUICheckName) {
 				dependencies = append(dependencies, automationcheck.WebUICheckName)
 			}
 		case testDeviceCheckName:
+			if !present[automationcheck.ModelJourneyCheckName] {
+				dependencies = slices.DeleteFunc(dependencies, func(name string) bool { return name == automationcheck.ModelJourneyCheckName })
+			}
 			for _, prerequisite := range []string{testPlanCheckName, automationcheck.ModelJourneyCheckName} {
-				if !slices.Contains(dependencies, prerequisite) {
+				if present[prerequisite] && !slices.Contains(dependencies, prerequisite) {
 					dependencies = append(dependencies, prerequisite)
 				}
 			}

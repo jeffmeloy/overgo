@@ -167,6 +167,10 @@ func (v *Vocab) applyBPE(word string) []string {
 		symbols = append(symbols, spmSymbol{previous: index - 1, next: index + 1, text: string(symbol)})
 	}
 	return mergeBPE(symbols, func(left, right string) (int, bool) {
+		if v.rankBPE {
+			rank, ok := v.tokenToID[left+right]
+			return int(rank), ok
+		}
 		rank, ok := v.mergeRank[pair{left: left, right: right}]
 		return rank, ok
 	})

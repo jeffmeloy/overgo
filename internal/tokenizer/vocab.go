@@ -94,6 +94,7 @@ type Vocab struct {
 	AddSEP       bool
 	AddPrefix    bool
 	IgnoreMerges bool
+	rankBPE      bool
 	Lowercase    bool
 	StripAccents bool
 
@@ -183,9 +184,10 @@ func Load(file *gguf.File) (*Vocab, error) {
 		FIMSep:    NullToken,
 		tokenToID: make(map[string]TokenID, len(tokenTexts)),
 	}
-	if policy := preTokenizers[pre]; model == "gpt2" && policy.ignoreMerges {
+	if policy := preTokenizers[pre]; model == "gpt2" {
 		vocab.AddBOS = policy.addBOS
-		vocab.IgnoreMerges = true
+		vocab.IgnoreMerges = policy.ignoreMerges
+		vocab.rankBPE = policy.rankBPE
 	}
 	for i, text := range tokenTexts {
 		if text == "" {
@@ -228,6 +230,9 @@ func Load(file *gguf.File) (*Vocab, error) {
 		merges, mergeErr := requiredArray[string](values, "tokenizer.ggml.merges", gguf.ValueTypeString)
 		if mergeErr != nil {
 			return nil, mergeErr
+		}
+		if vocab.rankBPE && len(merges) != 0 {
+			return nil, fmt.Errorf("tokenizer: Kimi rank BPE requires an empty GGUF merges array")
 		}
 		vocab.mergeRank = make(map[pair]int, len(merges))
 		for rank, merge := range merges {
@@ -394,6 +399,7 @@ type preTokenizerPolicy struct {
 	split        func(string) []string
 	addBOS       bool
 	ignoreMerges bool
+	rankBPE      bool
 }
 
 var preTokenizers = map[string]preTokenizerPolicy{
@@ -409,6 +415,7 @@ var preTokenizers = map[string]preTokenizerPolicy{
 	"bailingmoe2":      {split: preTokenizeQwen2},
 	"deepseek-llm":     {split: preTokenizeDeepSeekLLM},
 	"qwen35":           {split: preTokenizeQwen35},
+	"kimi":             {split: preTokenizeKimi, ignoreMerges: true, rankBPE: true},
 	"dbrx":             {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},
 	"llama3":           {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},
 	"llama-v3":         {split: preTokenizeLlama3, addBOS: true, ignoreMerges: true},

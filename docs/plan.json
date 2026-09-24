@@ -16,9 +16,10 @@
           "title": "Preserve literal Kimi control markers in untrusted text",
           "status": "open",
           "verify": "go test ./internal/hfbpe -run '^TestKimiLiteralControlText$' -count=1",
-          "rationale": "The independent Kimi K3 tokenizer compatibility review shows that an allow_special_tokens:false request can silently become a control-token ID. Add an explicit literal-text encoding path for untrusted user and tool content while preserving deliberate structural token insertion and existing GGUF ParseSpecial semantics. Pin ordinary and literal-control IDs, distinguish special from ordinary added-token decoding, and bind the eventual served chat-template path before claiming safe Kimi prompts.",
+          "rationale": "The independent Kimi K3 tokenizer compatibility review shows that an allow_special_tokens:false request can silently become a control-token ID. Add an explicit literal-text encoding path for untrusted user and tool content in both declared HF and native GGUF adapters, while preserving deliberate structural token insertion. Existing GGUF ParseSpecial:false still matches TokenUserDefined; test the complete added-token policy rather than assuming it escapes every literal. Pin the published ordinary and structural vectors, distinguish special from ordinary added-token decoding, and bind the eventual served chat-template path before claiming safe Kimi prompts.",
           "depends_on": [
-            "colibri-kimi-token-identity/do"
+            "colibri-kimi-token-identity/do",
+            "colibri-kimi-native-binding/do"
           ],
           "capabilities": [
             "shared-components",
@@ -38,7 +39,7 @@
           "title": "Complete remaining Kimi K2 and declared tokenizer consumer parity",
           "status": "open",
           "verify": "go test ./internal/inference -run '^TestKimiK2$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredRemainingPipelines$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1",
-          "rationale": "Complete Kimi K2 and remaining declared-tokenizer cases after exact Kimi token-ID parity. The merged RxBrain-safe NFC, pre-tokenizer, ranked BPE, EOS, templates and reasoning owners are regression inputs, not work to repeat. Pin independent real-model fixtures and source outputs before claiming accuracy; reacquire affected alignment and quality floors. Unsupported declarations refuse, and every served or trained consumer must agree on IDs without broadening regex support merely to pass tests. Measure any new production growth against the merged HEAD before declaring its budget.",
+          "rationale": "Complete Kimi K2 and remaining declared-tokenizer cases with each model's own tokenizer reference; the pinned Kimi K3 IDs do not prove K2 identity or model quality. The merged RxBrain-safe NFC, pre-tokenizer, ranked BPE, EOS, templates and reasoning owners are regression inputs, not work to repeat. Pin independent real-model fixtures and source outputs before claiming accuracy; reacquire affected alignment and quality floors. Unsupported declarations refuse, and every served or trained consumer must agree on IDs without broadening regex support merely to pass tests. Measure any new production growth against the merged HEAD before declaring its budget.",
           "depends_on": [
             "colibri-fixtures/do",
             "colibri-text-semantics/pretokenizer",

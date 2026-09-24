@@ -46,7 +46,7 @@ func assertColibriCampaign(t *testing.T, document Plan) {
 // cmd/plan.mergeVerify. The gate separately proves the parent receipts;
 // the full compatibility verifier remains mandatory for non-lane merges.
 func preparedColibriMergeBoundary(item Item) bool {
-	return item.Owner == "colibri" && preparedMergeShape(item) && item.Steps[0].Verify == "go build ./..."
+	return (item.Owner == "colibri" || item.Owner == "colibri2") && preparedMergeShape(item) && item.Steps[0].Verify == "go build ./..."
 }
 
 func TestColibriPreparedMergeBoundary(t *testing.T) {
@@ -56,6 +56,11 @@ func TestColibriPreparedMergeBoundary(t *testing.T) {
 	if !preparedColibriMergeBoundary(item) || preparedMergeBoundary(item) {
 		t.Fatal("lane build boundary must be accepted only as a lane merge")
 	}
+	item.Owner = "colibri2"
+	if !preparedColibriMergeBoundary(item) || preparedMergeBoundary(item) {
+		t.Fatal("Colibri2 build boundary must be accepted only as a lane merge")
+	}
+	item.Owner = "colibri"
 	for _, mutate := range []func(*Item){
 		func(item *Item) { item.Owner = "master-lead" },
 		func(item *Item) { item.ID = "merge-not-a-revision" },
@@ -76,7 +81,7 @@ func TestColibriPreparedMergeBoundary(t *testing.T) {
 func TestColibriCampaign(t *testing.T) {
 	t.Parallel()
 	document := loadCampaignPlan(t)
-	if document.Lane == "colibri" {
+	if document.Lane == "colibri" || document.Lane == "colibri2" {
 		assertColibriCampaign(t, document)
 	}
 }

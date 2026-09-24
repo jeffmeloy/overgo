@@ -1,8 +1,748 @@
 {
-  "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
+  "campaign": "Colibri2: consumer-safe shared inference and measured capability gains",
+  "doctrine": "Owned worktree: C:/Users/jeffm/overgo_colibri2 on codex/colibri2, based on master 0aa9853d0454caf6391538232da5344876c07135. docs/plan.json is this lane's sole live execution plan. The prior Colibri docs/plan.json at e18cf921 is the starting task inventory; its completed/pruned steps are historical evidence, not automatic completion credit here. Preserve master rows as foreign owned during gated bootstrap, then use the existing lane projection to omit them with no completion credit. Never import master's queue into Colibri2's scoped queue or change master from this worktree.\n\nAt each implementation boundary inspect the branch and active claims, pin current master and use first-parent-target merge authority while preserving this plan. Review incoming code before changing tasks; retire duplicate work only with verified acceptance. Execute one focused step through cmd/plan dispatch, test the declared outcome, then commit through cmd/gate. A plan-only adoption under this explicit user request includes its reviewed source and structural guard changes. Seed this worktree's independent store with a verified snapshot of master's ancestor receipts; never share a live store or import another lane's completion credit, supervisor session, stop control or artifact identity.\n\nPriority: restore basic model correctness before MoE expansion. Master rolled back Colibri's declared NFC and pre-tokenizer activation after RxBrain VQA regressed. Restore the useful common components with full deployed-consumer coverage and independent references. The RxBrain artifact has an empty normalization Sequence and ordered number/CJK/Unicode Split expressions; support their exact semantics with acceptance on the actual VQA path. Unsupported declarations refuse encoding explicitly; silently falling back hides defects. Do not credit the former 92-case oracle or eight retained consumer vectors as proof of the missing RxBrain behavior. They remain regression inputs to reacquire against pinned source and master. Current master already integrated EOS metadata, template indexes, reasoning channels and evaluation metadata. The media owner is its reviewed delta registry, and GUI cleanup is integrated; extend those owners rather than create replacements.\n\nCommon components serve actual consumers. Recipe and artifact declarations select model facts. Reuse the Go/CUDA runtime, typed inference, cache, placement, scheduling, verification and workbench owners; remove displaced code when migrating callers. Compare on fixed external workloads and held-out tasks, with stable artifacts, tokenizer IDs, sampling, source, budgets and residency. Bitwise equality where promised and justified tolerances elsewhere. Operation counts guide investigation; only paired end-to-end latency, throughput, quality, memory and total useful-result cost justify promotion. Keep raw negative and no-gain results. Use caller-declared budgets and resource admission, not assumed host or GPU capacity.\n\nThe gate and its hermetic, device, browser and model lanes own acceptance. Exact named tests must run with non-skipped results; missing models, zero-match selectors and UNAVAILABLE are not passes. A new model accuracy claim needs an independent numerical oracle; structural tiny fixtures do not substitute for it. UI metrics must distinguish measured values from estimates and preserve accessibility and durable replay. Each step has a concrete owner, dependency and verifier. Resolve editable blockers in this lane without weakening checks. Record source licenses, limitation, rollback and affected output reacquisition. A stopped or unavailable prerequisite remains explicit, and independent ready work may continue. This is supervised improvement, not a claim of full autonomous RSI.",
+  "lane": "colibri2",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "colibri-text-semantics",
+      "title": "Restore declared tokenizer semantics with complete consumer parity",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "nfc",
+          "title": "Restore NFC with a compatible empty normalization Sequence",
+          "status": "open",
+          "verify": "go test ./internal/tokenizer -run '^TestNFCUnicode16Conformance$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestNFCBoundaryAndLongCombiningRun$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredNFCNormalization$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestRxBrainEmptyNormalizerSequence$' -count=1",
+          "rationale": "Restore the earlier Colibri Unicode 16 implementation from commit 6997b5fe only as reviewed source, preserving its license, generator and independent normalization corpus. RxBrain tokenizer SHA256 AE5CA95EEB8E9A8774513A996E4E820A05C27DB32966AA8E071C10828402CB73 declares Sequence with zero normalizers: treat that declaration as identity, not an unsupported path. Raw added tokens remain outside NFC; nonempty unknown normalizers still refuse. Compare real Krea IDs and changed-output obligations before activation. This step does not claim general Split parity or RxBrain VQA acceptance.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality"
+          ]
+        },
+        {
+          "id": "pretokenizer",
+          "title": "Support declared ordered splits and prove RxBrain VQA parity",
+          "status": "open",
+          "verify": "go test ./internal/hfbpe -run '^TestDeclaredPipeline$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredPipelineOracle$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestRxBrainDeclaredPipelineReference$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./cmd/vqaparity -run '^TestRxBrainProductionParity$' -count=1",
+          "rationale": "The compiler excluded from master at 6997b5fe matched 92 tokenizer oracle cases but broke RxBrain VQA. Its artifact declares an empty normalization Sequence, then an ordered Sequence of isolated number, CJK and complex Unicode Split expressions, followed by ByteLevel with use_regex=false. Reproduce its old successful prompt IDs and production VQA golden before porting; pin tokenizer bytes and an independent Hugging Face tokenizer revision/reference. Extend the shared scanner only for exactly supported declarations, preserving order, boundaries, Unicode classes, lookahead semantics and added-token rules. Refuse unsupported declarations explicitly. Activate the new compiler only after every deployed encoding consumer in scope passes its independent token-ID and affected model-output checks; no silent legacy fallback or fixture-generated expected IDs. Reuse Krea, Fractale, Granite and llama.cpp references, then run actual RxBrain VQA acceptance. The existing real-model check must execute and pass, not skip. Changed speech/media outputs require independent reacquisition.",
+          "depends_on": [
+            "colibri-text-semantics/nfc"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        },
+        {
+          "id": "bpe-shared",
+          "title": "Share exact-ranked BPE merging and measure complete encoding cost",
+          "status": "open",
+          "verify": "go test ./internal/tokenizer -run '^TestSharedBPEExactRanks$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestSharedBPEMergeReference$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestSharedBPEWorkBound$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestApplyBPEHeapMatchesPairScan$' -count=1 \u0026\u0026 go test ./internal/tokenizer -run '^TestApplyBPEHeapMatchesPairScanOnALongLine$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestSharedBPELegacyBoundaries$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredPipeline$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredPipelineOracle$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1",
+          "rationale": "Bounded follow-up to declared pre-tokenizer correctness. Finding evidence:sha256:f80aaa88633231c7c2c06cb093a1ab3395de8709551bee7d6f7ab78c26deb031 measures 6,292,479 HF pair lookups versus 8,189 native lookups on 4,096 repeated byte-alphabet space symbols, with equal 2,048-piece outputs; this establishes avoidable scan work, not elapsed-time speedup. Consolidate rank-based BPE through the existing native heap owner, migrate HF encoding, and delete its displaced pair scan. First resolve exact integer priority finding evidence:sha256:f9c140417833d7de5173bebdff9b765a29ef85bd00015949bfdaec784ef069bd: ranks 16,777,217 versus 16,777,216 must not collapse through float32. Preserve leftmost ties, native IgnoreMerges, SPM score ordering, empty inputs, and each wrapper's observed malformed-byte behavior. Do not broaden declarations or normalization. Freeze corpus/consumer vectors and benchmark workloads before candidate edits, compare with a simple exact integer reference across ordinary, Unicode, adversarial, long and boundary-rank cases, and prove lookup growth from input cardinality rather than a fitted time threshold. Run the independent 92-case token oracle and all affected consumer identity checks; changed outputs require independent reacquisition. Measure complete encoding time and allocations on identical ordinary and long inputs with the same vocabulary and environment, retain negative results, and report both ordinary-input costs and long-input gains. Operation counts alone grant no model-throughput or numerical promotion. Newly named tests are implementation obligations. Broader Kimi, normalization and numerical-fixture work remains in the original remainder. Every required test has its own exact command selector. Existing native heap tests cannot satisfy missing new shared-merger tests; each invocation must supply complete non-skipped evidence. This strengthens the declared acceptance before candidate implementation and does not change the frozen corpus or numerical criteria. Colibri2 starts after master's tokenizer rollback: the former baseline executable does not represent current master. Re-freeze full Encode timing and token IDs after the supported compiler and RxBrain parity have landed.",
+          "depends_on": [
+            "colibri-text-semantics/pretokenizer"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        },
+        {
+          "id": "do",
+          "title": "Honor declared stop tokens, tokenization and reasoning channels",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestKimiK2$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredRemainingPipelines$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1",
+          "rationale": "Complete remaining Kimi and declared tokenizer cases after RxBrain-safe activation and shared BPE. Current master already includes EOS metadata, named templates, buffered/streamed reasoning channels and evaluation metadata; they are regression inputs, not new work. Unsupported nodes still refuse. Pin independent model fixtures, affected output and alignment reacquisition, and quality floors before claiming model-level accuracy or throughput. Reconcile consumer identities without widening regex acceptance to make a test pass.",
+          "depends_on": [
+            "colibri-fixtures/do",
+            "colibri-text-semantics/pretokenizer",
+            "colibri-text-semantics/bpe-shared"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-grammar-binding",
+      "title": "Reuse immutable vocabulary bindings across constrained generations",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reuse immutable vocabulary bindings across constrained generations",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestGrammarVocabularyBindingReuse$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGBNFVocabularyBindingShared$' -count=1 \u0026\u0026 go test ./internal/sampling -run '^TestGBNFVocabularyHashReuse$' -count=1",
+          "rationale": "W3.7. Decode/hash immutable vocabulary once per runner, share the binding through existing sampling grammar APIs, keep mutable parse state private. Verify distinct grammars/concurrent callers do not contaminate one another, signatures/output unchanged, second-compile decode count zero and allocations independent of vocabulary size. Retire displaced cloning paths. Split after inspecting state.go: the persisted FNV stream includes source/root before vocabulary, so ordinary prehash composition would change signatures. Reuse the binding slice and resolve hash-once while preserving exact legacy state signatures and bounded memory across distinct grammars; do not count decoding/allocation reuse as hash-once completion. TestGBNFVocabularyHashReuse is an implementation obligation, not existing evidence. Any performance promotion still requires paired total-generation evidence. The prior lane's binding and hash-study steps are historical evidence, not completion credit in Colibri2; inspect their current-master behavior before implementing the remaining hash-once proof.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-residency",
+      "title": "Record realized residency and refuse incomparable results",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record realized residency and refuse incomparable results",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestHybridNativeFallbackRealizedResidency$' -count=1 \u0026\u0026 go test ./internal/runrecord -run '^TestComparisonRefusesMixedRealizedResidency$' -count=1 \u0026\u0026 go test ./internal/longform -run '^TestAdmissionRefusesMixedRealizedResidency$' -count=1",
+          "rationale": "W0.2. Distinguish requested policy from actual device-resident, OOM-streamed or expert-offloaded outcome. Carry source-bound outcome through serving, benchmark and long-form; legacy unknowns cannot support matched performance promotion. Use injected allocation failure to exercise release and fallback.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-comparisons",
+      "title": "Bind output digests, environment and workload to paired comparisons",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bind output digests, environment and workload to paired comparisons",
+          "status": "open",
+          "verify": "go test ./cmd/benchmark -run 'TestBenchmarkResultTokenDigest|TestPromptSuiteRotation|TestPairedComparison' -count=1 \u0026\u0026 go test ./internal/runrecord -run '^TestBenchmarkComparisonRecord$' -count=1",
+          "rationale": "W0.6/W1.1-W1.3. One shared record contract: actual environment/module identity, realized policy, artifact/options/workload digest, per-sequence token digests and raw counter samples. Cold, repeated and rotating prompts; label cache upper bound. Single-factor interleaved comparisons with defined warmup, paired rule, raw data and exclusive measurement admission. Refuse incompatible identities/unequal lossless output; do not infer significance from one pair. Keep existing unrelated IDs stable. Costs include setup and verification.",
+          "depends_on": [
+            "colibri-residency/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-quant-oracles",
+      "title": "Prove adversarial kernel and span invariance before optimization",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prove adversarial kernel and span invariance before optimization",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TestKernelLaunchSelfConsistency|TestQuantKernelExactOracles|TestQuantizedSpanRowInvariance' -count=1",
+          "rationale": "W2.1-W2.3. Independent scalar known-answer inputs, boundary row/span shapes, repeatability and dtype-specific verification windows. Isolate numerical tolerance versus token ties; seeded inputs alone are not an oracle. Required CUDA tests fail when unavailable in their owning lane. Production fixes reconcile frozen media consumers.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-fixtures",
+      "title": "Acquire minimal independently verified fixtures for declared capabilities",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Acquire minimal independently verified fixtures for declared capabilities",
+          "status": "open",
+          "verify": "go test ./internal/parity ./internal/gguf -run 'TestParityFixtureAdmission|TestPendingFixtureTinyOracles' -count=1",
+          "rationale": "W2.4/W2.5. Shared test-side tiny GGUF builders and pinned independent reference outputs, exact tensor inventory and no missing-fixture pass. Distinguish tiny structural proof from real-model validation. Existing pending capabilities first; avoid new fixture CLI or registry.",
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-host-capacity",
+      "title": "Admit host allocations from actual available commit and shape costs",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit host allocations from actual available commit and shape costs",
+          "status": "open",
+          "verify": "go test ./internal/processmeasure -run '^TestHostCommitAvailability$' -count=1 \u0026\u0026 go test ./internal/inference -run '^TestHostCapacityAdmission$' -count=1",
+          "rationale": "W1.9/W2.7. Reuse current resource/OS owners, derive persistent plus transient bytes including cache and staging, read availability at admission, refuse before fatal allocation and report components. Include contention/release and projection-versus-measured peak. processmeasure is in frozen reconciliation scope; reuse incoming implementation or bind its receipt.",
+          "depends_on": [
+            "colibri-residency/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-serving-profile",
+      "title": "Expose exclusive phases, admission and token-gap facts",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expose exclusive phases, admission and token-gap facts",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestServingObservationPhaseAttribution|TestServingInterferenceTrace|TestAdmissionWaitRecorded' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserServingProfile$' -require 'serving profile leg'",
+          "rationale": "W1.4/W1.7/G3/G6/G8. Counter-based render/tokenize/prefill/sample/decode and unattributed remainder; admission precedes execution. Explicit queued flag, per-token gaps, bounded storage and exact units. Never stack overlapping GPU/host intervals or call stream chunks tokens. Legacy records labeled. Controlled rendezvous reproduces head-of-line blocking; real-model latency is separate measured evidence.",
+          "depends_on": [
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-runtime-views",
+      "title": "Show truthful memory, cache reuse and execution efficiency",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Show truthful memory, cache reuse and execution efficiency",
+          "status": "open",
+          "verify": "go test ./internal/server -run 'TestRuntimeSessionsHardware|TestRuntimeSessionsPromptCache' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserHardwarePanel$' -require 'hardware panel leg' \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserPromptCache$' -require 'prompt cache leg'",
+          "rationale": "G4/G5/G7/G9. Reuse vanilla viz/runtime/chat components, record-bound memory/tier/cache counters and reasons. Authenticated telemetry only, no extra public health fields. Exact totals or explicit inconsistent measurement, accessible table/keyboard representation, empty/stale/error states and retained-turn history. Producer before view; add speculation/bandwidth fields only once their records exist. Extend the current workbench and its accessible design tokens; master already integrated the GUI cleanup lane. Keep these rows for measured runtime/expert observations only.",
+          "depends_on": [
+            "colibri-host-capacity/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-recurrent-cache",
+      "title": "Reuse recurrent turn boundaries without corrupting donor state",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reuse recurrent turn boundaries without corrupting donor state",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestHostRecurrentPrefixBoundarySnapshot$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestRecurrentPrefixBoundarySnapshot$' -count=1",
+          "rationale": "W3.1. Retained boundary snapshots through existing cache owner, shape-derived memory budget and exact donor lifetime. Compare conversation turns, divergence, shorter repeats, cancellation and cold tokens/logits; do not assume recurrent state can rewind by trimming attention K/V.",
+          "depends_on": [
+            "colibri-host-capacity/do",
+            "colibri-quant-oracles/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-cache-lifetime",
+      "title": "Share, bound and persist cache state through one session codec",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Share, bound and persist cache state through one session codec",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run 'TestDevicePromptCacheSharedPrefix|TestDevicePromptCacheDurability|TestCancelledPrefillResumes' -count=1 \u0026\u0026 go test ./internal/inference -run '^TestPromptCacheDurability$' -count=1",
+          "rationale": "W3.2/W5.5/W5.9. Immutable shared prefixes, exact interrupted prefill and turn-driven persistence in the existing session/cache authority. Concurrent conversations retain independent state; identity includes model/options/projection/adapters/representation. Atomic count-last publication and corruption/version refusals; no raw mutable cache in OvergoDB.",
+          "depends_on": [
+            "colibri-recurrent-cache/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-sliding-cache",
+      "title": "Store only reachable sliding-window K/V",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Store only reachable sliding-window K/V",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestSlidingWindowBoundedCache$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestRingCacheAttention' -count=1",
+          "rationale": "W3.3. First inspect master device-memory-retention attribution; implement only if unused window rows remain the cause. Shape-derived ring origin across append/grow/decode/span/serialization; independent logits, constrained-memory and long-context quality. Reuse shared attention kernels and reconcile affected media numerical/resource claims.",
+          "depends_on": [
+            "colibri-quant-oracles/do",
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-speculation",
+      "title": "Enable target-verified drafting only where it improves complete inference",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Enable target-verified drafting only where it improves complete inference",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run 'TestDeviceSpeculationCounters|TestDeviceSpeculationAcceptanceGuard|TestSpeculationPolicyFromEvidence' -count=1",
+          "rationale": "W1.8/W3.4/W3.5. Per-request accepted/proposed/forward/expert-union counters, declared dtype span bounds, refusal/rearm without arbitrary pauses and exact greedy tokens. Count/byte model proposes depth; paired end-to-end workload evidence decides enablement and fallback. Resolve cache/device-greedy exclusions before serving defaults; retain a plain-greedy control and guard mixed residency.",
+          "depends_on": [
+            "colibri-quant-oracles/do",
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-draft-sources",
+      "title": "Share target verification across context, corpus and grammar draft sources",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Share target verification across context, corpus and grammar draft sources",
+          "status": "open",
+          "verify": "go test ./internal/inference -run 'TestContextNgramDraftSource|TestGrammarDraftSource' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run 'TestNgramDeviceSpeculationLossless|TestReplayDraftSourceLossless|TestGrammarDraftSourceLossless' -count=1",
+          "rationale": "W5.1/W5.2 plus grammar-forced drafts from Colibri docs/grammar-draft.md. Extend the existing verifier rather than another decode loop. Corpus records are proposals, never oracle answers; stop/collapse after rejection, never cross document boundaries. Grammar suggestions obey token boundaries and active grammar; no fail-soft grammar or unchecked preacceptance. Freeze held-out data separately and report replay versus novel workloads.",
+          "depends_on": [
+            "colibri-speculation/do",
+            "colibri-grammar-binding/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-prefill-fairness",
+      "title": "Bound prefill interference through the existing continuous scheduler",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Bound prefill interference through the existing continuous scheduler",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestContinuousAdmissionPrefillBudget$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestServingInterferenceTrace$' -count=1",
+          "rationale": "W3.6. Only after reproduced interference, chunk prefill from declared workload/resource budget while each active sequence advances. Preserve positions, recurrent state, cancellation and prompt cache, and measure aggregate throughput alongside tail gaps. No second scheduler or timing-driven oscillation.",
+          "depends_on": [
+            "colibri-serving-profile/do",
+            "colibri-recurrent-cache/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-moe-oracle",
+      "title": "Validate a real small MoE checkpoint before offload expansion",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate a real small MoE checkpoint before offload expansion",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestOLMoEGreedyOracle$' -count=1 \u0026\u0026 go run ./cmd/compatibility -check",
+          "rationale": "W4.1. Pinned OLMoE artifact and external reference revision/flags/prompts/tie policy; no missing-model skip. Acquire only declared bounded artifacts, reuse an existing local fixture when possible. Tiny tests establish wiring, a real checkpoint establishes the scoped capability. Reference artifacts stay outside runtime dependencies. Current master already carries resumable downloads; pin and hash the actual OLMoE artifact and external reference before any numerical claim.",
+          "depends_on": [
+            "colibri-fixtures/do",
+            "colibri-quant-oracles/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-device-profiling",
+      "title": "Measure device stages and bandwidth without distorting execution",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure device stages and bandwidth without distorting execution",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestStageEventAttribution$' -count=1 \u0026\u0026 go test ./cmd/benchmark -run '^TestRateBoundDossier$' -count=1",
+          "rationale": "W1.5/W1.6. Events at existing boundaries with unchanged synchronization and separately measured overhead; default-on requires measured acceptable end-to-end cost. Pageable/pinned/D2D probes are named empirical estimates, not universal upper bounds. Byte model includes dtype/layout/cache/attention, contention and scope. Extend existing bindings; frozen acceptance accompanies driver changes.",
+          "depends_on": [
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-expert-offload",
+      "title": "Keep dense work resident while executing offloaded experts on host",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Keep dense work resident while executing offloaded experts on host",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestExpertStackPlacement$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestExpertLayerOffloadTokens$' -count=1",
+          "rationale": "W4.2/W4.3. Common recipe-selected host expert node plus shape/capacity planner in existing owners. Reuse quant decoders and resource lifetimes, no family branches or context shrink. Verify host numerical oracle, real-checkpoint identity, transfer/synchronization/peak accounting and matched whole-model-streaming baseline. Record an external llama.cpp reference arm where available; do not block the internal correctness proof on an external binary.",
+          "depends_on": [
+            "colibri-moe-oracle/do",
+            "colibri-host-capacity/do",
+            "colibri-device-profiling/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-router-output",
+      "title": "Compute routing once and retain executed selections",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compute routing once and retain executed selections",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestExecutorMoERoutingOutputMatchesReference$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestInferenceRouterObservation$' -count=1",
+          "rationale": "W4.5/W4.7. Shared routing operation returns ids/weights consumed by expert execution and typed training/inference observations. No recomputed approximate router for telemetry; records match actual selections. Preserve routing normalization, tie ordering and digest; profile observer overhead separately.",
+          "depends_on": [
+            "colibri-expert-offload/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-expert-grouping",
+      "title": "Reuse expert weights across routed rows with shared grouped kernels",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Reuse expert weights across routed rows with shared grouped kernels",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run 'TestExecutorNativeQuantizedMoEMatchesReference|TestExecutorExpertMajorMoEMatchesTokenMajor' -count=1",
+          "rationale": "W4.6. Expert-major multirow work replaces repeated token-major paths; hoist storage selection, retain declared reduction semantics and output remap. Test empty/skewed/duplicate routes and quant spans. Land against current execution-core simplification and ratchets; aggregate benchmark gain must beat the same scheduler's single-stream and batched controls.",
+          "depends_on": [
+            "colibri-router-output/do",
+            "colibri-quant-oracles/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-expert-placement",
+      "title": "Admit expert heat policies on held-out workloads at equal capacity",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit expert heat policies on held-out workloads at equal capacity",
+          "status": "open",
+          "verify": "go test ./cmd/router-observation -run '^TestHeatAggregate$' -count=1 \u0026\u0026 go test ./internal/inference -run '^TestExpertTierPlacement$' -count=1",
+          "rationale": "W4.8/W4.9. Exact routing counts, frozen derivation split and independent held-out categories; capacity constraints first. Compare frequency fill and layer order, worst category coverage and actual latency/bytes. Reject or retain fallback on no benefit. No temporal decay literal or target-corpus leakage.",
+          "depends_on": [
+            "colibri-router-output/do",
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-expert-slots",
+      "title": "Manage expert slots through graph-stable remaps and release ownership",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Manage expert slots through graph-stable remaps and release ownership",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestExpertSlotResidencyTokens$' -count=1",
+          "rationale": "W4.10. Slot remap is replay input, no graph recreation after warmup. Lease-free eviction only; cancellation/drain/release, tiny budgets and concurrent requests. Logical recency and existing memory/admission owner. Compare slot cache to simple offload; disable extra policy if it loses end-to-end.",
+          "depends_on": [
+            "colibri-expert-grouping/do",
+            "colibri-expert-placement/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-expert-overlap",
+      "title": "Overlap experts only where measured waits justify it",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Overlap experts only where measured waits justify it",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestHostExpertOverlapTokens$' -count=1",
+          "rationale": "W4.4/W4.11/W4.13. Typed host expert/device transfer phases identify the limiting wait. Reuse worker/stream completion signals and fit actual transient buffers; no spin-wait or extra unbounded worker team. Rendezvous proves dependencies, token oracle proves semantics, paired held-out latency decides promotion. Prefetch and speculation-aware union extensions require separate positive predicates.",
+          "depends_on": [
+            "colibri-expert-slots/do",
+            "colibri-serving-profile/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-expert-view",
+      "title": "Visualize actual expert tiers and routing in the workbench",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Visualize actual expert tiers and routing in the workbench",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestExpertResidencyProjection$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserExpertResidency$' -require 'expert residency leg'",
+          "rationale": "G10. Extend heatmap and table using declared layer/expert dimensions and exact stored counts. Tier and heat are separate encodings with keyboard/readable labels; no model offsets, fabricated affinity atlas or color-only semantics. Authenticated stream, identity mismatch refusal and bounded data. Real tier changes get an owning model journey. Extend the current workbench and its accessible design tokens; master already integrated the GUI cleanup lane. Keep these rows for measured runtime/expert observations only.",
+          "depends_on": [
+            "colibri-expert-slots/do",
+            "colibri-runtime-views/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-tool-syntax",
+      "title": "Parse and constrain declared tool-call formats through common contracts",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Parse and constrain declared tool-call formats through common contracts",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestChatToolSyntaxDeclarations$' -count=1",
+          "rationale": "W4.12. Template/recipe-selected harmony and argument syntaxes beside current XML-like calls, shared parser/grammar/streaming round trips. No salvage or family regex. Preserve tool approvals, receipts and transport authorization; malformed/ambiguous requests refuse.",
+          "depends_on": [
+            "colibri-text-semantics/do",
+            "colibri-grammar-binding/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-quant-quality",
+      "title": "Measure quantization and cache compression against retained quality floors",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure quantization and cache compression against retained quality floors",
+          "status": "open",
+          "verify": "go test ./cmd/perplexity -run '^TestQuantTypeQualityEvidence$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestDeclaredCacheRepresentation$' -count=1",
+          "rationale": "W2.6/W5.4/W5.7. Independent KL known answers and real held-out quality; compare F32/F16/FP8 cache representations at exact workload, report numerical changes rather than claim lossless. Block-scale types added only for an actual checkpoint consumer with declared format provenance. Common dtype/cache interfaces and serialized representation identity; resource and media reacceptance.",
+          "depends_on": [
+            "colibri-sliding-cache/do",
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-load-path",
+      "title": "Remove demonstrated weight-loading copies and serialization",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Remove demonstrated weight-loading copies and serialization",
+          "status": "open",
+          "verify": "go test ./internal/gguf -run '^TestReaderPerWorkerHandles$' -count=1 \u0026\u0026 go test ./internal/modeldevice -run '^TestLoadPhaseObservation$' -count=1",
+          "rationale": "W1.10/W3.8. Profile actual read/decode/upload first; conditional per-worker handles or pinned staging using bounded host capacity and current readers. Separate load gain from warm decode, include cold/warm cache regime and failed/cancelled cleanup. No multi-SSD or platform-specific storage work without an observed consumer bottleneck.",
+          "depends_on": [
+            "colibri-host-capacity/do",
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-ragged-batch",
+      "title": "Batch unequal decode positions in the existing scheduler",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Batch unequal decode positions in the existing scheduler",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestRaggedDeviceBatch$' -count=1",
+          "rationale": "W5.6. Reuse declared per-sequence position/mask/cache arrays and grouped execution; no duplicate scheduling owner. Variable lengths, admission, recurrent state and cancellation tested against independent sequence runs. Measure both aggregate throughput and latency under real contention; synchronize master simplification before editing kernels.",
+          "depends_on": [
+            "colibri-prefill-fairness/do",
+            "colibri-quant-oracles/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-sampled-speculation",
+      "title": "Preserve sampling distribution through target-verified spans",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Preserve sampling distribution through target-verified spans",
+          "status": "open",
+          "verify": "go test ./internal/inference -run '^TestSampledSpanAcceptRule$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./internal/inference -run '^TestDeviceSampledSpeculationDistribution$' -count=1",
+          "rationale": "W5.3. Exact proposal/target probability and rejection correction contract, including top-k support and grammar constraints. Analytical tiny-distribution cases plus independently justified distribution test, seed/resume and no positive gain claim from acceptance alone. Opt-in until quality and end-to-end workload gain are established.",
+          "depends_on": [
+            "colibri-speculation/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-integration",
+      "title": "Prove combined gains and prepare master integration without importing this plan",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prove combined gains and prepare master integration without importing this plan",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/plan -run 'Colibri|SingleCanonical' -count=1 \u0026\u0026 go run ./cmd/test-lane ./internal/inference ./internal/server ./internal/sampling ./internal/hfhub ./internal/runrecord",
+          "rationale": "At each coherent integration point publish exact commits, scoped device/browser/model receipts, regression floors, source licenses, unresolved limitations and net API/duplicate/state reductions. Final closeout requires all admitted dependent capabilities or explicit evidence-backed non-promotion and scope reconciliation, not just this hermetic command. Master controls its own plan and final merge. Do not push or mutate master from this lane; report integration readiness and avoid duplicate work already merged. Current master already integrated EOS, named templates, reasoning channels and evaluation metadata. Reconcile only capability work newly proven on Colibri2.",
+          "depends_on": [
+            "colibri-grammar-binding/do",
+            "colibri-comparisons/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
     {
       "id": "verifier-one-parser",
       "title": "Parse every verify command once, and reuse acceptance only for an equivalent execution",
@@ -509,6 +1249,7 @@
     {
       "id": "gemma-12b-accuracy",
       "title": "Add the chat-shaped long-form rung for the Gemma 12B twins",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -526,6 +1267,7 @@
     {
       "id": "failure-recovery",
       "title": "Run host recovery drills before closing reliability claims",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -560,6 +1302,7 @@
     {
       "id": "model-regression-baseline",
       "title": "Publish an accepted baseline before simplification",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -581,6 +1324,7 @@
     {
       "id": "benchmark-completion",
       "title": "Complete current-surface benchmarks and matched comparisons",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -601,6 +1345,7 @@
     {
       "id": "simplify-prefill-paths",
       "title": "Unify prefill policy where reference parity permits",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -621,6 +1366,7 @@
     {
       "id": "simplify-execution-core",
       "title": "Remove costly execution duplication behind the regression gate",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -638,6 +1384,7 @@
     {
       "id": "simplify-command-surface",
       "title": "Consolidate duplicated APIs and shipped binaries",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -661,6 +1408,7 @@
     {
       "id": "simplify-checkpoint-locations",
       "title": "Relocate checkpoints off retired paths, reversibly",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -680,6 +1428,7 @@
     {
       "id": "final-model-validation",
       "title": "Prove the final text surface and long-lived serving",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -701,6 +1450,7 @@
     {
       "id": "simplify-capability-report",
       "title": "Report capability kept or gained per unit of mechanism removed",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {
@@ -768,6 +1518,7 @@
     {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
+      "owner": "master-lead",
       "status": "open",
       "steps": [
         {

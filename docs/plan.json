@@ -1,50 +1,235 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
+  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "prompt-intake-files-rows",
-      "title": "Have the prompt hook file owner requests as candidate rows",
+      "id": "merge-ff9acf5f2e2c",
+      "title": "Merge the GUI cleanup lane at ff9acf5f2e2c",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Have the prompt hook file owner requests as candidate rows",
+          "title": "Merge the GUI cleanup lane at ff9acf5f2e2c",
           "status": "open",
-          "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
-          "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./cmd/closure-scan -run '^TestClosureOwnerRekeysOnlyVerifiedRebinds$' -count=1 \u0026\u0026 go test ./internal/server -run '^TestTensorPassSurvivesPublishFailure$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "browser-waits-fail-fast",
+      "title": "Fail a browser leg when the browser stops answering, and name the leg",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fail a browser leg when the browser stops answering, and name the leg",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -run '^TestBrowserLegFailsWhenTheBrowserStopsAnswering$' -count=1",
+          "rationale": "The webui lane after 2a9b5df6 lost 20 minutes: TestWebUIBrowserAudioOutput blocked in webSocket.readText waiting for a DevTools reply that never came, and the package timeout reported only a stack. Every browser wait uses t.Context, with no deadline. The fixed-timer census refuses a fixed per-leg deadline, so derive the failure: the browser process exited, the socket closed, or the page made no progress across a derived interval. Report the leg by name."
         }
       ]
     },
     {
       "id": "surface-aware-dispatch",
-      "title": "Dispatch all movers of a surface before its validation rows",
+      "title": "Re-acquire the text guards once per settled inference surface",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Dispatch all movers of a surface before its validation rows",
+          "title": "Re-acquire the text guards once per settled inference surface",
           "status": "open",
-          "verify": "test -f internal/plan/surface_dispatch_test.go \u0026\u0026 go test ./internal/plan -run '^TestSurfaceAwareDispatch' -count=1",
-          "rationale": "Tag rows with the surfaces they move so re-validation runs once per batch."
+          "verify": "go run ./cmd/longform -guard-coverage -all",
+          "rationale": "Text guards have been stale since 01cbf544; ed4d2b3a and 2a9b5df6 moved the surface again. Land the rows that move it in a batch, then run longform -guard -publish -all once on a free GPU. The row closes when guard coverage is complete at HEAD."
+        }
+      ]
+    },
+    {
+      "id": "validate-all-models",
+      "title": "Validate every registered model",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate every registered model",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
+          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
+          "depends_on": [
+            "activity-detection-capability/do",
+            "timesfm3-native-declaration/do",
+            "dinov2-embedding-capability/do",
+            "rae-generation-path/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "landing-one-path",
+      "title": "Land every change through one entry point",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Land every change through one entry point",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestLandingOnePath$' -count=1",
+          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each own claims, budgets and ship sets. On 2026-09-23 three plan-only commits existed only to change a check, a merge into master needed its row published first, claims were released by hand before every edit, and budgets were guessed three times. One path should reuse the worker's claim, take the budget from the measured delta, split a check change into its own commit, and file a first-parent merge's row itself. Retire the other paths."
+        }
+      ]
+    },
+    {
+      "id": "consolidation-inventory",
+      "title": "Measure duplication and file consolidation rows by payoff",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Measure duplication and file consolidation rows by payoff",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestConsolidationInventory$' -count=1",
+          "rationale": "Owner direction 2026-09-23: fewer components, more efficiency, more robustness. Count per kind: store schemas, docs JSON documents, locks and claims, environment test gates, landing entry points, clone groups. Classify every JSON outside the store and every tmp writer as reviewed source in git, derived record in the store, or process state in the runtime directory. Rank candidates by nodes removed times landings affected, and file the top ones as rows."
+        }
+      ]
+    },
+    {
+      "id": "inference-inputs-one-definition",
+      "title": "Compute what inference depends on in one place",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Compute what inference depends on in one place",
+          "status": "open",
+          "verify": "go test ./internal/longform -run '^TestImpactIsTheSurface$' -count=1",
+          "rationale": "longform.Affected and inferencesurface each derived the inference inputs, and they disagreed on embedded files and go.mod until ed4d2b3a. Impact selection should ask the surface's owner, so the two cannot drift again."
+        }
+      ]
+    },
+    {
+      "id": "tmp-refuses-undeclared-entries",
+      "title": "Retire tmp as a place tools and evidence depend on",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire tmp as a place tools and evidence depend on",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1",
+          "rationale": "tmp holds 4.1 GB: merge-evidence 3.3 GB, qwen27-native-reference 730 MB (a source checkout), qwen27-projection 88 MB, and about 60 scratch probes and messages. The gate closure proposals, the loop proposals and the overgodb-rebuild default write there. cmd/compatibility evidence names tmp/qwen9-musr-*.json as inputs, and docs/media_report.json and text-vision-coverage.json name the qwen27 trees. Owner direction 2026-09-23: delete stale data. Move each named input into the store with lineage, point tools at os.MkdirTemp or the runtime directory, then delete what nothing names."
+        }
+      ]
+    },
+    {
+      "id": "goldens-provenance",
+      "title": "Track golden generators and keep golden provenance in the store",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Track golden generators and keep golden provenance in the store",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestGoldensHaveProvenance$' -count=1",
+          "rationale": "Golden outputs are tracked (testdata, fixtures), but their generators and inputs (timesfm3_golden.py, dinov2_golden.py, their input and spec JSON) exist only in tmp. Put generators in one tracked directory, the only place Python is allowed. Record each golden in the store with its reference commit, checkpoint identity, generator and inputs, and have the test check its testdata file against that record. Large goldens live only in the store."
+        }
+      ]
+    },
+    {
+      "id": "generated-docs-into-store",
+      "title": "Move generated reports and baselines into OvergoDB",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move generated reports and baselines into OvergoDB",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestTreeHoldsNoGeneratedReports$' -count=1",
+          "rationale": "About 40 docs JSON documents are derived output committed as source: media_report 376 KB, modern_go_baseline 248 KB, api_manifest 172 KB, about 20 image_video documents, and the surface and clone baselines. They churn on landings, need an ordered regeneration, conflict on lane merges, and are pinned again by hash constants in tests. Make each a store record rendered on demand, and delete the pins. Order: large reports, then receipts, then baselines once lane merges carry store records."
+        }
+      ]
+    },
+    {
+      "id": "store-bare-record-fill",
+      "title": "Let a batch carrying content fill a bare store record",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Let a batch carrying content fill a bare store record",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestBatchFillsBareRecord$' -count=1",
+          "rationale": "From the GUI lane: a store that already holds a bare environment declaration refuses the later descriptor that carries its content at preparation, finalization and the lane outcome (artifactFacet.validate). 66420d36 avoids new bare records but cannot repair existing ones."
         }
       ]
     },
     {
       "id": "row-scope-budget-surface",
-      "title": "Let a row budget name the path prefixes its growth may land in",
+      "title": "Hold one size ratchet instead of five",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Let a row budget name the path prefixes its growth may land in",
+          "title": "Hold one size ratchet instead of five",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestScopeBudgetSurface' -count=1",
-          "rationale": "Only if node budgets prove too coarse to catch a row that drifts sideways."
+          "verify": "go test ./internal/repoanalysis -run '^TestOneSizeRatchet$' -count=1",
+          "rationale": "Row node budgets, the harness surface baseline, structure budgets, the clone ratchet and the profile delta each measure growth. One small landing tripped three of them on 2026-09-23, and row budgets were guessed three times. Keep one measure with one baseline, derive a row's budget from its measured delta, and delete the rest."
+        }
+      ]
+    },
+    {
+      "id": "one-claim-primitive",
+      "title": "Hold every lock and claim through one primitive",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold every lock and claim through one primitive",
+          "status": "open",
+          "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
+          "rationale": "processlock, authoritylock, the device resource jobs, the gate lanes lock and plan row claims each have their own acquire, release and recovery rules. Keep one primitive that names its holder and releases when the holder exits."
+        }
+      ]
+    },
+    {
+      "id": "device-claim-everywhere",
+      "title": "Have every GPU user take the device claim lanes wait on",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Have every GPU user take the device claim lanes wait on",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
+          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out."
+        }
+      ]
+    },
+    {
+      "id": "capability-test-gates",
+      "title": "Gate device and browser tests by detected capability, not environment variables",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate device and browser tests by detected capability, not environment variables",
+          "status": "open",
+          "verify": "go test ./internal/testskip -run '^TestCapabilityGates$' -count=1",
+          "rationale": "OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_PROBE_TEST and per-model flags gate tests, and a skip-reason classifier recovers what they lose (fd3e2549). Detect the device and the browser once, skip with a classified reason when absent, and delete the variables."
         }
       ]
     },
@@ -216,27 +401,6 @@
       ]
     },
     {
-      "id": "validate-all-models",
-      "title": "Validate every registered model",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate every registered model",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
-          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
-          "depends_on": [
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "compatibility-reports-leave-the-tree",
       "title": "Stop compatibility reports churning every landing (owner decision first)",
       "owner": "master-lead",
@@ -278,21 +442,6 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
           "rationale": "The input graph treats the package as an opaque reader, binding it to every root (269 packages) including docs/plan.json, so the complete receipt for ten media and specialized models expires on every landing and costs a four-minute rerun. Found 2026-09-23, three sources of the binding: (1) reads join a root parameter that production only ever passes as \".\", which in-package parameter propagation in the classifier would name; (2) the operator verbs (claim, record-verification, webui-report) read flag paths and can move to their own command; (3) -check reads the source files docs/compatibility.json binds to each claim, so part of the broad binding is correct until compatibility-reports-leave-the-tree decides what that binding means. Waits on that decision; (1) and (2) alone leave the package opaque."
-        }
-      ]
-    },
-    {
-      "id": "tmp-refuses-undeclared-entries",
-      "title": "Refuse tmp entries no tool declares (waits on owner cleanup)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse tmp entries no tool declares (waits on owner cleanup)",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestTmpHoldsOnlyDeclaredState' -count=1",
-          "rationale": "After tool state moves out, tmp holds only go.mod, go.sum and the merge-evidence store; gate caches become a releasable store class. Waits on the owner deleting 15 debris directories and on the 27B reference trees being released."
         }
       ]
     },
@@ -541,6 +690,21 @@
       ]
     },
     {
+      "id": "prompt-intake-files-rows",
+      "title": "Have the prompt hook file owner requests as candidate rows",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Have the prompt hook file owner requests as candidate rows",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
+          "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
+        }
+      ]
+    },
+    {
       "id": "campaign-closeout",
       "title": "Close the campaign once every branch is accounted for",
       "status": "open",
@@ -600,7 +764,19 @@
             "device-holders-rescoped/do",
             "suite-cost-rescoped/do",
             "decode-check-on-device/do",
-            "surface-covers-embedded-inputs/do"
+            "surface-covers-embedded-inputs/do",
+            "replan-consolidation/do",
+            "merge-ff9acf5f2e2c/do",
+            "browser-waits-fail-fast/do",
+            "landing-one-path/do",
+            "consolidation-inventory/do",
+            "inference-inputs-one-definition/do",
+            "goldens-provenance/do",
+            "generated-docs-into-store/do",
+            "store-bare-record-fill/do",
+            "one-claim-primitive/do",
+            "device-claim-everywhere/do",
+            "capability-test-gates/do"
           ]
         }
       ]

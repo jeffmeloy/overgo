@@ -1,8 +1,765 @@
 {
-  "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
+  "campaign": "Complete reusable audio.cpp capabilities on current master: CPU lifecycle and synthesis first, then encoder training and measured device execution",
+  "doctrine": "Work and commit only in C:/Users/jeffm/overgo_audiocpp2 on codex/overgo_audiocpp2. This campaign starts from master 39934bd80daa20e19740df6ed7c47cbca166d856 and the audio plan at 3adcb14fb73f33454297338c685c6876879e2e61 in C:/Users/jeffm/overgo_audiocpp. Do not push or modify either source worktree. The operator authorized temporary retention of foreign-owned master rows solely for bootstrap; they remain non-dispatchable, earn no audio completion credit, and leave through the next gated lane projection. Honor explicit stops. Keep one live plan in docs/plan.json. Future requested master synchronization pins one snapshot at an implementation boundary, preserves the audio plan through first-parent-target, and never chases additional master commits during validation. Read skill.md and use current plan dispatch, claim ownership, preflight and cmd/loop -land; the gate alone commits and advances. A configured campaign must run under its own live cmd/loop supervisor, never a copied session. Retain deferred acceptance obligations and read their terminal verdict before continuation. Missing completion authority is a blocker, not permission for raw commits, synthetic receipts, history rewrites or reduced gates. The old worktree's last retained-MLP-cache change is absent from this master snapshot; historical audio completion does not prove current source behavior. Re-establish the CPU baseline and explicitly revalidate any absent prerequisite before dependent work. The original 25 open step identities and acceptance obligations remain open; a new baseline replaces dependencies on historical-only receipts without granting them completion credit. Planned acceptance test names are implementation obligations, not evidence of existing tests. CPU-only declarations and current lifecycle checks precede GPU optimizations. Use dependency-ready CPU work when shared resource admission refuses a GPU job; do not terminate another worktree's process or clear reservations. Model-specific facts belong in recipes and artifacts, not executor branches. Port pinned, licensed native behavior into existing audiodsp, media, speechrecognition, speechsynth, modelrecipe, trainingprogram, trainingworkflow, evaluation and serving owners. Granite Speech 5.0 TurboCTC, native Safetensors Nemotron 3.5 ASR and FireRedVAD remain the existing reference paths; preserve their exact artifact, source, fixture and transform identities. Reject the incompatible Q8 GGUF. CPU is numerical authority; preserve tied/frozen gradients, optimizer, scheduler, RNG and data-stream resume. Frozen final-feature CTC adapter training does not establish encoder, recurrent or audio-conditioned training. Validate real corpus samples, rejection denominators and independent reference traces; never feed reference text into prediction. Silent AMI material stays quarantined until original source and transform are proved. Keep GeneratedAudio, AudioReference and transcripts distinct; synthesis silence does not inherit ASR silence refusal. Preserve bounded waveform streaming, checkpoint/restart, authenticated serving, model-switch attribution and cancellation; mel-chunk or frame-offset parity is not word timing or raw-waveform streaming. Reuse master's declaration-backed recognizer, activity policy, speech document runtime, completion metadata and cancellation/recovery owners; do not rebuild these in audio wrappers. Reuse source-bound audio evidence, declared acceptance lanes, exact checkpoint reuse, gate input ownership and claim amendments. Do not add an audio gate, graph engine, registry, scheduler or lifecycle. Scope checks from changed source, ABI, runtime inputs, artifacts and contracts; batch scope is an edit boundary, not permission to omit dependents. Read every group member before implementation; preserve retained receipt rows until the completion owner authorizes retirement. Run cheap focused checks while developing and scope-derived integration once per coherent implementation boundary. Missing or skipped required execution never passes. Broader shared training or kernel work must serve an identified production audio or model consumer; master moved several test-only entry points out of production, so inspect callers before restoring anything. Optimize a measured whole sequence before isolated kernels. Compare exact artifacts, inputs, shape, precision and quality protocol; report cold/warm wall, transfers, synchronization, layout work and actual peak-counter availability, with profiling separate from timing. Unknown peaks cannot support promotion, and fewer transfers alone are not throughput. Preserve failures and no-gain outcomes. State growth needs a declared reason under the current row budget owner; remove displaced implementation and tests with their callers. No unrelated gate redesign or platform cleanup. Use a pinned behavioral oracle, never a linked runtime; preserve exact stop and resume and pre/post WER. Bootstrap couples lane establishment to the audio reference-root validation fix; subsequent lane projection accompanies audio implementation. Audio work items use fresh audio2-prefixed identities because several original IDs were completed or retired independently in master. This is a new campaign retaining the old capability obligations, not reuse or reversal of master's completed identities.",
+  "lane": "audio2",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "audio2-audio-current-baseline",
+      "title": "Re-establish current-master audio prerequisites before extending capability",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Verify the actual CPU ingest, train, resume, evaluate and serve owners on the new source",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^Test(RecognizerReproducesReferenceTranscripts|ASRCPUClosedLoop|ASRProductionTrainingAcceptance|ASRFrozenAdapterAcceptance|ASRExactResumeAcceptance|AudioPublicationRecoveryAcceptance|ASRLiveOperationsAcceptance|SecondASRStreamingAcceptance|AudioResourceFitnessAcceptance)$' -count=1 -v",
+          "rationale": "New worktree baseline, not completion credit for the old branch. Master 39934bd8 has new declaration-backed recognizers and deferred model acceptance but does not include edaaec71 retained MLP activations. Read current production owners and retained evidence before any restoration. Run actual pinned corpus/model cases and retain exact source and store identity. Required artifacts must be present; no short-mode skips or zero-match acceptance. The historical prerequisite references superseded for this new campaign are: asr-serving/streaming-transcription, asr-serving/transcriptions-route, audio2-asr-training/dataset-materialization, audio2-asr-training/exact-resume, audio2-asr-training/trainable-graph, audio-decode-consolidation/do, audio2-audio-gate-control/provisional-commit-control, audio2-benchmark-routing/resource-quality-fitness, audio2-failure-recovery/interruption-drills, shared-asr-proof/live-model-operations, shared-training-cache/do, shared-training-mlp-cache/do, audio2-shared-training-residency/resident-matrix-gradients, shared-training-resume/do. This row rechecks their current CPU behavior; it does not claim resident training or GPU completion. Use an independent verified evidence-store snapshot, read-only reference/model inputs and checkout-local outputs. Follow current claim and completion admission; do not change authority rules merely to bootstrap the lane. The operator authorized the existing two-stage bootstrap on 2026-09-24. Foreign master rows are retained temporarily, are not audio work, and leave through gated lane projection after the first commit. The colliding audio failure-recovery item is renamed audio2-failure-recovery without deleting its pending steps. Bootstrap admission exposed retired master item benchmark-routing at f8c0ae6cd1dc. Namespace all imported audio work items with audio2- and remap internal dependencies consistently; preserve step contracts and do not restore retired master work.",
+          "depends_on": [
+            "audio2-bootstrap/do"
+          ],
+          "capabilities": [
+            "current-source-audio-baseline",
+            "cpu-asr-lifecycle",
+            "exact-adapter-resume",
+            "bounded-audio-serving"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/speechrecognition",
+              "internal/speechsynth",
+              "internal/trainingprogram",
+              "internal/trainingworkflow",
+              "docs"
+            ],
+            "rationale": "Revalidate existing prerequisite contracts once on current source before expanding them. Focused declaration checks precede real CPU integration.",
+            "reopen_when": "Relevant source, artifact, dataset, transform, protocol or environment changes.",
+            "checkpoints": [
+              {
+                "id": "declared-audio-contracts",
+                "title": "Verify declaration-backed recognition, activity policy and producer source binding",
+                "verify": "go test ./internal/audioparity -run '^Test(ReviewedRecognizerResolvesEachDeclaredForm|ActivityPolicyIsTheModelsOwnOperatingPoint|AudioProducerSourceBinding)$' -count=1 -v"
+              },
+              {
+                "id": "current-gate-contract",
+                "title": "Verify existing claim, deferred acceptance and batch declaration contracts without introducing a new audio gate",
+                "verify": "go test ./internal/gate -run '^Test(ClaimedGateAdmission|HolderAmendsItsOwnClaim|ModelAcceptanceRunsInItsDeferredLane|GovernedBatchDeclarationAcceptance)$' -count=1 -v"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "audio2-audio-generation-expansion",
+      "title": "Consolidate speech synthesis and admit broader audio generation",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-tts-contract-consolidation",
+          "title": "Consolidate synthesis inference, training and publication together",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestSharedSynthesisTrainingAcceptance$' -count=1 -v",
+          "rationale": "Current-master reconciliation: reuse speechsynth document runtime, typed completion metadata, cancellation and recovery now present. The missing work is production synthesis training/publication and complete lifecycle evidence, not another output/session API. Group synthesis-lifecycle; implement audio2-audio-generation-expansion/sync-tts-contract-consolidation, audio2-audio-generation-expansion/tts-contract-consolidation together. Preserve PocketTTS inference goldens while consolidating PCM/format representation, output lineage and session policy through existing speechsynth/media/mediacapability owners. Inspect merged decoding and voice declarations first. Preserve caller ownership, avoid copies and verify encoded HTTP output. Keep persistent GeneratedAudio/AudioReference and transcript/text artifacts distinct; migrate existing records explicitly if schemas change. Valid synthesis silence must not inherit ASR silence refusal; offline execution need not become streaming. Measure PCM/layout copies, per-request allocations and session state lifetime before consolidation; retain one owner and reuse bounded buffers across real calls. Include cancellation, repeated synthesis and observer/output ownership checks. Do not add CUDA solely to consolidate the API.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "shared-audio-output",
+            "tts-session-reuse"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/speechsynth",
+              "internal/media",
+              "internal/mediacapability",
+              "internal/capabilityruntime",
+              "internal/modelrecipe",
+              "internal/trainingprogram",
+              "internal/trainingworkflow",
+              "internal/server",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group synthesis-lifecycle: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-tts-contract-consolidation",
+                "title": "Consolidate existing synthesis outputs and sessions onto common audio contracts",
+                "verify": "go test ./internal/audioparity -run '^TestSharedSynthesisInferenceAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "tts-contract-consolidation",
+          "title": "Verify: Bind synthesis training and publication to the proven universal lifecycle",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestSharedSynthesisTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group synthesis-lifecycle; retained verification receipt for audio2-audio-generation-expansion/sync-tts-contract-consolidation. Preserve PocketTTS training while sharing ASR-proven checkpoint/resume, evaluation and publication owners. Verify uninterrupted/resumed updates, reload and synthesis quality. Delete duplicated lifecycle policy without conflating losses or task-specific admission. Record end-to-end update and publication costs separately; removing duplicate policy must preserve actual losses, optimizer state and complete generated outputs.",
+          "depends_on": [
+            "audio2-audio-generation-expansion/sync-tts-contract-consolidation"
+          ],
+          "capabilities": [
+            "shared-speech-lifecycle",
+            "tts-training",
+            "compatibility-preservation"
+          ]
+        },
+        {
+          "id": "sync-voice-capability",
+          "title": "Elect and deliver one supported voice capability",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestVoiceCapabilityAcceptance$' -count=1 -v",
+          "rationale": "Group voice; implement audio2-audio-generation-expansion/sync-voice-capability, audio2-audio-generation-expansion/voice-capability together. Elect multilingual synthesis or voice conversion from pinned executable, licensed artifacts. Run the bounded reference first; identify exact missing speaker/codec/conditioning operations and a falsifiable quality check. Failed election stops the dependent port and remains recorded, not completed capability. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance.",
+          "depends_on": [
+            "audio2-audio-generation-expansion/tts-contract-consolidation",
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "voice-oracle-election",
+            "bounded-capability-evidence"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/speechsynth",
+              "internal/audiodsp",
+              "internal/hostmath",
+              "internal/tensor",
+              "internal/media",
+              "internal/modelartifact",
+              "internal/modelrecipe",
+              "internal/evaluation",
+              "internal/trainingprogram",
+              "internal/trainingworkflow",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group voice: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-voice-capability",
+                "title": "Elect one executable voice capability and record its reusable-operation gaps",
+                "verify": "go test ./internal/audioparity -run '^TestVoiceOracleElectionAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "voice-capability",
+          "title": "Verify: Deliver the elected voice capability through common conditioning and codec operations",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestVoiceCapabilityAcceptance$' -count=1 -v",
+          "rationale": "Group voice; retained verification receipt for audio2-audio-generation-expansion/sync-voice-capability. Port only elected missing common conditioning/codec operations with their synthesis/evaluation/training consumers. Verify source and conditioning identity, independent output parity, quality denominators and a real update path. No family executor or parallel service; an absent admitted election fails. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance. Use the shared resident runtime and existing conditioning/codec buffers where the elected reference supports device execution. Profile full conditioning-to-waveform work before changing individual operators; preserve waveform boundaries and report complete-consumer cost rather than codec-only speed.",
+          "depends_on": [
+            "audio2-audio-generation-expansion/sync-voice-capability"
+          ],
+          "capabilities": [
+            "voice-generation",
+            "speaker-conditioning",
+            "voice-evaluation"
+          ]
+        },
+        {
+          "id": "sync-generative-audio-probe",
+          "title": "Elect a generative-audio reference independently of ASR CUDA",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestGenerativeAudioElectionAcceptance$' -count=1 -v",
+          "rationale": "Group generative-intake; implement audio2-audio-generation-expansion/sync-generative-audio-probe together. Elect an executable licensed generative-audio reference with bounded CPU-readable component traces, conditioning/codec semantics, quality assertions and a credible universal-training route. Inventory existing DiT owners first. Election adds no production package and rejected candidates leave execution unavailable. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance.",
+          "depends_on": [
+            "audio2-audio-generation-expansion/tts-contract-consolidation",
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "generative-audio-election",
+            "dit-codec-gap-evidence"
+          ]
+        },
+        {
+          "id": "generative-audio-probe",
+          "title": "Execute the elected generative-audio forward and update probe",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestGenerativeAudioProbeAcceptance$' -count=1 -v",
+          "rationale": "Group generative-proof; implement audio2-audio-generation-expansion/generative-audio-probe together. Execute the elected forward and nonzero training probe through shared DiT/media owners. Match independent traces/quality and measure wall/memory against the model-native reference. Stop expansion on failed parity, quality or resource admission. Device prerequisites follow elected operations, not unrelated ASR CUDA completion; required GPU execution cannot be skipped. Resource: CPU-only artifact/license/operation review may proceed when eligible. The elected reference determines actual execution requirements; if its oracle or forward/update proof requires a GPU, defer that proof without replacing it with inventory or skipped acceptance. Inspect shared-diffusion-residency/resident-sampling when applicable: retain iterative latent state, conditioning and updates across generation steps using the existing DiT/runtime owners. No dependency on image completion when the elected audio topology does not use that sequence. Require audio-specific trace, waveform/quality, transfer, wall and peak evidence; image gains do not establish audio gains.",
+          "depends_on": [
+            "audio2-audio-generation-expansion/sync-generative-audio-probe",
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "generative-audio-election",
+            "dit-reuse",
+            "media-quality-evaluation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio2-asr-training",
+      "title": "Prove Overgo's universal trainer on the native audio route",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-encoder-backward",
+          "title": "Implement operator gradients and full-encoder training together",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group encoder-training; implement audio2-asr-training/sync-encoder-backward, audio2-asr-training/encoder-backward together. Read the pinned backward reference and inventory hostmath/tensor operations before adding only missing gradients. Bind each to the real encoder; verify independently, including contributions from tied intermediate-feedback/final projections. Retain only necessary backward state and derive workspace without duplicating inference. Design the CPU authority with explicit activation lifetimes and reusable shape-derived backward workspace; retain only state required for gradients or declared observers. Record actual forward/backward/update allocations and layout costs so the later device implementation can reuse the same semantics. Inspect audio2-shared-training-residency/resident-training-sequence without making CPU gradients wait for unrelated GPU work.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "common-backward-operations",
+            "minimal-training-trace"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/speechrecognition",
+              "internal/hostmath",
+              "internal/tensor",
+              "internal/adaptertrain",
+              "internal/trainingprogram",
+              "internal/trainingworkflow",
+              "internal/optimizer",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group encoder-training: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-encoder-backward",
+                "title": "Add only missing common backward operations required by the admitted encoder",
+                "verify": "go test ./internal/audioparity -run '^TestASREncoderOperatorGradients$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "encoder-backward",
+          "title": "Verify: Extend the same forward graph to internal adapters and full-encoder CTC training",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRFullTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group encoder-training; retained verification receipt for audio2-asr-training/sync-encoder-backward. Extend the same graph to internal adapters and full-encoder CTC. Frozen downstream operations still propagate gradients; shared parameters accumulate all contributions into one optimizer-owned tensor. Reuse checkpoint/resume and pre/post WER/resource checks; no second trainer. Prior CPU measurements determine what expanded training must demonstrate. Acceptance also covers repeated steps without unbounded workspace growth, frozen/tied ownership and cleanup after interrupted training; report inference versus training peak separately.",
+          "depends_on": [
+            "audio2-asr-training/sync-encoder-backward"
+          ],
+          "capabilities": [
+            "ctc-encoder-backward",
+            "internal-adapter-training",
+            "shared-parameter-gradients",
+            "exact-training-resume"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio2-benchmark-routing",
+      "title": "Measure audio capability and resource fitness through existing evaluation and routing owners",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-routing-replay",
+          "title": "Prove audio routing, rollback and peer recovery on the same service evidence",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestAudioDistributedRecoveryAcceptance$' -count=1 -v",
+          "rationale": "Current-master reconciliation: use the declaration-backed persistent Recognizer/Transcriber, shared workflow and serving owners; add only missing audio routing and failure witnesses. Group routing-recovery; implement audio2-benchmark-routing/sync-routing-replay, audio2-benchmark-routing/routing-replay, audio2-failure-recovery/sync-control-plane-drills, audio2-failure-recovery/control-plane-drills together. Record real observations for both admitted ASR recipes with source/context, candidate set, selection, outcome and measured quality/resource availability. Use the existing observation owner; refuse missing identities/incomplete candidate evidence. No fabricated traces or audio-specific router. Carry measured processing-phase and resource availability through the existing observation owner: distinguish cold load, warm execution, first partial, finalization, publication and admission waiting. Reuse current counters; absent transfers, peak memory or timing remain absent, not zero or model-size estimates. Rebind fitness after affected residency changes; do not compare different source/precision/corpus conditions as a speedup. These audio observations do not depend on completing the shared optimization items.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "audio-routing-observations",
+            "shared-routing-owner"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/evaluation",
+              "internal/runrecord",
+              "internal/capabilityruntime",
+              "internal/workflowruntime",
+              "internal/server",
+              "internal/modelswap",
+              "internal/modelrecipe",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group routing-recovery: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "sync-routing-replay",
+                "title": "Record real audio routing observations through the existing observation owner",
+                "verify": "go test ./internal/audioparity -run '^TestAudioRoutingObservationAcceptance$' -count=1 -v"
+              },
+              {
+                "id": "routing-replay",
+                "title": "Evaluate audio counterfactual routing and live safety on recorded observations",
+                "verify": "go test ./internal/audioparity -run '^TestAudioRoutingReplayAcceptance$' -count=1 -v",
+                "depends_on": [
+                  "sync-routing-replay"
+                ]
+              },
+              {
+                "id": "sync-control-plane-drills",
+                "title": "Prove audio candidate quarantine and atomic predecessor rollback",
+                "verify": "go test ./internal/audioparity -run '^TestAudioRollbackAcceptance$' -count=1 -v",
+                "depends_on": [
+                  "routing-replay"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "routing-replay",
+          "title": "Verify: Evaluate audio counterfactual routing and live safety on recorded observations",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestAudioRoutingReplayAcceptance$' -count=1 -v",
+          "rationale": "Group routing-recovery; retained verification receipt for audio2-benchmark-routing/sync-routing-replay. Replay real observations through existing routing/rollout/safety-window owners. Verify selection, insufficient-evidence refusal, regression quarantine and predecessor rollback using matched fitness evidence. Distinguish counterfactual predictions from measured live outcomes and retain denominators.",
+          "depends_on": [
+            "audio2-benchmark-routing/sync-routing-replay"
+          ],
+          "capabilities": [
+            "audio-routing-replay",
+            "audio-live-safety"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio2-failure-recovery",
+      "title": "Prove audio consumers recover through shared durability and control-plane owners",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "sync-control-plane-drills",
+          "title": "Verify: Prove audio candidate quarantine and atomic predecessor rollback",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestAudioRollbackAcceptance$' -count=1 -v",
+          "rationale": "Group routing-recovery; retained verification receipt for audio2-benchmark-routing/sync-routing-replay. Use actual audio fitness refusals with the existing promotion/circuit-breaker owner. Verify quarantine, atomic predecessor rollback, in-flight recipe identity and evidence-based re-entry; no second audio promotion policy.",
+          "depends_on": [
+            "audio2-benchmark-routing/routing-replay"
+          ],
+          "capabilities": [
+            "audio-quarantine",
+            "atomic-recipe-rollback"
+          ]
+        },
+        {
+          "id": "control-plane-drills",
+          "title": "Verify: Recover audio peer failures and durable workflow obligations",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestAudioDistributedRecoveryAcceptance$' -count=1 -v",
+          "rationale": "Group routing-recovery; retained verification receipt for audio2-benchmark-routing/sync-routing-replay. Exercise audio peer timeout, partial response, cancellation and restart reconciliation through shared remote-streaming/workflow obligations. Require real request/output lineage and exactly one terminal obligation outcome, not generic control-plane build success.",
+          "depends_on": [
+            "audio2-failure-recovery/sync-control-plane-drills"
+          ],
+          "capabilities": [
+            "audio-peer-recovery",
+            "persistent-audio-obligations"
+          ]
+        },
+        {
+          "id": "sync-gate-recovery-drill",
+          "title": "Verify: Verify the audio gate derives applicable acceptance and resource scope",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestAudioGateScopeAcceptance$' -count=1 -v",
+          "rationale": "Group batch-recovery-proof; retained verification receipt for audio2-audio-gate-control/integration-control. On isolated fixtures, verify manifest-derived scope for audio declarations, CPU changes and kernels; refuse skipped/unexecuted acceptance. Reuse preflight, process termination, checkpoint persistence and shared recovery tests. Add audio witnesses and measured phase cost only, not another gate redesign.",
+          "depends_on": [
+            "audio2-audio-gate-control/integration-control"
+          ],
+          "capabilities": [
+            "audio-gate-scope",
+            "non-vacuous-acceptance"
+          ]
+        },
+        {
+          "id": "gate-recovery-drill",
+          "title": "Verify: Recover interrupted audio gate preparation on an isolated checkout",
+          "status": "open",
+          "verify": "go test ./cmd/gate -run '^TestAudioGateRecoveryAcceptance$' -count=1 -v",
+          "rationale": "Group batch-recovery-proof; retained verification receipt for audio2-audio-gate-control/integration-control. Interrupt preparation/verification on a disposable audio history/store copy. Use shared prepare/recover/watchdog owners; prove dirty changes, plan identity and completion authority survive without false completion or duplicate commit. Report phase costs; never mutate the active worktree or expand into merge-history redesign.",
+          "depends_on": [
+            "audio2-failure-recovery/sync-gate-recovery-drill"
+          ],
+          "capabilities": [
+            "audio-gate-recovery",
+            "completion-authority-preservation"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio2-gemma-audio-proof",
+      "title": "Prove existing E4B and 12B FP8 audio-conditioned capabilities through shared owners",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "artifact-contracts",
+          "title": "Admit both audio-conditioned artifacts without reserving a GPU",
+          "status": "open",
+          "verify": "go test ./internal/adaptiveparity -run '^TestAudioConditionedArtifactAdmissionAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-admission; implement audio2-gemma-audio-proof/artifact-contracts together. CPU-only admission of C:/Users/jeffm/adaptive_new/models/gemma-4-E4B-it and C:/Users/jeffm/adaptive_new/models/gemma-4-12B-it-fp8. Preserve distinct gemma4_audio/gemma4_unified_audio, precision and preprocessing declarations. Bind exact checkpoint/projector/tokenizer/processor dependencies through existing intake, prompt and tower owners. Reuse E4B registration/evidence; keep 12B admission separate. Retain TestAudioProcessorProfileIdentity, TestProjectionVerificationRequiresExecution and TestDeclaredSamplingPreservesPolicyIdentity. Loading/inventory never establishes executed parity or GPU success. Artifact identity and processor admission do not consume ASR fitness evidence; quality, device execution and adaptation remain separately gated. Reuse the merged E4B selection and RequireExecutionProfile-style artifact admission rather than reconstructing already accepted registration. Verify the exact two artifact identities independently; an accepted E4B identity never admits the 12B checkpoint by association.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "audio-conditioned-artifact-admission",
+            "distinct-audio-execution-contracts"
+          ]
+        },
+        {
+          "id": "matched-audio-quality",
+          "title": "Verify matched audio quality and complete served answers in one device campaign",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-quality-serving; implement audio2-gemma-audio-proof/matched-audio-quality, audio2-gemma-audio-proof/serving-recovery together. Reuse exact E4B audio-tower/12B audio-to-language evidence and E4B's eight-case projected-transcription oracle through cmd/evaluate and existing re-scoring. Execute complete answers on pinned audio for both models: declared-normalization WER/CER plus separate audio-understanding scoring, held-out breadth, input failures and full lineage. No reference leakage, first-token-only quality claim or duplicate all-modality campaign. Isolate GPU timing; do not claim synthesis, streaming or timestamps. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence. Start from docs/verification/e4b-validation.json and e4b-resource-refresh.json: E4B already has 32-clip held-out speech, complete native/Chat/Responses outputs and cancellation/recovery evidence. Consume exact unchanged audio cells through existing read-only acceptance; acquire missing 12B cells and any evidence invalidated by the current execution surface. Do not rerun all 30 E4B modality cells solely because HEAD changed, and do not relabel the earlier resource producer as covering later allocator changes. Keep 12B audio understanding, WER and adaptation separately unproven until executed. Trace the actual audio-tower-to-language handoff and retained-output ownership before optimizing. Reuse the landed arena repair; measure audio-conditioned host/device peaks, transfers and complete-answer latency for each admitted artifact separately. Text-only FP8 memory savings and warm-start timing changes do not prove audio savings. Revalidate affected audio evidence when shared lifetime, precision or execution changes, while retaining exact unaffected cells.",
+          "depends_on": [
+            "audio2-gemma-audio-proof/artifact-contracts",
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "audio-conditioned-transcription",
+            "audio-understanding-quality",
+            "paired-artifact-evidence"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/adaptiveparity",
+              "internal/projector",
+              "internal/modelartifact",
+              "internal/modelrecipe",
+              "internal/inference",
+              "internal/evaluation",
+              "internal/server",
+              "internal/capabilityruntime",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group gemma-quality-serving: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "matched-audio-quality",
+                "title": "Measure transcription and audio understanding separately for both Gemma models",
+                "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedQualityAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "serving-recovery",
+          "title": "Verify: Verify both Gemma audio paths through existing authenticated chat and Responses serving",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/server -run '^TestAudioConditionedServingAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-quality-serving; retained verification receipt for audio2-gemma-audio-proof/matched-audio-quality. Execute both admitted audio-conditioned recipes through Chat Completions and Responses: complete answers, ordered audio/text history, authentication, malformed/oversized refusal, cancellation, repeats and post-recovery attribution. Retain TestE4BServingModalities, merged protocol/resource and native generation/workflow checks, sampling identity and invalid-policy nonmutation. Add missing audio/12B cases only. Standalone transcription needs its own supported recipe and proof; no duplicated GUI/provider/VQA orchestration. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence. Reuse merged conversation ownership, durable history and background-response cancellation controls. Verify ordered audio/text attachments remain attributed to the selected model and operation after disconnect/restart; request framing must preserve the admitted processor and sampling identity. For any changed resident handoff, verify buffer/graph lifetime after cancellation, model switching, repeated requests and recovery; no stale replay against released audio or language state.",
+          "depends_on": [
+            "audio2-gemma-audio-proof/matched-audio-quality"
+          ],
+          "capabilities": [
+            "audio-conditioned-http-serving",
+            "multimodal-audio-recovery"
+          ]
+        },
+        {
+          "id": "audio-adaptation",
+          "title": "Verify supported audio-conditioned training and exact resume",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/adaptiveparity -run '^TestAudioConditionedTrainingAcceptance$' -count=1 -v",
+          "rationale": "Group gemma-adaptation; implement audio2-gemma-audio-proof/audio-adaptation together. Use the universal trainer, frozen-component, optimizer and checkpoint owners for admitted audio-conditioned paths. Prove actual materialization, nonzero parameters/updates, gradients, exact RNG/optimizer/data resume and held-out scoring. E4B layer-0 representation coverage is not full training. Retain explicit 12B FP8 no-per-layer-input refusal until a supported declaration is implemented; do not count refusal as training. Report model/task/parameter coverage separately. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence. Reuse proven resident training sequences only where the admitted topology supports them; preserve frozen audio components and tied ownership. Record whole-step transfer and memory costs and verify resumed device state, not just resident matrix updates. Unsupported FP8 topology remains refused rather than silently using another training path.",
+          "depends_on": [
+            "audio2-gemma-audio-proof/serving-recovery",
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "audio-conditioned-adaptation",
+            "training-topology-admission",
+            "exact-audio-training-resume"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio2-shared-training-residency",
+      "title": "Extend existing resident training across host-device boundaries",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "resident-training-sequence",
+          "title": "Keep hybrid forward, backward and optimizer state resident without changing training semantics",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath -run '^TestResidentTrainingSequenceAcceptance$' -count=1 -v",
+          "rationale": "Current-master reconciliation: edaaec71's retained MLP activation cache and cleanup changes are not in this base. Several device/training wrappers are now test-only. First elect and measure a current production consumer; restore only necessary common behavior with that consumer, never copy the old device files wholesale. Profile the real hybrid training consumer of MultiHeadAttentionBackwardResident and adjacent projection, normalization and rotary operations: host arrays, head-major packing and gradient downloads remain at these boundaries. Inspect densecausal resident stacks, device training glue, scratch pools and resident Muon before extending the existing owners. Elect the measured dominant sequence and carry activations, gradients, matrix weights and optimizer state on device across that sequence; preserve explicit host observations, declared unsupported components and checkpoint boundaries. Extend established pointer/buffer contracts only where needed; no second trainer or global rewrite. Preserve frozen-component gradient propagation, tied-parameter accumulation, dtype/reduction semantics, data order and RNG/optimizer/scheduler/data-stream resume. CPU parity precedes device update and interrupted/resumed training acceptance. Compare the actual admitted training path before/after at identical batch, sequence, trainable parameter set and artifact; report transfer bytes, layout work, synchronizations, forward/backward/update time, end-to-end step time and host/device peaks alongside loss and held-out quality. A faster isolated backward operator is not faster training. Derive gates from the changed training and optimizer cones, include gradient and checkpoint counterexamples, and run applicable device/race checks. GPU residency is implementation reuse for later ASR work, not proof of ASR gradients or model coverage.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do"
+          ],
+          "capabilities": [
+            "resident-training-sequences",
+            "gradient-update-parity",
+            "exact-resident-resume",
+            "measured-training-throughput"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/devicemath",
+              "internal/densecausal",
+              "internal/hybridtrain",
+              "internal/trainingprogram",
+              "internal/optimizer",
+              "internal/cuda",
+              "internal/tensor",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "One profiled training sequence including its real caller; gradient/update/resume evidence precedes matched performance and scope-derived integration.",
+            "reopen_when": "Revalidate affected consumers when source, runtime inputs, artifact, shape, precision, ABI, buffer lifetime, environment or quality contract changes; reuse only exact independent passing evidence.",
+            "checkpoints": [
+              {
+                "id": "training-boundaries",
+                "title": "Bind the real training consumer, state boundaries and independent gradient authority",
+                "verify": "go test ./internal/devicemath -run '^TestResidentTrainingBoundaryAcceptance$' -count=1 -v"
+              },
+              {
+                "id": "training-update-resume",
+                "title": "Verify device updates and exact interrupted/resumed training on the elected sequence",
+                "verify": "OVERGO_CUDA_TEST=1 go test ./internal/devicemath -run '^TestResidentTrainingUpdateResumeAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "audio2-shared-shape-execution",
+      "title": "Derive shared operator execution from measured tensor geometry",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "shape-derived-execution",
+          "title": "Improve the dominant shared operator without changing admitted numerical behavior",
+          "status": "open",
+          "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestShapeDerivedExecutionAcceptance$' -count=1 -v",
+          "rationale": "After profiling complete processing sequences, elect one remaining dominant operator from real admitted inference, training or audio consumers; do not tune every kernel speculatively. Inspect the landed narrow-value-head decode split and per-block shared-memory derivation. Preserve the guarded wide-head reduction order: finer partitions changed tokens. Derive launch work, scratch bounds and dispatch from tensor geometry, dtype, mask/window semantics and device limits, not model names or fixed model lists. Reuse manifest/ABI, attention/matmul and graph-replay owners; add a kernel or fusion only when the measured surviving cost justifies it. Verify all affected shape regimes, small/large sequences, admitted head widths, tails, masks, precision and cancellation/resource limits with independent numerical authority, complete output checks and gradients where used in training. Scope kernel/ABI checks, CUDA execution, race/sanitizer and downstream model guards from the actual diff. Compare cold and warm latency, throughput, scratch/peak storage and complete-consumer wall under the same quality policy. Keep unchanged valid dispatch when a candidate fails parity or has no measured benefit; no universal split factor or promised cross-model speedup.",
+          "capabilities": [
+            "shape-derived-execution",
+            "bounded-kernel-workspace",
+            "numerically-guarded-dispatch"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/cuda",
+              "internal/devicemath",
+              "internal/tensor",
+              "kernels",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "One measured operator change; CPU geometry checks, device numerical checks and affected consumer guards precede performance promotion. Artifact cohorts derive from actual affected consumers.",
+            "reopen_when": "Revalidate affected consumers when source, runtime inputs, artifact, shape, precision, ABI, buffer lifetime, environment or quality contract changes; reuse only exact independent passing evidence.",
+            "checkpoints": [
+              {
+                "id": "shape-contract",
+                "title": "Verify geometry-derived launch and scratch bounds on affected operator contracts",
+                "verify": "go test ./internal/cuda/executor -run '^TestShapeDerivedExecutionContractAcceptance$' -count=1 -v"
+              },
+              {
+                "id": "shape-device-parity",
+                "title": "Verify actual affected CUDA shapes and reduction semantics",
+                "verify": "OVERGO_CUDA_TEST=1 go test ./internal/cuda/executor -run '^TestShapeDerivedExecutionParityAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "audio2-asr-cuda",
+      "title": "Accelerate the elected ASR model through manifest-owned CUDA",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "profile-and-bind",
+          "title": "Make the measured ASR sequence device-resident before isolated kernel tuning",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRCUDARecipeAcceptance$' -count=1 -v",
+          "rationale": "Group asr-device; implement audio2-asr-cuda/profile-and-bind, audio2-asr-cuda/sync-device-parity, audio2-asr-cuda/device-parity together. Use measured CPU hotspots to bind only missing operations through existing CUDA manifest/generated ABI owners. No family kernels or manual ABI. Recheck actual toolkit/compiler support; historical CUDA 12.9/MSVC 19.51 failure is neither permanent unavailability nor passing evidence. Defer occupied-device work while eligible CPU work remains. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence. First profile the complete waveform-to-transcript and training sequences, recording preprocessing, encoder, decoding, forward/backward/update, transfer/layout and synchronization costs separately. Reuse graphruntime, executor retained outputs/replay, existing devicemath resident stacks and optimizer state; inspect all shared-efficiency rows before adding code. Keep encoder activations and supported recurrent state resident between operations/chunks; upload new features and download declared transcript/observation/checkpoint boundaries only where the contract requires them. Eliminate measured duplicate live buffers through the existing planner before adding fusion or shape tuning. A CPU frontend is valid if measured and disclosed; resident weights alone are insufficient. Preserve the CPU forward contract and explicit unsupported training topology, with no growing-prefix replay or model-specific kernels.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do",
+            "audio2-asr-training/encoder-backward"
+          ],
+          "capabilities": [
+            "cuda-manifest",
+            "profile-derived-acceleration",
+            "kernel-reuse"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/audioparity",
+              "internal/cuda",
+              "internal/devicemath",
+              "internal/graphruntime",
+              "internal/tensor",
+              "internal/speechrecognition",
+              "internal/adaptertrain",
+              "internal/trainingprogram",
+              "internal/trainingworkflow",
+              "internal/optimizer",
+              "kernels",
+              "cmd/device-lane",
+              "cmd/race-lane",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group asr-device: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "profile-and-bind",
+                "title": "Bind only measured missing audio operations through existing CUDA manifests",
+                "verify": "go test ./internal/audioparity -run '^TestASRCUDABindingAcceptance$' -count=1 -v"
+              },
+              {
+                "id": "sync-device-parity",
+                "title": "Verify accelerated operation and gradient parity before full recipe promotion",
+                "verify": "go test ./internal/audioparity -run '^TestASRCUDAOperatorAcceptance$' -count=1 -v",
+                "depends_on": [
+                  "profile-and-bind"
+                ]
+              },
+              {
+                "id": "resident-sequence",
+                "title": "Verify audio state residency, transfer boundaries, replay and bounded workspace",
+                "verify": "OVERGO_CUDA_TEST=1 go test ./internal/audioparity -run '^TestASRResidentSequenceAcceptance$' -count=1 -v"
+              }
+            ]
+          }
+        },
+        {
+          "id": "sync-device-parity",
+          "title": "Verify: Verify accelerated operation and gradient parity before full recipe promotion",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRCUDAOperatorAcceptance$' -count=1 -v",
+          "rationale": "Group asr-device; retained verification receipt for audio2-asr-cuda/profile-and-bind. Verify actual CUDA forward/backward operators against independent CPU authority on admitted shapes and tied parameters. Derive workspace; test cancellation/cleanup and manifest-derived device/race coverage. Bind evidence to the real recipe, not unrelated synthetic shapes; unavailable required execution fails. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence. Include actual narrow/wide heads, chunk tails, window masks, normalization/precision and reduction-order contracts where admitted by the recipes. Check retained aliases, observer/checkpoint lifetimes, stream restart and release on cancellation. Derive device/race and downstream tests from the changed manifest and execution cone, not the model name.",
+          "depends_on": [
+            "audio2-asr-cuda/profile-and-bind"
+          ],
+          "capabilities": [
+            "cuda-operation-parity",
+            "cuda-gradient-parity"
+          ]
+        },
+        {
+          "id": "device-parity",
+          "title": "Verify: Prove complete CUDA inference and training against the CPU recipe",
+          "status": "open",
+          "verify": "go test ./internal/audioparity -run '^TestASRCUDARecipeAcceptance$' -count=1 -v",
+          "rationale": "Group asr-device; retained verification receipt for audio2-asr-cuda/profile-and-bind. On identical artifacts/datasets, compare activations, logits, transcripts, WER, admitted adapter/full-encoder updates and exact resume. Record wall, real-time factor, host peak availability, VRAM and toolchain/device identity. Require applicable device evidence and quality/resource policy before promotion; preserve CPU support. Resource: GPU execution required; defer while reserved. CPU preparation is not completion evidence. Require the resident-sequence checkpoint as well as operator parity: compare cold load, warm full clips, streaming first-partial/final latency and complete training steps, with HtoD/DtoH bytes, conversions, synchronizations and allocator-owned versus device-wide peaks distinguished. Verify bounded recurrent storage across long streams and exact interrupted/resumed device training. Profile separately from exclusive matched timing; preserve all quality/resource failures and do not infer throughput from fewer allocations.",
+          "depends_on": [
+            "audio2-asr-cuda/sync-device-parity"
+          ],
+          "capabilities": [
+            "cpu-cuda-parity",
+            "device-evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "audio2-audio-gate-control",
+      "title": "Validate shared verification batching on the audio training slice",
+      "owner": "audio2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "integration-control",
+          "title": "Verify batch reuse, scope and interruption recovery in one isolated campaign",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestAudioVerificationBatchAcceptance$' -count=1 -v",
+          "rationale": "Current-master reconciliation: claim/reclaim, holder amendments, source-owned test scope, acceptance-lane deferral, retained terminal verdicts and measured row budgets already exist. Exercise these on audio inputs; do not implement the old proposed commit-gate controls again. Preserve final lane obligations and isolated fault-detection/recovery proofs. Group batch-recovery-proof; implement audio2-audio-gate-control/integration-control, audio2-failure-recovery/sync-gate-recovery-drill, audio2-failure-recovery/gate-recovery-drill, audio2-audio-gate-control/audio-batch-proof together. Verify shared verification_batch and checkpoint memo integration against source-bound chains, invalid declarations, out-of-scope changes, stale evidence and missing final integration. Checkpoints are subordinate obligations, not independent promotion or reduced-policy commits. Reuse master's remaining selection-shadow and cumulative-promotion proof when landed with exact matching contracts. Add only audio-specific counterexamples: external corpus/model bindings, production-training subprocesses, oracle captures and raw-waveform/session/HTTP integration. Preserve conservative scope until independence is proved; historical zero-reuse full gates are cost observations, not evidence that a narrower policy is safe. Attribute verifier preparation, internally repeated training/resource probes, outer deterministic repeat agreement and package execution separately. Review redundant work on the same audio obligations without changing frozen verify-classifier-v1, inserting artificial device/seed markers, or weakening exact-resume, fault-detection and final integration checks. Any new classifier contract must preserve historical replay through the shared owner. Include the early harness-ratchet counterexample recorded in finding evidence:sha256:1336ee039ad2e2ed79edb4b0e988b2dadbad6d9b56003fd2191b8db4587578bc. Exercise change-specific selection on isolated witness diffs for plan-only changes, host audio math, buffer ownership, shared CUDA/ABI, optimizer/checkpoint and serving contracts. Assert inclusion of actual dependent runtime files/subprocesses and exclusion only when independence is established. Report derived selection reasons and executed/reused/inapplicable checks; a broad shared executor change can legitimately require a broad gate. Reuse existing shared admission so CPU checks do not hold an exclusive GPU reservation; correctness may share admitted capacity, while performance remains exclusive. The attempted 27-to-15 row consolidation after merge 476565f7 preserved all 35 verifier commands but was refused by protected-plan membership; keep those identities pending, not completed. Address covered-row retirement through the existing completion/batch owner: explicit member references, exact same-candidate verifier and checkpoint evidence, unchanged prerequisite obligations, atomic Git/store publication and recovery. Reject missing, stale, skipped, changed-verifier, cyclic or unrelated coverage and preserve historical completion lookup; no generic plan-deletion exception.",
+          "depends_on": [
+            "audio2-audio-current-baseline/do",
+            "audio2-failure-recovery/control-plane-drills"
+          ],
+          "capabilities": [
+            "governed-checkpoint-commits",
+            "cumulative-integration-acceptance",
+            "evidence-bound-promotion",
+            "batch-boundary-dispatch"
+          ],
+          "verification_batch": {
+            "scope": [
+              "internal/gate",
+              "internal/plan",
+              "internal/automationcheck",
+              "internal/planverify",
+              "internal/runrecord",
+              "cmd/gate",
+              "cmd/plan",
+              "docs",
+              "compatibility.json"
+            ],
+            "rationale": "Group batch-recovery-proof: implement all member contracts together; checkpoints precede parent integration. Retained member receipts still require normal gates.",
+            "reopen_when": "Artifact, source, transform, topology, environment, resource policy or completion binding changes; revalidate affected checks and integration.",
+            "checkpoints": [
+              {
+                "id": "integration-control",
+                "title": "Verify shared batch integration and rejection of incomplete checkpoint evidence",
+                "verify": "go test ./internal/gate -run '^TestGovernedBatchDeclarationAcceptance$' -count=1 -v"
+              },
+              {
+                "id": "sync-gate-recovery-drill",
+                "title": "Verify the audio gate derives applicable acceptance and resource scope",
+                "verify": "go test ./cmd/gate -run '^TestAudioGateScopeAcceptance$' -count=1 -v",
+                "depends_on": [
+                  "integration-control"
+                ]
+              },
+              {
+                "id": "gate-recovery-drill",
+                "title": "Recover interrupted audio gate preparation on an isolated checkout",
+                "verify": "go test ./cmd/gate -run '^TestAudioGateRecoveryAcceptance$' -count=1 -v",
+                "depends_on": [
+                  "sync-gate-recovery-drill"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "audio-batch-proof",
+          "title": "Verify: Measure audio checkpoint reuse, fault detection and final integration through the shared gate",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestAudioVerificationBatchAcceptance$' -count=1 -v",
+          "rationale": "Group batch-recovery-proof; retained verification receipt for audio2-audio-gate-control/integration-control. Measure audio checkpoint/package reuse and fault detection on identical final trees and deliberate source/policy/environment mutations or interrupted publication in disposable fixtures. Failed/skipped/incomplete/stale/wrong-environment evidence must not complete a parent. Compare total wall and executed/reused checks with full-per-change runs; report savings or no gain. Reuse existing controls and keep full commit/promotion checks. Separate queue/admission time, CPU checks, device correctness, exclusive performance, browser acceptance and finalization. Invalidate cached receipts on changed source/artifact/precision/shape/ABI/runtime input, and prove unaffected evidence can be reused without skipping required regression detection.",
+          "depends_on": [
+            "audio2-failure-recovery/gate-recovery-drill"
+          ],
+          "capabilities": [
+            "audio-verification-batching",
+            "exact-checkpoint-reuse",
+            "durable-verification-obligations",
+            "cumulative-integration-acceptance",
+            "preserved-regression-detection",
+            "measured-gate-efficiency"
+          ]
+        }
+      ]
+    },
     {
       "id": "delete-test-only-exports",
       "title": "Delete production code only tests call",
@@ -859,304 +1616,6 @@
           ]
         }
       ]
-    }
-  ],
-  "optimization_reviews": [
-    {
-      "key": "skipped-fixture:overgo/cmd/generate: TestDecodeVideoFileFFmpeg",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:overgo/cmd/vqaparity: TestRxBrainProductionParity",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:overgo/internal/audioparity: TestModelJourneyNativeASRMicrophone",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/cmd/composite-generation-lane",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/cmd/evaluate",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/cmd/longform",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/cmd/recipe",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/adaptiveparity",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/audioparity",
-      "reason": "the audio parity fixture skips for an absent artifact and earns no credit, as the candidate says; its owner is the audio lane, not this row"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/controllertrain",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/cuda/cublas",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/cuda/device",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/cuda/driver",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/cuda/executor",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/cuda/kernel",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/densecausal",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/devicemath",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/diffusionimage",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/hybridtrain",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/inference",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/latentimage",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/latentvideo",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/longform",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/mediacapability",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/modeldevice",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/optimizer",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/projector",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/routedlm",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/scratchmodel",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/sensenovarecipe",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/server",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/torchrng",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test-device:overgo/internal/trainingprogram",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/cmd/generate",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/cmd/gguf-hash",
-      "reason": "The gguf fixture skips predate this landing, which touched testskip, testevidence, gate and two compatibility test reasons and no gguf path; the fixtures skip for absent fixture files and earn no credit, as the candidate says, and their owner is the gguf reader, not this row"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/cmd/vqaparity",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/internal/audioparity",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/internal/gguf",
-      "reason": "The gguf fixture skips predate this landing, which touched testskip, testevidence, gate and two compatibility test reasons and no gguf path; the fixtures skip for absent fixture files and earn no credit, as the candidate says, and their owner is the gguf reader, not this row"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/internal/model",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/internal/tokenizer",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "skipped-fixture:test:overgo/internal/webuilane",
-      "row": "skipped-fixture-classification"
-    },
-    {
-      "key": "store-growth:bytes:overgo/code-manifest-analysis/v1",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "store-growth:bytes:overgo/gate-selection-cause/v1",
-      "row": "store-benchmark-record-redundancy"
-    },
-    {
-      "key": "store-growth:bytes:overgo/gate-suite-cost/v2",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "store-growth:bytes:overgo/modern-go-computation/v1",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "store-growth:count:overgo.code-manifest-digest.v1",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "store-growth:count:overgo/agent-obligation/v1",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "store-growth:count:overgo/gate-package-receipt/v1",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "store-growth:count:overgo/stage-receipt/v2",
-      "row": "store-growth-ratchet"
-    },
-    {
-      "key": "suite-cost:overgo/cmd/compatibility",
-      "reason": "the package ran its media acceptances once, 57 s, with no regression against its own history; a ranking always has a first, which automation-review-suite-cost-regression exists to stop filing"
-    },
-    {
-      "key": "suite-cost:overgo/cmd/modern-census",
-      "reason": "5.9 s of a 119 s gate, off the critical path; the gate's critical path is the live fixture lock, filed separately"
-    },
-    {
-      "key": "suite-cost:overgo/cmd/plan",
-      "row": "cmd-plan-suite-wall"
-    },
-    {
-      "key": "suite-cost:overgo/cmd/rsi-census",
-      "row": "automation-review-suite-cost-regression"
-    },
-    {
-      "key": "suite-cost:overgo/internal/audioparity",
-      "row": "audioparity-suite-wall"
-    },
-    {
-      "key": "suite-cost:overgo/internal/capabilityruntime",
-      "row": "automation-review-suite-cost-regression"
-    },
-    {
-      "key": "suite-cost:overgo/internal/evaluation",
-      "row": "evaluation-suite-wall"
-    },
-    {
-      "key": "suite-cost:overgo/internal/gate",
-      "row": "gate-suite-serial-floor"
-    },
-    {
-      "key": "suite-cost:overgo/internal/plan",
-      "row": "plan-suite-wall"
-    },
-    {
-      "key": "suite-cost:overgo/internal/repoanalysis",
-      "row": "repoanalysis-suite-wall"
-    },
-    {
-      "key": "suite-cost:overgo/internal/server",
-      "reason": "the server suite's device lane wall is what the browser journeys cost; row gate-suite-serial-floor owns suite wall and this candidate is its measurement, not a separate row"
-    },
-    {
-      "key": "suite-cost:overgo/internal/tabularicl",
-      "row": "automation-review-suite-cost-regression"
-    },
-    {
-      "key": "surface-move:harness-production-nodes",
-      "row": "surface-move-preflight"
-    },
-    {
-      "key": "surface-move:production-nodes:00b49160532265a7eea191429073651bff3be82a",
-      "row": "automation-harness-surface-remainder"
-    },
-    {
-      "key": "surface-move:production-nodes:1943100ae2b84ea1996ecc1d48ba8206f2dd9cee",
-      "row": "automation-harness-surface-remainder"
-    },
-    {
-      "key": "surface-move:production-nodes:490d85f6260422ba9139cd21efdfb2295950a066",
-      "reason": "two production nodes: the lane role constant re-exported by the plan and the census alias re-exported by the scanner, declared through the harness paydown row when the landing was budgeted"
-    },
-    {
-      "key": "surface-move:production-nodes:4e87eb1e0a20f326a18e5e7f4cc95eec7b5357ad",
-      "row": "automation-harness-surface-remainder"
-    },
-    {
-      "key": "surface-move:production-nodes:78e0cb48efa83d7d2dc80597a284e31bc462773a",
-      "row": "row-scope-budget-surface"
-    },
-    {
-      "key": "surface-move:production-nodes:8527831950fae6a042d4e30b0da80b96b9940dfb",
-      "row": "surface-move-preflight"
-    },
-    {
-      "key": "surface-move:production-nodes:b9b1107f7949575bb7c1d225f678179e49047862",
-      "row": "automation-harness-surface-remainder"
-    },
-    {
-      "key": "surface-move:production-nodes:cbcf21c3eecfd844819d21b999f8ce6f492a2a6c",
-      "row": "harness-surface-paydown"
-    },
-    {
-      "key": "surface-move:production-nodes:cec8650046f910a364e4ec6d4ac753d4b3439b17",
-      "row": "automation-harness-surface-remainder"
-    },
-    {
-      "key": "surface-move:production-nodes:dc8d00b949a0fc3fd358fd18eeb599f64cd1fae1",
-      "row": "automation-harness-surface-remainder"
-    },
-    {
-      "key": "surface-move:production-nodes:e05dbe44a4060e344cb3a321a8cc88b6a7fc6a41",
-      "row": "store-benchmark-record-redundancy"
-    },
-    {
-      "key": "surface-move:production-nodes:f12613eda4c9e4afc89cf2477055fd85e2bab635",
-      "row": "derived-cache-reuse"
     }
   ]
 }

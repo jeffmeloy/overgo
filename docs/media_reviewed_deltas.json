@@ -267,6 +267,47 @@
         ]
       },
       "scope": "The skipped-fixture classification: the test-support gate every device fixture calls changes its skip reason only. The receipt re-runs the driver, cuBLAS and kernel packages on the device with the gate opted in, so their fixtures pass through the changed gate instead of skipping."
+    },
+    {
+      "changes": {
+        "internal/devicemath/layer_cuda_windows.go": {
+          "after_sha256": "",
+          "before_sha256": "a2b7899ca0c15ccff1cc73fe606ef06e0ec556c199ed4b924dd10add8554fb23",
+          "reason": "the file held only LayerBackward, a parity oracle no production code calls, and the layer types and helper it alone used; all move unchanged into layer_cuda_windows_test.go, so no production path loses or changes code."
+        },
+        "internal/latentimage/denoiser.go": {
+          "after_sha256": "d0177c13c6046be00c6ff65f87d70e6387ce9b6c1f706927cfe4c9671dca4548",
+          "before_sha256": "08f6abe504427ae7a8f23612afc6ab01dcae1d9bc3af6a405954fc8d92ede635",
+          "reason": "VerifyDenoiserCheckpoint, a checkpoint verifier only tests call, moves unchanged into denoiser_test.go; the denoiser's production code is unchanged."
+        },
+        "internal/latentimage/textencoder.go": {
+          "after_sha256": "df5ac7183e600b6d05e692c9617f47b64be83584d7a6fb51bf90ec6fe4c2484a",
+          "before_sha256": "a71d68a3e31952848dc9fb3f874c30730d4df4a659ef2746ae50ba4755b9fb90",
+          "reason": "VerifyEncoderCheckpoint, a checkpoint verifier only tests call, moves unchanged into textencoder_test.go; the encoder's production code is unchanged."
+        },
+        "internal/latentvideo/vae.go": {
+          "after_sha256": "334f879b281ba625726b9f016510934a7131055bb9e679fb082dc5ef75148bf1",
+          "before_sha256": "3c65a6ceee9bece45c349936d2abd8be581404721fd6fb59fe9eb3c9eff412a7",
+          "reason": "DecodeLatentVideo, a whole-video decode only tests call, moves unchanged into vae_test.go; the served decode path is unchanged."
+        }
+      },
+      "evidence": "evidence:sha256:f2be745aff413cf7ace70e1b5309e0ea3b51b27f36cae30bbe1e923645a6d2aa",
+      "id": "test-only-oracles-to-tests",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/devicemath": [
+          "TestLayerBackwardGradCheck"
+        ],
+        "overgo/internal/latentimage": [
+          "TestDenoiserForwardFiniteDeterministic",
+          "TestEncoderForwardSyntheticFinite"
+        ],
+        "overgo/internal/latentvideo": [
+          "TestVAESiLUMatchesTorchFixture",
+          "TestVAETemporalCacheSemantics"
+        ]
+      },
+      "scope": "Test-only declarations leave production files: a parity oracle, two checkpoint verifiers and a whole-video decode move unchanged into their packages' tests, with the types and helper the oracle alone used. No production function a media path calls is added, removed or changed. The receipt re-runs the three packages on the device, naming the moved oracle's gradient check and the denoiser, encoder and VAE tests beside the moved code."
     }
   ],
   "paths": [

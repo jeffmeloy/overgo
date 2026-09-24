@@ -855,7 +855,8 @@
             "delete-test-only-exports/do",
             "retire-controller-cluster/do",
             "retire-unreferenced-commands/do",
-            "env-gated-tests-run-or-go/do"
+            "env-gated-tests-run-or-go/do",
+            "move-test-only-oracles/do"
           ]
         }
       ]

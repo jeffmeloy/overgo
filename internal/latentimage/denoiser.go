@@ -45,7 +45,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
-	"overgo/internal/safetensors"
+
 	"overgo/internal/tensor"
 )
 
@@ -437,52 +437,3 @@ type DenoiserWitness struct {
 }
 
 func (w DenoiserWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }
-
-// VerifyDenoiserCheckpoint opens the transformer safetensors HEADERS under
-// modelDir and asserts every tensor the forward consumes exists with the exact
-// derived shape, and that the checkpoint carries no un-consumed transformer
-// tensor (capability retention). Never reads any payload. Returns the witness.
-func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
-	spec, err := Derive(modelDir)
-	if err != nil {
-		return nil, err
-	}
-	t := spec.Transformer
-	t.ModFields = t.ModFieldsOr6()
-	src, err := safetensors.OpenSource(modelDir + "/transformer")
-	if err != nil {
-		return nil, fmt.Errorf("denoiser verify: open transformer: %w", err)
-	}
-	defer src.Close()
-
-	shapes := DenoiserTensorShapes(t)
-	w := &DenoiserWitness{Tensors: len(shapes), ModFields: t.ModFields}
-	consumed := make(map[string]bool, len(shapes))
-	for name, shape := range shapes {
-		consumed[name] = true
-		artifactTensor, ok := src.Tensors[name]
-		if !ok {
-			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: checked.UnknownCount(), Source: "MISSING"})
-			continue
-		}
-		got := tensor.SingletonExtent
-		for _, s := range artifactTensor.Shape {
-			got *= int(s)
-		}
-		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
-	}
-	// capability retention: every transformer tensor must be consumed.
-	var extra []string
-	for _, name := range src.Names() {
-		if !consumed[name] {
-			extra = append(extra, name)
-		}
-	}
-	if !checked.Empty(extra) {
-		w.Checks = append(w.Checks, Check{Name: "unconsumed_tensors", Want: tensor.FirstOffset, Got: len(extra), Source: extra[0]})
-	}
-	if failures := failedCheckCount(w.Checks); checked.Nonzero(failures) {
-		return w, fmt.Errorf("denoiser verify: %d structural check(s) disagreed with checkpoint", failures)
-	}
-	return w, nil
-}

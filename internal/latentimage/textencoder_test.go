@@ -1,6 +1,9 @@
 package latentimage
 
 import (
+	"overgo/internal/checked"
+	"overgo/internal/tensor"
+
 	"fmt"
 	"math"
 	"strings"
@@ -347,4 +350,55 @@ func loadFusionStore(dir string) (map[string][]float32, error) {
 		store[name] = v
 	}
 	return store, nil
+}
+
+// VerifyEncoderCheckpoint opens the text_encoder safetensors HEADER under
+// modelDir and asserts every tensor the encoder forward consumes exists with the
+// derived shape, plus the selection-index invariants. Never reads any payload.
+func VerifyEncoderCheckpoint(modelDir string) (*EncoderWitness, error) {
+	spec, err := Derive(modelDir)
+	if err != nil {
+		return nil, err
+	}
+	e := spec.TextEncoder
+	if _, err := captureSlots(e); err != nil {
+		return nil, err
+	}
+	src, err := safetensors.OpenSource(modelDir + "/text_encoder")
+	if err != nil {
+		return nil, fmt.Errorf("textencoder verify: open text_encoder: %w", err)
+	}
+	defer src.Close()
+
+	inter, err := encoderCheckpointIntermediate(src)
+	if err != nil {
+		return nil, err
+	}
+	shapes := EncoderTensorShapes(e)
+	w := &EncoderWitness{
+		SelectLayers: append([]int(nil), e.SelectLayers...),
+		Intermediate: inter,
+		Tensors:      len(shapes),
+	}
+	for _, v := range e.SelectLayers {
+		w.CaptureAfter = append(w.CaptureAfter, v-tensor.SingletonExtent)
+	}
+	// config MLP width vs the real mlp.down_proj[1].
+	w.Checks = append(w.Checks, Check{Name: "e.intermediate", Want: e.Intermediate, Got: inter, Source: "mlp.down_proj.weight[1]"})
+	for name, shape := range shapes {
+		checkpointTensor, ok := src.Tensors[name]
+		if !ok {
+			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: checked.UnknownCount(), Source: "MISSING"})
+			continue
+		}
+		got, ok := checked.Int(checkpointTensor.Elements())
+		if !ok {
+			got = checked.UnknownCount()
+		}
+		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
+	}
+	if failures := failedCheckCount(w.Checks); checked.Nonzero(failures) {
+		return w, fmt.Errorf("textencoder verify: %d structural check(s) disagreed with checkpoint", failures)
+	}
+	return w, nil
 }

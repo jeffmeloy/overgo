@@ -34,21 +34,6 @@
       ]
     },
     {
-      "id": "one-claim-primitive",
-      "title": "Retired: share claim mechanics across locks",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: share claim mechanics across locks",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. A read-only survey found the lock mechanisms repeat acquisition and probing, not liveness: sharing them removes about 45 production lines, a busy-probe risks false contention, merging the Windows cancellation bridges risks use-after-free, and the exclusive GPU claim cannot release before process exit. Holder naming, the part that mattered, landed in 01cbf544. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "store-telemetry-by-reference",
       "title": "Store gate telemetry and merge authority by reference",
       "owner": "master-lead",

@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -149,29 +150,42 @@ func Moves(ctx context.Context, root string, paths []string) ([]string, error) {
 	directories := map[string]bool{}
 	embedded := map[string]bool{}
 	for _, pkg := range packages {
-		directories[pkg.Dir] = true
+		directory, err := filepath.Rel(root, pkg.Dir)
+		if err != nil {
+			return nil, err
+		}
+		directories[surfaceKey(directory)] = true
 		for _, name := range pkg.EmbedFiles {
-			relative, err := filepath.Rel(root, filepath.Join(pkg.Dir, name))
-			if err != nil {
-				return nil, err
-			}
-			embedded[filepath.ToSlash(relative)] = true
+			embedded[surfaceKey(filepath.Join(directory, name))] = true
 		}
 	}
 	var moves []string
 	for _, changed := range paths {
-		changed = filepath.ToSlash(changed)
+		key := surfaceKey(changed)
+		if key == "." || filepath.IsAbs(changed) || key == ".." || strings.HasPrefix(key, "../") || strings.Contains(key, ":") {
+			return nil, fmt.Errorf("inference surface: changed path %q is not repository-relative", changed)
+		}
 		kernel := slices.ContainsFunc(surfaceKernels, func(source string) bool {
-			return changed == source || strings.HasPrefix(changed, source+"/")
+			return key == surfaceKey(source) || strings.HasPrefix(key, surfaceKey(source)+"/")
 		})
-		source := strings.HasSuffix(changed, ".go") && !strings.HasSuffix(changed, "_test.go") &&
-			directories[filepath.Join(root, filepath.FromSlash(filepath.Dir(changed)))]
-		if kernel || source || embedded[changed] || changed == "go.mod" {
-			moves = append(moves, changed)
+		source := strings.HasSuffix(key, ".go") && !strings.HasSuffix(key, "_test.go") && directories[surfaceKey(filepath.Dir(key))]
+		if kernel || source || embedded[key] || key == surfaceKey("go.mod") {
+			moves = append(moves, filepath.ToSlash(changed))
 		}
 	}
 	slices.Sort(moves)
 	return slices.Compact(moves), nil
+}
+
+// surfaceKey is the one form a path is compared in: slash-separated and
+// clean, either separator accepted, and case-folded where the filesystem
+// folds case, so a spelling cannot evade the surface.
+func surfaceKey(path string) string {
+	key := filepath.ToSlash(filepath.Clean(strings.ReplaceAll(path, `\`, "/")))
+	if runtime.GOOS == "windows" {
+		key = strings.ToLower(key)
+	}
+	return key
 }
 
 // Package is one module-local package of the inference closure: its directory

@@ -394,6 +394,7 @@ var TrackedDocumentFamilies = []DocumentFamily{
 	{"resource_policy.json", DocumentAuthored},
 	{"SBOM.cdx.json", DocumentGenerated},
 	{"docs/plan.json", DocumentAuthored},
+	{"docs/COLIBRI2_REVIEW.md", DocumentAuthored},
 	{"docs/training_routes.json", DocumentAuthored},
 	{"docs/OVERGODB_IMPORT.md", DocumentAuthored},
 	{"docs/gui/", DocumentAuthored},

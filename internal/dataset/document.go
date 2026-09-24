@@ -113,11 +113,6 @@ func NewSplit(source artifact.ID, partitions []Partition) (Document, error) {
 	})
 }
 
-// NewMixture returns a normalized weighted dataset composition.
-func NewMixture(members []Member) (Document, error) {
-	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeMixture, Members: slices.Clone(members)})
-}
-
 // NewCatalog returns a named dataset inventory index.
 func NewCatalog(entries []CatalogEntry) (Document, error) {
 	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeCatalog, Catalog: cloneCatalog(entries)})

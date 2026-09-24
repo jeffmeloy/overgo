@@ -1,6 +1,8 @@
 package latentvideo
 
 import (
+	"overgo/internal/tensor/dtype"
+
 	"math"
 	"math/rand"
 	"slices"
@@ -240,4 +242,10 @@ func TestDiTTrainerCheckpointedForwardMatchesRetained(t *testing.T) {
 	if !(loss > 0) || !(gradientL2 > 0) {
 		t.Fatalf("checkpointed backward loss=%g grad_l2=%g", loss, gradientL2)
 	}
+}
+
+// CompileDenoiserProgram: builds the context and step graphs for one latent
+// geometry with exact F32 storage everywhere.
+func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry) (*DenoiserProgram, error) {
+	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: dtype.F32})
 }

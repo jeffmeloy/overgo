@@ -72,8 +72,13 @@ func TestModernGoBaselineHoldsOnlyReviewedThresholds(t *testing.T) {
 	}
 	typed := census
 	typed.Findings = slices.Clone(census.Findings)
+	baselineUntyped := baseline.Coverage.InspectedFiles - baseline.Coverage.TypedFiles
+	measuredUntyped := census.Findings[0].InspectedFiles - census.Findings[0].TypedFiles
+	// New inspected files can leave the measured tree above the baseline floor.
+	// Improve far enough to cross that floor rather than assuming one file does.
+	newlyTyped := max(1, measuredUntyped-baselineUntyped+1)
 	for index := range typed.Findings {
-		typed.Findings[index].TypedFiles++
+		typed.Findings[index].TypedFiles += newlyTyped
 	}
 	if err := ModernGoBaselineHolds(baseline, typed); err == nil || !strings.Contains(err.Error(), "loose") {
 		t.Fatalf("a bettered typed-coverage floor did not make the baseline loose: %v", err)

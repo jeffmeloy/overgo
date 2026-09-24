@@ -305,28 +305,6 @@ func (s *ResidentMuonPlan) Close() error {
 	})
 }
 
-// DeviceMuonPlanResident applies and clears one flat resident Muon plan.
-func DeviceMuonPlanResident(
-	worker *device.Worker,
-	weights, gradients, momentum driver.DevicePtr,
-	plan Plan,
-	step int,
-	config Config,
-) error {
-	if worker == nil || weights == 0 || gradients == 0 || momentum == 0 || plan.Identity() == "" || step <= 0 {
-		return fmt.Errorf("DeviceMuonPlanResident: invalid buffer, plan, or step")
-	}
-	if err := config.Validate(); err != nil {
-		return err
-	}
-	session, err := NewResidentMuonPlan(worker, plan, config)
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-	return session.Step(weights, gradients, momentum, step)
-}
-
 // DeviceMuonStepPlan: one flat upload/download; resident matrix updates.
 func DeviceMuonStepPlan(worker *device.Worker, weights, gradients, momentum []float32, plan Plan, step int, config Config) error {
 	if worker == nil || plan.Identity() == "" || step <= 0 ||

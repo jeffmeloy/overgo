@@ -1,5 +1,10 @@
 package hybridtrain
 
+import (
+	"math/rand"
+	"overgo/internal/hostmath"
+)
+
 import "testing"
 
 // TestLayerStreamPlansPartitionSlabs proves the per-layer stream plans are an
@@ -61,4 +66,80 @@ func TestLayerStreamPlansPartitionSlabs(t *testing.T) {
 	if budget.MasterElems != m.MatrixParamCount() || budget.MomentumElems != m.MatrixParamCount() {
 		t.Fatalf("budget masters/momentum %d/%d, want %d", budget.MasterElems, budget.MomentumElems, m.MatrixParamCount())
 	}
+}
+
+// BuildModel constructs a deterministic mixed stack.
+func BuildModel(cfg StackConfig, seed int64) (*Model, error) {
+	m := &Model{Cfg: cfg}
+	b := &builder{m: m, rng: rand.New(rand.NewSource(seed))}
+	H, inter := cfg.Hidden, cfg.Inter
+
+	// Stable field addresses for deferred aliases.
+	m.Weights = make([]hostmath.HybridLayerWeights, len(cfg.Types))
+	m.Dims = make([]hostmath.HybridLayerDims, len(cfg.Types))
+	m.States = make([][]float32, len(cfg.Types))
+
+	for li, kind := range cfg.Types {
+		w := &m.Weights[li]
+		w.IsLinear = kind == LinearAttention
+		p := func(s string) string { return name(li, s) }
+		// Shared norm and MLP groups.
+		b.vec(&w.InputNorm, p("input_norm"), H)
+		b.vec(&w.PostNorm, p("post_norm"), H)
+		b.mat(&w.MLP.Gate, p("mlp.gate"), inter, H)
+		b.mat(&w.MLP.Up, p("mlp.up"), inter, H)
+		b.mat(&w.MLP.Down, p("mlp.down"), H, inter)
+
+		switch kind {
+		case FullAttention:
+			qDim, kvDim := cfg.Heads*cfg.HeadDim, cfg.KVHeads*cfg.HeadDim
+			b.mat(&w.Attn.Wq, p("attn.q"), qDim, H)
+			b.mat(&w.Attn.Wk, p("attn.k"), kvDim, H)
+			b.mat(&w.Attn.Wv, p("attn.v"), kvDim, H)
+			b.mat(&w.Attn.Wo, p("attn.o"), H, qDim)
+			b.vec(&w.Attn.QNorm, p("attn.qnorm"), cfg.HeadDim)
+			b.vec(&w.Attn.KNorm, p("attn.knorm"), cfg.HeadDim)
+		case LinearAttention:
+			keyDim := cfg.GDNKeyHeads * cfg.GDNHeadDim
+			valDim := cfg.GDNValueHeads * cfg.GDNHeadDim
+			hv, K := cfg.GDNValueHeads, cfg.GDNConvK
+			b.mat(&w.GDN.Wq, p("gdn.q"), keyDim, H)
+			b.mat(&w.GDN.Wk, p("gdn.k"), keyDim, H)
+			b.mat(&w.GDN.Wv, p("gdn.v"), valDim, H)
+			b.mat(&w.GDN.Wbeta, p("gdn.beta"), hv, H)
+			b.mat(&w.GDN.Walpha, p("gdn.alpha"), hv, H)
+			b.mat(&w.GDN.Wz, p("gdn.z"), valDim, H)
+			b.mat(&w.GDN.Wout, p("gdn.out"), H, valDim)
+			// Small vectors stay host-resident.
+			b.vec(&w.GDN.ConvQ, p("gdn.convq"), keyDim*K)
+			b.vec(&w.GDN.ConvK, p("gdn.convk"), keyDim*K)
+			b.vec(&w.GDN.ConvV, p("gdn.convv"), valDim*K)
+			b.vec(&w.GDN.ConvBiasQ, p("gdn.cbq"), keyDim)
+			b.vec(&w.GDN.ConvBiasK, p("gdn.cbk"), keyDim)
+			b.vec(&w.GDN.ConvBiasV, p("gdn.cbv"), valDim)
+			b.vec(&w.GDN.TimeStep, p("gdn.dt"), hv)
+			b.vec(&w.GDN.A, p("gdn.a"), hv)
+			b.vec(&w.GDN.Norm, p("gdn.norm"), cfg.GDNHeadDim)
+		}
+		m.Dims[li] = cfg.layerDims(kind)
+		if kind == LinearAttention {
+			m.States[li] = make([]float32, cfg.GDNValueHeads*cfg.GDNHeadDim*cfg.GDNHeadDim)
+		}
+	}
+	// Publish final slab aliases.
+	b.rebindAliases()
+
+	m.X = make([]float32, cfg.Tokens*H)
+	for i := range m.X {
+		m.X[i] = float32(b.rng.NormFloat64() * 0.3)
+	}
+	m.Target = make([]float32, cfg.Tokens*H)
+	for i := range m.Target {
+		m.Target[i] = float32(b.rng.NormFloat64() * 0.3)
+	}
+
+	if err := b.finish(); err != nil {
+		return nil, err
+	}
+	return m, nil
 }

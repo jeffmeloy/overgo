@@ -1,11 +1,6 @@
 package latentimage
 
-import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
-)
+import ()
 
 // ServingStatus: how far a recognized media artifact is toward being served.
 type ServingStatus string
@@ -31,38 +26,3 @@ type MediaModel struct {
 
 // mediaKind: the modality this executor serves.
 const mediaKind = "image-diffusion"
-
-// Enumerate scans the immediate subdirectories of root and returns a
-// MediaModel for each that RecognizePipeline classifies. Directories that are
-// not this pipeline are skipped silently (discovery may probe anything); a
-// malformed matching artifact is a hard error. Results are dir-sorted.
-func Enumerate(root string) ([]MediaModel, error) {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, fmt.Errorf("latentimage: enumerate %s: %w", root, err)
-	}
-	var models []MediaModel
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		dir := filepath.Join(root, entry.Name())
-		spec, ok, err := RecognizePipeline(dir)
-		if err != nil {
-			return nil, fmt.Errorf("latentimage: enumerate %s: %w", entry.Name(), err)
-		}
-		if !ok {
-			continue
-		}
-		models = append(models, MediaModel{
-			Dir:     dir,
-			Family:  spec.Family,
-			Kind:    mediaKind,
-			Status:  StatusRecognized,
-			Serving: false,
-			Spec:    spec,
-		})
-	}
-	sort.Slice(models, func(i, j int) bool { return models[i].Dir < models[j].Dir })
-	return models, nil
-}

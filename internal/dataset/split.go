@@ -196,18 +196,6 @@ func (p SplitPlan) validate() error {
 	return nil
 }
 
-// DuplicateLineage returns a validated duplicate-to-canonical lineage edge.
-func DuplicateLineage(duplicate, canonical artifact.ID) (artifact.Lineage, error) {
-	edge := artifact.Lineage{Child: duplicate, Parent: canonical, Relation: artifact.RelationDuplicateOf}
-	if duplicate.Kind() != canonical.Kind() {
-		return artifact.Lineage{}, errors.New("dataset: duplicate kinds differ")
-	}
-	if err := edge.Validate(); err != nil {
-		return artifact.Lineage{}, err
-	}
-	return edge, nil
-}
-
 // NewMembership binds an explicit selection to its source without making the
 // source inventory a child of the dataset. Records are canonicalized by identity.
 func NewMembership(source artifact.ID, seed uint64, partition string, records []Record) (Membership, error) {

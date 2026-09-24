@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/checked"
 	"overgo/internal/runrecord"
 	"overgo/internal/strictjson"
 )
@@ -422,7 +423,7 @@ func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
 		}
 	}
 	for _, metric := range value.Metrics {
-		if metric.Name == "" || !finite(metric.Value) || !validMetricDirection(metric.Direction) {
+		if metric.Name == "" || !checked.Finite64(metric.Value) || !validMetricDirection(metric.Direction) {
 			return errors.New("evaluation: invalid evidence metric")
 		}
 	}
@@ -432,6 +433,10 @@ func canonicalizeEvaluationEvidence(value *EvaluationEvidence) error {
 		}
 	}
 	return nil
+}
+
+func validMetricDirection(value runrecord.Direction) bool {
+	return value == runrecord.DirectionMinimize || value == runrecord.DirectionMaximize
 }
 
 func uniqueArtifactIDs(values []artifact.ID) []artifact.ID {

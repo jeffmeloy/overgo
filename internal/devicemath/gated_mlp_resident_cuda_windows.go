@@ -12,17 +12,6 @@ import (
 // mlpMatW binds the three projection matrices and optional gradient destinations.
 type mlpMatW struct{ gate, up, down linWeight }
 
-// GatedMLPBackwardTResident is the resident counterpart to GatedMLPBackwardT: it
-// runs the entire densecausal-convention SwiGLU MLP backward inside ONE
-// worker.Do, with a single cuBLAS handle and ops_f32 module, uploading the
-// inputs once and keeping every intermediate gradient (dh, da, du, dg, dXgate,
-// dXup) resident on the device -- no per-op host round-trips. Only dX and the
-// three weight grads come back. Same math as GatedMLPBackwardT; this addresses
-// SQA finding 2/3 (residency) for the MLP block.
-func GatedMLPBackwardTResident(worker *device.Worker, x, wGate, wUp, wDown, g, a, u, h, dY []float32, rows, d, inter int) (GatedMLPGrads, error) {
-	return gatedMLPBackwardTW(worker, x, mlpMatW{hostW(wGate), hostW(wUp), hostW(wDown)}, g, a, u, h, dY, rows, d, inter)
-}
-
 // gatedMLPBackwardTW shares the resident SwiGLU VJP for host and borrowed
 // matrix bindings. Intermediate gradients stay in this session; optional
 // caller-owned matrix gradients remain resident after it closes.

@@ -90,6 +90,7 @@ type gateContext struct {
 	// them, the failed obligation that forces them inline, and the exact tree
 	// a lane runner plans instead of the worktree.
 	deferLanes     bool
+	serializeLanes bool // Merge and failed-lane replay cannot co-schedule heavy browser and CUDA checks.
 	deferredLanes  []string
 	laneDebt       *runrecord.GateLaneObligation
 	laneObligation *runrecord.GateLaneObligation

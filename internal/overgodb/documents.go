@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"overgo/internal/artifact"
+	"overgo/internal/extent"
 )
 
 // DocumentOrder selects introduction chronology.
@@ -41,7 +42,6 @@ type DocumentView struct {
 type DocumentPage struct {
 	Head      artifact.CommitID
 	Sequence  uint64
-	Matched   int
 	Truncated bool
 	Next      *QueryCursor
 }
@@ -79,43 +79,63 @@ func (s *Store) VisitDocuments(
 	}
 	page := DocumentPage{Head: s.head, Sequence: s.sequence}
 	aliases := s.state.aliasesByTarget(query.AliasPrefixes)
-	entries := make([]documentEntry, 0, min(query.MaxResults, s.state.artifacts.count()))
-	var last artifactSlotCursor
-	emitted := 0
-	ordered := s.state.artifacts.bySequence
-	for offset := range ordered {
-		index := offset
-		if query.Order == DocumentNewestFirst {
-			index = len(ordered) - offset - 1
+	// The read walks only its contracts' schemas, in commit order, from the
+	// cursor, and stops one match past the page: its cost follows the page,
+	// not the history.
+	window := s.state.artifacts.documentPositions(query.Contracts)
+	newestFirst := query.Order == DocumentNewestFirst
+	if query.Cursor != nil {
+		record, found := s.state.artifacts.record(query.Cursor.After)
+		if !found {
+			s.mu.RUnlock()
+			return DocumentPage{}, errors.New("overgodb: document cursor names no catalog record")
 		}
-		id := ordered[index]
-		record, _ := s.state.artifacts.record(id)
-		locator, hasContent := s.state.contents.locator(id)
-		if !hasContent || locator.released != 0 || !matchesDocumentContract(record.descriptor, query.Contracts) {
-			continue
+		// The window holds what lies past the cursor in the read's order.
+		at, on := slices.BinarySearch(window, record.position)
+		switch {
+		case newestFirst:
+			window = window[:at]
+		case on:
+			// The cursor's own record was the previous page's last.
+			window = window[at+extent.SingletonExtent:]
+		default:
+			window = window[at:]
 		}
-		names, selected := aliases[id]
-		if len(query.AliasPrefixes) != 0 && !selected {
-			continue
+	}
+	var entries []documentEntry
+	var last artifact.ID
+	var lastSequence uint64
+	// take files one matching document and reports whether the page has
+	// room for another look.
+	take := func(position int) bool {
+		entry, matched := s.state.documentAt(position, query, aliases)
+		if !matched {
+			return true
 		}
-		page.Matched++
-		cursor := artifactSlotCursor{sequence: record.sequence, id: id}
-		if query.Cursor != nil && !cursor.follows(*query.Cursor, query.Order) {
-			continue
-		}
-		if query.MaxResults != 0 && emitted >= query.MaxResults {
+		if query.MaxResults != 0 && len(entries) == query.MaxResults {
 			page.Truncated = true
-			continue
+			return false
 		}
-		entries = append(entries, documentEntry{
-			descriptor: record.descriptor, locator: locator, sequence: record.sequence, aliases: slices.Clone(names),
-		})
-		last = cursor
-		emitted++
+		entries = append(entries, entry)
+		last, lastSequence = entry.descriptor.ID, entry.sequence
+		return true
+	}
+	if newestFirst {
+		for _, position := range slices.Backward(window) {
+			if !take(position) {
+				break
+			}
+		}
+	} else {
+		for _, position := range window {
+			if !take(position) {
+				break
+			}
+		}
 	}
 	if page.Truncated {
 		page.Next = &QueryCursor{
-			Head: page.Head, Contract: contract, After: last.id, AfterSequence: last.sequence,
+			Head: page.Head, Contract: contract, After: last, AfterSequence: lastSequence,
 		}
 	}
 	s.mu.RUnlock()
@@ -170,18 +190,67 @@ func VisitDecodedDocuments[T any](
 	})
 }
 
-type artifactSlotCursor struct {
-	sequence uint64
-	id       artifact.ID
+// documentAt is the one match rule of a document read: the record at a
+// bySequence position, when its content is held and live, a contract names
+// it, and any alias prefix selects it.
+func (s catalogState) documentAt(position int, query DocumentQuery, aliases map[artifact.ID][]string) (documentEntry, bool) {
+	id := s.artifacts.bySequence[position]
+	record, _ := s.artifacts.record(id)
+	locator, hasContent := s.contents.locator(id)
+	if !hasContent || locator.released != 0 || !matchesDocumentContract(record.descriptor, query.Contracts) {
+		return documentEntry{}, false
+	}
+	names, selected := aliases[id]
+	if len(query.AliasPrefixes) != 0 && !selected {
+		return documentEntry{}, false
+	}
+	return documentEntry{descriptor: record.descriptor, locator: locator, sequence: record.sequence, aliases: slices.Clone(names)}, true
 }
 
-func (c artifactSlotCursor) follows(after QueryCursor, order DocumentOrder) bool {
-	if order == DocumentOldestFirst {
-		return c.sequence > after.AfterSequence ||
-			c.sequence == after.AfterSequence && artifact.CompareID(c.id, after.After) > 0
+// CountDocuments is the explicit census of a document query: how many
+// documents it matches in all, a walk of its schemas that paging never
+// pays for.
+func (s *Store) CountDocuments(ctx context.Context, query DocumentQuery) (int, error) {
+	if err := validateDocumentQuery(query, func(DocumentView) error { return nil }); err != nil {
+		return 0, err
 	}
-	return c.sequence < after.AfterSequence ||
-		c.sequence == after.AfterSequence && artifact.CompareID(c.id, after.After) < 0
+	if err := contextError(ctx); err != nil {
+		return 0, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := s.ready(false); err != nil {
+		return 0, err
+	}
+	aliases := s.state.aliasesByTarget(query.AliasPrefixes)
+	count := 0
+	for _, position := range s.state.artifacts.documentPositions(query.Contracts) {
+		if _, matched := s.state.documentAt(position, query, aliases); matched {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// documentPositions returns the ascending bySequence positions of every
+// record whose schema one of the contracts names; the caller only reads the
+// slice.
+func (f artifactFacet) documentPositions(contracts []artifact.DocumentContract) []int {
+	var schemas []string
+	for _, contract := range contracts {
+		if !slices.Contains(schemas, contract.Schema) {
+			schemas = append(schemas, contract.Schema)
+		}
+	}
+	if len(schemas) == 1 {
+		return f.schemaPositions[schemas[0]]
+	}
+	var positions []int
+	for _, schema := range schemas {
+		positions = append(positions, f.schemaPositions[schema]...)
+	}
+	slices.Sort(positions)
+	return positions
 }
 
 func validateDocumentQuery(query DocumentQuery, visit func(DocumentView) error) error {

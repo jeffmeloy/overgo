@@ -225,6 +225,66 @@ func launch(wait *localWait) {
 	}
 }
 
+// TestModernGoCensusPartsRejoin holds a census stored by package to the one
+// it stores: the header and the parts join back into the same census, a census
+// stored whole joins as itself, and a change to one package moves only that
+// package's part.
+func TestModernGoCensusPartsRejoin(t *testing.T) {
+	t.Parallel()
+	const source = `package sample
+
+import "strings"
+
+func parts(value string) {
+	for _, part := range strings.Split(value, ",") {
+		_ = part
+	}
+}
+`
+	root := modernGoTestRepository(t, source)
+	if err := os.MkdirAll(filepath.Join(root, "internal/other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "internal/other/sample.go"), []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	encoded := func(value any) string {
+		t.Helper()
+		data, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
+	}
+	census := func() (ModernGoCensus, []string) {
+		t.Helper()
+		whole, err := BuildModernGoCensus(root, ModernGoTargetVersion)
+		if err != nil {
+			t.Fatal(err)
+		}
+		header, parts := whole.SplitByPackage()
+		if len(parts) != 2 {
+			t.Fatalf("census parted into %d packages, want the two holding sites", len(parts))
+		}
+		if encoded(JoinModernGoCensus(header, parts)) != encoded(whole) || encoded(JoinModernGoCensus(whole, nil)) != encoded(whole) {
+			t.Fatal("a census does not join back from its parts, or a whole census does not join as itself")
+		}
+		var bytes []string
+		for _, part := range parts {
+			bytes = append(bytes, encoded(part))
+		}
+		return whole, bytes
+	}
+	_, before := census()
+	if err := os.WriteFile(filepath.Join(root, "internal/sample/sample.go"), []byte(source+"\nfunc more(value string) { parts(value) }\n\nfunc split(value string) {\n\tfor _, part := range strings.Split(value, \";\") {\n\t\t_ = part\n\t}\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, after := census()
+	if before[0] != after[0] || before[1] == after[1] {
+		t.Fatal("a change to one package did not move exactly that package's part")
+	}
+}
+
 // TestModernGoCensusDiscoveryOrderInvariant compares the suite's two censuses:
 // the census command discovers cmd before internal, the gate's snapshot
 // internal before cmd. The second is asked for first, so that it is computed

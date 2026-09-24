@@ -334,12 +334,6 @@ type DenoiserHistory struct {
 	StartFrame int
 }
 
-// CompileDenoiserProgram: builds the context and step graphs for one latent
-// geometry with exact F32 storage everywhere.
-func CompileDenoiserProgram(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry) (*DenoiserProgram, error) {
-	return CompileDenoiserProgramPrecision(c, weights, geometry, DenoiserPrecision{MatmulWeights: dtype.F32})
-}
-
 // CompileDenoiserProgramPrecision: builds both graphs under one precision
 // declaration.
 func CompileDenoiserProgramPrecision(c DenoiserConfig, weights *DenoiserWeights, geometry LatentGeometry, precision DenoiserPrecision) (*DenoiserProgram, error) {

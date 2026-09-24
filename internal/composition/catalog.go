@@ -2,6 +2,8 @@
 package composition
 
 import (
+	"overgo/internal/organ"
+
 	"context"
 	"errors"
 
@@ -63,4 +65,12 @@ func LoadCatalog(ctx context.Context, store *overgodb.Store) ([]CatalogComponent
 		return nil, errors.New("composition: no committed component decompositions to index")
 	}
 	return components, nil
+}
+
+// CatalogComponent is one indexed entry: identity facts plus the two signals.
+type CatalogComponent struct {
+	Model      artifact.ID
+	Name       string
+	Contract   organ.Contract
+	Statistics *tensorstats.Characterization
 }

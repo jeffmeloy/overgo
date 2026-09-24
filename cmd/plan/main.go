@@ -21,6 +21,7 @@ import (
 	"overgo/internal/authoritylock"
 	"overgo/internal/closurescan"
 	"overgo/internal/commanddoc"
+	"overgo/internal/extent"
 	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -39,10 +40,6 @@ const commandWorktree = "."
 
 func main() {
 	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
-	edit := flag.String("edit", "", "apply a strict JSON StepEdit file; expected_plan is plan_digest from -context; create/replace never executes verification")
-	publish := flag.Bool("publish", false, "with -edit: apply the edit and publish docs/plan.json through the gate in one command: -edit <f> -publish -vehicle <item>/<step> -message-file <f>")
-	vehicle := flag.String("vehicle", "", "with -publish: the item/step commit row the plan edit is published on")
-	messageFile := flag.String("message-file", "", "with -publish: the gate commit message file (never inline -m: the shell eats backticks)")
 	next := flag.Bool("next", false, "print the top open action")
 	frontier := flag.Bool("frontier", false, "print every dispatchable row (the ready frontier) and validate live worktree leases against it")
 	judgeEfficiency := flag.String("judge-efficiency", "", "judge an interaction-efficiency claim JSON ({candidate, baseline, tradeoff?}); exit code is the verdict")
@@ -73,10 +70,10 @@ func main() {
 	move := flag.Bool("move", false, "re-rank an open item: -move <item-id> [-before <id>] (default: top of the plan)")
 	retitle := flag.Bool("retitle", false, "re-scope an open item and its single step: -retitle <item-id> -title <t>")
 	sealHorizon := flag.Bool("seal-horizon", false, "write docs/plan_proof_horizon.json at HEAD with the completions the authority just proved; land it with the row in flight, after which completions at or before it are accepted from Git alone")
-	budget := flag.Bool("budget", false, "declare an open item's scope: -budget <item-id> -nodes <n> -reason <why> [-paydown <open item>]; an undeclared row may not grow production nodes")
+	budget := flag.Bool("budget", false, "declare an open item's scope: -budget <item-id> -reason <why> [-nodes <cap>] [-paydown <open item>]; the reason admits the measured growth, and an undeclared row may not grow production nodes")
 	// The default is the zero budget: a row that declares no growth maintains.
 	var nodes int
-	flag.IntVar(&nodes, "nodes", nodes, "with -budget: the production-node growth the row may add")
+	flag.IntVar(&nodes, "nodes", nodes, "with -budget: an optional cap on the production-node growth the row may add; the declared -reason alone admits the measured growth")
 	paydown := flag.String("paydown", "", "with -budget: the open item that pays for a harness baseline raise")
 	assign := flag.Bool("assign", false, "record an open item's owning lane: -assign <item-id> -owner <lane>; another lane never dispatches it")
 	owner := flag.String("owner", "", "with -assign: the owning lane")
@@ -107,7 +104,7 @@ func main() {
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {
-		err = run(cli{edit: *edit, publish: *publish, vehicle: *vehicle, messageFile: *messageFile, resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
+		err = run(cli{resumeStop: *resumeStop, maintenanceStop: *maintenanceStop, stopMode: *stopMode, mode: *executionMode, json: *jsonFlag, move: *move, retitle: *retitle, assign: *assign, owner: *owner, setLane: *setLane, next: *next, frontier: *frontier, judgeEfficiency: *judgeEfficiency, prompt: *prompt, verify: *verify, status: *status, context: *contextJSON, advance: *advance, add: *add, setverify: *setverify, bindCensus: *bindCensus, pruneDone: *pruneDone, prepareMerge: *prepareMergeFlag, planProjection: *planProjectionFlag, mergeSourceStore: *mergeSourceStoreFlag, stop: *stop, review: *review, reviewKind: *reviewKind, reviewRow: *reviewRow, reviewReason: *reviewReason, title: *title, before: *before, verifyCmd: *verifyCmd, role: *role, worker: *worker, releaseClaim: *releaseClaim, releaseReason: *releaseReason, sealHorizon: *sealHorizon, budget: *budget, nodes: nodes, paydown: *paydown, recordLease: *recordLease, recordLeaseOutcome: *recordLeaseOutcome, grantExploration: *grantExploration, chargeExploration: *chargeExploration, recordExperiment: *recordExperiment, contain: *contain, lane: *lane, localitySchedule: *localitySchedule, leaseReport: *leaseReport, retireLegacyLeases: *retireLegacyLeases, history: *history, phases: *phases, historyCommit: *historyCommit, historyResult: *historyResult, admitProposal: *admitProposalFlag, capacity: worklease.Resources{CPUThreads: *cpuCapacity, HostRAMGiB: *ramCapacity, VRAMGiB: *vramCapacity}}, flag.Args())
 	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "plan: %v\n", err)
@@ -116,8 +113,6 @@ func main() {
 }
 
 type cli struct {
-	edit, vehicle, messageFile                                                       string
-	publish                                                                          bool
 	resumeStop, maintenanceStop, stopMode, mode                                      string
 	phases                                                                           bool
 	historyCommit, historyResult                                                     string
@@ -149,17 +144,6 @@ type cli struct {
 }
 
 func run(c cli, args []string) error {
-	if c.edit != "" {
-		allowed := cli{edit: c.edit, publish: c.publish, vehicle: c.vehicle, messageFile: c.messageFile, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
-		if c != allowed || len(args) != 0 {
-			return errors.New("plan: -edit accepts only its file, -role, -worker, -json and optionally -publish -vehicle <item>/<step> -message-file <file>")
-		}
-		if c.publish {
-			return publishPlanEdit(commandWorktree, c.edit, c.vehicle, c.messageFile, execGate, os.Stdout)
-		}
-		return editPlanStep(commandWorktree, c.edit, os.Stdout)
-	}
-
 	if c.stop || c.resumeStop != "" || c.maintenanceStop != "" {
 		allowed := cli{stop: c.stop, resumeStop: c.resumeStop, maintenanceStop: c.maintenanceStop, stopMode: c.stopMode, role: c.role, worker: c.worker, json: c.json, retireLegacyLeases: noLegacyLeaseRetirement}
 		if c != allowed || c.stop && (c.resumeStop != "" || c.maintenanceStop != "") || c.resumeStop != "" && c.maintenanceStop != "" {
@@ -250,7 +234,7 @@ func run(c cli, args []string) error {
 		return errors.New("plan: direct pruning is retired; cmd/gate atomically commits and prunes the current row")
 	case c.budget:
 		if len(args) != 1 {
-			return errors.New("usage: plan -budget <item-id> -nodes <n> -reason <why> [-paydown <open item>]")
+			return errors.New("usage: plan -budget <item-id> -reason <why> [-nodes <cap>] [-paydown <open item>]")
 		}
 		declared := plan.Budget{Nodes: c.nodes, Paydown: c.paydown, Reason: strings.TrimSpace(c.reviewReason)}
 		return mutatePlan(commandWorktree, role, "budgeted item "+args[0], func(document plan.Plan) (plan.Plan, error) {
@@ -287,7 +271,7 @@ func run(c cli, args []string) error {
 	case c.setLane != "":
 		return mutatePlan(commandWorktree, role, "set lane "+strings.TrimSpace(c.setLane), func(document plan.Plan) (plan.Plan, error) { return setPlanLane(document, c.setLane) })
 	case c.setverify:
-		if len(args) != 2 || strings.TrimSpace(c.verifyCmd) == "" {
+		if len(args) != extent.PairedExtent || strings.TrimSpace(c.verifyCmd) == "" {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
 		}
 		if browserVerifyOutsideLane(c.verifyCmd) {
@@ -297,7 +281,7 @@ func run(c cli, args []string) error {
 	case c.contain != "":
 		return recordControl(c.lane, "containment", c.contain, strings.Join(args, commandWordSeparator))
 	case c.advance:
-		if len(args) != 2 {
+		if len(args) != extent.PairedExtent {
 			return errors.New("usage: plan -advance <item-id> <step-id|.>")
 		}
 		return errors.New("plan: direct advance is retired; commit the current row through cmd/gate")

@@ -4,10 +4,8 @@ package devicemath
 
 import (
 	"fmt"
-	"math"
 
 	"overgo/internal/cuda/device"
-	"overgo/internal/cuda/driver"
 )
 
 // deviceGEMM computes row-major C[m,n] = op(A)·op(B) in fp32 on the GPU, with
@@ -41,22 +39,6 @@ func deviceGEMM(worker *device.Worker, transA, transB bool, m, k, n int, a, b []
 		return nil, err
 	}
 	return c, nil
-}
-
-// AttentionCoreBackwardResident writes one attention VJP to device buffers.
-func AttentionCoreBackwardResident(
-	worker *device.Worker,
-	q, k, v, probability, dOut driver.DevicePtr,
-	dQ, dK, dV, dScores driver.DevicePtr,
-	seq, headDim int,
-	scale float64,
-) error {
-	if worker == nil || q == 0 || k == 0 || v == 0 || probability == 0 || dOut == 0 || dQ == 0 || dK == 0 || dV == 0 || dScores == 0 || seq <= 0 || headDim <= 0 || math.IsNaN(scale) || math.IsInf(scale, 0) {
-		return fmt.Errorf("AttentionCoreBackwardResident: invalid buffer, geometry, or scale")
-	}
-	return WithResidentOps(worker, func(ops *ResidentOps) error {
-		return ops.AttentionCoreBackward(q, k, v, probability, dOut, dQ, dK, dV, dScores, seq, headDim, scale)
-	})
 }
 
 // AttentionGrads holds the query/key/value gradients of one attention head.

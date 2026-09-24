@@ -45,7 +45,7 @@ import (
 	"overgo/internal/checked"
 	"overgo/internal/hostmath"
 	"overgo/internal/media"
-	"overgo/internal/safetensors"
+
 	"overgo/internal/tensor"
 )
 
@@ -135,35 +135,6 @@ func addAttnFF(shapes map[string][]int, p string, dim, qDim, kvDim, headDim, int
 func prod(shape []int) int {
 	product, _ := checked.ProductInt(shape...)
 	return product
-}
-
-// NewDenoiser binds a weight store to the spec, validating that every tensor in
-// the derived manifest is present with the exact element count (capability
-// retention) and that no extra image-path tensor is silently ignored.
-func NewDenoiser(t TransformerSpec, eps float64, timestep media.SinusoidalProgram, store map[string][]float32) (*Denoiser, error) {
-	if !checked.PositiveFinite64(eps) {
-		return nil, fmt.Errorf("denoiser: eps must be positive, got %g", eps)
-	}
-	if err := timestep.Validate(); err != nil {
-		return nil, fmt.Errorf("denoiser: invalid timestep program: %w", err)
-	}
-	if !checked.Equal(timestep.Dimensions, t.TimestepEmbed) {
-		return nil, fmt.Errorf("denoiser: timestep dimensions=%d want=%d", timestep.Dimensions, t.TimestepEmbed)
-	}
-	t.ModFields = t.ModFieldsOr6()
-	shapes := DenoiserTensorShapes(t)
-	var bytes int64
-	for name, shape := range shapes {
-		v, ok := store[name]
-		if !ok {
-			return nil, fmt.Errorf("denoiser: missing tensor %s (want %v)", name, shape)
-		}
-		if want := prod(shape); len(v) != want {
-			return nil, fmt.Errorf("denoiser: tensor %s len=%d want %d (shape %v)", name, len(v), want, shape)
-		}
-		bytes += int64(len(v)) * 4
-	}
-	return &Denoiser{T: t, Eps: eps, Timestep: timestep, store: store, WeightBytes: bytes}, nil
 }
 
 func (d *Denoiser) w(name string) []float32 { return d.store[name] }
@@ -437,52 +408,3 @@ type DenoiserWitness struct {
 }
 
 func (w DenoiserWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }
-
-// VerifyDenoiserCheckpoint opens the transformer safetensors HEADERS under
-// modelDir and asserts every tensor the forward consumes exists with the exact
-// derived shape, and that the checkpoint carries no un-consumed transformer
-// tensor (capability retention). Never reads any payload. Returns the witness.
-func VerifyDenoiserCheckpoint(modelDir string) (*DenoiserWitness, error) {
-	spec, err := Derive(modelDir)
-	if err != nil {
-		return nil, err
-	}
-	t := spec.Transformer
-	t.ModFields = t.ModFieldsOr6()
-	src, err := safetensors.OpenSource(modelDir + "/transformer")
-	if err != nil {
-		return nil, fmt.Errorf("denoiser verify: open transformer: %w", err)
-	}
-	defer src.Close()
-
-	shapes := DenoiserTensorShapes(t)
-	w := &DenoiserWitness{Tensors: len(shapes), ModFields: t.ModFields}
-	consumed := make(map[string]bool, len(shapes))
-	for name, shape := range shapes {
-		consumed[name] = true
-		artifactTensor, ok := src.Tensors[name]
-		if !ok {
-			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: checked.UnknownCount(), Source: "MISSING"})
-			continue
-		}
-		got := tensor.SingletonExtent
-		for _, s := range artifactTensor.Shape {
-			got *= int(s)
-		}
-		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
-	}
-	// capability retention: every transformer tensor must be consumed.
-	var extra []string
-	for _, name := range src.Names() {
-		if !consumed[name] {
-			extra = append(extra, name)
-		}
-	}
-	if !checked.Empty(extra) {
-		w.Checks = append(w.Checks, Check{Name: "unconsumed_tensors", Want: tensor.FirstOffset, Got: len(extra), Source: extra[0]})
-	}
-	if failures := failedCheckCount(w.Checks); checked.Nonzero(failures) {
-		return w, fmt.Errorf("denoiser verify: %d structural check(s) disagreed with checkpoint", failures)
-	}
-	return w, nil
-}

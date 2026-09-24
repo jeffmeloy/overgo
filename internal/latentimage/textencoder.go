@@ -73,36 +73,6 @@ type SelectedHiddenStates struct {
 	Data       []float64
 }
 
-// EncoderTensorShapes returns the name -> torch shape ([out,in] for Linear
-// weights) manifest the encoder forward consumes, derived entirely from spec:
-// the token embedding plus every decoder layer's norms, GQA projections, per-head
-// q/k norms, and SwiGLU MLP. This is the capability-retention contract for the
-// text-conditioning encoder (visual.* and the final norm are out of this path).
-func EncoderTensorShapes(e TextEncoderSpec) map[string][]int {
-	h := e.Hidden
-	qDim := e.Heads * e.HeadDim
-	kvDim := e.KVHeads * e.HeadDim
-	inter := e.Intermediate
-	shapes := map[string][]int{
-		textEncoderPrefix + "embed_tokens.weight": {e.VocabSize, h},
-	}
-	for l := range e.HiddenLayers {
-		p := fmt.Sprintf("%slayers.%d.", textEncoderPrefix, l)
-		shapes[p+"input_layernorm.weight"] = []int{h}
-		shapes[p+"post_attention_layernorm.weight"] = []int{h}
-		shapes[p+"self_attn.q_proj.weight"] = []int{qDim, h}
-		shapes[p+"self_attn.k_proj.weight"] = []int{kvDim, h}
-		shapes[p+"self_attn.v_proj.weight"] = []int{kvDim, h}
-		shapes[p+"self_attn.o_proj.weight"] = []int{h, qDim}
-		shapes[p+"self_attn.q_norm.weight"] = []int{e.HeadDim}
-		shapes[p+"self_attn.k_norm.weight"] = []int{e.HeadDim}
-		shapes[p+"mlp.gate_proj.weight"] = []int{inter, h}
-		shapes[p+"mlp.up_proj.weight"] = []int{inter, h}
-		shapes[p+"mlp.down_proj.weight"] = []int{h, inter}
-	}
-	return shapes
-}
-
 // captureSlots maps a selected hidden_states value to its output slot, and
 // validates the selection against the adaptive convention: strictly increasing
 // values in [1, HiddenLayers] (index N captured after decoder layer N-1).
@@ -221,14 +191,6 @@ func encodeSelected(e TextEncoderSpec, eps float64, seq, inter int, embedRows []
 }
 
 // ---- real-checkpoint streaming encode -------------------------------------
-
-// EncodeSelectedLayers streams the Qwen3-VL text encoder over promptIDs from the
-// real checkpoint under modelDir (never resident beyond one layer + the token
-// embedding rows) and returns the tapped hidden states. Telemetry/structural:
-// the values are finite and correctly shaped, NOT bit-exact vs the CUDA path.
-func EncodeSelectedLayers(modelDir string, spec *Spec, promptIDs []int) (*SelectedHiddenStates, error) {
-	return EncodeSelectedLayersMasked(modelDir, spec, promptIDs, nil)
-}
 
 // EncodeSelectedLayersMasked is EncodeSelectedLayers with an attention key mask:
 // keyMask[i]==false drops token i as an unattended KEY (the Krea pad rows). nil
@@ -367,54 +329,3 @@ type EncoderWitness struct {
 }
 
 func (w EncoderWitness) Failed() bool { return checked.Nonzero(failedCheckCount(w.Checks)) }
-
-// VerifyEncoderCheckpoint opens the text_encoder safetensors HEADER under
-// modelDir and asserts every tensor the encoder forward consumes exists with the
-// derived shape, plus the selection-index invariants. Never reads any payload.
-func VerifyEncoderCheckpoint(modelDir string) (*EncoderWitness, error) {
-	spec, err := Derive(modelDir)
-	if err != nil {
-		return nil, err
-	}
-	e := spec.TextEncoder
-	if _, err := captureSlots(e); err != nil {
-		return nil, err
-	}
-	src, err := safetensors.OpenSource(modelDir + "/text_encoder")
-	if err != nil {
-		return nil, fmt.Errorf("textencoder verify: open text_encoder: %w", err)
-	}
-	defer src.Close()
-
-	inter, err := encoderCheckpointIntermediate(src)
-	if err != nil {
-		return nil, err
-	}
-	shapes := EncoderTensorShapes(e)
-	w := &EncoderWitness{
-		SelectLayers: append([]int(nil), e.SelectLayers...),
-		Intermediate: inter,
-		Tensors:      len(shapes),
-	}
-	for _, v := range e.SelectLayers {
-		w.CaptureAfter = append(w.CaptureAfter, v-tensor.SingletonExtent)
-	}
-	// config MLP width vs the real mlp.down_proj[1].
-	w.Checks = append(w.Checks, Check{Name: "e.intermediate", Want: e.Intermediate, Got: inter, Source: "mlp.down_proj.weight[1]"})
-	for name, shape := range shapes {
-		checkpointTensor, ok := src.Tensors[name]
-		if !ok {
-			w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: checked.UnknownCount(), Source: "MISSING"})
-			continue
-		}
-		got, ok := checked.Int(checkpointTensor.Elements())
-		if !ok {
-			got = checked.UnknownCount()
-		}
-		w.Checks = append(w.Checks, Check{Name: name, Want: prod(shape), Got: got, Source: name})
-	}
-	if failures := failedCheckCount(w.Checks); checked.Nonzero(failures) {
-		return w, fmt.Errorf("textencoder verify: %d structural check(s) disagreed with checkpoint", failures)
-	}
-	return w, nil
-}

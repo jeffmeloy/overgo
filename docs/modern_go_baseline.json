@@ -2620,17 +2620,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/composition/hdc.go",
-      "symbol": "Search",
-      "owner": "overgo/internal/composition",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/composition -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/composition/proposal_ranking.go",
       "symbol": "Rank",
       "owner": "overgo/internal/composition",
@@ -2972,28 +2961,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/evaluation/media_target.go",
-      "symbol": "ScoreMediaTargets",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/media_target.go",
-      "symbol": "canonicalizeMediaTargetPlan",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/evaluation/multiple_choice.go",
       "symbol": "aggregateAccuracy",
       "owner": "overgo/internal/evaluation",
@@ -3005,41 +2972,8 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/evaluation/numeric_target.go",
-      "symbol": "ScoreNumericTargets",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/numeric_target.go",
-      "symbol": "canonicalizeNumericTargetPlan",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/evaluation/plan.go",
       "symbol": "canonicalizeAgentTrajectoryAuthorities",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/preference_target.go",
-      "symbol": "ScorePreferenceTargets",
       "owner": "overgo/internal/evaluation",
       "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
       "oracle": "go test ./internal/evaluation -count=1",
@@ -3068,28 +3002,6 @@
       "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/text_target.go",
-      "symbol": "ScoreTextTargets",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/evaluation/text_target.go",
-      "symbol": "canonicalizeTextTargetPlan",
-      "owner": "overgo/internal/evaluation",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/evaluation -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 3
     },
     {
       "guideline": "slices_sort_func",
@@ -3219,17 +3131,6 @@
       "owner": "overgo/internal/jinja",
       "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
       "oracle": "go test ./internal/jinja -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
-      "path": "internal/latentimage/discovery.go",
-      "symbol": "Enumerate",
-      "owner": "overgo/internal/latentimage",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/latentimage -count=1",
       "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
       "expires": "2027-09-03",
       "candidate_ceiling": 1
@@ -4182,17 +4083,6 @@
     },
     {
       "guideline": "slices_sort_func",
-      "path": "internal/tensorcatalog/catalog.go",
-      "symbol": "Validate",
-      "owner": "overgo/internal/tensorcatalog",
-      "reason": "The comparator depends on indexes, stability, side effects, or strict-less behavior without a proven three-way comparison equivalent.",
-      "oracle": "go test ./internal/tensorcatalog -count=1",
-      "retirement": "Retire when the owner exposes a pure element comparator with a proven three-way ordering and equivalent stability policy.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 1
-    },
-    {
-      "guideline": "slices_sort_func",
       "path": "internal/tensorstats/similarity.go",
       "symbol": "Nearest",
       "owner": "overgo/internal/tensorstats",
@@ -4797,5 +4687,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "8c3ec47de9ef8f9d7c657f444143bb543df5d996619ec717fcb61e17c408f83a"
+  "exceptions_sha256": "c73541989c7e4da7c4bf10d07e3698c66c46b3a549252bfd6522676569346197"
 }

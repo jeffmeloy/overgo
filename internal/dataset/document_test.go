@@ -1,6 +1,8 @@
 package dataset
 
 import (
+	"slices"
+
 	"encoding/json"
 	"reflect"
 	"testing"
@@ -124,4 +126,9 @@ func TestDatasetDocumentsRejectInvalidAndNonCanonicalContent(t *testing.T) {
 	if _, err := Parse(modified); err == nil {
 		t.Fatal("unknown dataset field accepted")
 	}
+}
+
+// NewMixture returns a normalized weighted dataset composition.
+func NewMixture(members []Member) (Document, error) {
+	return newDocument(Document{Version: artifact.InitialDocumentVersion, Type: TypeMixture, Members: slices.Clone(members)})
 }

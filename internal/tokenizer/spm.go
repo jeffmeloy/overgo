@@ -19,24 +19,6 @@ type spmBigram struct {
 	size  int
 }
 
-type spmQueue []spmBigram
-
-func (q spmQueue) Len() int { return len(q) }
-func (q spmQueue) Less(i, j int) bool {
-	if q[i].score == q[j].score {
-		return q[i].left < q[j].left
-	}
-	return q[i].score > q[j].score
-}
-func (q spmQueue) Swap(i, j int)   { q[i], q[j] = q[j], q[i] }
-func (q *spmQueue) Push(value any) { *q = append(*q, value.(spmBigram)) }
-func (q *spmQueue) Pop() any {
-	old := *q
-	last := old[len(old)-1]
-	*q = old[:len(old)-1]
-	return last
-}
-
 func (v *Vocab) encodeSPM(text string) ([]TokenID, error) {
 	if text == "" {
 		return nil, nil
@@ -56,7 +38,15 @@ func (v *Vocab) encodeSPM(text string) ([]TokenID, error) {
 		offset += size
 	}
 	symbols[len(symbols)-1].next = -1
-	queue := make(spmQueue, 0, len(symbols))
+	queue := mergeQueue[spmBigram]{
+		values: make([]spmBigram, 0, len(symbols)),
+		less: func(left, right spmBigram) bool {
+			if left.score == right.score {
+				return left.left < right.left
+			}
+			return left.score > right.score
+		},
+	}
 	reverseMerge := make(map[string][2]int)
 	addBigram := func(left, right int) {
 		if left < 0 || right < 0 {

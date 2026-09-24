@@ -19,16 +19,21 @@ type PlannedInvocation struct {
 
 // ManifestPlan binds verification selection to exact structural authority.
 type ManifestPlan struct {
-	BaseManifest      artifact.ID         `json:"base_manifest"`
-	CandidateManifest artifact.ID         `json:"candidate_manifest"`
-	CandidateSource   string              `json:"candidate_source"`
-	CandidateTree     string              `json:"candidate_tree"`
-	SurfaceIdentity   string              `json:"surface_identity"`
-	Facts             []Fact              `json:"facts,omitempty"`
-	Exclusions        []Exclusion         `json:"exclusions,omitempty"`
-	Unknown           []string            `json:"unknown,omitempty"`
-	Invocations       []PlannedInvocation `json:"invocations"`
-	ID                artifact.ID         `json:"-"`
+	BaseManifest      artifact.ID `json:"base_manifest"`
+	CandidateManifest artifact.ID `json:"candidate_manifest"`
+	CandidateSource   string      `json:"candidate_source"`
+	CandidateTree     string      `json:"candidate_tree"`
+	SurfaceIdentity   string      `json:"surface_identity"`
+	Facts             []Fact      `json:"facts,omitempty"`
+	Exclusions        []Exclusion `json:"exclusions,omitempty"`
+	// Unknown is read only from plans bound before the unknowns were
+	// digested; a plan binds UnknownDigest and UnknownCount instead, which
+	// hold it to the same set without storing it at every landing.
+	Unknown       []string            `json:"unknown,omitempty"`
+	UnknownDigest artifact.ID         `json:"unknown_digest,omitzero"`
+	UnknownCount  int                 `json:"unknown_count,omitzero"`
+	Invocations   []PlannedInvocation `json:"invocations"`
+	ID            artifact.ID         `json:"-"`
 }
 
 // BindManifestPlan creates an immutable plan from already-selected checks.
@@ -37,7 +42,14 @@ func BindManifestPlan(base, candidate artifact.ID, candidateSource, candidateTre
 		BaseManifest: base, CandidateManifest: candidate, CandidateSource: candidateSource,
 		CandidateTree: candidateTree, SurfaceIdentity: surface.Identity,
 		Facts: slices.Clone(impact.Facts), Exclusions: slices.Clone(impact.Exclusions),
-		Unknown: slices.Clone(surface.Unknown), Invocations: make([]PlannedInvocation, len(invocations)),
+		Invocations: make([]PlannedInvocation, len(invocations)),
+	}
+	if unknown := slices.Compact(slices.Sorted(slices.Values(surface.Unknown))); len(unknown) != 0 {
+		digest, err := artifact.JSONID(artifact.KindEvidence, unknown)
+		if err != nil {
+			return ManifestPlan{}, err
+		}
+		plan.UnknownDigest, plan.UnknownCount = digest, len(unknown)
 	}
 	for index, invocation := range invocations {
 		plan.Invocations[index] = PlannedInvocation{ID: invocation.ID, Check: invocation.Check, Matched: slices.Clone(invocation.Matched)}

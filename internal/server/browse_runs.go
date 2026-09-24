@@ -118,9 +118,16 @@ func (h *Handler) browseRuns(response http.ResponseWriter, request *http.Request
 		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
 		return
 	}
+	// The tab shows "x-y of n runs": the total is the explicit census the
+	// page read no longer pays for.
+	count, err := store.CountDocuments(request.Context(), documents)
+	if err != nil {
+		writeError(response, http.StatusInternalServerError, "overgodb_error", err.Error())
+		return
+	}
 
 	writeJSON(response, http.StatusOK, browseRunsResponse{
-		Count: result.Matched, Limit: limit, Truncated: result.Truncated, Next: next, Runs: runs,
+		Count: count, Limit: limit, Truncated: result.Truncated, Next: next, Runs: runs,
 	})
 }
 

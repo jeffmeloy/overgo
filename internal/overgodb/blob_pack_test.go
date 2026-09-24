@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -215,5 +218,70 @@ func TestSmallBlobsArePacked(t *testing.T) {
 	defer damaged.Close()
 	if _, _, _, err := damaged.OpenContent(t.Context(), contents[0].Descriptor.ID); err == nil {
 		t.Fatal("a pack whose index does not match its digest still served a blob")
+	}
+}
+
+// TestPackStreamsItsMembers holds packing and pack verification to bounded
+// memory: both stream each member through one buffer, so what they allocate
+// stays a small fraction of the payload volume they move, where reading the
+// members and the pack whole allocated it several times over. The pack still
+// serves every member byte for byte.
+func TestPackStreamsItsMembers(t *testing.T) {
+	// Serial: it measures the process's allocations, so no other test may allocate beside it.
+	store, err := Open(filepath.Join(t.TempDir(), "store"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var contents []artifact.Content
+	var volume uint64
+	for member := range 256 {
+		content := retentionContent(t, artifact.KindEvidence, fmt.Sprintf("%d %s", member, strings.Repeat("m", 64<<10)))
+		contents = append(contents, content)
+		volume += content.Descriptor.Size
+	}
+	if _, err := store.Commit(t.Context(), artifact.Batch{Key: "stream/fixture", Contents: contents}); err != nil {
+		t.Fatal(err)
+	}
+	allocated := func(operation func() error) uint64 {
+		t.Helper()
+		var before, after runtime.MemStats
+		runtime.GC()
+		runtime.ReadMemStats(&before)
+		if err := operation(); err != nil {
+			t.Fatal(err)
+		}
+		runtime.ReadMemStats(&after)
+		return after.TotalAlloc - before.TotalAlloc
+	}
+	packing := allocated(func() error {
+		report, err := packBlobsUnder(t.Context(), store, int64(volume))
+		if err == nil && report.Packed != len(contents) {
+			err = fmt.Errorf("packed %d of %d members", report.Packed, len(contents))
+		}
+		return err
+	})
+	verifying := allocated(func() error {
+		checked, err := store.VerifyBlobs(t.Context())
+		if err == nil && checked != len(contents) {
+			err = fmt.Errorf("verified %d of %d members", checked, len(contents))
+		}
+		return err
+	})
+	for name, moved := range map[string]uint64{"packing": packing, "verification": verifying} {
+		t.Logf("%s allocated %d bytes for %d payload bytes", name, moved, volume)
+		if moved > volume/8 {
+			t.Fatalf("%s allocated %d bytes to move %d payload bytes", name, moved, volume)
+		}
+	}
+	for _, content := range []artifact.Content{contents[0], contents[len(contents)-1]} {
+		_, reader, found, err := store.OpenContent(t.Context(), content.Descriptor.ID)
+		if err != nil || !found {
+			t.Fatalf("content %s: found=%v err=%v", content.Descriptor.ID, found, err)
+		}
+		data, err := io.ReadAll(reader)
+		if err != nil || !bytes.Equal(data, content.Data) {
+			t.Fatalf("content %s read back %d bytes, %v", content.Descriptor.ID, len(data), err)
+		}
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -49,6 +50,46 @@ func TestCheckpointCanonicalAtTheWriter(t *testing.T) {
 	}
 	if published, _ := filepath.Glob(filepath.Join(target, checkpointDirectory, "*", "contents"+checkpointExtension)); len(published) != 0 {
 		t.Fatalf("the refused member was published: %v", published)
+	}
+}
+
+// TestDescriptorIndexesAppend holds the media and schema indexes to filing a
+// record once, at the end, whatever its identity: a restore files every
+// record a checkpoint holds, and a sorted index moved itself once per record.
+// A query orders what it selects, so its results stay in identity order,
+// whole or bounded.
+func TestDescriptorIndexesAppend(t *testing.T) {
+	t.Parallel()
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	var committed []artifact.ID
+	for index := range 40 {
+		content := retentionContent(t, artifact.KindEvidence, fmt.Sprint(index))
+		if _, err := store.Commit(t.Context(), artifact.Batch{Key: fmt.Sprintf("index/%d", index), Contents: []artifact.Content{content}}); err != nil {
+			t.Fatal(err)
+		}
+		committed = append(committed, content.Descriptor.ID)
+	}
+	schema := "test/retention/v1"
+	if filed := store.state.artifacts.bySchema[schema]; !slices.Equal(filed, committed) {
+		t.Fatalf("schema index filed %d records out of commit order", len(filed))
+	}
+	sorted := slices.SortedFunc(slices.Values(committed), artifact.CompareID)
+	for _, limit := range []int{len(committed), 5} {
+		result, err := store.Query(t.Context(), Query{Schema: schema, MaxResults: limit, Projection: ProjectCatalog})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var ids []artifact.ID
+		for _, descriptor := range result.Artifacts {
+			ids = append(ids, descriptor.ID)
+		}
+		if !slices.Equal(ids, sorted[:limit]) {
+			t.Fatalf("a query of %d returned %d identities out of order", limit, len(ids))
+		}
 	}
 }
 

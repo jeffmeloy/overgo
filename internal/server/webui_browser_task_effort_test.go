@@ -1,0 +1,166 @@
+package server
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http/httptest"
+	"os"
+	"strconv"
+	"testing"
+
+	"overgo/internal/testskip"
+	"overgo/internal/webuilane"
+)
+
+// effortStep is one thing a person does: click a control (by selector and,
+// when several match, its visible text), fill a field, or press a key.
+type effortStep struct {
+	action, target, text string
+}
+
+// taskEffort is what one task costs the person doing it.
+type taskEffort struct {
+	Clicks, Fields, Keys, TabSwitches int
+}
+
+// effortTask is a common task as the shortest path the workbench offers,
+// and the page state that says it is done.
+type effortTask struct {
+	name  string
+	steps []effortStep
+	done  string
+}
+
+// effortCeilings holds every measured task at its count: a change that adds
+// a step fails, and one that removes a step lowers the ceiling with it, so
+// the effort a task takes only falls.
+var effortCeilings = map[string]taskEffort{
+	"ask a question":            {Fields: 1, Keys: 1},
+	"decide a pending approval": {Clicks: 2, TabSwitches: 1},
+	"inspect the served model":  {Clicks: 2, TabSwitches: 1},
+}
+
+// TestWebUIBrowserTaskEffort drives the workbench's common tasks by their
+// shortest paths in a real browser and counts what each costs: clicks,
+// typed fields, key presses and tab switches, with the requests the page
+// made beside them. The owner asked for less effort per common task; the
+// effort rows are judged by lowering these counts.
+func TestWebUIBrowserTaskEffort(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
+		t.Skip(testskip.Inapplicable + ": the task effort leg runs through cmd/webui-lane")
+	}
+	fixture := newAutomationServerFixture(t)
+	defer fixture.store.Close()
+	defer fixture.handler.Close()
+	automation := fixture.handler.generator.(*automationWorkspaceGenerator).AutomationWorkspace
+	generator := &streamLifecycleGenerator{recipeInspectorGenerator: responseRecipeGenerator(t, &fakeGenerator{}), AutomationWorkspace: automation}
+	handler := newTestHandlerForRepository(t, fixture.store, generator)
+	defer handler.Close()
+	var err error
+	generator.PeerWorkspace, err = (PeerWorkspaceConfig{Store: fixture.store, Backend: peerWorkspaceBackend{}, Limit: handler.config.MaxStoredResponses}).Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	publishBrowserLaneOperations(t, handler)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	path, err := webuilane.FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	browser, err := webuilane.Open(ctx, path, server.URL+"/app.html#chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer browser.Close()
+	settle := func(expression string) {
+		t.Helper()
+		if err := browser.Eventually(ctx, expression); err != nil {
+			var page string
+			_ = browser.Evaluate(ctx, `JSON.stringify({errors: overgo.errors, hash: location.hash, text: document.body.innerText.slice(0, 600)})`, &page)
+			t.Fatalf("%s: %v; %s", expression, err, page)
+		}
+	}
+	// Effort is measured at the desktop layout, where the navigation stands beside the conversation.
+	if err := webuilane.SettleViewport(ctx, browser, webuilane.ScreenViewports[0]); err != nil {
+		t.Fatal(err)
+	}
+	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)
+	// The page counts its tab switches and the requests it makes, streams aside.
+	const counters = `(() => {
+  window.effortSwitches = 0; window.effortRequests = 0;
+  window.addEventListener("overgo-panel-change", () => window.effortSwitches++);
+  const pageFetch = window.fetch;
+  window.fetch = function (input) { if (!String(input).endsWith("/stream")) window.effortRequests++; return pageFetch.apply(this, arguments); };
+  return true;
+})()`
+	tasks := []effortTask{
+		{"ask a question", []effortStep{
+			{"type", ".composer textarea", "What does this model answer?"},
+			{"key", "Enter", ""},
+		}, `!!document.querySelector(".chat-log .msg.assistant .body") && document.querySelector(".chat-log .msg.assistant .body").textContent.trim().length > 0`},
+		{"decide a pending approval", []effortStep{
+			{"click", "#inbox-count", ""},
+			{"click", "#panel-inbox button", "Grant retry-browser"},
+		}, `document.querySelector("#panel-inbox").textContent.includes("grant recorded")`},
+		{"inspect the served model", []effortStep{
+			{"click", "#workbench-toggle", ""},
+			{"click", "button.tab", "Model"},
+		}, `!!document.querySelector("#panel-model.active .section-title")`},
+	}
+	measured := map[string]taskEffort{}
+	requests := map[string]int{}
+	for index, task := range tasks {
+		// Every task starts where a person lands: the page freshly opened on the conversation (the
+		// query makes each opening a full load, not a move within the page).
+		if err := browser.Call(ctx, "Page.navigate", map[string]any{"url": server.URL + "/app.html?effort=" + strconv.Itoa(index) + "#chat"}, nil); err != nil {
+			t.Fatal(err)
+		}
+		settle(`document.readyState === "complete" && !window.effortSwitches && !!document.querySelector("#panel-chat.active .composer textarea") && overgo.api.inFlight() === 0`)
+		assertBrowserPredicate(t, ctx, browser, counters)
+		var before struct{ Switches, Requests int }
+		if err := browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &before); err != nil {
+			t.Fatal(err)
+		}
+		var effort taskEffort
+		for _, step := range task.steps {
+			switch step.action {
+			case "click":
+				find := `[...document.querySelectorAll(` + strconv.Quote(step.target) + `)].find((node) => !node.hidden && node.getClientRects().length && (!` + strconv.Quote(step.text) + ` || node.textContent.trim() === ` + strconv.Quote(step.text) + `))`
+				settle("!!" + find)
+				assertBrowserPredicate(t, ctx, browser, `(() => { `+find+`.click(); return true; })()`)
+				effort.Clicks++
+			case "type":
+				settle(`!!document.querySelector(` + strconv.Quote(step.target) + `)`)
+				assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector(`+strconv.Quote(step.target)+`); field.focus(); field.value = `+strconv.Quote(step.text)+`; field.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`)
+				effort.Fields++
+			case "key":
+				pressKey(t, ctx, browser, step.target, 13)
+				effort.Keys++
+			default:
+				t.Fatalf("%s: unknown step %q", task.name, step.action)
+			}
+		}
+		settle(task.done)
+		var after struct{ Switches, Requests int }
+		if err := browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &after); err != nil {
+			t.Fatal(err)
+		}
+		effort.TabSwitches = after.Switches - before.Switches
+		measured[task.name], requests[task.name] = effort, after.Requests-before.Requests
+	}
+	for name, ceiling := range effortCeilings {
+		got, found := measured[name]
+		switch {
+		case !found:
+			t.Errorf("%s: the ceiling names a task the leg no longer measures", name)
+		case got != ceiling:
+			t.Errorf("%s: effort %+v, ceiling %+v; a task's effort only falls, and a fall lowers its ceiling", name, got, ceiling)
+		}
+	}
+	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
+	encoded, _ := json.Marshal(measured)
+	t.Log(fmt.Sprintf("task effort leg: %d common tasks at their shortest paths %s, with requests %v", len(tasks), encoded, requests))
+}

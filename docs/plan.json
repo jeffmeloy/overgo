@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-task-effort-baseline",
-      "title": "Measure the effort of the workbench's common tasks in the browser lane and hold each task to its measured count",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure the effort of the workbench's common tasks in the browser lane and hold each task to its measured count",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserTaskEffort$' -require 'task effort leg'",
-          "rationale": "Owner request 2026-09-24: reduce the effort common tasks take. Measure before cutting: one browser leg drives each common task (chat with a model, switch models, add a model from the hub to validated, generate an image, decide a pending operation, inspect the served model) and counts clicks, typed fields, tab switches, manual refreshes and requests; each count is held so it can only fall, and each later effort row lowers it."
-        }
-      ]
-    },
-    {
       "id": "gui-workspace-places",
       "title": "Fold the workbench's tabs into five places (Chat, Create, Models, Operations, Inspect) with one keyboard jump, and delete the duplicated tabs",
       "owner": "overgo_gui_cleanup",

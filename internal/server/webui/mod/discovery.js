@@ -8,39 +8,29 @@
   window.overgo.registerTab({
     id: "library",
     mount(panel, overgo) {
-      if (this.dispose) this.dispose();
-      const { el, clear, fmt } = overgo;
-      clear(panel);
-      let catalogRequest = null, disposed = false;
+      const { el, fmt } = overgo;
 
-      // ---- local catalog ----
-      const catalogBody = el("tbody"), catalogNote = el("div", { class: "note", text: "loading catalog…" });
-      async function refreshCatalog() {
-        if (catalogRequest) catalogRequest.abort();
-        const request = catalogRequest = new AbortController();
-        try {
-          const catalog = await overgo.api.get("/catalog/models", { signal: request.signal });
-          if (disposed || catalogRequest !== request) return;
-          overgo.clear(catalogBody);
-          const models = catalog.models || [];
-          const { profiles = {}, datasets = {} } = catalog.coverage || {};
-          const parts = [models.length && models.length + " activated model(s)", profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
-            datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk", catalog.truncated && "listing truncated — not every activation is shown"].filter(Boolean);
-          catalogNote.textContent = parts.length ? parts.join(" · ") :
-            "No activated models yet — download one below, then activate it with cmd/reverify.";
-          for (const entry of models) {
-            const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
-              class: "tag mr-4", title: capability.stale || capability.recipe,
-              text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
-            // A hosted model retires from its row with the section's reason; the catalog relists without it.
-            const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "retire", onclick: async () => {
-              try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.textContent = overgo.friendlyError(err); }
-            } }) : "";
-            catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]));
-          }
-        } catch (err) { if (!disposed && catalogRequest === request && !request.signal.aborted) catalogNote.textContent = overgo.friendlyError(err); }
-        finally { if (catalogRequest === request) catalogRequest = null; }
-      }
+      // ---- local catalog: the newest read wins ----
+      const catalogBody = el("tbody"), catalogNote = el("div", { class: "note" });
+      const refreshCatalog = overgo.read(catalogNote, (signal) => overgo.api.get("/catalog/models", { signal }), (catalog) => {
+        overgo.clear(catalogBody);
+        const models = catalog.models || [];
+        const { profiles = {}, datasets = {} } = catalog.coverage || {};
+        const parts = [models.length && models.length + " activated model(s)", profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
+          datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk", catalog.truncated && "listing truncated — not every activation is shown"].filter(Boolean);
+        catalogNote.textContent = parts.length ? parts.join(" · ") :
+          "No activated models yet — download one below, then activate it with cmd/reverify.";
+        for (const entry of models) {
+          const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
+            class: "tag mr-4", title: capability.stale || capability.recipe,
+            text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
+          // A hosted model retires from its row with the section's reason; the catalog relists without it.
+          const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "retire", onclick: async () => {
+            try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.replaceChildren(overgo.failure(err)); }
+          } }) : "";
+          catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]));
+        }
+      }, { loading: "loading catalog…" });
 
       // ---- hub search ----
       const query = el("input", { "aria-label": "Search the Hugging Face hub", class: "text", placeholder: "search the Hugging Face hub" });
@@ -98,7 +88,7 @@
               stage.registered.projector ? " with projector " + (stage.registered.media || []).join("/") : ""));
             refreshCatalog();
           } catch (err) { report(overgo.failure(err)); }
-          finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
+          finally { stage.pending = false; if (!overgo.signal.aborted) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         const validate = el("button", { class: "btn", text: "validate", disabled: !stage.registered || stage.pending, onclick: async () => {
           if (stage.pending || !stage.registered) return;
@@ -110,31 +100,27 @@
             } else {
               const admitted = await overgo.api.post("/library/validate", { path: stage.registered.path, projector: stage.registered.projector || "" });
               report(el("span", { class: "note" }, "validating in operation ", overgo.artifactLink(admitted.operation), " · " + admitted.prompts + " prompts" + (admitted.projector ? " · projector" : "")));
-              if (!disposed && panel.classList.contains('active')) overgo.showOperation(admitted.operation);
+              if (!overgo.signal.aborted && panel.classList.contains('active')) overgo.showOperation(admitted.operation);
             }
           } catch (err) { report(overgo.failure(err)); }
-          finally { stage.pending = false; if (!disposed) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
+          finally { stage.pending = false; if (!overgo.signal.aborted) { const previous = stage.cell; previous.replaceWith(lifecycle(job)); } }
         } });
         cell.append(register, validate, stage.host);
         return cell;
       }
       // Download jobs arrive on the runtime stream: every job at connect, then again whenever one reads
       // differently. A server with no download surface (the cold page) says why; the tab remounts when a model serves.
-      let stopJobs = null, streamRefusal = false;
-      function watchJobs() {
-        if (stopJobs) return;
-        stopJobs = overgo.runtimeEvents.subscribe((event, data) => {
-          if (event === "stream.idle" || event === "stream.error") { jobsNote.textContent = overgo.friendlyError(data); streamRefusal = true; }
-          if (event === "stream.ready" && streamRefusal) { jobsNote.textContent = ""; streamRefusal = false; }
-          if (event !== "hub.downloads") return;
-          jobsBody.replaceChildren(...(data || []).map((job) => {
-            const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
-            const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
-            return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
-          }));
-        });
-      }
-      function unwatchJobs() { if (stopJobs) { stopJobs(); stopJobs = null; } }
+      let streamRefusal = false;
+      overgo.subscribe((event, data) => {
+        if (event === "stream.idle" || event === "stream.error") { jobsNote.textContent = overgo.friendlyError(data); streamRefusal = true; }
+        if (event === "stream.ready" && streamRefusal) { jobsNote.textContent = ""; streamRefusal = false; }
+        if (event !== "hub.downloads") return;
+        jobsBody.replaceChildren(...(data || []).map((job) => {
+          const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
+          const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
+          return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
+        }));
+      }, { whileShown: true });
 
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
@@ -183,11 +169,8 @@
       } });
       panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
 
-      refreshCatalog();
-      this.onActivate = () => { refreshCatalog(); watchJobs(); };
-      this.onDeactivate = unwatchJobs;
-      this.dispose = () => { disposed = true; if (catalogRequest) catalogRequest.abort(); unwatchJobs(); };
-      watchJobs();
+      // Each showing reads the catalog again.
+      overgo.whileActive(refreshCatalog);
     },
   });
 })();

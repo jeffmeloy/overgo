@@ -39,15 +39,9 @@
     id: "tensors",
     async mount(panel, overgo) {
       const { el, clear, fmt } = overgo;
-      clear(panel);
-      panel.appendChild(el("div", { class: "note", text: "Reading tensor statistics…" }));
-
-      let data;
-      try {
-        data = await overgo.api.get("/analyze/tensors");
-      } catch (err) { clear(panel); panel.appendChild(overgo.failure(err)); return; }
+      const data = await overgo.load((signal) => overgo.api.get("/analyze/tensors", { signal }), { loading: "Reading tensor statistics…" });
+      if (!data) return;
       let rows = data.tensors || [];
-      clear(panel);
 
       panel.appendChild(el("div", { class: "section-title", text: "Tensor value statistics" }));
       panel.appendChild(el("div", { class: "note", text: data.count + " tensors · distribution-free (L-moments + energy) · sampled ≤ " +
@@ -164,15 +158,13 @@
         }
       }
       draw();
-      const pending = new AbortController();
       if (data.spectra === "pending") {
-        overgo.api.get("/analyze/tensors?wait=spectra", { signal: pending.signal }).then((answer) => {
+        overgo.api.get("/analyze/tensors?wait=spectra", { signal: overgo.signal }).then((answer) => {
           rows = answer.tensors || [];
           showSpectra(answer);
           draw();
         }, (err) => { if (err.name !== "AbortError") spectra.replaceChildren(overgo.failure(err)); });
       }
-      return () => pending.abort();
     },
   });
 })();

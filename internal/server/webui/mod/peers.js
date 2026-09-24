@@ -20,17 +20,15 @@
         el("div", { class: "section-title", text: "Staging, attempts, and logs" }), evidenceHost);
       // Operations come from the global runtime stream alone, so each transition reads its evidence once.
       // The tab hears them from the start of its mount, so one that ends while the mount reads is not
-      // missed; a mount a remount replaced no longer stands in the page and reads nothing; an evidence
-      // read that fails says so where the evidence would stand. The inventory is read once at mount,
-      // and cleanup (or a failed mount) releases the subscription.
-      const showEvidence = (data) => { if (evidenceHost.isConnected && data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.failure(err))); };
-      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
-      const release = (err) => { unsubscribe(); throw err; };
+      // missed; the subscription and its reads end with the tab's workspace; an evidence read that fails
+      // says so where the evidence would stand. The inventory is read once at mount.
+      const showEvidence = (data) => { if (data.status && data.status.id) renderEvidence(data.status.id).catch((err) => { if (err.name !== "AbortError") evidenceHost.replaceChildren(overgo.failure(err)); }); };
+      overgo.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
 
       const [enrollmentSchema, placementSchema] = await Promise.all([
-        api.get("/workspace/schema?id=peer-enrollment"),
-        api.get("/workspace/schema?id=peer-placement"),
-      ]).catch(release);
+        api.get("/workspace/schema?id=peer-enrollment", { signal: overgo.signal }),
+        api.get("/workspace/schema?id=peer-placement", { signal: overgo.signal }),
+      ]);
       const enrollmentForm = overgo.schemaForm(enrollmentSchema, {});
       const placementForm = overgo.schemaForm(placementSchema, {
         task: "generation", minimum_replicas: 1, maximum_replicas: 1,
@@ -91,26 +89,23 @@
         renderDetail();
       }
 
-      async function refreshInventory() { inventory = await api.get("/peers"); renderInventory(); }
+      const refreshInventory = overgo.read(inventoryHost, (signal) => api.get("/peers", { signal }), (value) => { inventory = value; renderInventory(); },
+        { loading: "Loading peers…" });
 
-      async function transition(peer, state) {
-        try {
-          await api.post("/peers/state", { peer, state, changed_unix_ns: 0 });
-          status.textContent = state + " / " + fmt.shortID(peer);
-          await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.failure(err)); }
-      }
-
-      enroll.addEventListener("click", async () => {
-        if (!enrollmentForm.validate()) { status.textContent = "Complete every enrollment field"; return; }
-        try {
-          const result = await api.post("/peers/enroll", enrollmentForm.value());
-          enrollmentForm.markSaved();
-          status.textContent = "enrolled / " + fmt.shortID(result.peer);
-          selectedPeer = result.peer;
-          await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.failure(err)); }
+      const transition = (peer, state) => overgo.act(status, async () => {
+        await api.post("/peers/state", { peer, state, changed_unix_ns: 0 });
+        status.textContent = state + " / " + fmt.shortID(peer);
+        await refreshInventory();
       });
+
+      enroll.addEventListener("click", () => overgo.act(status, async () => {
+        if (!enrollmentForm.validate()) { status.textContent = "Complete every enrollment field"; return; }
+        const result = await api.post("/peers/enroll", enrollmentForm.value());
+        enrollmentForm.markSaved();
+        status.textContent = "enrolled / " + fmt.shortID(result.peer);
+        selectedPeer = result.peer;
+        await refreshInventory();
+      }));
 
       function placementRequest(value) {
         const policyFields = ["minimum_replicas", "maximum_replicas", "target_concurrency", "concurrency_per_replica",
@@ -139,28 +134,25 @@
         } catch (err) { compiledPlan = null; reconcile.disabled = true; status.replaceChildren(overgo.failure(err)); }
       });
 
-      reconcile.addEventListener("click", async () => {
+      reconcile.addEventListener("click", () => overgo.act(status, async () => {
         if (!compiledPlan) return;
-        try {
-          const value = placementForm.value();
-          const result = await api.post("/peers/reconcile", {
-            plan: compiledPlan, previous: [], policy: { maximum_attempts: value.maximum_attempts },
-            changed_unix_ns: 0,
-          });
-          status.textContent = "reconciliation admitted / " + fmt.shortID(result.operation);
-          openGlobalOperation(result.operation);
-        } catch (err) { status.replaceChildren(overgo.failure(err)); }
-      });
+        const value = placementForm.value();
+        const result = await api.post("/peers/reconcile", {
+          plan: compiledPlan, previous: [], policy: { maximum_attempts: value.maximum_attempts },
+          changed_unix_ns: 0,
+        });
+        status.textContent = "reconciliation admitted / " + fmt.shortID(result.operation);
+        openGlobalOperation(result.operation);
+      }));
 
       async function renderEvidence(operation) {
-        const evidence = await api.get("/peers/evidence?operation=" + encodeURIComponent(operation));
+        const evidence = await api.get("/peers/evidence?operation=" + encodeURIComponent(operation), { signal: overgo.signal });
         if (!(evidence.attempts || []).length) return;
         evidenceHost.replaceChildren(overgo.table(["phase", "outcome", "attempt", "failure / log", "artifacts"], (evidence.attempts || []).map(({ value: attempt }) => [
           attempt.phase, attempt.outcome, String(attempt.attempt), attempt.failure || "completed", el("span", {}, ...((attempt.artifacts || []).map((id) => overgo.artifactLink(id))))])));
       }
 
-      await refreshInventory().catch(release);
-      return () => { unsubscribe(); enrollmentForm.dispose(); placementForm.dispose(); };
+      await refreshInventory();
     },
   });
 })();

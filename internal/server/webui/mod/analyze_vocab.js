@@ -6,13 +6,12 @@
   window.overgo.registerTab({
     id: "vocab",
     async mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
+      const { el, fmt } = overgo;
       const limit = 128;
       let offset = 0;
       let query = "";
       let timer = null;
 
-      clear(panel);
       const search = el("input", { "aria-label": "Search tokens", class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
@@ -26,16 +25,13 @@
         timer = setTimeout(() => { query = search.value.trim(); offset = 0; load(); }, searchDebounceMS);
       });
 
-      async function load() {
-        host.replaceChildren(el("div", { class: "note", text: "loading…" }));
+      const load = overgo.read(host, (signal) => {
         const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
         if (query) params.set("query", query);
-        let data;
-        try {
-          data = await overgo.api.get("/analyze/vocab?" + params.toString());
-        } catch (err) { host.replaceChildren(overgo.failure(err)); return; }
+        return overgo.api.get("/analyze/vocab?" + params.toString(), { signal });
+      }, (data) => {
         // Clamp a past-the-end page back to the last populated window.
-        if (data.tokens.length === 0 && offset > 0 && data.matched > 0) { offset = Math.max(0, Math.floor((data.matched - 1) / limit) * limit); return load(); }
+        if (data.tokens.length === 0 && offset > 0 && data.matched > 0) { offset = Math.max(0, Math.floor((data.matched - 1) / limit) * limit); load(); return; }
         const first = data.matched === 0 ? 0 : offset + 1;
         const last = offset + data.tokens.length;
         status.textContent = query
@@ -47,7 +43,8 @@
         const table = overgo.table(["id", "token", "type", "score"], data.tokens.map((token) => [String(token.id),
           token.text === "" ? "∅" : token.text, el("span", { class: "tag " + token.type, text: token.type }), token.score ? token.score.toFixed(4) : "0"]));
         host.replaceChildren(table);
-      }
+      }, { loading: "Loading tokens…" });
+      overgo.onRelease(() => clearTimeout(timer));
 
       await load();
     },

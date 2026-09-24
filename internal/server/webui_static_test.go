@@ -30,7 +30,7 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/inbox.js", "text/javascript; charset=utf-8", "/operations/inbox"},
 		{"/mod/generation.js", "text/javascript; charset=utf-8", `scope: "generation"`},
 		{"/mod/discovery.js", "text/javascript; charset=utf-8", "/hub/search"},
-		{"/mod/runtime.js", "text/javascript; charset=utf-8", "runtimeEvents"},
+		{"/mod/runtime.js", "text/javascript; charset=utf-8", "whileShown"},
 		{"/mod/datasets.js", "text/javascript; charset=utf-8", "/datasets"},
 		{"/mod/training.js", "text/javascript; charset=utf-8", "/runs"},
 		{"/mod/model_builder.js", "text/javascript; charset=utf-8", `scope: "model-builder"`},
@@ -91,7 +91,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		return serveTestRequest(handler, http.MethodGet, path, "").Body.String()
 	}
 	runtime := get("/mod/runtime.js")
-	for _, token := range []string{"runtimeEvents.subscribe", "onActivate", "onDeactivate", "runtime.sessions", "runtime.activity"} {
+	for _, token := range []string{"overgo.subscribe(", "whileShown: true", "runtime.sessions", "runtime.activity"} {
 		if !strings.Contains(runtime, token) {
 			t.Errorf("runtime module missing %q", token)
 		}
@@ -105,7 +105,7 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		t.Error("runtime monitor requests retained text")
 	}
 	boot := get("/boot.js")
-	for _, token := range []string{"document.hidden", "t.onActivate", "t.onDeactivate"} {
+	for _, token := range []string{"document.hidden", "t.life.setActive(true)", "t.life.setActive(false)"} {
 		if !strings.Contains(boot, token) {
 			t.Errorf("boot lifecycle missing %q", token)
 		}
@@ -328,7 +328,9 @@ func TestWebUIAuthUX(t *testing.T) {
 		}
 	}
 	for _, asset := range []string{"/mod/analyze_model.js", "/mod/analyze_vocab.js", "/mod/analyze_tensors.js"} {
-		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") {
+		// A tab's reads report through its workspace (overgo.read / overgo.load), which renders overgo.failure.
+		if source := get(asset); !strings.Contains(source, "friendlyError") && !strings.Contains(source, "overgo.failure(") &&
+			!strings.Contains(source, "overgo.read(") && !strings.Contains(source, "overgo.load(") {
 			t.Errorf("%s does not route errors through friendlyError", asset)
 		}
 	}

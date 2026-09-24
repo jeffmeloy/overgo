@@ -10,7 +10,6 @@
     id: "lens",
     async mount(panel, overgo, seed) {
       const { el, clear, displayToken } = overgo;
-      clear(panel);
 
       const maxTokens = el("input", { class: "keyfield w-90", type: "number", value: "24", min: "1", max: "128", "aria-label": "max tokens" });
       const topK = el("input", { class: "keyfield w-90", type: "number", value: "10", min: "1", max: "40", "aria-label": "top k" });

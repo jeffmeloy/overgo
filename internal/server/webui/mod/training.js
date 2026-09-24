@@ -2,17 +2,17 @@
   "use strict";
 
 
-  async function readTrace(overgo, id) {
-    const trace = await overgo.api.get(overgo.contentURL(id));
+  async function readTrace(overgo, id, signal) {
+    const trace = await overgo.api.get(overgo.contentURL(id), { signal });
     return trace && (Array.isArray(trace.dpo) || Array.isArray(trace.grpo)) ? trace : null; }
 
-  async function traceFromRun(overgo, run) {
+  async function traceFromRun(overgo, run, signal) {
     for (const edge of run.children || []) {
       if (!String(edge.child).startsWith("evidence:")) continue;
       try {
-        const trace = await readTrace(overgo, edge.child);
+        const trace = await readTrace(overgo, edge.child, signal);
         if (trace && trace.run === run.id) return { id: edge.child, trace };
-      } catch (_) { /* unrelated evidence */ }
+      } catch (err) { if (err && err.name === "AbortError") throw err; /* otherwise unrelated evidence */ }
     }
     return null;
   }
@@ -114,7 +114,7 @@
   window.overgo.registerTab({
     id: "runs",
     async mount(panel, overgo) {
-      const { el, clear, fmt } = overgo;
+      const { el, fmt } = overgo;
       const limit = 50;
       let cursor = "";
       let nextCursor = "";
@@ -122,7 +122,6 @@
       let prior = [];
       let baseline = null;
 
-      clear(panel);
       const status = el("span", { class: "note" });
       const prev = el("button", { class: "btn alt", onclick: () => {
         const page = prior.pop() || { cursor: "", start: 0 };
@@ -138,34 +137,35 @@
       const detail = el("div");
       panel.append(host, detail);
 
-      async function loadDetail(id) {
-        try {
-          const run = await overgo.api.get("/runs?id=" + encodeURIComponent(id));
-          const found = await traceFromRun(overgo, run);
-          const checkpoint = (run.outputs || []).find((value) => String(value).startsWith("checkpoint:"));
-          const record = found && { id: found.id, trace: found.trace, checkpoint, run: run.id };
-          const evidence = el("div");
-          const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => { baseline = record; pin.textContent = "Comparison baseline"; pin.disabled = true; } });
-          detail.replaceChildren(
-            el("div", { class: "section-title", text: "Run detail" }),
-            el("div", { class: "statgrid" },
-              overgo.stat("Outcome", run.outcome),
-              overgo.stat("Inputs", (run.inputs || []).length),
-              overgo.stat("Outputs", (run.outputs || []).length)),
-            el("div", { class: "row" }, overgo.artifactLink(run.id, null, true), pin), evidence);
-          if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
-        } catch (err) { detail.replaceChildren(overgo.failure(err)); }
-      }
+      // The detail shows the newest chosen run; an earlier one still reading is aborted.
+      let chosen = "";
+      const showDetail = overgo.read(detail, async (signal) => {
+        const run = await overgo.api.get("/runs?id=" + encodeURIComponent(chosen), { signal });
+        return [run, await traceFromRun(overgo, run, signal)];
+      }, ([run, found]) => {
+        const checkpoint = (run.outputs || []).find((value) => String(value).startsWith("checkpoint:"));
+        const record = found && { id: found.id, trace: found.trace, checkpoint, run: run.id };
+        const evidence = el("div");
+        const pin = record && el("button", { class: "btn alt", text: "Set comparison baseline", onclick: () => { baseline = record; pin.textContent = "Comparison baseline"; pin.disabled = true; } });
+        detail.replaceChildren(
+          el("div", { class: "section-title", text: "Run detail" }),
+          el("div", { class: "statgrid" },
+            overgo.stat("Outcome", run.outcome),
+            overgo.stat("Inputs", (run.inputs || []).length),
+            overgo.stat("Outputs", (run.outputs || []).length)),
+          el("div", { class: "row" }, overgo.artifactLink(run.id, null, true), pin), evidence);
+        if (record) renderTrace(overgo, evidence, record, baseline && baseline.run !== record.run ? baseline : null);
+      }, { loading: "Loading the run…" });
 
       function outcomeClass(outcome) { return outcome === "succeeded" ? "user_defined" : (outcome === "failed" ? "control" : ""); }
-      async function load() {
-        host.replaceChildren(el("div", { class: "note", text: "Loading runs…" }));
-        let data;
-        try {
-          const query = new URLSearchParams({ limit: String(limit) });
-          if (cursor) query.set("cursor", cursor);
-          data = await overgo.api.get("/runs?" + query);
-        } catch (err) { host.replaceChildren(err.status === 501 ? overgo.errorBanner("Run browsing is not configured.") : overgo.failure(err)); return; }
+      const load = overgo.read(host, (signal) => {
+        const query = new URLSearchParams({ limit: String(limit) });
+        if (cursor) query.set("cursor", cursor);
+        return overgo.api.get("/runs?" + query, { signal }).catch((err) => {
+          if (err.status === 501) throw new Error("Run browsing is not configured on this server.");
+          throw err;
+        });
+      }, (data) => {
         nextCursor = data.next || "";
         const first = data.count === 0 ? 0 : start + 1;
         const last = start + data.runs.length;
@@ -178,12 +178,12 @@
           const phases = [...(run.phases || [])].sort((a, b) => b.ms - a.ms).slice(0, 3)
             .map((phase) => phase.phase + " " + phase.ms.toFixed(0) + "ms").join(", ");
           table.appendChild(overgo.tableRow([el("span", { class: "tag " + outcomeClass(run.outcome), text: run.outcome }),
-            el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => loadDetail(run.id) }),
+            el("button", { class: "link-button mono", title: run.recipe, text: fmt.shortID(run.recipe), onclick: () => { chosen = run.id; showDetail(); } }),
             (run.code_commit || "").slice(0, 10) || "-", run.measured_ms ? run.measured_ms.toFixed(0) + " ms" : "-",
             el("span", { class: "dim", text: phases || "-" }), run.inputs + "/" + run.outputs]));
         }
         host.replaceChildren(table);
-      }
+      }, { loading: "Loading runs…" });
       await load();
     },
   });

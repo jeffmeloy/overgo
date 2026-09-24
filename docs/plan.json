@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-tab-resource",
-      "title": "Give the workbench client one workspace lifecycle owner for loading, error and empty states, cancellation, live subscriptions and recovery, and delete every tab's own handling",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Give the workbench client one workspace lifecycle owner for loading, error and empty states, cancellation, live subscriptions and recovery, and delete every tab's own handling",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestWebUITabsLoadThroughOneResource$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowserHardenedStates$' -require 'hardened states leg'",
-          "rationale": "Owner direction 2026-09-23 (consolidation priority 5, relayed by master): one owner in the workbench client handles each workspace's loading, error and empty-state rendering, cancellation, polling, subscriptions and recovery, and the repeated per-tab handling is deleted. Every tab hand-writes its loading note, empty state, failure banner, reload, abort and runtime subscription, which is why the hardened-states row repaired tabs one at a time; arch-one-event-stream already removed the per-tab streams and the download poller, leaving subscriptions to overgo.runtimeEvents. One lifecycle owner (mount, load, render, subscribe, release) takes the rest; a source census holds every tab to it. Done only when it deletes what it replaces; the landing reports net client code removed and the per-tab handlers eliminated."
-        }
-      ]
-    },
-    {
       "id": "gui-task-effort-baseline",
       "title": "Measure the effort of the workbench's common tasks in the browser lane and hold each task to its measured count",
       "owner": "overgo_gui_cleanup",

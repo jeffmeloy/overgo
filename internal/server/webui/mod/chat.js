@@ -7,8 +7,8 @@
   const INFLIGHT_STORAGE = "overgo.inflight"; // the response id of a turn this page was streaming
   const DRAFT_STORAGE = "overgo.draft:";
   const drafts = new Map();
-  let disposeChat = () => {};
   let saveChat = () => {};
+  let inspector = null; // the open inspector's workspace
   window.addEventListener("pagehide", () => saveChat());
 
   // inspectTurn: the side panel over one assistant turn: its run record, then any inspector embedded over it.
@@ -16,21 +16,30 @@
     const aside = document.getElementById("inspector");
     if (event.key !== "Escape") return;
     if (event.defaultPrevented || document.querySelector("dialog[open]")) return;
-    if (aside && !aside.hidden) { aside.hidden = true; aside.replaceChildren(); return; }
+    if (aside && !aside.hidden) { closeInspector(); return; }
     if (window.overgo.stopTurn) window.overgo.stopTurn();
   });
-  window.overgo.inspectTurn = async function (responseID) {
-    const overgo = window.overgo;
-    const { el } = overgo;
+  // closeInspector: the side panel closes and whatever it embedded ends with it.
+  function closeInspector() {
     const aside = document.getElementById("inspector");
+    if (inspector) inspector.release();
+    inspector = null;
+    aside.hidden = true;
+    aside.replaceChildren();
+  }
+  window.overgo.inspectTurn = async function (responseID) {
+    const aside = document.getElementById("inspector");
+    if (inspector) inspector.release();
+    const overgo = inspector = window.overgo.workspace(aside);
+    const { el } = overgo;
     const body = el("div");
     aside.hidden = false;
-    const close = el("button", { class: "btn alt", text: "×", "aria-label": "close the inspector", onclick: () => { aside.hidden = true; aside.replaceChildren(); } });
+    const close = el("button", { class: "btn alt", text: "×", "aria-label": "close the inspector", onclick: closeInspector });
     aside.replaceChildren(el("div", { class: "row" }, el("strong", { text: "Inspect turn" }), el("span", { class: "grow" }), close), body);
     close.focus();
     let record;
-    try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID)); }
-    catch (err) { body.appendChild(overgo.failure(err)); return; }
+    try { record = await overgo.api.get("/interactions/inspect?response=" + encodeURIComponent(responseID), { signal: overgo.signal }); }
+    catch (err) { if (!overgo.signal.aborted) body.appendChild(overgo.failure(err)); return; }
     const cards = [overgo.stat("Status", record.status, record.statuses.join(" · "))];
     if (record.incomplete_details?.reason === "max_output_tokens") cards.push(overgo.stat("Output limit reached", "Partial answer saved"));
     if (record.failure) cards.push(overgo.stat("Failure", record.failure));
@@ -46,13 +55,11 @@
 
   window.overgo.registerTab({
     id: "chat",
-    onDeactivate() { saveChat(); },
     async mount(panel, overgo) {
-      disposeChat();
-      let disposed = false;
+      // The draft saves whenever the conversation stops showing.
+      overgo.whileActive(() => () => saveChat());
       let saveDraft = () => {};
       let updateSwitch = () => {};
-      let disposeComposer = () => {};
       let disposeGeneration = () => {};
       let releaseTaskModel = () => {};
       let controller = null;
@@ -62,19 +69,14 @@
       let actionPending = false;
       const selected = overgo.conversation();
       let conversationRoot = selected ? selected.root : "";
-      disposeChat = () => {
-        saveDraft();
-        disposed = true;
-        disposeComposer();
+      overgo.onRelease(() => {
         disposeGeneration();
         releaseTaskModel();
-        document.removeEventListener("overgo-model-switch", updateSwitch);
         // A queued explicit Stop still needs the incoming ID. Keep only that
         // acknowledgement alive across navigation, then cancel its execution.
         if (controller && !(activeTurn && activeTurn.stopRequested && !activeTurn.response) && !(activeOperation && activeOperation.stopRequested && !activeOperation.id)) controller.abort();
-      };
-      const { el, clear, fmt } = overgo;
-      clear(panel);
+      });
+      const { el, fmt } = overgo;
       const capabilities = overgo.capabilities();
       if (!capabilities) { panel.appendChild(overgo.errorBanner("the served model declares no capabilities yet")); return; }
       // The panel says it is loading until the agent reads it waits on return.
@@ -109,7 +111,7 @@
       let tools = [];
       try { agents = (await overgo.api.get("/agents")).filter((item) => item.state === "active"); } catch (_) { /* no agent runtime */ }
       if (agents.length) tools = (await overgo.api.get("/agents/tools")).tools || [];
-      if (disposed) return;
+      if (overgo.signal.aborted) return;
       loading.remove();
       const agentPicker = el("select", { class: "text w-auto", "aria-label": "agent" }, ...agents.map((item) => el("option", { value: item.name, text: "agent " + item.name })));
       const agentHost = el("div", { class: "agent-session" });
@@ -137,13 +139,13 @@
         el('div', { class: 'row' }, el('button', { class: 'link-button conversation-read-action', text: 'Copy conversation', onclick: () => exportConversation(true) }),
           el('button', { class: 'link-button conversation-read-action', text: 'Export Markdown', onclick: () => exportConversation(false) })), exportStatus));
       async function exportConversation(copy) {
-        if (disposed || controller || activeTurn || actionPending) return;
+        if (overgo.signal.aborted || controller || activeTurn || actionPending) return;
         actionPending = true; updateBusy(); exportStatus.hidden = false; exportStatus.textContent = 'Preparing conversation…'; exportStatus.setAttribute('role', 'status');
         try {
           const selected = overgo.conversation();
           let messages = thread.messages;
           if (selected) messages = (await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(selected.latest))).messages;
-          if (disposed) return;
+          if (overgo.signal.aborted) return;
           const visible = messages.filter(message => ['user', 'assistant'].includes(message.role));
           if (!visible.length) throw new Error('There are no conversation messages to export yet.');
           const title = selected && selected.title || 'Conversation';
@@ -158,8 +160,8 @@
             overgo.downloadBlob(exportStatus, new Blob([markdown], { type: 'text/markdown;charset=utf-8' }), 'conversation-' + (selected && selected.latest || 'draft') + '.md');
           }
           exportStatus.textContent = copy ? 'Conversation copied.' : 'Markdown download started.';
-        } catch (err) { if (!disposed) { exportStatus.setAttribute('role', 'alert'); exportStatus.textContent = overgo.friendlyError(err) + ' Try again.'; } }
-        finally { actionPending = false; if (!disposed) updateBusy(); }
+        } catch (err) { if (!overgo.signal.aborted) { exportStatus.setAttribute('role', 'alert'); exportStatus.textContent = overgo.friendlyError(err) + ' Try again.'; } }
+        finally { actionPending = false; if (!overgo.signal.aborted) updateBusy(); }
       }
       // artifactField: the mode's artifact-typed control, if any. A media card re-enters the composer as the next
       // turn's attachment (refused or accepted by the served capability) or, in such a mode, as the control's stored id;
@@ -173,7 +175,7 @@
       const thread = overgo.thread(panel, { reuse: (file, artifact, source) => { const field = artifactField(file); if (field && artifact) field.input.value = artifact; else composer.addFile(file, source); },
         replay: replayRecord, lineage: showLineage, actions: messageActions, marker: capabilities.remote ? "remote" : "" });
       const branchNotice = el('div', { class: 'note', role: 'status', hidden: true });
-      function actionsBlocked() { return disposed || !!controller || !!activeTurn || actionPending || uncertainPrevious !== null || otherModel || overgo.modelSwitching(); }
+      function actionsBlocked() { return overgo.signal.aborted || !!controller || !!activeTurn || actionPending || uncertainPrevious !== null || otherModel || overgo.modelSwitching(); }
       function messageActions(message) {
         if (!['user', 'assistant'].includes(message.role)) return [];
         return [el('button', { class: 'link-button turn-action', title: 'Create a new branch using current settings', text: message.role === 'user' ? 'Edit and resend' : 'Regenerate',
@@ -220,7 +222,7 @@
         message.node.appendChild(editor); actionPending = true; updateBusy();
         try {
           const chain = await overgo.api.get('/interactions/messages?response=' + encodeURIComponent(message.response));
-          if (disposed) return;
+          if (overgo.signal.aborted) return;
           if (mismatchedModel(chain)) throw new Error('Choose this conversation’s original model to resend it.');
           if (chain.status === 'in_progress') throw new Error('This response is still running. Open it to resume or stop it.');
           const turn = chain.messages.filter(item => item.response === message.response);
@@ -240,8 +242,8 @@
             branch.text = field.value.trim(); branch.users[editIndex].content = branch.text; branch.input[editIndex] = branchInput(users[editIndex], branch.text); run(); });
           editor.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); } });
           field.focus();
-        } catch (err) { if (!disposed) editor.replaceChildren(overgo.failure(err)); }
-        finally { actionPending = false; if (!disposed) updateBusy(); }
+        } catch (err) { if (!overgo.signal.aborted) editor.replaceChildren(overgo.failure(err)); }
+        finally { actionPending = false; if (!overgo.signal.aborted) updateBusy(); }
       }
       // showLineage: what the store records around a card's artifact (the runs that made it, with their
       // request and inputs; the runs that used it, with their outputs) and, as next steps, every active
@@ -299,17 +301,17 @@
           const work = trackOperation();
           await thread.consume(overgo.streams.replay(capability, request, controller.signal, event.artifact, label, work.lifecycle));
         } catch (err) {
-          if (disposed) return;
+          if (overgo.signal.aborted) return;
           thread.errorRow(err.name === "AbortError" ? "Request disconnected; check Activity for its result." : overgo.friendlyError(err));
           if (err.operationUnconfirmed) { uncertainKind = 'operation'; uncertainPrevious = lastResponseID; uncertainText = label + ' ' + event.artifact; saveDraft(); showUncertainty(); }
         }
-        finally { if (activeOperation && !activeOperation.id) activeOperation.row.remove(); activeOperation = null; controller = null; if (!disposed) updateBusy(); }
+        finally { if (activeOperation && !activeOperation.id) activeOperation.row.remove(); activeOperation = null; controller = null; if (!overgo.signal.aborted) updateBusy(); }
       }
       function updateBusy() {
         composer.setBusy(!!controller || !!activeTurn, (activeTurn && activeTurn.stopRequested) || (activeOperation && activeOperation.stopRequested));
         composer.setSendBlocked(actionPending || uncertainPrevious !== null || overgo.modelSwitching());
         panel.querySelectorAll('.turn-action, .media-replay, .turn-editor button[type=submit]').forEach(button => { button.disabled = actionsBlocked(); });
-        settings.querySelectorAll('.conversation-read-action').forEach(button => { button.disabled = disposed || !!controller || !!activeTurn || actionPending; });
+        settings.querySelectorAll('.conversation-read-action').forEach(button => { button.disabled = overgo.signal.aborted || !!controller || !!activeTurn || actionPending; });
       }
       function forgetTurn(turn) {
         try {
@@ -318,7 +320,7 @@
         } catch (_) { /* storage unavailable */ }
       }
       function restorePrompt(prompt) {
-        if (!prompt || disposed || composer.input.value || composer.attachments.length) return;
+        if (!prompt || overgo.signal.aborted || composer.input.value || composer.attachments.length) return;
         composer.input.value = prompt.text;
         composer.restoreAttachments(prompt.attachments || []);
         saveDraft();
@@ -335,20 +337,21 @@
         turn.cancelSent = true;
         try {
           await overgo.api.post("/interactions/cancel", { response: turn.response, model: turn.model });
-          if (!disposed && activeTurn === turn && !controller && !turn.stopFollowed) {
+          if (!overgo.signal.aborted && activeTurn === turn && !controller && !turn.stopFollowed) {
             turn.stopFollowed = true;
             await resumeTurn(turn);
           }
         } catch (err) {
           turn.cancelSent = turn.stopRequested = false;
-          if (!disposed && activeTurn === turn) {
+          if (!overgo.signal.aborted && activeTurn === turn) {
             thread.errorRow("Could not stop the response: " + overgo.friendlyError(err) + ". Try Stop again.");
             updateBusy();
           }
         }
       }
-      overgo.stopTurn = () => {
-        if (disposed) return;
+      // The page's Escape stops this mount's turn; the page forgets it when the mount ends.
+      const stopTurn = window.overgo.stopTurn = () => {
+        if (overgo.signal.aborted) return;
         if (activeTurn) {
           activeTurn.stopRequested = true;
           updateBusy();
@@ -356,13 +359,14 @@
         } else if (activeOperation) { activeOperation.stopRequested = true; updateBusy(); cancelBackgroundOperation(activeOperation); }
         else if (controller) controller.abort();
       };
+      overgo.onRelease(() => { if (window.overgo.stopTurn === stopTurn) window.overgo.stopTurn = null; });
       async function cancelBackgroundOperation(work) {
         if (!work.id || work.cancelSent) return;
         work.cancelSent = true; work.failure = '';
         try { await overgo.cancelOperation(work.id); }
         catch (err) {
           work.cancelSent = work.stopRequested = false;
-          if (!disposed && activeOperation === work) { work.failure = 'Could not stop: ' + overgo.friendlyError(err) + '. Try Stop again.'; work.status.textContent = work.failure; updateBusy(); }
+          if (!overgo.signal.aborted && activeOperation === work) { work.failure = 'Could not stop: ' + overgo.friendlyError(err) + '. Try Stop again.'; work.status.textContent = work.failure; updateBusy(); }
         }
       }
       function trackOperation() {
@@ -372,17 +376,17 @@
         work.lifecycle = {
           accepted: async id => {
             work.id = id;
-            if (!disposed) row.append(' ', el('button', { class: 'link-button', text: 'View activity', onclick: () => overgo.showOperation(id) }));
+            if (!overgo.signal.aborted) row.append(' ', el('button', { class: 'link-button', text: 'View activity', onclick: () => overgo.showOperation(id) }));
             if (work.stopRequested) await cancelBackgroundOperation(work);
-            if (disposed && controller) controller.abort();
+            if (overgo.signal.aborted && controller) controller.abort();
           },
-          observe: current => { if (!disposed) status.textContent = work.failure && !['completed', 'failed', 'cancelled'].includes(current.state) ? work.failure : current.state + (current.progress && current.progress.total != null ? ' · ' + current.progress.completed + ' / ' + current.progress.total : ''); },
+          observe: current => { if (!overgo.signal.aborted) status.textContent = work.failure && !['completed', 'failed', 'cancelled'].includes(current.state) ? work.failure : current.state + (current.progress && current.progress.total != null ? ' · ' + current.progress.completed + ' / ' + current.progress.total : ''); },
         };
         return work;
       }
       const composer = overgo.composer(panel, {
         onSubmit: submit,
-        onStop: overgo.stopTurn,
+        onStop: stopTurn,
         onChange: () => { composer.input.setCustomValidity(''); saveDraft(); },
         takesAny: () => composer.mode() === 'speech' || !!artifactField(),
         captureAudio: () => [...generation.fields.values()].find(field => field.control.type === "artifact" && field.control.media === "audio")?.control.audio,
@@ -405,7 +409,7 @@
               if (!text.trim() || text.includes('\u0000')) throw new Error('Choose a nonempty text file.');
               const stored = await overgo.api.upload('/artifacts/intake', new File([bytes], file.name, { type: 'text/plain' }), { signal });
               signal.throwIfAborted();
-              if (disposed || composer.mode() !== 'speech' || generation.capability?.recipe !== recipe) throw new Error('Model input changed. Retry to use the file here.');
+              if (overgo.signal.aborted || composer.mode() !== 'speech' || generation.capability?.recipe !== recipe) throw new Error('Model input changed. Retry to use the file here.');
               if (!stored?.id) throw new Error('File upload failed. Retry.');
               return { id: stored.id, text };
             })();
@@ -416,7 +420,7 @@
           return overgo.api.upload('/artifacts/intake', file, { signal }).then(stored => {
             signal.throwIfAborted();
             if (!stored || typeof stored.id !== 'string' || !stored.id) throw new Error('Upload returned no stored file identity. Retry or remove the file.');
-            if (disposed || !field.input.isConnected || ![...generation.fields.values()].includes(field)) throw new Error('Model input changed. Retry to use the file here.');
+            if (overgo.signal.aborted || !field.input.isConnected || ![...generation.fields.values()].includes(field)) throw new Error('Model input changed. Retry to use the file here.');
             if (fieldUploads.get(field) !== attempt) throw new Error('A newer file was selected for this input. Retry or remove this file.');
             if (field.input.value !== previousValue) throw new Error('The input was changed while uploading. Retry or remove this file.');
             field.input.value = stored.id; field.input.dispatchEvent(new Event('intake'));
@@ -427,7 +431,6 @@
         onMode: (mode) => { agentHost.hidden = mode !== "agent"; saveDraft(); return renderMode(mode); },
         controls: [],
       });
-      disposeComposer = () => { composer.dispose(); thread.dispose(); };
       composer.input.value = typeof draft.text === "string" ? draft.text : "";
       if (Array.isArray(draft.attachments)) composer.restoreAttachments(draft.attachments.filter(item => item && typeof item.name === "string" && typeof item.mime === "string" && Number.isFinite(item.size) && item.size >= 0).map(item => ({ name: item.name, mime: item.mime, size: item.size, kind: overgo.mediaKind(item.mime), needsReattach: true,
         sourceArtifact: typeof item.sourceArtifact === 'string' ? item.sourceArtifact : undefined, sourceRun: typeof item.sourceRun === 'string' ? item.sourceRun : undefined, document: item.document === true, textApplied: item.textApplied === true })));
@@ -455,7 +458,7 @@
         draftNotice.textContent = "Couldn't save draft. Copy it before reloading.";
       }
       saveDraft = () => {
-        if (disposed) return;
+        if (overgo.signal.aborted) return;
         persistDraft(draftKey(), { text: composer.input.value, system: system.value, temperature: temperature.value, tokens: maxTokens.value, mode: composer.mode(),
           uncertainPrevious: uncertainPrevious === null ? undefined : uncertainPrevious, uncertainText: uncertainPrevious === null ? undefined : uncertainText, uncertainKind: uncertainPrevious === null ? undefined : uncertainKind,
           attachments: composer.attachments.map(item => ({ name: item.name, mime: item.mime, size: item.size, sourceArtifact: item.sourceArtifact, sourceRun: item.sourceRun, document: item.document === true, textApplied: item.textApplied === true })) });
@@ -463,7 +466,7 @@
       saveChat = saveDraft;
       for (const field of [system, temperature, maxTokens]) { field.addEventListener("input", saveDraft); field.addEventListener("change", saveDraft); }
       updateSwitch = () => { modelNotice.hidden = !overgo.modelSwitching(); updateBusy(); };
-      document.addEventListener("overgo-model-switch", updateSwitch);
+      overgo.listen(document, "overgo-model-switch", updateSwitch);
       updateSwitch();
       saveDraft();
       function moveDraft(root) {
@@ -552,10 +555,10 @@
         try {
           available = await overgo.api.get("/generation/capabilities", { signal: request.signal });
         } catch (err) {
-          if (!disposed && generation.loading === request && !request.signal.aborted) composer.modeHost.replaceChildren(overgo.failure(err), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) }));
+          if (!overgo.signal.aborted && generation.loading === request && !request.signal.aborted) composer.modeHost.replaceChildren(overgo.failure(err), el('button', { class: 'link-button', text: 'Retry model list', onclick: () => renderMode(mode) }));
           return;
         } finally { if (generation.loading === request) generation.loading = null; }
-        if (disposed || request.signal.aborted || composer.mode() !== mode) return;
+        if (overgo.signal.aborted || request.signal.aborted || composer.mode() !== mode) return;
         generation.capabilities = available;
         composer.modeHost.replaceChildren();
         // Each is offered as the page can show it: one with an output it cannot show is listed, refused.
@@ -693,7 +696,7 @@
         let latest = turn.response || "";
         async function* noting(events) {
           for await (const event of events) {
-            if (disposed) {
+            if (overgo.signal.aborted) {
               if (event.type === "created" && turn.stopRequested) {
                 turn.response = event.id;
                 await cancelTurn(turn);
@@ -718,7 +721,7 @@
           }
         }
         const terminal = await thread.consume(noting(overgo.streams.responses(response)), assistant);
-        if (disposed) return;
+        if (overgo.signal.aborted) return;
         if (!terminal.status) throw new Error("The response has no confirmed result. Resume to check it.");
         lastResponseID = terminal.status === "failed" ? turn.previous : latest;
         if (terminal.status === "failed" && !turn.previous && !turn.branch) { moveDraft(""); overgo.rememberConversation(null); }
@@ -734,7 +737,7 @@
       }
 
       function turnFailure(err, turn) {
-        if (disposed) return;
+        if (overgo.signal.aborted) return;
         if (turn && turn.response && err.status !== 404) {
           showRecovery(err, turn);
           return;
@@ -757,7 +760,7 @@
       }
 
       async function resumeTurn(turn) {
-        if (disposed || controller || activeTurn !== turn) return;
+        if (overgo.signal.aborted || controller || activeTurn !== turn) return;
         controller = new AbortController();
         updateBusy();
         try {
@@ -768,7 +771,7 @@
           thread.renderMessage(turn.assistant, true);
           await consumeTurn(response, turn.assistant, null);
         } catch (err) { turnFailure(err, turn); }
-        finally { controller = null; if (!disposed) updateBusy(); }
+        finally { controller = null; if (!overgo.signal.aborted) updateBusy(); }
       }
 
       function validateSettings() {
@@ -824,7 +827,7 @@
             const work = generation.capability ? trackOperation() : null;
             const selection = generation.capability ? { capability: generation.capability, fields: generation.fields, sources, lifecycle: work.lifecycle } : null;
             const terminal = await thread.consume(overgo.generate(mode, text, parts, controller.signal, selection));
-            if (!disposed && terminal.status !== 'completed') {
+            if (!overgo.signal.aborted && terminal.status !== 'completed') {
               restorePrompt({ text, attachments });
               if (terminal.status === 'unknown') { uncertainKind = 'operation'; uncertainPrevious = lastResponseID; uncertainText = text; saveDraft(); showUncertainty(); }
             }
@@ -843,7 +846,7 @@
           renderFacts(count ? count.input_tokens : null, null, null);
           await consumeTurn(await streamTurn("/v1/responses", request, "POST"), assistant, count ? count.input_tokens : null);
         } catch (err) {
-          if (disposed) return;
+          if (overgo.signal.aborted) return;
           if (!mode || mode === "chat") {
             if (err.name === "AbortError" && !activeTurn) thread.errorRow("Stopped before sending.");
             else turnFailure(err, activeTurn);
@@ -853,7 +856,7 @@
         } finally {
           activeOperation = null;
           controller = null;
-          if (!disposed) {
+          if (!overgo.signal.aborted) {
             updateBusy();
             // Stop can interrupt the original socket to release a stalled
             // server write. Reattach once to read its terminal state.
@@ -869,7 +872,7 @@
       // conversation has replaced the tab's optional storage handle.
       const initialMode = (capabilities.modes || []).some(mode => mode.enabled && mode.id === draft.mode) ? draft.mode : composer.mode();
       if (initialMode) await composer.setMode(initialMode);
-      if (disposed) return;
+      if (overgo.signal.aborted) return;
       let saved = null;
       try { saved = JSON.parse(sessionStorage.getItem(INFLIGHT_STORAGE) || "null"); } catch (_) { /* storage unavailable */ }
       let inflight = selected && saved && selected.root === saved.root && (!saved.model || saved.model === modelID) ? saved.response : "";
@@ -878,7 +881,7 @@
         composer.setBusy(true);
         try {
           chain = await overgo.api.get("/interactions/messages?response=" + encodeURIComponent(selected.latest));
-          if (disposed) return;
+          if (overgo.signal.aborted) return;
           otherModel = mismatchedModel({ ...selected, ...chain });
           if (chain.status === "in_progress") inflight = chain.response;
           welcome.remove();
@@ -897,7 +900,7 @@
           if (!inflight && chain.status === 'cancelled') thread.node.appendChild(el('div', { class: 'note', role: 'status', text: 'Stopped' }));
           else if (!inflight && chain.failure) thread.errorRow(chain.failure);
         } catch (err) {
-          if (disposed) return;
+          if (overgo.signal.aborted) return;
           if (err.status === 404) forgetTurn({ response: selected.latest, model: modelID });
           welcome.remove(); composer.setBusy(false); composer.setReadOnly(true);
           thread.errorRow(overgo.friendlyError(err));
@@ -907,21 +910,21 @@
           return;
         }
       }
-      if (inflight && !disposed && !otherModel) {
+      if (inflight && !overgo.signal.aborted && !otherModel) {
         welcome.remove();
         const prompt = chain && (chain.messages || []).findLast(message => message.role === "user" && message.response === inflight);
         activeTurn = { response: inflight, model: modelID, previous: chain && chain.previous || "", assistant: thread.add("assistant", ""),
           prompt: prompt ? { text: prompt.content, attachments: [] } : null };
         resumeTurn(activeTurn);
       }
-      if (!disposed) updateBusy();
-      if (otherModel && !disposed) {
+      if (!overgo.signal.aborted) updateBusy();
+      if (otherModel && !overgo.signal.aborted) {
         composer.setReadOnly(true);
         thread.node.appendChild(el("div", { class: "note", role: "status" }, "This conversation belongs to another model. Choose its original model to continue, or start a new conversation. ",
           el("button", { class: "btn alt", text: "Choose model", onclick: () => document.getElementById("model-pill").click() }),
           el("button", { class: "btn alt", text: "New conversation", onclick: () => overgo.openConversation(null) })));
       }
-      if (!disposed && focusedSetting && document.querySelector('#settings-dialog[open]') && document.activeElement === document.body) {
+      if (!overgo.signal.aborted && focusedSetting && document.querySelector('#settings-dialog[open]') && document.activeElement === document.body) {
         settings.querySelector('[data-draft-setting="' + focusedSetting + '"]').focus();
       }
     },

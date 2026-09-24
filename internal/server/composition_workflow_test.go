@@ -50,7 +50,7 @@ func TestCompositionGUIWorkflow(t *testing.T) {
 		t.Fatalf("composition module status = %d", module.Code)
 	}
 	for _, token := range []string{
-		`api.get("/compositions")`, `api.post("/compositions/activate"`,
+		`api.get("/compositions", { signal })`, `api.post("/compositions/activate"`,
 		`api.post("/compositions/generate"`, "Open promoted generation",
 		"compatible", "recipe graph", "Bridge training",
 		"Evaluation and promotion history", "Runtime memory and latency evidence",

@@ -37,17 +37,15 @@
           const key = el("input", { "aria-label": "Idempotency key", class: "text", value: "manual", placeholder: "idempotency key" });
           const run = el("button", { class: "btn", text: "Run", disabled: !!item.refusal });
           const schedule = el("button", { class: "btn alt", text: "Scan schedule", disabled: !!item.refusal });
-          async function execute(path) {
-            try {
-              const result = await api.post(path, {
-                name: item.name, key: key.value, destination: destination.value,
-                inputs: JSON.parse(input.value || "{}"),
-              });
-              // A scheduled scan answers {execution, fired}; a scan with no due slot starts nothing.
-              if (result.fired === false) status.textContent = "not due / nothing started";
-              else status.textContent = "accepted / " + fmt.shortID(result.operation || result.execution.operation);
-            } catch (err) { status.replaceChildren(overgo.failure(err)); }
-          }
+          const execute = (path) => overgo.act(status, async () => {
+            const result = await api.post(path, {
+              name: item.name, key: key.value, destination: destination.value,
+              inputs: JSON.parse(input.value || "{}"),
+            });
+            // A scheduled scan answers {execution, fired}; a scan with no due slot starts nothing.
+            if (result.fired === false) status.textContent = "not due / nothing started";
+            else status.textContent = "accepted / " + fmt.shortID(result.operation || result.execution.operation);
+          });
           run.addEventListener("click", () => execute("/automations/run"));
           schedule.addEventListener("click", () => execute("/automations/schedule"));
           table.appendChild(overgo.tableRow([item.name, fmt.shortID(item.definition), el("span", { text: item.refusal || "ready" }), el("span", {}, input, destination, key, run, schedule)]));
@@ -55,19 +53,18 @@
         inventoryHost.replaceChildren(table);
       }
 
-      async function refreshInventory() { inventory = await api.get("/automations"); renderInventory(); }
+      const refreshInventory = overgo.read(inventoryHost, (signal) => api.get("/automations", { signal }), (value) => { inventory = value; renderInventory(); },
+        { loading: "Loading automations…" });
 
-      publish.addEventListener("click", async () => {
+      publish.addEventListener("click", () => overgo.act(status, async () => {
         if (!definitionForm.validate() || !triggerForm.validate() || !deliveryForm.validate()) { status.textContent = "Complete every applicable field"; return; }
-        try {
-          const definition = definitionForm.value();
-          const created = await api.post("/automations/definitions", { name: definition.name, recipe: definition.recipe, trigger: triggerForm.value(), delivery: deliveryForm.value(), });
-          await api.post("/automations/activate", { definition: created.id });
-          definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
-          status.textContent = "activated / " + fmt.shortID(created.id);
-          await refreshInventory();
-        } catch (err) { status.replaceChildren(overgo.failure(err)); }
-      });
+        const definition = definitionForm.value();
+        const created = await api.post("/automations/definitions", { name: definition.name, recipe: definition.recipe, trigger: triggerForm.value(), delivery: deliveryForm.value(), });
+        await api.post("/automations/activate", { definition: created.id });
+        definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
+        status.textContent = "activated / " + fmt.shortID(created.id);
+        await refreshInventory();
+      }));
 
       function renderOperations(operations) {
         const rows = [];
@@ -92,28 +89,24 @@
         operationsHost.replaceChildren(...rows);
       }
 
-      async function refreshHistory() {
-        const history = await api.get("/automations/history");
+      const refreshHistory = overgo.read(historyHost, (signal) => api.get("/automations/history", { signal }), (history) => {
         historyHost.replaceChildren(...history.map((run) => el("div", { class: "card" },
           el("span", { class: "mono", text: fmt.shortID(run.id) }),
           " / " + run.outcome,
           ...((run.outputs || []).map((id) => el("a", {
             href: overgo.contentURL(id), text: fmt.shortID(id),
           }))))));
-      }
+      }, { loading: "Loading run history…", empty: (history) => !history.length && "No automation has run yet." });
 
       await Promise.all([refreshInventory(), refreshHistory()]);
       // The runtime stream opens with every operation, then one event per transition, each updating its own row.
       const operations = new Map();
-      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => {
+      overgo.subscribe((event, data) => {
         if (event === "operation.snapshot") { operations.clear(); for (const item of data || []) operations.set(item.id, item); }
         else if (event === "operation" && data.status && data.status.id) operations.set(data.status.id, data.status);
         else return;
         renderOperations([...operations.values()]);
       });
-      return () => {
-        unsubscribe(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
-      };
     },
   });
 })();

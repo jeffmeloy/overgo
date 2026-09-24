@@ -258,12 +258,12 @@
   // displayToken: an empty, whitespace or multiline token piece made visible.
   function displayToken(text) { if (text === "" || text == null) return "∅"; if (/^\s+$/.test(text)) return "␠".repeat(text.length); return text.replace(/\n/g, "⏎"); }
 
-  // runner: one exclusive, cancelable async action bound to a run and a cancel
-  // button; an abort goes to onCancel, any other failure to onError.
   // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
   // tick, the offline probe, and the status re-probe.
   const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
-  function runner(runButton, cancelButton, handlers) {
+  // runner: one exclusive, cancelable async action bound to a run and a cancel button, ended too by the
+  // lifetime of the workspace it runs in; an abort goes to onCancel, any other failure to onError.
+  function runner(runButton, cancelButton, handlers, lifetime) {
     handlers = handlers || {};
     let controller = null;
     cancelButton.addEventListener("click", () => controller && controller.abort());
@@ -273,7 +273,7 @@
       cancelButton.hidden = false;
       controller = new AbortController();
       try {
-        await task(controller.signal);
+        await task(AbortSignal.any([controller.signal, lifetime]));
       } catch (err) {
         if (err && err.name === "AbortError") { if (handlers.onCancel) handlers.onCancel(); }
         else if (handlers.onError) handlers.onError(err);
@@ -316,8 +316,111 @@
   // headerRow, tableRow, table: a header row from labels, a row of cells (a
   // node, or text shown mono after the first column), a grid table from both.
   function headerRow(labels) { return el("tr", {}, ...labels.map((text) => el("th", { text }))); }
-  // reporter: a host's error reporter, the shape every module spells as showError.
-  function reporter(host) { return (err) => host.replaceChildren(failure(err)); }
+
+  // workspace: the one lifecycle a mounted tab runs under. The shell opens one per mount and releases it
+  // with the tab (a remount, a key change, a superseded or failed mount); the tab reads, subscribes and
+  // listens through it, so everything it opened ends with it. It stands in for window.overgo, which it extends.
+  function workspace(host, parent) {
+    const lifetime = new AbortController();
+    const releases = [];
+    const shown = [];
+    let active = false;
+    const stopOf = (started) => typeof started === "function" ? started : null;
+    const disposed = (surface) => { life.onRelease(() => surface.dispose()); return surface; };
+    const life = Object.create(window.overgo);
+    Object.assign(life, {
+      signal: lifetime.signal,
+      // load: the read a mount stands on; answers null after a failure, which the host shows with the tab's reload.
+      async load(get, options) {
+        const { loading = "Loading…" } = options || {};
+        if (loading) host.replaceChildren(el("div", { class: "note", text: loading }));
+        try {
+          const value = await get(lifetime.signal);
+          if (lifetime.signal.aborted) return null;
+          host.replaceChildren();
+          return value;
+        } catch (err) {
+          if (!lifetime.signal.aborted && !(err && err.name === "AbortError")) host.replaceChildren(failure(err));
+          return null;
+        }
+      },
+      // read: host shows one load's answer; the newest read wins, an empty answer shows options.empty's
+      // words, and a failure offers to read again.
+      read(host, load, render, options) {
+        const { loading = "Loading…", empty = null } = options || {};
+        let current = null;
+        return async function run() {
+          if (current) current.abort();
+          const attempt = new AbortController();
+          current = attempt;
+          const signal = AbortSignal.any([lifetime.signal, attempt.signal]);
+          if (loading) host.replaceChildren(el("div", { class: "note", text: loading }));
+          try {
+            const value = await load(signal);
+            if (signal.aborted) return;
+            const emptyWords = empty && empty(value);
+            if (emptyWords) host.replaceChildren(el("div", { class: "note", text: emptyWords }));
+            else render(value);
+          } catch (err) {
+            if (signal.aborted || (err && err.name === "AbortError")) return;
+            host.replaceChildren(failure(err, el("button", { class: "link-button", text: "Try again", onclick: run })));
+          }
+        };
+      },
+      // subscribe: runtime stream events until the workspace ends; options.whileShown: only while the tab shows.
+      subscribe(handler, options) {
+        if (options && options.whileShown) life.whileActive(() => window.overgo.runtimeEvents.subscribe(handler));
+        else life.onRelease(window.overgo.runtimeEvents.subscribe(handler));
+      },
+      listen(target, type, handler) { target.addEventListener(type, handler); life.onRelease(() => target.removeEventListener(type, handler)); },
+      // Forms, threads and composers are disposed with the workspace.
+      schemaForm: (...args) => disposed(window.overgo.schemaForm(...args)),
+      thread: (...args) => disposed(window.overgo.thread(...args)),
+      composer: (...args) => disposed(window.overgo.composer(...args)),
+      runner: (runButton, cancelButton, handlers) => runner(runButton, cancelButton, handlers, lifetime.signal),
+      analysisSurface: (panel, seed, options) => analysisSurface(panel, seed, options, lifetime.signal),
+      // whileActive: start runs each time the tab shows; the stop it answers runs when it hides or ends.
+      whileActive(start) {
+        const entry = { start, stop: null };
+        shown.push(entry);
+        if (active) entry.stop = stopOf(start());
+      },
+      setActive(on) {
+        if (on === active || (on && lifetime.signal.aborted)) return;
+        active = on;
+        for (const entry of shown) {
+          if (on) entry.stop = stopOf(entry.start());
+          else if (entry.stop) { const stop = entry.stop; entry.stop = null; stop(); }
+        }
+      },
+      // act: one user action; its failure shows in host, a workspace that ended says nothing.
+      async act(host, action) {
+        try { return await action(lifetime.signal); }
+        catch (err) { if (!lifetime.signal.aborted && !(err && err.name === "AbortError")) host.replaceChildren(failure(err)); }
+      },
+      // onRelease: undone when the workspace ends, at once if it has.
+      onRelease(release) { if (lifetime.signal.aborted) release(); else releases.push(release); },
+      // embed: another tab mounted into host (the inspector); it ends with the next embed there or with this workspace.
+      embed(id, host, seed) {
+        const tab = tabs.find((t) => t.id === id);
+        if (!tab) throw new Error("no workspace tab " + id);
+        if (host.workspace) host.workspace.release();
+        host.workspace = workspace(host, life);
+        clear(host);
+        return tab.mount(host, host.workspace, seed);
+      },
+      release() {
+        if (lifetime.signal.aborted) return;
+        life.setActive(false);
+        lifetime.abort();
+        for (const release of releases.splice(0).reverse()) {
+          try { release(); } catch (err) { errors.push(String(err && err.message || err)); }
+        }
+      },
+    });
+    if (parent) parent.onRelease(() => life.release());
+    return life;
+  }
   function tableRow(cells, attrs) {
     return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
   }
@@ -449,7 +552,7 @@
     rememberConversation(item);
     const tab = tabs.find(tab => tab.id === "chat");
     if (tab) {
-      if (tab.onDeactivate) tab.onDeactivate();
+      releaseTab(tab);
       tab.mountAttempt = {};
       clear(tab.panel);
     }
@@ -560,9 +663,9 @@
 
   window.overgo = {
     api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
-    conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
+    conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
-    displayToken, runner, stat, fold,
+    displayToken, stat, fold, workspace,
     fmt: { grouped, bytes, compact, shortID },
   };
 
@@ -590,12 +693,7 @@
       workspaceManifest = next;
       capabilityDocument = next.model || null;
       for (const tab of tabs) {
-        if (!target || tab.id === target) {
-          // Every released tab deactivates, a reloaded one too: a tab holding a subscription
-          // (Runtime, Activity) would otherwise keep the old one and refuse the new view's.
-          if (tab.onDeactivate) tab.onDeactivate();
-          releaseTab(tab);
-        }
+        if (!target || tab.id === target) releaseTab(tab);
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
         const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
         if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; tab.action = declared.action; }
@@ -640,12 +738,12 @@
       const on = t.id === id;
       const wasActive = t.panel.classList.contains("active");
       if (!on && t.id === "chat") t.mountAttempt = {};
-      if (!on && wasActive && t.onDeactivate) t.onDeactivate();
+      if (!on && wasActive && t.life) t.life.setActive(false);
       t.button.classList.toggle("active", on);
       t.panel.classList.toggle("active", on);
       if (on && !tabSupported(t)) { renderRefusal(t); continue; }
       if (on && !t.mounted) { t.mounted = true; safeMount(t); }
-      if (on && t.onActivate) t.onActivate();
+      if (on && t.life) t.life.setActive(true);
     }
     syncSectionUI();
     syncColdStart();
@@ -664,10 +762,8 @@
     if (first) activate(first.id);
   }
 
-  // embed: a registered tab mounted into another host with a seed (the inspector opens analysis tabs over one turn).
-  function embed(id, host, seed) { const tab = tabs.find((t) => t.id === id); if (!tab) throw new Error("no workspace tab " + id); clear(host); return tab.mount(host, window.overgo, seed); }
   // analysisSurface: the shared inspector head (seeded prompt, labelled fields, run/cancel, output host).
-  function analysisSurface(panel, seed, options) {
+  function analysisSurface(panel, seed, options, lifetime) {
     const prompt = el("textarea", { "aria-label": "Prompt to analyze", class: "text", placeholder: "prompt to analyze…" });
     prompt.value = (seed && seed.prompt) || options.defaultPrompt;
     const run = el("button", { class: "btn", onclick: () => surface.execute() }, options.runLabel);
@@ -679,29 +775,27 @@
       // The surface also stands in the inspector, outside any tab; running again recovers either.
       onError: (err) => out.replaceChildren(failure(err, el("button", { class: "link-button", text: "Run again", onclick: () => surface.execute() }))),
       onCancel: () => out.replaceChildren(el("div", { class: "note", text: "[cancelled]" })),
-    });
+    }, lifetime);
     const surface = { prompt, out, execute() { out.replaceChildren(el("div", { class: "note", text: options.busy })); runAction(options.execute); } };
     return surface;
   }
+  // safeMount: the tab mounts under a workspace of its own; releasing the tab releases it, and whatever a
+  // superseded mount opens after its release ends at once.
   function safeMount(tab) {
     const attempt = {};
     tab.mountAttempt = attempt;
+    tab.life = workspace(tab.panel);
+    tab.panel.replaceChildren();
     const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
-      const result = tab.mount(tab.panel, window.overgo);
-      // A module that returns a function hands back its cleanup (streams, forms); a remount runs it first.
-      // A mount a remount superseded while it was still reading releases what it opened at once.
-      tab.ready = Promise.resolve(result).then((value) => {
-        if (typeof value === "function") { if (tab.mountAttempt === attempt) tab.cleanup = value; else value(); }
-        return tab.mountAttempt === attempt;
-      }, failed);
+      tab.ready = Promise.resolve(tab.mount(tab.panel, tab.life)).then(() => tab.mountAttempt === attempt, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
   function releaseTab(tab) {
-    const cleanup = tab.cleanup;
-    tab.cleanup = null;
+    const life = tab.life;
+    tab.life = null;
     tab.mounted = false;
-    if (cleanup) { try { cleanup(); } catch (err) { errors.push(String(err && err.message || err)); } }
+    if (life) life.release();
   }
   function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
   function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }

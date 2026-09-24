@@ -49,18 +49,16 @@
         });
         const create = el("button", { class: "btn", text: "Create agent" });
         const note = el("span", { class: "note" });
-        create.addEventListener("click", async () => {
-          try {
-            const chosen = boxes.filter((item) => item.box.checked).map((item) => item.tool.name);
-            await api.post("/agents/create", {
-              name: name.value.trim(), instructions: instructions.value.trim(), tools: chosen,
-            });
-            selected = name.value.trim();
-            inventory = await api.get("/agents");
-            note.textContent = "created and activated";
-            renderAll();
-          } catch (err) { showError(err); }
-        });
+        create.addEventListener("click", () => overgo.act(status, async () => {
+          const chosen = boxes.filter((item) => item.box.checked).map((item) => item.tool.name);
+          await api.post("/agents/create", {
+            name: name.value.trim(), instructions: instructions.value.trim(), tools: chosen,
+          });
+          selected = name.value.trim();
+          inventory = await api.get("/agents");
+          note.textContent = "created and activated";
+          renderAll();
+        }));
         createHost.replaceChildren(name, instructions,
           el("div", { class: "row" }, ...boxes.map((item) => item.row)),
           el("div", { class: "row" }, create, note));
@@ -68,7 +66,6 @@
 
       function activeAgent() { return inventory.find((item) => item.name === selected); }
 
-      const showError = overgo.reporter(status);
 
       const artifactLink = overgo.artifactLink;
 
@@ -77,15 +74,13 @@
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
 
-      async function transition(state) {
+      const transition = (state) => overgo.act(status, async () => {
         if (!selected) return;
-        try {
-          const active = await api.post("/agents/state", { name: selected, state });
-          status.textContent = state + " / " + fmt.shortID(active.activation && active.activation.authority);
-          inventory = await api.get("/agents");
-          renderAll();
-        } catch (err) { showError(err); }
-      }
+        const active = await api.post("/agents/state", { name: selected, state });
+        status.textContent = state + " / " + fmt.shortID(active.activation && active.activation.authority);
+        inventory = await api.get("/agents");
+        renderAll();
+      });
 
       function renderInventory() {
         if (!selected && inventory.length) selected = inventory[0].name;
@@ -100,18 +95,16 @@
         inventoryHost.replaceChildren(table, el("div", { class: "row" }, pause, resume));
       }
 
-      publish.addEventListener("click", async () => {
+      publish.addEventListener("click", () => overgo.act(status, async () => {
         if (!definitionForm.validate()) { status.textContent = "Complete every required definition field"; return; }
-        try {
-          const created = await api.post("/agents/definitions", definitionForm.value());
-          await api.post("/agents/activate", { definition: created.id });
-          definitionForm.markSaved();
-          selected = created.definition.name;
-          status.textContent = "activated / " + fmt.shortID(created.id);
-          inventory = await api.get("/agents");
-          renderAll();
-        } catch (err) { showError(err); }
-      });
+        const created = await api.post("/agents/definitions", definitionForm.value());
+        await api.post("/agents/activate", { definition: created.id });
+        definitionForm.markSaved();
+        selected = created.definition.name;
+        status.textContent = "activated / " + fmt.shortID(created.id);
+        inventory = await api.get("/agents");
+        renderAll();
+      }));
 
       // The conversation is the shared thread and composer: replies arrive complete through /agents/chat
       // and render through the same event vocabulary, so attachments, stop, markdown and copy match Chat.
@@ -166,22 +159,20 @@
           const sessionListHost = el("div");
           const listSessions = el("button", { class: "btn alt", text: "Sessions" });
           // The session list: every durable session with its steps against the bound, resumable by one click.
-          listSessions.addEventListener("click", async () => {
-            try {
-              const listing = await api.get("/agents/sessions");
-              sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
-                const resume = el("button", { class: "btn alt", text: "Resume" });
-                resume.addEventListener("click", () => { session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id; renderEvidence(session.value); });
-                return el("div", { class: "card" },
-                  el("span", { class: "mono", text: item.id }),
-                  " steps " + item.steps + " / " + item.bound + (item.inspected ? " / inspected " : " / uninspected "),
-                  artifactLink(item.interaction), " ", resume);
-              }));
-            } catch (err) { showError(err); }
-          });
+          listSessions.addEventListener("click", () => overgo.act(status, async () => {
+            const listing = await api.get("/agents/sessions");
+            sessionListHost.replaceChildren(...(listing.sessions || []).map((item) => {
+              const resume = el("button", { class: "btn alt", text: "Resume" });
+              resume.addEventListener("click", () => { session.value = item.id.includes(":") ? item.id.split(":").pop() : item.id; renderEvidence(session.value); });
+              return el("div", { class: "card" },
+                el("span", { class: "mono", text: item.id }),
+                " steps " + item.steps + " / " + item.bound + (item.inspected ? " / inspected " : " / uninspected "),
+                artifactLink(item.interaction), " ", resume);
+            }));
+          }));
           toolSurface = overgo.toolStep(toolsHost, {
             agent: () => selected, session: () => session.value.trim(), thread: () => chatThread,
-            controls: [session, listSessions], onError: showError,
+            controls: [session, listSessions], onError: (err) => status.replaceChildren(overgo.failure(err)),
             onStep: (result) => { status.textContent = "tool step " + result.steps + " / " + fmt.shortID(result.interaction); renderEvidence(session.value.trim()); },
           });
           toolsHost.appendChild(sessionListHost);
@@ -194,17 +185,15 @@
           .map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
         const results = el("div");
         const search = el("button", { class: "btn", text: "Search", disabled: !selected });
-        search.addEventListener("click", async () => {
-          try {
-            const found = await api.post("/agents/retrieval", {
-              agent: selected, projection: projection.value.trim(), rerank_policy: policy.value.trim(),
-              query: query.value, limit: Number(limit.value),
-            });
-            results.replaceChildren(...found.map((item) => el("div", { class: "card" },
-              artifactLink(item.citation.source), " / ", artifactLink(item.citation.chunk),
-              el("div", { text: item.citation.text }))));
-          } catch (err) { showError(err); }
-        });
+        search.addEventListener("click", () => overgo.act(status, async () => {
+          const found = await api.post("/agents/retrieval", {
+            agent: selected, projection: projection.value.trim(), rerank_policy: policy.value.trim(),
+            query: query.value, limit: Number(limit.value),
+          });
+          results.replaceChildren(...found.map((item) => el("div", { class: "card" },
+            artifactLink(item.citation.source), " / ", artifactLink(item.citation.chunk),
+            el("div", { text: item.citation.text }))));
+        }));
         retrievalHost.replaceChildren(el("div", { class: "row" }, projection, policy, query, limit, search), results);
       }
 
@@ -214,73 +203,67 @@
         const [key, destination] = ["idempotency key", "approved destination"].map((placeholder) => el("input", { class: "text", "aria-label": placeholder, placeholder }));
         const inputs = el("textarea", { "aria-label": "Tool inputs (JSON)", class: "text", rows: "2", placeholder: "Strict JSON inputs" });
         const run = el("button", { class: "btn", text: "Run attachment", disabled: !select.value });
-        run.addEventListener("click", async () => {
-          try {
-            const execution = await api.post("/agents/automation", {
-              agent: selected, automation: select.value, key: key.value.trim(),
-              destination: destination.value.trim(), inputs: JSON.parse(inputs.value || "{}"),
-            });
-            status.textContent = "automation admitted / " + fmt.shortID(execution.operation);
-            openOperation(execution.operation);
-          } catch (err) { showError(err); }
-        });
+        run.addEventListener("click", () => overgo.act(status, async () => {
+          const execution = await api.post("/agents/automation", {
+            agent: selected, automation: select.value, key: key.value.trim(),
+            destination: destination.value.trim(), inputs: JSON.parse(inputs.value || "{}"),
+          });
+          status.textContent = "automation admitted / " + fmt.shortID(execution.operation);
+          openOperation(execution.operation);
+        }));
         automationHost.replaceChildren(el("div", { class: "row" }, select, key, destination, run), inputs);
       }
 
       // renderProvenance expands one step's evidence walk: interaction, manual, receipts, decision, result.
-      async function renderProvenance(host, session, step) {
-        try {
-          const walk = await api.get("/agents/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
-          const parts = [
-            el("div", {}, "interaction ", artifactLink(walk.interaction), " / transcript ", artifactLink(walk.transcript)),
-            el("div", {}, "tool " + walk.tool + " / manual ", walk.manual ? artifactLink(walk.manual) : el("span", { text: "by name" })),
-            el("div", { class: "mono", text: "arguments " + (walk.arguments || "{}") }),
-          ];
-          if (walk.receipts) {
-            parts.push(el("div", {}, "receipts ", ...walk.receipts.flatMap((receipt) => [
-              el("span", { class: receipt.state === "failed" ? "tag tag-danger" : "tag", text: receipt.state }), " ",
-              artifactLink(receipt.id), " ",
-            ])));
-          }
-          if (walk.decision) {
-            parts.push(el("div", {}, "decision ", artifactLink(walk.decision.id),
-              " / " + walk.decision.answer + " for " + walk.decision.tool));
-          }
-          if (walk.result) parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
-          host.replaceChildren(el("div", { class: "card" }, ...parts));
-        } catch (err) { showError(err); }
-      }
+      const renderProvenance = (host, session, step) => overgo.act(status, async () => {
+        const walk = await api.get("/agents/provenance?session=" + encodeURIComponent(selected + ":" + session) + "&step=" + step);
+        const parts = [
+          el("div", {}, "interaction ", artifactLink(walk.interaction), " / transcript ", artifactLink(walk.transcript)),
+          el("div", {}, "tool " + walk.tool + " / manual ", walk.manual ? artifactLink(walk.manual) : el("span", { text: "by name" })),
+          el("div", { class: "mono", text: "arguments " + (walk.arguments || "{}") }),
+        ];
+        if (walk.receipts) {
+          parts.push(el("div", {}, "receipts ", ...walk.receipts.flatMap((receipt) => [
+            el("span", { class: receipt.state === "failed" ? "tag tag-danger" : "tag", text: receipt.state }), " ",
+            artifactLink(receipt.id), " ",
+          ])));
+        }
+        if (walk.decision) {
+          parts.push(el("div", {}, "decision ", artifactLink(walk.decision.id),
+            " / " + walk.decision.answer + " for " + walk.decision.tool));
+        }
+        if (walk.result) parts.push(el("div", { class: "mono", text: "result " + (walk.result.error ? "ERROR " : "") + walk.result.content }));
+        host.replaceChildren(el("div", { class: "card" }, ...parts));
+      });
 
-      async function renderEvidence(session) {
+      const renderEvidence = (session) => overgo.act(status, async () => {
         if (!selected || !session) {
           evidenceHost.replaceChildren(el("div", { class: "note", text: "Run a tool step to load its durable observables." }));
           return;
         }
-        try {
-          const rows = await api.get("/agents/evidence?session=" + encodeURIComponent(selected + ":" + session));
-          evidenceHost.replaceChildren(...rows.map((item) => {
-            const provenanceHost = el("div");
-            const open = el("button", { class: "btn alt", text: "Provenance" });
-            open.addEventListener("click", () => renderProvenance(provenanceHost, session, item.step));
-            return el("div", { class: "card" },
-              "step " + item.step + " / ", artifactLink(item.interaction), " / transcript ", artifactLink(item.transcript), " ", open,
-              ...((item.calls || []).map((call) => el("div", { text: "call " + call.name + " / " + fmt.shortID(call.manual) }))),
-              ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") }))),
-              provenanceHost);
-          }));
-        } catch (err) { showError(err); }
-      }
+        const rows = await api.get("/agents/evidence?session=" + encodeURIComponent(selected + ":" + session));
+        evidenceHost.replaceChildren(...rows.map((item) => {
+          const provenanceHost = el("div");
+          const open = el("button", { class: "btn alt", text: "Provenance" });
+          open.addEventListener("click", () => renderProvenance(provenanceHost, session, item.step));
+          return el("div", { class: "card" },
+            "step " + item.step + " / ", artifactLink(item.interaction), " / transcript ", artifactLink(item.transcript), " ", open,
+            ...((item.calls || []).map((call) => el("div", { text: "call " + call.name + " / " + fmt.shortID(call.manual) }))),
+            ...((item.results || []).map((result) => el("div", { text: "result " + result.tool_call_id + (result.error ? " / error" : " / complete") }))),
+            provenanceHost);
+        }));
+      });
 
       function renderAll() { renderInventory(); renderCreate(); renderChat(); renderTools(); renderRetrieval(); renderAutomations(); }
 
       tools = (await api.get("/agents/tools")).tools || [];
       inventory = await api.get("/agents");
       renderAll();
-      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => {
+      overgo.subscribe((event, data) => {
         if (event === "operation" && data.status && data.status.id) status.textContent =
           "operation " + fmt.shortID(data.status.id) + " / " + data.status.state;
       });
-      return () => { unsubscribe(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); if (chatThread) chatThread.dispose(); };
+      overgo.onRelease(() => { if (chatController) chatController.abort(); });
     },
   });
 })();

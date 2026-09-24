@@ -42,7 +42,7 @@ func TestPeerWorkspaceUsesCommonForm(t *testing.T) {
 	module := serveTestRequest(handler, http.MethodGet, "/mod/peers.js", "").Body.String()
 	for _, token := range []string{
 		"overgo.schemaForm", "/workspace/schema?id=peer-enrollment", "/workspace/schema?id=peer-placement",
-		"enrollmentForm.validate()", "placementForm.validate()", "markSaved()", "dispose()",
+		"enrollmentForm.validate()", "placementForm.validate()", "markSaved()",
 	} {
 		if !strings.Contains(module, token) {
 			t.Errorf("peer workspace common form missing %q", token)
@@ -59,7 +59,7 @@ func TestPeerWorkspaceUsesCommonForm(t *testing.T) {
 func TestPeerWorkspaceUsesGlobalOperations(t *testing.T) {
 	t.Parallel()
 	module := serveTestRequest(newTestHandler(t, &fakeGenerator{}), http.MethodGet, "/mod/peers.js", "").Body.String()
-	for _, token := range []string{"openGlobalOperation", `url.searchParams.set("operation"`, "PopStateEvent", "overgo.runtimeEvents.subscribe"} {
+	for _, token := range []string{"openGlobalOperation", `url.searchParams.set("operation"`, "PopStateEvent", "overgo.subscribe("} {
 		if !strings.Contains(module, token) {
 			t.Errorf("peer workspace global operation integration missing %q", token)
 		}

@@ -159,13 +159,19 @@ func (s *Store) VerifyBlobs(ctx context.Context) (int, error) {
 	return checked, nil
 }
 
-// verifyPack reads the pack once and holds every member's bytes to the
-// digest its index entry names; a store with no pack has nothing to verify.
+// verifyPack streams every pack member through one buffer and holds its bytes
+// to the digest its index entry names, so verification holds one member's
+// buffer rather than the pack; a store with no pack has nothing to verify.
 func (b blobStore) verifyPack() error {
-	document, err := os.ReadFile(filepath.Join(b.root, blobPackFilename))
+	file, err := os.Open(filepath.Join(b.root, blobPackFilename))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil {
 		return err
 	}
@@ -173,17 +179,53 @@ func (b blobStore) verifyPack() error {
 	if index == nil {
 		return errors.New("overgodb: blob pack index does not match its digest")
 	}
+	buffer := make([]byte, inlineContentLimit)
+	hash := sha256.New()
 	for entry := range slices.Chunk(index, packEntryBytes) {
 		place := entry[packKeyBytes:]
 		offset, size := binary.BigEndian.Uint64(place), uint64(binary.BigEndian.Uint32(place[8:]))
-		if offset+size > uint64(len(document)) {
+		if offset+size > uint64(info.Size()) {
 			return fmt.Errorf("overgodb: blob pack member %x lies outside the pack", entry[packKindBytes:packKeyBytes])
 		}
-		if sum := sha256.Sum256(document[offset : offset+size]); !bytes.Equal(sum[:], entry[packKindBytes:packKeyBytes]) {
+		hash.Reset()
+		if _, err := io.CopyBuffer(hash, io.NewSectionReader(file, int64(offset), int64(size)), buffer); err != nil {
+			return err
+		}
+		if !bytes.Equal(hash.Sum(nil), entry[packKindBytes:packKeyBytes]) {
 			return fmt.Errorf("overgodb: blob pack member %x bytes do not hash to their identity", entry[packKindBytes:packKeyBytes])
 		}
 	}
 	return nil
+}
+
+// writePack writes a pack -- header, index, index digest -- then streams each
+// member from its loose file or the pack it replaces through one buffer,
+// holding each to its identity and to the size its index entry names. It
+// returns the payload bytes written.
+func writePack(ctx context.Context, destination io.Writer, blobs blobStore, members []artifact.ID, index, digest []byte) (int64, error) {
+	header := binary.BigEndian.AppendUint64([]byte(blobPackMagic), uint64(len(members)))
+	if err := writeAll(destination, slices.Concat(header, index, digest)); err != nil {
+		return 0, err
+	}
+	// Members are the blobs under the inline limit, so a buffer of that
+	// size reads a member in one call.
+	buffer := make([]byte, inlineContentLimit)
+	var packed int64
+	for position, id := range members {
+		if err := ctx.Err(); err != nil {
+			return packed, err
+		}
+		size := int64(binary.BigEndian.Uint32(index[position*packEntryBytes+packKeyBytes+8:]))
+		written, err := blobs.copyVerified(destination, id, buffer)
+		if err != nil {
+			return packed, err
+		}
+		if written != size {
+			return packed, fmt.Errorf("overgodb: blob %s size differs from its committed size", id)
+		}
+		packed += written
+	}
+	return packed, nil
 }
 
 // PackReport says what one pack of a store's small blobs did.
@@ -217,25 +259,19 @@ func packBlobsUnder(ctx context.Context, store *Store, limit int64) (PackReport,
 			rightKey, _ := packKey(right)
 			return bytes.Compare(leftKey, rightKey)
 		})
+		// The index is laid out from the committed sizes, so the payloads
+		// stream into the pack one at a time; a member whose bytes differ
+		// from its size or identity refuses the pack.
 		index := make([]byte, 0, len(small)*packEntryBytes)
-		var payloads bytes.Buffer
-		first := int64(packHeaderBytes + len(small)*packEntryBytes + sha256.Size)
+		next := int64(packHeaderBytes + len(small)*packEntryBytes + sha256.Size)
 		for _, id := range small {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			payload, err := blobs.payload(id)
-			if err != nil {
-				return err
-			}
 			key, _ := packKey(id)
-			index = binary.BigEndian.AppendUint64(append(index, key...), uint64(first+int64(payloads.Len())))
-			index = binary.BigEndian.AppendUint32(index, uint32(len(payload)))
-			payloads.Write(payload)
+			size := store.state.contents.locators[id].size
+			index = binary.BigEndian.AppendUint64(append(index, key...), uint64(next))
+			index = binary.BigEndian.AppendUint32(index, uint32(size))
+			next += size
 		}
 		digest := sha256.Sum256(index)
-		document := binary.BigEndian.AppendUint64([]byte(blobPackMagic), uint64(len(small)))
-		document = append(append(append(document, index...), digest[:]...), payloads.Bytes()...)
 		if err := os.MkdirAll(blobs.root, storeDirectoryMode); err != nil {
 			return err
 		}
@@ -244,7 +280,8 @@ func packBlobsUnder(ctx context.Context, store *Store, limit int64) (PackReport,
 			return fmt.Errorf("overgodb: stage blob pack: %w", err)
 		}
 		defer os.Remove(staging.Name())
-		if err := errors.Join(writeAll(staging, document), staging.Sync(), staging.Close()); err != nil {
+		packed, err := writePack(ctx, staging, blobs, small, index, digest[:])
+		if err := errors.Join(err, staging.Sync(), staging.Close()); err != nil {
 			return fmt.Errorf("overgodb: write blob pack: %w", err)
 		}
 		if err := fsatomic.Replace(staging.Name(), filepath.Join(blobs.root, blobPackFilename)); err != nil {
@@ -254,7 +291,7 @@ func packBlobsUnder(ctx context.Context, store *Store, limit int64) (PackReport,
 			return err
 		}
 		blobs.pack.forget()
-		report.Packed, report.PackedBytes = len(small), int64(payloads.Len())
+		report.Packed, report.PackedBytes = len(small), packed
 		for _, id := range small {
 			removed, err := blobs.remove(id)
 			if err != nil {

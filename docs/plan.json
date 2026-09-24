@@ -4,23 +4,17 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "validate-all-models",
-      "title": "Validate every registered model",
+      "id": "paths-candidate-measurement",
+      "title": "Confirm a path-scoped gate measures what it commits",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Validate every registered model",
+          "title": "Confirm a path-scoped gate measures what it commits",
           "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
-          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
-          "depends_on": [
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do"
-          ]
+          "verify": "go test ./internal/gate -run '^TestScopeRefusesUnplannedVerificationInputButAllowsResearchDocument$' -count=1",
+          "rationale": "2026-09-24: gate -paths for inference-inputs-one-definition shipped only internal/inferencesurface and internal/longform files. It was still refused a harness-surface raise of 140 production nodes, which came from unshipped claim-renewal edits in internal/plan. The mechanical-repair stage reads the source snapshot from the working tree (sourceRoot falls back to the repository when no candidate root is set). Found no defect in outcomes: scope refuses any unshipped verification input (admission.go stepScope), so a gate that passes scope has the same Go sources in its working tree as in its candidate, and the working-tree snapshot measures exactly what it commits. Only the order of the two refusals differed. Landing two rows from one tree belongs to landing-one-path. Done when the check that makes the snapshot equal the candidate holds: unshipped Go is refused and an unshipped research document is not."
         }
       ]
     },
@@ -35,22 +29,7 @@
           "title": "Publish one durable record per meaningful transition",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestOneRecordPerTransition$' -count=1",
-          "rationale": "Content addressing removes identical bytes, not the same fact in different envelopes. A completed check publishes its result once. Package receipts, batch progress, plan completion, benchmark rows and reports reference that result rather than repeat its measurements, environment or source manifest. Related facts and alias moves ride one existing transaction. Heartbeats and partial output stay out of the durable catalog. Evidence schemas change, so readers accept the old and new shapes until retained evidence migrates. Done when bytes and records added per landing fall and the duplicated envelopes are deleted from the writers."
-        }
-      ]
-    },
-    {
-      "id": "paths-candidate-measurement",
-      "title": "Measure a path-scoped candidate, not the working tree",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Measure a path-scoped candidate, not the working tree",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestPathScopedCandidateMeasuresOnlyItsPaths$' -count=1",
-          "rationale": "2026-09-24: gate -paths for inference-inputs-one-definition shipped only internal/inferencesurface and internal/longform files. It was still refused a harness-surface raise of 140 production nodes, which came from unshipped claim-renewal edits in internal/plan. The mechanical-repair stage reads the source snapshot from the working tree (sourceRoot falls back to the repository when no candidate root is set). Done when every measurement a path-scoped gate makes reads the candidate it commits, so unshipped work neither blocks nor raises a landing."
+          "rationale": "Content addressing removes identical bytes, not the same fact in different envelopes. A completed check publishes its result once. Package receipts, batch progress, plan completion, benchmark rows and reports reference that result rather than repeat its measurements, environment or source manifest. Related facts and alias moves ride one existing transaction. Heartbeats and partial output stay out of the durable catalog. Evidence schemas change, so readers accept the old and new shapes until retained evidence migrates. Measured 2026-09-24 at a70978c8: a code landing adds about 5.7 MB, of which about 5.2 MB repeats the previous landing's copies. Slices in order: (1) the stored code-manifest-analysis drops Impact.Reachable and Impact.Uncertainty, which no stored reader reads (about 1.54 MB per landing); (2) the modern-Go census is stored as per-package content-addressed pieces under a small index (3.1 MB, 99.9% repeated); (3) the analysis plan's Unknown list becomes a digest and count, which moves recipe identity; (4) merge authority references the previous authority instead of re-embedding its history; (5) the selection cause references one reader graph. Per-package receipts stay one commit each: TestTerminalEvidenceProcess holds their crash durability. Done when bytes and records added per landing fall and the duplicated envelopes are deleted from the writers."
         }
       ]
     },
@@ -65,7 +44,7 @@
           "title": "Land every change through one entry point",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestLandingOnePath$' -count=1",
-          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each own claim, budget, ship-set and recovery handling (land.go:96). On 2026-09-23 three plan-only commits existed only to change a check, and a merge into master needed its row published first. Keep the command interfaces, but make each invoke one landing implementation, with the differences passed as data (claim reuse lands first as claim-renewal): take the budget from the measured delta, split a check change into its own commit, file a first-parent merge's row. Done when ordinary changes, plan edits and merges share preparation and publication, and the separate orchestration and recovery branches are deleted."
+          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each own claim, budget, ship-set and recovery handling (land.go:96). On 2026-09-23 three plan-only commits existed only to change a check, and a merge into master needed its row published first. Keep the command interfaces, but make each invoke one landing implementation, with the differences passed as data (claim reuse lands first as claim-renewal): take the budget from the measured delta, split a check change into its own commit, file a first-parent merge's row. On 2026-09-24 two finished rows in one tree could not land one at a time: scope refuses unshipped Go by design, so one row's files were set aside by hand. The single path should land one row's paths from its own candidate. Done when ordinary changes, plan edits and merges share preparation and publication, and the separate orchestration and recovery branches are deleted."
         }
       ]
     },
@@ -125,7 +104,7 @@
           "title": "Bound peak memory at the store's copying points",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestStoreCopyingHoldsBoundedMemory$' -count=1",
-          "rationale": "Three measured points: pack construction buffers payloads and verification reads whole packs (blob_pack.go:153); checkpoint creation serializes, restores and serializes a projection again to prove canonical form (checkpoints.go:57); retention copies catalog and graph state before computing reachability (retention.go:72). Share one bounded entry-reading and hashing path between lookup and verification, stream packs through the existing atomic publication, bound checkpoint concurrency, and traverse retention over the smallest stable representation. Keep every integrity check. Done when peak memory stays bounded as payload volume grows, with index memory accounted separately."
+          "rationale": "Three measured points; the first, pack construction and verification, lands as pack-streams-members. Checkpoint creation serializes, restores and serializes a projection again to prove canonical form (checkpoints.go:57); retention copies catalog and graph state before computing reachability (retention.go:72). Share one bounded entry-reading and hashing path between lookup and verification, stream packs through the existing atomic publication, bound checkpoint concurrency, and traverse retention over the smallest stable representation. Keep every integrity check. Done when peak memory stays bounded as payload volume grows, with index memory accounted separately."
         }
       ]
     },
@@ -397,6 +376,27 @@
           "rationale": "A two-stage representation-autoencoder generator (frozen encoder, trained ViT decoder, stage-2 diffusion transformer over its latents), MIT. BLOCKED on owner-provided inputs (found 2026-09-23): models/RAE-collections holds decoders, DiTs and latent statistics for DINOv2-with-registers (small/base/large), MAE base and SigLIP2 base, but neither the reference code (github.com/bytetriper/RAE) nor those encoder checkpoints; fetching either is a download that needs the owner's yes. With them: port against reference goldens, reusing internal/vitencoder for the DINOv2 encoders (registers added to its declaration).",
           "depends_on": [
             "dinov2-embedding-capability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validate-all-models",
+      "title": "Validate every registered model",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate every registered model",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
+          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
+          "depends_on": [
+            "activity-detection-capability/do",
+            "timesfm3-native-declaration/do",
+            "dinov2-embedding-capability/do",
+            "rae-generation-path/do"
           ]
         }
       ]
@@ -794,7 +794,8 @@
             "file-colibri2-merge-row/do",
             "claim-renewal/do",
             "file-guard-coverage-check/do",
-            "paths-candidate-measurement/do"
+            "paths-candidate-measurement/do",
+            "pack-streams-members/do"
           ]
         }
       ]

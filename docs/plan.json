@@ -4,6 +4,156 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "impact-sees-deleted-inputs",
+      "title": "Expire text guards when a change deletes a surface input",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Expire text guards when a change deletes a surface input",
+          "status": "open",
+          "verify": "go test ./internal/inferencesurface -run '^TestMovesSeesDeletedSurfaceInput$' -count=1",
+          "rationale": "SQA-006, the one correctness gap in the review. inferencesurface.Moves (internal/inferencesurface/surface.go) builds the closure from the candidate tree only, so a change that deletes a package in the closure, or an embedded file together with its //go:embed pattern, names no surface move: the text guards keep their surface-keyed records and do not re-run. 425e64a7 made longform impact selection this same function, so the gap reaches guard selection. Fix inside the one owner: take the union of the base and candidate closures (directories and embed members), or report the change as unresolved when the base closure is unavailable. Do not restore a second longform path policy or rerun every model for unrelated deletions. Done when TestMovesSeesDeletedSurfaceInput deletes an embedded input and a closure package in a temp module and both are reported."
+        }
+      ]
+    },
+    {
+      "id": "closure-ledger-one-step",
+      "title": "Record a move or deletion in the closure ledger with one command",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record a move or deletion in the closure ledger with one command",
+          "status": "open",
+          "verify": "go test ./cmd/closure-scan -run '^TestMovedLiteralKeepsItsCatalogEntry$' -count=1",
+          "rationale": "Automation friction, measured over this campaign's consolidation landings: every move or deletion needs closure-scan -import-store -review-callsites, then -retire-unmatched (which fails when run first), then -check-all -require-no-stale -require-no-uncatalogued-production, and every moved literal needs a hand-written -catalog entry (tier, understanding, closure path, rerank trigger) although its value, meaning and catalog entry did not change. Make one closure-scan invocation run the sequence in its required order, and re-bind a literal whose value and enclosing declaration moved unchanged to its existing catalog entry instead of reporting it uncatalogued. A changed or new literal still needs its own entry. Done when TestMovedLiteralKeepsItsCatalogEntry moves a catalogued literal between files and the one command leaves the ledger clean with no -catalog call."
+        }
+      ]
+    },
+    {
+      "id": "plan-retire-in-one-landing",
+      "title": "Retire several rows in one plan-only landing",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire several rows in one plan-only landing",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestPlanLandingRetiresSeveralRows$' -count=1",
+          "rationale": "Automation friction: retiring five rows on 2026-09-24 took one vehicle landing plus five plan-only gates (3684ba55, fdaf8ef9 through f28d8274), about 60-100 s each, because a landing closes only the row it is judged by and a row cannot change its own check in that landing. Let one plan-only landing close every row whose recorded status is retired and whose check passes, each by its own check, so a re-plan is one vehicle and one closure. Keep the rule that a row cannot rewrite the check it is judged by. Done when TestPlanLandingRetiresSeveralRows lands a plan-only candidate that closes two retired rows and refuses one whose check fails."
+        }
+      ]
+    },
+    {
+      "id": "media-delta-one-command",
+      "title": "Record a reviewed media delta with one command",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Record a reviewed media delta with one command",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestRecordDeltaFromTheTree$' -count=1",
+          "rationale": "Automation friction: every change under the pinned media runtime paths needs a reviewed delta in docs/media_reviewed_deltas.json built by hand (per-file before and after sha256, after empty for a deletion), a go-test-json receipt from test-lane receipt naming required tests, and a hand edit of mediaReviewedDeltasSHA256 in cmd/compatibility/reviewed_delta_registry_test.go. The lead used scratch tools (tmp/add_media_delta.go, tmp/build_move_delta.go) for 22b5d515 and 39934bd8. Add one cmd/compatibility operation that derives the per-file hashes from HEAD and the tree, attaches a named receipt, and writes the delta. Make the registry identity derive from the registry file itself, not a constant a person edits. Done when TestRecordDeltaFromTheTree records a delta for an edited and a deleted pinned file and the registry check passes with no hand edit."
+        }
+      ]
+    },
+    {
+      "id": "seq2seq-trainer-to-tests",
+      "title": "Move the seq2seq trainer's private code into its tests",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Move the seq2seq trainer's private code into its tests",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestPrivateCodeReachedOnlyByTestsIsFound$' -count=1",
+          "rationale": "SQA-013: 5e1be7c0 moved the exported seq2seq training constructor into tests but left the private implementation it reached: the Trainer in internal/seq2seq/training_data.go, newTrainingOptimizer in training_optimizer.go, and the only production imports of optimizer and trainingprogram from seq2seq. No production code calls them. The unconsumed-surface rule only sees exported declarations, so delete-test-only-exports closed with this island still in production. Move the Trainer and its exclusive helpers next to their tests, keep the training helpers live code also uses, and let the test call optimizer.NewStepper directly if that removes newTrainingOptimizer. Extend the repoanalysis unconsumed-surface finder to follow unexported code reachable only from test-only declarations, so this class is reported rather than found by review. Done when TestPrivateCodeReachedOnlyByTestsIsFound reports a private island in a fixture and seq2seq production code no longer imports optimizer."
+        }
+      ]
+    },
+    {
+      "id": "guards-reacquire-lane",
+      "title": "Re-acquire expired text guards in a deferred lane",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-acquire expired text guards in a deferred lane",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestSurfaceMoveQueuesGuardReacquisition$' -count=1",
+          "rationale": "Automation friction: a landing that moves the inference surface expires every text guard (10 models), and re-acquisition is manual: longform -guard-coverage -all -publish at about 8 minutes per model, run from a detached scratch worktree at HEAD because -publish needs a clean tree (cc73695a). The pending GUI arch-event-hub merge had to be batched with master's next surface move for this reason alone. When a landed commit moves the surface, queue guard re-acquisition as a deferred lane at that commit. Its results publish into the store, and the next gate waits for its verdict like the device lanes. Reuse the device claim and the existing deferred-lane scheduler; add no scheduler. Done when TestSurfaceMoveQueuesGuardReacquisition shows a surface-moving landing queues the lane and a non-moving one does not."
+        }
+      ]
+    },
+    {
+      "id": "census-split-one-pass",
+      "title": "Split and join the modern-Go census without re-copying site lists",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Split and join the modern-Go census without re-copying site lists",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestCensusSplitCopiesEachSiteOnce$' -count=1",
+          "rationale": "SQA-011, in 00dfd63d's code: ModernGoCensus.SplitByPackage and JoinModernGoCensus (internal/repoanalysis) clone and filter the whole site list once per package and clip on every append, so splitting is quadratic in packages times sites and runs on every landing. Group sites by package and finding in one pass with stable package and finding order, and join with counted final capacity. Keep the per-package content identities and deterministic order, and do not mutate caller-owned slices. Done when TestCensusSplitCopiesEachSiteOnce bounds allocations for a split and join round trip to linear in sites and the round trip is identical."
+        }
+      ]
+    },
+    {
+      "id": "store-multi-schema-paging",
+      "title": "Page across several schemas by reading only the page",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Page across several schemas by reading only the page",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestMultiSchemaPageReadsOnlyThePage$' -count=1",
+          "rationale": "SQA-005: 8a77c2d8 made a single-schema document read proportional to its page, but a page across several schemas still merges history-sized candidate sets, and run browsing still counts the whole history on every request. Seek independently in each schema's sorted index and lazily merge only the candidates the page needs. For runs, reuse a count bound to the same store head, or make the total an explicit request, keeping the response contract. Include setup and allocation cost in the measurement. Done when TestMultiSchemaPageReadsOnlyThePage reads a two-schema page from a store holding many older documents and touches only a page-bounded number of them."
+        }
+      ]
+    },
+    {
+      "id": "loophook-stale-build",
+      "title": "Refuse a Stop hook built from older sources",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a Stop hook built from older sources",
+          "status": "open",
+          "verify": "go test ./cmd/loophook -run '^TestHookRefusesStaleBuild$' -count=1",
+          "rationale": "Automation friction: the Stop hook runs bin/loophook.exe, which is built by hand. After a stored-schema change (7f700241's unknown_digest) the stale binary refused the new plan record and blocked turn ends until the lead noticed and rebuilt it. Have the hook compare its embedded build identity against the sources it depends on and either rebuild, or refuse with the rebuild command, instead of mis-reading newer records. Done when TestHookRefusesStaleBuild runs a hook whose recorded identity differs from the tree and gets the rebuild instruction, not a decode failure."
+        }
+      ]
+    },
+    {
+      "id": "release-claim-by-item",
+      "title": "Release a claim by its row",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Release a claim by its row",
+          "status": "open",
+          "verify": "go test ./cmd/plan -run '^TestReleaseClaimByItem$' -count=1",
+          "rationale": "Automation friction: switching rows needs plan -release-claim \u003cfull claim id\u003e, copied from plan -next -json, and a stale claim once blocked a prompt until the lead dug out its id. Accept the item id when this worker holds exactly one claim on that item, still requiring -release-reason, and refuse with the ids when the item is ambiguous or held by another worker. Done when TestReleaseClaimByItem releases a held claim by item id and refuses another worker's claim."
+        }
+      ]
+    },
+    {
       "id": "store-bare-record-fill",
       "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
       "owner": "master-lead",
@@ -471,16 +621,16 @@
     },
     {
       "id": "gemma-12b-accuracy",
-      "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+      "title": "Decide the 12B FP8 checkpoints on measured quantization loss",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+          "title": "Decide the 12B FP8 checkpoints on measured quantization loss",
           "status": "open",
-          "verify": "go test ./internal/longform -run '^TestGemmaTwelveScoresNoWorseThanE4B$' -count=1",
-          "rationale": "OWNER DECISION: download the unquantized google/gemma-4-12B-it checkpoint? The 12B twins score 0.5-1.2 nats per token worse than E4B on the guard corpus (3.17 vs 1.48 on plain English), raw or chat-framed. overgo's 12B graph matches the transformers reference point by point (layers within 2.6e-4, logits within about 0.2 of adaptive_new's golden), so the suspect is the third-party FP8 quant both twins come from. With the owner's yes: convert the bf16 checkpoint and score it with tmp/chat_rung.go and tmp/g4_host_nll.go; retire or re-source the FP8 twins if it scores at or below E4B. Done when a 12B checkpoint scores no worse than E4B on the same windows, held by TestGemmaTwelveScoresNoWorseThanE4B.",
+          "verify": "go test ./internal/longform -run '^TestGemmaTwelveCheckpointVerdict$' -count=1",
+          "rationale": "OWNER DECISION: download the unquantized google/gemma-4-12B-it checkpoint? The 12B twins score 0.5-1.2 nats per token worse than E4B on the guard corpus (3.17 vs 1.48 on plain English), raw or chat-framed. overgo's 12B graph matches the transformers reference point by point (layers within 2.6e-4, logits within about 0.2 of adaptive_new's golden), so the suspect is the third-party FP8 quant both twins come from. Re-scoped per SQA-012: closure no longer requires a 12B to outscore E4B, a different model. The row answers three separate questions, with tokenization, template, scoring windows and tolerances frozen before the run: (1) runtime agreement on a matched checkpoint, already held against the golden; (2) the FP8 twins' quality loss against the bf16 original on the same windows, which needs the owner's download; (3) whether that loss is acceptable, the owner's product target. E4B stays a comparator. Done when TestGemmaTwelveCheckpointVerdict records a verdict for the FP8 twins: kept with the measured loss, or rejected as a checkpoint, with the matched-checkpoint agreement as evidence.",
           "depends_on": [
             "model-regression-gate/do"
           ]
@@ -767,7 +917,18 @@
             "move-test-only-entry-points/do",
             "move-test-only-device-entry-points/do",
             "plan-refactor/do",
-            "file-exports-closing-check/do"
+            "file-exports-closing-check/do",
+            "impact-sees-deleted-inputs/do",
+            "closure-ledger-one-step/do",
+            "plan-retire-in-one-landing/do",
+            "media-delta-one-command/do",
+            "seq2seq-trainer-to-tests/do",
+            "guards-reacquire-lane/do",
+            "census-split-one-pass/do",
+            "store-multi-schema-paging/do",
+            "loophook-stale-build/do",
+            "release-claim-by-item/do",
+            "sqa-automation-replan/do"
           ]
         }
       ]

@@ -293,7 +293,19 @@
   }
 
   const tabs = [];
+  // views: registered tabs another tab shows (Inspect's analysis views); they have no navigation entry.
+  const views = [];
   function registerTab(tab) { tabs.push(tab); }
+  // routeOf: the tab a hash opens and the view it asks that tab to show.
+  function routeOf(id) {
+    const view = views.find((v) => v.id === id);
+    return view ? { tab: view.view_of, view: view.id } : { tab: tabs.some((t) => t.id === id) ? id : "", view: "" };
+  }
+  const requestedViews = new Map();
+  function requestView(owner, id) { requestedViews.set(owner, id); window.dispatchEvent(new CustomEvent("overgo-view", { detail: { owner, view: id } })); }
+  // viewsOf: the views a tab shows, each with whether it serves and, if not, why and what enables it.
+  function viewsOf(owner) { return views.filter((v) => v.view_of === owner).map((v) => ({ id: v.id, label: v.label, enabled: tabSupported(v), reason: refusalLine(v) })); }
+  function requestedView(owner) { return requestedViews.get(owner) || ""; }
 
   // contentURL: a stored artifact's bytes; el() fetches them through the authenticated client.
   function contentURL(id) { return "/artifacts/content?id=" + encodeURIComponent(id); }
@@ -402,7 +414,7 @@
       onRelease(release) { if (lifetime.signal.aborted) release(); else releases.push(release); },
       // embed: another tab mounted into host (the inspector); it ends with the next embed there or with this workspace.
       embed(id, host, seed) {
-        const tab = tabs.find((t) => t.id === id);
+        const tab = tabs.find((t) => t.id === id) || views.find((v) => v.id === id);
         if (!tab) throw new Error("no workspace tab " + id);
         if (host.workspace) host.workspace.release();
         host.workspace = workspace(host, life);
@@ -665,7 +677,7 @@
     api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors,
     getKey, setKey, modelInfo,
-    displayToken, stat, fold, workspace,
+    displayToken, stat, fold, workspace, viewsOf, requestedView,
     fmt: { grouped, bytes, compact, shortID },
   };
 
@@ -692,15 +704,15 @@
       if (attempt !== remountAttempt || (targetTab && targetTab.mountAttempt !== targetAttempt)) return false;
       workspaceManifest = next;
       capabilityDocument = next.model || null;
-      for (const tab of tabs) {
-        if (!target || tab.id === target) releaseTab(tab);
+      for (const tab of [...tabs, ...views]) {
+        if (!tab.view_of && (!target || tab.id === target)) releaseTab(tab);
         // The newly served model's refusals replace the last one's, so the nav shows what works now.
         const declared = (workspaceManifest.tabs || []).find((declaration) => declaration.id === tab.id);
         if (declared) { tab.enabled = declared.enabled; tab.refusal = declared.refusal; tab.action = declared.action; }
       }
       applyCapabilities();
       const current = target || location.hash.slice(1) || (tabs[0] && tabs[0].id);
-      if (current && (capabilityDocument || tabs.some((t) => t.id === location.hash.slice(1)))) {
+      if (current && (capabilityDocument || routeOf(location.hash.slice(1)).tab)) {
         const ready = await activate(current);
         if (attempt !== remountAttempt) return false;
         if (!ready) throw new Error("The selected workspace could not load. Choose the model again to retry.");
@@ -727,6 +739,9 @@
   }
 
   function activate(id) {
+    const route = routeOf(id);
+    if (route.view) requestView(route.tab, route.view);
+    id = route.tab;
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
     window.dispatchEvent(new Event("overgo-panel-change"));
@@ -1022,7 +1037,8 @@
       if (!implementation) { errors.push("Workspace tab " + declaration.id + " did not register from its module"); continue; }
       ordered.push(Object.assign(implementation, declaration));
     }
-    tabs.splice(0, tabs.length, ...ordered);
+    tabs.splice(0, tabs.length, ...ordered.filter((tab) => !tab.view_of));
+    views.splice(0, views.length, ...ordered.filter((tab) => tab.view_of));
   }
 
   // ---- one loader: the manifest names each tab's module (default: the tab id); the libraries load in
@@ -1130,7 +1146,7 @@
       shellWired = true;
       document.getElementById("workbench-toggle").addEventListener("click", () =>
         setFront(!document.querySelector(".shell").classList.contains("front")));
-      window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && tabs.some((t) => t.id === id)) activate(id); });
+      window.addEventListener("hashchange", () => { const id = location.hash.slice(1); if (id && routeOf(id).tab) activate(id); });
       // Re-probe health so a server that drops (or comes back) is reflected in the
       // status pill instead of showing a stale "online" until the next key change.
       // A hidden page does not probe; it probes once when shown again.

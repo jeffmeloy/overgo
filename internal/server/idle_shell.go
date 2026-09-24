@@ -89,7 +89,7 @@ func (s *IdleShell) manifest(response http.ResponseWriter) {
 	result := workspaceManifestResponse{Version: declaration.Version, Sections: declaration.Sections, Tabs: make([]workspaceTab, len(declaration.Tabs))}
 	for index, tab := range declaration.Tabs {
 		served := idleTabs[tab.ID]
-		result.Tabs[index] = workspaceTab{ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), Enabled: served}
+		result.Tabs[index] = workspaceTab{ID: tab.ID, Label: tab.Label, Section: tab.Section, Module: tab.module(), ViewOf: tab.ViewOf, Enabled: served}
 		if !served {
 			result.Tabs[index].Refusal = idleRefusal
 		}

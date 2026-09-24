@@ -210,6 +210,7 @@ input.text:focus, select.text:focus, textarea.text:focus { border-color:var(--ac
 .preset-chips { display:flex; flex-wrap:wrap; gap:4px; grid-column:1 / -1; }
 .chip { border:1px solid var(--line); border-radius:999px; background:var(--bg1); color:var(--dim); padding:2px 10px; min-height:24px; font:var(--t-sm) var(--font); cursor:pointer; }
 .chip:hover { color:var(--ink); border-color:var(--dim); }
+.chip[aria-selected="true"] { color:var(--ink); border-color:var(--acc); background:var(--acc-soft); }
 .intake-thumb { border:1px solid var(--line); border-radius:var(--radius-s); background:var(--bg1); padding:2px; cursor:pointer; min-width:24px; min-height:24px; font-size:var(--t-xs); color:var(--dim); }
 .intake-thumb img { display:block; width:40px; height:40px; object-fit:cover; }
 .msg.media .record { margin-top:6px; display:grid; gap:6px; }

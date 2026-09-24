@@ -40,6 +40,10 @@ var effortCeilings = map[string]taskEffort{
 	"inspect the served model":  {Clicks: 2, TabSwitches: 1},
 }
 
+// navigationCeiling holds the entries a person scans in the navigation, its
+// places and their tabs: 30 before the analysis tabs became Inspect's views.
+const navigationCeiling = 25
+
 // TestWebUIBrowserTaskEffort drives the workbench's common tasks by their
 // shortest paths in a real browser and counts what each costs: clicks,
 // typed fields, key presses and tab switches, with the requests the page
@@ -107,8 +111,8 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 		}, `document.querySelector("#panel-inbox").textContent.includes("grant recorded")`},
 		{"inspect the served model", []effortStep{
 			{"click", "#workbench-toggle", ""},
-			{"click", "button.tab", "Model"},
-		}, `!!document.querySelector("#panel-model.active .section-title")`},
+			{"click", "button.tab", "Inspect"},
+		}, `!!document.querySelector("#panel-inspect.active .section-title")`},
 	}
 	measured := map[string]taskEffort{}
 	requests := map[string]int{}
@@ -160,7 +164,14 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 			t.Errorf("%s: effort %+v, ceiling %+v; a task's effort only falls, and a fall lowers its ceiling", name, got, ceiling)
 		}
 	}
+	var places struct{ Sections, Entries int }
+	if err := browser.Evaluate(ctx, `({Sections: document.querySelectorAll("#sections button.section").length, Entries: document.querySelectorAll("#sections button").length})`, &places); err != nil {
+		t.Fatal(err)
+	}
+	if places.Sections != 5 || places.Entries != navigationCeiling {
+		t.Errorf("navigation holds %d places and %d entries, want 5 places and %d entries", places.Sections, places.Entries, navigationCeiling)
+	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
 	encoded, _ := json.Marshal(measured)
-	t.Log(fmt.Sprintf("task effort leg: %d common tasks at their shortest paths %s, with requests %v", len(tasks), encoded, requests))
+	t.Log(fmt.Sprintf("task effort leg: %d common tasks at their shortest paths %s, with requests %v; five workspace places with %d navigation entries", len(tasks), encoded, requests, places.Entries))
 }

@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-workspace-places",
-      "title": "Fold the workbench's tabs into five places (Chat, Create, Models, Operations, Inspect) with one keyboard jump, and delete the duplicated tabs",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Fold the workbench's tabs into five places (Chat, Create, Models, Operations, Inspect) with one keyboard jump, and delete the duplicated tabs",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser(TaskEffort|HardenedStates)$' -require 'five workspace places'",
-          "rationale": "About 25 tabs sit in the navigation; the five analysis tabs (vocab, lens, states, attention, tensors) all act on the served model and differ only in their view. Five places (Chat, Create, Models, Operations, Inspect) and one keyboard jump to any tab or artifact replace them; Inspect becomes one workspace with views. Deletes the duplicated tab scaffolding; judged by the effort leg's tab-switch and click counts."
-        }
-      ]
-    },
-    {
       "id": "gui-model-onboarding",
       "title": "Add a model in one action: download, register and validate chain from one control, with their progress in one place",
       "owner": "overgo_gui_cleanup",

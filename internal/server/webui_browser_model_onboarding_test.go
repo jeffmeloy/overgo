@@ -37,7 +37,7 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	if err := os.WriteFile(weights, []byte("GGUF onboarding fixture"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	hub := laneHubServer(t, weights)
+	hub := hubFixtureServer(t, weights)
 	store, err := overgodb.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)

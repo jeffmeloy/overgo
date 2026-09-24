@@ -156,7 +156,7 @@ func TestNativeFixturePublishedOnce(t *testing.T) {
 // model in the browser tests; a page acceptance may reach none of them.
 var browserModelWork = map[string]bool{
 	"prepareBrowserJourney": true, "prepareBrowserJourneyStore": true, "smallestDeclaredProjector": true,
-	"laneHubServer": true, "modelswap.ServerLauncher": true, "newLiveASRFixture": true,
+	"modelswap.ServerLauncher": true, "newLiveASRFixture": true,
 }
 
 // TestBrowserLanePageOnly holds the browser lane to page work: every test

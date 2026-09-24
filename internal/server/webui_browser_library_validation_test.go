@@ -24,11 +24,12 @@ import (
 	"overgo/internal/webuilane"
 )
 
-// laneHubServer serves one repository whose single file is a real GGUF on
-// disk, the shape the workbench's discovery surface consumes.
 const laneHubRepository = "lane/validated"
 
-func laneHubServer(t *testing.T, file string) *httptest.Server {
+// hubFixtureServer serves the lane repository whose single file is file, the
+// shape the workbench's discovery surface consumes; a journey hands it a real
+// GGUF, a page leg a few fixture bytes.
+func hubFixtureServer(t *testing.T, file string) *httptest.Server {
 	t.Helper()
 	handle, err := os.Open(file)
 	if err != nil {
@@ -94,7 +95,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	if err != nil || receipt.ExitCode != 0 {
 		t.Fatalf("library validation unavailable: the server binary did not build: %v (exit %d)", err, receipt.ExitCode)
 	}
-	hub := laneHubServer(t, small)
+	hub := hubFixtureServer(t, small)
 	// The private store starts as the data root's copy: the registered
 	// architecture profiles the Library registers against live there, and
 	// nothing the journey writes reaches the data root.

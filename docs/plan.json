@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "impact-sees-deleted-inputs",
-      "title": "Expire text guards when a change deletes a surface input",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Expire text guards when a change deletes a surface input",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestMovesSeesDeletedSurfaceInput$' -count=1",
-          "rationale": "SQA-006, the one correctness gap in the review. inferencesurface.Moves (internal/inferencesurface/surface.go) builds the closure from the candidate tree only, so a change that deletes a package in the closure, or an embedded file together with its //go:embed pattern, names no surface move: the text guards keep their surface-keyed records and do not re-run. 425e64a7 made longform impact selection this same function, so the gap reaches guard selection. Fix inside the one owner: take the union of the base and candidate closures (directories and embed members), or report the change as unresolved when the base closure is unavailable. Do not restore a second longform path policy or rerun every model for unrelated deletions. Done when TestMovesSeesDeletedSurfaceInput deletes an embedded input and a closure package in a temp module and both are reported."
-        }
-      ]
-    },
-    {
       "id": "closure-ledger-one-step",
       "title": "Record a move or deletion in the closure ledger with one command",
       "owner": "master-lead",

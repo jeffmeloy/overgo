@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "landing-one-path",
-      "title": "Remove landing friction: claim reuse, measured budgets, one plan-edit path",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Remove landing friction: claim reuse, measured budgets, one plan-edit path",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^(TestHolderAmendsItsOwnClaim|TestScopeBudgetAdmitsDeclaredGrowth)$' -count=1 \u0026\u0026 go test ./cmd/plan -run '^TestPlanHelpContract$' -count=1",
-          "rationale": "loop -land, plan -edit -publish, a direct gate run and gate -merge each owned claim, budget, ship-set and recovery handling. The friction that cost landings on 2026-09-23 and 24 is removed by three slices: a claim's holder amends its own row and dispatch renews the claim (a70978c8); a declared reason admits a row's measured growth, so no node count is guessed (1735f670); and the separate plan edit-and-publish path is retired (e90e71d9). cmd/loop already shares one lane wait between the driver and loop -land. A check change rides any other row's landing instead of a vehicle. What remains would add code, not delete it: landing one row from a tree that holds another moves to land-row-from-mixed-tree, and merge rows stay pre-filed because merges are rare. Done when the three slices' checks hold."
-        }
-      ]
-    },
-    {
       "id": "gemma-12b-accuracy",
       "title": "Find why the Gemma 12B twins score worse than E4B",
       "status": "open",

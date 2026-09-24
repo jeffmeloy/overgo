@@ -41,7 +41,6 @@
         status.textContent = "activating " + fmt.shortID(recipe);
         try {
           await overgo.api.post("/compositions/activate", { recipe });
-          await load();
         } catch (err) { status.textContent = overgo.friendlyError(err); }
       }
 

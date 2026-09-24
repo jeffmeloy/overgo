@@ -2,6 +2,8 @@ package server
 
 import (
 	"errors"
+	"net/http"
+	"strings"
 	"sync"
 
 	"overgo/internal/operation"
@@ -109,6 +111,37 @@ func (hub *eventHub) pump(sessions func() runtimeSessionsResponse) {
 			}
 		}
 	})
+}
+
+// workspaceChange names the inventory a call changed ("/peers").
+type workspaceChange struct {
+	Inventory string `json:"inventory"`
+}
+
+// statusRecorder keeps the status a route answered.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+// WriteHeader keeps the status on its way out.
+func (recorder *statusRecorder) WriteHeader(status int) {
+	recorder.status = status
+	recorder.ResponseWriter.WriteHeader(status)
+}
+
+// Unwrap hands http.ResponseController the writer underneath.
+func (recorder *statusRecorder) Unwrap() http.ResponseWriter { return recorder.ResponseWriter }
+
+// serveInventoryChange serves an inventory route and, when a call other than
+// a GET succeeds, tells every workspace which inventory it changed.
+func (h *Handler) serveInventoryChange(route routeDescriptor, response http.ResponseWriter, request *http.Request) {
+	recorder := &statusRecorder{ResponseWriter: response, status: http.StatusOK}
+	route.serve(h, recorder, request)
+	if request.Method != http.MethodGet && recorder.status < http.StatusMultipleChoices {
+		segment, _, _ := strings.Cut(strings.TrimPrefix(route.Path, "/"), "/")
+		h.events.publish("workspace.changed", workspaceChange{Inventory: "/" + segment})
+	}
 }
 
 // close ends every stream's queue and the pump.

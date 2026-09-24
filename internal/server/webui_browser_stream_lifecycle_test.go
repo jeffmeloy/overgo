@@ -58,7 +58,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		path := request.URL.Path
 		if path == "/__lifecycle" {
 			mu.Lock()
-			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"],
+			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"], "peers": hits["/peers"],
 				"retired": hits["/automations/stream"] + hits["/peers/stream"] + hits["/agents/stream"] + hits["/hub/downloads"]}
 			mu.Unlock()
 			_ = json.NewEncoder(response).Encode(counts)
@@ -169,6 +169,19 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	// Each operation event the page receives reads its evidence exactly once; a listener a remount
 	// leaked reads it again in the same dispatch, so reads and events would never agree.
 	settle("window.laneOperations > " + strconv.Itoa(eventsBefore) + " && window.laneEvidence - " + strconv.Itoa(readsBefore) + " === window.laneOperations - " + strconv.Itoa(eventsBefore))
+	// A changed inventory reads again in the open tab that shows it, with no reload and no
+	// action of its own; a change to another inventory leaves that tab's read alone.
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'peers'; return true; })()`)
+	settle(`!!document.querySelector('#panel-peers.active') && overgo.api.inFlight() === 0`)
+	peersBefore := lifecycle()["peers"]
+	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/datasets"})
+	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/peers"})
+	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.peers > ` + strconv.FormatFloat(peersBefore, 'f', -1, 64) + `)`)
+	settle(`overgo.api.inFlight() === 0`)
+	if peersAfter := lifecycle()["peers"]; peersAfter != peersBefore+1 {
+		t.Errorf("an inventory change read the peers %v times, want once", peersAfter-peersBefore)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)
 	// A hidden page does not probe health or the catalog through a whole status interval.
 	// Requests a remount started finish first, so what follows is the hidden page alone.
 	settle(`overgo.api.inFlight() === 0`)
@@ -209,5 +222,5 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		t.Errorf("a page shown again did not probe health: hidden %v, shown %v", hidden, resumed)
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	t.Logf("one event stream leg: the automations, peers, inbox and library tabs remounted %d times over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a hidden page stopped probing, and a page shown again resumes probing", remounts)
+	t.Logf("one event stream leg: the automations, peers, inbox and library tabs remounted %d times over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a peers change read the open peers tab again once and another inventory's change left it alone, a hidden page stopped probing, and a page shown again resumes probing", remounts)
 }

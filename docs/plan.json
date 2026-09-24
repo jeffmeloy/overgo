@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-live-inventories",
-      "title": "Keep inventories live from the event hub: publish a workspace change after each mutating route, and refresh the reads that show it in place of a manual reload",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep inventories live from the event hub: publish a workspace change after each mutating route, and refresh the reads that show it in place of a manual reload",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestMutationsRefreshTheirInventories$' -count=1",
-          "rationale": "Split from arch-event-hub (2026-09-24): once one hub carries every runtime event, a mutating route publishes a workspace change there and the tabs' reads that show the changed inventory refresh themselves, so a person never reloads a tab to see what they just registered, retired or approved."
-        }
-      ]
-    },
-    {
       "id": "arch-route-dispatch",
       "title": "Make the route table the only dispatcher: one handler per path, shared workspace preconditions as wrappers, and no handler-level method checks",
       "owner": "overgo_gui_cleanup",

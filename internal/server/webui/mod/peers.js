@@ -95,7 +95,6 @@
       const transition = (peer, state) => overgo.act(status, async () => {
         await api.post("/peers/state", { peer, state, changed_unix_ns: 0 });
         status.textContent = state + " / " + fmt.shortID(peer);
-        await refreshInventory();
       });
 
       enroll.addEventListener("click", () => overgo.act(status, async () => {
@@ -104,7 +103,6 @@
         enrollmentForm.markSaved();
         status.textContent = "enrolled / " + fmt.shortID(result.peer);
         selectedPeer = result.peer;
-        await refreshInventory();
       }));
 
       function placementRequest(value) {

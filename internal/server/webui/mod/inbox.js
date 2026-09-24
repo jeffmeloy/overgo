@@ -16,7 +16,6 @@
       const decide = (item, action, answer) => overgo.act(status, async () => {
         await overgo.decideOperation(item.operation, action.code, answer);
         status.textContent = answer + " recorded for " + fmt.shortID(item.operation);
-        await refresh();
       });
 
       function renderItem(item) {

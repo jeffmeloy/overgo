@@ -784,6 +784,10 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", strings.Join(route.Methods, " or ")+" required")
 		return
 	}
+	if routed && route.Inventory {
+		h.serveInventoryChange(route, response, request)
+		return
+	}
 	if routed {
 		route.serve(h, response, request)
 		return

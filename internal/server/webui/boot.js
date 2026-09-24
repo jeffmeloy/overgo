@@ -58,9 +58,13 @@
     inFlight++;
     try { return await request; } finally { inFlight--; }
   }
+  // readPaths: the paths each workspace read fetched, keyed by its signal, so a changed inventory refreshes it.
+  const readPaths = new WeakMap();
   const api = {
     inFlight() { return inFlight; },
     async get(path, opts) {
+      const paths = opts && opts.signal && readPaths.get(opts.signal);
+      if (paths) paths.add(path);
       const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
       if (opts && opts.onHeaders) opts.onHeaders(response.headers);
       return readJSON(response);
@@ -332,10 +336,12 @@
   // workspace: the one lifecycle a mounted tab runs under. The shell opens one per mount and releases it
   // with the tab (a remount, a key change, a superseded or failed mount); the tab reads, subscribes and
   // listens through it, so everything it opened ends with it. It stands in for window.overgo, which it extends.
+  const refreshing = Symbol("refreshing");
   function workspace(host, parent) {
     const lifetime = new AbortController();
     const releases = [];
     const shown = [];
+    const reads = [];
     let active = false;
     const stopOf = (started) => typeof started === "function" ? started : null;
     const disposed = (surface) => { life.onRelease(() => surface.dispose()); return surface; };
@@ -357,16 +363,28 @@
         }
       },
       // read: host shows one load's answer; the newest read wins, an empty answer shows options.empty's
-      // words, and a failure offers to read again.
+      // words, and a failure offers to read again. A call that changes an inventory the read fetched
+      // from (workspace.changed) reads it again, so no action refreshes what it changed by hand.
       read(host, load, render, options) {
         const { loading = "Loading…", empty = null } = options || {};
-        let current = null;
-        return async function run() {
+        let current = null, fetched = new Set();
+        if (!reads.length) life.subscribe((name, value) => {
+          if (name !== "workspace.changed") return;
+          const inventory = value.inventory;
+          for (const entry of reads) if ([...entry.fetched()].some((path) => path === inventory || path.startsWith(inventory + "/") || path.startsWith(inventory + "?"))) entry.run(refreshing);
+        });
+        reads.push({ run, fetched: () => fetched });
+        return run;
+        // A refresh keeps the shown answer until the new one replaces it.
+        async function run(how) {
           if (current) current.abort();
           const attempt = new AbortController();
           current = attempt;
           const signal = AbortSignal.any([lifetime.signal, attempt.signal]);
-          if (loading) host.replaceChildren(el("div", { class: "note", text: loading }));
+          const paths = new Set();
+          readPaths.set(signal, paths);
+          fetched = paths;
+          if (loading && how !== refreshing) host.replaceChildren(el("div", { class: "note", text: loading }));
           try {
             const value = await load(signal);
             if (signal.aborted) return;
@@ -377,7 +395,7 @@
             if (signal.aborted || (err && err.name === "AbortError")) return;
             host.replaceChildren(failure(err, el("button", { class: "link-button", text: "Try again", onclick: run })));
           }
-        };
+        }
       },
       // subscribe: runtime stream events until the workspace ends; options.whileShown: only while the tab shows.
       subscribe(handler, options) {

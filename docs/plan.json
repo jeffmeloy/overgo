@@ -11,25 +11,10 @@
       "owner": "colibri2",
       "status": "open",
       "budget": {
-        "nodes": 1558,
-        "reason": "Unicode 16 NFC generated lookup data and decoder/generator logic; 1558 measured added production AST nodes, pinned by source and independent conformance corpus."
+        "nodes": 2000,
+        "reason": "Measured pre-tokenizer activation grows 1957 production AST nodes over HEAD: exact three-stage RxBrain scanner, pinned Unicode class deltas, declared BPE checks, and the shared compiler. The 2000-node ceiling leaves 43 nodes for final review; independent token, Unicode, and real-model parity bound the change."
       },
       "steps": [
-        {
-          "id": "pretokenizer",
-          "title": "Support declared ordered splits and prove RxBrain VQA parity",
-          "status": "open",
-          "verify": "go test ./internal/hfbpe -run '^TestDeclaredPipeline$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredPipelineOracle$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestRxBrainDeclaredPipelineReference$' -count=1 \u0026\u0026 OVERGO_CUDA_TEST=1 go test ./cmd/vqaparity -run '^TestRxBrainProductionParity$' -count=1",
-          "rationale": "The compiler excluded from master at 6997b5fe matched 92 tokenizer oracle cases but broke RxBrain VQA. Its artifact declares an empty normalization Sequence, then an ordered Sequence of isolated number, CJK and complex Unicode Split expressions, followed by ByteLevel with use_regex=false. Reproduce its old successful prompt IDs and production VQA golden before porting; pin tokenizer bytes and an independent Hugging Face tokenizer revision/reference. Extend the shared scanner only for exactly supported declarations, preserving order, boundaries, Unicode classes, lookahead semantics and added-token rules. Refuse unsupported declarations explicitly. Activate the new compiler only after every deployed encoding consumer in scope passes its independent token-ID and affected model-output checks; no silent legacy fallback or fixture-generated expected IDs. Reuse Krea, Fractale, Granite and llama.cpp references, then run actual RxBrain VQA acceptance. The existing real-model check must execute and pass, not skip. Changed speech/media outputs require independent reacquisition.",
-          "depends_on": [
-            "colibri-text-semantics/nfc"
-          ],
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        },
         {
           "id": "bpe-shared",
           "title": "Share exact-ranked BPE merging and measure complete encoding cost",

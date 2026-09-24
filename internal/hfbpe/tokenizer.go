@@ -35,6 +35,8 @@ type Tokenizer struct {
 	omitSpecial       map[int]bool
 	normalizeNFC      bool
 	normalizerErr     error
+	preTokenize       preTokenizerStage
+	preTokenizerErr   error
 }
 
 type tokenizerJSON struct {
@@ -47,17 +49,24 @@ type tokenizerJSON struct {
 		LStrip     bool   `json:"lstrip"`
 		RStrip     bool   `json:"rstrip"`
 	} `json:"added_tokens"`
-	Normalizer json.RawMessage `json:"normalizer"`
-	Decoder    struct {
+	Normalizer   json.RawMessage `json:"normalizer"`
+	PreTokenizer json.RawMessage `json:"pre_tokenizer"`
+	Decoder      struct {
 		Type          string `json:"type"`
 		Replacement   string `json:"replacement"`
 		PrependScheme string `json:"prepend_scheme"`
 	} `json:"decoder"`
 	Model struct {
-		Type         string            `json:"type"`
-		Vocab        map[string]int    `json:"vocab"`
-		Merges       []json.RawMessage `json:"merges"`
-		ByteFallback bool              `json:"byte_fallback"`
+		Type                    string            `json:"type"`
+		Vocab                   map[string]int    `json:"vocab"`
+		Merges                  []json.RawMessage `json:"merges"`
+		ByteFallback            bool              `json:"byte_fallback"`
+		Dropout                 *float64          `json:"dropout"`
+		UnkToken                *string           `json:"unk_token"`
+		ContinuingSubwordPrefix *string           `json:"continuing_subword_prefix"`
+		EndOfWordSuffix         *string           `json:"end_of_word_suffix"`
+		FuseUnk                 bool              `json:"fuse_unk"`
+		IgnoreMerges            bool              `json:"ignore_merges"`
 	} `json:"model"`
 }
 
@@ -86,6 +95,13 @@ func Load(dir string) (*Tokenizer, error) {
 		t.stripDecodePrefix = tj.Decoder.PrependScheme != "never"
 	}
 	t.configureNormalizer(tj.Normalizer)
+	t.configurePreTokenizer(tj.PreTokenizer)
+	if t.preTokenizerErr == nil && t.preTokenize != nil &&
+		(tj.Model.ByteFallback || tj.Model.Dropout != nil || tj.Model.UnkToken != nil ||
+			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "") ||
+			tj.Model.FuseUnk || tj.Model.IgnoreMerges) {
+		t.preTokenizerErr = fmt.Errorf("declared BPE options require an unsupported encoding path")
+	}
 	for i, raw := range tj.Model.Merges {
 		var pair [2]string
 		if err := json.Unmarshal(raw, &pair); err == nil {
@@ -100,8 +116,8 @@ func Load(dir string) (*Tokenizer, error) {
 		return nil, fmt.Errorf("merges[%d]: unrecognized wire format", i)
 	}
 	for _, a := range tj.AddedTokens {
-		if t.normalizeNFC && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
-			t.normalizerErr = fmt.Errorf("NFC added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
+		if (t.normalizeNFC || t.preTokenize != nil) && (a.Content == "" || a.Normalized == nil || *a.Normalized || a.SingleWord || a.LStrip || a.RStrip) {
+			t.normalizerErr = fmt.Errorf("declared tokenizer added-token matching requires nonempty raw tokens with explicit normalized:false and no boundary flags")
 		}
 		t.special[a.Content] = a.ID
 		t.specials = append(t.specials, a.Content)
@@ -158,8 +174,11 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 	if t.normalizerErr != nil {
 		return nil, t.normalizerErr
 	}
-	if t.normalizeNFC && !utf8.ValidString(text) {
-		return nil, fmt.Errorf("NFC encoding requires valid UTF-8 input")
+	if t.preTokenizerErr != nil {
+		return nil, t.preTokenizerErr
+	}
+	if (t.normalizeNFC || t.preTokenize != nil) && !utf8.ValidString(text) {
+		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
 	}
 	var ids []int
 	for _, seg := range t.splitOnSpecials(text) {
@@ -178,10 +197,25 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 			ids = append(ids, segIDs...)
 			continue
 		}
-		for _, piece := range gpt2Pretokenize(seg) {
+		var pieces []string
+		if t.preTokenize == nil {
+			pieces = gpt2Pretokenize(seg)
+		} else {
+			pieces = t.preTokenize(seg)
+		}
+		for _, piece := range pieces {
 			var sb strings.Builder
 			for i := range len(piece) {
-				sb.WriteRune(t.b2u[piece[i]])
+				encoded := string(t.b2u[piece[i]])
+				// Hugging Face BPE with no unknown token or byte fallback
+				// drops absent initial byte symbols before ranked merging.
+				// Preserve the deployed undeclared scanner's error contract.
+				if t.preTokenize != nil && !t.byteFallback {
+					if _, present := t.vocab[encoded]; !present {
+						continue
+					}
+				}
+				sb.WriteString(encoded)
 			}
 			for _, tok := range t.bpe(sb.String()) {
 				id, ok := t.vocab[tok]

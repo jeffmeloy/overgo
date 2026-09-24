@@ -514,13 +514,17 @@ func parseRuneRanges(class string) [][2]rune {
 	return ranges
 }
 
-func isDeepSeekLLMLetter(value rune) bool {
-	for _, span := range deepSeekLLMLetterRanges {
+func runeInRanges(value rune, ranges [][2]rune) bool {
+	for _, span := range ranges {
 		if value >= span[0] && value <= span[1] {
 			return true
 		}
 	}
 	return false
+}
+
+func isDeepSeekLLMLetter(value rune) bool {
+	return runeInRanges(value, deepSeekLLMLetterRanges)
 }
 
 func isDeepSeekLLMPunctuation(value rune) bool {

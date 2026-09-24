@@ -14,7 +14,7 @@
           "title": "Delete production code only tests call",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
-          "rationale": "From consolidation-inventory (2026-09-24). Landed slices: move-test-only-oracles (22b5d515, -3,322 production nodes) and delete-hypervector-index (afcee829, -1,373), beside delete-sft-evaluation-targets (7694f00e, -8,491). Remaining by package (tmp/consolidation_probe.go . deadpkg): devicemath 277 lines and hostmath 342 (pinned media paths: each move needs a reviewed media delta), hybridtrain 227, trainingprogram 196, trainingdata 148, seq2seq 58 (training code that may be wired by probes or lanes next), speechsynth 166 (GUI lane owns the document runtime), controllertrain (owner decision row), and test-helper packages (testutil, modelrecipetest, speechrecognitiontest, repositorytest, modeltest, testprocess, testvocab, cuda/testutil), which are exempt. Next: decide per training package whether its test-only entry points are a parked capability or dead, then move or delete; then make the probe a repoanalysis ratchet. Done when TestNoTestOnlyProductionExports holds the count at zero outside declared test-helper packages."
+          "rationale": "Landed slices: 7694f00e, 22b5d515, afcee829, 5e1be7c0, 39934bd8 (about 17,000 production nodes). Remaining (tmp/consolidation_probe.go . deadpkg): hostmath oracles used by inference tests (need a shared test package), trainingprogram and trainingdata entry points, sensenovarecipe, speechsynth (GUI lane), controllertrain (owner decision row), and the exempt test-helper packages. Next: decide per remaining package, then make the probe a repoanalysis ratchet. Done when TestNoTestOnlyProductionExports holds the count at zero outside declared test-helper packages."
         }
       ]
     },
@@ -29,67 +29,67 @@
           "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestOnePublicationPath$' -count=1",
-          "rationale": "Integrity and blocking first. A store that already holds a bare descriptor refuses the later batch carrying its content (artifactFacet.validate), which blocks lane outcomes; 66420d36 avoids new bare records but repairs none. Build on the commit coordinator (commit_coordinator.go:44) so every caller shares idempotent publication, content verification, alias compare-and-set and conflict reporting. Treat descriptor-exists and content-available as distinct states, with one supported path to fill an existing descriptor with matching, verified content. A caller declares whether its decision depends on the whole head. Alias-local operations take only their alias precondition, so unrelated writers do not invalidate them. Keep expensive preparation outside the write lock. Done when the bare-record repair works, the per-caller publication and retry code is deleted, and writer wait is measured before and after."
+          "rationale": "The blocking half landed as 75b235e3: a bare descriptor is filled by a later batch carrying its content. Remaining: every caller publishes through the commit coordinator (idempotent writes, content verification, alias compare-and-set, one conflict report), a caller declares whether its decision depends on the whole head, and alias-local operations take only their alias precondition. Measure writer wait before and after. Done when the per-caller publication and retry code is deleted and writer wait is measured."
         }
       ]
     },
     {
       "id": "pack-bounded-streaming",
-      "title": "Bound peak memory at the store's copying points",
+      "title": "Retired: bound peak memory at the store's remaining copying points",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Bound peak memory at the store's copying points",
+          "title": "Retired: bound peak memory at the store's remaining copying points",
           "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestStoreCopyingHoldsBoundedMemory$' -count=1",
-          "rationale": "Three measured points; the first, pack construction and verification, lands as pack-streams-members. Checkpoint creation serializes, restores and serializes a projection again to prove canonical form (checkpoints.go:57); retention copies catalog and graph state before computing reachability (retention.go:72). Share one bounded entry-reading and hashing path between lookup and verification, stream packs through the existing atomic publication, bound checkpoint concurrency, and traverse retention over the smallest stable representation. Keep every integrity check. Done when peak memory stays bounded as payload volume grows, with index memory accounted separately."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Its first point landed as pack-streams-members (7f140ee2: packing 94.5 MB -\u003e 1.6 MB allocated). The remaining points, checkpoint writing and retention copies, run only during compaction and have no deterministic memory check; store-open-lineage-cost keeps the open-time checkpoint cost. Done: the decision is recorded."
         }
       ]
     },
     {
       "id": "land-row-from-mixed-tree",
-      "title": "Land one finished row from a tree that holds another",
+      "title": "Retired: land one finished row from a tree that holds another",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Land one finished row from a tree that holds another",
+          "title": "Retired: land one finished row from a tree that holds another",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestPathScopedLandingIgnoresUnshippedWork$' -count=1",
-          "rationale": "Residual of landing-one-path. On 2026-09-24 two finished rows in one tree could not land one at a time: scope refuses any unshipped verification input, so one row's files were copied aside and restored by hand, twice. A gate that measured and verified only its candidate (HEAD plus its paths), with every admission-time read taken from that candidate, could admit unshipped work safely. Low priority while one row at a time is in flight. Done when a path-scoped landing passes beside unrelated unshipped Go, and every check it runs reads the candidate."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Two finished rows in one tree needed their files set aside by hand twice on one day; working one row at a time avoids it, and admitting unshipped work would require every admission-time read to take the candidate, a large change for a rare case. Done: the decision is recorded."
         }
       ]
     },
     {
       "id": "preflight-gate-one-execution",
-      "title": "Make preflight and the commit gate two stages of one execution",
+      "title": "Retired: share preflight results with the commit gate",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Make preflight and the commit gate two stages of one execution",
+          "title": "Retired: share preflight results with the commit gate",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestUnchangedCandidateRepeatsNoPureCheck$' -count=1",
-          "rationale": "Preflight runs the gate's own static check definitions (about 20 s measured 2026-09-24: modern-go 16.6 s, architecture 4.5 s, the rest under 3 s each), and the gate then repeats them against the frozen candidate; the gate already reuses its own earlier passes through the retry cache. The obstacle measured 2026-09-24: gate checks are bound to the manifest plan of the frozen candidate (bindCheckExecution in verification.go), and cache slots key on the bound invocation, which preflight does not compute; computing the manifest plan in preflight costs the gate's planning time (about 24 s), so sharing needs a reuse key on the unbound check and its input fingerprint, validated against the bound invocation at the gate. Only loop -land runs preflight; a direct gate saves nothing. Done when an unchanged candidate repeats no pure static check after a preflight, and a changed input invalidates exactly its checks."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Preflight runs about 20 s of static checks that the gate repeats, but gate checks are bound to the frozen candidate's manifest plan, which preflight does not compute, and only loop -land runs a preflight; the gate already reuses its own earlier passes. Sharing would cost about as much planning time as it saves. Done: the decision is recorded."
         }
       ]
     },
     {
       "id": "one-claim-primitive",
-      "title": "Share claim mechanics across locks while keeping each resource's rules",
+      "title": "Retired: share claim mechanics across locks",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Share claim mechanics across locks while keeping each resource's rules",
+          "title": "Retired: share claim mechanics across locks",
           "status": "open",
-          "verify": "go test ./internal/processlock -run '^TestOneClaimPrimitive$' -count=1",
-          "rationale": "processlock, authoritylock, device resource jobs, the gate lanes lock and plan row claims each record and report holders their own way. Measured 2026-09-24 (read-only survey): the repeats are in acquisition and probing, not liveness -- create-directory-and-acquire in authoritylock, the lanes runner and the campaign lock; an acquire-and-close busy probe in three places; PID liveness layered on an OS lock in the campaign lock and an unread PID in gate_lanes.json; holder naming only in processcontrol and fsatomic. Sharing them (processlock.AcquireState, Held, a BusyError that names holders through fsatomic) removes about 45 production lines. Risks: a probe briefly holds the lock and can make a racing acquirer see busy; merging the Windows cancellation bridges risks use-after-free. The exclusive GPU claim cannot release before process exit (a job object cannot drop a process), so \"release when ownership ends\" does not hold for it without a different claim design. Done when the shared helpers replace the repeats, the PID liveness is deleted, and a cross-process test shows a process releasing a lock, staying alive, and the next owner proceeding."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. A read-only survey found the lock mechanisms repeat acquisition and probing, not liveness: sharing them removes about 45 production lines, a busy-probe risks false contention, merging the Windows cancellation bridges risks use-after-free, and the exclusive GPU claim cannot release before process exit. Holder naming, the part that mattered, landed in 01cbf544. Done: the decision is recorded."
         }
       ]
     },
@@ -200,16 +200,16 @@
     },
     {
       "id": "row-scope-budget-surface",
-      "title": "Hold one size ratchet instead of five",
+      "title": "Retired: one growth measure with one baseline",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Hold one size ratchet instead of five",
+          "title": "Retired: one growth measure with one baseline",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestOneSizeRatchet$' -count=1",
-          "rationale": "Row node budgets, the harness surface baseline, structure budgets, the clone ratchet and the profile delta each measure growth. One small landing tripped three of them on 2026-09-23, and row budgets were guessed three times. Keep one measure with one baseline, derive a row's budget from its measured delta, and delete the rest."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 in the owner-requested plan refactor. Its guessed-budget half landed as budget-from-measured-growth (1735f670: a declared reason admits the measured growth). Its other half, deleting the harness surface baseline and the clone ratchet, contradicts the doctrine, which keeps both ratchets as floors. Done: the decision is recorded."
         }
       ]
     },
@@ -289,60 +289,6 @@
       ]
     },
     {
-      "id": "store-growth-ratchet",
-      "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "rationale": "OWNER DECISION: may upkeep delete superseded stores and sealed backups older than the newest verified pair? store-precheck -swap already does the whole pipeline; the step is cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold. Without pruning, each run adds another store copy and backup. Loose blobs grew about 373 MB over 70 landings. This row also closes overgodb-compaction-cadence and projection-generation-pruning.",
-          "depends_on": [
-            "gate-telemetry-size/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "overgodb-compaction-cadence",
-      "title": "Closes with store-growth-ratchet (shares its check)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Closes with store-growth-ratchet (shares its check)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
-          "depends_on": [
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "projection-generation-pruning",
-      "title": "Closes with store-growth-ratchet (shares its check)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Closes with store-growth-ratchet (shares its check)",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
-          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
-          "depends_on": [
-            "store-growth-ratchet/do"
-          ]
-        }
-      ]
-    },
-    {
       "id": "store-open-lineage-cost",
       "title": "Defer decoding large store facets until first use, if opens are still slow",
       "owner": "master-lead",
@@ -363,108 +309,6 @@
       ]
     },
     {
-      "id": "rae-generation-path",
-      "title": "Add a generation path for the RAE collection",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add a generation path for the RAE collection",
-          "status": "open",
-          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
-          "rationale": "A two-stage representation-autoencoder generator (frozen encoder, trained ViT decoder, stage-2 diffusion transformer over its latents), MIT. BLOCKED on owner-provided inputs (found 2026-09-23): models/RAE-collections holds decoders, DiTs and latent statistics for DINOv2-with-registers (small/base/large), MAE base and SigLIP2 base, but neither the reference code (github.com/bytetriper/RAE) nor those encoder checkpoints; fetching either is a download that needs the owner's yes. With them: port against reference goldens, reusing internal/vitencoder for the DINOv2 encoders (registers added to its declaration).",
-          "depends_on": [
-            "dinov2-embedding-capability/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "gemma-12b-accuracy",
-      "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
-          "status": "open",
-          "verify": "go test ./internal/longform -run '^TestGemmaTwelveScoresNoWorseThanE4B$' -count=1",
-          "rationale": "OWNER DECISION: download the unquantized google/gemma-4-12B-it checkpoint? The instruction-framing premise is falsified, and the runtime is cleared. Measured 2026-09-24: on the guard corpus's SHORT shape at byte offsets 0/20107/60322, the 12B twins (both converted from the third-party vrfai ModelOpt FP8 quant, models/gemma-4-12B-it-fp8) score raw NLL 8.5/8.0/1.2-1.4 against E4B's 6.5/6.1/0.6, and chat framing (tmp/chat_rung.go) leaves them 0.5-1.2 nats worse everywhere. On a plain English paragraph the 12B scores 3.17 nats per token against E4B's 1.48. overgo's 12B graph matches the transformers gemma4_unified reference point by point (value from the raw key projection with an unscaled v_norm on k_eq_v global layers, 25% proportional rope, one global KV head, attention scale 1, layer scalar, final softcap 30): layer outputs agree within 2.6e-4 of a Go transcription of the reference layer, GPU agrees with the host executor, the runner agrees with a 48-layer host chain, logits agree with adaptive_new's transformers golden within about 0.2, and the GGUF matches the safetensors. So transformers would score these weights the same, and the leading suspect is the FP8 quant itself. Probes are in tmp (g4_layer_ref.go, g4_host_nll.go, g4_golden.go, g4_gguf_vs_st.go, g4_fp8_scale.go, chat_rung.go). Next, with the owner's yes: convert the bf16 checkpoint and run tmp/chat_rung.go and g4_host_nll.go on it; if it scores at or below E4B, retire or re-source the FP8 12B twins. Done when a 12B checkpoint scores no worse than E4B on the same windows, held by TestGemmaTwelveScoresNoWorseThanE4B.",
-          "depends_on": [
-            "model-regression-gate/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "retire-controller-cluster",
-      "title": "Retire the unimported controller training cluster (owner decision)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire the unimported controller training cluster (owner decision)",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
-          "rationale": "OWNER DECISION: may the controller training cluster be deleted? From consolidation-inventory (2026-09-24): internal/controllertrain has no production importer; internal/controlleraction is imported only by cmd/controller-action, which nothing refers to; none of the controller-* schemas has ever been written to the master store. About 2,790 production and 2,140 test lines, plus internal/trainingprogram/objective_composition_cuda_windows_test.go. It may be a parked capability rather than dead code, so it waits on the owner. Done when the cluster is gone and nothing builds against it."
-        }
-      ]
-    },
-    {
-      "id": "retire-unreferenced-commands",
-      "title": "Retire commands nothing refers to (owner decision)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire commands nothing refers to (owner decision)",
-          "status": "open",
-          "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
-          "rationale": "OWNER DECISION: which of these commands are still run by hand? From consolidation-inventory (2026-09-24): 20 cmd/ commands are not released and nothing in code, docs, scripts or the plan refers to them: seam-align (504 lines, with internal/composition/improvement_loop.go 223), audio-inspect 380, latentvideo-run 274, mechanism-census 206, coverage-lanes 158, buildscrub 132, hf-hub 132, activation-cases 115, inspect-safetensors 109, dataset-catalog 108, remote-provider 107, sealed-authority 91, tool-workflow 81, model-config 79, router-observation 73, model-build 71, profile-catalog 54, rerank 52 -- about 2,900 lines. Keep the ones the owner names, delete the rest, and add a commanddoc check that every command has a declared caller. Done when TestEveryCommandHasACaller holds."
-        }
-      ]
-    },
-    {
-      "id": "validate-all-models",
-      "title": "Validate every registered model",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Validate every registered model",
-          "status": "open",
-          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
-          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
-          "depends_on": [
-            "activity-detection-capability/do",
-            "timesfm3-native-declaration/do",
-            "dinov2-embedding-capability/do",
-            "rae-generation-path/do"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "compatibility-reports-leave-the-tree",
-      "title": "Stop compatibility reports churning every landing (owner decision first)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Stop compatibility reports churning every landing (owner decision first)",
-          "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
-          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store."
-        }
-      ]
-    },
-    {
       "id": "surface-move-preflight",
       "title": "Refuse a surface move whose reconciliation is not in the same commit",
       "owner": "master-lead",
@@ -476,21 +320,6 @@
           "status": "open",
           "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
           "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
-        }
-      ]
-    },
-    {
-      "id": "compatibility-names-its-reads",
-      "title": "Key cmd/compatibility's receipt to the files it actually reads",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Key cmd/compatibility's receipt to the files it actually reads",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
-          "rationale": "The input graph treats the package as an opaque reader, binding it to every root (269 packages) including docs/plan.json, so the complete receipt for ten media and specialized models expires on every landing and costs a four-minute rerun. Found 2026-09-23, three sources of the binding: (1) reads join a root parameter that production only ever passes as \".\", which in-package parameter propagation in the classifier would name; (2) the operator verbs (claim, record-verification, webui-report) read flag paths and can move to their own command; (3) -check reads the source files docs/compatibility.json binds to each claim, so part of the broad binding is correct until compatibility-reports-leave-the-tree decides what that binding means. Waits on that decision; (1) and (2) alone leave the package opaque."
         }
       ]
     },
@@ -698,21 +527,6 @@
       ]
     },
     {
-      "id": "speech-document-admission",
-      "title": "Admit or retire the GUI lane's document speech program",
-      "owner": "professional_overgo_gui",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Admit or retire the GUI lane's document speech program",
-          "status": "open",
-          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
-          "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
-        }
-      ]
-    },
-    {
       "id": "benchmark-27b",
       "title": "Operator-launched full 27B MMLU-Pro benchmark",
       "owner": "operator",
@@ -742,6 +556,192 @@
           "status": "open",
           "verify": "go test ./cmd/loophook -run '^TestPromptIntakeFilesRow' -count=1",
           "rationale": "Return the new row id so a request becomes the next row after the current commit instead of being folded into the row in flight."
+        }
+      ]
+    },
+    {
+      "id": "gemma-12b-accuracy",
+      "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-source the Gemma 12B checkpoint (owner decision: download)",
+          "status": "open",
+          "verify": "go test ./internal/longform -run '^TestGemmaTwelveScoresNoWorseThanE4B$' -count=1",
+          "rationale": "OWNER DECISION: download the unquantized google/gemma-4-12B-it checkpoint? The 12B twins score 0.5-1.2 nats per token worse than E4B on the guard corpus (3.17 vs 1.48 on plain English), raw or chat-framed. overgo's 12B graph matches the transformers reference point by point (layers within 2.6e-4, logits within about 0.2 of adaptive_new's golden), so the suspect is the third-party FP8 quant both twins come from. With the owner's yes: convert the bf16 checkpoint and score it with tmp/chat_rung.go and tmp/g4_host_nll.go; retire or re-source the FP8 twins if it scores at or below E4B. Done when a 12B checkpoint scores no worse than E4B on the same windows, held by TestGemmaTwelveScoresNoWorseThanE4B.",
+          "depends_on": [
+            "model-regression-gate/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rae-generation-path",
+      "title": "Add a generation path for the RAE collection",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add a generation path for the RAE collection",
+          "status": "open",
+          "verify": "test -f internal/latentimage/representation_autoencoder_test.go \u0026\u0026 go test ./internal/latentimage -run '^TestRepresentationAutoencoderGeneration$' -count=1",
+          "rationale": "A two-stage representation-autoencoder generator (frozen encoder, trained ViT decoder, stage-2 diffusion transformer over its latents), MIT. BLOCKED on owner-provided inputs (found 2026-09-23): models/RAE-collections holds decoders, DiTs and latent statistics for DINOv2-with-registers (small/base/large), MAE base and SigLIP2 base, but neither the reference code (github.com/bytetriper/RAE) nor those encoder checkpoints; fetching either is a download that needs the owner's yes. With them: port against reference goldens, reusing internal/vitencoder for the DINOv2 encoders (registers added to its declaration).",
+          "depends_on": [
+            "dinov2-embedding-capability/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "validate-all-models",
+      "title": "Validate every registered model",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate every registered model",
+          "status": "open",
+          "verify": "go test ./cmd/validate -run '^TestModelInventory' -count=1",
+          "rationale": "2026-09-23: webssl-dino (image-embedding, 1943100a) and timesfm-3.0 (forecast, 83d0bb9b) are registered, verified and activated. The remaining gap is RAE (rae-generation-path). Licences block none of these: models and the store are gitignored, and registration records the licence.",
+          "depends_on": [
+            "activity-detection-capability/do",
+            "timesfm3-native-declaration/do",
+            "dinov2-embedding-capability/do",
+            "rae-generation-path/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retire-controller-cluster",
+      "title": "Retire the unimported controller training cluster (owner decision)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire the unimported controller training cluster (owner decision)",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
+          "rationale": "OWNER DECISION: may the controller training cluster be deleted? From consolidation-inventory (2026-09-24): internal/controllertrain has no production importer; internal/controlleraction is imported only by cmd/controller-action, which nothing refers to; none of the controller-* schemas has ever been written to the master store. About 2,790 production and 2,140 test lines, plus internal/trainingprogram/objective_composition_cuda_windows_test.go. It may be a parked capability rather than dead code, so it waits on the owner. Done when the cluster is gone and nothing builds against it."
+        }
+      ]
+    },
+    {
+      "id": "retire-unreferenced-commands",
+      "title": "Retire commands nothing refers to (owner decision)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire commands nothing refers to (owner decision)",
+          "status": "open",
+          "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
+          "rationale": "OWNER DECISION: which of these commands are still run by hand? From consolidation-inventory (2026-09-24): 20 cmd/ commands are not released and nothing in code, docs, scripts or the plan refers to them: seam-align (504 lines, with internal/composition/improvement_loop.go 223), audio-inspect 380, latentvideo-run 274, mechanism-census 206, coverage-lanes 158, buildscrub 132, hf-hub 132, activation-cases 115, inspect-safetensors 109, dataset-catalog 108, remote-provider 107, sealed-authority 91, tool-workflow 81, model-config 79, router-observation 73, model-build 71, profile-catalog 54, rerank 52 -- about 2,900 lines. Keep the ones the owner names, delete the rest, and add a commanddoc check that every command has a declared caller. Done when TestEveryCommandHasACaller holds."
+        }
+      ]
+    },
+    {
+      "id": "store-growth-ratchet",
+      "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "rationale": "OWNER DECISION: may upkeep delete superseded stores and sealed backups older than the newest verified pair? store-precheck -swap already does the whole pipeline; the step is cmd/loop running it after the deferred lanes once commits since the newest sealed backup pass a threshold. Without pruning, each run adds another store copy and backup. Loose blobs grew about 373 MB over 70 landings. This row also closes overgodb-compaction-cadence and projection-generation-pruning.",
+          "depends_on": [
+            "gate-telemetry-size/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "overgodb-compaction-cadence",
+      "title": "Closes with store-growth-ratchet (shares its check)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Closes with store-growth-ratchet (shares its check)",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
+          "depends_on": [
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "projection-generation-pruning",
+      "title": "Closes with store-growth-ratchet (shares its check)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Closes with store-growth-ratchet (shares its check)",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestStoreUpkeepRunsAtRestPastThreshold$' -count=1",
+          "rationale": "Build nothing; land plan-only once store-growth-ratchet's check passes.",
+          "depends_on": [
+            "store-growth-ratchet/do"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "compatibility-reports-leave-the-tree",
+      "title": "Stop compatibility reports churning every landing (owner decision first)",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Stop compatibility reports churning every landing (owner decision first)",
+          "status": "open",
+          "verify": "go test ./cmd/compatibility -run '^TestCompatibilityReportsAreRenderedOnDemand' -count=1",
+          "rationale": "OWNER DECISION: does a claim's file:sha256 source binding mean re-verify when the code moves (then a refresh re-runs the claim's oracle), or nothing (then it leaves both documents)? Today the gate rewrites compatibility.json and COMPATIBILITY.md on every landing unreviewed. Then docs/model_compatibility.json and docs/media_report.json leave the tree, and performance_sweep_baseline.json keeps its thresholds with measurements in the store."
+        }
+      ]
+    },
+    {
+      "id": "compatibility-names-its-reads",
+      "title": "Key cmd/compatibility's receipt to the files it actually reads",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Key cmd/compatibility's receipt to the files it actually reads",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestCompatibilityInputsAreNamed$' -count=1",
+          "rationale": "The input graph treats the package as an opaque reader, binding it to every root (269 packages) including docs/plan.json, so the complete receipt for ten media and specialized models expires on every landing and costs a four-minute rerun. Found 2026-09-23, three sources of the binding: (1) reads join a root parameter that production only ever passes as \".\", which in-package parameter propagation in the classifier would name; (2) the operator verbs (claim, record-verification, webui-report) read flag paths and can move to their own command; (3) -check reads the source files docs/compatibility.json binds to each claim, so part of the broad binding is correct until compatibility-reports-leave-the-tree decides what that binding means. Waits on that decision; (1) and (2) alone leave the package opaque."
+        }
+      ]
+    },
+    {
+      "id": "speech-document-admission",
+      "title": "Admit or retire the GUI lane's document speech program",
+      "owner": "professional_overgo_gui",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Admit or retire the GUI lane's document speech program",
+          "status": "open",
+          "verify": "test -f internal/speechsynth/document_admission_test.go \u0026\u0026 go test ./internal/speechsynth -run '^TestDocumentProgramAdmission$' -count=1",
+          "rationale": "Owned by professional_overgo_gui/gui-text-to-speech. Master adds no second executor and does not retire that lane's foundation; it stays open until lane work proves admission or a retirement decision lands."
         }
       ]
     },
@@ -855,7 +855,8 @@
             "move-test-only-oracles/do",
             "delete-hypervector-index/do",
             "move-test-only-entry-points/do",
-            "move-test-only-device-entry-points/do"
+            "move-test-only-device-entry-points/do",
+            "plan-refactor/do"
           ]
         }
       ]

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http/httptest"
@@ -38,6 +39,24 @@ var effortCeilings = map[string]taskEffort{
 	"ask a question":            {Fields: 1, Keys: 1},
 	"decide a pending approval": {Clicks: 2, TabSwitches: 1},
 	"inspect the served model":  {Clicks: 2, TabSwitches: 1},
+	"add a model from the hub":  {Clicks: 1, Fields: 1, Keys: 1},
+}
+
+// commonTasks are the tasks the task effort leg drives from a fresh landing on
+// the conversation; the onboarding leg drives adding a model from the Library.
+var commonTasks = []effortTask{
+	{"ask a question", []effortStep{
+		{"type", ".composer textarea", "What does this model answer?"},
+		{"key", "Enter", ""},
+	}, `!!document.querySelector(".chat-log .msg.assistant .body") && document.querySelector(".chat-log .msg.assistant .body").textContent.trim().length > 0`},
+	{"decide a pending approval", []effortStep{
+		{"click", "#inbox-count", ""},
+		{"click", "#panel-inbox button", "Grant retry-browser"},
+	}, `document.querySelector("#panel-inbox").textContent.includes("grant recorded")`},
+	{"inspect the served model", []effortStep{
+		{"click", "#workbench-toggle", ""},
+		{"click", "button.tab", "Inspect"},
+	}, `!!document.querySelector("#panel-inspect.active .section-title")`},
 }
 
 // navigationCeiling holds the entries a person scans in the navigation, its
@@ -92,77 +111,16 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 		t.Fatal(err)
 	}
 	settle(`!!document.querySelector("#panel-chat.active .composer textarea") && overgo.errors.length === 0`)
-	// The page counts its tab switches and the requests it makes, streams aside.
-	const counters = `(() => {
-  window.effortSwitches = 0; window.effortRequests = 0;
-  window.addEventListener("overgo-panel-change", () => window.effortSwitches++);
-  const pageFetch = window.fetch;
-  window.fetch = function (input) { if (!String(input).endsWith("/stream")) window.effortRequests++; return pageFetch.apply(this, arguments); };
-  return true;
-})()`
-	tasks := []effortTask{
-		{"ask a question", []effortStep{
-			{"type", ".composer textarea", "What does this model answer?"},
-			{"key", "Enter", ""},
-		}, `!!document.querySelector(".chat-log .msg.assistant .body") && document.querySelector(".chat-log .msg.assistant .body").textContent.trim().length > 0`},
-		{"decide a pending approval", []effortStep{
-			{"click", "#inbox-count", ""},
-			{"click", "#panel-inbox button", "Grant retry-browser"},
-		}, `document.querySelector("#panel-inbox").textContent.includes("grant recorded")`},
-		{"inspect the served model", []effortStep{
-			{"click", "#workbench-toggle", ""},
-			{"click", "button.tab", "Inspect"},
-		}, `!!document.querySelector("#panel-inspect.active .section-title")`},
-	}
 	measured := map[string]taskEffort{}
 	requests := map[string]int{}
-	for index, task := range tasks {
+	for index, task := range commonTasks {
 		// Every task starts where a person lands: the page freshly opened on the conversation (the
 		// query makes each opening a full load, not a move within the page).
 		if err := browser.Call(ctx, "Page.navigate", map[string]any{"url": server.URL + "/app.html?effort=" + strconv.Itoa(index) + "#chat"}, nil); err != nil {
 			t.Fatal(err)
 		}
 		settle(`document.readyState === "complete" && !window.effortSwitches && !!document.querySelector("#panel-chat.active .composer textarea") && overgo.api.inFlight() === 0`)
-		assertBrowserPredicate(t, ctx, browser, counters)
-		var before struct{ Switches, Requests int }
-		if err := browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &before); err != nil {
-			t.Fatal(err)
-		}
-		var effort taskEffort
-		for _, step := range task.steps {
-			switch step.action {
-			case "click":
-				find := `[...document.querySelectorAll(` + strconv.Quote(step.target) + `)].find((node) => !node.hidden && node.getClientRects().length && (!` + strconv.Quote(step.text) + ` || node.textContent.trim() === ` + strconv.Quote(step.text) + `))`
-				settle("!!" + find)
-				assertBrowserPredicate(t, ctx, browser, `(() => { `+find+`.click(); return true; })()`)
-				effort.Clicks++
-			case "type":
-				settle(`!!document.querySelector(` + strconv.Quote(step.target) + `)`)
-				assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector(`+strconv.Quote(step.target)+`); field.focus(); field.value = `+strconv.Quote(step.text)+`; field.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`)
-				effort.Fields++
-			case "key":
-				pressKey(t, ctx, browser, step.target, 13)
-				effort.Keys++
-			default:
-				t.Fatalf("%s: unknown step %q", task.name, step.action)
-			}
-		}
-		settle(task.done)
-		var after struct{ Switches, Requests int }
-		if err := browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &after); err != nil {
-			t.Fatal(err)
-		}
-		effort.TabSwitches = after.Switches - before.Switches
-		measured[task.name], requests[task.name] = effort, after.Requests-before.Requests
-	}
-	for name, ceiling := range effortCeilings {
-		got, found := measured[name]
-		switch {
-		case !found:
-			t.Errorf("%s: the ceiling names a task the leg no longer measures", name)
-		case got != ceiling:
-			t.Errorf("%s: effort %+v, ceiling %+v; a task's effort only falls, and a fall lowers its ceiling", name, got, ceiling)
-		}
+		measured[task.name], requests[task.name] = measureEffort(t, ctx, browser, settle, task)
 	}
 	var places struct{ Sections, Entries int }
 	if err := browser.Evaluate(ctx, `({Sections: document.querySelectorAll("#sections button.section").length, Entries: document.querySelectorAll("#sections button").length})`, &places); err != nil {
@@ -173,5 +131,69 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
 	encoded, _ := json.Marshal(measured)
-	t.Log(fmt.Sprintf("task effort leg: %d common tasks at their shortest paths %s, with requests %v; five workspace places with %d navigation entries", len(tasks), encoded, requests, places.Entries))
+	t.Log(fmt.Sprintf("task effort leg: %d common tasks at their shortest paths %s, with requests %v; five workspace places with %d navigation entries", len(commonTasks), encoded, requests, places.Entries))
+}
+
+// effortCounters makes the page count its tab switches and the requests it
+// makes, streams aside.
+const effortCounters = `(() => {
+  window.effortSwitches = 0; window.effortRequests = 0;
+  window.addEventListener("overgo-panel-change", () => window.effortSwitches++);
+  const pageFetch = window.fetch;
+  window.fetch = function (input) { if (!String(input).endsWith("/stream")) window.effortRequests++; return pageFetch.apply(this, arguments); };
+  return true;
+})()`
+
+// measureEffort drives one task's steps on the page as it stands, awaits the
+// state that says the task is done, holds the effort at the task's ceiling,
+// and answers the effort and the requests the page made.
+func measureEffort(t *testing.T, ctx context.Context, browser *webuilane.Browser, settle func(string), task effortTask) (taskEffort, int) {
+	t.Helper()
+	assertBrowserPredicate(t, ctx, browser, effortCounters)
+	var effort taskEffort
+	for _, step := range task.steps {
+		switch step.action {
+		case "click":
+			find := `[...document.querySelectorAll(` + strconv.Quote(step.target) + `)].find((node) => !node.hidden && !node.disabled && node.getClientRects().length && (!` + strconv.Quote(step.text) + ` || node.textContent.trim() === ` + strconv.Quote(step.text) + `))`
+			settle("!!" + find)
+			assertBrowserPredicate(t, ctx, browser, `(() => { `+find+`.click(); return true; })()`)
+			effort.Clicks++
+		case "type":
+			settle(`!!document.querySelector(` + strconv.Quote(step.target) + `)`)
+			assertBrowserPredicate(t, ctx, browser, `(() => { const field = document.querySelector(`+strconv.Quote(step.target)+`); field.focus(); field.value = `+strconv.Quote(step.text)+`; field.dispatchEvent(new Event("input", { bubbles: true })); return true; })()`)
+			effort.Fields++
+		case "key":
+			pressKey(t, ctx, browser, step.target, 13)
+			effort.Keys++
+		default:
+			t.Fatalf("%s: unknown step %q", task.name, step.action)
+		}
+	}
+	settle(task.done)
+	var counted struct{ Switches, Requests int }
+	if err := browser.Evaluate(ctx, `({Switches: window.effortSwitches, Requests: window.effortRequests})`, &counted); err != nil {
+		t.Fatal(err)
+	}
+	effort.TabSwitches = counted.Switches
+	if ceiling, found := effortCeilings[task.name]; !found || effort != ceiling {
+		t.Errorf("%s: effort %+v, ceiling %+v (held %v); a task's effort only falls, and a fall lowers its ceiling", task.name, effort, ceiling, found)
+	}
+	return effort, counted.Requests
+}
+
+// TestEffortCeilingsNameMeasuredTasks holds every ceiling to a task a leg drives.
+func TestEffortCeilingsNameMeasuredTasks(t *testing.T) {
+	t.Parallel()
+	driven := map[string]bool{onboardingTask.name: true}
+	for _, task := range commonTasks {
+		driven[task.name] = true
+	}
+	for name := range effortCeilings {
+		if !driven[name] {
+			t.Errorf("the effort ceiling %q names a task no leg drives", name)
+		}
+	}
+	if len(driven) != len(effortCeilings) {
+		t.Errorf("legs drive %d tasks and %d carry a ceiling", len(driven), len(effortCeilings))
+	}
 }

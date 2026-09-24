@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-model-onboarding",
-      "title": "Add a model in one action: download, register and validate chain from one control, with their progress in one place",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Add a model in one action: download, register and validate chain from one control, with their progress in one place",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserModelOnboarding$' -require 'one action onboarding leg'",
-          "rationale": "Getting a hub model to validated takes Download, then Register, then Validate, each a separate click after waiting; a local model needs its path typed. One control chains the three existing steps with their progress in one place (capability freeze: no new step, only the chain). Judged by the effort leg's count for the add-a-model task."
-        }
-      ]
-    },
-    {
       "id": "arch-event-hub",
       "title": "Fan operation and serving events out from one server hub: one operations subscription, one sessions snapshot per event, store reads outside the serving lock, and change events that keep inventories live",
       "owner": "overgo_gui_cleanup",

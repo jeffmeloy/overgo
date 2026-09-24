@@ -90,7 +90,7 @@ func TestFrontPageLibraryProjector(t *testing.T) {
 		t.Fatalf("register accepted a text file as the projector: %s", refused.Body.String())
 	}
 	library := serveTestRequest(handler, http.MethodGet, "/mod/discovery.js", "").Body.String()
-	for _, needle := range []string{`projector: job.projector`, `"register a local model"`, `stage.registered.projector`} {
+	for _, needle := range []string{`projector: job.projector`, `"add a local model"`, `stage.registered.projector`} {
 		if !strings.Contains(library, needle) {
 			t.Errorf("library module missing %q", needle)
 		}

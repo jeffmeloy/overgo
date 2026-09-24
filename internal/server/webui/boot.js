@@ -865,7 +865,7 @@
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
   function libraryStarters() {
     const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
-    return [el("button", { class: "btn alt", text: "register a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
+    return [el("button", { class: "btn alt", text: "add a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
       el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
   }
   function wireModelPicker() {

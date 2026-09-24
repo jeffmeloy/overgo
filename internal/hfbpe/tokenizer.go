@@ -31,6 +31,8 @@ type Tokenizer struct {
 	spaceMarker       string
 	byteFallback      bool
 	ignoreMerges      bool
+	rankBPE           bool
+	rankBPEEligible   bool
 	decodeMarker      string
 	stripDecodePrefix bool
 	omitSpecial       map[int]bool
@@ -98,6 +100,13 @@ func Load(dir string) (*Tokenizer, error) {
 	}
 	t.configureNormalizer(tj.Normalizer)
 	t.configurePreTokenizer(tj.PreTokenizer)
+	if tj.Model.IgnoreMerges && len(tj.Model.Merges) == 0 && t.preTokenizerErr == nil {
+		if !t.rankBPEEligible {
+			t.preTokenizerErr = fmt.Errorf("empty-merge rank BPE requires the declared Kimi Split")
+		} else {
+			t.rankBPE = true
+		}
+	}
 	if t.preTokenizerErr == nil && t.preTokenize != nil &&
 		(tj.Model.ByteFallback || tj.Model.Dropout != nil || tj.Model.UnkToken != nil ||
 			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "") ||
@@ -401,6 +410,12 @@ func (t *Tokenizer) bpe(word string) []string {
 		if _, found := t.vocab[word]; found {
 			return []string{word}
 		}
+	}
+	if t.rankBPE {
+		return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
+			rank, ok := t.vocab[left+right]
+			return rank, ok
+		})
 	}
 	return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
 		rank, ok := t.mergeRank[left+" "+right]

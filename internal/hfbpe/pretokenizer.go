@@ -19,7 +19,7 @@ func (t *Tokenizer) configurePreTokenizer(raw json.RawMessage) {
 	}
 	var stages []preTokenizerStage
 	byteLevel := false
-	t.preTokenizerErr = compilePreTokenizer(raw, &stages, &byteLevel)
+	t.preTokenizerErr = compilePreTokenizer(raw, &stages, &byteLevel, &t.rankBPEEligible)
 	if t.preTokenizerErr == nil && !byteLevel {
 		t.preTokenizerErr = fmt.Errorf("declared pre-tokenizer requires a final ByteLevel stage")
 	}
@@ -41,7 +41,7 @@ func (t *Tokenizer) configurePreTokenizer(raw json.RawMessage) {
 	}
 }
 
-func compilePreTokenizer(raw json.RawMessage, stages *[]preTokenizerStage, byteLevel *bool) error {
+func compilePreTokenizer(raw json.RawMessage, stages *[]preTokenizerStage, byteLevel, rankBPEEligible *bool) error {
 	if *byteLevel {
 		return fmt.Errorf("pre-tokenizer stage follows final ByteLevel")
 	}
@@ -67,7 +67,7 @@ func compilePreTokenizer(raw json.RawMessage, stages *[]preTokenizerStage, byteL
 			return fmt.Errorf("empty pre-tokenizer Sequence")
 		}
 		for _, child := range node.PreTokenizers {
-			if err := compilePreTokenizer(child, stages, byteLevel); err != nil {
+			if err := compilePreTokenizer(child, stages, byteLevel, rankBPEEligible); err != nil {
 				return err
 			}
 		}
@@ -78,6 +78,9 @@ func compilePreTokenizer(raw json.RawMessage, stages *[]preTokenizerStage, byteL
 		// HF defaults only omitted use_regex during deserialization. trim_offsets
 		// changes offsets, which Encode does not expose; it cannot change IDs.
 		useRegex := *node.UseRegex
+		if *rankBPEEligible {
+			*rankBPEEligible = len(*stages) == 1 && !*node.AddPrefixSpace && !useRegex
+		}
 		split, _, err := tokenizer.CompileBPESplit(tokenizer.BPEPatternGPT2)
 		if err != nil {
 			return err
@@ -106,6 +109,9 @@ func compilePreTokenizer(raw json.RawMessage, stages *[]preTokenizerStage, byteL
 		if !(node.Behavior == "Isolated" && !*node.Invert ||
 			node.Behavior == "Removed" && *node.Invert && complete) {
 			return fmt.Errorf("unsupported Split delimiter behavior")
+		}
+		if node.Pattern["Regex"] == tokenizer.BPEPatternKimi {
+			*rankBPEEligible = true
 		}
 		*stages = append(*stages, split)
 	case "Digits":

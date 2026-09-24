@@ -21,7 +21,8 @@
             "colibri-kimi-split/do",
             "colibri-text-semantics/pretokenizer",
             "colibri-text-semantics/bpe-shared",
-            "colibri-plan-39934/do"
+            "colibri-plan-39934/do",
+            "colibri-kimi-rank-bpe/do"
           ],
           "capabilities": [
             "shared-components",

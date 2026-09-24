@@ -103,13 +103,16 @@
       }
 
       await Promise.all([refreshInventory(), refreshHistory()]);
-      const stopStream = overgo.tabStream("/automations/stream", (event, data) => {
-        if (event === "automation.inventory") { inventory = data; renderInventory(); }
-        if (event === "operation.snapshot") renderOperations(data);
-        if (event === "operation") renderOperations([data.status]);
-      }, status);
+      // The runtime stream opens with every operation, then one event per transition, each updating its own row.
+      const operations = new Map();
+      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => {
+        if (event === "operation.snapshot") { operations.clear(); for (const item of data || []) operations.set(item.id, item); }
+        else if (event === "operation" && data.status && data.status.id) operations.set(data.status.id, data.status);
+        else return;
+        renderOperations([...operations.values()]);
+      });
       return () => {
-        stopStream(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
+        unsubscribe(); definitionForm.dispose(); triggerForm.dispose(); deliveryForm.dispose();
       };
     },
   });

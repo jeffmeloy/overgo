@@ -52,7 +52,7 @@
       if (streamController === controller && !controller.signal.aborted && err.name !== "AbortError") {
         // The idle proxy deliberately has no operation service until a model
         // is selected. Its declared refusal is not a broken connection.
-        if (err.type === 'no_model_serves') { latest.delete('stream.error'); publish('stream.idle', null); }
+        if (err.type === 'no_model_serves') { latest.delete('stream.error'); publish('stream.idle', err); }
         else publish("stream.error", err);
       }
     } finally {

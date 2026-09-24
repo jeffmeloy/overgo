@@ -118,16 +118,23 @@
         cell.append(register, validate, stage.host);
         return cell;
       }
-      const jobPoller = overgo.poller(async (signal) => {
-        // A server with no download surface (the cold page) says so once; the tab remounts when a model serves.
-        const listed = await overgo.api.get("/hub/downloads", { signal }).catch((err) => { jobsNote.textContent = overgo.friendlyError(err); jobPoller.stop(); return null; });
-        if (!listed) return;
-        jobsBody.replaceChildren(...(listed.downloads || []).map((job) => {
-          const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
-          const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
-          return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
-        }));
-      }, 1000);
+      // Download jobs arrive on the runtime stream: every job at connect, then again whenever one reads
+      // differently. A server with no download surface (the cold page) says why; the tab remounts when a model serves.
+      let stopJobs = null, streamRefusal = false;
+      function watchJobs() {
+        if (stopJobs) return;
+        stopJobs = overgo.runtimeEvents.subscribe((event, data) => {
+          if (event === "stream.idle" || event === "stream.error") { jobsNote.textContent = overgo.friendlyError(data); streamRefusal = true; }
+          if (event === "stream.ready" && streamRefusal) { jobsNote.textContent = ""; streamRefusal = false; }
+          if (event !== "hub.downloads") return;
+          jobsBody.replaceChildren(...(data || []).map((job) => {
+            const progress = job.total > 0 ? Math.floor(job.received * 100 / job.total) + "%" : "";
+            const state = job.state === "failed" ? el("span", { class: "tag control", text: "failed" }) : job.state === "succeeded" ? el("span", { class: "tag user_defined", text: "done" }) : el("span", { class: "tag byte", text: progress || "running" });
+            return overgo.tableRow([job.repository, state, job.file || (job.state === "failed" ? job.error : ""), job.total > 0 ? fmt.bytes(job.received) + " / " + fmt.bytes(job.total) : (job.files ? job.files + " files" : ""), lifecycle(job)]);
+          }));
+        });
+      }
+      function unwatchJobs() { if (stopJobs) { stopJobs(); stopJobs = null; } }
 
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
@@ -177,10 +184,10 @@
       panel.append(el("div", { class: "section-title", text: "Hosted providers" }), el("div", { class: "row" }, ...providerFields, listButton, providerButton), providerListing, providerNote, el("div", { class: "row" }, providerReason));
 
       refreshCatalog();
-      this.onActivate = () => { refreshCatalog(); jobPoller.start(); };
-      this.onDeactivate = () => jobPoller.stop();
-      this.dispose = () => { disposed = true; if (catalogRequest) catalogRequest.abort(); jobPoller.stop(); };
-      jobPoller.start();
+      this.onActivate = () => { refreshCatalog(); watchJobs(); };
+      this.onDeactivate = unwatchJobs;
+      this.dispose = () => { disposed = true; if (catalogRequest) catalogRequest.abort(); unwatchJobs(); };
+      watchJobs();
     },
   });
 })();

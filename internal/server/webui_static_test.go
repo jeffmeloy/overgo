@@ -39,8 +39,8 @@ func TestWebUIServesEmbeddedAssets(t *testing.T) {
 		{"/mod/compositions.js", "text/javascript; charset=utf-8", "/compositions/activate"},
 		{"/mod/artifacts.js", "text/javascript; charset=utf-8", "/artifacts"},
 		{"/mod/evaluations.js", "text/javascript; charset=utf-8", "/evaluations/capabilities"},
-		{"/mod/automations.js", "text/javascript; charset=utf-8", "/automations/stream"},
-		{"/mod/peers.js", "text/javascript; charset=utf-8", "/peers/stream"},
+		{"/mod/automations.js", "text/javascript; charset=utf-8", "/automations/history"},
+		{"/mod/peers.js", "text/javascript; charset=utf-8", "/peers/evidence"},
 		{"/mod/analyze_model.js", "text/javascript; charset=utf-8", "/analyze/model"},
 		{"/mod/analyze_vocab.js", "text/javascript; charset=utf-8", "/analyze/vocab"},
 		{"/mod/analyze_logits.js", "text/javascript; charset=utf-8", "completion_probabilities"},
@@ -105,9 +105,15 @@ func TestWebUIRuntimeMonitor(t *testing.T) {
 		t.Error("runtime monitor requests retained text")
 	}
 	boot := get("/boot.js")
-	for _, token := range []string{"function poller", "document.hidden", "t.onActivate", "t.onDeactivate"} {
+	for _, token := range []string{"document.hidden", "t.onActivate", "t.onDeactivate"} {
 		if !strings.Contains(boot, token) {
 			t.Errorf("boot lifecycle missing %q", token)
+		}
+	}
+	// Live state arrives on the one runtime stream; the shell keeps no poller and no per-tab stream.
+	for _, retired := range []string{"function poller", "function tabStream"} {
+		if strings.Contains(boot, retired) {
+			t.Errorf("boot keeps retired live-state path %q", retired)
 		}
 	}
 	if !strings.Contains(get("/workspace/manifest"), `"id":"runtime"`) {

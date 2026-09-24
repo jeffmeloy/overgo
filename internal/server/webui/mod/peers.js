@@ -21,8 +21,8 @@
       // Operations come from the global runtime stream alone, so each transition reads its evidence once.
       // The tab hears them from the start of its mount, so one that ends while the mount reads is not
       // missed; a mount a remount replaced no longer stands in the page and reads nothing; an evidence
-      // read that fails says so where the evidence would stand. The peer stream carries the inventory,
-      // and cleanup (or a failed mount) releases both.
+      // read that fails says so where the evidence would stand. The inventory is read once at mount,
+      // and cleanup (or a failed mount) releases the subscription.
       const showEvidence = (data) => { if (evidenceHost.isConnected && data.status && data.status.id) renderEvidence(data.status.id).catch((err) => evidenceHost.replaceChildren(overgo.failure(err))); };
       const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => { if (event === "operation") showEvidence(data); });
       const release = (err) => { unsubscribe(); throw err; };
@@ -160,10 +160,7 @@
       }
 
       await refreshInventory().catch(release);
-      const stopStream = overgo.tabStream("/peers/stream", (event, data) => {
-        if (event === "peer.inventory") { inventory = data; renderInventory(); }
-      }, status);
-      return () => { stopStream(); unsubscribe(); enrollmentForm.dispose(); placementForm.dispose(); };
+      return () => { unsubscribe(); enrollmentForm.dispose(); placementForm.dispose(); };
     },
   });
 })();

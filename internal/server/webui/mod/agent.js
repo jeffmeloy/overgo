@@ -276,12 +276,11 @@
       tools = (await api.get("/agents/tools")).tools || [];
       inventory = await api.get("/agents");
       renderAll();
-      const stopStream = overgo.tabStream("/agents/stream", (event, data) => {
-        if (event === "agent.inventory") { inventory = data; renderAll(); }
+      const unsubscribe = overgo.runtimeEvents.subscribe((event, data) => {
         if (event === "operation" && data.status && data.status.id) status.textContent =
           "operation " + fmt.shortID(data.status.id) + " / " + data.status.state;
-      }, status);
-      return () => { stopStream(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); if (chatThread) chatThread.dispose(); };
+      });
+      return () => { unsubscribe(); definitionForm.dispose(); if (chatController) chatController.abort(); if (chatComposer) chatComposer.dispose(); if (chatThread) chatThread.dispose(); };
     },
   });
 })();

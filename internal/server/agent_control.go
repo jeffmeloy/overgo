@@ -179,8 +179,6 @@ func (h *Handler) agentControl(response http.ResponseWriter, request *http.Reque
 		}
 		value, err := h.agentEvidence(request.Context(), request.URL.Query().Get("session"))
 		writeAgentResult(response, http.StatusOK, value, err)
-	case "/agents/stream":
-		h.agentStream(response, request)
 	default:
 		writeError(response, http.StatusNotFound, "not_found", "agent route is absent")
 	}
@@ -557,38 +555,6 @@ func (h *Handler) agentEvidence(ctx context.Context, session string) ([]AgentObs
 		result = append(result, observable)
 	}
 	return result, nil
-}
-
-func (h *Handler) agentStream(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
-	events, unsubscribe, err := h.operations.Subscribe()
-	if err != nil {
-		writeGenerationError(response, err)
-		return
-	}
-	defer unsubscribe()
-	flusher, ok := beginSSE(response)
-	if !ok {
-		return
-	}
-	stream := newSSEEmitter(request.Context(), response, flusher)
-	inventory, err := h.agentInventory(request.Context())
-	if err != nil || stream.named("agent.inventory", inventory) != nil ||
-		stream.named("operation.snapshot", h.operations.List()) != nil {
-		return
-	}
-	for {
-		select {
-		case <-request.Context().Done():
-			return
-		case event, open := <-events:
-			if !open || stream.named("operation", event) != nil {
-				return
-			}
-		}
-	}
 }
 
 func writeAgentResult(response http.ResponseWriter, status int, value any, err error) {

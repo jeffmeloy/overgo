@@ -51,18 +51,14 @@
     return body;
   }
 
-  // inFlight counts the shell's requests still awaiting a response and
-  // activePollers the pollers with a tick scheduled; a page with either is
-  // still working, whatever the work behind it costs, and a page with
-  // neither has settled.
+  // inFlight counts the shell's requests still awaiting a response; a page
+  // with none has settled, whatever the work behind them costs.
   let inFlight = 0;
-  let activePollers = 0;
   async function tracked(request) {
     inFlight++;
     try { return await request; } finally { inFlight--; }
   }
   const api = {
-    pending() { return inFlight + activePollers; },
     inFlight() { return inFlight; },
     async get(path, opts) {
       const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
@@ -266,7 +262,7 @@
   // button; an abort goes to onCancel, any other failure to onError.
   // The shell's timers, named in one place: a library field's focus retry, the swap button's loading
   // tick, the offline probe, and the status re-probe.
-  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000, streamReconnectMS = 2000;
+  const focusRetryMS = 50, loadingTickMS = 1000, offlineProbeMS = 4000, statusRefreshMS = 10000;
   function runner(runButton, cancelButton, handlers) {
     handlers = handlers || {};
     let controller = null;
@@ -283,53 +279,6 @@
         else if (handlers.onError) handlers.onError(err);
       } finally { runButton.disabled = false; cancelButton.hidden = true; controller = null; }
     };
-  }
-
-  // poller: task every interval while started and the page is visible. A failed tick is reported
-  // (onError, else the page's error record) and the next tick still runs; stop releases the listener.
-  function poller(task, interval, onError) {
-    let active = false;
-    let controller = null;
-    let timer = null;
-
-    function cancel() { if (timer != null) clearTimeout(timer); timer = null; if (controller) controller.abort(); }
-    function schedule() { if (active && !document.hidden) timer = setTimeout(tick, interval); }
-    async function tick() {
-      if (!active || document.hidden || controller) return;
-      const current = new AbortController();
-      controller = current;
-      try { await task(current.signal); }
-      catch (err) {
-        if (err && err.name === "AbortError") return;
-        if (onError) onError(err); else errors.push(String(err && err.message || err));
-      } finally { if (controller === current) controller = null; schedule(); }
-    }
-    function visibility() { cancel(); if (active && !document.hidden) tick(); }
-    function start() { if (active) return; active = true; activePollers++; document.addEventListener("visibilitychange", visibility); if (!document.hidden) tick(); }
-    function stop() { if (active) activePollers--; active = false; document.removeEventListener("visibilitychange", visibility); cancel(); }
-    return { start, stop };
-  }
-
-  // tabStream: a tab's own event stream. It reconnects after the server ends it cleanly, reports a
-  // failed connection in host with a Reconnect control, and returns the stop the tab's cleanup calls.
-  function tabStream(path, handler, host) {
-    let controller = null;
-    let timer = null;
-    let stopped = false;
-    function connect() {
-      timer = null;
-      const current = new AbortController();
-      controller = current;
-      api.events(path, handler, { signal: current.signal }).then(() => {
-        if (!stopped && controller === current) timer = setTimeout(connect, streamReconnectMS);
-      }, (err) => {
-        if (stopped || controller !== current || (err && err.name === "AbortError")) return;
-        const retry = el("button", { class: "btn alt", text: "Reconnect", onclick: () => { host.replaceChildren(); connect(); } });
-        host.replaceChildren(errorBanner("Live updates stopped: " + friendlyError(err)), retry);
-      });
-    }
-    connect();
-    return function stop() { stopped = true; if (timer != null) clearTimeout(timer); if (controller) controller.abort(); };
   }
 
   function stat(label, value, unit) {
@@ -613,7 +562,7 @@
     api, el, clear, errorBanner, friendlyError, failure, cancelOperation, registerTab, artifactLink, contentURL, openArtifact, focusedArtifact, downloadBlob, headerRow, tableRow, table, servedModel, modelSwitching, bindTaskModel,
     conversation, rememberConversation, openConversation, refreshConversations, sseEvents, errors, embed, analysisSurface, reporter,
     getKey, setKey, modelInfo,
-    displayToken, runner, poller, tabStream, stat, fold,
+    displayToken, runner, stat, fold,
     fmt: { grouped, bytes, compact, shortID },
   };
 

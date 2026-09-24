@@ -1,10 +1,8 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -70,27 +68,5 @@ func TestPeerWorkspaceUsesGlobalOperations(t *testing.T) {
 		if strings.Contains(module, forbidden) {
 			t.Errorf("peer workspace duplicates operation authority with %q", forbidden)
 		}
-	}
-}
-
-func TestPeerWorkspaceSSE(t *testing.T) {
-	t.Parallel()
-	fixture := newPeerWorkspaceFixture(t, "peer-gui-sse", "")
-	ctx, cancel := context.WithCancel(t.Context())
-	recorder := &countingRecorder{ResponseRecorder: httptest.NewRecorder(), flushes: make(chan struct{}, peerWorkspaceLimit)}
-	done := make(chan struct{})
-	go func() {
-		fixture.handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/peers/stream", nil).WithContext(ctx))
-		close(done)
-	}()
-	for range 2 {
-		<-recorder.flushes
-	}
-	cancel()
-	<-done
-	if recorder.Header().Get("Content-Type") != "text/event-stream" ||
-		!strings.Contains(recorder.Body.String(), "event: peer.inventory") ||
-		!strings.Contains(recorder.Body.String(), "event: operation.snapshot") {
-		t.Fatalf("peer SSE headers=%v body=%s", recorder.Header(), recorder.Body.String())
 	}
 }

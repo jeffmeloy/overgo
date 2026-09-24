@@ -171,10 +171,19 @@ func (h *Handler) runtimeActivityStream(response http.ResponseWriter, request *h
 	if stream.named("operation.snapshot", h.operations.List()) != nil {
 		return
 	}
+	downloads, downloadsChanged := h.downloads.watch()
+	if stream.named("hub.downloads", downloads) != nil {
+		return
+	}
 	for {
 		select {
 		case <-request.Context().Done():
 			return
+		case <-downloadsChanged:
+			downloads, downloadsChanged = h.downloads.watch()
+			if stream.named("hub.downloads", downloads) != nil {
+				return
+			}
 		case event, open := <-serving:
 			if !open {
 				return

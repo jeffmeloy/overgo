@@ -154,7 +154,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 		t.Helper()
 		if err := browser.Eventually(ctx, expression); err != nil {
 			var page string
-			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), pending: window.overgo.api.pending(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
+			_ = browser.Evaluate(ctx, `JSON.stringify({errors: window.overgo && window.overgo.errors, banners: [...document.querySelectorAll('#panel-library .err-banner')].map((node) => node.textContent), inFlight: window.overgo.api.inFlight(), rows: [...document.querySelectorAll('#panel-library tr')].map((row) => row.outerHTML.slice(0, 400))})`, &page)
 			t.Fatalf("%s: %v; page: %s", what, err, page)
 		}
 	}

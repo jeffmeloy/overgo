@@ -118,26 +118,6 @@
       ]
     },
     {
-      "id": "colibri-fixtures",
-      "title": "Acquire minimal independently verified fixtures for declared capabilities",
-      "owner": "colibri2",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Acquire minimal independently verified fixtures for declared capabilities",
-          "status": "open",
-          "verify": "go test ./internal/parity ./internal/gguf -run 'TestParityFixtureAdmission|TestPendingFixtureTinyOracles' -count=1",
-          "rationale": "W2.4/W2.5. Shared test-side tiny GGUF builders and pinned independent reference outputs, exact tensor inventory and no missing-fixture pass. Distinguish tiny structural proof from real-model validation. Existing pending capabilities first; avoid new fixture CLI or registry.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-host-capacity",
       "title": "Admit host allocations from actual available commit and shape costs",
       "owner": "colibri2",

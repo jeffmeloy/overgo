@@ -1,6 +1,6 @@
 {
   "campaign": "Integrated validation, phase 2: bounded capability gains and evidence-gated simplification",
-  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
+  "doctrine": "Rank by fastest progress: model capability and validation first, then changes that make every later landing cheaper, then cleanup; owner-blocked and long-horizon rows last. Consolidate duplicated logic into fewer general components rather than adding instrumentation or frameworks; net AST nodes stay flat or fall, and the clone and harness ratchets hold the floor. Delete stale data and consolidate objects to reduce surface and improve robustness and efficiency: reviewed source lives in git, derived records in OvergoDB, process state in .overgo-runtime, and nothing a tool or evidence depends on lives in tmp. A consolidation row is done only when it deletes the implementations it replaces: test the shared owner's contract, keep only meaningful caller integration checks, retire tests of deleted wrappers, and report net production and test code removed, repeated executions eliminated, gate wall time and peak memory on comparable changes. Across the 197 first-parent commits to 2026-09-23, production Go grew about 9,000 net lines and tests about 11,600. OvergoDB keeps its core -- immutable content, a durable journal, aliases, rebuildable projections -- and the repository simplifies how it uses it, in order: integrity and blocking defects, one publication path, bounded queries, one record per transition, bounded memory, declared storage policy, then bounded segments. Store rows report bytes and records added per landing, records scanned per query, open and replay time, writer wait, peak memory and compaction write volume. No new model family, workflow, optimizer or orchestration framework without an owner request. A step's verify is its machine check; a check whose prerequisite cannot run records UNAVAILABLE, not a pass. depends_on names real producers. GUI and audio keep their lanes; master runs as master-lead. docs/plan.json is the only live plan.",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
@@ -45,6 +45,21 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestPackIndexRejectsImpossibleCounts$' -count=1",
           "rationale": "Review 2026-09-23 (P2): readPackIndex allocates from the header's entry count before checking the file length or arithmetic bounds (blob_pack.go:77). A damaged count causes an excessive allocation or a panic before checksum validation. Reject any count whose index cannot fit in the file, and any overflow, before allocating."
+        }
+      ]
+    },
+    {
+      "id": "store-bare-record-fill",
+      "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestOnePublicationPath$' -count=1",
+          "rationale": "Integrity and blocking first. A store that already holds a bare descriptor refuses the later batch carrying its content (artifactFacet.validate), which blocks lane outcomes; 66420d36 avoids new bare records but repairs none. Build on the commit coordinator (commit_coordinator.go:44) so every caller shares idempotent publication, content verification, alias compare-and-set and conflict reporting. Treat descriptor-exists and content-available as distinct states, with one supported path to fill an existing descriptor with matching, verified content. A caller declares whether its decision depends on the whole head. Alias-local operations take only their alias precondition, so unrelated writers do not invalidate them. Keep expensive preparation outside the write lock. Done when the bare-record repair works, the per-caller publication and retry code is deleted, and writer wait is measured before and after."
         }
       ]
     },
@@ -96,6 +111,36 @@
             "dinov2-embedding-capability/do",
             "rae-generation-path/do"
           ]
+        }
+      ]
+    },
+    {
+      "id": "store-queries-bounded",
+      "title": "Make store queries proportional to the results they return",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Make store queries proportional to the results they return",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestQueryScansProportionalToItsPage$' -count=1",
+          "rationale": "VisitDocuments (documents.go:55) walks the whole artifact history under the read lock on every call. After the page fills it keeps scanning to count Matched. A cursor does not seek; it rescans from the start and skips, so paging a collection is quadratic, and every artifact is tested against the query contracts. Seek from the cursor over the existing descriptor indexes, stop after the page plus one match, and make an exact total an explicit census operation. Current-state readers resolve an alias or run a bounded query instead of rebuilding latest from history. Done when records scanned per query track the page size, not the store size."
+        }
+      ]
+    },
+    {
+      "id": "store-benchmark-record-redundancy",
+      "title": "Publish one durable record per meaningful transition",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish one durable record per meaningful transition",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestOneRecordPerTransition$' -count=1",
+          "rationale": "Content addressing removes identical bytes, not the same fact in different envelopes. A completed check publishes its result once. Package receipts, batch progress, plan completion, benchmark rows and reports reference that result rather than repeat its measurements, environment or source manifest. Related facts and alias moves ride one existing transaction. Heartbeats and partial output stay out of the durable catalog. Evidence schemas change, so readers accept the old and new shapes until retained evidence migrates. Done when bytes and records added per landing fall and the duplicated envelopes are deleted from the writers."
         }
       ]
     },
@@ -161,16 +206,31 @@
     },
     {
       "id": "pack-bounded-streaming",
-      "title": "Stream pack construction and verification in bounded memory",
+      "title": "Bound peak memory at the store's copying points",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Stream pack construction and verification in bounded memory",
+          "title": "Bound peak memory at the store's copying points",
           "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestPackingHoldsBoundedMemory$' -count=1",
-          "rationale": "Packing accumulates payloads in memory, and verification reads the whole pack (blob_pack.go:153). Share one bounded entry-reading and hashing path between lookup and verification, and stream pack construction through the existing atomic publication. No new storage framework. Done when peak working memory stays bounded as payload volume grows, with index memory accounted for separately."
+          "verify": "go test ./internal/overgodb -run '^TestStoreCopyingHoldsBoundedMemory$' -count=1",
+          "rationale": "Three measured points: pack construction buffers payloads and verification reads whole packs (blob_pack.go:153); checkpoint creation serializes, restores and serializes a projection again to prove canonical form (checkpoints.go:57); retention copies catalog and graph state before computing reachability (retention.go:72). Share one bounded entry-reading and hashing path between lookup and verification, stream packs through the existing atomic publication, bound checkpoint concurrency, and traverse retention over the smallest stable representation. Keep every integrity check. Done when peak memory stays bounded as payload volume grows, with index memory accounted separately."
+        }
+      ]
+    },
+    {
+      "id": "store-small-record-horizon",
+      "title": "Declare storage class and retention on the document contract",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Declare storage class and retention on the document contract",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestStoragePolicyIsDeclaredOnContracts$' -count=1",
+          "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy."
         }
       ]
     },
@@ -235,17 +295,17 @@
       ]
     },
     {
-      "id": "store-bare-record-fill",
-      "title": "Let a batch carrying content fill a bare store record",
+      "id": "store-bounded-segments",
+      "title": "Store medium payloads in immutable, size-bounded pack segments",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Let a batch carrying content fill a bare store record",
+          "title": "Store medium payloads in immutable, size-bounded pack segments",
           "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestBatchFillsBareRecord$' -count=1",
-          "rationale": "From the GUI lane: a store that already holds a bare environment declaration refuses the later descriptor that carries its content at preparation, finalization and the lane outcome (artifactFacet.validate). 66420d36 avoids new bare records but cannot repair existing ones."
+          "verify": "go test ./internal/overgodb -run '^TestPackSegmentsAreBoundedAndImmutable$' -count=1",
+          "rationale": "After the publication, query and memory rows land, and only from measured record sizes, read patterns and compaction cost. Small transition records stay inline in journal entries, medium immutable payloads go to bounded pack segments, large tensors, media and logs to individually addressed blobs, indexes and checkpoints to replaceable derived generations, and live progress to bounded runtime state. Adding a small record must not rewrite an ever-growing pack, and one enormous file would trade file count for rewrite and recovery cost. Done when compaction write volume and open and replay time fall on the measured store without losing backup or recovery."
         }
       ]
     },
@@ -336,36 +396,6 @@
           "status": "open",
           "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
           "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
-        }
-      ]
-    },
-    {
-      "id": "store-small-record-horizon",
-      "title": "Declare which small store records upkeep may release",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare which small store records upkeep may release",
-          "status": "open",
-          "verify": "go test ./internal/storepolicy -run '^TestLegacySmallRecordsAreReleasable$' -count=1",
-          "rationale": "54,332 legacy go-test agent-obligation/v1 documents (none written since f169de9f) and package receipts beyond a short history per package become releasable, shrinking the lineage and artifact checkpoints every open decodes."
-        }
-      ]
-    },
-    {
-      "id": "store-benchmark-record-redundancy",
-      "title": "Store benchmark rows once",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Store benchmark rows once",
-          "status": "open",
-          "verify": "go test ./internal/benchmark -run '^TestBenchmarkRunIsOneDocument' -count=1",
-          "rationale": "24,318 per-row benchmark-records (24.3 MB) duplicate the typed datasets (23.1 MB). Keep each row's identity by recomputing it in memory from one rows document per import, and keep already-stored records readable, since suites, IFEval bindings and catalogs cite those identities."
         }
       ]
     },
@@ -843,7 +873,10 @@
             "fsatomic-release-not-exit/do",
             "pack-index-bounds/do",
             "preflight-gate-one-execution/do",
-            "pack-bounded-streaming/do"
+            "pack-bounded-streaming/do",
+            "replan-store-simplification/do",
+            "store-queries-bounded/do",
+            "store-bounded-segments/do"
           ]
         }
       ]

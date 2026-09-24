@@ -1,31 +1,54 @@
 {
   "campaign": "Colibri2: consumer-safe shared inference and measured capability gains",
-  "doctrine": "Owned worktree: C:/Users/jeffm/overgo_colibri2 on codex/colibri2, based on master 0aa9853d0454caf6391538232da5344876c07135. docs/plan.json is this lane's sole live execution plan. The prior Colibri docs/plan.json at e18cf921 is the starting task inventory; its completed/pruned steps are historical evidence, not automatic completion credit here. Preserve master rows as foreign owned during gated bootstrap, then use the existing lane projection to omit them with no completion credit. Never import master's queue into Colibri2's scoped queue or change master from this worktree.\n\nAt each implementation boundary inspect the branch and active claims, pin current master and use first-parent-target merge authority while preserving this plan. Review incoming code before changing tasks; retire duplicate work only with verified acceptance. Execute one focused step through cmd/plan dispatch, test the declared outcome, then commit through cmd/gate. A plan-only adoption under this explicit user request includes its reviewed source and structural guard changes. Seed this worktree's independent store with a verified snapshot of master's ancestor receipts; never share a live store or import another lane's completion credit, supervisor session, stop control or artifact identity.\n\nPriority: restore basic model correctness before MoE expansion. Master rolled back Colibri's declared NFC and pre-tokenizer activation after RxBrain VQA regressed. Restore the useful common components with full deployed-consumer coverage and independent references. The RxBrain artifact has an empty normalization Sequence and ordered number/CJK/Unicode Split expressions; support their exact semantics with acceptance on the actual VQA path. Stage declared encoding safely: the new compiler refuses unsupported declarations explicitly; the deployed legacy path remains until full consumer parity is proven. Silent fallback from the compiled path hides defects. Do not credit the former 92-case oracle or eight retained consumer vectors as proof of the missing RxBrain behavior. They remain regression inputs to reacquire against pinned source and master. Current master already integrated EOS metadata, template indexes, reasoning channels and evaluation metadata. The media owner is its reviewed delta registry, and GUI cleanup is integrated; extend those owners rather than create replacements.\n\nCommon components serve actual consumers. Recipe and artifact declarations select model facts. Reuse the Go/CUDA runtime, typed inference, cache, placement, scheduling, verification and workbench owners; remove displaced code when migrating callers. Compare on fixed external workloads and held-out tasks, with stable artifacts, tokenizer IDs, sampling, source, budgets and residency. Bitwise equality where promised and justified tolerances elsewhere. Operation counts guide investigation; only paired end-to-end latency, throughput, quality, memory and total useful-result cost justify promotion. Keep raw negative and no-gain results. Use caller-declared budgets and resource admission, not assumed host or GPU capacity.\n\nThe gate and its hermetic, device, browser and model lanes own acceptance. Exact named tests must run with non-skipped results; missing models, zero-match selectors and UNAVAILABLE are not passes. A new model accuracy claim needs an independent numerical oracle; structural tiny fixtures do not substitute for it. UI metrics must distinguish measured values from estimates and preserve accessibility and durable replay. Each step has a concrete owner, dependency and verifier. Resolve editable blockers in this lane without weakening checks. Record source licenses, limitation, rollback and affected output reacquisition. A stopped or unavailable prerequisite remains explicit, and independent ready work may continue. This is supervised improvement, not a claim of full autonomous RSI.",
+  "doctrine": "Owned worktree: C:/Users/jeffm/overgo_colibri2 on codex/colibri2. Master snapshot 39934bd80daa20e19740df6ed7c47cbca166d856 was merged at b00e7bec256a1dfd46e54191b5917d31bd53911b with first-parent-target plan projection. docs/plan.json is this lane's sole live execution plan. Earlier Colibri rows and master rows provide history, with no completion credit in this queue; do not import master's queue or change master from this worktree.\n\nAt each implementation boundary inspect the branch and active claims, pin current master, review incoming code, and preserve this plan through first-parent-target merge authority. Retire duplicate work only with verified acceptance. Dispatch one focused step through cmd/plan, test its declared outcome, and commit through cmd/gate. Keep execution and activation authority in this lane's independent OvergoDB store. Immutable retained receipts missing here may be read through an explicit read-only reference store for acceptance; do not redirect the writable execution store or import another lane's completion credit, supervisor session, stop control or artifact identity.\n\nPriority: basic model correctness before MoE expansion. The merged master already contains RxBrain-safe declared NFC and pre-tokenizer activation, ranked BPE, EOS metadata, named chat templates, reasoning channels, evaluation metadata, the reviewed media registry, and the shared GUI onboarding and inspect owners. Colibri2 adds the exact Kimi Han-aware Split scanner. Treat these as completed foundations, not new work. The pinned tiny Kimi fixture first proves ignore_merges and synthetic token IDs; next prove full Kimi tokenizer IDs and byte boundaries against an independent reference, then prove remaining declared pipelines and deployed Kimi K2 consumers. Unsupported declarations must refuse explicitly; a silent legacy fallback hides defects. Tiny structural fixtures do not establish real-model accuracy. Pin external source, reference outputs, affected alignment, and quality floors before promotion.\n\nUse common components for actual consumers. Recipe and artifact declarations select model facts. Reuse the Go/CUDA runtime, typed inference, cache, placement, scheduling, verification and workbench owners; remove displaced code when migrating callers. Compare on fixed external workloads and held-out tasks, with stable artifacts, tokenizer IDs, sampling, source, budgets and residency. Bitwise equality where promised and justified tolerances elsewhere. Operation counts guide investigation; only paired end-to-end latency, throughput, quality, memory and total useful-result cost justify promotion. Keep raw negative and no-gain results. Use caller-declared budgets and resource admission, not assumed host or GPU capacity.\n\nThe gate and its hermetic, device, browser and model lanes own acceptance. Exact named tests must run with non-skipped results; missing models, zero-match selectors and UNAVAILABLE are not passes. A new model accuracy claim needs an independent numerical oracle. UI metrics must distinguish measured values from estimates and preserve accessibility and durable replay. Each step has a concrete owner, dependency and verifier. Resolve editable blockers in this lane without weakening checks. Record source licenses, limitations, rollback and affected output reacquisition. A stopped or unavailable prerequisite remains explicit, and independent ready work may continue. This is supervised improvement, not a claim of full autonomous RSI.",
   "lane": "colibri2",
   "scope": "lane",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-text-semantics",
-      "title": "Restore declared tokenizer semantics with complete consumer parity",
+      "id": "colibri-kimi-token-identity",
+      "title": "Prove full Kimi tokenizer IDs against an independent reference",
       "owner": "colibri2",
       "status": "open",
-      "budget": {
-        "nodes": 2000,
-        "reason": "Measured pre-tokenizer activation grows 1957 production AST nodes over HEAD: exact three-stage RxBrain scanner, pinned Unicode class deltas, declared BPE checks, and the shared compiler. The 2000-node ceiling leaves 43 nodes for final review; independent token, Unicode, and real-model parity bound the change."
-      },
       "steps": [
         {
           "id": "do",
-          "title": "Honor declared stop tokens, tokenization and reasoning channels",
+          "title": "Prove full Kimi tokenizer IDs against an independent reference",
+          "status": "open",
+          "verify": "go test ./internal/hfbpe -run '^TestKimiDeclaredTokenizerReference$' -count=1",
+          "rationale": "The pinned tiny Colibri fixture now covers the Kimi Split boundary and ignore_merges whole-piece behavior but aliases special IDs and does not prove real Kimi token identities. Pin a full Kimi tokenizer artifact, its source revision and independent reference vectors before comparing shared hfbpe encode/decode IDs and byte boundaries across Han/Latin, contractions, whitespace and special tokens. Keep unsupported declarations as explicit refusals. This is tokenizer parity, not a Kimi K2 model-quality claim.",
+          "depends_on": [
+            "colibri-kimi-split/do",
+            "colibri-text-semantics/pretokenizer",
+            "colibri-text-semantics/bpe-shared",
+            "colibri-plan-39934/do"
+          ],
+          "capabilities": [
+            "shared-components",
+            "correctness-and-quality",
+            "measured-end-to-end-cost"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "colibri-text-semantics",
+      "title": "Complete deployed tokenizer and Kimi model parity",
+      "owner": "colibri2",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Complete remaining Kimi K2 and declared tokenizer consumer parity",
           "status": "open",
           "verify": "go test ./internal/inference -run '^TestKimiK2$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestDeclaredRemainingPipelines$' -count=1 \u0026\u0026 go test ./internal/hfbpe -run '^TestConsumerTokenIdentity$' -count=1",
-          "rationale": "Complete remaining Kimi and declared tokenizer cases after RxBrain-safe activation and shared BPE. Current master already includes EOS metadata, named templates, buffered/streamed reasoning channels and evaluation metadata; they are regression inputs, not new work. Unsupported nodes still refuse. Pin independent model fixtures, affected output and alignment reacquisition, and quality floors before claiming model-level accuracy or throughput. Reconcile consumer identities without widening regex acceptance to make a test pass.",
+          "rationale": "Complete Kimi K2 and remaining declared-tokenizer cases after exact Kimi token-ID parity. The merged RxBrain-safe NFC, pre-tokenizer, ranked BPE, EOS, templates and reasoning owners are regression inputs, not work to repeat. Pin independent real-model fixtures and source outputs before claiming accuracy; reacquire affected alignment and quality floors. Unsupported declarations refuse, and every served or trained consumer must agree on IDs without broadening regex support merely to pass tests. Measure any new production growth against the merged HEAD before declaring its budget.",
           "depends_on": [
             "colibri-fixtures/do",
             "colibri-text-semantics/pretokenizer",
             "colibri-text-semantics/bpe-shared",
-            "colibri-kimi-split/do"
+            "colibri-kimi-split/do",
+            "colibri-kimi-token-identity/do"
           ],
           "capabilities": [
             "shared-components",
@@ -675,7 +698,7 @@
           "title": "Prove combined gains and prepare master integration without importing this plan",
           "status": "open",
           "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/plan -run 'Colibri|SingleCanonical' -count=1 \u0026\u0026 go run ./cmd/test-lane ./internal/inference ./internal/server ./internal/sampling ./internal/hfhub ./internal/runrecord",
-          "rationale": "At each coherent integration point publish exact commits, scoped device/browser/model receipts, regression floors, source licenses, unresolved limitations and net API/duplicate/state reductions. Final closeout requires all admitted dependent capabilities or explicit evidence-backed non-promotion and scope reconciliation, not just this hermetic command. Master controls its own plan and final merge. Do not push or mutate master from this lane; report integration readiness and avoid duplicate work already merged. Current master already integrated EOS, named templates, reasoning channels and evaluation metadata. Reconcile only capability work newly proven on Colibri2.",
+          "rationale": "At each coherent integration point publish exact commits, scoped device/browser/model receipts, regression floors, source licenses, unresolved limitations and net API/duplicate/state reductions. Master 39934bd80daa is integrated locally at b00e7bec; its EOS, templates, reasoning, RxBrain-safe tokenizer, ranked BPE, media registry, GUI onboarding and gate/store work are foundations, not duplicate Colibri tasks. Retained master evidence may be read by immutable ID from an explicit read-only reference store while this lane retains independent execution authority. Final closeout requires all admitted dependent capabilities or explicit evidence-backed non-promotion and scope reconciliation, not just this hermetic command. Master controls its own plan and final merge; report only capability work newly proven on Colibri2.",
           "depends_on": [
             "colibri-grammar-binding/do",
             "colibri-comparisons/do"

@@ -30,6 +30,7 @@ type Tokenizer struct {
 	id2tok            map[int]string
 	spaceMarker       string
 	byteFallback      bool
+	ignoreMerges      bool
 	decodeMarker      string
 	stripDecodePrefix bool
 	omitSpecial       map[int]bool
@@ -84,6 +85,7 @@ func Load(dir string) (*Tokenizer, error) {
 		mergeRank:    make(map[string]int, len(tj.Model.Merges)),
 		special:      map[string]int{},
 		byteFallback: tj.Model.ByteFallback,
+		ignoreMerges: tj.Model.IgnoreMerges,
 		omitSpecial:  make(map[int]bool),
 	}
 	if tj.Decoder.Type == "Metaspace" {
@@ -99,7 +101,7 @@ func Load(dir string) (*Tokenizer, error) {
 	if t.preTokenizerErr == nil && t.preTokenize != nil &&
 		(tj.Model.ByteFallback || tj.Model.Dropout != nil || tj.Model.UnkToken != nil ||
 			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "") ||
-			tj.Model.FuseUnk || tj.Model.IgnoreMerges) {
+			tj.Model.FuseUnk) {
 		t.preTokenizerErr = fmt.Errorf("declared BPE options require an unsupported encoding path")
 	}
 	for i, raw := range tj.Model.Merges {
@@ -393,6 +395,13 @@ func (t *Tokenizer) splitOnSpecials(text string) []string {
 }
 
 func (t *Tokenizer) bpe(word string) []string {
+	// Hugging Face ignore_merges emits a whole pre-tokenized piece directly
+	// when it already has a vocabulary ID; otherwise ranked BPE still runs.
+	if t.ignoreMerges {
+		if _, found := t.vocab[word]; found {
+			return []string{word}
+		}
+	}
 	return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
 		rank, ok := t.mergeRank[left+" "+right]
 		return rank, ok

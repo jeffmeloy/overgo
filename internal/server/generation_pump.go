@@ -19,6 +19,9 @@ type generationPump struct {
 	// usage: the provider's accounting when the generator reports one (a
 	// hosted turn); nil for a local runner, whose ids are the count.
 	usage *inference.Usage
+	// limit: an optional cut of the whole output; limited once it cut.
+	limit   func(string) (string, bool)
+	limited bool
 }
 
 func newGenerationPump(stops []string, emit func(string) error) *generationPump {
@@ -30,8 +33,7 @@ func (pump *generationPump) accept(event inference.TokenEvent) error {
 	if !pump.filter.Stopped() {
 		pump.completion++
 	}
-	piece := pump.filter.Accept(event.Piece)
-	pump.output.WriteString(piece)
+	piece := pump.keep(pump.filter.Accept(event.Piece))
 	if pump.emit != nil {
 		return pump.emit(piece)
 	}
@@ -39,12 +41,33 @@ func (pump *generationPump) accept(event inference.TokenEvent) error {
 }
 
 func (pump *generationPump) flush() error {
-	piece := pump.filter.Flush()
-	pump.output.WriteString(piece)
+	piece := pump.keep(pump.filter.Flush())
 	if piece != "" && pump.emit != nil {
 		return pump.emit(piece)
 	}
 	return nil
+}
+
+// keep appends a released piece; a limit that cuts the output back keeps
+// only the part of the piece that survives it.
+func (pump *generationPump) keep(piece string) string {
+	previous := pump.output.Len()
+	pump.output.WriteString(piece)
+	if pump.limit == nil {
+		return piece
+	}
+	trimmed, cut := pump.limit(pump.output.String())
+	if !cut {
+		return piece
+	}
+	trimmed = strings.Clone(trimmed)
+	pump.output.Reset()
+	pump.output.WriteString(trimmed)
+	pump.limited = true
+	if previous < len(trimmed) {
+		return trimmed[previous:]
+	}
+	return ""
 }
 
 func (pump *generationPump) text() string {
@@ -75,8 +98,29 @@ func (h *Handler) generateWithPump(
 	emit func(string) error,
 ) ([]tokenizer.TokenID, *generationPump, error) {
 	pump := newGenerationPump(stops, emit)
-	options.StopSequences = stops
-	options.OnToken = pump.accept
+	ids, err := h.pumpGeneration(ctx, session, prompt, options, pump)
+	return ids, pump, err
+}
+
+// pumpGeneration runs one generation through a caller's pump. A caller's
+// OnToken sees each token before the pump filters and counts it.
+func (h *Handler) pumpGeneration(
+	ctx context.Context,
+	session *requestSession,
+	prompt string,
+	options inference.GenerateOptions,
+	pump *generationPump,
+) ([]tokenizer.TokenID, error) {
+	options.StopSequences = pump.filter.stops
+	onToken := options.OnToken
+	options.OnToken = func(event inference.TokenEvent) error {
+		if onToken != nil {
+			if err := onToken(event); err != nil {
+				return err
+			}
+		}
+		return pump.accept(event)
+	}
 	options.OnUsage = func(usage inference.Usage) { pump.usage = &usage }
 	onPromptEvaluated := options.OnPromptEvaluated
 	options.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) {
@@ -87,10 +131,7 @@ func (h *Handler) generateWithPump(
 	}
 	ids, _, err := h.generate(ctx, session, prompt, options)
 	if err != nil {
-		return ids, pump, err
+		return ids, err
 	}
-	if err := pump.flush(); err != nil {
-		return ids, pump, err
-	}
-	return ids, pump, nil
+	return ids, pump.flush()
 }

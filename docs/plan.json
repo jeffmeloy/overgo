@@ -6,6 +6,26 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "review-webui-harness",
+      "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "budget": {
+        "nodes": 700,
+        "paydown": "arch-route-dispatch",
+        "reason": "leg deadline helper and its census test, painted-pair contrast derivation with a colour parser, failure recoveries per tab"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -run '^TestBrowserLegFailsWhenTheBrowserStopsAnswering$' -count=1",
+          "rationale": "Held by master row browser-waits-fail-fast, which landed and merged into the lane at 75b235e356b5: a browser wait fails when its page target crashes or detaches instead of hanging to the test timeout. The lane's fixed per-leg deadline was refused by the fixed-timer census; master's check is this row's acceptance. Closes on the next landing that touches the web UI harness."
+        }
+      ]
+    },
+    {
       "id": "arch-store-read-paths",
       "title": "Make every per-request store read scale with its answer: alias names through the alias index, the timeline by its alias, and conversations, pending decisions and the tensor pool from projections advanced by store deltas",
       "owner": "overgo_gui_cleanup",
@@ -140,26 +160,6 @@
           "status": "open",
           "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -require 'model merge leg'",
           "rationale": "Carried from professional_overgo_gui; its launch-reachability prerequisite is complete on master (workspace reachability leg passes)."
-        }
-      ]
-    },
-    {
-      "id": "review-webui-harness",
-      "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "budget": {
-        "nodes": 700,
-        "paydown": "arch-route-dispatch",
-        "reason": "leg deadline helper and its census test, painted-pair contrast derivation with a colour parser, failure recoveries per tab"
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Close on master's browser-waits-fail-fast (merged at 75b235e356b5): a browser leg fails when the browser stops answering, and names the leg",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -run '^TestBrowserLegFailsWhenTheBrowserStopsAnswering$' -count=1",
-          "rationale": "Held by master row browser-waits-fail-fast, which landed and merged into the lane at 75b235e356b5: a browser wait fails when its page target crashes or detaches instead of hanging to the test timeout. The lane's fixed per-leg deadline was refused by the fixed-timer census; master's check is this row's acceptance. Closes on the next landing that touches the web UI harness."
         }
       ]
     },

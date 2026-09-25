@@ -828,11 +828,14 @@
       tab.ready = Promise.resolve(tab.mount(tab.panel, tab.life)).then(() => tab.mountAttempt === attempt, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
+  // releaseTab: the tab's workspace ends and its panel empties, so a released tab never shows a workspace
+  // that no longer listens; its next activation mounts it again.
   function releaseTab(tab) {
     const life = tab.life;
     tab.life = null;
     tab.mounted = false;
     if (life) life.release();
+    tab.panel.replaceChildren();
   }
   function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
   function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }

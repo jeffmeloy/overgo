@@ -126,3 +126,41 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		t.Errorf("summary with one failing tab = %q", summary)
 	}
 }
+
+// TestWebUIBrowserPromisePredicateHolds holds a wait on a predicate that
+// answers a promise (a fetch of a server count) to what the promise settles
+// to: a pending promise is not an answer, one that settles false or rejects
+// keeps the wait going, and the wait ends only once one settles true.
+func TestWebUIBrowserPromisePredicateHolds(t *testing.T) {
+	t.Parallel()
+	if os.Getenv("OVERGO_WEBUI_LANE") != "1" {
+		t.Skip(testskip.Inapplicable + ": predicate waits run through cmd/webui-lane")
+	}
+	path, err := FindBrowser(os.Getenv("OVERGO_BROWSER"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := t.Context()
+	browser, err := Open(ctx, path, "data:text/html,<body></body>")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer browser.Close()
+	if err := browser.Evaluate(ctx, `(() => { window.checks = 0; window.done = false; setTimeout(() => { window.done = true; }, 300); return true; })()`, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := browser.Eventually(ctx, `new Promise((resolve, reject) => { window.checks++; setTimeout(() => window.checks % 2 ? resolve(window.done) : reject(new Error("not yet")), 5); })`); err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Done   bool
+		Checks int
+	}
+	if err := browser.Evaluate(ctx, `({Done: window.done, Checks: window.checks})`, &state); err != nil {
+		t.Fatal(err)
+	}
+	if !state.Done || state.Checks < 2 {
+		t.Fatalf("a promise predicate held before it settled true: %+v", state)
+	}
+	t.Logf("promise predicate leg: a wait held only once its promise settled true, after %d checks", state.Checks)
+}

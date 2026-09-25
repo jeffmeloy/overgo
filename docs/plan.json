@@ -19,6 +19,51 @@
       ]
     },
     {
+      "id": "automation-gate-git-lock-per-worktree",
+      "title": "Scope the gate's Git lock to its worktree and wait out a foreign lock",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Scope the gate's Git lock to its worktree and wait out a foreign lock",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateGitLockIgnoresOtherWorktrees$' -count=1",
+          "rationale": "Hurdle (2026-09-25): three landings (the audio merge-row vehicle and lessons-replan twice) passed every check and were refused at the commit step with 'Git lock index has partial or foreign ownership; automatic recovery refused' while another worktree's gate (the GUI lane) was running and a git.exe hung since 2026-09-24 was alive. Each refusal cost a full gate re-run. The gate's index-lock marker must be scoped to its own worktree (a linked worktree's index.lock lives under .git/worktrees/\u003cname\u003e), and a lock held by another live process is waited out, bounded by that process's exit, instead of refusing the landing. Done when TestGateGitLockIgnoresOtherWorktrees commits while another worktree's gate holds its own index lock."
+        }
+      ]
+    },
+    {
+      "id": "automation-hermetic-test-env",
+      "title": "Run tests with the automation environment cleared",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run tests with the automation environment cleared",
+          "status": "open",
+          "verify": "go test ./internal/testutil -run '^TestSuitesStartWithoutAutomationEnvironment$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): the audio merge gate failed two internal/gate tests (TestPlanBindingRole, TestPlanOnlyPublicationReusesUnchangedPhases) only because the operator's OVERGO_AUTOMATION_MAINTENANCE variable leaked into them. Tests must not read the caller's automation environment: every test process starts with the OVERGO_AUTOMATION_* variables cleared, and a test that needs one sets it itself. Done when TestSuitesStartWithoutAutomationEnvironment proves a suite run with those variables set sees none of them."
+        }
+      ]
+    },
+    {
+      "id": "automation-merge-one-landing",
+      "title": "Land a new row with its first work, and a merge with its own row, in one commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Land a new row with its first work, and a merge with its own row, in one commit",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestMergeDeclaresItsOwnRow$' -count=1",
+          "rationale": "Merge lesson (2026-09-25, audio, Colibri2 and VAE lanes), generalised: the proof rule judges a row by the check it held at the base commit, so every new row needed a separate plan-only vehicle landing before its work -- eight vehicles on 2026-09-25 alone (three merge rows, a Colibri2 budget, the VAE port row, the hidden-console row, the merge-lesson rows), each a full gate plus lanes. Keep the property the rule protects (a landing cannot write the check that judges it) by admitting a row that first appears in its own landing when its check is absent or fails at the base, which already holds for new rows; a merge likewise declares its own row, verify and budget in the merge landing. One landing then carries a new row with its first work, and a merge is one landing. Also: row ids beginning with merge- count as merge boundaries (TestRSICampaignRatchetAndParallelStructure allows one), which refused a vehicle named merge-lessons-replan; derive a merge boundary from the landing, not the id. Pairs with automation-derived-ledgers taking row status out of the committed plan. Done when TestMergeDeclaresItsOwnRow lands a merge whose row first appears in that merge, and a new row lands with its first work in one commit."
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -44,7 +89,7 @@
           "title": "Run every deferred lane from one build under one device claim",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
-          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
+          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
         }
       ]
     },
@@ -59,7 +104,22 @@
           "title": "Have every GPU user take the device claim lanes wait on",
           "status": "open",
           "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
-          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out."
+          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out. 2026-09-25: the device lane of 69368990 failed 'physical resource is already reserved' in devicemath while two other gate processes held the GPU, and passed unchanged on re-run; a claim every GPU user takes turns that into a wait with a named holder instead of a failed lane and a manual re-run."
+        }
+      ]
+    },
+    {
+      "id": "capability-test-gates",
+      "title": "Gate device and browser tests by detected capability, not environment variables",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate device and browser tests by detected capability, not environment variables",
+          "status": "open",
+          "verify": "go test ./internal/testskip -run '^TestCapabilityGates$' -count=1",
+          "rationale": "OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_PROBE_TEST and per-model flags gate tests, and a skip-reason classifier recovers what they lose (fd3e2549). Detect the device and the browser once, skip with a classified reason when absent, and delete the variables. 2026-09-25: the reviewed media delta for the VAE port needed its device receipt run by hand with OVERGO_CUDA_TEST=1, OVERGO_WAN_MODEL pointing at the Wan checkpoint, -tags integration and -p 1; without them the Wan device tests silently skipped and the receipt proved nothing about the changed paths. Resolve a test's model through the store by identity (models-resolve-by-identity) and its device by detection, so a receipt over a package runs its real-model tests without an operator knowing the switches."
         }
       ]
     },
@@ -79,6 +139,36 @@
       ]
     },
     {
+      "id": "automation-master-owned-ratchets",
+      "title": "Refuse a merge that loosens a master ceiling or registry check",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a merge that loosens a master ceiling or registry check",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestMergeRefusesLooserRatchet$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): lanes can loosen master's checks to get green. The VAE lane narrowed TestReviewedDeltaRegistryExplainsTheTree instead of reconciling its media runtime move, raised docs/clone_baseline.json from 7991 to 9970 though the merged tree measured 7964, and wrote compatibility.json evidence identities that live only in its own store. Ceilings, floors and reviewed registries are editable files on every branch. Make master own them: a merge (and a lane gate) derives each ceiling from master's tree and refuses any raise, narrowed registry check or foreign evidence identity without a declared paydown row. Done when TestMergeRefusesLooserRatchet refuses a merge that raises a ceiling or narrows a registry check."
+        }
+      ]
+    },
+    {
+      "id": "automation-lane-consumer-first",
+      "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestLaneGateRefusesUnconsumedSurface$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): the VAE lane built 25 exports with no production caller, about 1,000 lines of new runrecord experimental_* record families and campaign-history code in master's internal/plan, while master's automation- rows are held net-negative and staged surface must retire with a master row. Apply the same rules at lane gates: an export arrives with its consumer, and harness growth needs a paydown row, so a lane cannot accumulate what master would refuse. Done when TestLaneGateRefusesUnconsumedSurface refuses a lane landing that adds an export with no production caller."
+        }
+      ]
+    },
+    {
       "id": "automation-one-record-table",
       "title": "Declare every store record kind in one table",
       "owner": "master-lead",
@@ -90,6 +180,21 @@
           "status": "open",
           "verify": "go test ./internal/artifact -run '^TestRecordKindsDeclaredInOneTable$' -count=1",
           "rationale": "Consolidation round 1, refactor 3. The store has 453 distinct schema strings, 330 media-type constants, 231 contract literals, 31 codecs and 23 hand-written mirror structs (0 -\u003e 453 schemas from Aug 5 to Sep 25), mostly in runrecord and evaluation: one schema per claim. Declare every record kind once in a single kind/version table with a generic artifact.Record[T]; derive schema string and media type from it; decode and encode through struct tags and strictjson instead of hand-written mirrors and closures; merge runrecord's attempt_*, automation_*, peer_*, lane_* and resource_fitness* families into a few general records. Stored documents stay readable (versioned decode). Done when TestRecordKindsDeclaredInOneTable proves every stored kind resolves from the table and no schema literal lives outside it."
+        }
+      ]
+    },
+    {
+      "id": "automation-one-store-across-lanes",
+      "title": "Resolve lane evidence from one store without imports",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve lane evidence from one store without imports",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLaneEvidenceResolvesAcrossStores$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): each lane keeps its own OvergoDB store, so every merge imported closure decisions across stores (thousands of documents, with stray unmatched entries), evidence identities recorded in a lane store did not resolve in master's, and receipts had to be re-acquired. One store shared by the lanes (or content-addressed evidence that resolves in any lane's store) removes the import step and the foreign-identity class of failure. Joins automation-one-record-table. Done when TestLaneEvidenceResolvesAcrossStores resolves a lane-recorded evidence identity from master without an import."
         }
       ]
     },
@@ -134,82 +239,52 @@
           "title": "Re-acquire pinned identities automatically when the surface moves",
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestSurfaceMoveReacquiresPinnedIdentities$' -count=1",
-          "rationale": "Consolidation round 1, refactor 6. The inference-surface digest and the media runtime hash turn every file move into a delta and a re-acquisition: 35 commits were manual re-acquire or refresh work. Key guards and media deltas by the surface digest held in the store and re-acquire them automatically when the surface moves (cmd/loop surface move), in the same landing. Absorbs surface-move-preflight. Done when TestSurfaceMoveReacquiresPinnedIdentities proves a surface move lands with its identities re-acquired and no manual row."
+          "rationale": "Consolidation round 1, refactor 6. The inference-surface digest and the media runtime hash turn every file move into a delta and a re-acquisition: 35 commits were manual re-acquire or refresh work. Key guards and media deltas by the surface digest held in the store and re-acquire them automatically when the surface moves (cmd/loop surface move), in the same landing. Two further birds from 2026-09-25: (1) narrow the surface to what inference executes -- the hidden-console fix to internal/processcontrol and the audio lane's internal/optimizer restore each expired every text guard although neither runs in text inference; (2) build a reviewed media delta from its receipt in one command -- file hashes, the device receipt with its model resolved, required tests chosen from the passing tests that exercise the changed files, and the registry identity -- instead of the hand-assembled JSON and constant edit the VAE port needed. Absorbs surface-move-preflight; guards-reacquire-lane and surface-without-capability-tables follow it. Done when TestSurfaceMoveReacquiresPinnedIdentities proves a surface move lands with its identities re-acquired and no manual row."
         }
       ]
     },
     {
-      "id": "automation-merge-one-landing",
-      "title": "Land a lane merge and its own row in one commit",
+      "id": "guards-reacquire-lane",
+      "title": "Re-acquire expired text guards in a deferred lane",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Land a lane merge and its own row in one commit",
+          "title": "Re-acquire expired text guards in a deferred lane",
           "status": "open",
-          "verify": "go test ./internal/plan -run '^TestMergeDeclaresItsOwnRow$' -count=1",
-          "rationale": "Merge lesson (2026-09-25, audio, Colibri2 and VAE lanes): a merge commit may not add plan rows or change its own row, so every lane merge needed a separate plan-only vehicle landing first, and Colibri2 a second one only to declare its harness budget -- seven extra landings for three merges. Let a lane merge declare its own merge row, verify and budget in the merge landing itself (the row's check is the lane's new test, absent at the first-parent base), so a merge is one landing. Pairs with automation-derived-ledgers taking row status out of the committed plan. Done when TestMergeDeclaresItsOwnRow lands a merge whose row first appears in that merge."
+          "verify": "go test ./internal/gate -run '^TestSurfaceMoveQueuesGuardReacquisition$' -count=1",
+          "rationale": "Automation friction: a landing that moves the inference surface expires every text guard (10 models), and re-acquisition is manual: longform -guard-coverage -all -publish at about 8 minutes per model, run from a detached scratch worktree at HEAD because -publish needs a clean tree (cc73695a). The pending GUI arch-event-hub merge had to be batched with master's next surface move for this reason alone. When a landed commit moves the surface, queue guard re-acquisition as a deferred lane at that commit. Its results publish into the store, and the next gate waits for its verdict like the device lanes. Reuse the device claim and the existing deferred-lane scheduler; add no scheduler. Done when TestSurfaceMoveQueuesGuardReacquisition shows a surface-moving landing queues the lane and a non-moving one does not."
         }
       ]
     },
     {
-      "id": "automation-master-owned-ratchets",
-      "title": "Refuse a merge that loosens a master ceiling or registry check",
+      "id": "surface-move-preflight",
+      "title": "Refuse a surface move whose reconciliation is not in the same commit",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Refuse a merge that loosens a master ceiling or registry check",
+          "title": "Refuse a surface move whose reconciliation is not in the same commit",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestMergeRefusesLooserRatchet$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): lanes can loosen master's checks to get green. The VAE lane narrowed TestReviewedDeltaRegistryExplainsTheTree instead of reconciling its media runtime move, raised docs/clone_baseline.json from 7991 to 9970 though the merged tree measured 7964, and wrote compatibility.json evidence identities that live only in its own store. Ceilings, floors and reviewed registries are editable files on every branch. Make master own them: a merge (and a lane gate) derives each ceiling from master's tree and refuses any raise, narrowed registry check or foreign evidence identity without a declared paydown row. Done when TestMergeRefusesLooserRatchet refuses a merge that raises a ceiling or narrows a registry check."
+          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
+          "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
         }
       ]
     },
     {
-      "id": "automation-lane-consumer-first",
-      "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
+      "id": "surface-without-capability-tables",
+      "title": "Keep non-text capability edits out of the inference surface",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
+          "title": "Keep non-text capability edits out of the inference surface",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestLaneGateRefusesUnconsumedSurface$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): the VAE lane built 25 exports with no production caller, about 1,000 lines of new runrecord experimental_* record families and campaign-history code in master's internal/plan, while master's automation- rows are held net-negative and staged surface must retire with a master row. Apply the same rules at lane gates: an export arrives with its consumer, and harness growth needs a paydown row, so a lane cannot accumulate what master would refuse. Done when TestLaneGateRefusesUnconsumedSurface refuses a lane landing that adds an export with no production caller."
-        }
-      ]
-    },
-    {
-      "id": "automation-hermetic-test-env",
-      "title": "Run tests with the automation environment cleared",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Run tests with the automation environment cleared",
-          "status": "open",
-          "verify": "go test ./internal/testutil -run '^TestSuitesStartWithoutAutomationEnvironment$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): the audio merge gate failed two internal/gate tests (TestPlanBindingRole, TestPlanOnlyPublicationReusesUnchangedPhases) only because the operator's OVERGO_AUTOMATION_MAINTENANCE variable leaked into them. Tests must not read the caller's automation environment: every test process starts with the OVERGO_AUTOMATION_* variables cleared, and a test that needs one sets it itself. Done when TestSuitesStartWithoutAutomationEnvironment proves a suite run with those variables set sees none of them."
-        }
-      ]
-    },
-    {
-      "id": "automation-one-store-across-lanes",
-      "title": "Resolve lane evidence from one store without imports",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Resolve lane evidence from one store without imports",
-          "status": "open",
-          "verify": "go test ./internal/overgodb -run '^TestLaneEvidenceResolvesAcrossStores$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): each lane keeps its own OvergoDB store, so every merge imported closure decisions across stores (thousands of documents, with stray unmatched entries), evidence identities recorded in a lane store did not resolve in master's, and receipts had to be re-acquired. One store shared by the lanes (or content-addressed evidence that resolves in any lane's store) removes the import step and the foreign-identity class of failure. Joins automation-one-record-table. Done when TestLaneEvidenceResolvesAcrossStores resolves a lane-recorded evidence identity from master without an import."
+          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
+          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
         }
       ]
     },
@@ -224,7 +299,7 @@
           "title": "Re-measure growth and gate failures, then file the next consolidation round",
           "status": "open",
           "verify": "go run ./cmd/census -kind consolidation -round 2",
-          "rationale": "Owner 2026-09-25: after refactor 6, step back and run the whole consolidation loop again, a few rounds, until a round finds little left to merge. Re-measure growth by pattern, gate failure causes by rule, duplicates and churn (from the rule registry, the derived ledgers and store history rather than a manual analysis), rank the patterns, file round 3's rows, and record the round's before/after counts (landing wall, rules, commands, packages, schemas, lines). Done when cmd/census -kind consolidation -round 2 prints the recorded round and its filed rows."
+          "rationale": "Owner 2026-09-25: after refactor 6, step back and run the whole consolidation loop again, a few rounds, until a round finds little left to merge. Re-measure growth by pattern, gate failure causes by rule, duplicates and churn (from the rule registry, the derived ledgers and store history rather than a manual analysis), rank the patterns, file round 3's rows, and record the round's before/after counts (landing wall, rules, commands, packages, schemas, lines). Also measure the work per change: landings per delivered row (2026-09-25: 16 landings for 3 merges, one port and one fix), refusals by cause and manual re-runs, so the round ranks what costs the operator the most. Done when cmd/census -kind consolidation -round 2 prints the recorded round and its filed rows."
         }
       ]
     },
@@ -395,21 +470,6 @@
           "status": "open",
           "verify": "go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1",
           "rationale": "Media held-out slice (design 2026-09-24): CompileMediaTargetPlan and ScoreMediaTargets need output artifacts, oracles and verifier profiles, and generation through mediacapability takes minutes per record on CUDA. Wire audio-snr (Pocket-TTS) first, then image and video PSNR (Krea-2-Turbo, Wan2.1), scoring a bounded held-out subset whose size the objective declares. Done when TestMediaObjectiveApprovesOnHeldOutGain approves a tiny synthetic audio objective on a held-out SNR gain."
-        }
-      ]
-    },
-    {
-      "id": "guards-reacquire-lane",
-      "title": "Re-acquire expired text guards in a deferred lane",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-acquire expired text guards in a deferred lane",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestSurfaceMoveQueuesGuardReacquisition$' -count=1",
-          "rationale": "Automation friction: a landing that moves the inference surface expires every text guard (10 models), and re-acquisition is manual: longform -guard-coverage -all -publish at about 8 minutes per model, run from a detached scratch worktree at HEAD because -publish needs a clean tree (cc73695a). The pending GUI arch-event-hub merge had to be batched with master's next surface move for this reason alone. When a landed commit moves the surface, queue guard re-acquisition as a deferred lane at that commit. Its results publish into the store, and the next gate waits for its verdict like the device lanes. Reuse the device claim and the existing deferred-lane scheduler; add no scheduler. Done when TestSurfaceMoveQueuesGuardReacquisition shows a surface-moving landing queues the lane and a non-moving one does not."
         }
       ]
     },
@@ -624,21 +684,6 @@
       ]
     },
     {
-      "id": "capability-test-gates",
-      "title": "Gate device and browser tests by detected capability, not environment variables",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Gate device and browser tests by detected capability, not environment variables",
-          "status": "open",
-          "verify": "go test ./internal/testskip -run '^TestCapabilityGates$' -count=1",
-          "rationale": "OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_PROBE_TEST and per-model flags gate tests, and a skip-reason classifier recovers what they lose (fd3e2549). Detect the device and the browser once, skip with a classified reason when absent, and delete the variables."
-        }
-      ]
-    },
-    {
       "id": "gate-isolation-rule-enforced",
       "title": "Narrow what a confined landing re-runs by a checked reach contract",
       "owner": "master-lead",
@@ -669,21 +714,6 @@
       ]
     },
     {
-      "id": "surface-without-capability-tables",
-      "title": "Keep non-text capability edits out of the inference surface",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Keep non-text capability edits out of the inference surface",
-          "status": "open",
-          "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
-          "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
-        }
-      ]
-    },
-    {
       "id": "store-open-lineage-cost",
       "title": "Defer decoding large store facets until first use, if opens are still slow",
       "owner": "master-lead",
@@ -700,21 +730,6 @@
             "store-benchmark-record-redundancy/do",
             "store-growth-ratchet/do"
           ]
-        }
-      ]
-    },
-    {
-      "id": "surface-move-preflight",
-      "title": "Refuse a surface move whose reconciliation is not in the same commit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a surface move whose reconciliation is not in the same commit",
-          "status": "open",
-          "verify": "test -f internal/gate/surface_move_preflight_test.go \u0026\u0026 go test ./internal/gate -run '^TestSurfaceMovePreflight' -count=1",
-          "rationale": "Reuse cmd/validate surface affectedness in the gate preflight for the guard surface and compatibility claims; a landing that grows the harness production-node surface names its paydown. The media runtime part landed 2026-09-22."
         }
       ]
     },
@@ -1280,7 +1295,9 @@
             "automation-lane-consumer-first/do",
             "automation-hermetic-test-env/do",
             "automation-one-store-across-lanes/do",
-            "lessons-replan/do"
+            "lessons-replan/do",
+            "automation-gate-git-lock-per-worktree/do",
+            "hurdles-replan/do"
           ]
         }
       ]

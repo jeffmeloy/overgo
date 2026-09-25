@@ -1454,17 +1454,6 @@
     },
     {
       "guideline": "cmp_or",
-      "path": "internal/discovery/servable.go",
-      "symbol": "presence",
-      "owner": "overgo/internal/discovery",
-      "reason": "The fallback is intentionally lazy, side-effecting, non-comparable, or coupled to an assignment shape that cmp.Or cannot preserve exactly.",
-      "oracle": "go test ./internal/discovery -count=1",
-      "retirement": "Retire when the fallback becomes eagerly safe and comparable with a single assignment-equivalent destination.",
-      "expires": "2027-09-03",
-      "candidate_ceiling": 2
-    },
-    {
-      "guideline": "cmp_or",
       "path": "internal/gemma4convert/convert.go",
       "symbol": "Convert",
       "owner": "overgo/internal/gemma4convert",
@@ -4676,5 +4665,5 @@
       "candidate_ceiling": 1
     }
   ],
-  "exceptions_sha256": "23426f54805be8256aeb98b04bb93a3f4ebf43ac0bffafd3a4485e33ccfd3c7a"
+  "exceptions_sha256": "4064196a00668d84999890c03291b287cef66919cf0c81a0cadb07a4c12edf67"
 }

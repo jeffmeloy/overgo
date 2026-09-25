@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "models-resolve-by-identity",
-      "title": "Find a moved model by its content identity",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Find a moved model by its content identity",
-          "status": "open",
-          "verify": "go test ./internal/discovery -run '^TestMovedModelResolvesByIdentity$' -count=1",
-          "rationale": "Owner 2026-09-25: a model's location should not matter. Moving TabFM from adaptive_new/models to overgo/models made discovery report it absent (store file locations are recorded paths) and failed the lanes; tmp/relocate_models.go re-recorded the five artifacts by hand after verifying content identity. When a recorded location is gone, discovery looks for the same bytes under the data root's model directories (matching the recorded relative tail, verifying identity and size) and records the new location, removing the dead one. Done when TestMovedModelResolvesByIdentity moves a registered model's files and discovery reports it present at the new path."
-        }
-      ]
-    },
-    {
       "id": "automation-gate-git-lock-per-worktree",
       "title": "Scope the gate's Git lock to its worktree and wait out a foreign lock",
       "owner": "master-lead",
@@ -89,7 +74,7 @@
           "title": "Run every deferred lane from one build under one device claim",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
-          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
+          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. The disk-full stop also failed a gate mid-run at checkout-index (GUI lane report, 2026-09-25): the gate refuses at admission when free space is below what its recent landings measurably consumed, naming the build cache as the usual cause, instead of failing mid-run -- a need measured from landing history, not a fixed reserve or cache cap. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
         }
       ]
     },

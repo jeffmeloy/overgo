@@ -76,7 +76,20 @@ type Roots struct {
 	// beside it; a checkout that keeps those in another checkout's home
 	// declares that store here. Unset, it is the checkout's own store.
 	AudioReference string `json:"audio_reference_store,omitzero"`
+	// CheckoutModels is the checkout's own models directory when
+	// local-models.json points Models elsewhere: models are found there too,
+	// so a model moved into the checkout resolves without editing the
+	// configuration.
+	CheckoutModels string `json:"checkout_models,omitzero"`
 	Source         string `json:"-"`
+}
+
+// ModelRoots lists every directory a model is found under, Models first.
+func (r Roots) ModelRoots() []string {
+	if r.CheckoutModels == "" {
+		return []string{r.Models}
+	}
+	return []string{r.Models, r.CheckoutModels}
 }
 
 // ResolveCurrent returns roots for the process working directory.
@@ -182,6 +195,9 @@ func resolveIn(workingDirectory string) (Roots, error) {
 	} else {
 		roots.AudioReference = configuredRoot(workingDirectory, roots.AudioReference)
 	}
+	if checkout := configuredRoot(workingDirectory, defaults.Models); checkout != roots.Models {
+		roots.CheckoutModels = checkout
+	}
 	roots.Source = ConfigFile
 	return roots, nil
 }
@@ -208,8 +224,8 @@ func fallback(workingDirectory string) Roots {
 
 // ResolveModelPath maps a model reference to a filesystem path: an existing
 // path (absolute or working-directory-relative) wins unchanged; otherwise a
-// bare reference resolves under the models root, then the checkpoints root
-// (trained outputs are servable artifacts too). The original reference
+// bare reference resolves under the model roots in order, then the
+// checkpoints root (trained outputs are servable artifacts too). The original reference
 // returns unchanged when nothing resolves, so the caller's open error names
 // what the user typed.
 func (r Roots) ResolveModelPath(reference string) string {
@@ -223,7 +239,7 @@ func (r Roots) ResolveModelPath(reference string) string {
 	if filepath.IsAbs(reference) {
 		return reference
 	}
-	for _, root := range []string{r.Models, r.Checkpoints} {
+	for _, root := range append(r.ModelRoots(), r.Checkpoints) {
 		candidate := filepath.Join(root, reference)
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate

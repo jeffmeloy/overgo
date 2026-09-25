@@ -27,7 +27,7 @@ func TestLiveEditRetainedDenoiser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wanDir := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	wanDir := roots.ResolveModelPath("Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestLiveEditRetainedDenoiserReplaysExactly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wanDir := filepath.Join(roots.Models, "Wan2.1-T2V-1.3B")
+	wanDir := roots.ResolveModelPath("Wan2.1-T2V-1.3B")
 	if _, err := os.Stat(filepath.Join(wanDir, "config.json")); os.IsNotExist(err) {
 		t.Skipf("UNAVAILABLE: Wan denoiser config: %v", err)
 	}

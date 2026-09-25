@@ -91,6 +91,21 @@ on the same workloads and budgets.
    The gate owns acceptance and plan advancement; do not bypass it with a raw
    commit. Record the reason, measured results, and remaining work.
 
+When changing `docs/plan.json`, the implementation agent reads
+`docs/sqa_findings.json` and replaces its `implementation_review` after the
+final plan edit. Record `agent`, `reviewed_at`, `findings_reviewed_at`,
+`plan_path` and `plan_sha256` (SHA-256 of the saved plan bytes). In `comments`,
+address each open or deferred finding by `finding_id`, `disposition`
+(`planned`, `deferred`, `disputed` or `resolved`), a concise `comment`, and
+`plan_steps` or `evidence` references. Name the next action or reason; deferred
+work needs a reconsideration condition, and resolution needs evidence.
+If findings are absent, record that explicitly rather than inventing a review.
+The SQA reviewer assesses these responses; it never authors them for the
+implementation agent. Keep one current findings file and one current response,
+without archives or response history. Re-read before writing, preserve the
+other writer's fields, and validate JSON. This belongs to the plan edit, not a
+new gate, worker, or periodic task.
+
 Under a continue/resume/loop request, return to dispatch after a completed
 slice. A checkpoint alone does not complete the campaign. Respect operator
 stops and declared budgets; use the plan's stop mechanism for a required

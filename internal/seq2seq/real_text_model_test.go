@@ -18,7 +18,7 @@ func TestRealTextGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generator, err := LoadGenerator(filepath.Join(roots.Models, "needle"))
+	generator, err := LoadGenerator(roots.ResolveModelPath("needle"))
 	if err != nil {
 		t.Fatalf("Needle artifact unavailable: %v", err)
 	}

@@ -141,7 +141,7 @@ func loadArtifactModel(t *testing.T) *Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(roots.Models, "pocket-tts")
+	dir := roots.ResolveModelPath("pocket-tts")
 	if _, err := os.Stat(filepath.Join(dir, configFileName)); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; parity NOT verified", dir)
 	}

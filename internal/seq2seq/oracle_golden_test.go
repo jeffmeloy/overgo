@@ -68,7 +68,7 @@ func loadArtifactModel(t *testing.T) *Model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(roots.Models, "needle")
+	dir := roots.ResolveModelPath("needle")
 	if _, err := os.Stat(filepath.Join(dir, "model.safetensors")); err != nil {
 		t.Skipf("UNAVAILABLE: artifact absent at %s; parity NOT verified", dir)
 	}

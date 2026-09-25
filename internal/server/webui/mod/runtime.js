@@ -29,6 +29,8 @@
           overgo.stat("Reuses", session.reuses),
           overgo.stat("Evictions", session.evictions),
           overgo.stat("Retiring", session.retiring),
+          overgo.stat("Requested residency", authority ? authority.residency : "unknown"),
+          overgo.stat("Actual residency", authority ? (authority.realized_residency || "unknown") : "unknown"),
           overgo.stat("Recipe stages", authority ? authority.stages : "unknown"),
           overgo.stat("Evidence", authority ? (authority.evidence || []).length : "unknown"),
           overgo.stat("Device", session.device));

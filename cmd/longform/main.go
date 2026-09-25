@@ -593,8 +593,9 @@ func measure(ctx context.Context, output io.Writer, options options, target targ
 	}
 	result := longform.Result{
 		Program: description.Identity, Device: options.deviceInfo, ContextLength: properties.ContextLength,
-		Inputs:    longform.BindInputs(target.weights, text, corpus, protocol),
-		ModelPath: properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
+		RealizedResidency: runner.RealizedResidency(),
+		Inputs:            longform.BindInputs(target.weights, text, corpus, protocol),
+		ModelPath:         properties.Path, ModelName: properties.Name, Architecture: properties.Architecture, FileType: properties.FileType,
 		Commit: commit, Surface: surface, PromptSource: options.Corpus,
 		Measure: judged.Measure, Short: target.short, ShortBenchmark: target.shortBenchmark, Floors: floors,
 		Shape: shape, Rungs: climbed, LadderStop: stop,

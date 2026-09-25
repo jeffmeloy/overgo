@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
@@ -20,6 +21,7 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	ctx := t.Context()
 	result := benchmarkResult{
 		ModelName: "fixture-model", DevicePeakBytes: 512,
+		Residency: recipe.ResidencyDeviceNative, RealizedResidency: recipe.RealizedDeviceNative,
 		EndOfSequenceIgnored: true, SamplingProtocol: greedyBudgetProtocol,
 		TokensPerSequence: 32, RequestedRuns: 2,
 		Runs: []runMetrics{

@@ -65,6 +65,11 @@ func (h *Handler) publishServing(ctx context.Context, observation runrecord.Serv
 	h.servingEvents.mu.Lock()
 	defer h.servingEvents.mu.Unlock()
 	observation.Environment = h.environment.ID
+	if observer, ok := h.generator.(interface {
+		RealizedResidency() recipe.RealizedResidency
+	}); ok {
+		observation.RealizedResidency = observer.RealizedResidency()
+	}
 	published, err := runrecord.PublishServingObservation(context.WithoutCancel(ctx), h.repository, observation)
 	if err != nil {
 		h.observationErrors.Add(1)

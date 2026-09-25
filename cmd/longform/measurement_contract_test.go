@@ -15,6 +15,7 @@ import (
 	"overgo/internal/discovery"
 	"overgo/internal/longform"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/tokenizer"
 )
 
@@ -34,7 +35,8 @@ func contractResult(t *testing.T, name string) longform.Result {
 		PromptMilliseconds: 1000, DecodeMilliseconds: 3000,
 		Score: longform.ContextScore{ScoreTokens: floors.ScoreTokens, LongContextNLL: 1.1, ShortContextNLL: 1.5, ContextGain: 0.4}}
 	result := longform.Result{Inputs: longform.BindInputs(model, "fixed corpus", []tokenizer.TokenID{1, 2, 3}, longform.RawContinuation),
-		ModelPath: filepath.Join(t.TempDir(), name+".gguf"), ModelName: name,
+		RealizedResidency: recipe.RealizedHostReference,
+		ModelPath:         filepath.Join(t.TempDir(), name+".gguf"), ModelName: name,
 		Commit: strings.Repeat("a", 40), Surface: strings.Repeat("b", 64), Floors: floors,
 		Measure: measure, Short: longform.ShortRates{PromptTokensPerSecond: 3000, DecodeTokensPerSecond: 100},
 		Shape: longform.ShortShape{PromptTokens: floors.ShortPromptTokens, OutputIDs: ids, NLL: 1.1, Measure: measure},

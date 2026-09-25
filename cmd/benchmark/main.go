@@ -102,13 +102,14 @@ type summaryMetrics struct {
 }
 
 type benchmarkResult struct {
-	ModelPath      string                 `json:"model_path"`
-	ModelName      string                 `json:"model_name"`
-	Architecture   string                 `json:"architecture"`
-	FileType       string                 `json:"file_type"`
-	ParameterCount uint64                 `json:"parameter_count"`
-	ModelBytes     uint64                 `json:"model_bytes"`
-	Residency      recipe.ResidencyPolicy `json:"residency"`
+	ModelPath         string                   `json:"model_path"`
+	ModelName         string                   `json:"model_name"`
+	Architecture      string                   `json:"architecture"`
+	FileType          string                   `json:"file_type"`
+	ParameterCount    uint64                   `json:"parameter_count"`
+	ModelBytes        uint64                   `json:"model_bytes"`
+	Residency         recipe.ResidencyPolicy   `json:"residency"`
+	RealizedResidency recipe.RealizedResidency `json:"realized_residency"`
 	// EndOfSequenceIgnored records continuation past EOG. SamplingProtocol
 	// distinguishes this from historical results that banned EOG winners.
 	EndOfSequenceIgnored   bool                    `json:"end_of_sequence_ignored"`
@@ -364,6 +365,7 @@ func run(args []string) error {
 		ParameterCount:         properties.ParameterCount,
 		ModelBytes:             properties.ModelSize,
 		Residency:              runner.Residency(),
+		RealizedResidency:      runner.RealizedResidency(),
 		EndOfSequenceIgnored:   true,
 		SamplingProtocol:       benchmarkProtocol(options.Temperature),
 		SamplerOrder:           benchmarkSamplingConfig(options).Samplers,

@@ -95,6 +95,7 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 	if residency.hostCache {
 		hostWeights = model.NewHostTensorStore()
 	}
+	recovered := false
 	if residency.deviceF32 || residency.deviceNative {
 		worker, err = device.New(options.DeviceOrdinal)
 		if err != nil {
@@ -109,20 +110,22 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 		if program.Model.Terminal().OutputHead == model.OutputHeadDedicated && weights.Output != nil {
 			outputProjection = *weights.Output
 		}
-		if err = loadResidentWeights(
-			ctx, file, weights, outputProjection, loraAdapters, residency, worker,
-			&deviceWeights, &rawWeights, &decodeWeights,
-		); err != nil {
-			if !residency.hostRecovery || !driver.IsOutOfMemory(err) {
-				return fail(err)
+		recovered, err = loadWithHostRecovery(residency.hostRecovery, func() error {
+			return loadResidentWeights(
+				ctx, file, weights, outputProjection, loraAdapters, residency, worker,
+				&deviceWeights, &rawWeights, &decodeWeights,
+			)
+		}, func() error {
+			// A failed hybrid preload must release every partial store before
+			// the retained executor streams weights on later requests.
+			releaseErr := errors.Join(decodeWeights.Close(), rawWeights.Close(), deviceWeights.Close())
+			if releaseErr == nil {
+				decodeWeights, rawWeights, deviceWeights = nil, nil, nil
 			}
-			// Measured fit answered no: release the partial stores and keep
-			// the executor; decode streams weights as before.
-			err = errors.Join(decodeWeights.Close(), rawWeights.Close(), deviceWeights.Close())
-			if err != nil {
-				return fail(err)
-			}
-			decodeWeights, rawWeights, deviceWeights = nil, nil, nil
+			return releaseErr
+		})
+		if err != nil {
+			return fail(err)
 		}
 	} else if !residency.hostReference {
 		cuda, err = executor.New(options.DeviceOrdinal)
@@ -130,9 +133,14 @@ func OpenWithProgram(ctx context.Context, loaded *modelrecipe.LoadedProgram, opt
 			return fail(err)
 		}
 	}
+	realized, err := realizedResidencyForOpen(program.Residency, deviceWeights != nil, recovered)
+	if err != nil {
+		return fail(err)
+	}
 	return &Runner{preparedModel: preparedModel{
 		file: file, path: path, spec: spec, program: program, runtimePolicy: runtimePolicy, evidenceTier: evidenceTier,
-		weights: weights, vocab: vocab,
+		realizedResidency: realized,
+		weights:           weights, vocab: vocab,
 		cuda: cuda, worker: worker, deviceWeights: deviceWeights, rawWeights: rawWeights, decodeWeights: decodeWeights,
 		hostWeights:         hostWeights,
 		outputBias:          outputBias,
@@ -166,6 +174,62 @@ func bindResidency(policy recipe.ResidencyPolicy) (residencyBinding, error) {
 		return residencyBinding{}, errors.New("inference: compiled residency policy is unavailable")
 	}
 	return binding, nil
+}
+
+// loadWithHostRecovery keeps an OOM fallback and partial-store release on one
+// testable path. A release failure cannot become a successful streamed open.
+func loadWithHostRecovery(recoverOOM bool, load, release func() error) (bool, error) {
+	err := load()
+	if err == nil {
+		return false, nil
+	}
+	if !recoverOOM || !driver.IsOutOfMemory(err) {
+		return false, err
+	}
+	if releaseErr := release(); releaseErr != nil {
+		return false, errors.Join(err, releaseErr)
+	}
+	return true, nil
+}
+
+func realizedResidencyForOpen(policy recipe.ResidencyPolicy, resident, recovered bool) (recipe.RealizedResidency, error) {
+	if recovered {
+		if policy == recipe.ResidencyHybridNative && !resident {
+			return recipe.RealizedOOMStreamed, nil
+		}
+		return "", errors.New("inference: inconsistent recovered residency")
+	}
+	switch policy {
+	case recipe.ResidencyDeviceF32:
+		if resident {
+			return recipe.RealizedDeviceF32, nil
+		}
+	case recipe.ResidencyDeviceNative:
+		if resident {
+			return recipe.RealizedDeviceNative, nil
+		}
+	case recipe.ResidencyDeviceNativeBF16:
+		if resident {
+			return recipe.RealizedDeviceNativeBF16, nil
+		}
+	case recipe.ResidencyHybridNative:
+		if resident {
+			return recipe.RealizedDeviceNative, nil
+		}
+	case recipe.ResidencyStream:
+		if !resident {
+			return recipe.RealizedStream, nil
+		}
+	case recipe.ResidencyHostCache:
+		if !resident {
+			return recipe.RealizedHostCache, nil
+		}
+	case recipe.ResidencyHostReference:
+		if !resident {
+			return recipe.RealizedHostReference, nil
+		}
+	}
+	return "", errors.New("inference: inconsistent realized residency")
 }
 
 // loadResidentWeights: uploads the resident weight stores for a preload open;

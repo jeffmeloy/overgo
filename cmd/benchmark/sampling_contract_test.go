@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	"overgo/internal/recipe"
 	"overgo/internal/sampling"
 )
 
@@ -80,12 +81,15 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 	})
 	t.Run("publication refuses unbound or incomplete protocols", func(t *testing.T) {
 		valid := benchmarkResult{EndOfSequenceIgnored: true, SamplingProtocol: greedyBudgetProtocol, TokensPerSequence: 4, RequestedRuns: 1,
+			Residency: recipe.ResidencyDeviceNative, RealizedResidency: recipe.RealizedDeviceNative,
 			Runs: []runMetrics{{OutputTokens: 4, HostLogitTokens: 1, DeviceSelectedTokens: 3, PromptTokens: 2, TotalMilliseconds: 10}}}
 		if err := validateBenchmarkResult(valid); err != nil {
 			t.Fatal(err)
 		}
 		for name, mutate := range map[string]func(*benchmarkResult){
 			"legacy unknown protocol":   func(r *benchmarkResult) { r.SamplingProtocol = "" },
+			"legacy unknown residency":  func(r *benchmarkResult) { r.RealizedResidency = "" },
+			"foreign residency":         func(r *benchmarkResult) { r.RealizedResidency = "foreign" },
 			"different protocol":        func(r *benchmarkResult) { r.SamplingProtocol = topKBudgetProtocol },
 			"undeclared stages":         func(r *benchmarkResult) { r.SamplerOrder = []sampling.SamplerStage{sampling.SamplerTopK} },
 			"incomplete output":         func(r *benchmarkResult) { r.Runs[0].OutputTokens-- },

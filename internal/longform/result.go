@@ -14,6 +14,7 @@ import (
 	"overgo/internal/cuda/driver"
 	"overgo/internal/modelrecipe"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
@@ -64,18 +65,19 @@ type Execution struct {
 // was bounded against, the floors, the verdict, and the output text so
 // a failed verdict can be read.
 type Result struct {
-	Program       modelrecipe.ProgramIdentity `json:"program,omitzero"`
-	Device        driver.DeviceInfo           `json:"device,omitzero"`
-	ContextLength uint32                      `json:"context_length,omitzero"`
-	Inputs        Inputs                      `json:"inputs,omitzero"`
-	BudgetNS      int64                       `json:"budget_ns,omitzero"`
-	ModelBudgetNS int64                       `json:"model_budget_ns,omitzero"`
-	WallNS        int64                       `json:"wall_ns,omitzero"`
-	ModelPath     string                      `json:"model_path"`
-	ModelName     string                      `json:"model_name"`
-	Architecture  string                      `json:"architecture"`
-	FileType      string                      `json:"file_type"`
-	Commit        string                      `json:"commit"`
+	Program           modelrecipe.ProgramIdentity `json:"program,omitzero"`
+	RealizedResidency recipe.RealizedResidency    `json:"realized_residency,omitzero"`
+	Device            driver.DeviceInfo           `json:"device,omitzero"`
+	ContextLength     uint32                      `json:"context_length,omitzero"`
+	Inputs            Inputs                      `json:"inputs,omitzero"`
+	BudgetNS          int64                       `json:"budget_ns,omitzero"`
+	ModelBudgetNS     int64                       `json:"model_budget_ns,omitzero"`
+	WallNS            int64                       `json:"wall_ns,omitzero"`
+	ModelPath         string                      `json:"model_path"`
+	ModelName         string                      `json:"model_name"`
+	Architecture      string                      `json:"architecture"`
+	FileType          string                      `json:"file_type"`
+	Commit            string                      `json:"commit"`
 	// Surface is the inference code surface digest the run measured
 	// (see Surface); the admission keys on it, the commit is provenance.
 	Surface      string `json:"surface"`
@@ -138,7 +140,7 @@ func ReadBaseline(ctx context.Context, store *overgodb.Store, id artifact.ID) (S
 		if err := json.Unmarshal(content.Data, &result); err != nil {
 			return Summary{}, err
 		}
-		if !result.Inputs.valid() || result.Inputs.Model != record.Model || result.Commit != claim.Commit || result.Surface == "" {
+		if !result.Inputs.valid() || result.Inputs.Model != record.Model || result.Commit != claim.Commit || result.Surface == "" || !result.RealizedResidency.Valid() {
 			return Summary{}, errors.New("longform: baseline lacks matching model, input or provenance identity")
 		}
 		if !result.Verdict.Passed || len(result.Verdict.Reasons) != 0 || len(result.Rungs) == 0 || len(result.Shape.OutputIDs) == 0 {
@@ -277,6 +279,8 @@ func Admit(ctx context.Context, store *overgodb.Store, location, surface string)
 	case !summary.Result.Verdict.Passed:
 		return fmt.Errorf("%w: %s failed its floors on this surface (%s); fix the runtime, then %s",
 			ErrRefused, location, strings.Join(summary.Result.Verdict.Reasons, "; "), rerun)
+	case !summary.Result.RealizedResidency.Valid():
+		return fmt.Errorf("%w: the long-form record for %s lacks realized residency; %s", ErrRefused, location, rerun)
 	}
 	return nil
 }

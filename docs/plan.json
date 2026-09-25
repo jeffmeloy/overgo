@@ -6,26 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "colibri-residency",
-      "title": "Record realized residency and refuse incomparable results",
-      "owner": "colibri2",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Record realized residency and refuse incomparable results",
-          "status": "open",
-          "verify": "go test ./internal/inference -run '^TestHybridNativeFallbackRealizedResidency$' -count=1 \u0026\u0026 go test ./internal/runrecord -run '^TestComparisonRefusesMixedRealizedResidency$' -count=1 \u0026\u0026 go test ./internal/longform -run '^TestAdmissionRefusesMixedRealizedResidency$' -count=1",
-          "rationale": "W0.2. Distinguish requested policy from actual device-resident, OOM-streamed or expert-offloaded outcome. Carry source-bound outcome through serving, benchmark and long-form; legacy unknowns cannot support matched performance promotion. Use injected allocation failure to exercise release and fallback.",
-          "capabilities": [
-            "shared-components",
-            "correctness-and-quality",
-            "measured-end-to-end-cost"
-          ]
-        }
-      ]
-    },
-    {
       "id": "colibri-text-semantics",
       "title": "Complete deployed tokenizer and Kimi model parity",
       "owner": "colibri2",

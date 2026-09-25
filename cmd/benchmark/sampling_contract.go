@@ -48,6 +48,9 @@ func benchmarkGenerationOptions(options options) (inference.GenerateOptions, err
 // validateBenchmarkResult refuses to publish a legacy or incomplete measurement
 // as the new protocol. Stored historical documents keep their original bytes.
 func validateBenchmarkResult(result benchmarkResult) error {
+	if result.Residency == "" || !result.Residency.Valid() || !result.RealizedResidency.Valid() {
+		return errors.New("benchmark: requested or realized residency is unbound")
+	}
 	opts := options{Temperature: result.Temperature, TopK: result.TopK}
 	if _, err := benchmarkSampler(opts); err != nil {
 		return err

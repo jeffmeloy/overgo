@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "media-delta-one-command",
-      "title": "Retired: record a reviewed media delta with one command",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: record a reviewed media delta with one command",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 after reading cmd/compatibility. The reviewed-delta registry's schema and checks (reviewed_delta_registry_test.go) are test code, so a production recording command would first have to move that schema into production. The one expensive step, the CUDA go-test-json receipt, cannot be automated away. What remains is per-file hashes (tmp/add_media_delta.go, tmp/build_move_delta.go) and one registry-identity constant, needed about twice per campaign. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "seq2seq-trainer-to-tests",
       "title": "Delete the seq2seq trainer nothing runs",
       "owner": "master-lead",

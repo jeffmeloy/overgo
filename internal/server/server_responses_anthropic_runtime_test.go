@@ -1102,7 +1102,7 @@ func TestAnthropicMessagesStopAndValidation(t *testing.T) {
 	if err := json.Unmarshal(stopped.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.StopReason != "end_turn" ||
+	if result.StopReason != "stop_sequence" ||
 		result.StopSequence == nil ||
 		*result.StopSequence != "AB" ||
 		len(result.Content) != 0 {

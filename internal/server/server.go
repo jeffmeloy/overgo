@@ -1114,8 +1114,8 @@ func (h *Handler) complete(
 		if promptChoice == 0 {
 			promptTokens += result.promptTokens()
 		}
-		finishReason := result.pump.finishReason(turn.maxTokens, "stop", "length")
-		totalCompletionTokens += result.pump.completion
+		finishReason := chatFinish(result.end(turn.maxTokens, inference.ChatMessage{}))
+		totalCompletionTokens += result.completionTokens()
 		choices = append(choices, completionChoice{
 			Text:         result.pump.text(),
 			Index:        choiceIndex,
@@ -1188,7 +1188,7 @@ func (h *Handler) streamCompletion(
 			return stream.write(chunk)
 		},
 		func(turn *protocolGenerationPlan, _ int, choiceIndex int, result protocolGenerationResult) error {
-			reason := result.pump.finishReason(turn.maxTokens, "stop", "length")
+			reason := chatFinish(result.end(turn.maxTokens, inference.ChatMessage{}))
 			_ = stream.write(streamResponse{
 				ID:      id,
 				Object:  "text_completion",

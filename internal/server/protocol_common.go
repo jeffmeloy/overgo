@@ -64,6 +64,46 @@ type protocolGenerationResult struct {
 	pump *generationPump
 }
 
+// turnEnd is how a generated turn ended, classified once for every
+// protocol; each protocol only names it.
+type turnEnd int
+
+const (
+	// turnEnded: the model ended the turn itself.
+	turnEnded turnEnd = iota
+	// turnStopped: a requested stop sequence ended it.
+	turnStopped
+	// turnLimited: the output token limit ended it.
+	turnLimited
+	// turnCalledTools: it ended in tool calls.
+	turnCalledTools
+)
+
+// end classifies the turn: tool calls first, then a matched stop, then the
+// output limit, so token counts alone never override a matched stop.
+func (result protocolGenerationResult) end(maxTokens int, message inference.ChatMessage) turnEnd {
+	switch {
+	case len(message.ToolCalls) != 0:
+		return turnCalledTools
+	case result.pump.stopped():
+		return turnStopped
+	case result.pump.completion >= maxTokens:
+		return turnLimited
+	}
+	return turnEnded
+}
+
+// chatFinish names a turn's end as chat and text completions report it.
+func chatFinish(end turnEnd) string {
+	switch end {
+	case turnCalledTools:
+		return "tool_calls"
+	case turnLimited:
+		return "length"
+	}
+	return "stop"
+}
+
 // promptTokens: the prompt's count; the provider's when the generator
 // reported one (a hosted turn tokenizes at the provider), else the ids
 // beyond the generated ones.

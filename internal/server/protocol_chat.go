@@ -684,8 +684,7 @@ func (h *Handler) completeChat(
 			cachedTokens = result.cachedTokens()
 		}
 		pump := result.pump
-		finishReason := pump.finishReason(plan.maxTokens, "stop", "length")
-		totalCompletionTokens += pump.completion
+		totalCompletionTokens += result.completionTokens()
 		message := inference.ChatMessage{
 			Role:    inference.ChatRoleAssistant,
 			Content: pump.text(),
@@ -704,14 +703,11 @@ func (h *Handler) completeChat(
 				return
 			}
 			h.issueToolCalls(message.ToolCalls, chatCallIdentity(id, choiceIndex))
-			if len(message.ToolCalls) != 0 {
-				finishReason = "tool_calls"
-			}
 		}
 		choices = append(choices, chatChoice{
 			Index:        choiceIndex,
 			Message:      message,
-			FinishReason: finishReason,
+			FinishReason: chatFinish(result.end(plan.maxTokens, message)),
 		})
 	}
 	writeJSON(response, http.StatusOK, chatResponse{
@@ -860,7 +856,8 @@ func (h *Handler) streamChatCompletion(
 			_ = emitGenerationError(stream.write, err)
 			break
 		}
-		reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
+		// finished: the parsed turn, whose tool calls end it as calls.
+		var finished inference.ChatMessage
 		if toolStream.promptAware || len(tools) != 0 {
 			message, parseErr := toolStream.parse(parser, tools)
 			if parseErr != nil {
@@ -911,10 +908,9 @@ func (h *Handler) streamChatCompletion(
 			// Issue every parsed call under the same identity rule the
 			// stream used, whether it went out incrementally or here.
 			h.issueToolCalls(slices.Clone(message.ToolCalls), chatCallIdentity(id, choiceIndex))
-			if len(message.ToolCalls) != 0 {
-				reason = "tool_calls"
-			}
+			finished = message
 		}
+		reason := chatFinish(result.end(plan.maxTokens, finished))
 		terminalUsage := completionUsage{
 			PromptTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 			PromptTokens:       result.promptTokens(),

@@ -144,12 +144,6 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		return
 	}
 	pump := result.pump
-	stopReason := pump.finishReason(maxTokens, "end_turn", "max_tokens")
-	var stopSequence *string
-	if pump.stopped() {
-		value := pump.stoppingWord()
-		stopSequence = &value
-	}
 	message := inference.ChatMessage{Role: inference.ChatRoleAssistant, Content: pump.text()}
 	if len(toolSelection.active) != 0 || thinkingEnabled {
 		message, err = parser.ParseChatOutput(
@@ -171,10 +165,7 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		writeGenerationError(response, err)
 		return
 	}
-	if len(message.ToolCalls) != 0 {
-		stopReason = "tool_use"
-		stopSequence = nil
-	}
+	stopReason, stopSequence := anthropicStop(result.end(maxTokens, message), pump)
 	writeJSON(response, http.StatusOK, anthropicResponse{
 		ID:           messageID,
 		Type:         "message",
@@ -186,9 +177,24 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		Usage: anthropicUsage{
 			InputTokens:          result.promptTokens() - result.cachedTokens(),
 			CacheReadInputTokens: result.cachedTokens(),
-			OutputTokens:         pump.generated,
+			OutputTokens:         result.completionTokens(),
 		},
 	})
+}
+
+// anthropicStop names a turn's end as a message's stop reason, with the
+// matched sequence when a requested stop sequence ended it.
+func anthropicStop(end turnEnd, pump *generationPump) (string, *string) {
+	switch end {
+	case turnCalledTools:
+		return "tool_use", nil
+	case turnStopped:
+		sequence := pump.stoppingWord()
+		return "stop_sequence", &sequence
+	case turnLimited:
+		return "max_tokens", nil
+	}
+	return "end_turn", nil
 }
 
 func (h *Handler) streamAnthropicMessages(
@@ -365,7 +371,8 @@ func (h *Handler) streamAnthropicMessages(
 		return
 	}
 	pump := result.pump
-	stopReason := pump.finishReason(plan.maxTokens, "end_turn", "max_tokens")
+	// finished: the parsed turn, whose tool calls end it as calls.
+	var finished inference.ChatMessage
 	if thinkingEnabled {
 		message, parseErr := parser.ParseChatOutput(buffered.String(), nil)
 		if parseErr != nil || message.ReasoningContent == "" {
@@ -448,9 +455,7 @@ func (h *Handler) streamAnthropicMessages(
 				return
 			}
 		}
-		if len(message.ToolCalls) != 0 {
-			stopReason = "tool_use"
-		}
+		finished = message
 	} else if textStarted && !textStopped {
 		if err := writeEvent("content_block_stop", anthropicStreamEvent{
 			Type: "content_block_stop", Index: new(firstEventIndex),
@@ -458,14 +463,15 @@ func (h *Handler) streamAnthropicMessages(
 			return
 		}
 	}
+	stopReason, sequence := anthropicStop(result.end(plan.maxTokens, finished), pump)
 	var stopSequence any
-	if pump.stopped() && stopReason != "tool_use" {
-		stopSequence = pump.stoppingWord()
+	if sequence != nil {
+		stopSequence = *sequence
 	}
 	if err := writeEvent("message_delta", anthropicStreamEvent{
 		Type:  "message_delta",
 		Delta: anthropicMessageDelta{StopReason: stopReason, StopSequence: stopSequence},
-		Usage: anthropicOutputUsage{OutputTokens: pump.generated},
+		Usage: anthropicOutputUsage{OutputTokens: result.completionTokens()},
 	}); err != nil {
 		return
 	}

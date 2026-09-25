@@ -82,13 +82,6 @@ func (pump *generationPump) stoppingWord() string {
 	return pump.filter.StoppingWord()
 }
 
-func (pump *generationPump) finishReason(maxTokens int, stopped, length string) string {
-	if !pump.stopped() && pump.completion >= maxTokens {
-		return length
-	}
-	return stopped
-}
-
 func (h *Handler) generateWithPump(
 	ctx context.Context,
 	session *requestSession,

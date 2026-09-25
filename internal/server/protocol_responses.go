@@ -104,10 +104,10 @@ func responseLimitDetails(reason runrecord.InteractionTerminalReason) *responseI
 	return nil
 }
 
-// Match the common pump's stop precedence and the chat protocol's valid tool
-// completion precedence. Token counts alone cannot override a matched stop.
-func responseCompletion(pump *generationPump, maxTokens int, message inference.ChatMessage) (string, runrecord.InteractionTerminalReason) {
-	if len(message.ToolCalls) == 0 && pump.finishReason(maxTokens, "stop", "length") == "length" {
+// responseCompletion names a turn's end as a response's status: only the
+// output limit leaves it incomplete.
+func responseCompletion(end turnEnd) (string, runrecord.InteractionTerminalReason) {
+	if end == turnLimited {
 		return "incomplete", runrecord.InteractionOutputLimit
 	}
 	return "completed", ""
@@ -244,7 +244,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
 	h.issueToolCalls(message.ToolCalls, responseCallIdentity(idSuffix))
-	status, reason := responseCompletion(result.pump, plan.maxTokens, message)
+	status, reason := responseCompletion(result.end(plan.maxTokens, message))
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary, status)
 	promptTokens := result.promptTokens()
 	if body.Store == nil || *body.Store {
@@ -264,8 +264,8 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		IncompleteDetails: responseLimitDetails(reason),
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.outputTokens(),
-			TotalTokens:       promptTokens + result.outputTokens(),
+			OutputTokens:      result.completionTokens(),
+			TotalTokens:       promptTokens + result.completionTokens(),
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 		Sampling: resolvedSampling(plan.sampler),
@@ -538,7 +538,7 @@ func (h *Handler) streamResponses(
 		fail(err)
 		return
 	}
-	completionStatus, reason := responseCompletion(result.pump, plan.maxTokens, inference.ChatMessage{})
+	completionStatus, reason := responseCompletion(result.end(plan.maxTokens, inference.ChatMessage{}))
 	var parsedMessage inference.ChatMessage
 	if len(tools) != 0 {
 		parsedMessage, err = toolStream.parse(parser, tools)
@@ -546,7 +546,7 @@ func (h *Handler) streamResponses(
 			fail(err)
 			return
 		}
-		completionStatus, reason = responseCompletion(result.pump, plan.maxTokens, parsedMessage)
+		completionStatus, reason = responseCompletion(result.end(plan.maxTokens, parsedMessage))
 		if !toolStream.started {
 			if err := emitText(parsedMessage.Content); err != nil {
 				return
@@ -678,8 +678,8 @@ func (h *Handler) streamResponses(
 		IncompleteDetails: responseLimitDetails(reason),
 		Usage: responseUsage{
 			InputTokens:       promptTokens,
-			OutputTokens:      result.outputTokens(),
-			TotalTokens:       promptTokens + result.outputTokens(),
+			OutputTokens:      result.completionTokens(),
+			TotalTokens:       promptTokens + result.completionTokens(),
 			InputTokenDetails: responseInputTokenDetails{CachedTokens: result.cachedTokens()},
 		},
 	}

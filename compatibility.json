@@ -962,7 +962,7 @@
      "contains": "func TestResponsesMultipleImagesPreservesContentOrder(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "ordered-multi-image",
@@ -1088,7 +1088,7 @@
      "contains": "func TestChatAndResponsesEncodedVideoProjection(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "server-encoded-video",
@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:3e5c37eb9238bc7b96f20cb2ccc93b5aedf4a91a4b27cb13fc6068f181daeb95"
+     "identity": "file:sha256:25405dcb01f09036865d2a7c2bb8ce3bfc1c372ca3efec28d2ae90a45678641a"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1130,7 +1130,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:9fc480ab83e979c26aa3d489a51d7d7221c582876aff930321415b192e62b4d5"
+     "identity": "file:sha256:ffde13a4e23ede382da8b6880ee90b33999545e13aacc084643061c5e00a4bf7"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1157,7 +1157,7 @@
      "contains": "func TestStreamingResponsesFunctionCallLifecycle(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "incremental-tool-streaming",
@@ -1172,13 +1172,13 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:2d5bc5f890fd6677da7be0d0035fd5f79aef58539df8c2e2e41c5a55eda1744d"
+     "identity": "file:sha256:ec381005efa67c545669224a21427a9350a941076259e23c76d12e6f656a0d1b"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "multimodal-function-tools",
@@ -1199,7 +1199,7 @@
      "contains": "func TestAnthropicImageToolsAndTokenCounting(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "anthropic-image-input",
@@ -1220,7 +1220,7 @@
      "contains": "func TestAnthropicThinkingBufferedStreamingImageAndReplay(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "anthropic-local-thinking",
@@ -1256,13 +1256,13 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:3e5c37eb9238bc7b96f20cb2ccc93b5aedf4a91a4b27cb13fc6068f181daeb95"
+     "identity": "file:sha256:25405dcb01f09036865d2a7c2bb8ce3bfc1c372ca3efec28d2ae90a45678641a"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",
      "path": "internal/server/server_responses_anthropic_runtime_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:dfd850abc97495941a9c44ae8a58631b31b1eb442fdf22aacdab17882458b48b"
+     "identity": "evidence:sha256:750b06d3dec558bc927687baa91fc2bb570e7d7223a89c1a42acefefac74ac30"
     }
    ],
    "id": "responses-reasoning",

@@ -6,20 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-turn-encoders",
-      "title": "One text turn, stage 5: one turn run and outcome for chat, Responses and Anthropic, leaving each protocol only its event encoder",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One text turn, stage 5: one turn run and outcome for chat, Responses and Anthropic, leaving each protocol only its event encoder",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestProtocolsEncodeOneOutcome$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "arch-behaviour-tests",
       "title": "Replace source-needle GUI tests with behaviour legs",
       "owner": "overgo_gui_cleanup",

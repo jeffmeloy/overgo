@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "objective-split-at-publication",
-      "title": "Bind each objective to a real training split",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Bind each objective to a real training split",
-          "status": "open",
-          "verify": "go test ./cmd/training-objective -run '^TestPublishObjectiveBindsTrainingMembership$' -count=1",
-          "rationale": "cmd/training-objective publishObjective fills Split with a placeholder identity (overgo/training-objective/split/\u003cdataset\u003e), so no objective names a real training membership and CompileSFTEvaluationView cannot bind one. Load the registered dataset, form records from its assets with a required -split-group asset|record, split them with dataset.BuildGroupSplit (seed from the dataset identity's digest, partition weights from a required -split-weights, so the ratio is declared, never defaulted), set Split to the train membership, and publish the split plan in the objective's batch. Done when TestPublishObjectiveBindsTrainingMembership publishes an objective whose Split is a committed train membership disjoint from its held-out partition."
-        }
-      ]
-    },
-    {
       "id": "wire-sft-evaluation",
       "title": "Approve forecast objectives on held-out forecasts",
       "owner": "master-lead",

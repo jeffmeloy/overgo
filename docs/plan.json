@@ -4,32 +4,17 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-gate-git-lock-per-worktree",
-      "title": "Scope the gate's Git lock to its worktree and wait out a foreign lock",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Scope the gate's Git lock to its worktree and wait out a foreign lock",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateGitLockIgnoresOtherWorktrees$' -count=1",
-          "rationale": "Hurdle (2026-09-25): three landings (the audio merge-row vehicle and lessons-replan twice) passed every check and were refused at the commit step with 'Git lock index has partial or foreign ownership; automatic recovery refused' while another worktree's gate (the GUI lane) was running and a git.exe hung since 2026-09-24 was alive. Each refusal cost a full gate re-run. The gate's index-lock marker must be scoped to its own worktree (a linked worktree's index.lock lives under .git/worktrees/\u003cname\u003e), and a lock held by another live process is waited out, bounded by that process's exit, instead of refusing the landing. Done when TestGateGitLockIgnoresOtherWorktrees commits while another worktree's gate holds its own index lock."
-        }
-      ]
-    },
-    {
       "id": "automation-hermetic-test-env",
-      "title": "Run tests with the automation environment cleared",
+      "title": "Strip the operator's maintenance grant from every process the gate runs",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Run tests with the automation environment cleared",
+          "title": "Strip the operator's maintenance grant from every process the gate runs",
           "status": "open",
-          "verify": "go test ./internal/testutil -run '^TestSuitesStartWithoutAutomationEnvironment$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): the audio merge gate failed two internal/gate tests (TestPlanBindingRole, TestPlanOnlyPublicationReusesUnchangedPhases) only because the operator's OVERGO_AUTOMATION_MAINTENANCE variable leaked into them. Tests must not read the caller's automation environment: every test process starts with the OVERGO_AUTOMATION_* variables cleared, and a test that needs one sets it itself. Done when TestSuitesStartWithoutAutomationEnvironment proves a suite run with those variables set sees none of them."
+          "verify": "go test ./internal/gate -run '^TestGateTestsStartWithoutOperatorGrant$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): the audio merge gate failed two internal/gate tests (TestPlanBindingRole, TestPlanOnlyPublicationReusesUnchangedPhases) only because the operator's OVERGO_AUTOMATION_MAINTENANCE grant leaked into them: the gate builds every test and verify process's environment from the operator's (gate sourceEnvironment via gitauthority.RepositoryEnvironment). An operator grant authorizes the gate's admission, never the code under test, so the gate strips it from the environment of every process it runs; a test that needs a grant sets its own. Done when TestGateTestsStartWithoutOperatorGrant runs a test process under a gate whose operator holds a maintenance grant and the process sees none."
         }
       ]
     },
@@ -45,6 +30,21 @@
           "status": "open",
           "verify": "go test ./internal/plan -run '^TestMergeDeclaresItsOwnRow$' -count=1",
           "rationale": "Merge lesson (2026-09-25, audio, Colibri2 and VAE lanes), generalised: the proof rule judges a row by the check it held at the base commit, so every new row needed a separate plan-only vehicle landing before its work -- eight vehicles on 2026-09-25 alone (three merge rows, a Colibri2 budget, the VAE port row, the hidden-console row, the merge-lesson rows), each a full gate plus lanes. Keep the property the rule protects (a landing cannot write the check that judges it) by admitting a row that first appears in its own landing when its check is absent or fails at the base, which already holds for new rows; a merge likewise declares its own row, verify and budget in the merge landing. One landing then carries a new row with its first work, and a merge is one landing. Also: row ids beginning with merge- count as merge boundaries (TestRSICampaignRatchetAndParallelStructure allows one), which refused a vehicle named merge-lessons-replan; derive a merge boundary from the landing, not the id. Pairs with automation-derived-ledgers taking row status out of the committed plan. Done when TestMergeDeclaresItsOwnRow lands a merge whose row first appears in that merge, and a new row lands with its first work in one commit."
+        }
+      ]
+    },
+    {
+      "id": "automation-gate-git-lock-per-worktree",
+      "title": "Wait out a transient foreign index lock instead of refusing a landing",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Wait out a transient foreign index lock instead of refusing a landing",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateWaitsOutTransientIndexLock$' -count=1",
+          "rationale": "Hurdle (2026-09-25): three landings (the audio merge-row vehicle and lessons-replan twice) passed every check and were refused at the commit step with 'Git lock index has partial or foreign ownership; automatic recovery refused'. Reading internal/gate/commit.go corrected the first diagnosis: the index lock is this worktree's own (gateIndexPath), and the refusal comes from withGateGitStateLock's residue check, which treats any index.lock that is not the gate's exact marker as foreign and refuses before acquiring -- so a transient lock from another process in the same worktree (a git status refreshing the index, such as an editor or the desktop app's diff view) refuses a landing that passed every check, and each refusal costs a full gate re-run. Distinguish a residue from a live foreign lock: a foreign lock that disappears is waited out, bounded by Git's own lock lifetime (the holder releasing or the lock surviving an observed change of the index), and only a foreign lock that outlives its holder is refused with its holder named. Done when TestGateWaitsOutTransientIndexLock lands a commit while another process briefly holds the worktree's index lock."
         }
       ]
     },
@@ -1282,7 +1282,8 @@
             "automation-one-store-across-lanes/do",
             "lessons-replan/do",
             "automation-gate-git-lock-per-worktree/do",
-            "hurdles-replan/do"
+            "hurdles-replan/do",
+            "coverage-repin/do"
           ]
         }
       ]

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -210,7 +211,7 @@ func TestWanLifecycleAcceptance(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Setenv("OVERGO_WAN_MODEL", roots.ResolveModelPath("Wan2.1-T2V-1.3B"))
+		t.Setenv("OVERGO_WAN_MODEL", filepath.Join(roots.Models, "Wan2.1-T2V-1.3B"))
 	}
 	t.Run("partial-initialization", TestWanPartialInitialization)
 	t.Run("production-reference", TestWanProductionRuntime)

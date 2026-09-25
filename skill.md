@@ -96,9 +96,15 @@ When changing `docs/plan.json`, the implementation agent reads
 final plan edit. Record `agent`, `reviewed_at`, `findings_reviewed_at`,
 `plan_path` and `plan_sha256` (SHA-256 of the saved plan bytes). In `comments`,
 address each open or deferred finding by `finding_id`, `disposition`
-(`planned`, `deferred`, `disputed` or `resolved`), a concise `comment`, and
+(`planned`, `deferred`, `declined`, `disputed` or `resolved`), a concise `comment`, and
 `plan_steps` or `evidence` references. Name the next action or reason; deferred
 work needs a reconsideration condition, and resolution needs evidence.
+The lead developer owns adoption, scope and sequencing. Weigh contribution to
+Overgo, compounding benefits, cost, dependencies, risk and current plan conflicts.
+SQA rankings and proposed sequences are advisory. A high-priority `user_finding`
+requires consideration and a reasoned response, not automatic implementation or
+a new plan row. The lead may combine, defer or decline recommendations; declining
+an approach does not refute its evidence. Record the decision without a new gate.
 If findings are absent, record that explicitly rather than inventing a review.
 The SQA reviewer assesses these responses; it never authors them for the
 implementation agent. Keep one current findings file and one current response,

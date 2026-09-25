@@ -427,7 +427,7 @@ func TestCompletionStopSequenceSpansTokens(t *testing.T) {
 	if result.Choices[0].Text != "" || result.Choices[0].FinishReason != "stop" {
 		t.Fatalf("choice = %+v", result.Choices[0])
 	}
-	if result.Usage.CompletionTokens != 2 || result.Usage.PromptTokens != 2 {
+	if result.Usage.CompletionTokens != 2 || result.Usage.PromptTokens != 3 {
 		t.Fatalf("usage = %+v", result.Usage)
 	}
 }
@@ -479,7 +479,7 @@ func TestCompletionMultipleChoices(t *testing.T) {
 			t.Fatalf("choice %d = %+v", index, choice)
 		}
 	}
-	if result.Usage != (completionUsage{PromptTokens: 2, CompletionTokens: 6, TotalTokens: 8}) {
+	if result.Usage != (completionUsage{PromptTokens: 3, CompletionTokens: 6, TotalTokens: 9}) {
 		t.Fatalf("usage = %+v", result.Usage)
 	}
 }

@@ -624,7 +624,7 @@
      "contains": "func TestValidateMultimodalImagesEnforcesGeometryBudgets(",
      "path": "internal/server/server_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:163eb2b17b85a5c0c726088de2442007d276962f7899d741383e0ec5280cabfd"
+     "identity": "evidence:sha256:83a742554311640fc15fca6937aa2df4cb76246bc435da532543caf3f18742d5"
     }
    ],
    "id": "bounded-server-media",
@@ -983,7 +983,7 @@
      "contains": "func TestChatImageHistoryPreservesTurnPositionAndReplay(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ab39bc4111c5368ed659a782bce56e315d782a10ca23df36fc3c90fa882966d2"
+     "identity": "evidence:sha256:7144574c80a7bea964dba763e334d49452d2f03a42080ebf34d6699b85155b5f"
     }
    ],
    "id": "media-history",
@@ -1004,7 +1004,7 @@
      "contains": "func TestChatMixedImageAudioPreservesChunkOrder(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ab39bc4111c5368ed659a782bce56e315d782a10ca23df36fc3c90fa882966d2"
+     "identity": "evidence:sha256:7144574c80a7bea964dba763e334d49452d2f03a42080ebf34d6699b85155b5f"
     }
    ],
    "id": "mixed-media-history",
@@ -1109,7 +1109,7 @@
      "contains": "func TestMultimodalInputTokenCounting(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ab39bc4111c5368ed659a782bce56e315d782a10ca23df36fc3c90fa882966d2"
+     "identity": "evidence:sha256:7144574c80a7bea964dba763e334d49452d2f03a42080ebf34d6699b85155b5f"
     }
    ],
    "id": "multimodal-token-counting",
@@ -1130,13 +1130,13 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:2f579c2019fe9811547bf03e7b6f0fdc5ec81e975e133fa0e602d81c49baf610"
+     "identity": "file:sha256:9fc480ab83e979c26aa3d489a51d7d7221c582876aff930321415b192e62b4d5"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ab39bc4111c5368ed659a782bce56e315d782a10ca23df36fc3c90fa882966d2"
+     "identity": "evidence:sha256:7144574c80a7bea964dba763e334d49452d2f03a42080ebf34d6699b85155b5f"
     }
    ],
    "id": "unified-prompt-preparation",
@@ -1241,7 +1241,7 @@
      "contains": "func TestResponsesContinuationRestart(",
      "path": "internal/server/server_completion_chat_embedding_test.go",
      "role": "artifact",
-     "identity": "evidence:sha256:ab39bc4111c5368ed659a782bce56e315d782a10ca23df36fc3c90fa882966d2"
+     "identity": "evidence:sha256:7144574c80a7bea964dba763e334d49452d2f03a42080ebf34d6699b85155b5f"
     }
    ],
    "id": "responses-continuation",

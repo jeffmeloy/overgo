@@ -1330,7 +1330,7 @@ func TestSlotsReportStableBusyAndIdleState(t *testing.T) {
 			request := httptest.NewRequest(
 				http.MethodPost,
 				"/v1/completions",
-				strings.NewReader(`{"prompt":"hi","max_tokens":1}`),
+				strings.NewReader(`{"prompt":[5,6],"max_tokens":1}`),
 			)
 			request.Header.Set("Authorization", testBearerToken)
 			responses[index] = httptest.NewRecorder()
@@ -1649,7 +1649,7 @@ func TestCompletion(t *testing.T) {
 	if result.Choices[0].Text != "AB" || result.Choices[0].FinishReason != "length" {
 		t.Fatalf("choice = %+v", result.Choices[0])
 	}
-	if result.Usage != (completionUsage{PromptTokens: 2, CompletionTokens: 2, TotalTokens: 4}) {
+	if result.Usage != (completionUsage{PromptTokens: 3, CompletionTokens: 2, TotalTokens: 5}) {
 		t.Fatalf("usage = %+v", result.Usage)
 	}
 	metricsRequest := httptest.NewRequest(http.MethodGet, "/metrics", nil)
@@ -1705,7 +1705,7 @@ func TestOpenAICompletionExactMixedAndBatchedPrompts(t *testing.T) {
 		{
 			name: "string batch", prompt: `["one","two"]`, n: 2,
 			wantChoices: 4,
-			wantUsage:   completionUsage{PromptTokens: 4, CompletionTokens: 4, TotalTokens: 8},
+			wantUsage:   completionUsage{PromptTokens: 6, CompletionTokens: 4, TotalTokens: 10},
 		},
 		{
 			name: "token batch", prompt: `[[5],[6]]`, n: 1,

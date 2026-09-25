@@ -64,83 +64,6 @@ type protocolGenerationResult struct {
 	pump *generationPump
 }
 
-type protocolBatchGenerationPlan struct {
-	handler   *Handler
-	request   *http.Request
-	session   *requestSession
-	prompts   []nativePrompt
-	sampler   *sampling.Sampler
-	maxTokens int
-	stops     []string
-}
-
-func (h *Handler) prepareProtocolBatchGenerationPlan(
-	response http.ResponseWriter,
-	request *http.Request,
-	prompts []nativePrompt,
-	parameters samplingParameters,
-	maxTokens int,
-	stops []string,
-) (*protocolBatchGenerationPlan, bool) {
-	sampler, err := h.newSampler(parameters)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return nil, false
-	}
-	lease, acquired := h.acquireRequestSession(request.Context(), response, -1)
-	if !acquired {
-		return nil, false
-	}
-	return &protocolBatchGenerationPlan{
-		handler: h, request: request, session: lease, prompts: prompts,
-		sampler: sampler, maxTokens: maxTokens, stops: stops,
-	}, true
-}
-
-func (plan *protocolBatchGenerationPlan) release() {
-	plan.handler.releaseSession(plan.session)
-}
-
-func (plan *protocolBatchGenerationPlan) run(
-	choices int,
-	emit func(int, string) error,
-	accept func(int, int, protocolGenerationResult) error,
-) error {
-	choiceIndex := 0
-	for _, prompt := range plan.prompts {
-		for promptChoice := range choices {
-			sampler, err := samplerForChoice(plan.sampler, choiceIndex)
-			if err != nil {
-				return err
-			}
-			var emitChoice func(string) error
-			if emit != nil {
-				index := choiceIndex
-				emitChoice = func(piece string) error { return emit(index, piece) }
-			}
-			ids, pump, err := plan.handler.generateWithPump(
-				plan.request.Context(), plan.session, prompt.Text,
-				inference.GenerateOptions{
-					MaxNewTokens: plan.maxTokens, Sampler: sampler,
-					PromptTokenIDs: prompt.TokenIDs,
-					ContextShift:   plan.handler.config.ContextShift,
-				},
-				plan.stops, emitChoice,
-			)
-			if err != nil {
-				return err
-			}
-			if err := accept(
-				promptChoice, choiceIndex, protocolGenerationResult{ids: ids, pump: pump},
-			); err != nil {
-				return err
-			}
-			choiceIndex++
-		}
-	}
-	return nil
-}
-
 // promptTokens: the prompt's count; the provider's when the generator
 // reported one (a hosted turn tokenizes at the provider), else the ids
 // beyond the generated ones.
@@ -190,32 +113,70 @@ func (h *Handler) prepareProtocolGenerationPlan(
 	if !acquired {
 		return nil, false
 	}
-	prepared, err := h.preparePrompt(request.Context(), prompt, true)
-	if err != nil {
-		h.releaseSession(lease)
-		writeGenerationError(response, err)
+	plan := &protocolGenerationPlan{
+		handler: h, request: request, session: lease,
+		sampler: sampler, maxTokens: maxTokens, stops: stops,
+	}
+	if err := plan.admit(prompt); err != nil {
+		plan.release()
+		writePromptRefusal(response, err)
 		return nil, false
 	}
-	if properties, ok := h.generator.(ModelPropertiesAPI); ok {
-		limit := properties.ModelProperties().ContextLength
-		// Prepared IDs include projected media and any reusable prefix. Decode
-		// shifting cannot make an oversized initial prompt fit. An unknown
-		// context or an untokenized provider prompt stays with its generator.
-		if limit > 0 && uint64(len(prepared.TokenIDs)) > uint64(limit) {
-			h.releaseSession(lease)
-			failure := errorEnvelope("invalid_request_error", fmt.Sprintf(
-				"prompt has %d tokens, exceeding the model context length of %d tokens",
-				len(prepared.TokenIDs), limit,
-			))
-			failure.Error.Code = "context_length_exceeded"
-			writeJSON(response, http.StatusBadRequest, failure)
-			return nil, false
+	return plan, true
+}
+
+// turn: one more prompt on the plan's session and sampling. A multi-prompt
+// completion admits every prompt before any generates.
+func (plan *protocolGenerationPlan) turn(prompt nativePrompt) (*protocolGenerationPlan, error) {
+	next := &protocolGenerationPlan{
+		handler: plan.handler, request: plan.request, session: plan.session,
+		sampler: plan.sampler, maxTokens: plan.maxTokens, stops: plan.stops,
+	}
+	return next, next.admit(prompt)
+}
+
+// admit prepares the prompt and holds it to the model context. Prepared IDs
+// include projected media and any reusable prefix; decode shifting cannot
+// make an oversized initial prompt fit. An unknown context or an
+// untokenized provider prompt stays with its generator.
+func (plan *protocolGenerationPlan) admit(prompt nativePrompt) error {
+	prepared, err := plan.handler.preparePrompt(plan.request.Context(), prompt, true)
+	if err != nil {
+		return err
+	}
+	if properties, ok := plan.handler.generator.(ModelPropertiesAPI); ok {
+		limit := uint64(properties.ModelProperties().ContextLength)
+		if limit > 0 && uint64(len(prepared.TokenIDs)) > limit {
+			return contextLengthError{tokens: len(prepared.TokenIDs), limit: limit}
 		}
 	}
-	return &protocolGenerationPlan{
-		handler: h, request: request, session: lease, prompt: prepared,
-		sampler: sampler, maxTokens: maxTokens, stops: stops,
-	}, true
+	plan.prompt = prepared
+	return nil
+}
+
+type contextLengthError struct {
+	tokens int
+	limit  uint64
+}
+
+// Error names the prompt's size against the model context.
+func (failure contextLengthError) Error() string {
+	return fmt.Sprintf(
+		"prompt has %d tokens, exceeding the model context length of %d tokens",
+		failure.tokens, failure.limit,
+	)
+}
+
+// writePromptRefusal: an oversized prompt is the client's error; any other
+// preparation failure is the generation's.
+func writePromptRefusal(response http.ResponseWriter, err error) {
+	if _, exceeded := errors.AsType[contextLengthError](err); exceeded {
+		failure := errorEnvelope("invalid_request_error", err.Error())
+		failure.Error.Code = "context_length_exceeded"
+		writeJSON(response, http.StatusBadRequest, failure)
+		return
+	}
+	writeGenerationError(response, err)
 }
 
 func (plan *protocolGenerationPlan) release() {

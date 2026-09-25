@@ -1069,23 +1069,52 @@ type completionResponse struct {
 	Usage   completionUsage    `json:"usage"`
 }
 
+// runCompletionChoices runs n choices of each admitted turn in order; the
+// choice index runs across turns and seeds each choice's sampler.
+func runCompletionChoices(
+	turns []*protocolGenerationPlan,
+	n int,
+	emit func(int, string) error,
+	accept func(*protocolGenerationPlan, int, int, protocolGenerationResult) error,
+) error {
+	var index int
+	for _, turn := range turns {
+		for choice := range n {
+			var emitChoice func(string) error
+			if emit != nil {
+				current := index
+				emitChoice = func(piece string) error { return emit(current, piece) }
+			}
+			result, err := turn.runChoice(index, emitChoice)
+			if err != nil {
+				return err
+			}
+			if err := accept(turn, choice, index, result); err != nil {
+				return err
+			}
+			index++
+		}
+	}
+	return nil
+}
+
 func (h *Handler) complete(
 	response http.ResponseWriter,
-	plan *protocolBatchGenerationPlan,
+	turns []*protocolGenerationPlan,
 	id string,
 	n int,
 ) {
-	choices := make([]completionChoice, 0, len(plan.prompts)*n)
+	choices := make([]completionChoice, 0, len(turns)*n)
 	promptTokens := 0
 	totalCompletionTokens := 0
-	err := plan.run(n, nil, func(
-		promptChoice, choiceIndex int,
+	err := runCompletionChoices(turns, n, nil, func(
+		turn *protocolGenerationPlan, promptChoice, choiceIndex int,
 		result protocolGenerationResult,
 	) error {
 		if promptChoice == 0 {
 			promptTokens += result.promptTokens()
 		}
-		finishReason := result.pump.finishReason(plan.maxTokens, "stop", "length")
+		finishReason := result.pump.finishReason(turn.maxTokens, "stop", "length")
 		totalCompletionTokens += result.pump.completion
 		choices = append(choices, completionChoice{
 			Text:         result.pump.text(),
@@ -1129,7 +1158,7 @@ type streamResponse struct {
 func (h *Handler) streamCompletion(
 	response http.ResponseWriter,
 	request *http.Request,
-	plan *protocolBatchGenerationPlan,
+	turns []*protocolGenerationPlan,
 	id string,
 	n int,
 ) {
@@ -1139,7 +1168,8 @@ func (h *Handler) streamCompletion(
 	}
 	stream := newSSEEmitter(request.Context(), response, flusher)
 	created := time.Now().Unix()
-	err := plan.run(
+	err := runCompletionChoices(
+		turns,
 		n,
 		func(choiceIndex int, piece string) error {
 			if piece == "" {
@@ -1157,8 +1187,8 @@ func (h *Handler) streamCompletion(
 			}
 			return stream.write(chunk)
 		},
-		func(_ int, choiceIndex int, result protocolGenerationResult) error {
-			reason := result.pump.finishReason(plan.maxTokens, "stop", "length")
+		func(turn *protocolGenerationPlan, _ int, choiceIndex int, result protocolGenerationResult) error {
+			reason := result.pump.finishReason(turn.maxTokens, "stop", "length")
 			_ = stream.write(streamResponse{
 				ID:      id,
 				Object:  "text_completion",

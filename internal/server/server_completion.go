@@ -197,17 +197,26 @@ func (h *Handler) completions(response http.ResponseWriter, request *http.Reques
 		writeInvalidRequest(response, err)
 		return
 	}
-	plan, ok := h.prepareProtocolBatchGenerationPlan(
-		response, request, prompts, body.samplingParameters, maxTokens, stops,
+	plan, ok := h.prepareProtocolGenerationPlan(
+		response, request, prompts[0], body.samplingParameters, maxTokens, stops,
 	)
 	if !ok {
 		return
 	}
 	defer plan.release()
+	turns := []*protocolGenerationPlan{plan}
+	for _, prompt := range prompts[1:] {
+		turn, err := plan.turn(prompt)
+		if err != nil {
+			writePromptRefusal(response, err)
+			return
+		}
+		turns = append(turns, turn)
+	}
 	id := "cmpl-" + strconv.FormatUint(h.nextID.Add(1), identifierRadix)
 	if body.Stream {
-		h.streamCompletion(response, request, plan, id, body.N)
+		h.streamCompletion(response, request, turns, id, body.N)
 		return
 	}
-	h.complete(response, plan, id, body.N)
+	h.complete(response, turns, id, body.N)
 }

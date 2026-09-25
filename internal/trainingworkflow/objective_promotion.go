@@ -97,9 +97,11 @@ func PromoteObjectiveAdaptive(
 // at approved, the top of the validation ladder, gated on committed
 // PASSED evaluation reports: every named report must resolve to a
 // typed evaluation report artifact in the store whose verdict is
-// passed. An arbitrary evidence identity, a failed report, or an
-// objective below adaptive is refused -- approved is earned by
-// executable evaluation, never asserted.
+// passed, and at least one must be a held-out verdict for this
+// objective: the trained model beat its base on records its training
+// never saw. An arbitrary evidence identity, a failed report, a
+// benchmark report alone, or an objective below adaptive is refused --
+// approved is earned by executable held-out evaluation, never asserted.
 func PromoteObjectiveApproved(
 	ctx context.Context,
 	repository artifact.Repository,
@@ -127,14 +129,20 @@ func PromoteObjectiveApproved(
 		return trainingprogram.ObjectiveDocument{}, fmt.Errorf(
 			"training workflow: objective %q holds %q; only adaptive-evidence climbs to approved", aliasName, current.Authority)
 	}
+	heldout := false
 	for _, reportID := range reports {
-		passed, err := evaluation.CommittedReportPassed(ctx, repository, reportID)
+		passed, isVerdict, err := approvalReportPassed(ctx, repository, reportID, current)
 		if err != nil {
 			return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: approval evidence %s: %w", reportID, err)
 		}
 		if !passed {
 			return trainingprogram.ObjectiveDocument{}, fmt.Errorf("training workflow: approval evidence %s did not pass", reportID)
 		}
+		heldout = heldout || isVerdict
+	}
+	if !heldout {
+		return trainingprogram.ObjectiveDocument{}, fmt.Errorf(
+			"training workflow: approving %q requires a passed held-out verdict scored on its held-out split", aliasName)
 	}
 	spec := current.ObjectiveSpec
 	spec.Authority = trainingprogram.ObjectiveApproved
@@ -161,4 +169,25 @@ func PromoteObjectiveApproved(
 		return trainingprogram.ObjectiveDocument{}, err
 	}
 	return promoted, nil
+}
+
+// approvalReportPassed reads one approval report: a held-out verdict is
+// re-derived for current, any other report must be a typed evaluation
+// report. It says which kind it read.
+func approvalReportPassed(
+	ctx context.Context,
+	reader artifact.Reader,
+	id artifact.ID,
+	current trainingprogram.ObjectiveDocument,
+) (passed, heldout bool, err error) {
+	descriptor, found, err := reader.Artifact(ctx, id)
+	if err != nil {
+		return false, false, err
+	}
+	if found && evaluation.IsHeldoutVerdict(descriptor) {
+		passed, err := evaluation.CommittedHeldoutVerdictPassed(ctx, reader, id, current)
+		return passed, true, err
+	}
+	passed, err = evaluation.CommittedReportPassed(ctx, reader, id)
+	return passed, false, err
 }

@@ -394,3 +394,54 @@ func TestObjectiveAuthorityLadder(t *testing.T) {
 		t.Fatal("an undeclared level must not meet any floor")
 	}
 }
+
+// TestObjectiveEvidenceAcceptsEvaluationReports holds the objective to the
+// evidence its ladder records: training observations and the evaluation
+// reports that approved it, and nothing else. Approval appends reports, so an
+// objective refusing them could never be approved. A table-prediction
+// objective declares a table-to-table signature, and a promotion that
+// changes only authority and evidence keeps the objective's contract.
+func TestObjectiveEvidenceAcceptsEvaluationReports(t *testing.T) {
+	t.Parallel()
+	derived := func(kind artifact.Kind, role string) artifact.ID {
+		id, err := artifact.IdentifyBytes(kind, []byte("overgo/objective-evidence-test/"+role))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	spec := ObjectiveSpec{
+		Name: "table-evidence", Kind: ObjectiveTablePrediction,
+		Signature: recipecontract.ModalitySignature{
+			Inputs: []recipecontract.Modality{recipecontract.ModalityTable}, Outputs: []recipecontract.Modality{recipecontract.ModalityTable},
+		},
+		Dataset: derived(artifact.KindDataset, "dataset"), Split: derived(artifact.KindDatasetShard, "split"),
+		Processors: []artifact.ID{derived(artifact.KindProfile, "processor")},
+		Loss:       derived(artifact.KindProfile, "loss"), Evaluation: derived(artifact.KindProfile, "evaluation"),
+		Metric: MetricTableAccuracy, Evidence: []artifact.ID{derived(artifact.KindEvidence, "observation")},
+		Authority: ObjectiveAdaptive,
+	}
+	adaptive, err := NewObjective(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec.Evidence = append(spec.Evidence, derived(artifact.KindEvaluation, "verdict"))
+	spec.Authority = ObjectiveApproved
+	approved, err := NewObjective(spec)
+	if err != nil {
+		t.Fatalf("an evaluation report as evidence: %v", err)
+	}
+	if !SameContract(adaptive, approved) || adaptive.ID == approved.ID {
+		t.Fatal("a promotion that changed only authority and evidence changed the contract")
+	}
+	renamed := spec
+	renamed.Name = "table-evidence-renamed"
+	other, err := NewObjective(renamed)
+	if err != nil || SameContract(approved, other) {
+		t.Fatalf("a renamed objective shares the contract: %v", err)
+	}
+	spec.Evidence = append(spec.Evidence, derived(artifact.KindModel, "model"))
+	if _, err := NewObjective(spec); err == nil {
+		t.Fatal("a model identity was accepted as objective evidence")
+	}
+}

@@ -17,7 +17,8 @@ import (
 // batch: a batch whose only failures were refused exclusive claims runs each
 // refused package again alone and outside the lease until it admits, a
 // batch that fails for any other reason returns that failure at once, and a
-// batch that passes runs once.
+// batch that passes runs once. A host batch reruns its refused package the
+// same way.
 func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 	t.Parallel()
 	g := &gateContext{repo: t.TempDir(), deviceResource: "overgo-test-device-" + t.Name()}
@@ -47,7 +48,7 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 		return testevidence.GoTestReport{PassedTests: 1}, nil
 	}
 	batch := []string{"overgo/internal/devicemath", "overgo/internal/routedlm"}
-	report, err := g.runDeviceBatch(t.Context(), batch, false, nil, run)
+	report, err := g.runContendedBatch(t.Context(), batch, false, nil, run)
 	if err != nil || report.PassedTests != 1 {
 		t.Fatalf("contended batch = %+v, %v", report, err)
 	}
@@ -66,7 +67,7 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 
 	other := errors.New("go test evidence: a real failure")
 	calls = nil
-	_, err = g.runDeviceBatch(t.Context(), batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
+	_, err = g.runContendedBatch(t.Context(), batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
 		calls = append(calls, call{})
 		return testevidence.GoTestReport{Failed: []string{"overgo/internal/devicemath: TestKernel"}}, other
 	})
@@ -74,11 +75,37 @@ func TestDeviceBatchRerunsRefusedExclusiveClaimsOutsideTheLease(t *testing.T) {
 		t.Fatalf("real failure = %v after %d call(s), want it returned at once", err, len(calls))
 	}
 
+	// A host batch holds no lease, yet a trainer in it opens the device
+	// (on Windows every optimizer stepper does); its refusal reruns too.
+	hostRefusals := 1
+	calls = nil
+	host := []string{"overgo/internal/seriesforecast", "overgo/internal/tabularicl"}
+	hostContended := testevidence.GoTestReport{Failed: []string{"overgo/internal/seriesforecast: TestTrainerRefusesGradientsOutsidePack", "overgo/internal/seriesforecast"}, Contended: []string{"overgo/internal/seriesforecast"}}
+	report, err = g.runContendedBatch(t.Context(), host, false, nil, func(_ context.Context, packages []string, _ bool, _ func(string, bool) error, _ bool) (testevidence.GoTestReport, error) {
+		calls = append(calls, call{packages: packages})
+		if len(calls) == 1 || hostRefusals > 0 && len(packages) == 1 {
+			if len(calls) > 1 {
+				hostRefusals--
+				hold, err := processcontrol.ShareResource(g.deviceResource)
+				if err != nil {
+					t.Error(err)
+				} else if err := hold(); err != nil {
+					t.Error(err)
+				}
+			}
+			return hostContended, errors.New("go test evidence: refused")
+		}
+		return testevidence.GoTestReport{PassedTests: 1}, nil
+	})
+	if err != nil || report.PassedTests != 1 || len(calls) != 3 || !slices.Equal(calls[2].packages, []string{"overgo/internal/seriesforecast"}) {
+		t.Fatalf("contended host batch = (%+v, %v) after calls %+v, want the refused package rerun alone until it admits", report, err, calls)
+	}
+
 	// A refusal that never lifts ends with the caller's cause.
 	ended := errors.New("the caller ended the wait")
 	wait, cancel := context.WithCancelCause(t.Context())
 	cancel(ended)
-	_, err = g.runDeviceBatch(wait, batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
+	_, err = g.runContendedBatch(wait, batch, false, nil, func(context.Context, []string, bool, func(string, bool) error, bool) (testevidence.GoTestReport, error) {
 		return contended, errors.New("go test evidence: refused")
 	})
 	if !errors.Is(err, processcontrol.ErrResourceBusy) || !errors.Is(err, ended) {

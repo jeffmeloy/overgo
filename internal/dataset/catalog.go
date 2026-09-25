@@ -419,7 +419,7 @@ func validateCatalogEntry(ctx context.Context, reader artifact.Reader, entry Cat
 	if document.Type != TypeVersion || len(document.Assets) != 1 || document.Assets[0].Artifact != entry.Inventory || document.Assets[0].Records != entry.Files {
 		return CatalogEntryInvalid, "dataset version differs from catalog"
 	}
-	inventory, found, err := loadInventory(ctx, reader, entry.Inventory)
+	inventory, found, err := LoadInventory(ctx, reader, entry.Inventory)
 	if err != nil || !found {
 		return CatalogEntryInvalid, errorDetail(err, "dataset inventory is absent")
 	}

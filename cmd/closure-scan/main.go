@@ -159,6 +159,12 @@ func main() {
 			modes++
 		}
 	}
+	// An import may end in the production check, so recording a move or a
+	// deletion and proving the ledger clean is one invocation.
+	checking := *checkScope != "" || *checkAll
+	if *importStore != "" && checking {
+		modes--
+	}
 	if modes > 1 {
 		fatal(fmt.Errorf("report modes are mutually exclusive"))
 	}
@@ -167,7 +173,22 @@ func main() {
 		noUncatalogued: *requireNoUncatalogued, noModelFacts: *requireNoModelFacts, zeroOpen: *requireZeroOpen,
 	}
 	tests := testRequirements{noPolicyCopies: *requireNoPolicyCopies, classifiedFixtures: *requireClassifiedFixtures}
-	if *checkScope != "" || *checkAll {
+	if *importStore != "" {
+		count, unmatched, first, aliases, err := settleClosureDocuments(
+			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites, *retireUnmatched,
+		)
+		if err != nil {
+			fatal(err)
+		}
+		fmt.Printf(
+			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d history_reused=%t\n",
+			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved, aliases.HistoryReused,
+		)
+		if !checking {
+			return
+		}
+	}
+	if checking {
 		if err := checkProductionClosures(root, *storePath, *checkScope, *checkAll, productionRequirements, os.Stdout); err != nil {
 			fatal(err)
 		}
@@ -333,19 +354,6 @@ func main() {
 			}
 			fmt.Printf("published census evidence %s\n", evidence.ID)
 		}
-		return
-	}
-	if *importStore != "" {
-		count, unmatched, first, aliases, err := importClosureDocuments(
-			root, *storePath, *importStore, mustSnapshot(root), *reviewCallsites, *retireUnmatched,
-		)
-		if err != nil {
-			fatal(err)
-		}
-		fmt.Printf(
-			"imported %d closure document(s), unmatched=%d first=%s aliases_reviewed=%d retired=%d preserved=%d history_reused=%t\n",
-			count, unmatched, first, aliases.Reviewed, aliases.Retired, aliases.Preserved, aliases.HistoryReused,
-		)
 		return
 	}
 	if *literals {
@@ -628,6 +636,27 @@ func importClosureDocuments(
 	reviewCallsites, retireUnmatched bool,
 ) (count, unmatched int, first string, aliases closureAliasReview, finalErr error) {
 	return importClosureDocumentsWith(root, storePath, sourcePath, snapshot, reviewCallsites, retireUnmatched, nil, nil)
+}
+
+// settleClosureDocuments records a move or a deletion in one call. Retirement
+// is refused while a rebind is pending, so the rebinding import runs first and
+// the retiring one runs over the ledger it settled; the counts are the two
+// passes' together.
+func settleClosureDocuments(
+	root, storePath, sourcePath string,
+	snapshot repoanalysis.SourceSnapshot,
+	reviewCallsites, retireUnmatched bool,
+) (int, int, string, closureAliasReview, error) {
+	count, unmatched, first, aliases, err := importClosureDocuments(root, storePath, sourcePath, snapshot, reviewCallsites, false)
+	if err != nil || !retireUnmatched || unmatched == 0 {
+		return count, unmatched, first, aliases, err
+	}
+	retiredCount, unmatched, first, retired, err := importClosureDocuments(root, storePath, sourcePath, snapshot, reviewCallsites, true)
+	aliases.Reviewed += retired.Reviewed
+	aliases.Retired += retired.Retired
+	aliases.Preserved += retired.Preserved
+	aliases.HistoryReused = aliases.HistoryReused || retired.HistoryReused
+	return count + retiredCount, unmatched, first, aliases, err
 }
 
 // importClosureDocumentsWith imports as importClosureDocuments does and

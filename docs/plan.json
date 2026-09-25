@@ -4,21 +4,21 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "merge-e1ee1326fe2b",
-      "title": "Merge the VAE lane at e1ee1326fe2b",
+      "id": "vae-codec-stream-port",
+      "title": "Port the VAE lane's codec chunk stream and host decode",
       "owner": "master-lead",
       "status": "open",
       "budget": {
         "nodes": 0,
-        "paydown": "automation-one-record-table",
-        "reason": "the VAE lane adds typed latent state, codec and readiness contracts, experimental evidence records (runrecord) and campaign-history adoption (plan); automation-one-record-table consolidates the record families"
+        "reason": "media.CodecChunkStream replaces three hand-rolled causal state slices, and the Wan VAE host streaming decode moves from a test into production as a capability"
       },
       "steps": [
         {
           "id": "do",
-          "title": "Merge the VAE lane at e1ee1326fe2b",
+          "title": "Port the VAE lane's codec chunk stream and host decode",
           "status": "open",
-          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/representation -run '^TestLatentStateObservationAndSampleContract$' -count=1"
+          "verify": "go test ./internal/media -run '^TestCodecChunkStreamOwnsCausalState$' -count=1",
+          "rationale": "Owner decision 2026-09-25: merge the overgo_vae lane in the parts that have a production consumer. This row ports the runtime part from codex/overgo_vae at e1ee1326fe2b as an ordinary commit (not a merge commit, so the lane merges master back cleanly): internal/media/codec_stream.go (CodecChunkStream owns per-operation causal state for one immutable codec program, refuses a duplicate or out-of-order chunk, poisons continuation after a failed operation until Reset, and reports chunk lineage), the Wan VAE source encode (host and CUDA) and decode (CUDA) running through it with plan validation against the compiled boundary and cancellation, and the host streaming DecodeLatentVideo promoted from vae_test.go to production. Two birds: one causal-state owner replaces three hand-rolled state slices, and the decode path becomes a capability instead of test-only code. These are pinned media runtime paths, so the commit carries a reviewed delta in docs/media_reviewed_deltas.json with a device receipt over internal/media and internal/latentvideo. Done when TestCodecChunkStreamOwnsCausalState holds the stream's state, duplicate, failure and reset contract."
         }
       ]
     },
@@ -183,7 +183,27 @@
           "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
           "status": "open",
           "verify": "go test ./internal/plan -run '^TestVAECampaignClosedOut$' -count=1",
-          "rationale": "The overgo_vae lane (branch codex/overgo_vae, campaign overgo_rsi_with_vae, design in docs/overgo_rsi_with_vae.md) runs the native-Go latent RSI and PEARL evidence campaign with its own plan in its own worktree. Master keeps its own plan, so the lane's staged surface (typed latent state, codec, geometry, recipe, readiness and experimental-evidence exports not yet consumed in production) retires with this one master row instead of lane-only rows. Each later lane merge re-points its new staged entries here. Consolidation phase: when this row is reached, fold the latent contracts into the shared record table and evidence validator rather than keeping lane-specific record families. Done when the lane's campaign closeout has merged and TestVAECampaignClosedOut proves no staged entry names this row."
+          "rationale": "The overgo_vae lane (branch codex/overgo_vae, campaign overgo_rsi_with_vae, design docs/overgo_rsi_with_vae.md) runs the native-Go latent RSI and PEARL campaign with its own plan in its own worktree. Owner decision 2026-09-25: master takes the lane in parts that have a production consumer, not whole. Master ported the runtime part at e1ee1326fe2b (row vae-codec-stream-port: media.CodecChunkStream owning causal codec state, the Wan VAE host and CUDA encode/decode through it, the host streaming decode promoted from test to production); those files are byte-identical to the lane's, so merging master back is clean. DIRECTION FOR THE LANE when it merges master (master is in a consolidation-only phase: two birds with one stone, minimize to the maximum practical extent, no ledger where construction can prevent the object): (1) consumer first -- land each latent contract (representation latent state and codec, geometry, tensorstats resampling and robust scalars, media latent volume) together with its first production consumer; the first merge unit is first-latent-capability/existing-vae-inference-proof, and no export arrives without a caller; (2) no new record families -- express experimental evidence through the shared record table that automation-one-record-table builds instead of runrecord experimental_* families, and keep campaign-history adoption out of master's internal/plan; (3) reconcile pinned media runtime moves with a reviewed delta in docs/media_reviewed_deltas.json backed by a device receipt, never by narrowing TestReviewedDeltaRegistryExplainsTheTree; (4) never raise docs/clone_baseline.json -- the merged tree measured 7964 against master's 7991 while the lane raised it to 9970; (5) after merging master, drop the lane's testCodecChunkState copy in internal/media/codec_latent_test.go: master's TestCodecChunkStreamOwnsCausalState owns it; (6) keep evidence identities in compatibility.json refreshed from master's store, not the lane's. Master keeps its plan; any staged surface a later merge brings retires with this row. Done when the lane's campaign closeout has merged and TestVAECampaignClosedOut proves no staged entry names this row."
+        }
+      ]
+    },
+    {
+      "id": "merge-e1ee1326fe2b",
+      "title": "Merge the VAE lane once its first latent capability has a production consumer",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "paydown": "automation-one-record-table",
+        "reason": "the VAE lane adds typed latent state, codec and readiness contracts, experimental evidence records (runrecord) and campaign-history adoption (plan); automation-one-record-table consolidates the record families"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the VAE lane once its first latent capability has a production consumer",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/representation -run '^TestLatentStateObservationAndSampleContract$' -count=1",
+          "rationale": "Superseded by the owner's decision (2026-09-25) to take the VAE lane in consumer-backed parts: vae-codec-stream-port ported the runtime part; the lane's research scaffolding (typed latent state, codec, geometry, readiness and robust-statistics contracts without production callers, runrecord experimental_* record families, campaign-history adoption in internal/plan) stays in the lane until its first latent capability has a consumer. This row merges the lane at that point, re-titled to the head then merged; its harness growth is budgeted against automation-one-record-table."
         }
       ]
     },
@@ -1194,7 +1214,9 @@
             "colibri2-merge-budget/do",
             "vae-latent-campaign/do",
             "merge-e1ee1326fe2b/do",
-            "vae-merge-replan/do"
+            "vae-merge-replan/do",
+            "vae-codec-stream-port/do",
+            "vae-port-replan/do"
           ]
         }
       ]

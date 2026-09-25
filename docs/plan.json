@@ -4,17 +4,92 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "seq2seq-trainer-to-tests",
-      "title": "Delete the seq2seq trainer nothing runs",
+      "id": "wire-sft-evaluation",
+      "title": "Approve training objectives on held-out target reports",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Delete the seq2seq trainer nothing runs",
+          "title": "Approve training objectives on held-out target reports",
           "status": "open",
-          "verify": "go test ./internal/seq2seq -run '^(TestEncoderMatchesOracle|TestIncrementalDecodeMatchesOracle|TestIncrementalMatchesFullDecode)$' -count=1",
-          "rationale": "SQA-013, re-scoped from a move to a deletion. The seq2seq Trainer and its training layout, bindings and backward passes (internal/seq2seq/training_data.go, about 900 lines, and training_optimizer.go) have no production caller. Their only user is real_training_data_model_test.go (1,306 lines, build tag modeltest), and no gate lane, evidence document or training route (docs/training_routes.json) runs it. Delete all three, and the training-trace plumbing in forward.go that only the trainer passed non-nil, keeping the inference forward unchanged. Done when the seq2seq oracle tests, which run in every gate without model files, still pass and the production optimizer and trainingprogram imports are gone from seq2seq."
+          "verify": "go test ./internal/evaluation -run '^TestObjectiveApprovalAcceptsHeldOutTargetReports$' -count=1",
+          "rationale": "Wire held-out evaluation into training approval (audit of 7694f00e, 2026-09-24). Today a training run uses the whole dataset as its all split (internal/trainingworkflow/bootstrap_recipe.go), the objective's evaluation field is a placeholder profile, BuildGroupSplit has no production caller, and PromoteObjectiveApproved accepts only benchmark campaign or shard reports (evaluation/report_authority.go), which exist only for text LLMs. So no forecasting, tabular, speech, image, video or preference objective can be approved: TimesFM-2.5, TabFM-1.0, Pocket-TTS, Krea-2-Turbo, Wan2.1, Unlimited-OCR, and DPO runs from the web UI. Split each objective's dataset with BuildGroupSplit, compile the SFT evaluation view over the held-out split, run the trained model through its capability, score it with the target scorer its modality declares, publish the target report, and let report authority accept the four target-report schemas. Done when TestObjectiveApprovalAcceptsHeldOutTargetReports approves an objective on a held-out numeric target report and refuses one scored on training records."
+        }
+      ]
+    },
+    {
+      "id": "seq2seq-trainer-to-tests",
+      "title": "Wire the seq2seq trainer to a route and a train command",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Wire the seq2seq trainer to a route and a train command",
+          "status": "open",
+          "verify": "go test ./cmd/seq2seq-train-probe -run '^TestSeq2SeqRouteNamesItsTrainer$' -count=1",
+          "rationale": "Wire the seq2seq trainer (SQA-013, re-scoped by owner directive). Needle-seq2seq is registered, and docs/model_compatibility.json records a real-artifact training smoke (1a92893f), but no command or route reaches seq2seq.Trainer; 5e1be7c0 then moved its NewTrainer into the modeltest-tagged test file. Restore NewTrainer to production, add cmd/seq2seq-train-probe following the other *-train-probe commands, and add a route in docs/training_routes.json keyed by the architecture the Needle checkpoint declares. Its GSM8K training tests get a lane that runs them rather than a tag nothing enables. Done when TestSeq2SeqRouteNamesItsTrainer resolves the Needle checkpoint's architecture to the new trainer and the probe trains one step on a synthetic pair."
+        }
+      ]
+    },
+    {
+      "id": "wire-dataset-mixture",
+      "title": "Publish weighted dataset mixtures for training",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Publish weighted dataset mixtures for training",
+          "status": "open",
+          "verify": "go test ./cmd/dataset-catalog -run '^TestCatalogPublishesAMixture$' -count=1",
+          "rationale": "5e1be7c0 moved dataset.NewMixture into tests. trainingdata's materializer already materializes TypeMixture with member weights (internal/trainingdata/materializer.go), but nothing in production can publish a mixture document, so no objective can train on a weighted mix of corpora. Restore NewMixture and add dataset-catalog -mixture \u003cname\u003e -members \u003calias\u003e=\u003cweight\u003e,... to publish one. Done when TestCatalogPublishesAMixture publishes a two-member mixture and the materializer reads its weights back."
+        }
+      ]
+    },
+    {
+      "id": "wire-bank-trainer",
+      "title": "Give the thoughtbank bank trainer a user path",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Give the thoughtbank bank trainer a user path",
+          "status": "open",
+          "verify": "go test ./internal/thoughtbank -run '^TestBankTrainerHasAUserPath$' -count=1",
+          "rationale": "internal/thoughtbank/bank_train.go's FastWeightBankTrainer is production code only a test calls, the same orphaned-capability pattern the audit found (2026-09-24). thoughtbank inference is wired as a generation capability (internal/mediacapability). Give the bank trainer a train command and a route or training workspace entry for the thoughtbank models it serves, and a lane for its tests. Done when TestBankTrainerHasAUserPath resolves a route or command to FastWeightBankTrainer."
+        }
+      ]
+    },
+    {
+      "id": "retire-controller-cluster",
+      "title": "Wire the controller training cluster to a user path",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Wire the controller training cluster to a user path",
+          "status": "open",
+          "verify": "go test ./internal/controllertrain -run '^TestControllerTrainingHasAUserPath$' -count=1",
+          "rationale": "Wire the controller training cluster, owner directive 2026-09-24: wire all training code in instead of deleting it. internal/controllertrain has no production importer; internal/controlleraction is reached only by cmd/controller-action, which nothing refers to; no controller-* schema has been written to the master store. About 2,790 production and 2,140 test lines. Find the model or controller artifact it trains, give it a train command and a docs/training_routes.json route or a training workspace entry, and give its tests a lane. Done when TestControllerTrainingHasAUserPath resolves a route or command to controllertrain."
+        }
+      ]
+    },
+    {
+      "id": "retire-unreferenced-commands",
+      "title": "Declare a caller for every command",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Declare a caller for every command",
+          "status": "open",
+          "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
+          "rationale": "Declare a caller for every command, owner directive 2026-09-24: a command nothing refers to is not deleted. From consolidation-inventory: 20 cmd/ commands have no reference in code, docs, scripts or the plan (seam-align, audio-inspect, latentvideo-run, mechanism-census, coverage-lanes, buildscrub, hf-hub, activation-cases, inspect-safetensors, dataset-catalog, remote-provider, sealed-authority, tool-workflow, model-config, router-observation, model-build, profile-catalog, rerank). Record each one's audience and purpose in commanddoc. Wire the training and model ones where their workflow starts: dataset-catalog behind wire-dataset-mixture, and model-build, hf-hub and latentvideo-run from the model onboarding and run paths. Delete only a command a named wired command supersedes. Done when TestEveryCommandHasACaller holds."
         }
       ]
     },
@@ -94,6 +169,21 @@
       ]
     },
     {
+      "id": "e4b-full-parameter-trainer",
+      "title": "Train Gemma-4 E4B with full-parameter gradients",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Train Gemma-4 E4B with full-parameter gradients",
+          "status": "open",
+          "verify": "go test ./internal/hostmath -run '^TestE4BFullParameterStepMatchesHost$' -count=1",
+          "rationale": "Latent training pieces the audit found (2026-09-24): hostmath/e4b_backward.go (host) and devicemath WindowedCausalAttentionBackwardDevice (device, moved to tests in 39934bd8) are halves of a Gemma-4 E4B backward kit with no trainer; E4B trains today only through the single-layer adapter-train-probe. Build a full-parameter E4B trainer on them, following hybrid-stack-train-probe, and route it by the checkpoint's declared architecture. Restore the device function to production when the trainer uses it. Done when TestE4BFullParameterStepMatchesHost runs one full-parameter step on a tiny E4B-shaped model with device gradients matching the host kit."
+        }
+      ]
+    },
+    {
       "id": "store-bare-record-fill",
       "title": "Publish through one store path: idempotent writes, verified content fill, alias-local preconditions",
       "owner": "master-lead",
@@ -125,16 +215,16 @@
     },
     {
       "id": "consumer-graph-private-islands",
-      "title": "Private code reached only by tests counts as unconsumed",
+      "title": "Report private code only tests reach as review candidates",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Private code reached only by tests counts as unconsumed",
+          "title": "Report private code only tests reach as review candidates",
           "status": "open",
           "verify": "go test ./internal/codeprofile -run '^TestPrivateCodeReachedOnlyByTestsIsFound$' -count=1",
-          "rationale": "SQA-013's detector half. The gate's unconsumed-surface rule (internal/codeprofile, TestGateRejectsNewUnconsumedProductionSurface) sees exported declarations with no production consumer, but not private code reachable only through them. That is how the seq2seq trainer's implementation stayed in production after its constructor moved to tests. Extend ProductionConsumerGraph's use: a declaration whose production references all come from declarations with no production consumer is itself unconsumed, computed transitively, with reflection and cgo boundaries still counted as consumers. The gate refuses new ones as it refuses new exported ones. Done when TestPrivateCodeReachedOnlyByTestsIsFound reports a private helper reached only from a test-only exported function in a fixture, and not one also reached from a live root."
+          "rationale": "SQA-013's detector half, re-scoped by owner direction 2026-09-24: a finding of no callers is a question, not a deletion order. The unconsumed-surface rule sees exported declarations with no production consumer, but not private code reachable only through them; that is how the seq2seq trainer went unnoticed as unwired. Compute unconsumed private code transitively over ProductionConsumerGraph, with reflection and cgo boundaries counted as consumers, and report each island as a review candidate classified by what it is: a training or inference capability to wire, test support to move, or code a named wired replacement supersedes. It refuses nothing on its own. Done when TestPrivateCodeReachedOnlyByTestsIsFound reports a private helper reached only from a test-only exported function in a fixture, and not one also reached from a live root."
         }
       ]
     },
@@ -149,7 +239,7 @@
           "title": "Run or delete tests no lane enables",
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestEveryTestGateIsSetByALane$' -count=1",
-          "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate but compile in every gate that selects their package. Give each a lane that runs it, or delete it. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds."
+          "rationale": "From consolidation-inventory (2026-09-24): 283 OVERGO_* environment reads sit in tests; 151 names appear only in tests and 145 of those are documented nowhere. 130 test functions (about 12,000 lines) skip unless a variable is set, and the lanes set only OVERGO_CUDA_TEST, OVERGO_WEBUI_LANE, OVERGO_WEBUI_LANE_SCREENS and OVERGO_BROWSER, so about 82 of them (about 5,800 lines, heaviest in internal/inference, adaptiveparity and projector) never run in any gate. Owner direction 2026-09-24: training and inference validation is the point of overgo, so give each a lane that runs it, with its model or data declared. Delete only a test a named running test supersedes. The same holds for modeltest-tagged suites no lane runs, such as seq2seq's GSM8K training suite. The probe is tmp/envgate_probe.go. Done when TestEveryTestGateIsSetByALane holds."
         }
       ]
     },
@@ -632,36 +722,6 @@
       ]
     },
     {
-      "id": "retire-controller-cluster",
-      "title": "Retire the unimported controller training cluster (owner decision)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire the unimported controller training cluster (owner decision)",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestNoTestOnlyProductionExports$' -count=1",
-          "rationale": "OWNER DECISION: may the controller training cluster be deleted? From consolidation-inventory (2026-09-24): internal/controllertrain has no production importer; internal/controlleraction is imported only by cmd/controller-action, which nothing refers to; none of the controller-* schemas has ever been written to the master store. About 2,790 production and 2,140 test lines, plus internal/trainingprogram/objective_composition_cuda_windows_test.go. It may be a parked capability rather than dead code, so it waits on the owner. Done when the cluster is gone and nothing builds against it."
-        }
-      ]
-    },
-    {
-      "id": "retire-unreferenced-commands",
-      "title": "Retire commands nothing refers to (owner decision)",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retire commands nothing refers to (owner decision)",
-          "status": "open",
-          "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
-          "rationale": "OWNER DECISION: which of these commands are still run by hand? From consolidation-inventory (2026-09-24): 20 cmd/ commands are not released and nothing in code, docs, scripts or the plan refers to them: seam-align (504 lines, with internal/composition/improvement_loop.go 223), audio-inspect 380, latentvideo-run 274, mechanism-census 206, coverage-lanes 158, buildscrub 132, hf-hub 132, activation-cases 115, inspect-safetensors 109, dataset-catalog 108, remote-provider 107, sealed-authority 91, tool-workflow 81, model-config 79, router-observation 73, model-build 71, profile-catalog 54, rerank 52 -- about 2,900 lines. Keep the ones the owner names, delete the rest, and add a commanddoc check that every command has a declared caller. Done when TestEveryCommandHasACaller holds."
-        }
-      ]
-    },
-    {
       "id": "store-growth-ratchet",
       "title": "Run store upkeep at rest from cmd/loop (owner decision first)",
       "owner": "master-lead",
@@ -885,7 +945,12 @@
             "release-claim-by-item/do",
             "sqa-automation-replan/do",
             "consumer-graph-private-islands/do",
-            "sqa-followup-replan/do"
+            "sqa-followup-replan/do",
+            "wire-sft-evaluation/do",
+            "wire-dataset-mixture/do",
+            "wire-bank-trainer/do",
+            "e4b-full-parameter-trainer/do",
+            "restore-sft-evaluation-targets/do"
           ]
         }
       ]

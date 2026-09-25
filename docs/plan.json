@@ -1004,7 +1004,8 @@
             "heldout-approval-authority/do",
             "split-record-identities/do",
             "merge-79180f0ca8b9/do",
-            "gui-merge-replan/do"
+            "gui-merge-replan/do",
+            "guards-at-e3c53b28/do"
           ]
         }
       ]
@@ -1185,6 +1186,10 @@
     },
     {
       "key": "store-growth:bytes:overgo/gate-suite-cost/v2",
+      "row": "store-growth-ratchet"
+    },
+    {
+      "key": "store-growth:bytes:overgo/modern-go-census-part/v1",
       "row": "store-growth-ratchet"
     },
     {

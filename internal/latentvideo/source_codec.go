@@ -1,8 +1,10 @@
 package latentvideo
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/checked"
 	"overgo/internal/media"
@@ -80,6 +82,13 @@ func NormalizeSourceLatent(out, meanOutput []float32, plan SourceCodecPlan) erro
 
 // EncodeSourceVideo runs the checkpoint-derived causal encoder chunk stream.
 func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
+	return encodeSourceVideo(context.Background(), checkpoint, graph, plan, source)
+}
+
+func encodeSourceVideo(ctx context.Context, checkpoint string, graph VAEEncoderPlan, plan SourceCodecPlan, source []float32) ([]float32, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	sourceElements, err := plan.SourceElements()
 	if err != nil {
 		return nil, err
@@ -99,6 +108,9 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 	if !checked.Equal(graph.Stride, plan.Profile.Stride) {
 		return nil, errors.New("source codec: encoder contract mismatch")
 	}
+	if err := validateSourceCodecPlan(plan); err != nil {
+		return nil, err
+	}
 	reader, err := pytorchzip.Open(checkpoint)
 	if err != nil {
 		return nil, err
@@ -108,7 +120,10 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 	if err != nil {
 		return nil, err
 	}
-	states := make([]vaeOpState, len(graph.Operations))
+	stream, err := media.NewCodecChunkStream[pytorchzip.TensorBinding, vaeOpState](graph.CodecProgram)
+	if err != nil {
+		return nil, err
+	}
 	latentElements, err := plan.LatentElements()
 	if err != nil {
 		return nil, err
@@ -128,9 +143,12 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 		if err := media.CopyPlanarFrames(current, frames, tensor.FirstOffset, source, plan.Source.Frames, sourceFrame, plan.Source.Channels, frames, sourceSpatial); err != nil {
 			return nil, err
 		}
-		volume, err := media.ExecuteCodecProgram("source codec", graph.CodecProgram, states, media.CodecVolume[[]float32]{
+		volume, lineage, err := media.ExecuteCodecChunk("source codec", stream, chunkIndex, sourceFrame, media.CodecVolume[[]float32]{
 			Storage: current, Channels: plan.Source.Channels, Frames: frames, Height: plan.Source.Height, Width: plan.Source.Width,
-		}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], state *vaeOpState, input media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+		}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], state *vaeOpState, input media.CodecVolume[[]float32]) (media.CodecVolume[[]float32], error) {
+			if err := ctx.Err(); err != nil {
+				return input, err
+			}
 			next, nextFrames, height, width, runErr := runVAEOp(operation, weights[index], state, chunkIndex, input.Storage, input.Frames, input.Height, input.Width)
 			return media.CodecVolume[[]float32]{Storage: next, Channels: operation.OutputChannels, Frames: nextFrames, Height: height, Width: width}, runErr
 		})
@@ -150,8 +168,8 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 		if err := media.CopyPlanarFrames(means, plan.Latent.Frames, latentFrame, current, frames, tensor.FirstOffset, plan.Latent.Channels, frames, latentSpatial); err != nil {
 			return nil, err
 		}
-		sourceFrame += plan.SourceChunks[chunkIndex]
-		latentFrame += frames
+		sourceFrame = lineage.InputStart + lineage.InputFrames
+		latentFrame = lineage.OutputStart + lineage.OutputFrames
 	}
 	if !checked.Equal(sourceFrame, plan.Source.Frames) {
 		return nil, fmt.Errorf("source codec: consumed source=%d/%d latent=%d/%d", sourceFrame, plan.Source.Frames, latentFrame, plan.Latent.Frames)
@@ -161,4 +179,15 @@ func EncodeSourceVideo(checkpoint string, graph VAEEncoderPlan, plan SourceCodec
 	}
 	latent := make([]float32, len(means))
 	return latent, NormalizeSourceLatent(latent, means, plan)
+}
+
+func validateSourceCodecPlan(plan SourceCodecPlan) error {
+	expected, err := CompileSourceCodecBoundary(plan.Profile, plan.Source)
+	if err != nil {
+		return err
+	}
+	if plan.Latent != expected.Latent || !slices.Equal(plan.SourceChunks, expected.SourceChunks) {
+		return errors.New("source codec: geometry or causal chunks differ from compiled boundary")
+	}
+	return nil
 }

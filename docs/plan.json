@@ -34,6 +34,66 @@
       ]
     },
     {
+      "id": "automation-typed-failure-kinds",
+      "title": "Classify failures as typed kinds at their owner, not by message text",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify failures as typed kinds at their owner, not by message text",
+          "status": "open",
+          "verify": "go test ./internal/testevidence -run '^TestOutcomesClassifyFromTypedEvents$' -count=1",
+          "rationale": "Owner 2026-09-25: classify facts once at their owner and derive decisions from typed facts; avoid brittle string matching. Measured: 11 production decisions match error-message text and 25 scrape test or lane output. Examples: gate staleClosureAuthorityFailure (verification.go:1555) picks remediation by strings.Contains on 'stale active binding'; impact_fallback.go:29 does the same for manifest uncertainty; testevidence classifies skip kind (evidence.go:254), device contention through ErrResourceBusy text (:261) and panic cause (:318) from output substrings; VerifyOutput (:465-486) judges verify commands by text; output 'UNAVAILABLE' markers decide credit. Owners return typed kinds instead: closurescan ErrStaleBinding and ErrUncatalogued, a codemanifest uncertainty kind, and testevidence reading go test -json events plus a structured outcome record (skip kind, resource contention with holder, panic) rather than prose. Each replaced matcher is deleted. GUI lane survey items 3 and 7. Done when TestOutcomesClassifyFromTypedEvents classifies skip, contention and panic outcomes from typed events with no output substring."
+        }
+      ]
+    },
+    {
+      "id": "automation-typed-audit-notes",
+      "title": "Emit typed gate notes and one structured verdict",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Emit typed gate notes and one structured verdict",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestLandReadsStructuredVerdict$' -count=1",
+          "rationale": "Owner 2026-09-25 classification directive. The gate's g.note emits free text that compactAudit (gate.go:663-693), appendGateAdvisoryFinding, the commit message's Measured block (commit_message.go:14,30) and preflightRepairs (preflight.go:354) each re-parse by prefix, and cmd/loop recovers the gate's verdict with a verdictLine regex (land.go:159,180). Notes become typed records (kind: measured, advisory, warning, reuse or repair, with typed fields), rendered to text only at the edge, and the gate and plan emit one structured verdict (outcome, blocker, findings) that cmd/loop reads directly. The prefix parsers and the verdict regex are deleted. GUI lane survey items 1 and 2. Done when TestLandReadsStructuredVerdict proves cmd/loop takes its outcome from the gate's typed verdict with no text parsing."
+        }
+      ]
+    },
+    {
+      "id": "automation-path-surface-catalog",
+      "title": "Classify every path once in one surface catalog",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify every path once in one surface catalog",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile -run '^TestPathSurfaceCatalogClassifiesEveryPath$' -count=1",
+          "rationale": "Owner 2026-09-25 classification directive. Which checks own a path, which evidence a phase may reuse, and which paths count as automation, device or web UI surface are decided by separate prefix lists: phaseOwnsPath and phaseReusesEvidence (verification.go:887-926), automationcheck webui.go:26,56 and device.go:102-138, and codeprofile profile.go:113, which counts every cmd/ file as automation so cmd/server is misclassified and the automation ROI admission is skewed. One path-surface catalog classifies every path once (production, test, generated, automation, device, browser, media runtime, inference surface), and each check's Descriptor declares its inputs and reusable evidence against those classes. The prefix switches are deleted. GUI lane survey items 5 and 6. Done when TestPathSurfaceCatalogClassifiesEveryPath classifies every tracked path to exactly one class set and phase ownership reads only the catalog."
+        }
+      ]
+    },
+    {
+      "id": "automation-declared-row-class",
+      "title": "Dispatch rows by a declared class, not their id",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Dispatch rows by a declared class, not their id",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestRowsDispatchByDeclaredClass$' -count=1",
+          "rationale": "Owner 2026-09-25 classification directive. A row's kind is recovered from its id: 'automation-' means net-negative (verification.go:667), 'acceptance-' changes batch cost (batch_cost.go:37), 'merge-' counts as a merge boundary (refused the ordinary vehicle merge-lessons-replan on 2026-09-25), and stop-reason admission matches keyword lists (plan/control.go:400-425). Ordering is manual -move. Rows declare a class (consolidation, merge, feature, vehicle, repair) and their resource and cost class (host, device, browser, suite; the unused Step.Capabilities), with measured lease outcomes; the net-negative rule, merge boundaries, stop admission and dispatchPriority/ReadyFrontier read those declarations, so dispatch orders and batches rows by class and measured cost instead of hand moves. Id-prefix and keyword switches are deleted. GUI lane survey item 8. Done when TestRowsDispatchByDeclaredClass orders and admits rows from declared class with no id-prefix test."
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -60,6 +120,21 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
           "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Lanes run from a frozen snapshot of their commit, not the live worktree: on 2026-09-25 starting a merge in the worktree killed the pending lane of c1b431d1 and it had to be re-run by hand. Device packages run one at a time (-p 1) in lanes and in test-lane receipts: a parallel receipt reserved the GPU against itself and timed out cuda/executor. The disk-full stop also failed a gate mid-run at checkout-index (GUI lane report, 2026-09-25): the gate refuses at admission when free space is below what its recent landings measurably consumed, naming the build cache as the usual cause, instead of failing mid-run -- a need measured from landing history, not a fixed reserve or cache cap. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
+        }
+      ]
+    },
+    {
+      "id": "automation-order-by-cost-and-yield",
+      "title": "Order gate work by measured failure yield and cost",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Order gate work by measured failure yield and cost",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestGateOrdersWorkByMeasuredCost$' -count=1",
+          "rationale": "Owner 2026-09-25: automation order can be optimized using classification. ExecuteDAG waves run in declaration order and package lists sort alphabetically (test_scope.go:253-273), while the store already records per-suite cost (package_execution_cost.go, batch_cost.go, testevidence TestCosts) and per-check failure history (1055 failed steps: magics 276, profile 107, style 59, protection 43, claims 41 ...). Order work by class and measured yield: cheap static checks first, ranked by how often each has actually refused a landing, so a doomed landing fails in seconds; then test work longest-first by measured cost within each resource class, device work under one claim. The measurements stop being report-only. GUI lane survey item 4. Done when TestGateOrdersWorkByMeasuredCost proves checks run in yield order and packages in measured-cost order."
         }
       ]
     },
@@ -105,6 +180,21 @@
           "status": "open",
           "verify": "go test ./internal/ledger -run '^TestLedgersDeriveFromTheTree$' -count=1",
           "rationale": "Consolidation round 1, refactor 2. About 48k Go lines maintain 40 committed JSON ledgers; 78% of commits touch a generated file and plan.json changed in 543 of the last 552 commits. Owner rule: no ledger where construction can prevent the object -- literals come only from one typed policy/config source, shared operations live in one package, a new export arrives with its consumer. Where construction cannot prevent it, derive the document from the tree at gate time (one internal/ledger mechanism, one cmd/census -kind command replacing modern-census, rsi-census, clone-census, mechanism-census, api-manifest, code-manifest, profile-catalog, coverage-lanes, block-check, store-check, store-precheck) and commit only reviewed floors and exceptions. Take row status out of plan.json (the commit trailer and the store already hold it). Stop committing .ptx and media_report.json. Done when TestLedgersDeriveFromTheTree proves the derived documents equal the committed ones they replace and no landing writes them."
+        }
+      ]
+    },
+    {
+      "id": "automation-structured-parsing",
+      "title": "Replace regex parsing of structured data with typed decoding",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Replace regex parsing of structured data with typed decoding",
+          "status": "open",
+          "verify": "go test ./internal/repoanalysis -run '^TestNoRegexParsesStructuredData$' -count=1",
+          "rationale": "Owner 2026-09-25: avoid brittle regex. 39 production files import regexp. Inventory each use: grammar, tokenizer and pattern-language uses stay; any regex that parses structured data (JSON, go test output, git output, CSS, file paths, plan or verify text) is replaced by typed decoding at its owner. The GUI lane replaces its CSS regex with a browser CSSOM census itself. Done when TestNoRegexParsesStructuredData holds every remaining regexp to a declared pattern-language owner."
         }
       ]
     },
@@ -335,6 +425,21 @@
           "status": "open",
           "verify": "go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1",
           "rationale": "Preference held-out slice (design 2026-09-24): the web UI training workspace runs DPO with no held-out check. Score held-out preference pairs with ScorePreferenceTargets from policy and reference sequence scores, judge against the reference, and gate the workspace's approval on the verdict. GRPO has no target scorer yet, so name that as its own follow-up. Done when TestPreferenceWorkspaceScoresHeldOutPairs refuses approval without a held-out gain and grants it with one."
+        }
+      ]
+    },
+    {
+      "id": "preference-loss-variants",
+      "title": "Add ORPO, SimPO and KTO as modes of the DPO objective",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Add ORPO, SimPO and KTO as modes of the DPO objective",
+          "status": "open",
+          "verify": "go test ./internal/trainingprogram -run '^TestPreferenceLossVariantsShareTheDPOPath$' -count=1",
+          "rationale": "GUI lane suggestion from the owner-directed LlamaFactory review (2026-09-25): ORPO, SimPO and KTO are loss variants over the existing DPO chosen/rejected pair path (LlamaFactory hparams/finetuning_args.py pref_loss sigmoid, hinge, ipo, kto_pair, orpo, simpo with simpo_gamma; train/dpo, train/kto), with no new optimizer, so they stay Muon-only. Add them as modes of the one DPO objective, not new objectives, judged by heldout-preference-slice's held-out preference verdict. Parked behind the consolidation phase. Done when TestPreferenceLossVariantsShareTheDPOPath trains each variant through the DPO path and scores it on held-out pairs."
         }
       ]
     },
@@ -1268,7 +1373,15 @@
             "lessons-replan/do",
             "automation-gate-git-lock-per-worktree/do",
             "hurdles-replan/do",
-            "coverage-repin/do"
+            "coverage-repin/do",
+            "automation-typed-failure-kinds/do",
+            "automation-typed-audit-notes/do",
+            "automation-path-surface-catalog/do",
+            "automation-declared-row-class/do",
+            "automation-order-by-cost-and-yield/do",
+            "automation-structured-parsing/do",
+            "preference-loss-variants/do",
+            "classification-replan/do"
           ]
         }
       ]

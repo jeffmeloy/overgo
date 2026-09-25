@@ -214,58 +214,38 @@ func (h *Handler) agentChat(response http.ResponseWriter, request *http.Request)
 	h.chatCompletions(response, forwarded)
 }
 
-// aliasNamesUnder pages the store's alias projection to every alias under a
-// root: a bounded first page hid every agent once the store grew past it.
-func (h *Handler) aliasNamesUnder(ctx context.Context, kind artifact.Kind, root string) ([]string, error) {
-	query := overgodb.Query{Kind: kind, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases}
+// aliasNamesUnder lists the names bound under an alias root, reading the
+// aliases under it alone: paging the catalog to reach them took tens of
+// seconds per call on a real store, and decoding each bound document read
+// what a name list never shows. With kinds, a name counts only when its
+// target's descriptor is one of them (a stray alias under the root stays out).
+func aliasNamesUnder(ctx context.Context, store *overgodb.Store, root string, kinds ...artifact.DocumentContract) ([]string, error) {
 	var names []string
-	for {
-		result, err := h.repository.Query(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		for _, alias := range result.Aliases {
-			if name, found := strings.CutPrefix(alias.Name, root); found {
-				names = append(names, name)
+	err := store.VisitAliases(ctx, root, func(alias overgodb.AliasView) error {
+		if len(kinds) != 0 {
+			descriptor, found, err := store.Artifact(ctx, alias.Target)
+			if err != nil || !found || !slices.ContainsFunc(kinds, func(kind artifact.DocumentContract) bool {
+				return alias.Target.Kind() == kind.Kind && descriptor.MediaType == kind.MediaType && descriptor.Schema == kind.Schema
+			}) {
+				return err
 			}
 		}
-		if result.Next == nil {
-			return names, nil
-		}
-		query.Cursor = result.Next
-	}
-}
-
-// documentAliasNames lists the names under root bound to documents of one
-// contract, in one exact-contract pass over those documents. A catalog query
-// paging every artifact to reach its aliases took tens of seconds per call on
-// a real store: on every page load (active agents), at every server start and
-// on every Agent tab session list (stored responses).
-func documentAliasNames(ctx context.Context, store *overgodb.Store, contract artifact.DocumentContract, root string) ([]string, error) {
-	var names []string
-	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{root}, Order: overgodb.DocumentOldestFirst,
-	}, func(document overgodb.DocumentView) error {
-		for _, alias := range document.Aliases {
-			if name, found := strings.CutPrefix(alias, root); found {
-				names = append(names, name)
-			}
-		}
+		names = append(names, strings.TrimPrefix(alias.Name, root))
 		return nil
 	})
 	return names, err
 }
 
-// activeAgentNames lists the agents the active root binds to their activation (runrecord owns the contract).
+// activeAgentNames lists the agents the active root binds to their activation.
 func (h *Handler) activeAgentNames(ctx context.Context) ([]string, error) {
-	activation := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema}
-	return documentAliasNames(ctx, h.repository, activation, runrecord.AgentActiveAliasRoot)
+	return aliasNamesUnder(ctx, h.repository, runrecord.AgentActiveAliasRoot,
+		artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema})
 }
 
 // responseInteractionNames lists the stored responses the response root binds to their interaction.
 func responseInteractionNames(ctx context.Context, store *overgodb.Store) ([]string, error) {
-	interaction := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}
-	return documentAliasNames(ctx, store, interaction, runrecord.InteractionResponseAliasRoot)
+	return aliasNamesUnder(ctx, store, runrecord.InteractionResponseAliasRoot,
+		artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema})
 }
 
 func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, error) {

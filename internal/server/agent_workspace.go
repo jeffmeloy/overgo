@@ -52,7 +52,7 @@ func (s *agentSessions) get(ctx context.Context, coordinator *agentloop.Coordina
 // classes and publication coverage; the GUI reads effect to badge
 // mutation tools and drives the approval control from it.
 func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request) {
-	names, err := h.aliasNamesUnder(request.Context(), artifact.KindRecipe, agenttool.RegisteredAliasPrefix)
+	names, err := aliasNamesUnder(request.Context(), h.repository, agenttool.RegisteredAliasPrefix)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return

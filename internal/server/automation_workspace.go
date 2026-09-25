@@ -111,24 +111,9 @@ func (workspace *AutomationWorkspace) AutomationInventory(ctx context.Context) (
 	if workspace == nil || ctx == nil {
 		return nil, errors.New("automation workspace: inventory authority is absent")
 	}
-	// The alias projection is paged to its end: one bounded page shares its
-	// budget with every artifact, so a grown store hid active automations.
-	query := overgodb.Query{MaxResults: workspace.limit, Projection: overgodb.ProjectAliases}
-	var names []string
-	for {
-		result, err := workspace.store.Query(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		for _, alias := range result.Aliases {
-			if name, found := strings.CutPrefix(alias.Name, runrecord.AutomationActiveAliasRoot); found {
-				names = append(names, name)
-			}
-		}
-		if result.Next == nil {
-			break
-		}
-		query.Cursor = result.Next
+	names, err := aliasNamesUnder(ctx, workspace.store, runrecord.AutomationActiveAliasRoot)
+	if err != nil {
+		return nil, err
 	}
 	entries := make([]AutomationInventoryEntry, 0)
 	authority := runrecord.AutomationAuthority{Repository: workspace.store}

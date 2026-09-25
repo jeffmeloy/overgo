@@ -12,6 +12,9 @@ import (
 	"overgo/internal/overgodb"
 )
 
+// errPendingDecisionsFull ends a pending-decision read once its page is full.
+var errPendingDecisionsFull = errors.New("run record: pending decision page is full")
+
 // OperatorTimelineEvent is one causally ordered committed fact about an
 // operation: the durable artifact that records it, its store introduction
 // sequence, and the identities it cites. The timeline derives from canonical
@@ -63,15 +66,20 @@ func DeriveOperatorTimeline(
 		})
 		return nil
 	}
-	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{{
-			Kind: artifact.KindEvidence, MediaType: StageReceiptMediaType, Schema: StageReceiptSchema,
-		}}, Order: overgodb.DocumentOldestFirst,
-	}, ParseStageReceipt, func(_ overgodb.DocumentView, receipt StageReceipt) error {
-		if receipt.Operation != operation {
-			return nil
+	// The operation's receipts alone: each node's alias names its newest receipt, and every
+	// receipt names the one before it, so the walk reads what the timeline shows.
+	err := store.VisitAliases(ctx, StageReceiptAliasRoot+operation.String()+"/", func(alias overgodb.AliasView) error {
+		for id := alias.Target; id.Valid(); {
+			receipt, err := stageReceiptCodec.Require(ctx, store, id)
+			if err != nil {
+				return err
+			}
+			if err := appendEvent("stage-receipt", receipt.ID, string(receipt.State), receipt.Operation); err != nil {
+				return err
+			}
+			id = receipt.Previous
 		}
-		return appendEvent("stage-receipt", receipt.ID, string(receipt.State), receipt.Operation)
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -108,12 +116,13 @@ func PendingOperatorDecisions(
 		return nil, errors.New("run record: pending decisions require a store and a bound")
 	}
 	pending := []PendingOperatorDecision{}
+	// The read ends with the page it fills rather than decoding every request ever made.
 	_, err := overgodb.VisitDecodedDocuments(ctx, store, overgodb.DocumentQuery{
 		Contracts: []artifact.DocumentContract{operatoraction.ApprovalDocumentContract()},
 		Order:     overgodb.DocumentOldestFirst,
 	}, operatoraction.ParseApprovalRequest, func(_ overgodb.DocumentView, request operatoraction.ApprovalRequest) error {
 		if len(pending) >= limit {
-			return nil
+			return errPendingDecisionsFull
 		}
 		if _, decided, err := ResolveHumanDecision(ctx, store, request.Operation); err != nil {
 			return err
@@ -126,7 +135,7 @@ func PendingOperatorDecisions(
 		})
 		return nil
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, errPendingDecisionsFull) {
 		return nil, err
 	}
 	slices.SortStableFunc(pending, func(left, right PendingOperatorDecision) int {

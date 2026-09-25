@@ -4,6 +4,21 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "models-resolve-by-identity",
+      "title": "Find a moved model by its content identity",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find a moved model by its content identity",
+          "status": "open",
+          "verify": "go test ./internal/discovery -run '^TestMovedModelResolvesByIdentity$' -count=1",
+          "rationale": "Owner 2026-09-25: a model's location should not matter. Moving TabFM from adaptive_new/models to overgo/models made discovery report it absent (store file locations are recorded paths) and failed the lanes; tmp/relocate_models.go re-recorded the five artifacts by hand after verifying content identity. When a recorded location is gone, discovery looks for the same bytes under the data root's model directories (matching the recorded relative tail, verifying identity and size) and records the new location, removing the dead one. Done when TestMovedModelResolvesByIdentity moves a registered model's files and discovery reports it present at the new path."
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -30,6 +45,21 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
           "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
+        }
+      ]
+    },
+    {
+      "id": "device-claim-everywhere",
+      "title": "Have every GPU user take the device claim lanes wait on",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Have every GPU user take the device claim lanes wait on",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
+          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out."
         }
       ]
     },
@@ -109,17 +139,77 @@
       ]
     },
     {
-      "id": "models-resolve-by-identity",
-      "title": "Find a moved model by its content identity",
+      "id": "automation-merge-one-landing",
+      "title": "Land a lane merge and its own row in one commit",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Find a moved model by its content identity",
+          "title": "Land a lane merge and its own row in one commit",
           "status": "open",
-          "verify": "go test ./internal/discovery -run '^TestMovedModelResolvesByIdentity$' -count=1",
-          "rationale": "Owner 2026-09-25: a model's location should not matter. Moving TabFM from adaptive_new/models to overgo/models made discovery report it absent (store file locations are recorded paths) and failed the lanes; tmp/relocate_models.go re-recorded the five artifacts by hand after verifying content identity. When a recorded location is gone, discovery looks for the same bytes under the data root's model directories (matching the recorded relative tail, verifying identity and size) and records the new location, removing the dead one. Done when TestMovedModelResolvesByIdentity moves a registered model's files and discovery reports it present at the new path."
+          "verify": "go test ./internal/plan -run '^TestMergeDeclaresItsOwnRow$' -count=1",
+          "rationale": "Merge lesson (2026-09-25, audio, Colibri2 and VAE lanes): a merge commit may not add plan rows or change its own row, so every lane merge needed a separate plan-only vehicle landing first, and Colibri2 a second one only to declare its harness budget -- seven extra landings for three merges. Let a lane merge declare its own merge row, verify and budget in the merge landing itself (the row's check is the lane's new test, absent at the first-parent base), so a merge is one landing. Pairs with automation-derived-ledgers taking row status out of the committed plan. Done when TestMergeDeclaresItsOwnRow lands a merge whose row first appears in that merge."
+        }
+      ]
+    },
+    {
+      "id": "automation-master-owned-ratchets",
+      "title": "Refuse a merge that loosens a master ceiling or registry check",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Refuse a merge that loosens a master ceiling or registry check",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestMergeRefusesLooserRatchet$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): lanes can loosen master's checks to get green. The VAE lane narrowed TestReviewedDeltaRegistryExplainsTheTree instead of reconciling its media runtime move, raised docs/clone_baseline.json from 7991 to 9970 though the merged tree measured 7964, and wrote compatibility.json evidence identities that live only in its own store. Ceilings, floors and reviewed registries are editable files on every branch. Make master own them: a merge (and a lane gate) derives each ceiling from master's tree and refuses any raise, narrowed registry check or foreign evidence identity without a declared paydown row. Done when TestMergeRefusesLooserRatchet refuses a merge that raises a ceiling or narrows a registry check."
+        }
+      ]
+    },
+    {
+      "id": "automation-lane-consumer-first",
+      "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Hold lane gates to consumer-first exports and paid-down harness growth",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestLaneGateRefusesUnconsumedSurface$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): the VAE lane built 25 exports with no production caller, about 1,000 lines of new runrecord experimental_* record families and campaign-history code in master's internal/plan, while master's automation- rows are held net-negative and staged surface must retire with a master row. Apply the same rules at lane gates: an export arrives with its consumer, and harness growth needs a paydown row, so a lane cannot accumulate what master would refuse. Done when TestLaneGateRefusesUnconsumedSurface refuses a lane landing that adds an export with no production caller."
+        }
+      ]
+    },
+    {
+      "id": "automation-hermetic-test-env",
+      "title": "Run tests with the automation environment cleared",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run tests with the automation environment cleared",
+          "status": "open",
+          "verify": "go test ./internal/testutil -run '^TestSuitesStartWithoutAutomationEnvironment$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): the audio merge gate failed two internal/gate tests (TestPlanBindingRole, TestPlanOnlyPublicationReusesUnchangedPhases) only because the operator's OVERGO_AUTOMATION_MAINTENANCE variable leaked into them. Tests must not read the caller's automation environment: every test process starts with the OVERGO_AUTOMATION_* variables cleared, and a test that needs one sets it itself. Done when TestSuitesStartWithoutAutomationEnvironment proves a suite run with those variables set sees none of them."
+        }
+      ]
+    },
+    {
+      "id": "automation-one-store-across-lanes",
+      "title": "Resolve lane evidence from one store without imports",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Resolve lane evidence from one store without imports",
+          "status": "open",
+          "verify": "go test ./internal/overgodb -run '^TestLaneEvidenceResolvesAcrossStores$' -count=1",
+          "rationale": "Merge lesson (2026-09-25): each lane keeps its own OvergoDB store, so every merge imported closure decisions across stores (thousands of documents, with stray unmatched entries), evidence identities recorded in a lane store did not resolve in master's, and receipts had to be re-acquired. One store shared by the lanes (or content-addressed evidence that resolves in any lane's store) removes the import step and the foreign-identity class of failure. Joins automation-one-record-table. Done when TestLaneEvidenceResolvesAcrossStores resolves a lane-recorded evidence identity from master without an import."
         }
       ]
     },
@@ -530,21 +620,6 @@
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestPackSegmentsAreBoundedAndImmutable$' -count=1",
           "rationale": "After the publication, query and memory rows land, and only from measured record sizes, read patterns and compaction cost. Small transition records stay inline in journal entries, medium immutable payloads go to bounded pack segments, large tensors, media and logs to individually addressed blobs, indexes and checkpoints to replaceable derived generations, and live progress to bounded runtime state. Adding a small record must not rewrite an ever-growing pack, and one enormous file would trade file count for rewrite and recovery cost. Done when compaction write volume and open and replay time fall on the measured store without losing backup or recovery."
-        }
-      ]
-    },
-    {
-      "id": "device-claim-everywhere",
-      "title": "Have every GPU user take the device claim lanes wait on",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Have every GPU user take the device claim lanes wait on",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestServedModelHoldsTheDeviceClaim$' -count=1",
-          "rationale": "Three sessions share one GPU. Preview servers started through launch.json hold the device while gate lanes time out behind them, and on 2026-09-23 a server of unknown origin was killed to free it. A served model should hold the same claim, so a lane waits for it and names it (01cbf544) instead of timing out."
         }
       ]
     },
@@ -1199,7 +1274,13 @@
             "vae-codec-stream-port/do",
             "vae-port-replan/do",
             "hidden-detached-consoles/do",
-            "hidden-console-replan/do"
+            "hidden-console-replan/do",
+            "automation-merge-one-landing/do",
+            "automation-master-owned-ratchets/do",
+            "automation-lane-consumer-first/do",
+            "automation-hermetic-test-env/do",
+            "automation-one-store-across-lanes/do",
+            "lessons-replan/do"
           ]
         }
       ]

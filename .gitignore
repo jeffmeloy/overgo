@@ -22,3 +22,6 @@ local-models.json
 /.profile_tmp/
 /.tools/
 docs/plan_stop.json
+# The independent SQA review: an outside input its reviewer rewrites, not a
+# ship-set file.
+docs/sqa_findings.json

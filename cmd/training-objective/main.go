@@ -6,8 +6,11 @@
 // optimizer policy owns those facts. Datasets are named by their
 // registered catalog alias, so the corpus is store authority too.
 //
-// Publication enters the validation ladder at declared: this command
-// binds contract identities and an evidence note, measuring nothing.
+// Publication splits the dataset by a declared unit and weights into a
+// training membership, which the objective binds, and a disjoint held-out
+// membership its approval is judged on. It enters the validation ladder
+// at declared: this command binds contract identities and an evidence
+// note, measuring nothing.
 // The -promote mode climbs one rung to adaptive-evidence, and only
 // against committed proof -- succeeded training session observations
 // whose recipes ground this exact objective -- never caller assertion.
@@ -47,10 +50,12 @@ func run(args []string, output io.Writer) error {
 	metricText := flags.String("metric", "", "evaluation metric")
 	datasetName := flags.String("dataset", "", "registered dataset catalog name the objective trains on")
 	evidenceNote := flags.String("evidence", "", "evidence note identifying why this objective is approved")
+	splitGroupText := flags.String("split-group", "", "unit the training/held-out split keeps whole: asset (one per asset file) or record (one per row)")
+	splitWeightsText := flags.String("split-weights", "", "declared partition weights, train=<w>,heldout=<w>")
 	promote := flags.String("promote", "", "registered objective alias to promote from declared to adaptive-evidence (with -observations)")
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
 	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
-	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval")
+	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval; at least one must be a held-out verdict for this objective")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -63,13 +68,18 @@ func run(args []string, output io.Writer) error {
 	for flagName, value := range map[string]string{
 		"name": *name, "kind": *kindText, "input": *inputText, "output": *outputText,
 		"metric": *metricText, "dataset": *datasetName, "evidence": *evidenceNote,
+		"split-group": *splitGroupText, "split-weights": *splitWeightsText,
 	} {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("training-objective: -%s is required", flagName)
 		}
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: training-objective [-repo <path>] -name <n> -kind <k> -input <m> -output <m> -metric <m> -dataset <catalog-name> -evidence <note>")
+		return errors.New("usage: training-objective [-repo <path>] -name <n> -kind <k> -input <m> -output <m> -metric <m> -dataset <catalog-name> -evidence <note> -split-group asset|record -split-weights train=<w>,heldout=<w>")
+	}
+	weights, err := parseSplitWeights(*splitWeightsText)
+	if err != nil {
+		return err
 	}
 	input := recipecontract.Modality(*inputText)
 	outputModality := recipecontract.Modality(*outputText)
@@ -91,6 +101,7 @@ func run(args []string, output io.Writer) error {
 		Input: input, Output: outputModality,
 		Metric:  trainingprogram.EvaluationMetric(*metricText),
 		Dataset: *datasetName, Evidence: *evidenceNote,
+		SplitGroup: splitGroup(*splitGroupText), SplitWeights: weights,
 	})
 	if err != nil {
 		return err
@@ -150,6 +161,10 @@ type objectiveRequest struct {
 	Metric   trainingprogram.EvaluationMetric
 	Dataset  string
 	Evidence string
+	// SplitGroup and SplitWeights declare how the dataset splits into the
+	// training and held-out memberships the objective binds.
+	SplitGroup   splitGroup
+	SplitWeights splitWeights
 }
 
 // publishObjective resolves the registered dataset, derives the stable
@@ -171,8 +186,7 @@ func publishObjective(
 	derived := func(kind artifact.Kind, role string) (artifact.ID, error) {
 		return artifact.IdentifyBytes(kind, []byte("overgo/training-objective/"+string(request.Kind)+"/"+role))
 	}
-	splitID, err := artifact.IdentifyBytes(artifact.KindDatasetShard,
-		[]byte("overgo/training-objective/split/"+datasetID.String()))
+	split, training, err := splitDataset(ctx, store, datasetID, request.SplitGroup, request.SplitWeights)
 	if err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}
@@ -198,7 +212,7 @@ func publishObjective(
 			Inputs:  []recipecontract.Modality{request.Input},
 			Outputs: []recipecontract.Modality{request.Output},
 		},
-		Dataset: datasetID, Split: splitID, Processors: []artifact.ID{processorID},
+		Dataset: datasetID, Split: training.ID, Processors: []artifact.ID{processorID},
 		Loss: lossID, Evaluation: evaluationID,
 		Metric: request.Metric, Evidence: []artifact.ID{evidenceID},
 		// Declared: this command records contract identities and an
@@ -215,13 +229,17 @@ func publishObjective(
 	if err != nil {
 		return trainingprogram.ObjectiveDocument{}, err
 	}
-	batch := artifact.Batch{
-		Key: "training-objective/" + objective.ID.String(),
-		Artifacts: []artifact.Descriptor{
-			{ID: splitID}, {ID: processorID}, {ID: lossID}, {ID: evaluationID}, {ID: evidenceID},
-		},
-		Contents: []artifact.Content{content},
+	// The split's memberships, views and split document publish with the
+	// objective, so the training membership it names is committed with it.
+	batch, err := split.PublicationBatch("training-objective/"+objective.ID.String(), nil)
+	if err != nil {
+		return trainingprogram.ObjectiveDocument{}, err
 	}
+	batch.Artifacts = append(batch.Artifacts,
+		artifact.Descriptor{ID: processorID}, artifact.Descriptor{ID: lossID},
+		artifact.Descriptor{ID: evaluationID}, artifact.Descriptor{ID: evidenceID},
+	)
+	batch.Contents = append(batch.Contents, content)
 	registered := "objective.registered." + string(request.Input) + "-" + string(request.Output)
 	if move, moved, err := artifact.MoveAlias(ctx, store, registered, objective.ID); err != nil {
 		return trainingprogram.ObjectiveDocument{}, err

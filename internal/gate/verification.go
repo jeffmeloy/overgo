@@ -1271,9 +1271,9 @@ func (g *gateContext) runRestParts(ctx context.Context, device bool) error {
 	observe := g.packagePassObserver(ctx, g.testPlan.ledger, "complete", g.testPlan.dependentInputs)
 	var report testevidence.GoTestReport
 	if device {
-		report, err = g.runDeviceBatch(ctx, dependent, false, observe, g.runGoTestsAdmitted)
+		report, err = g.runContendedBatch(ctx, dependent, false, observe, g.runGoTestsAdmitted)
 	} else {
-		report, err = g.runGoTests(ctx, dependent, false, observe)
+		report, err = g.runContendedBatch(ctx, dependent, false, observe, g.runHostTests)
 	}
 	if len(report.Skipped)+len(report.Unavailable) > 0 {
 		g.note(fmt.Sprintf(
@@ -1301,9 +1301,9 @@ func (g *gateContext) runTestGroup(ctx context.Context, group []string, short bo
 			continue
 		}
 		if batch.device {
-			_, err = g.runDeviceBatch(ctx, batch.packages, short, observe, g.runGoTestsAdmitted)
+			_, err = g.runContendedBatch(ctx, batch.packages, short, observe, g.runGoTestsAdmitted)
 		} else {
-			_, err = g.runGoTests(ctx, batch.packages, short, observe)
+			_, err = g.runContendedBatch(ctx, batch.packages, short, observe, g.runHostTests)
 		}
 		if err != nil {
 			g.packageExecutionAudit()
@@ -1337,46 +1337,6 @@ func (g *gateContext) packageCachePartition(packages []string, mode string, inpu
 
 func (g *gateContext) runGoTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error) (testevidence.GoTestReport, error) {
 	return g.runGoTestsAdmitted(ctx, packages, short, observe, true)
-}
-
-// testRunner runs packages as runGoTestsAdmitted does; the device batch
-// takes it so a test can stand in for go test.
-type testRunner func(ctx context.Context, packages []string, short bool, observe func(string, bool) error, leased bool) (testevidence.GoTestReport, error)
-
-// runDeviceBatch runs one device batch under the shared lease and, when its
-// only failures were refused exclusive claims, runs each refused package
-// again alone and outside the lease: a package whose code claims the device
-// exclusively is refused beneath any holder's lease, its siblings' and the
-// gate's own, and admits once no other process holds the device. The wait
-// for a foreign holder ends when that holder releases the device or exits;
-// the caller's context bounds the wait and each run alike.
-func (g *gateContext) runDeviceBatch(ctx context.Context, batch []string, short bool, observe func(string, bool) error, run testRunner) (testevidence.GoTestReport, error) {
-	report, err := run(ctx, batch, short, observe, true)
-	if err == nil || !report.ContentionOnly() {
-		return report, err
-	}
-	contended := report.Contended
-	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive claim under the shared lease [%s]; each runs again alone outside it once the device's holder releases",
-		len(contended), strings.Join(contended, ",")))
-	for _, pkg := range contended {
-		attempts := 0
-		err := processcontrol.AwaitResource(ctx, func() error {
-			attempts++
-			report, err = run(ctx, []string{pkg}, short, observe, false)
-			if err != nil && report.ContentionOnly() {
-				return &processcontrol.ResourceBusyError{Name: g.deviceResource}
-			}
-			return err
-		})
-		if err != nil {
-			if errors.Is(err, processcontrol.ErrResourceBusy) || ctx.Err() != nil {
-				return report, fmt.Errorf("device contention: %s refused its exclusive claim %d time(s): %w", pkg, attempts, errors.Join(processcontrol.ErrResourceBusy, err, context.Cause(ctx)))
-			}
-			return report, err
-		}
-		g.note(fmt.Sprintf("device contention: %s admitted alone after %d attempt(s)", pkg, attempts))
-	}
-	return report, nil
 }
 
 // goTestOptions binds the evidence observer and the progress line each

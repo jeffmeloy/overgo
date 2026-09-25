@@ -54,19 +54,24 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 		`<div style="position:fixed;top:50px;left:50px;width:100px;height:100px"></div>` +
 		`<p style="white-space:nowrap;overflow:hidden;width:40px">a line of text far longer than its box</p>` +
 		`<input placeholder="only a placeholder" style="width:200px;height:30px"><div aria-label="ignored">dot</div>` +
-		`<p style="color:rgb(187,187,187)">faint words</p></body>`
+		`<p style="color:rgb(187,187,187)">faint words</p>` +
+		`<button style="width:40px;height:40px">▸</button><h2 style="font-size:17px">A flat heading</h2>` +
+		`<div style="height:10px;background-image:linear-gradient(90deg,rgb(0,0,255),rgb(0,255,255))"></div>` +
+		`<p style="opacity:.5">faded words</p></body>`
 	clean := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><button style="width:40px;height:40px">fine</button>` +
 		`<span id="size-label">Size</span><input aria-labelledby="size-label" style="width:200px;height:30px">` +
 		`<label style="display:block">Named <input style="width:200px;height:30px"></label><select aria-label="Chosen" style="height:30px"><option>one</option></select><div role="img" aria-label="status">dot</div>` +
 		`<div role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap;clip-path:inset(50%)"><span>Response ready.</span></div>` +
 		`<p style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:40px">a line of text cut by design</p>` +
+		`<h2 style="font-size:20px">A heading a step above</h2><button disabled style="opacity:.5;width:40px;height:40px">off</button>` +
+		`<button aria-label="Open" style="width:40px;height:40px"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16"/></svg></button>` +
 		`<details id="collapsed" open><summary>Details</summary><p style="color:rgb(187,187,187)">hidden faint words</p><button style="width:10px;height:10px;padding:0">hidden tiny</button></details>` +
 		`<script>const details=document.getElementById('collapsed');details.querySelector('p').getBoundingClientRect();details.open=false;</script></body>`
 	audit := func(html string) []LayoutFinding {
 		t.Helper()
 		ctx := t.Context()
-		// A data URL keeps a "+" literal, so spaces travel percent-encoded.
-		browser, err := Open(ctx, browserPath, "data:text/html,"+strings.ReplaceAll(html, " ", "%20"))
+		// A data URL keeps a "+" literal, so spaces travel percent-encoded; a glyph needs the charset.
+		browser, err := Open(ctx, browserPath, "data:text/html;charset=utf-8,"+strings.ReplaceAll(html, " ", "%20"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +93,8 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	for _, finding := range audit(faulty) {
 		kinds[finding.Kind] = true
 	}
-	for _, kind := range []string{layoutOverflow, layoutOutside, layoutSmall, layoutOverlap, layoutClipped, layoutContrast, layoutUnlabelled, layoutIgnoredLabel} {
+	for _, kind := range []string{layoutOverflow, layoutOutside, layoutSmall, layoutOverlap, layoutClipped, layoutContrast, layoutUnlabelled, layoutIgnoredLabel,
+		layoutGlyph, layoutFlatHeading, layoutGradient, layoutFaded} {
 		if !kinds[kind] {
 			t.Errorf("the faulty page audited without %s", kind)
 		}
@@ -96,6 +102,7 @@ func TestWebUIBrowserLayoutAudit(t *testing.T) {
 	if findings := audit(clean); len(findings) != 0 {
 		t.Errorf("the clean page audited with findings: %v", findings)
 	}
+	t.Log("layout audit leg: the design floor finds a glyph standing in for an icon, a flat heading, a gradient fill and faded live text, and passes drawn icons, a stepped heading and a disabled dimmed control")
 	modal := `<body style="margin:0;background:rgb(255,255,255);color:rgb(0,0,0)"><p style="color:rgb(187,187,187)">inactive words</p><button style="width:10px;height:10px;padding:0">inactive tiny</button><dialog id="modal" style="background:rgb(255,255,255);color:rgb(0,0,0)"><p>Active dialog</p><button style="width:40px;height:40px">fine</button></dialog><script>document.getElementById('modal').showModal()</script></body>`
 	if findings := audit(modal); len(findings) != 0 {
 		t.Errorf("the modal page audited inactive content: %v", findings)

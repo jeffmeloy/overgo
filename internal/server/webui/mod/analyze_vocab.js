@@ -14,8 +14,8 @@
 
       const search = el("input", { "aria-label": "Search tokens", class: "text mw-420", type: "search", placeholder: "search token text (substring, case-insensitive)…", });
       const status = el("span", { class: "note" });
-      const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "‹ prev");
-      const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "next ›");
+      const prev = el("button", { class: "btn alt", onclick: () => { offset = Math.max(0, offset - limit); load(); } }, "Previous");
+      const next = el("button", { class: "btn alt", onclick: () => { offset += limit; load(); } }, "Next");
       const controls = el("div", { class: "row mb-12" }, search, prev, next, status);
       const host = el("div");
       panel.append(controls, host);

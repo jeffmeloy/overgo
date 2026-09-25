@@ -62,6 +62,15 @@ const (
 	layoutIgnoredLabel = "ignored-label"
 	// mountError: a tab mounted with an error banner in its panel or a page error.
 	mountError = "mount-error"
+	// The design floor (impeccable's detector rules the workbench holds itself to):
+	// layoutGlyph: a control or disclosure whose only mark is a text glyph standing in for a drawn icon.
+	layoutGlyph = "glyph-icon"
+	// layoutFlatHeading: a heading less than a clear step above the body text, so the hierarchy reads flat.
+	layoutFlatHeading = "flat-heading"
+	// layoutGradient: a gradient painted as a fill, where a surface or bar takes one colour.
+	layoutGradient = "gradient-fill"
+	// layoutFaded: live text dimmed by opacity, which escapes the contrast check its colour would face.
+	layoutFaded = "faded-text"
 )
 
 // String renders a finding on one line for a log.
@@ -302,6 +311,7 @@ func layoutAuditScript() string {
 		"KIND_OVERFLOW", layoutOverflow, "KIND_OUTSIDE", layoutOutside, "KIND_OVERLAP", layoutOverlap,
 		"KIND_CLIPPED", layoutClipped, "KIND_SMALL", layoutSmall, "KIND_CONTRAST", layoutContrast, "KIND_HEADER", layoutHeader,
 		"KIND_UNLABELLED", layoutUnlabelled, "KIND_IGNORED_LABEL", layoutIgnoredLabel,
+		"KIND_GLYPH", layoutGlyph, "KIND_FLAT_HEADING", layoutFlatHeading, "KIND_GRADIENT", layoutGradient, "KIND_FADED", layoutFaded,
 	).Replace(layoutAuditTemplate)
 }
 
@@ -311,7 +321,9 @@ const layoutAuditTemplate = `(() => {
   const limit = 40;
   const minimumControl = 24;
   const readable = 4.5, readableLarge = 3;
-  const note = (kind, node, detail) => { if (findings.length < limit) findings.push({ kind, selector: describe(node), detail }); };
+  // The bound is per kind, so one kind's many findings never hide another's.
+  const counts = {};
+  const note = (kind, node, detail) => { counts[kind] = (counts[kind] || 0) + 1; if (counts[kind] <= limit) findings.push({ kind, selector: describe(node), detail }); };
   const describe = (node) => {
     const parts = [];
     for (let current = node, depth = 0; current && current.nodeType === 1 && depth < 3; current = current.parentElement, depth++) {
@@ -423,6 +435,34 @@ const layoutAuditTemplate = `(() => {
     const size = parseFloat(style.fontSize), weight = parseInt(style.fontWeight, 10) || 400;
     const threshold = size >= 24 || (size >= 18.66 && weight >= 700) ? readableLarge : readable;
     if (ratio < threshold) note("KIND_CONTRAST", node, ratio.toFixed(2) + ":1 at " + size + "px (" + style.color + " on " + JSON.stringify(background) + ")");
+  }
+  // The design floor. A control is marked by words or a drawn icon, never a lone text glyph; a heading
+  // stands at least a fifth above the body; a fill is one colour; live text is dimmed by its colour.
+  const glyphs = /^[←-⇿‹›■-◿☀-➿×\s]+$/;
+  const glyphContent = (node, pseudo) => {
+    const content = getComputedStyle(node, pseudo).content;
+    return !!content && content !== "none" && content !== "normal" && glyphs.test(content.replace(/^"|"$/g, "").trim() || " x");
+  };
+  for (const node of [...controls, ...[...document.querySelectorAll("summary")].filter(visible)]) {
+    if (glyphs.test(text(node)) || glyphContent(node, "::before") || glyphContent(node, "::after")) {
+      note("KIND_GLYPH", node, "a text glyph marks the control: " + JSON.stringify(text(node) || getComputedStyle(node, "::after").content));
+    }
+  }
+  const bodySize = parseFloat(getComputedStyle(document.body).fontSize), headingStep = 1.2;
+  for (const node of document.querySelectorAll("h1, h2, .section-title")) {
+    if (!visible(node)) continue;
+    const size = parseFloat(getComputedStyle(node).fontSize);
+    if (size < bodySize * headingStep) note("KIND_FLAT_HEADING", node, size + "px heading over " + bodySize + "px body");
+  }
+  for (const node of document.querySelectorAll("body *")) {
+    if (visible(node) && getComputedStyle(node).backgroundImage.includes("gradient(")) note("KIND_GRADIENT", node, getComputedStyle(node).backgroundImage.slice(0, 80));
+  }
+  const readableOpacity = 0.75;
+  for (const node of document.querySelectorAll("body *")) {
+    if (!hasText(node) || !visible(node) || node.closest("[disabled], [aria-disabled=true]")) continue;
+    let opacity = 1;
+    for (let current = node; current; current = current.parentElement) opacity *= Number(getComputedStyle(current).opacity);
+    if (opacity < readableOpacity) note("KIND_FADED", node, "text at " + opacity.toFixed(2) + " opacity");
   }
   return JSON.stringify(findings);
 })()`

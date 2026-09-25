@@ -202,18 +202,18 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
   [...document.querySelectorAll("#cold-start button")].find((button) => button.textContent === "Open the Library").click();
   return true;
 })()`)
-	settle("library on the cold page", `!!document.querySelector("#panel-library.active input[placeholder='search the Hugging Face hub']")`)
+	settle("library on the cold page", `!!document.querySelector("#panel-library.active input[placeholder='Search the Hugging Face hub']")`)
 
 	// 1. The hub model in one action: search, then add, which downloads, registers and validates it
 	// against the store behind the cold proxy.
 	assertBrowserPredicate(t, ctx, browser, `(() => {
-  const query = document.querySelector("#panel-library input[placeholder='search the Hugging Face hub']");
+  const query = document.querySelector("#panel-library input[placeholder='Search the Hugging Face hub']");
   query.value = 'validated';
-  [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "search").click();
+  [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "Search").click();
   return true;
 })()`)
-	settle("hub search lists the lane repository", `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "add")`)
-	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "add").click(); return true; })()`)
+	settle("hub search lists the lane repository", `[...document.querySelectorAll("#panel-library button")].some((button) => button.textContent === "Add")`)
+	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "Add").click(); return true; })()`)
 	settle("download succeeded", rowNote(laneHubRepository, "done"))
 	settle("downloaded model registered", rowNote(laneHubRepository, "registered"))
 	downloadValidated := validated(laneHubRepository, "downloaded model validation")
@@ -224,7 +224,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   document.querySelector("#panel-library input[placeholder='model GGUF or directory on disk']").value = `+strconv.Quote(projectedLocation)+`;
   document.querySelector("#panel-library input[placeholder='projector GGUF (optional)']").value = `+strconv.Quote(projectorPath)+`;
-  [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "add a local model").click();
+  [...document.querySelectorAll("#panel-library button")].find((button) => button.textContent === "Add a local model").click();
   return true;
 })()`)
 	settle("local model registered with its projector", rowNote(projectedLocation, "with projector"))
@@ -247,7 +247,7 @@ func TestModelJourneyLibraryValidation(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => {
   const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(name)+`);
   if (!row) return false;
-  [...row.querySelectorAll("button")].find((button) => button.textContent === "serve").click();
+  [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve").click();
   return true;
 })()`)
 	settle("the chosen model serves", `document.querySelector("#model-pill").textContent === `+strconv.Quote(name)+` && !!document.querySelector("#panel-chat.active .composer textarea") && !window.overgo.modelSwitching()`)

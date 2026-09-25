@@ -217,7 +217,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(name)+`);
       if (!row) return false;
-      [...row.querySelectorAll("button")].find((button) => button.textContent === "serve").click();
+      [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve").click();
       return true;
     })()`)
 		// The pill names the served file; the welcome card, when the
@@ -252,7 +252,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
       [...document.querySelectorAll("button")].find((button) => button.textContent === "lane/page-model · 4096").click();
       const value = (label) => document.querySelector("input[aria-label='provider " + label + "']").value;
       if (value("model ids (comma-separated)") !== "lane/page-model" || value("context length (optional)") !== "4096") return false;
-      [...document.querySelectorAll("button")].find((button) => button.textContent === "declare a hosted provider").click(); return true; })()`)
+      [...document.querySelectorAll("button")].find((button) => button.textContent === "Declare a hosted provider").click(); return true; })()`)
 	const declaredTag = `[...document.querySelectorAll(".tag")].some((tag) => tag.textContent.startsWith("remote://webui-lane-page/lane/page-model"))`
 	settle("the cold-page declaration answers with its location or the modified-tree refusal", declaredTag+` ||
       [...document.querySelectorAll(".note")].some((note) => note.textContent.includes("worktree is dirty"))`)
@@ -267,7 +267,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	assertBrowserPredicate(t, ctx, browser, `(() => {
       const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(modelName)+`);
       if (!row) return false;
-      [...row.querySelectorAll("button")].find((button) => button.textContent === "serve").click();
+      [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve").click();
       return true;
     })()`)
 
@@ -391,7 +391,7 @@ func TestModelJourneyFirstRun(t *testing.T) {
 	var switchName string
 	if err := browser.Evaluate(ctx, `(() => {
       const current = document.querySelector("#model-pill").textContent;
-      const rows = [...document.querySelectorAll(".topbar .card .row")].filter((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent !== current && [...node.querySelectorAll("button")].some((button) => button.textContent === "serve"));
+      const rows = [...document.querySelectorAll(".topbar .card .row")].filter((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent !== current && [...node.querySelectorAll("button")].some((button) => button.textContent === "Serve"));
       const preferred = rows.find((node) => node.querySelector(".mono").textContent === `+strconv.Quote(modelName)+`) || rows[0];
       return preferred ? preferred.querySelector(".mono").textContent : "";
     })()`, &switchName); err != nil {
@@ -720,11 +720,11 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		openPicker()
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       const row = [...document.querySelectorAll(".topbar .card .row")].find((node) => node.querySelector(".mono") && node.querySelector(".mono").textContent === `+strconv.Quote(entryName)+`);
-      const key = row && row.querySelector("input[type=password]"), use = row && [...row.querySelectorAll("button")].find((button) => button.textContent === "use key");
+      const key = row && row.querySelector("input[type=password]"), use = row && [...row.querySelectorAll("button")].find((button) => button.textContent === "Use key");
       if (!key || !use || !row.textContent.includes("is not set")) return false;
       key.value = "lane-key"; use.click(); return true; })()`)
 		settle("the entered key lifts the refusal", `[...document.querySelectorAll(".topbar .card .row")].some((row) =>
-      row.querySelector(".mono") && row.querySelector(".mono").textContent === `+strconv.Quote(entryName)+` && [...row.querySelectorAll("button")].some((button) => button.textContent === "serve"))`)
+      row.querySelector(".mono") && row.querySelector(".mono").textContent === `+strconv.Quote(entryName)+` && [...row.querySelectorAll("button")].some((button) => button.textContent === "Serve"))`)
 		switchTo(entryName)
 		say(t, ctx, browser, "hello again")
 		settle("the keyed model answers", `!document.querySelector(".composer .btn").disabled &&
@@ -753,13 +753,13 @@ func TestModelJourneyFirstRun(t *testing.T) {
 		// tree sees the refusal and a clean tree sees the row leave.
 		assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = "#library"; return true; })()`)
 		settle("the library lists the key-entry model with its retire control", `[...document.querySelectorAll("#panel-library tr")].some((row) =>
-      row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "retire"))`)
+      row.textContent.includes(`+strconv.Quote(entryName)+`) && [...row.querySelectorAll("button")].some((button) => button.textContent === "Retire"))`)
 		assertBrowserPredicate(t, ctx, browser, `(() => {
       document.querySelector("input[aria-label='retirement reason']").value = "the browser lane's fake provider closed";
       const catalogNote = [...document.querySelectorAll("#panel-library .section-title")].find((node) => node.textContent === "Local models").parentElement.nextElementSibling;
       catalogNote.textContent = ""; catalogNote.dataset.laneRetirement = "1";
       const row = [...document.querySelectorAll("#panel-library tr")].find((row) => row.textContent.includes(`+strconv.Quote(entryName)+`));
-      [...row.querySelectorAll("button")].find((button) => button.textContent === "retire").click(); return true; })()`)
+      [...row.querySelectorAll("button")].find((button) => button.textContent === "Retire").click(); return true; })()`)
 		retirement := `![...document.querySelectorAll("#panel-library tr")].some((row) => row.textContent.includes(` + strconv.Quote(entryName) + `))`
 		build, err := buildinfo.ReadFile(binary)
 		if err != nil {

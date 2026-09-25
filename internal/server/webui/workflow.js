@@ -211,9 +211,11 @@
         const evidence = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
+        // The task first, then its inputs, then the action that runs them.
         panel.append(
-          el("div", { class: "section-title", text: definition.label }),
-          el("div", { class: "row" }, capabilitySelect, run, cancel), controls, status,
+          el("div", { class: "section-title", text: overgo.title }),
+          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls,
+          el("div", { class: "row" }, run, cancel), status,
           progress, metrics, evidence);
 
         let capabilities;

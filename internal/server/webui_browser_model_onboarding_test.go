@@ -21,7 +21,7 @@ import (
 var onboardingTask = effortTask{"add a model from the hub", []effortStep{
 	{"type", `input[aria-label="Search the Hugging Face hub"]`, "lane"},
 	{"key", "Enter", ""},
-	{"click", "#panel-library button", "add"},
+	{"click", "#panel-library button", "Add"},
 }, `document.querySelector("#panel-library").textContent.includes("validating in operation")`}
 
 // TestWebUIBrowserModelOnboarding takes a model from a hub search to a

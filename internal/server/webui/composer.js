@@ -194,12 +194,12 @@
 
     function toolCard(call) {
       const status = el("span", { class: "tag", text: "running" });
-      const arrow = el("span", { class: "arrow", text: "▸" });
+      const arrow = el("span", { class: "chevron", "aria-hidden": "true" });
       const input = el("pre", { class: "mono", text: JSON.stringify(call.arguments == null ? {} : call.arguments, null, 2) });
       const bodyNode = el("div", { class: "tool-body", hidden: true }, el("div", { class: "note", text: "input" }), input);
       bodyNode.id = "tool-" + crypto.randomUUID();
       const header = el("button", { class: "tool-header row", type: "button", "aria-expanded": "false", "aria-controls": bodyNode.id }, arrow, el("span", { class: "mono", text: call.name }), status);
-      header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; header.setAttribute("aria-expanded", String(!bodyNode.hidden)); arrow.textContent = bodyNode.hidden ? "▸" : "▾"; });
+      header.addEventListener("click", () => { bodyNode.hidden = !bodyNode.hidden; header.setAttribute("aria-expanded", String(!bodyNode.hidden)); arrow.classList.toggle("open", !bodyNode.hidden); });
       const card = el("div", { class: "card tool-call" }, header, bodyNode);
       log.appendChild(card);
       scroll();

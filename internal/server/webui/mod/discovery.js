@@ -16,42 +16,50 @@
         overgo.clear(catalogBody);
         const models = catalog.models || [];
         const { profiles = {}, datasets = {} } = catalog.coverage || {};
-        const parts = [models.length && models.length + " activated model(s)", profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
+        const parts = [models.length && models.length + (models.length === 1 ? " activated model" : " activated models"), profiles.registered && "profiles " + profiles.published + "/" + profiles.registered,
           datasets.registered && "datasets " + datasets.available + "/" + datasets.registered + " on disk", catalog.truncated && "listing truncated — not every activation is shown"].filter(Boolean);
         catalogNote.textContent = parts.length ? parts.join(" · ") :
           "No activated models yet — download one below, then activate it with cmd/reverify.";
+        // Verified is the norm the listing states once; a tag names only a state that differs from it.
+        const standing = (capability) => {
+          if (capability.stale) return " · stale";
+          return capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "";
+        };
         for (const entry of models) {
           const capabilities = el("td", {}, ...(entry.capabilities || []).map((capability) => el("span", {
-            class: "tag mr-4", title: capability.stale || capability.recipe,
-            text: capability.task + (capability.stale ? " · stale" : capability.tier ? " · " + capability.tier : "") })));
+            class: "tag mr-4", title: capability.stale || capability.recipe, text: capability.task + standing(capability) })));
           // A hosted model retires from its row with the section's reason; the catalog relists without it.
-          const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "retire", onclick: async () => {
+          const retire = (entry.location || "").startsWith("remote://") ? el("button", { class: "btn alt", text: "Retire", onclick: async () => {
             try { await overgo.api.post("/library/providers/retire", { location: entry.location, reason: providerReason.value.trim() || "retired from the Library tab" }); refreshCatalog(); } catch (err) { catalogNote.replaceChildren(overgo.failure(err)); }
           } }) : "";
-          catalogBody.appendChild(overgo.tableRow([fmt.shortID(entry.model), el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]));
+          // A model reads by its file; its identity stands beside it for reference.
+          const line = overgo.tableRow([el("span", { text: (entry.location || "").split(/[\\/]/).pop() }), fmt.shortID(entry.model), capabilities, entry.present ? retire : el("span", { class: "tag", text: "missing bytes" })]);
+          ["Model", "Identity", "Capabilities", ""].forEach((label, index) => { line.children[index].dataset.label = label; });
+          catalogBody.appendChild(line);
         }
-      }, { loading: "loading catalog…" });
+      }, { loading: "Loading the catalog…" });
 
       // ---- hub search ----
-      const query = el("input", { "aria-label": "Search the Hugging Face hub", class: "text", placeholder: "search the Hugging Face hub" });
+      const query = el("input", { "aria-label": "Search the Hugging Face hub", class: "text", placeholder: "Search the Hugging Face hub" });
       const kind = el("select", { class: "text w-130", "aria-label": "search kind" }, el("option", { value: "models", text: "models" }), el("option", { value: "datasets", text: "datasets" }));
       const searchNote = el("span", { class: "note" });
       const resultsBody = el("tbody");
-      const searchButton = el("button", { class: "btn" }, "search");
-      const searchCancel = el("button", { class: "btn alt", hidden: true }, "cancel");
+      const searchButton = el("button", { class: "btn" }, "Search");
+      const searchCancel = el("button", { class: "btn alt", hidden: true }, "Cancel");
       const runSearch = overgo.runner(searchButton, searchCancel, {
         onError: (err) => { searchNote.textContent = overgo.friendlyError(err); },
       });
       function search() {
         return runSearch(async (signal) => {
-          searchNote.textContent = "searching…";
+          searchNote.textContent = "Searching…";
           const path = "/hub/search?kind=" + kind.value + "&q=" + encodeURIComponent(query.value);
           const found = await overgo.api.get(path, { signal });
           overgo.clear(resultsBody);
           const results = found.results || [];
-          searchNote.textContent = results.length ? results.length + " result(s)" : "no results";
+          const counted = results.length === 1 ? "1 result" : results.length + " results";
+          searchNote.textContent = results.length ? counted : "No results";
           for (const listing of results) {
-            const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "add");
+            const download = el("button", { class: "btn alt", onclick: () => startDownload(listing.id) }, "Add");
             resultsBody.appendChild(overgo.tableRow([listing.id, fmt.compact(listing.downloads || 0), fmt.compact(listing.likes || 0), listing.gated ? el("span", { class: "tag control", text: "gated" }) : download]));
           }
         });
@@ -135,7 +143,7 @@
       panel.append(
         el("div", { class: "row" }, el("div", { class: "section-title", text: "Local models" }), el('button', { class: 'link-button', text: 'Refresh catalog', onclick: refreshCatalog })),
         catalogNote,
-        el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["model", "file", "capabilities", ""])), catalogBody),
+        el("table", { class: "grid stack" }, el("thead", null, overgo.headerRow(["Model", "Identity", "Capabilities", ""])), catalogBody),
         el("div", { class: "section-title", text: "Hugging Face" }),
         el("div", { class: "row" }, kind, query, searchButton, searchCancel, searchNote),
         el("table", { class: "grid" }, el("thead", null, overgo.headerRow(["repository", "downloads", "likes", ""])), resultsBody),
@@ -146,7 +154,7 @@
       // ---- a local model: a GGUF (or its directory) already on disk, with its projector, rides the same lifecycle ----
       const localModel = el("input", { "aria-label": "Model GGUF or directory on disk", class: "text", placeholder: "model GGUF or directory on disk" });
       const localProjector = el("input", { "aria-label": "Projector GGUF (optional)", class: "text", placeholder: "projector GGUF (optional)" });
-      const localButton = el("button", { class: "btn alt", text: "add a local model", onclick: () => {
+      const localButton = el("button", { class: "btn alt", text: "Add a local model", onclick: () => {
         const path = localModel.value.trim(); if (!path) return;
         const job = { id: "local:" + path, kind: "models", state: "succeeded", repository: path, destination: path, projector: localProjector.value.trim() };
         localBody.replaceChildren(overgo.tableRow([path, el("span", { class: "tag user_defined", text: "local" }), job.projector, "", lifecycle(job)]));
@@ -160,7 +168,7 @@
       const providerListing = el("span", { class: "row" });
       const providerReason = el("input", { class: "text", placeholder: "retirement reason (the endpoint gone, the key withdrawn)", "aria-label": "retirement reason" });
       const providerValues = () => providerFields.map((field) => field.value.trim());
-      const providerButton = el("button", { class: "btn alt", text: "declare a hosted provider", onclick: async () => {
+      const providerButton = el("button", { class: "btn alt", text: "Declare a hosted provider", onclick: async () => {
         const [name, endpoint, keyEnvironment, models, contextLength] = providerValues();
         try {
           const declared = await overgo.api.post("/library/register", { kind: "provider", name, endpoint, key_environment: keyEnvironment, models: models.split(",").map((id) => id.trim()).filter(Boolean), context_length: Number(contextLength) || 0 });

@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  function present(value, format) { return value == null ? "unknown" : String(format ? format(value) : value); }
+  function present(value, format) { return value == null ? "—" : String(format ? format(value) : value); }
 
   window.overgo.registerTab({
     id: "runtime",
@@ -29,8 +29,8 @@
           overgo.stat("Reuses", session.reuses),
           overgo.stat("Evictions", session.evictions),
           overgo.stat("Retiring", session.retiring),
-          overgo.stat("Recipe stages", authority ? authority.stages : "unknown"),
-          overgo.stat("Evidence", authority ? (authority.evidence || []).length : "unknown"),
+          overgo.stat("Recipe stages", authority ? authority.stages : "—"),
+          overgo.stat("Evidence", authority ? (authority.evidence || []).length : "—"),
           overgo.stat("Device", session.device));
         const table = el("table", { class: "grid" }, overgo.headerRow(["slot", "task", "state", "context", "prompt", "cached", "completion", "prefill", "decode", "elapsed"]));
         for (const slot of data.slots) {
@@ -89,6 +89,10 @@
       }, { loading: "Loading the workflow…" });
 
       function renderOperations() {
+        if (!current.size) {
+          operations.replaceChildren(el("p", { class: "note empty-table", text: "No operations yet. Work you start (a generation, a training run, a validation) shows here while it runs, with its decisions." }), dagHost);
+          return;
+        }
         const table = el("table", { class: "grid" }, overgo.headerRow(["state", "task", "recipe", "progress", "attempts", "run", "outputs", "failure", "decision", "dag"]));
         for (const item of current.values()) {
           const progress = item.progress || {};
@@ -129,7 +133,7 @@
           overgo.stat("Publish failures", data.publish_failures),
           overgo.stat("Catalog truncated", data.truncated ? "yes" : "no"));
         rows.replaceChildren(overgo.table(["started", "task", "outcome", "model", "recipe", "duration", "input", "output", "H2D", "D2H"], data.activity.map((item) => [
-          el("span", { class: "mono", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString() }),
+          el("span", { class: "nowrap", text: new Date(Number(item.started_unix_ns) / 1e6).toLocaleString(undefined, { dateStyle: "short", timeStyle: "medium" }) }),
           el("span", { text: item.task + (item.compatibility ? " / peer" : "") }),
           el("span", { class: "tag " + (item.outcome === "succeeded" ? "user_defined" : "control"), text: item.outcome }),
           fmt.shortID(item.model), fmt.shortID(item.recipe), (Number(item.measured_ns) / 1e6).toFixed(2) + " ms",

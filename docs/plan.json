@@ -5,46 +5,46 @@
   "items": [
     {
       "id": "plan-retire-in-one-landing",
-      "title": "Retire several rows in one plan-only landing",
+      "title": "Retired: retire several rows in one plan-only landing",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Retire several rows in one plan-only landing",
+          "title": "Retired: retire several rows in one plan-only landing",
           "status": "open",
-          "verify": "go test ./internal/gate -run '^TestPlanLandingRetiresSeveralRows$' -count=1",
-          "rationale": "Automation friction: retiring five rows on 2026-09-24 took one vehicle landing plus five plan-only gates (3684ba55, fdaf8ef9 through f28d8274), about 60-100 s each, because a landing closes only the row it is judged by and a row cannot change its own check in that landing. Let one plan-only landing close every row whose recorded status is retired and whose check passes, each by its own check, so a re-plan is one vehicle and one closure. Keep the rule that a row cannot rewrite the check it is judged by. Done when TestPlanLandingRetiresSeveralRows lands a plan-only candidate that closes two retired rows and refuses one whose check fails."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 after reading the completion authority (internal/plan/completion.go). Each commit proves exactly one row: an Overgo-Plan-Item-Snapshot trailer plus a gate acceptance for that row's own check, verified on every protected revision. Closing several rows per landing would multiply trailers, snapshots and acceptances in the one authority every commit passes. It would save about 90 s per retired row, and retirements happen only on re-plans. Done: the decision is recorded."
         }
       ]
     },
     {
       "id": "media-delta-one-command",
-      "title": "Record a reviewed media delta with one command",
+      "title": "Retired: record a reviewed media delta with one command",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Record a reviewed media delta with one command",
+          "title": "Retired: record a reviewed media delta with one command",
           "status": "open",
-          "verify": "go test ./cmd/compatibility -run '^TestRecordDeltaFromTheTree$' -count=1",
-          "rationale": "Automation friction: every change under the pinned media runtime paths needs a reviewed delta in docs/media_reviewed_deltas.json built by hand (per-file before and after sha256, after empty for a deletion), a go-test-json receipt from test-lane receipt naming required tests, and a hand edit of mediaReviewedDeltasSHA256 in cmd/compatibility/reviewed_delta_registry_test.go. The lead used scratch tools (tmp/add_media_delta.go, tmp/build_move_delta.go) for 22b5d515 and 39934bd8. Add one cmd/compatibility operation that derives the per-file hashes from HEAD and the tree, attaches a named receipt, and writes the delta. Make the registry identity derive from the registry file itself, not a constant a person edits. Done when TestRecordDeltaFromTheTree records a delta for an edited and a deleted pinned file and the registry check passes with no hand edit."
+          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
+          "rationale": "RETIRED 2026-09-24 after reading cmd/compatibility. The reviewed-delta registry's schema and checks (reviewed_delta_registry_test.go) are test code, so a production recording command would first have to move that schema into production. The one expensive step, the CUDA go-test-json receipt, cannot be automated away. What remains is per-file hashes (tmp/add_media_delta.go, tmp/build_move_delta.go) and one registry-identity constant, needed about twice per campaign. Done: the decision is recorded."
         }
       ]
     },
     {
       "id": "seq2seq-trainer-to-tests",
-      "title": "Move the seq2seq trainer's private code into its tests",
+      "title": "Delete the seq2seq trainer nothing runs",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Move the seq2seq trainer's private code into its tests",
+          "title": "Delete the seq2seq trainer nothing runs",
           "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestPrivateCodeReachedOnlyByTestsIsFound$' -count=1",
-          "rationale": "SQA-013: 5e1be7c0 moved the exported seq2seq training constructor into tests but left the private implementation it reached: the Trainer in internal/seq2seq/training_data.go, newTrainingOptimizer in training_optimizer.go, and the only production imports of optimizer and trainingprogram from seq2seq. No production code calls them. The unconsumed-surface rule only sees exported declarations, so delete-test-only-exports closed with this island still in production. Move the Trainer and its exclusive helpers next to their tests, keep the training helpers live code also uses, and let the test call optimizer.NewStepper directly if that removes newTrainingOptimizer. Extend the repoanalysis unconsumed-surface finder to follow unexported code reachable only from test-only declarations, so this class is reported rather than found by review. Done when TestPrivateCodeReachedOnlyByTestsIsFound reports a private island in a fixture and seq2seq production code no longer imports optimizer."
+          "verify": "go test ./internal/seq2seq -run '^(TestEncoderMatchesOracle|TestIncrementalDecodeMatchesOracle|TestIncrementalMatchesFullDecode)$' -count=1",
+          "rationale": "SQA-013, re-scoped from a move to a deletion. The seq2seq Trainer and its training layout, bindings and backward passes (internal/seq2seq/training_data.go, about 900 lines, and training_optimizer.go) have no production caller. Their only user is real_training_data_model_test.go (1,306 lines, build tag modeltest), and no gate lane, evidence document or training route (docs/training_routes.json) runs it. Delete all three, and the training-trace plumbing in forward.go that only the trainer passed non-nil, keeping the inference forward unchanged. Done when the seq2seq oracle tests, which run in every gate without model files, still pass and the production optimizer and trainingprogram imports are gone from seq2seq."
         }
       ]
     },
@@ -150,6 +150,21 @@
           "status": "open",
           "verify": "go test ./internal/gate -run '^TestGateTelemetryReferencesItsGraph$' -count=1",
           "rationale": "Follow-up of store-benchmark-record-redundancy, measured at 7f700241. A code landing still stores the suite cost (103 KB: 1,094 test rows each repeating the package; package_execution_cost.go:85) and the selection cause (52 KB, 96% of its reader graph repeated from the previous landing; batch_cost.go:205). A merge landing re-embeds the audited completions and retirements of every earlier merge (673 KB, 88% repeated; projected_merge_authority.go:175). Group suite rows under their package; store the reader graph as its own content that the cause references; have merge authority reference the previous authority and store only the entries since. Readers accept the old shapes. Done when each document stores only what changed since its predecessor, and the repeated copies are deleted from the writers."
+        }
+      ]
+    },
+    {
+      "id": "consumer-graph-private-islands",
+      "title": "Private code reached only by tests counts as unconsumed",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Private code reached only by tests counts as unconsumed",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile -run '^TestPrivateCodeReachedOnlyByTestsIsFound$' -count=1",
+          "rationale": "SQA-013's detector half. The gate's unconsumed-surface rule (internal/codeprofile, TestGateRejectsNewUnconsumedProductionSurface) sees exported declarations with no production consumer, but not private code reachable only through them. That is how the seq2seq trainer's implementation stayed in production after its constructor moved to tests. Extend ProductionConsumerGraph's use: a declaration whose production references all come from declarations with no production consumer is itself unconsumed, computed transitively, with reflection and cgo boundaries still counted as consumers. The gate refuses new ones as it refuses new exported ones. Done when TestPrivateCodeReachedOnlyByTestsIsFound reports a private helper reached only from a test-only exported function in a fixture, and not one also reached from a live root."
         }
       ]
     },
@@ -898,7 +913,9 @@
             "store-multi-schema-paging/do",
             "loophook-stale-build/do",
             "release-claim-by-item/do",
-            "sqa-automation-replan/do"
+            "sqa-automation-replan/do",
+            "consumer-graph-private-islands/do",
+            "sqa-followup-replan/do"
           ]
         }
       ]

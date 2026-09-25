@@ -100,5 +100,5 @@ func TestWebUIBrowserUnofferedTask(t *testing.T) {
 	check(`(() => { const picker = ` + picker + `; picker.value = ` + refused + `; picker.dispatchEvent(new Event('change')); return true; })()`)
 	settle(`[...document.querySelectorAll('.composer .note[role="status"]')].some((note) => !note.hidden && note.textContent === 'The workbench cannot show embeddings output yet. Choose another model for this task.')`)
 	check(`overgo.errors.length === 0`)
-	t.Log("unoffered task leg: a capability declaring embeddings output is listed refused and named, the image capability stays offered and selected, and the gallery follows the declared image output")
+	webuilane.Leg(t, "unoffered task leg", "a capability declaring embeddings output is listed refused and named, the image capability stays offered and selected, and the gallery follows the declared image output")
 }

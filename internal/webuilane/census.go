@@ -1,10 +1,7 @@
 package webuilane
 
 import (
-	"errors"
-	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -114,69 +111,3 @@ const ModelJourneyPrefix = "TestModelJourney"
 // ModelJourneyEnvironment is set by the lane's -journeys mode; a journey
 // skips without it, since outside the lane it proves nothing.
 const ModelJourneyEnvironment = "OVERGO_MODEL_JOURNEY"
-
-// LaneVerdict judges one lane run from its output: a test the run skipped
-// or a run in which no test passed is no evidence, and every required
-// line (a journey leg's log) must have been written; nil is the pass.
-func LaneVerdict(output string, required []string) error {
-	var proven []string
-	passed := 0
-	for line := range strings.SplitSeq(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if skipped, ok := strings.CutPrefix(trimmed, "--- SKIP: "); ok {
-			return fmt.Errorf("webui lane: %s was skipped, so it proves nothing", skipped)
-		}
-		if name, ok := strings.CutPrefix(trimmed, "--- PASS: "); ok {
-			passed++
-			proven = append(proven, name)
-		} else if !strings.HasPrefix(trimmed, "webui lane: UNAVAILABLE ") && (strings.Contains(trimmed, "journey:") || strings.Contains(trimmed, " leg")) {
-			if _, after, ok := strings.Cut(trimmed, ": "); ok {
-				proven = append(proven, after)
-			}
-		}
-	}
-	if passed == 0 {
-		return errors.New("webui lane: no browser test passed")
-	}
-	for _, text := range required {
-		if !slices.ContainsFunc(proven, func(line string) bool { return strings.Contains(line, text) }) {
-			return fmt.Errorf("webui lane: the run did not write the required evidence %q", text)
-		}
-	}
-	return nil
-}
-
-// FailureLines names each failed test with the last line its own source
-// wrote before its verdict and that line's indented continuation: the
-// failing step and its page state, which a bounded tail of the whole run
-// would lose behind the tests after it.
-func FailureLines(output string) []string {
-	var failures []string
-	var last string
-	for line := range strings.SplitSeq(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		switch {
-		case strings.HasPrefix(trimmed, "=== RUN "):
-			last = ""
-		case strings.Contains(trimmed, "_test.go:"):
-			last = trimmed
-		case strings.HasPrefix(trimmed, "--- FAIL: "):
-			name, _, _ := strings.Cut(strings.TrimPrefix(trimmed, "--- FAIL: "), " (")
-			failures = append(failures, name+": "+last)
-		case last != "" && strings.HasPrefix(line, "        ") && trimmed != "":
-			// The step's name leads the line; a page dump behind it is cut so
-			// the name survives a caller's bounded tail.
-			if len(last) < failureLineBytes {
-				last += " " + trimmed
-				if len(last) > failureLineBytes {
-					last = strings.ToValidUTF8(last[:failureLineBytes], "") + "…"
-				}
-			}
-		}
-	}
-	return failures
-}
-
-// failureLineBytes bounds one reported failure so several fit a caller's
-// diagnostic tail beside one another.
-const failureLineBytes = 800

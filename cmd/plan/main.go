@@ -275,7 +275,7 @@ func run(c cli, args []string) error {
 			return errors.New("usage: plan -setverify <item-id> <step-id> -vcmd <cmd>")
 		}
 		if browserVerifyOutsideLane(c.verifyCmd) {
-			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -require in the verify")
+			return errors.New("plan: a browser test is evidence only through cmd/webui-lane (outside it the test skips); name the lane with -run and -leg in the verify")
 		}
 		return setStepVerify(commandWorktree, args[0], args[1], c.verifyCmd, role)
 	case c.contain != "":

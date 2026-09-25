@@ -106,5 +106,5 @@ func TestWebUIBrowserMicrophoneFormat(t *testing.T) {
 	check(`(()=>{micOwned.invalidateIntake();micRelease();return !document.querySelector('.capture-dialog');})()`)
 	settle(`micContexts.every(c=>c.state==='closed')&&micTracks.every(t=>t.readyState==='ended')`)
 	check(`(()=>{micOwned.dispose();micOwned.element.remove();window.AudioContext=micNativeContext;return overgo.errors.length===0;})()`)
-	t.Log("microphone format leg: real AudioContext/worklet WAV at declared rates, sample limits, preview/attach, unsupported and differing actual rates, late permission and selection invalidation cleanup; synthetic streams, no physical microphone or phone")
+	webuilane.Leg(t, "microphone format leg", "real AudioContext/worklet WAV at declared rates, sample limits, preview/attach, unsupported and differing actual rates, late permission and selection invalidation cleanup; synthetic streams, no physical microphone or phone")
 }

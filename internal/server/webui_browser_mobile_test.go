@@ -148,6 +148,7 @@ func TestWebUIBrowserMobileInteraction(t *testing.T) {
 			}
 		}
 	}
-	// The real response was allowed to complete; the separate control test proves Stop cancels it.
-	t.Log("mobile interaction leg: phone/landscape/reduced heights, paste, safe-area override, pinch zoom, reading position, Jump to latest, accessible disclosure and status passed; physical keyboards/Safari/screen readers not exercised")
+	webuilane.
+		// The real response was allowed to complete; the separate control test proves Stop cancels it.
+		Leg(t, "mobile interaction leg", "phone/landscape/reduced heights, paste, safe-area override, pinch zoom, reading position, Jump to latest, accessible disclosure and status passed; physical keyboards/Safari/screen readers not exercised")
 }

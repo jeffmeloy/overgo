@@ -59,5 +59,5 @@ func TestWebUIBrowserWorkspaceReachability(t *testing.T) {
   const button = [...document.querySelectorAll('button.tab')].find((candidate) => candidate.textContent === 'Export');
   return !tab.enabled && tab.refusal.length > 0 && tab.action.length > 0 && button.getAttribute('aria-disabled') === 'true' && button.title.startsWith(tab.refusal);
 })()`)
-	t.Log("workspace reachability leg: Train, Model Builder and Evaluations mount from the launch declaration; Export stays refused with its reason")
+	webuilane.Leg(t, "workspace reachability leg", "Train, Model Builder and Evaluations mount from the launch declaration; Export stays refused with its reason")
 }

@@ -19,6 +19,7 @@ import (
 	"overgo/internal/jsonfile"
 	"overgo/internal/testskip"
 	"overgo/internal/testutil"
+	"overgo/internal/webuilane"
 )
 
 type guiMobileCapture struct {
@@ -125,7 +126,7 @@ func TestGUIMobileDeviceEvidence(t *testing.T) {
 	if err := validateGUIMobileEvidence(value, os.DirFS(filepath.Dir(file)), source); err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("physical mobile evidence leg: validated %d source-bound device records and %d case results with capture hashes; operator observations supplied, physical actions not replayed by this test", len(value.Devices), len(value.Devices)*len(guiMobileCases))
+	webuilane.Leg(t, "physical mobile evidence leg", "validated %d source-bound device records and %d case results with capture hashes; operator observations supplied, physical actions not replayed by this test", len(value.Devices), len(value.Devices)*len(guiMobileCases))
 }
 
 func TestGUIMobileEvidenceContract(t *testing.T) {

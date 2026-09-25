@@ -162,6 +162,6 @@ func TestWebUIBrowserConversationLayout(t *testing.T) {
 		assertBrowserPredicate(t, ctx, browser, `resizeOwned.every(observer=>[...observer.targets].every(node=>node.isConnected))`)
 	}
 	assertBrowserPredicate(t, ctx, browser, `(()=>{window.ResizeObserver=resizeNativeObserver;return overgo.errors.length===0;})()`)
-	t.Log("conversation resize leg: latest reply follows settled viewport geometry; deliberate reader position survives resizing and subsequent updates")
-	t.Log("conversation layout leg: composer reachable at desktop, phone and keyboard heights; drawer and settings keyboard paths; long reply scrolling; visible stop; relevant operations")
+	webuilane.Leg(t, "conversation resize leg", "latest reply follows settled viewport geometry; deliberate reader position survives resizing and subsequent updates")
+	webuilane.Leg(t, "conversation layout leg", "composer reachable at desktop, phone and keyboard heights; drawer and settings keyboard paths; long reply scrolling; visible stop; relevant operations")
 }

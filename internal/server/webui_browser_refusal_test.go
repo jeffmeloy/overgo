@@ -61,7 +61,7 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 	settle(`!!document.querySelector('#panel-chat.active')`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'attention'; return true; })()`)
 	settle(`!!document.querySelector('#panel-inspect.active .workspace-refusal') && !document.querySelector('#panel-inspect select, #panel-inspect textarea, #panel-inspect canvas')`)
-	t.Log("workspace refusal leg: the refused view answers a choice and a fragment with its reason and enabling action")
+	webuilane.Leg(t, "workspace refusal leg", "the refused view answers a choice and a fragment with its reason and enabling action")
 
 	// 2. The Inbox listens on the shell's shared runtime stream and opens none of its own; a remount
 	// (a key change re-reads every mounted tab and restarts the shared stream) leaves exactly one live one.
@@ -83,7 +83,7 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
   return true;
 })()`)
 	settle(`(window.liveStreams['/runtime/activity/stream'] || []).filter((signal) => !signal.aborted).length === 1 && !window.liveStreams['/agents/stream']`)
-	t.Log("remount leg: the inbox listens on the shared runtime stream, and a remount leaves exactly one live runtime stream")
+	webuilane.Leg(t, "remount leg", "the inbox listens on the shared runtime stream, and a remount leaves exactly one live runtime stream")
 
 	// 3. Granting the blocked operation's recovery from the Automations tab succeeds.
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'automations'; return true; })()`)
@@ -97,5 +97,5 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 })()`)
 	waitBrowserOperationState(t, fixture.handler, blocked, operation.StateCompleted)
 	settle(`window.overgo.errors.length === 0 && !document.querySelector('#panel-automations .note .banner')`)
-	t.Log("approval leg: the Automations decision carried the advertised request and the operation completed")
+	webuilane.Leg(t, "approval leg", "the Automations decision carried the advertised request and the operation completed")
 }

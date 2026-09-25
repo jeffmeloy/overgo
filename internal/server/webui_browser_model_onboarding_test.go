@@ -94,5 +94,5 @@ func TestWebUIBrowserModelOnboarding(t *testing.T) {
 	settle(`!!document.querySelector('#panel-library.active input[aria-label="Search the Hugging Face hub"]') && overgo.api.inFlight() === 0`)
 	effort, requests := measureEffort(t, ctx, browser, settle, onboardingTask)
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	t.Logf("one action onboarding leg: a hub model reached validation for %+v with %d requests", effort, requests)
+	webuilane.Leg(t, "one action onboarding leg", "a hub model reached validation for %+v with %d requests", effort, requests)
 }

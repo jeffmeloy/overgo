@@ -141,5 +141,5 @@ func TestWebUIBrowserTranscriptionDraft(t *testing.T) {
 	check(`disposedTranscription.aborted`)
 	check(`(() => {const input=document.querySelector('.composer textarea');input.value='Replacement draft';input.dispatchEvent(new Event('input'));disposedReply('Discard this late answer');return true;})()`)
 	check(`document.querySelector('.composer textarea').value==='Replacement draft' && !document.querySelector('.transcript-offer:not([hidden])')`)
-	t.Log("transcription draft leg: explicit transcribe with progress and cancel, verified recording bytes, insert or replace by choice, disposal and late answer preserve the draft")
+	webuilane.Leg(t, "transcription draft leg", "explicit transcribe with progress and cancel, verified recording bytes, insert or replace by choice, disposal and late answer preserve the draft")
 }

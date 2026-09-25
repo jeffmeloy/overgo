@@ -139,5 +139,5 @@ func TestWebUIBrowserConversationNavigation(t *testing.T) {
 			}
 		}
 	}
-	t.Log("conversation navigation leg: real stored history paging, search, rename failure/retry, archive/restore, stale cursor, late search, cross-model transcript, failed-load draft recovery and keyboard drawer navigation passed; physical-device behavior is outside this Chromium leg")
+	webuilane.Leg(t, "conversation navigation leg", "real stored history paging, search, rename failure/retry, archive/restore, stale cursor, late search, cross-model transcript, failed-load draft recovery and keyboard drawer navigation passed; physical-device behavior is outside this Chromium leg")
 }

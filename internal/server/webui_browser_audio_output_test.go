@@ -96,5 +96,5 @@ func TestWebUIBrowserAudioOutput(t *testing.T) {
 	check(`(()=>{nativeAudioCard.remove();return true;})()`)
 	settle(`nativeAudio.paused && nativeDownloadCalls[2].signal.aborted && nativeRevokedURLs.has(nativeAudio.src) && nativeRevokedURLs.has(nativeDownloads[0].url)`)
 	check(`(async()=>{nativeDownloadCalls[2].resolve(nativeExpectedBody);await new Promise(resolve=>requestAnimationFrame(resolve));HTMLAnchorElement.prototype.click=nativeOriginalClick;URL.createObjectURL=nativeOriginalCreateURL;URL.revokeObjectURL=nativeOriginalRevokeURL;overgo.api.blob=nativeOriginalBlob;return nativeDownloads.length===1 && !document.querySelector('.artifact-load-error');})()`)
-	t.Log("audio output leg: full-width native player, explicit byte-exact WAV download, failed-fetch keyboard retry, duplicate request suppression, pagehide/removal pause and cancelled late download")
+	webuilane.Leg(t, "audio output leg", "full-width native player, explicit byte-exact WAV download, failed-fetch keyboard retry, duplicate request suppression, pagehide/removal pause and cancelled late download")
 }

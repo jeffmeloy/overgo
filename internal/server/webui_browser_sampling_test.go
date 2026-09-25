@@ -54,5 +54,5 @@ func TestWebUIBrowserSamplingSettings(t *testing.T) {
 	settle(`document.querySelectorAll('#panel-chat .msg.assistant').length === 1 && document.querySelector('#panel-chat .msg.assistant .body').textContent.trim().length > 0 && !document.querySelector('.send-button').disabled`)
 	assertBrowserPredicate(t, ctx, browser, `(() => { const button = document.querySelector('#panel-chat .msg.assistant .role button.link-button'); if (!button) return false; button.click(); return true; })()`)
 	settle(`(() => { const text = document.querySelector('#inspector').textContent; return !document.querySelector('#inspector').hidden && text.includes('Sampling') && text.includes('0.25') && text.includes('temperature'); })()`)
-	t.Log("sampling settings leg: the temperature set in Settings reaches the resolved chain the turn's inspector shows")
+	webuilane.Leg(t, "sampling settings leg", "the temperature set in Settings reaches the resolved chain the turn's inspector shows")
 }

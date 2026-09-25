@@ -1,10 +1,25 @@
 {
   "campaign": "Integrated validation, GUI cleanup lane: validate, harden and simplify the HTML workbench",
-  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree. Merged master 79f5dd18 on 2026-09-23 (8b77d24e): suites now run in parallel (TestSuitesRunInParallel), so every browser leg awaits the state it asserts instead of relying on serial timing, and the catalog gained an image-embedding task the workbench offers no surface for yet (row gui-declared-task-output names it rather than building one: capability freeze). Owner direction 2026-09-23: architecture that runs the system with fewer components, more efficiency and more robustness outranks features; each arch- row deletes a component (one event stream, one event hub, the route table as sole dispatcher, store reads that scale with their answer, one text turn pipeline, one tab resource primitive) and is measured before and after. The lane edits the server, serving and client stack; overgodb, the gate and the closure ledger are master's active substrates, where the lane files evidence-backed proposals instead of edits. Master merged the lane at ff9acf5f2 (78e0cb48) and the lane merged master back at 0aa9853d (7f0a84144). Master rows browser-waits-fail-fast and store-bare-record-fill own the browser-leg deadline and the bare environment record; the lane rows that named them wait before signoff and close on master's checks once a merge brings the fixes (a lane-scoped plan retires a row only by landing it). Owner direction 2026-09-23, relayed by master: one workspace lifecycle owner in the client (loading, error and empty states, cancellation, polling, subscriptions, recovery) replaces every tab's own handling, and a consolidation counts only when it deletes what it replaces, reported as net code removed and repeated work eliminated; arch-tab-resource carries it next after the event stream. Owner direction 2026-09-24: reduce the effort common GUI tasks take. The browser lane measures each common task first (gui-task-effort-baseline) and every effort row (places, one-action onboarding, approve in place, remembered settings) is judged by lowering those counts. Owner direction 2026-09-25 after a LlamaFactory review: adopt its workflow ideas in the current stack only, plain HTML, JavaScript and Go with no framework, build step or Python. Rows gui-training-live, gui-training-preview, gui-adapter-compare, gui-copy-command, gui-memory-estimate and gui-dataset-import carry them, and gui-remember-settings and gui-model-merge absorb presets and export; its optimizer zoo, distributed stacks and hand-kept model and template registries are not adopted, and its preference-loss variants (ORPO, SimPO, KTO) belong to master's training plan.",
+  "doctrine": "GUI cleanup lane (overgo_gui_cleanup), branched from master 3a331e81 on 2026-09-22. Scope: validate, harden and simplify the embedded HTML workbench (internal/server/webui and the server contracts it calls). Capability freeze enforced by structure: no new model family, workflow, optimizer or orchestration framework; rows that need native audio, speech-document admission (master row speech-document-admission) or training-loop producers stay with their owning lanes and are not carried. Baseline measured at 3a331e81: every page acceptance passes and the screens walk captures 104 states at 2 viewports in 2 colour schemes with 0 layout findings, so the order is correctness of client contracts, stream and listener lifecycle, per-tab mount health, accessibility, consolidation, then style and the four GUI improvements that consume capabilities master already serves. Every layout or interaction change is reviewed in the browser pane at desktop and phone widths in both colour schemes before landing, and its acceptance is a browser leg or Go test that fails without the change; a consolidation that removes code holds a ratchet instead. A step's machine check is set with plan -setverify; a check whose real prerequisite cannot run records UNAVAILABLE rather than a pass. Preserve the conversation-first design: flat messages, lists and separators, no cards, reachable Send/Stop, one compact model selector, mobile drawer, settings on demand, status only for progress, failure or required action; keep the same-origin client, CSP and authenticated transport. Lane cycle: merge current master (never its plan.json) before each row when master has moved, re-plan from the merged tree, execute one row, gate. The lane plan never merges into master; publishing lane commits to master needs separate owner authorization. Bind read-only reference stores with OVERGO_SMOKE_REFERENCE_STORE and OVERGO_AUDIO_REFERENCE_STORE at C:/Users/jeffm/overgo/overgodb-store; the data root and browser output stay in this worktree. Merged master 79f5dd18 on 2026-09-23 (8b77d24e): suites now run in parallel (TestSuitesRunInParallel), so every browser leg awaits the state it asserts instead of relying on serial timing, and the catalog gained an image-embedding task the workbench offers no surface for yet (row gui-declared-task-output names it rather than building one: capability freeze). Owner direction 2026-09-23: architecture that runs the system with fewer components, more efficiency and more robustness outranks features; each arch- row deletes a component (one event stream, one event hub, the route table as sole dispatcher, store reads that scale with their answer, one text turn pipeline, one tab resource primitive) and is measured before and after. The lane edits the server, serving and client stack; overgodb, the gate and the closure ledger are master's active substrates, where the lane files evidence-backed proposals instead of edits. Master merged the lane at ff9acf5f2 (78e0cb48) and the lane merged master back at 0aa9853d (7f0a84144). Master rows browser-waits-fail-fast and store-bare-record-fill own the browser-leg deadline and the bare environment record; the lane rows that named them wait before signoff and close on master's checks once a merge brings the fixes (a lane-scoped plan retires a row only by landing it). Owner direction 2026-09-23, relayed by master: one workspace lifecycle owner in the client (loading, error and empty states, cancellation, polling, subscriptions, recovery) replaces every tab's own handling, and a consolidation counts only when it deletes what it replaces, reported as net code removed and repeated work eliminated; arch-tab-resource carries it next after the event stream. Owner direction 2026-09-24: reduce the effort common GUI tasks take. The browser lane measures each common task first (gui-task-effort-baseline) and every effort row (places, one-action onboarding, approve in place, remembered settings) is judged by lowering those counts. Owner direction 2026-09-25 after a LlamaFactory review: adopt its workflow ideas in the current stack only, plain HTML, JavaScript and Go with no framework, build step or Python. Rows gui-training-live, gui-training-preview, gui-adapter-compare, gui-copy-command, gui-memory-estimate and gui-dataset-import carry them, and gui-remember-settings and gui-model-merge absorb presets and export; its optimizer zoo, distributed stacks and hand-kept model and template registries are not adopted, and its preference-loss variants (ORPO, SimPO, KTO) belong to master's training plan. Owner direction 2026-09-25: more classification decisions throughout so automation selects, orders and judges from declared kinds rather than brittle regex or text matching; the lane classifies its own tooling (webui-typed-legs, webui-census-parsed) and relayed the gate, loop, plan and evidence items to master, which owns them.",
   "lane": "overgo_gui_cleanup",
   "scope": "lane",
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
+    {
+      "id": "webui-census-parsed",
+      "title": "Classify the workbench from what the browser parses: design tokens from the CSSOM, controls, inline styles and dialogs from the live page, and the source-only checks through a JavaScript tokenizer, retiring the regex census",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify the workbench from what the browser parses: design tokens from the CSSOM, controls, inline styles and dialogs from the live page, and the source-only checks through a JavaScript tokenizer, retiring the regex census",
+          "status": "open",
+          "verify": "go test ./internal/webuilane -run '^TestCensusClassifiesWithoutRegex$' -count=1",
+          "rationale": "Owner direction 2026-09-25, and the standing rule against regex parsing of CSS or JSON in shipped code: internal/webuilane classifies the workbench with fifteen regular expressions over CSS and JavaScript source (design.go root blocks and custom properties, census.go controls, buttons, inline styles, dialogs, silent catches, nested ternaries, timer literals, debt markers). The browser already parses both: design tokens come from the CSSOM in both colour schemes, controls, inline styles and labels from the live DOM the screens walk visits, and dialogs by trapping alert, confirm and prompt; the checks only source can answer read a JavaScript token stream. Judged by a test that fails while webuilane imports regexp outside tests."
+        }
+      ]
+    },
     {
       "id": "arch-turn-encoders",
       "title": "One text turn, stage 5: one turn run and outcome for chat, Responses and Anthropic, leaving each protocol only its event encoder",
@@ -44,8 +59,8 @@
           "id": "do",
           "title": "Stream training step metrics over the event hub and draw progress, time remaining and loss live on the training page, re-attaching after a reload",
           "status": "open",
-          "verify": "test -f internal/server/training_progress_test.go \u0026\u0026 go test ./internal/server -run '^TestTrainingStepsReachTheEventHub$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TrainingLive|LayoutAudit)$' -require 'training live leg'",
-          "rationale": "LlamaFactory review 2026-09-25: its board shows progress, time remaining and a live loss curve and re-attaches after a reload; the training page draws a run's trace only after it finishes. The trainer publishes step metrics on the server event hub the lane built, so the page subscribes like every inventory, no polling."
+          "verify": "test -f internal/server/training_progress_test.go \u0026\u0026 go test ./internal/server -run '^TestTrainingStepsReachTheEventHub$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TrainingLive|LayoutAudit)$' -leg 'training live leg'",
+          "rationale": "LlamaFactory review 2026-09-25: its board shows progress, time remaining and a live loss curve and re-attaches after a reload; the training page draws a run's trace only after it finishes. Master's guidance (2026-09-25): no hook in trainingprogram; trainingworkflow.Request already takes a Progress writer and results carry per-step losses, and trainingworkflow is outside the inference-surface closure, so structured step events extend that path and the server publishes them on the event hub the lane built; the page subscribes like every inventory, no polling."
         }
       ]
     },
@@ -59,7 +74,7 @@
           "id": "do",
           "title": "Show a dataset record as the trainer sees it: rendered through the model's chat template and tokenizer, trained and masked tokens marked, records paged, with the token-length distribution",
           "status": "open",
-          "verify": "test -f internal/server/training_preview_test.go \u0026\u0026 go test ./internal/server -run '^TestDatasetPreviewShowsTrainedTokens$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TrainingPreview|LayoutAudit)$' -require 'training preview leg'",
+          "verify": "test -f internal/server/training_preview_test.go \u0026\u0026 go test ./internal/server -run '^TestDatasetPreviewShowsTrainedTokens$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TrainingPreview|LayoutAudit)$' -leg 'training preview leg'",
           "rationale": "LlamaFactory review 2026-09-25: it previews dataset rows; the dataset page shows one record. The preview renders a record through the served model's chat template and tokenizer, marks the tokens the objective trains and the prompt tokens it masks, pages records, and draws the token-length distribution, reusing the vocabulary analysis rather than a second tokenizer view."
         }
       ]
@@ -74,7 +89,7 @@
           "id": "do",
           "title": "Continue a stopped or resumed conversation exactly: keep the decoded tokens in the prompt cache, store each turn's token context, and continue after Stop with the tokens an uninterrupted greedy run produces, without re-prefill",
           "status": "open",
-          "verify": "test -f internal/server/response_session_test.go \u0026\u0026 go test ./internal/server -run '^TestResponsesContinueSavedSession$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SessionContinuation|LayoutAudit)$' -require 'session continuation leg'",
+          "verify": "test -f internal/server/response_session_test.go \u0026\u0026 go test ./internal/server -run '^TestResponsesContinueSavedSession$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SessionContinuation|LayoutAudit)$' -leg 'session continuation leg'",
           "rationale": "Survey (2026-09-23): continuing a conversation re-prefills the previous reply because the prompt cache saves only the prompt tokens and releases the decoded tokens' state when generation returns; the cache holds one entry shared by every request, so another conversation evicts it; Stop stores only the text already sent (the stop filter's held-back text and summary reasoning are lost) and continuing re-renders the partial as a finished message. The engine's SaveSession, LoadSession and ContinueSession have no production caller and work only on the host cache, which serving does not use. Save the cache entry after decoding (every token but the pending last one), return partial ids on cancellation, store each turn's token context with its interaction, build the next turn in token space, add a continue request with a Continue control, and delete the unused session API. Acceptance: continuing after Stop produces the tokens of an uninterrupted greedy run with no re-prefill; a session from another model or sampler is refused with its reason."
         }
       ]
@@ -89,7 +104,7 @@
           "id": "do",
           "title": "Decide pending operations where they surface, and several at once",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserApproveInPlace$' -require 'approve in place leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserApproveInPlace$' -leg 'approve in place leg'",
           "rationale": "A pending decision is decided only from Inbox or Automations. The status line and the operation's own view offer Grant and Decline where the decision surfaces, and several pending decisions are decided together. Judged by the effort leg's count for the decide task."
         }
       ]
@@ -104,7 +119,7 @@
           "id": "do",
           "title": "Remember the last generation settings per model and capability, keep named presets, and start a new run from a past run's recipe",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRememberedSettings$' -require 'remembered settings leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRememberedSettings$' -leg 'remembered settings leg'",
           "rationale": "Generation controls reset to the model's declared defaults on every mount. The last settings used are kept per model and capability, beside the declared defaults, so repeating a generation takes no re-entry. Folded in from the LlamaFactory review 2026-09-25: named presets, and a new run started from a past run's recipe (its reload-from-output-dir). Judged by the effort leg's count for the generate task."
         }
       ]
@@ -119,7 +134,7 @@
           "id": "do",
           "title": "Resume agent sessions after interruption and stream tool output into the thread",
           "status": "open",
-          "verify": "test -f internal/server/agent_session_recovery_test.go \u0026\u0026 go test ./internal/server -run '^TestAgentSessionRecoveryAndStreaming$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AgentRecovery|LayoutAudit)$' -require 'agent recovery leg'",
+          "verify": "test -f internal/server/agent_session_recovery_test.go \u0026\u0026 go test ./internal/server -run '^TestAgentSessionRecoveryAndStreaming$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AgentRecovery|LayoutAudit)$' -leg 'agent recovery leg'",
           "rationale": "Carried from professional_overgo_gui, after agent-route-consolidation so it builds on the single /agents/* prefix.",
           "depends_on": [
             "agent-route-consolidation/do"
@@ -137,7 +152,7 @@
           "id": "do",
           "title": "Compare base and adapter output side by side in chat on the same prompt and sampling",
           "status": "open",
-          "verify": "test -f internal/server/adapter_compare_test.go \u0026\u0026 go test ./internal/server -run '^TestAdapterComparisonTurn$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AdapterCompare|LayoutAudit)$' -require 'adapter compare leg'",
+          "verify": "test -f internal/server/adapter_compare_test.go \u0026\u0026 go test ./internal/server -run '^TestAdapterComparisonTurn$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(AdapterCompare|LayoutAudit)$' -leg 'adapter compare leg'",
           "rationale": "LlamaFactory review 2026-09-25: its chat loads a fine-tuned adapter. The server already serves LoRA adapters with scales; one prompt and one sampling run against the base and the adapter side by side is the check a workbench user makes after training."
         }
       ]
@@ -152,7 +167,7 @@
           "id": "do",
           "title": "Show the command that reproduces a workflow submission beside its Run button",
           "status": "open",
-          "verify": "test -f internal/server/workflow_command_test.go \u0026\u0026 go test ./internal/server -run '^TestWorkflowSubmissionCommand$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(CopyCommand|LayoutAudit)$' -require 'copy command leg'",
+          "verify": "test -f internal/server/workflow_command_test.go \u0026\u0026 go test ./internal/server -run '^TestWorkflowSubmissionCommand$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(CopyCommand|LayoutAudit)$' -leg 'copy command leg'",
           "rationale": "LlamaFactory review 2026-09-25: its Preview command renders the exact CLI of a run. A workflow submission is a recipe; its reproducing cmd invocation beside Run ties the workbench to the unattended loop and to scripts."
         }
       ]
@@ -167,7 +182,7 @@
           "id": "do",
           "title": "Predict a training or serving run's peak device memory before launch from the measured device-memory records",
           "status": "open",
-          "verify": "test -f internal/server/memory_estimate_test.go \u0026\u0026 go test ./internal/server -run '^TestRunMemoryEstimateFromMeasuredRecords$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(MemoryEstimate|LayoutAudit)$' -require 'memory estimate leg'",
+          "verify": "test -f internal/server/memory_estimate_test.go \u0026\u0026 go test ./internal/server -run '^TestRunMemoryEstimateFromMeasuredRecords$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(MemoryEstimate|LayoutAudit)$' -leg 'memory estimate leg'",
           "rationale": "LlamaFactory review 2026-09-25: it offers only a static VRAM table. Overgo records measured device memory per run (bounded attribution, nothing unattributed), so the launch form predicts peak memory from those measurements before a run starts, and says so when no measurement covers the choice."
         }
       ]
@@ -182,7 +197,7 @@
           "id": "do",
           "title": "Register datasets from alpaca, ShareGPT and OpenAI-messages files through one converter",
           "status": "open",
-          "verify": "test -f internal/dataset/common_format_test.go \u0026\u0026 go test ./internal/dataset -run '^TestCommonFormatsConvert$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(DatasetImport|LayoutAudit)$' -require 'dataset import leg'",
+          "verify": "test -f internal/dataset/common_format_test.go \u0026\u0026 go test ./internal/dataset -run '^TestCommonFormatsConvert$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(DatasetImport|LayoutAudit)$' -leg 'dataset import leg'",
           "rationale": "LlamaFactory review 2026-09-25: its registry reads alpaca, ShareGPT and OpenAI-messages files. One converter lets users register the datasets they already have. internal/dataset is in master's inference-surface closure, so this row lands batched with a master surface move, never alone."
         }
       ]
@@ -197,7 +212,7 @@
           "id": "do",
           "title": "Offer speculative decoding in Settings only when the served recipe declares a draft head, with depth taken from the declaration",
           "status": "open",
-          "verify": "test -f internal/server/speculative_option_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeculativeDecodingDeclaredOption$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SpeculativeDecoding|LayoutAudit)$' -require 'speculative decoding leg'",
+          "verify": "test -f internal/server/speculative_option_test.go \u0026\u0026 go test ./internal/server -run '^TestSpeculativeDecodingDeclaredOption$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(SpeculativeDecoding|LayoutAudit)$' -leg 'speculative decoding leg'",
           "rationale": "Carried from professional_overgo_gui. No option appears for a recipe without a draft head; the turn inspector shows accepted draft tokens."
         }
       ]
@@ -212,7 +227,7 @@
           "id": "do",
           "title": "Merge registered models, or an adapter into its base, from Model Builder, and export the result as quantized GGUF with an Ollama Modelfile, each with lineage",
           "status": "open",
-          "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -require 'model merge leg'",
+          "verify": "test -f internal/server/model_builder_merge_test.go \u0026\u0026 go test ./internal/server -run '^TestModelBuilderMergeRun$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(ModelMerge|LayoutAudit)$' -leg 'model merge leg'",
           "rationale": "Carried from professional_overgo_gui; its launch-reachability prerequisite is complete on master (workspace reachability leg passes). Folded in from the LlamaFactory review 2026-09-25: merge an adapter into its base, and export the result as quantized GGUF with an Ollama Modelfile, so overgo's output runs outside overgo."
         }
       ]
@@ -262,7 +277,7 @@
           "id": "do",
           "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -require 'stream lifecycle leg' -require 'tab mount errors: 0' -require 'artifact links leg' -require 'unlabelled controls: 0' -require 'hardened states leg' -require 'typeset leg' -require 'session continuation leg' -require 'agent recovery leg' -require 'speculative decoding leg' -require 'model merge leg' -require 'conversation control leg' -require 'mobile interaction leg' -require 'unoffered task leg' -require 'one event stream leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg'",
           "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
           "depends_on": [
             "webui-client-contract/do",

@@ -92,7 +92,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 			t.Error(finding)
 		}
 	}
-	t.Logf("states leg: picker-empty captured at %d viewports", len(webuilane.ScreenViewports))
+	webuilane.Leg(t, "states leg", "picker-empty captured at %d viewports", len(webuilane.ScreenViewports))
 	assertBrowserPredicate(t, ctx, browser, `(() => { [...document.querySelectorAll(".topbar .card button")].pop().click(); return true; })()`)
 	if err := browser.Eventually(ctx, `!!document.querySelector("#panel-library.active") && document.activeElement.getAttribute("aria-label") === "provider name"`); err != nil {
 		t.Fatal(err)

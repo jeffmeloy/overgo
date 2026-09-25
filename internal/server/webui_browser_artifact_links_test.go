@@ -109,5 +109,5 @@ func TestWebUIBrowserArtifactLinks(t *testing.T) {
 	settle(`(() => { const listed = [...document.querySelectorAll('#panel-artifacts .artifact-gallery article .mono')].map((node) => node.title); return ` + seeded + `.every((id) => listed.includes(id)); })()`)
 	settle(`overgo.api.inFlight() === 0 && window.laneArtifactStatuses.length > 0 && window.laneArtifactStatuses.every((status) => status === 200)`)
 	check(`!document.querySelector('#panel-artifacts .err-banner') && overgo.errors.length === 0`)
-	t.Log("artifact links leg: gallery links opened two entries in the Artifacts tab (mounting and mounted) and every artifact read was authenticated")
+	webuilane.Leg(t, "artifact links leg", "gallery links opened two entries in the Artifacts tab (mounting and mounted) and every artifact read was authenticated")
 }

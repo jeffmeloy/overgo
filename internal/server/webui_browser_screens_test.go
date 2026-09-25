@@ -67,5 +67,5 @@ func TestWebUIBrowserScreens(t *testing.T) {
 	for _, finding := range findings {
 		t.Error(finding)
 	}
-	t.Log(webuilane.CaptureSummary(states, findings))
+	webuilane.Leg(t, "screens leg", "%s", webuilane.CaptureSummary(states, findings))
 }

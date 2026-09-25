@@ -159,5 +159,5 @@ func TestWebUIBrowserDraftLifecycle(t *testing.T) {
 	settle(`!!document.querySelector('.composer textarea') && draftInput().value===''`)
 	check(`(() => {overgo.openConversation(draftStoredConversation);return true;})()`)
 	settle(`!!document.querySelector('.composer textarea') && draftInput().value==='The next unsent turn' && document.querySelector('.chat-log').textContent.includes('Stored answer')`)
-	t.Log("draft lifecycle leg: navigation, reload, file metadata, recipe limits, settings focus, delayed/failed switch, stale mount and unavailable storage passed; physical devices not exercised")
+	webuilane.Leg(t, "draft lifecycle leg", "navigation, reload, file metadata, recipe limits, settings focus, delayed/failed switch, stale mount and unavailable storage passed; physical devices not exercised")
 }

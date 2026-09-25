@@ -119,5 +119,5 @@ func TestWebUIBrowserServingStream(t *testing.T) {
 	if polls.Load() != 0 || streams.Load() < 2 {
 		t.Fatalf("activity GETs=%d authenticated streams=%d", polls.Load(), streams.Load())
 	}
-	t.Logf("serving stream leg: live turns, late Activity tab, bounded rows, reconnect, bearer stream; activity GETs=%d", polls.Load())
+	webuilane.Leg(t, "serving stream leg", "live turns, late Activity tab, bounded rows, reconnect, bearer stream; activity GETs=%d", polls.Load())
 }

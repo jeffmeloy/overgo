@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http/httptest"
 	"os"
 	"strconv"
@@ -131,7 +130,7 @@ func TestWebUIBrowserTaskEffort(t *testing.T) {
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
 	encoded, _ := json.Marshal(measured)
-	t.Log(fmt.Sprintf("task effort leg: %d common tasks at their shortest paths %s, with requests %v; five workspace places with %d navigation entries", len(commonTasks), encoded, requests, places.Entries))
+	webuilane.Leg(t, "task effort leg", "%d common tasks at their shortest paths %s, with requests %v; five workspace places with %d navigation entries", len(commonTasks), encoded, requests, places.Entries)
 }
 
 // effortCounters makes the page count its tab switches and the requests it

@@ -97,7 +97,7 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	check(`(() => {const button=clipButton();const accepted=overgo.capabilities().media.accept.filter(type=>type.startsWith('video/'));const intersects=accepted.some(type=>recorderTypes.includes(type));return button.disabled===!intersects && (intersects || (button.title.includes(recorderTypes.join(', ')) && button.title.includes(accepted.length?accepted.join(', '):'no video')));})()`)
 	check(`(() => {const files=[...captureDialog().querySelectorAll('button')].find(button=>button.textContent==='Choose files');const photo=[...captureDialog().querySelectorAll('button')].find(button=>button.textContent==='Take a photo');return !files.disabled && photo.disabled===!overgo.capabilities().media.accept.includes('image/png');})()`)
 	activate("Close")
-	t.Log("video capture negotiation leg: the choice states the browser's containers against the input's, file and photo capture stay")
+	webuilane.Leg(t, "video capture negotiation leg", "the choice states the browser's containers against the input's, file and photo capture stay")
 
 	// 2. With a recordable container declared, a bounded clip records, previews, retakes and attaches in that container.
 	check(`(() => {
@@ -144,7 +144,7 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 	activate("Attach clip")
 	settle(`document.querySelector('.attachment-row')?.dataset.state==='ready'`)
 	check(`(() => {const row=document.querySelector('.attachment-row');const type=recorderTypes[0];return row.textContent.includes('clip.'+(type==='video/mp4'?'mp4':'webm')) && Number(row.dataset.size)<=overgo.capabilities().media.max_media_bytes && !!row.querySelector('video') && captureTracks.every(track=>track.readyState==='ended');})()`)
-	t.Log("video capture recording leg: a bounded clip recorded, previewed, retook and attached in the negotiated container")
+	webuilane.Leg(t, "video capture recording leg", "a bounded clip recorded, previewed, retook and attached in the negotiated container")
 
 	// 3. The byte bound stops a clip that exceeds it, with a retake on offer.
 	check(`(() => {overgo.capabilities().media.max_media_bytes=2048;captureOpen();return true;})()`)
@@ -168,6 +168,6 @@ func TestWebUIBrowserVideoCapture(t *testing.T) {
 })()`)
 	check(`intakeGIF && (intakeDecodes ? intakeOutcome==='stored' : intakeOutcome.includes('does not decode '+recorderTypes[0]))`)
 	check(`(() => {clearInterval(window.capturePaint);return true;})()`)
-	t.Log("video capture leg: negotiated container, bounded recording with stop, preview, retake and cleanup, and the intake's own decision on the format")
-	t.Log("capture facing leg: front, rear and exact device constraints; previous tracks released before each switch; real recorder preview, recording and playback controls at desktop, phone, keyboard and small-phone sizes; synthetic devices, no physical-phone claim")
+	webuilane.Leg(t, "video capture leg", "negotiated container, bounded recording with stop, preview, retake and cleanup, and the intake's own decision on the format")
+	webuilane.Leg(t, "capture facing leg", "front, rear and exact device constraints; previous tracks released before each switch; real recorder preview, recording and playback controls at desktop, phone, keyboard and small-phone sizes; synthetic devices, no physical-phone claim")
 }

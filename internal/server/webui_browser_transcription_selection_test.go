@@ -172,5 +172,5 @@ func TestWebUIBrowserTranscriptionSelection(t *testing.T) {
 			t.Fatalf("native recipe=%+v err=%v", run, err)
 		}
 	}
-	t.Log("transcription selection leg: actual multipart handler and native ASR fixture; exact recipe and output lineage, retained recording, explicit discard/insert/replace and desktop/mobile graphical states")
+	webuilane.Leg(t, "transcription selection leg", "actual multipart handler and native ASR fixture; exact recipe and output lineage, retained recording, explicit discard/insert/replace and desktop/mobile graphical states")
 }

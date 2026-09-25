@@ -169,5 +169,5 @@ func TestWebUIBrowserAttachmentWorkflow(t *testing.T) {
 		check(`(() => {const send=document.querySelector('.send-button').getBoundingClientRect(),input=document.querySelector('.composer textarea').getBoundingClientRect();return send.bottom<=innerHeight&&input.top>=0&&input.bottom<=innerHeight&&document.querySelector('.chat-log').clientHeight>0&&document.querySelector('.composer-extras').scrollHeight>document.querySelector('.composer-extras').clientHeight;})()`)
 	}
 	check(`overgo.errors.length===0`)
-	t.Log("attachment workflow leg: native multi-file/paste, read/decode refusal and retry, stable previews/focus, real authenticated intake/preview, upload cancellation with late completion, mode rebinding, unknown-MIME refusal and bounded phone controls passed; declared image/slot fixtures do not claim generation or physical-device evidence")
+	webuilane.Leg(t, "attachment workflow leg", "native multi-file/paste, read/decode refusal and retry, stable previews/focus, real authenticated intake/preview, upload cancellation with late completion, mode rebinding, unknown-MIME refusal and bounded phone controls passed; declared image/slot fixtures do not claim generation or physical-device evidence")
 }

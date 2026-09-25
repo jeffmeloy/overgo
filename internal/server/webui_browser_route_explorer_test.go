@@ -80,5 +80,5 @@ func TestWebUIBrowserRouteExplorer(t *testing.T) {
 	if slices.ContainsFunc(received, func(request string) bool { return request[:4] == "POST" }) {
 		t.Errorf("the explorer sent a POST to /hub/downloads: %v", received)
 	}
-	t.Log("route explorer leg: the filter narrows the table; DELETE and GET rows send their declared method and query; no row starts a download it was asked to cancel")
+	webuilane.Leg(t, "route explorer leg", "the filter narrows the table; DELETE and GET rows send their declared method and query; no row starts a download it was asked to cancel")
 }

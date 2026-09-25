@@ -143,7 +143,7 @@ func TestModelJourneyNativeASRMicrophone(t *testing.T) {
 				}
 			}
 			check(`overgo.errors.length===0`)
-			t.Logf("native ASR microphone leg: real %s GUI: exact recipe %s, %d source-clip bytes recorded through synthetic microphone, keyboard submit, native transcript %q matches direct native HTTP; isolated model activations, not promotion or held-out quality", name, f.definitions[index].ID, len(f.inputs[index]), want)
+			webuilane.Leg(t, "native ASR microphone leg", "real %s GUI: exact recipe %s, %d source-clip bytes recorded through synthetic microphone, keyboard submit, native transcript %q matches direct native HTTP; isolated model activations, not promotion or held-out quality", name, f.definitions[index].ID, len(f.inputs[index]), want)
 		})
 	}
 }

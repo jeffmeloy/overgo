@@ -202,5 +202,5 @@ func TestWebUIBrowserConversationActions(t *testing.T) {
 	check(`(async () => {const other=(await overgo.api.get('/interactions?q=Other')).conversations[0];overgo.openConversation(other);return true;})()`)
 	settle(`document.querySelector('.chat-log').textContent.includes('An answer from another model')`)
 	check(`[...document.querySelectorAll('.msg .turn-action')].every(button=>button.disabled) && document.querySelector('.send-button').disabled && overgo.errors.length===0`)
-	t.Log("conversation actions leg: real immutable edit/regenerate branches, duplicate-submit guard, failed-branch retry, actual Stop cancellation, original/branch reopening, draft preservation, clipboard refusal and Markdown download contents passed; model output is synthetic and physical devices are outside this Chromium leg")
+	webuilane.Leg(t, "conversation actions leg", "real immutable edit/regenerate branches, duplicate-submit guard, failed-branch retry, actual Stop cancellation, original/branch reopening, draft preservation, clipboard refusal and Markdown download contents passed; model output is synthetic and physical devices are outside this Chromium leg")
 }

@@ -270,6 +270,27 @@ func (plan *protocolGenerationPlan) runWithSampler(
 	return protocolGenerationResult{ids: ids, pump: pump}, err
 }
 
+// countTurn is every protocol's input-token count: the protocol's turn
+// builder, the one its generation route calls, gives the chat request and
+// prompt tools, and the count measures the prompt they format (pending tool
+// calls are not executed). A refusal the builder wrote answers false.
+func (h *Handler) countTurn(response http.ResponseWriter, request *http.Request, object bool, turn func() (chatCompletionRequest, []inference.ChatTool, bool)) {
+	formatter, ok := h.requireProtocolTokenCounting(response, request)
+	if !ok {
+		return
+	}
+	chat, tools, ok := turn()
+	if !ok {
+		return
+	}
+	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, chat, tools, false)
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	h.writeProtocolInputTokenCount(response, request, normalized, object)
+}
+
 func (h *Handler) writeProtocolInputTokenCount(
 	response http.ResponseWriter,
 	request *http.Request,

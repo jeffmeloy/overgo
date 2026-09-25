@@ -137,24 +137,11 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
-	previous, parent, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
+	built, ok := h.responsesChatTurn(response, request, body)
 	if !ok {
 		return
 	}
-	reasoningSummary, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	toolSelection, err := selectResponsesTools(
-		body.Tools,
-		body.ToolChoice,
-		body.ParallelTools,
-	)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
+	parent, reasoningSummary, toolSelection := built.parent, built.summary, built.tools
 	if reasoningSummary && len(toolSelection.active) != 0 {
 		writeInvalidRequestMessage(response, "reasoning summaries cannot be combined with tools")
 		return
@@ -172,25 +159,11 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 			return
 		}
 	}
-	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	messages := responseRequestMessages(previous, current, body.Instructions)
-	turn := cloneResponseMessages(current)
-	multimodal := chatMediaCount(messages) != 0
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": reasoningThinking}
-	}
-	if multimodal {
-		normalizedBody.Tools = toolSelection.active
-	}
+	turn := cloneResponseMessages(built.current)
 	normalizedPrompt, err := h.normalizeChatPrompt(
 		request.Context(),
 		formatter,
-		normalizedBody,
+		built.chat,
 		toolSelection.prompt,
 		true,
 	)
@@ -733,54 +706,62 @@ func (h *Handler) streamResponses(
 	})
 }
 
+// The count takes the same request the turn will stream, so a page counts
+// with the exact body it sends; generation-only fields are ignored here.
 func (h *Handler) responsesInputTokens(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.requireProtocolTokenCounting(response, request)
+	h.countTurn(response, request, true, func() (chatCompletionRequest, []inference.ChatTool, bool) {
+		var body responsesRequest
+		if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+			return chatCompletionRequest{}, nil, false
+		}
+		turn, ok := h.responsesChatTurn(response, request, body)
+		return turn.chat, turn.tools.prompt, ok
+	})
+}
+
+// responsesTurn is the chat turn a Responses body asks for: the stored
+// history it continues and its new input as a chat request, its tools and
+// its reasoning.
+type responsesTurn struct {
+	chat    chatCompletionRequest
+	tools   chatToolSelection
+	current []inference.ChatMessage
+	parent  artifact.ID
+	summary bool
+}
+
+// responsesChatTurn builds the turn a Responses body and its token count
+// share, so a count measures the prompt its turn generates from; a refusal
+// is written and answers false.
+func (h *Handler) responsesChatTurn(response http.ResponseWriter, request *http.Request, body responsesRequest) (responsesTurn, bool) {
+	previous, parent, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
 	if !ok {
-		return
+		return responsesTurn{}, false
 	}
-	// The count takes the same request the turn will stream, so a page counts
-	// with the exact body it sends; generation-only fields are ignored here.
-	var body responsesRequest
-	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
-		return
-	}
-	previous, _, ok := h.previousResponseMessages(response, request.Context(), body.PreviousResponseID)
-	if !ok {
-		return
-	}
-	_, reasoningThinking, err := validateResponsesReasoning(body.Reasoning)
+	summary, thinking, err := validateResponsesReasoning(body.Reasoning)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return responsesTurn{}, false
 	}
-	toolSelection, err := selectResponsesTools(
-		body.Tools,
-		body.ToolChoice,
-		body.ParallelTools,
-	)
+	tools, err := selectResponsesTools(body.Tools, body.ToolChoice, body.ParallelTools)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return responsesTurn{}, false
 	}
 	current, err := h.parseResponsesMessages(request.Context(), body.Input, "")
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return responsesTurn{}, false
 	}
 	messages := responseRequestMessages(previous, current, body.Instructions)
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || body.Reasoning != nil {
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": reasoningThinking}
+	chat := chatCompletionRequest{Messages: messages}
+	if len(tools.prompt) != 0 || body.Reasoning != nil {
+		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
 	}
 	if chatMediaCount(messages) != 0 {
-		normalizedBody.Tools = toolSelection.active
+		chat.Tools = tools.active
 	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, normalizedBody, toolSelection.prompt, false)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	h.writeProtocolInputTokenCount(response, request, normalized, true)
+	return responsesTurn{chat: chat, tools: tools, current: current, parent: parent, summary: summary}, true
 }
 
 func (h *Handler) previousResponseMessages(

@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:2f640640ff3b57f7e7dde8ef84f0dda580fc68f282012a5da0480ab4f1f4559c"
+     "identity": "file:sha256:3e5c37eb9238bc7b96f20cb2ccc93b5aedf4a91a4b27cb13fc6068f181daeb95"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1130,7 +1130,7 @@
      "contains": "func (h *Handler) prepareProtocolGenerationPlan(",
      "path": "internal/server/protocol_common.go",
      "role": "source",
-     "identity": "file:sha256:dcfd22d32bc8e1db06bf44276577886c4a81c6e7cbb3f20348511ff95c7cd453"
+     "identity": "file:sha256:2f579c2019fe9811547bf03e7b6f0fdc5ec81e975e133fa0e602d81c49baf610"
     },
     {
      "contains": "func TestPreparedPromptGenerationAndTokenCountParity(",
@@ -1172,7 +1172,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:43312a310c379e8f9f6acb51d238850906d1f5e1b04ee1e8e261b8c817f352f6"
+     "identity": "file:sha256:2d5bc5f890fd6677da7be0d0035fd5f79aef58539df8c2e2e41c5a55eda1744d"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -1256,7 +1256,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:2f640640ff3b57f7e7dde8ef84f0dda580fc68f282012a5da0480ab4f1f4559c"
+     "identity": "file:sha256:3e5c37eb9238bc7b96f20cb2ccc93b5aedf4a91a4b27cb13fc6068f181daeb95"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

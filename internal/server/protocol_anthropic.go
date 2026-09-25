@@ -78,20 +78,11 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 		writeInvalidRequest(response, err)
 		return
 	}
-	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
-	if err != nil {
-		writeInvalidRequest(response, err)
+	turn, ok := h.anthropicChatTurn(response, request, body)
+	if !ok {
 		return
 	}
-	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	if thinkingEnabled && len(toolSelection.active) != 0 {
-		writeInvalidRequestMessage(response, "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
-		return
-	}
+	thinkingEnabled, toolSelection := turn.thinking, turn.tools
 	parserFeature := ""
 	if thinkingEnabled {
 		parserFeature = "thinking"
@@ -105,18 +96,8 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			return
 		}
 	}
-	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || thinkingEnabled {
-		normalizedBody.Tools = toolSelection.active
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
-	}
 	normalized, err := h.normalizeChatPrompt(
-		request.Context(), formatter, normalizedBody, toolSelection.prompt, true,
+		request.Context(), formatter, turn.chat, toolSelection.prompt, true,
 	)
 	if err != nil {
 		writeInvalidRequest(response, err)
@@ -492,46 +473,56 @@ func (h *Handler) streamAnthropicMessages(
 }
 
 func (h *Handler) anthropicInputTokens(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.requireProtocolTokenCounting(response, request)
-	if !ok {
-		return
-	}
-	var body anthropicTokenCountRequest
-	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
-		return
-	}
-	thinkingEnabled, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
+	h.countTurn(response, request, false, func() (chatCompletionRequest, []inference.ChatTool, bool) {
+		var body anthropicTokenCountRequest
+		if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+			return chatCompletionRequest{}, nil, false
+		}
+		turn, ok := h.anthropicChatTurn(response, request, body)
+		return turn.chat, turn.tools.prompt, ok
+	})
+}
+
+// anthropicThinkingWithTools refuses a turn that asks for signed thinking and tools together.
+const anthropicThinkingWithTools = "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable"
+
+// anthropicTurn is the chat turn an Anthropic body asks for: its thinking,
+// its tools and its messages as a chat request.
+type anthropicTurn struct {
+	chat     chatCompletionRequest
+	tools    chatToolSelection
+	thinking bool
+}
+
+// anthropicChatTurn builds the turn a messages body and its token count
+// share, so a count measures the prompt its turn generates from; a refusal
+// is written and answers false.
+func (h *Handler) anthropicChatTurn(response http.ResponseWriter, request *http.Request, body anthropicTokenCountRequest) (anthropicTurn, bool) {
+	thinking, err := validateAnthropicThinking(body.Thinking, body.MaxTokens)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return anthropicTurn{}, false
 	}
-	toolSelection, err := selectAnthropicTools(body.Tools, body.ToolChoice)
+	tools, err := selectAnthropicTools(body.Tools, body.ToolChoice)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return anthropicTurn{}, false
 	}
-	if thinkingEnabled && len(toolSelection.active) != 0 {
-		writeInvalidRequestMessage(response, "local Anthropic thinking cannot be combined with tools; interleaved signed thinking is unavailable")
-		return
+	if thinking && len(tools.active) != 0 {
+		writeInvalidRequestMessage(response, anthropicThinkingWithTools)
+		return anthropicTurn{}, false
 	}
 	messages, err := h.parseAnthropicMessages(request.Context(), body.System, body.Messages)
 	if err != nil {
 		writeInvalidRequest(response, err)
-		return
+		return anthropicTurn{}, false
 	}
-	normalizedBody := chatCompletionRequest{Messages: messages, N: 1}
-	if len(toolSelection.prompt) != 0 || thinkingEnabled {
-		normalizedBody.Tools = toolSelection.active
-		normalizedBody.TemplateKwargs = map[string]any{"enable_thinking": thinkingEnabled}
+	chat := chatCompletionRequest{Messages: messages}
+	if len(tools.prompt) != 0 || thinking {
+		chat.Tools = tools.active
+		chat.TemplateKwargs = map[string]any{templateThinkingKwarg: thinking}
 	}
-	normalized, err := h.normalizeChatPrompt(
-		request.Context(), formatter, normalizedBody, toolSelection.prompt, false,
-	)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	h.writeProtocolInputTokenCount(response, request, normalized, false)
+	return anthropicTurn{chat: chat, tools: tools, thinking: thinking}, true
 }
 
 func (h *Handler) parseAnthropicMessages(

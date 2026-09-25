@@ -82,7 +82,7 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 	ctx context.Context,
 	body chatCompletionRequest,
 ) (nativePrompt, error) {
-	if body.N != 1 {
+	if body.N > 1 { // zero is the default single choice
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
 	}
 	if len(body.Messages) != 1 ||
@@ -187,6 +187,10 @@ func (h *Handler) parseChatSingleMultimodalPrompt(
 
 const chatMediaMarkerPrefix = "<__overgo_media_"
 
+// templateThinkingKwarg is the chat template switch every protocol sets to
+// turn the model's thinking on or off.
+const templateThinkingKwarg = "enable_thinking"
+
 func (h *Handler) parseChatMultimodalPrompt(
 	ctx context.Context,
 	formatter ChatFormatter,
@@ -198,7 +202,7 @@ func (h *Handler) parseChatMultimodalPrompt(
 		!hasToolConfig && len(promptTools) == 0 {
 		return h.parseChatSingleMultimodalPrompt(ctx, body)
 	}
-	if body.N != 1 {
+	if body.N > 1 { // zero is the default single choice
 		return nativePrompt{}, errors.New("multimodal chat requires n=1")
 	}
 	mediaCount := chatMediaCount(body.Messages)
@@ -364,7 +368,7 @@ func chatTemplateKwargs(kwargs map[string]any) (bool, map[string]any, error) {
 	extras := make(map[string]any, len(kwargs))
 	for key, value := range kwargs {
 		switch key {
-		case "enable_thinking":
+		case templateThinkingKwarg:
 			var ok bool
 			if enabled, ok = value.(bool); !ok {
 				return false, nil, errors.New("chat_template_kwargs.enable_thinking must be a boolean")
@@ -402,28 +406,21 @@ func chatThinkingEnabled(kwargs map[string]any) (bool, error) {
 }
 
 func (h *Handler) chatInputTokens(response http.ResponseWriter, request *http.Request) {
-	formatter, ok := h.requireProtocolTokenCounting(response, request)
-	if !ok {
-		return
-	}
-	var body chatCompletionRequest
-	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
-		return
-	}
-	if body.N == 0 {
-		body.N = 1
-	}
-	toolSelection, err := selectChatTools(body)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	normalized, err := h.normalizeChatPrompt(request.Context(), formatter, body, toolSelection.prompt, false)
-	if err != nil {
-		writeInvalidRequest(response, err)
-		return
-	}
-	h.writeProtocolInputTokenCount(response, request, normalized, true)
+	h.countTurn(response, request, true, func() (chatCompletionRequest, []inference.ChatTool, bool) {
+		var body chatCompletionRequest
+		if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+			return body, nil, false
+		}
+		if body.N == 0 {
+			body.N = 1
+		}
+		toolSelection, err := selectChatTools(body)
+		if err != nil {
+			writeInvalidRequest(response, err)
+			return body, nil, false
+		}
+		return body, toolSelection.prompt, true
+	})
 }
 
 func (h *Handler) chatCompletions(response http.ResponseWriter, request *http.Request) {

@@ -6,20 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-turn-count",
-      "title": "One text turn, stage 2: one input-token count for chat, Responses and Anthropic in place of three handlers",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "One text turn, stage 2: one input-token count for chat, Responses and Anthropic in place of three handlers",
-          "status": "open",
-          "verify": "go test ./internal/server -run '^TestTextTurnCountsOnce$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "arch-turn-batch",
       "title": "One text turn, stage 3: serve /v1/completions through the shared generation plan, with its context check, and delete the batch plan",
       "owner": "overgo_gui_cleanup",

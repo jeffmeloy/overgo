@@ -4,6 +4,25 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "merge-e1ee1326fe2b",
+      "title": "Merge the VAE lane at e1ee1326fe2b",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "paydown": "automation-one-record-table",
+        "reason": "the VAE lane adds typed latent state, codec and readiness contracts, experimental evidence records (runrecord) and campaign-history adoption (plan); automation-one-record-table consolidates the record families"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the VAE lane at e1ee1326fe2b",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/representation -run '^TestLatentStateObservationAndSampleContract$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -150,6 +169,21 @@
           "status": "open",
           "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
           "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
+        }
+      ]
+    },
+    {
+      "id": "vae-latent-campaign",
+      "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Carry the VAE lane's latent campaign surface until the lane closes it",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestVAECampaignClosedOut$' -count=1",
+          "rationale": "The overgo_vae lane (branch codex/overgo_vae, campaign overgo_rsi_with_vae, design in docs/overgo_rsi_with_vae.md) runs the native-Go latent RSI and PEARL evidence campaign with its own plan in its own worktree. Master keeps its own plan, so the lane's staged surface (typed latent state, codec, geometry, recipe, readiness and experimental-evidence exports not yet consumed in production) retires with this one master row instead of lane-only rows. Each later lane merge re-points its new staged entries here. Consolidation phase: when this row is reached, fold the latent contracts into the shared record table and evidence validator rather than keeping lane-specific record families. Done when the lane's campaign closeout has merged and TestVAECampaignClosedOut proves no staged entry names this row."
         }
       ]
     },
@@ -1157,7 +1191,10 @@
             "audio-merge-replan/do",
             "merge-ab335708de08/do",
             "colibri2-merge-replan/do",
-            "colibri2-merge-budget/do"
+            "colibri2-merge-budget/do",
+            "vae-latent-campaign/do",
+            "merge-e1ee1326fe2b/do",
+            "vae-merge-replan/do"
           ]
         }
       ]

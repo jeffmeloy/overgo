@@ -573,6 +573,10 @@ func testModernMemoLiveAuthority(t *testing.T, root string) {
 	if err := os.WriteFile(path, document, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// Live gate admission requires the verification contract at HEAD even
+	// when the plan-only edit leaves the cached computation unchanged.
+	runGitFixture(t, root, "add", "--", plan.Path)
+	runGitFixture(t, root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-m", "publish admission contract")
 	g := modernMemoContext(t, root)
 	cache := g.loadRetryCache()
 	results := runModernMemo(t, g, "current owned plan", &cache)

@@ -208,6 +208,9 @@ func (g *gateContext) preflightAcceptance(ctx context.Context, output io.Writer)
 		fmt.Fprintf(output, "preflight: acceptance skipped: %s declares no verify\n", g.planRef)
 		return nil
 	}
+	if err := requireCommittedCheck(g.repo, g.planRef, verify); err != nil {
+		return fmt.Errorf("preflight: acceptance %s: %w", g.planRef, err)
+	}
 	environment, err := g.sourceEnvironment()
 	if err != nil {
 		return err

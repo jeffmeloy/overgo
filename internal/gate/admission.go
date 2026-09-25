@@ -126,9 +126,12 @@ func resolvePlanBindingWithStore(
 		return plan.CompletionAuthority{}, "", nil, err
 	}
 
-	_, _, claim, err := plan.RequireDispatch(context.Background(), store, document, authority, repo, role, ref)
+	_, step, claim, err := plan.RequireDispatch(context.Background(), store, document, authority, repo, role, ref)
 	if err != nil {
 		return plan.CompletionAuthority{}, "", nil, fmt.Errorf("gate: dispatched plan binding: %w", err)
+	}
+	if err := requireCommittedCheck(repo, ref, step.Verify); err != nil {
+		return plan.CompletionAuthority{}, "", nil, err
 	}
 	return authority, head, claim, nil
 }

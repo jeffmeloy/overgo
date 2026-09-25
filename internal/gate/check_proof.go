@@ -73,6 +73,11 @@ func (g *gateContext) proveCheck(verify string) error {
 	if growth <= 0 {
 		return nil
 	}
+	if covered, err := g.sourceProvenMergeGo(); err != nil {
+		return err
+	} else if covered {
+		return nil
+	}
 	return requireProvenCheck(growth, g.runAtBase(verify))
 }
 

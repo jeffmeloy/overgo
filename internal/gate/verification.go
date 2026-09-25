@@ -113,7 +113,7 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		// Keep browser, model and CUDA waves apart: shared device leases
 		// admit both even when their combined VRAM does not fit.
 		dependencies[automationcheck.ModelJourneyCheckName] = []string{automationcheck.WebUICheckName}
-		dependencies[testDeviceCheckName] = []string{automationcheck.ModelJourneyCheckName}
+		dependencies[testDeviceCheckName] = []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}
 	}
 	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {

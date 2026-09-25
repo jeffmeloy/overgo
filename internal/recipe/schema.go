@@ -3,6 +3,7 @@ package recipe
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"overgo/internal/artifact"
 	"overgo/internal/textcheck"
@@ -264,6 +265,40 @@ func (p ResidencyPolicy) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// RealizedResidency records the weight execution path after model open. An
+// empty value means a legacy or unobserved outcome, never a matched result.
+type RealizedResidency string
+
+const (
+	// RealizedStream means weights stream from their source during execution.
+	RealizedStream RealizedResidency = "stream"
+	// RealizedHostCache means the host weight cache was selected.
+	RealizedHostCache RealizedResidency = "host-cache"
+	// RealizedHostReference means execution uses the host reference path.
+	RealizedHostReference RealizedResidency = "host-reference"
+	// RealizedDeviceF32 means execution weights loaded as device F32.
+	RealizedDeviceF32 RealizedResidency = "device-f32"
+	// RealizedDeviceNative means native weight stores loaded on device.
+	RealizedDeviceNative RealizedResidency = "device-native"
+	// RealizedDeviceNativeBF16 means native weights and BF16 decode stores loaded.
+	RealizedDeviceNativeBF16 RealizedResidency = "device-native-bf16"
+	// RealizedOOMStreamed means hybrid preload failed on OOM and released its partial stores.
+	RealizedOOMStreamed RealizedResidency = "oom-streamed"
+	// RealizedExpertOffloaded reserves a distinct outcome for a future measured expert path.
+	RealizedExpertOffloaded RealizedResidency = "expert-offloaded"
+)
+
+var realizedResidencies = []RealizedResidency{
+	RealizedStream, RealizedHostCache, RealizedHostReference,
+	RealizedDeviceF32, RealizedDeviceNative, RealizedDeviceNativeBF16,
+	RealizedOOMStreamed, RealizedExpertOffloaded,
+}
+
+// Valid reports whether r is a declared realized residency.
+func (r RealizedResidency) Valid() bool {
+	return slices.Contains(realizedResidencies, r)
 }
 
 type Node struct {

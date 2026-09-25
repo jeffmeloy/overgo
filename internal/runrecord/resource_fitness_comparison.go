@@ -268,6 +268,11 @@ func canonicalizeResourceFitnessLane(lane *ResourceFitnessLane) error {
 	}
 	endpoints := lane.endpoints()
 	baselineScope := lane.Baseline.Scope
+	// Legacy serving streams remain readable, but an unknown or changed
+	// execution path cannot establish a matched performance improvement.
+	if baselineScope.Surface == SurfaceServing && !baselineScope.RealizedResidency.Valid() {
+		return fmt.Errorf("run record: resource fitness lane %q lacks realized serving residency", lane.Name)
+	}
 	baselineMeasures := lane.Baseline.Aggregate.Measures
 	seenAttempts := make(map[artifact.ID]struct{}, len(endpoints))
 	for _, endpoint := range endpoints {
@@ -275,6 +280,9 @@ func canonicalizeResourceFitnessLane(lane *ResourceFitnessLane) error {
 			return errors.Join(err, fmt.Errorf("run record: invalid resource fitness lane %q %s", lane.Name, endpoint.name))
 		}
 		scope := endpoint.stream.Scope
+		if baselineScope.RealizedResidency != scope.RealizedResidency {
+			return fmt.Errorf("run record: resource fitness lane %q realized residency differs", lane.Name)
+		}
 		if _, duplicate := seenAttempts[scope.Attempt]; duplicate ||
 			baselineScope.Surface != scope.Surface || baselineScope.Hardware != scope.Hardware ||
 			baselineScope.Provider != scope.Provider {

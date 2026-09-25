@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 )
 
 // ResourceFitnessVersion identifies the common resource observation contract.
@@ -97,12 +98,13 @@ type ResourceMeasure struct {
 // do not apply; fake identities are never synthesized to make a rectangular
 // record.
 type ResourceScope struct {
-	Surface  InteractionSurface `json:"surface"`
-	Model    artifact.ID        `json:"model,omitzero"`
-	Hardware artifact.ID        `json:"hardware,omitzero"`
-	Provider artifact.ID        `json:"provider,omitzero"`
-	Workload artifact.ID        `json:"workload"`
-	Attempt  artifact.ID        `json:"attempt"`
+	Surface           InteractionSurface       `json:"surface"`
+	RealizedResidency recipe.RealizedResidency `json:"realized_residency,omitzero"`
+	Model             artifact.ID              `json:"model,omitzero"`
+	Hardware          artifact.ID              `json:"hardware,omitzero"`
+	Provider          artifact.ID              `json:"provider,omitzero"`
+	Workload          artifact.ID              `json:"workload"`
+	Attempt           artifact.ID              `json:"attempt"`
 }
 
 // ResourceFitness is the common resource and interaction observation value.
@@ -198,6 +200,7 @@ func canonicalizeResourceFitness(value *ResourceFitness) error {
 
 func validateResourceScope(scope ResourceScope) error {
 	if !slices.Contains(interactionSurfaces, scope.Surface) ||
+		scope.RealizedResidency != "" && !scope.RealizedResidency.Valid() ||
 		scope.Model.Valid() && scope.Model.Kind() != artifact.KindModel ||
 		scope.Hardware.Valid() && scope.Hardware.Kind() != artifact.KindEvidence ||
 		scope.Provider.Valid() && scope.Provider.Kind() != artifact.KindProfile ||

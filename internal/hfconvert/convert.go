@@ -50,10 +50,19 @@ type tokenizerFile struct {
 	} `json:"added_tokens"`
 	PreTokenizer  json.RawMessage `json:"pre_tokenizer"`
 	PostProcessor json.RawMessage `json:"post_processor"`
+	Normalizer    json.RawMessage `json:"normalizer"`
+	Decoder       json.RawMessage `json:"decoder"`
 	Model         struct {
-		UnknownToken *string           `json:"unk_token"`
-		Vocab        map[string]int    `json:"vocab"`
-		Merges       []json.RawMessage `json:"merges"`
+		Type                    string             `json:"type"`
+		UnknownToken            *string            `json:"unk_token"`
+		Vocab                   map[string]int     `json:"vocab"`
+		Merges                  *[]json.RawMessage `json:"merges"`
+		IgnoreMerges            bool               `json:"ignore_merges"`
+		ByteFallback            bool               `json:"byte_fallback"`
+		Dropout                 *float64           `json:"dropout"`
+		FuseUnknown             bool               `json:"fuse_unk"`
+		ContinuingSubwordPrefix *string            `json:"continuing_subword_prefix"`
+		EndOfWordSuffix         *string            `json:"end_of_word_suffix"`
 	} `json:"model"`
 }
 
@@ -225,6 +234,11 @@ func tokenizerMetadata(directory string, vocabulary uint32, configuredEOS json.R
 	if err != nil {
 		return nil, err
 	}
+	if pre == "kimi" {
+		if err := validateKimiRankDeclaration(file); err != nil {
+			return nil, err
+		}
+	}
 	tokens := make([]string, vocabulary)
 	types := make([]int32, vocabulary)
 	seen := make([]bool, vocabulary)
@@ -253,7 +267,11 @@ func tokenizerMetadata(directory string, vocabulary uint32, configuredEOS json.R
 			tokens[id], types[id] = "[PAD"+strconv.Itoa(id)+"]", tokenTypeUnused
 		}
 	}
-	merges, err := mergeStrings(file.Model.Merges)
+	var rawMerges []json.RawMessage
+	if file.Model.Merges != nil {
+		rawMerges = *file.Model.Merges
+	}
+	merges, err := mergeStrings(rawMerges)
 	if err != nil {
 		return nil, err
 	}
@@ -355,9 +373,10 @@ const (
 )
 
 var splitRegexPre = map[string]string{
-	gpt2SplitRegex:   "gpt-2",
-	qwen2SplitRegex:  "qwen2",
-	qwen35SplitRegex: "qwen35",
+	gpt2SplitRegex:                            "gpt-2",
+	qwen2SplitRegex:                           "qwen2",
+	qwen35SplitRegex:                          "qwen35",
+	tokenizer.BPEPatternKimi:                  "kimi",
 	digitSplitRegex + "\n" + llama3SplitRegex: "llama-bpe",
 }
 
@@ -366,7 +385,43 @@ type preTokenizerNode struct {
 	Pattern struct {
 		Regex string `json:"Regex"`
 	} `json:"pattern"`
-	Pretokenizers []preTokenizerNode `json:"pretokenizers"`
+	Pretokenizers  []preTokenizerNode `json:"pretokenizers"`
+	Behavior       string             `json:"behavior"`
+	Invert         *bool              `json:"invert"`
+	AddPrefixSpace *bool              `json:"add_prefix_space"`
+	TrimOffsets    *bool              `json:"trim_offsets"`
+	UseRegex       *bool              `json:"use_regex"`
+}
+
+func validateKimiRankDeclaration(file tokenizerFile) error {
+	model := file.Model
+	if model.Type != "BPE" || model.Merges == nil || len(*model.Merges) != 0 || !model.IgnoreMerges ||
+		model.ByteFallback || model.Dropout != nil || model.UnknownToken != nil || model.FuseUnknown ||
+		model.ContinuingSubwordPrefix != nil || model.EndOfWordSuffix != nil {
+		return errors.New("HF converter: Kimi rank BPE requires ignore_merges:true, an explicit empty merges array and no unsupported BPE options")
+	}
+	if strictjson.HasValue(file.Normalizer) {
+		return errors.New("HF converter: Kimi rank BPE requires a null normalizer")
+	}
+	var root preTokenizerNode
+	if err := json.Unmarshal(file.PreTokenizer, &root); err != nil || root.Type != "Sequence" || len(root.Pretokenizers) != 2 {
+		return errors.New("HF converter: Kimi rank BPE requires Split then ByteLevel")
+	}
+	split, byteLevel := root.Pretokenizers[0], root.Pretokenizers[1]
+	if split.Type != "Split" || split.Pattern.Regex != tokenizer.BPEPatternKimi || split.Behavior != "Isolated" ||
+		split.Invert == nil || *split.Invert || byteLevel.Type != "ByteLevel" ||
+		byteLevel.AddPrefixSpace == nil || *byteLevel.AddPrefixSpace ||
+		byteLevel.TrimOffsets == nil || !*byteLevel.TrimOffsets ||
+		byteLevel.UseRegex == nil || *byteLevel.UseRegex {
+		return errors.New("HF converter: unsupported Kimi Split or ByteLevel declaration")
+	}
+	var decoder struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(file.Decoder, &decoder); err != nil || decoder.Type != "ByteLevel" {
+		return errors.New("HF converter: Kimi rank BPE requires a ByteLevel decoder")
+	}
+	return nil
 }
 
 func preTokenizerName(raw json.RawMessage) (string, error) {

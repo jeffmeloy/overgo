@@ -63,9 +63,15 @@ func TestMergeReplaySerializesHeavyLanes(t *testing.T) {
 	for name, prerequisite := range map[string]string{
 		automationcheck.WebUICheckName:        testOwnersCheckName,
 		automationcheck.ModelJourneyCheckName: automationcheck.WebUICheckName,
-		testDeviceCheckName:                   automationcheck.ModelJourneyCheckName,
+		testDeviceCheckName:                   testOwnersCheckName,
 		"device":                              testDeviceCheckName,
 	} {
+		if name == testDeviceCheckName {
+			if !slices.Equal(byName[name].Dependencies, []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}) {
+				t.Errorf("%s dependencies = %v; want owner preparation and model journey", name, byName[name].Dependencies)
+			}
+			continue
+		}
 		if !slices.Equal(byName[name].Dependencies, []string{prerequisite}) {
 			t.Errorf("%s dependencies = %v; want %s", name, byName[name].Dependencies, prerequisite)
 		}

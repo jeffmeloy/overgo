@@ -25,6 +25,7 @@ const (
 	trainingCompatibilityDocumentPath = "docs/TRAINING_COMPATIBILITY.md"
 	apiManifestJSONPath               = "docs/api_manifest.json"
 	modernGoBaselinePath              = "docs/modern_go_baseline.json"
+	harnessSurfaceBaselinePath        = "docs/harness_surface_baseline.json"
 )
 
 func prepareMerge(root, source string, output io.Writer) error {
@@ -177,6 +178,7 @@ func prepareMergeWithProjection(
 			trainingCompatibilityDocumentPath,
 			apiManifestJSONPath,
 			modernGoBaselinePath,
+			harnessSurfaceBaselinePath,
 		); err != nil {
 			return err
 		}
@@ -222,6 +224,22 @@ func prepareMergeWithProjection(
 		}
 		return nil
 	})
+}
+
+// restoreMergeTargetBaselines retains this lane's reviewed ratchets across a
+// generated-document conflict. The gate later recomputes them from merged code
+// and may lower a ceiling, while a raise still requires explicit paydown.
+func restoreMergeTargetBaselines(root, localRevision string) error {
+	for _, path := range []string{modernGoBaselinePath, harnessSurfaceBaselinePath} {
+		baseline, err := gitOutput(root, "show", localRevision+":"+path)
+		if err != nil {
+			return fmt.Errorf("restore target %s: %w", path, err)
+		}
+		if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(path)), baseline, clioptions.OutputFileMode); err != nil {
+			return fmt.Errorf("restore target %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 // mergeCapturedPlan performs the textual merge and restores the validated plan
@@ -334,7 +352,8 @@ func mergeOwnedDocument(path string) bool {
 		compatibilityDocumentPath,
 		trainingCompatibilityDocumentPath,
 		apiManifestJSONPath,
-		modernGoBaselinePath:
+		modernGoBaselinePath,
+		harnessSurfaceBaselinePath:
 		return true
 	default:
 		return false
@@ -342,12 +361,8 @@ func mergeOwnedDocument(path string) bool {
 }
 
 func regenerateMergeOwnedDocuments(root, localRevision string) error {
-	baseline, err := gitOutput(root, "show", localRevision+":"+modernGoBaselinePath)
-	if err != nil {
-		return fmt.Errorf("restore target modern-Go baseline: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(modernGoBaselinePath)), baseline, clioptions.OutputFileMode); err != nil {
-		return fmt.Errorf("restore target modern-Go baseline: %w", err)
+	if err := restoreMergeTargetBaselines(root, localRevision); err != nil {
+		return err
 	}
 	commands := []struct {
 		label string

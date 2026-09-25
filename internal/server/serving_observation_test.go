@@ -17,6 +17,12 @@ import (
 	"overgo/internal/testutil"
 )
 
+type realizedServingGenerator struct{ *recipeInspectorGenerator }
+
+func (*realizedServingGenerator) RealizedResidency() recipe.RealizedResidency {
+	return recipe.RealizedOOMStreamed
+}
+
 func TestServingObservationPublication(t *testing.T) {
 	t.Parallel()
 	store, err := overgodb.Open(t.TempDir())
@@ -44,7 +50,7 @@ func TestServingObservationPublication(t *testing.T) {
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		Repository: store, Analysis: testAnalysisPolicy,
-	}, generator)
+	}, &realizedServingGenerator{generator})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,6 +91,9 @@ func TestServingObservationPublication(t *testing.T) {
 	if len(status.Attempts) != 1 || status.Attempts[0].Kind() != artifact.KindEvidence {
 		t.Fatalf("recipe-bound attempts = %v", status.Attempts)
 	}
+	if authority := handler.runtimeSessionsSnapshot().Authority; authority == nil || authority.RealizedResidency != recipe.RealizedOOMStreamed {
+		t.Fatalf("runtime session lost actual residency: %+v", authority)
+	}
 	for _, descriptor := range result.Artifacts {
 		content, found, err := artifact.ReadContent(t.Context(), store, descriptor.ID)
 		if err != nil || !found {
@@ -92,6 +101,10 @@ func TestServingObservationPublication(t *testing.T) {
 		}
 		if strings.Contains(string(content.Data), prompt) {
 			t.Fatal("serving observation captured request text")
+		}
+		observation, err := runrecord.ParseServingObservation(content.Data)
+		if err != nil || observation.RealizedResidency != recipe.RealizedOOMStreamed {
+			t.Fatalf("serving residency was not observed: %+v, %v", observation, err)
 		}
 	}
 }

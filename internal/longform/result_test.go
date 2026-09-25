@@ -9,6 +9,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
@@ -70,6 +71,7 @@ func TestPublishedRunAdmitsOrRefusesSuitePasses(t *testing.T) {
 	}
 
 	passing := failing
+	passing.RealizedResidency = recipe.RealizedHostReference
 	passing.Measure.PromptTokensPerSecond = 2400
 	passing.Verdict = Judge(passing.Measure, passing.Short, floors)
 	record, err := Publish(ctx, store, model, passing)

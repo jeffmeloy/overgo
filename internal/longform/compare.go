@@ -16,6 +16,10 @@ import (
 // ceiling. A difference names the shape, so the report says which
 // context length moved.
 func Compare(record, fresh Result, floors Floors, ceiling int) Verdict {
+	if !record.RealizedResidency.Valid() || !fresh.RealizedResidency.Valid() ||
+		record.RealizedResidency != fresh.RealizedResidency {
+		return Verdict{Reasons: []string{"comparison lacks matching realized residency"}}
+	}
 	// Legacy records bind the device class, before UUID capture existed.
 	// Preserve that comparison scope; a recorded UUID may never disappear.
 	device := fresh.Device

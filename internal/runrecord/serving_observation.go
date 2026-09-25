@@ -79,25 +79,26 @@ const (
 
 // ServingObservation defines one recipe-bound serving attempt.
 type ServingObservation struct {
-	Version       uint16                  `json:"version"`
-	Model         artifact.ID             `json:"model"`
-	Recipe        artifact.ID             `json:"recipe"`
-	Environment   artifact.ID             `json:"environment"`
-	Operation     artifact.ID             `json:"operation,omitzero"`
-	Run           artifact.ID             `json:"run,omitzero"`
-	Previous      artifact.ID             `json:"previous,omitzero"`
-	Compatibility artifact.ID             `json:"compatibility,omitzero"`
-	Attempt       uint32                  `json:"attempt,omitzero"`
-	Task          recipe.Task             `json:"task"`
-	Outcome       Outcome                 `json:"outcome"`
-	StartedUnixNS int64                   `json:"started_unix_ns"`
-	MeasuredNS    uint64                  `json:"measured_ns"`
-	SessionReused bool                    `json:"session_reused,omitzero"`
-	Usage         ServingUsage            `json:"usage"`
-	Resources     ServingResources        `json:"resources"`
-	Phases        []PhaseMetric           `json:"phases,omitempty"`
-	Hardware      []ServingHardwareSample `json:"hardware,omitempty"`
-	Failure       string                  `json:"failure,omitzero"`
+	Version           uint16                   `json:"version"`
+	Model             artifact.ID              `json:"model"`
+	Recipe            artifact.ID              `json:"recipe"`
+	Environment       artifact.ID              `json:"environment"`
+	Operation         artifact.ID              `json:"operation,omitzero"`
+	Run               artifact.ID              `json:"run,omitzero"`
+	Previous          artifact.ID              `json:"previous,omitzero"`
+	Compatibility     artifact.ID              `json:"compatibility,omitzero"`
+	Attempt           uint32                   `json:"attempt,omitzero"`
+	Task              recipe.Task              `json:"task"`
+	RealizedResidency recipe.RealizedResidency `json:"realized_residency,omitzero"`
+	Outcome           Outcome                  `json:"outcome"`
+	StartedUnixNS     int64                    `json:"started_unix_ns"`
+	MeasuredNS        uint64                   `json:"measured_ns"`
+	SessionReused     bool                     `json:"session_reused,omitzero"`
+	Usage             ServingUsage             `json:"usage"`
+	Resources         ServingResources         `json:"resources"`
+	Phases            []PhaseMetric            `json:"phases,omitempty"`
+	Hardware          []ServingHardwareSample  `json:"hardware,omitempty"`
+	Failure           string                   `json:"failure,omitzero"`
 	// Causal explains why the serving execution occurred.
 	Causal *CausalContext `json:"causal,omitempty"`
 	ID     artifact.ID    `json:"-"`
@@ -260,7 +261,8 @@ func (value ServingObservation) ResourceFitness(
 	return NewResourceFitness(ResourceFitness{
 		Scope: ResourceScope{
 			Surface: SurfaceServing, Model: value.Model, Hardware: value.Environment,
-			Provider: provider, Workload: value.Recipe, Attempt: value.ID,
+			RealizedResidency: value.RealizedResidency,
+			Provider:          provider, Workload: value.Recipe, Attempt: value.ID,
 		},
 		Measures: measures, Interactions: interactions,
 	})
@@ -297,7 +299,8 @@ func servingAttemptAlias(operation artifact.ID, attempt uint32) string {
 func canonicalizeServingObservation(value *ServingObservation) error {
 	if value == nil || value.Version != artifact.InitialDocumentVersion || value.Model.Kind() != artifact.KindModel ||
 		value.Recipe.Kind() != artifact.KindRecipe || value.Environment.Kind() != artifact.KindEvidence ||
-		!value.Task.Valid() || value.StartedUnixNS <= 0 || value.MeasuredNS > math.MaxInt64 {
+		!value.Task.Valid() || value.RealizedResidency != "" && !value.RealizedResidency.Valid() ||
+		value.StartedUnixNS <= 0 || value.MeasuredNS > math.MaxInt64 {
 		return errors.New("run record: invalid serving observation authority")
 	}
 	if value.Operation.Valid() && (value.Operation.Kind() != artifact.KindEvidence || value.Operation == value.Environment) {

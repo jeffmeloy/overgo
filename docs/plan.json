@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "webui-census-parsed",
-      "title": "Classify the workbench from what the browser parses: design tokens from the CSSOM, controls, inline styles and dialogs from the live page, and the source-only checks through a JavaScript tokenizer, retiring the regex census",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Classify the workbench from what the browser parses: design tokens from the CSSOM, controls, inline styles and dialogs from the live page, and the source-only checks through a JavaScript tokenizer, retiring the regex census",
-          "status": "open",
-          "verify": "go test ./internal/webuilane -run '^TestCensusClassifiesWithoutRegex$' -count=1",
-          "rationale": "Owner direction 2026-09-25, and the standing rule against regex parsing of CSS or JSON in shipped code: internal/webuilane classifies the workbench with fifteen regular expressions over CSS and JavaScript source (design.go root blocks and custom properties, census.go controls, buttons, inline styles, dialogs, silent catches, nested ternaries, timer literals, debt markers). The browser already parses both: design tokens come from the CSSOM in both colour schemes, controls, inline styles and labels from the live DOM the screens walk visits, and dialogs by trapping alert, confirm and prompt; the checks only source can answer read a JavaScript token stream. Judged by a test that fails while webuilane imports regexp outside tests."
-        }
-      ]
-    },
-    {
       "id": "arch-turn-encoders",
       "title": "One text turn, stage 5: one turn run and outcome for chat, Responses and Anthropic, leaving each protocol only its event encoder",
       "owner": "overgo_gui_cleanup",

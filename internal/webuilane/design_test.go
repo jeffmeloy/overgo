@@ -73,7 +73,7 @@ func TestDesignMeasuresThePairsTheStylesheetPaints(t *testing.T) {
 		}
 	}
 	rule := ".x { color:var(--ink); /* note; */ background:var(--acc-soft); } .y { color:red; background:var(--bg0); }"
-	if pairs := paintedPairs(rule); len(pairs) != 1 || pairs[0] != [2]string{"ink", "acc-soft"} {
+	if pairs := paintedPairs(cssRule{rules: parseCSS(rule)}); len(pairs) != 1 || pairs[0] != [2]string{"ink", "acc-soft"} {
 		t.Fatalf("painted pairs of %q = %v", rule, pairs)
 	}
 	soft, _ := parseColour("rgba(255,255,255,.5)")

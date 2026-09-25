@@ -1,12 +1,12 @@
 package webuilane
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
 	"math"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -53,28 +53,28 @@ type TokenContrast struct {
 	Ratio      float64 `json:"ratio"`
 }
 
-var (
-	rootBlock      = regexp.MustCompile(`(?s)(?:^|\n):root \{(.*?)\n\}`)
-	lightRootBlock = regexp.MustCompile(`(?s)@media \(prefers-color-scheme: light\) \{\s*:root \{(.*?)\n  \}`)
-	customProperty = regexp.MustCompile(`--([a-z0-9-]+):\s*([^;]*\S)\s*$`)
-	hexColour      = regexp.MustCompile(`^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
-	spacingToken   = regexp.MustCompile(`^s[0-9]+$`)
+// The rules that declare the two schemes' tokens.
+const (
+	rootPrelude        = ":root"
+	lightSchemePrelude = "@media (prefers-color-scheme: light)"
 )
 
 // ParseDesign derives the design document from the stylesheet: the dark
-// scheme is the root declaration, the light scheme overrides it under
-// prefers-color-scheme: light.
+// scheme is the top-level root rule, the light scheme overrides it in the
+// root rule under prefers-color-scheme: light.
 func ParseDesign(stylesheet string) (DesignDocument, error) {
-	dark := rootBlock.FindStringSubmatch(stylesheet)
-	light := lightRootBlock.FindStringSubmatch(stylesheet)
-	if dark == nil || light == nil {
+	sheet := cssRule{rules: parseCSS(stylesheet)}
+	dark, darkFound := sheet.rule(rootPrelude)
+	media, mediaFound := sheet.rule(lightSchemePrelude)
+	light, lightFound := media.rule(rootPrelude)
+	if !darkFound || !mediaFound || !lightFound {
 		return DesignDocument{}, errors.New("webui design: the stylesheet declares no root token block for each scheme")
 	}
-	base := properties(dark[1])
+	base := properties(dark)
 	document := DesignDocument{Source: StylesheetPath, Spacing: map[string]string{}, Type: map[string]string{}, Radius: map[string]string{}}
 	for name, value := range base {
 		switch {
-		case spacingToken.MatchString(name):
+		case spacingToken(name):
 			document.Spacing[name] = value
 		case strings.HasPrefix(name, "t-"):
 			document.Type[name] = value
@@ -82,8 +82,8 @@ func ParseDesign(stylesheet string) (DesignDocument, error) {
 			document.Radius[name] = value
 		}
 	}
-	overrides := properties(light[1])
-	painted := paintedPairs(stylesheet)
+	overrides := properties(light)
+	painted := paintedPairs(sheet)
 	for _, scheme := range []struct {
 		name   string
 		tokens map[string]string
@@ -98,49 +98,31 @@ func ParseDesign(stylesheet string) (DesignDocument, error) {
 }
 
 // paintedPairs answers each token text colour the stylesheet paints on a
-// token background within one rule, in the order the rules declare them.
-// Rules are split at their braces and declarations at semicolons, so a
-// pair is read as the stylesheet states it; comments hold no declarations.
-func paintedPairs(stylesheet string) [][2]string {
+// token background within one rule, at any nesting, in the order the rules
+// declare them.
+func paintedPairs(sheet cssRule) [][2]string {
 	token := func(value string) string {
-		name, ok := strings.CutPrefix(strings.TrimSpace(value), "var(--")
+		name, ok := strings.CutPrefix(value, "var(--")
 		if name, closed := strings.CutSuffix(name, ")"); ok && closed {
 			return name
 		}
 		return ""
 	}
-	var uncommented strings.Builder
-	for rest := stylesheet; rest != ""; {
-		before, comment, opened := strings.Cut(rest, "/*")
-		uncommented.WriteString(before)
-		_, rest, _ = strings.Cut(comment, "*/")
-		if !opened {
-			break
-		}
-	}
 	var pairs [][2]string
-	for block := range strings.SplitSeq(uncommented.String(), "}") {
-		_, body, ok := strings.Cut(block, "{")
-		if !ok {
-			continue
-		}
+	sheet.walk(func(rule cssRule) {
 		var foreground, background string
-		for declaration := range strings.SplitSeq(body, ";") {
-			property, value, ok := strings.Cut(declaration, ":")
-			if !ok {
-				continue
-			}
-			switch strings.TrimSpace(property) {
+		for _, declaration := range rule.declarations {
+			switch declaration.property {
 			case "color":
-				foreground = token(value)
+				foreground = token(declaration.value)
 			case "background", "background-color":
-				background = token(value)
+				background = token(declaration.value)
 			}
 		}
 		if pair := [2]string{foreground, background}; foreground != "" && background != "" && !slices.Contains(pairs, pair) {
 			pairs = append(pairs, pair)
 		}
-	}
+	})
 	return pairs
 }
 
@@ -154,14 +136,22 @@ func EncodeDesign(document DesignDocument) ([]byte, error) {
 	return append(encoded, '\n'), nil
 }
 
-func properties(block string) map[string]string {
+// properties answers a rule's custom properties by name, without their
+// leading dashes.
+func properties(rule cssRule) map[string]string {
 	values := map[string]string{}
-	for declaration := range strings.SplitSeq(block, ";") {
-		if match := customProperty.FindStringSubmatch(declaration); match != nil {
-			values[match[1]] = match[2]
+	for _, declaration := range rule.declarations {
+		if name, custom := strings.CutPrefix(declaration.property, "--"); custom && name != "" && declaration.value != "" {
+			values[name] = declaration.value
 		}
 	}
 	return values
+}
+
+// spacingToken: an s followed by digits names a spacing step.
+func spacingToken(name string) bool {
+	step, found := strings.CutPrefix(name, "s")
+	return found && step != "" && strings.Trim(step, "0123456789") == ""
 }
 
 func merged(base, overrides map[string]string) map[string]string {
@@ -224,16 +214,16 @@ type colour struct {
 func parseColour(value string) (colour, bool) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	parsed := colour{alpha: 1}
-	if hexColour.MatchString(value) {
-		digits := value[1:]
+	if digits, hexadecimal := strings.CutPrefix(value, "#"); hexadecimal {
+		// The short form writes each channel's digit once.
 		if len(digits) == len(parsed.channels) {
 			digits = string([]byte{digits[0], digits[0], digits[1], digits[1], digits[2], digits[2]})
 		}
-		for index := range parsed.channels {
-			channel, err := strconv.ParseUint(digits[index*2:index*2+2], 16, 8)
-			if err != nil {
-				return colour{}, false
-			}
+		decoded, err := hex.DecodeString(digits)
+		if err != nil || len(decoded) != len(parsed.channels) {
+			return colour{}, false
+		}
+		for index, channel := range decoded {
 			parsed.channels[index] = float64(channel)
 		}
 		return parsed, true

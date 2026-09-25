@@ -263,7 +263,7 @@
       el('div', { class: 'dialog-heading' }, el('h2', { text: 'Activity' }), el('button', { class: 'btn alt', text: 'Close', 'aria-label': 'Close activity', onclick: closeActivity })), streamHost, listHost, detailHost);
     activityDialog.addEventListener('cancel', event => { event.preventDefault(); closeActivity(); });
     document.body.appendChild(activityDialog);
-    summaryButton = el('button', { class: 'link-button activity-summary', 'aria-haspopup': 'dialog', onclick: openActivity });
+    summaryButton = el('button', { class: 'link-button activity-summary', text: 'Activity', 'aria-haspopup': 'dialog', onclick: openActivity });
     host.replaceChildren(el('div', { class: 'operation-strip', 'aria-live': 'polite' }, summaryButton));
     selected = routeOperation();
     renderStrip(host);

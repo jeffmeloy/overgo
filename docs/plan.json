@@ -4,17 +4,77 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "wire-sft-evaluation",
-      "title": "Approve training objectives on held-out target reports",
+      "id": "objective-split-at-publication",
+      "title": "Bind each objective to a real training split",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Approve training objectives on held-out target reports",
+          "title": "Bind each objective to a real training split",
           "status": "open",
-          "verify": "go test ./internal/evaluation -run '^TestObjectiveApprovalAcceptsHeldOutTargetReports$' -count=1",
-          "rationale": "Wire held-out evaluation into training approval (audit of 7694f00e, 2026-09-24). Today a training run uses the whole dataset as its all split (internal/trainingworkflow/bootstrap_recipe.go), the objective's evaluation field is a placeholder profile, BuildGroupSplit has no production caller, and PromoteObjectiveApproved accepts only benchmark campaign or shard reports (evaluation/report_authority.go), which exist only for text LLMs. So no forecasting, tabular, speech, image, video or preference objective can be approved: TimesFM-2.5, TabFM-1.0, Pocket-TTS, Krea-2-Turbo, Wan2.1, Unlimited-OCR, and DPO runs from the web UI. Split each objective's dataset with BuildGroupSplit, compile the SFT evaluation view over the held-out split, run the trained model through its capability, score it with the target scorer its modality declares, publish the target report, and let report authority accept the four target-report schemas. Done when TestObjectiveApprovalAcceptsHeldOutTargetReports approves an objective on a held-out numeric target report and refuses one scored on training records."
+          "verify": "go test ./cmd/training-objective -run '^TestPublishObjectiveBindsTrainingMembership$' -count=1",
+          "rationale": "cmd/training-objective publishObjective fills Split with a placeholder identity (overgo/training-objective/split/\u003cdataset\u003e), so no objective names a real training membership and CompileSFTEvaluationView cannot bind one. Load the registered dataset, form records from its assets with a required -split-group asset|record, split them with dataset.BuildGroupSplit (seed from the dataset identity's digest, partition weights from a required -split-weights, so the ratio is declared, never defaulted), set Split to the train membership, and publish the split plan in the objective's batch. Done when TestPublishObjectiveBindsTrainingMembership publishes an objective whose Split is a committed train membership disjoint from its held-out partition."
+        }
+      ]
+    },
+    {
+      "id": "wire-sft-evaluation",
+      "title": "Approve forecast objectives on held-out forecasts",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve forecast objectives on held-out forecasts",
+          "status": "open",
+          "verify": "go test ./cmd/seriesforecast-train-probe -run '^TestForecastObjectiveProbeScoresOnlyHeldoutRecords$' -count=1",
+          "rationale": "Forecast held-out slice, the first end-to-end use (design 2026-09-24). seriesforecast-train-probe never touches the store or an objective, so no TimesFM objective can reach adaptive-evidence, let alone approved. Add -store \u003croot\u003e -objective \u003calias\u003e: check the -dataset file is one of the objective dataset's assets, train only on training-membership records, run BootstrapObjectiveRecipe and Observer Admit/Finish for the observation, forecast the held-out records with the base weights and again with the trained weights (seriesforecast.NewTrainer updates Model.Weights in place), score both with CompileNumericTargetPlan and ScoreNumericTargets (absolute error), judge with JudgeHeldout, publish the view, plan, reports and verdict, and print their identities. The ladder then runs through training-objective -promote and -approve. Transformers layout only; the native layout refuses training. Done when TestForecastObjectiveProbeScoresOnlyHeldoutRecords walks a synthetic model from objective to approved and proves no held-out record reached training."
+        }
+      ]
+    },
+    {
+      "id": "heldout-tabular-slice",
+      "title": "Approve tabular objectives on held-out label accuracy",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve tabular objectives on held-out label accuracy",
+          "status": "open",
+          "verify": "go test ./cmd/tabular-train-probe -run '^TestTabularObjectiveProbeApprovesOnLabelAccuracyGain$' -count=1",
+          "rationale": "Tabular held-out slice (design 2026-09-24): tabular-train-probe gains the same -store -objective mode as the forecast probe. Train tabularicl on training-membership rows, predict held-out rows with Model.Predict before and after, score with NumericLabelAccuracy, judge, publish. TabFM-1.0 objectives can then be approved. Done when TestTabularObjectiveProbeApprovesOnLabelAccuracyGain walks a synthetic table model from objective to approved."
+        }
+      ]
+    },
+    {
+      "id": "heldout-text-slice",
+      "title": "Approve text objectives on held-out token accuracy",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve text objectives on held-out token accuracy",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run '^TestTextObjectiveApprovesOnHeldOutGain$' -count=1",
+          "rationale": "Text held-out slice (design 2026-09-24): the text target scorers (CompileTextTargetPlan, ScoreTextTargets) need a production caller, and token-accuracy objectives need a scorer. Add a token-accuracy TextScorer, make trainingworkflow's data authority use the objective's training membership instead of the all split (session authority identities change, so migrate them), and score the checkpoint cmd/train writes against its base on the held-out view. Done when TestTextObjectiveApprovesOnHeldOutGain approves a tiny text objective on a held-out token-accuracy gain."
+        }
+      ]
+    },
+    {
+      "id": "heldout-preference-slice",
+      "title": "Gate DPO approval on held-out preference pairs",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Gate DPO approval on held-out preference pairs",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestPreferenceWorkspaceScoresHeldOutPairs$' -count=1",
+          "rationale": "Preference held-out slice (design 2026-09-24): the web UI training workspace runs DPO with no held-out check. Score held-out preference pairs with ScorePreferenceTargets from policy and reference sequence scores, judge against the reference, and gate the workspace's approval on the verdict. GRPO has no target scorer yet, so name that as its own follow-up. Done when TestPreferenceWorkspaceScoresHeldOutPairs refuses approval without a held-out gain and grants it with one."
         }
       ]
     },
@@ -90,6 +150,21 @@
           "status": "open",
           "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
           "rationale": "Declare a caller for every command, owner directive 2026-09-24: a command nothing refers to is not deleted. From consolidation-inventory: 20 cmd/ commands have no reference in code, docs, scripts or the plan (seam-align, audio-inspect, latentvideo-run, mechanism-census, coverage-lanes, buildscrub, hf-hub, activation-cases, inspect-safetensors, dataset-catalog, remote-provider, sealed-authority, tool-workflow, model-config, router-observation, model-build, profile-catalog, rerank). Record each one's audience and purpose in commanddoc. Wire the training and model ones where their workflow starts: dataset-catalog behind wire-dataset-mixture, and model-build, hf-hub and latentvideo-run from the model onboarding and run paths. Delete only a command a named wired command supersedes. Done when TestEveryCommandHasACaller holds."
+        }
+      ]
+    },
+    {
+      "id": "heldout-media-slice",
+      "title": "Approve media objectives on held-out signal quality",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve media objectives on held-out signal quality",
+          "status": "open",
+          "verify": "go test ./internal/evaluation -run '^TestMediaObjectiveApprovesOnHeldOutGain$' -count=1",
+          "rationale": "Media held-out slice (design 2026-09-24): CompileMediaTargetPlan and ScoreMediaTargets need output artifacts, oracles and verifier profiles, and generation through mediacapability takes minutes per record on CUDA. Wire audio-snr (Pocket-TTS) first, then image and video PSNR (Krea-2-Turbo, Wan2.1), scoring a bounded held-out subset whose size the objective declares. Done when TestMediaObjectiveApprovesOnHeldOutGain approves a tiny synthetic audio objective on a held-out SNR gain."
         }
       ]
     },
@@ -950,7 +1025,13 @@
             "wire-dataset-mixture/do",
             "wire-bank-trainer/do",
             "e4b-full-parameter-trainer/do",
-            "restore-sft-evaluation-targets/do"
+            "restore-sft-evaluation-targets/do",
+            "objective-split-at-publication/do",
+            "heldout-tabular-slice/do",
+            "heldout-text-slice/do",
+            "heldout-preference-slice/do",
+            "heldout-media-slice/do",
+            "heldout-approval-authority/do"
           ]
         }
       ]

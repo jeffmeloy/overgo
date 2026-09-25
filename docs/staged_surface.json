@@ -202,13 +202,13 @@
       "package": "overgo/internal/evaluation",
       "name": "CompileMediaTargetPlan",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
+      "retire_with": "heldout-media-slice/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "ScoreMediaTargets",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
+      "retire_with": "heldout-media-slice/do"
     },
     {
       "package": "overgo/internal/evaluation",
@@ -226,31 +226,25 @@
       "package": "overgo/internal/evaluation",
       "name": "CompilePreferenceTargetPlan",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
+      "retire_with": "heldout-preference-slice/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "ScorePreferenceTargets",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
-    },
-    {
-      "package": "overgo/internal/evaluation",
-      "name": "CompileSFTEvaluationView",
-      "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
+      "retire_with": "heldout-preference-slice/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "CompileTextTargetPlan",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
+      "retire_with": "heldout-text-slice/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "ScoreTextTargets",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
+      "retire_with": "heldout-text-slice/do"
     }
   ]
 }

@@ -50,7 +50,7 @@ func run(args []string, output io.Writer) error {
 	promote := flags.String("promote", "", "registered objective alias to promote from declared to adaptive-evidence (with -observations)")
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")
 	approve := flags.String("approve", "", "registered objective alias to promote from adaptive-evidence to approved (with -evaluations)")
-	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval")
+	evaluationsText := flags.String("evaluations", "", "comma-separated committed passed evaluation report IDs grounding the approval; at least one must be a held-out verdict for this objective")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}

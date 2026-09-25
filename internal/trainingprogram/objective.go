@@ -1,6 +1,7 @@
 package trainingprogram
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -207,6 +208,20 @@ func LoadObjective(ctx context.Context, reader artifact.Reader, id artifact.ID) 
 	return document, nil
 }
 
+// SameContract reports whether two objective documents declare the same
+// training contract: every field but the authority and evidence that each
+// promotion changes, so evidence gathered under one rung stays bound to the
+// objective as it climbs.
+func SameContract(left, right ObjectiveDocument) bool {
+	encode := func(value ObjectiveDocument) ([]byte, error) {
+		value.Authority, value.Evidence = "", nil
+		return objectiveCodec.Encode(value)
+	}
+	leftBody, leftErr := encode(left)
+	rightBody, rightErr := encode(right)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftBody, rightBody)
+}
+
 func canonicalizeObjective(value *ObjectiveDocument) error {
 	if value.Version != artifact.SecondDocumentVersion || strings.TrimSpace(value.Name) == "" || value.Name != strings.TrimSpace(value.Name) ||
 		value.Dataset.Kind() != artifact.KindDataset || value.Split.Kind() != artifact.KindDatasetShard ||
@@ -224,29 +239,32 @@ func canonicalizeObjective(value *ObjectiveDocument) error {
 		return fmt.Errorf("training objective: signature differs from %q contract", value.Kind)
 	}
 	var err error
-	if value.Processors, err = canonicalObjectiveIDs(value.Processors, artifact.KindProfile, true); err != nil {
+	if value.Processors, err = canonicalObjectiveIDs(value.Processors, true, artifact.KindProfile); err != nil {
 		return fmt.Errorf("training objective: processors: %w", err)
 	}
-	if value.Projectors, err = canonicalObjectiveIDs(value.Projectors, artifact.KindProjector, false); err != nil {
+	if value.Projectors, err = canonicalObjectiveIDs(value.Projectors, false, artifact.KindProjector); err != nil {
 		return fmt.Errorf("training objective: projectors: %w", err)
 	}
-	if value.Codecs, err = canonicalObjectiveIDs(value.Codecs, artifact.KindProfile, false); err != nil {
+	if value.Codecs, err = canonicalObjectiveIDs(value.Codecs, false, artifact.KindProfile); err != nil {
 		return fmt.Errorf("training objective: codecs: %w", err)
 	}
-	if value.Evidence, err = canonicalObjectiveIDs(value.Evidence, artifact.KindEvidence, true); err != nil {
+	if value.Evidence, err = canonicalObjectiveIDs(value.Evidence, true, artifact.KindEvidence, artifact.KindEvaluation); err != nil {
 		return fmt.Errorf("training objective: evidence: %w", err)
 	}
 	return nil
 }
 
-func canonicalObjectiveIDs(source []artifact.ID, kind artifact.Kind, required bool) ([]artifact.ID, error) {
+// canonicalObjectiveIDs sorts identities and requires each to be one of kinds,
+// once. Evidence holds training observations and the evaluation reports that
+// approved the objective.
+func canonicalObjectiveIDs(source []artifact.ID, required bool, kinds ...artifact.Kind) ([]artifact.ID, error) {
 	result := slices.Clone(source)
-	sort.Slice(result, func(left, right int) bool { return result[left].String() < result[right].String() })
+	slices.SortFunc(result, func(left, right artifact.ID) int { return strings.Compare(left.String(), right.String()) })
 	if required && len(result) == 0 {
 		return nil, errors.New("required identities absent")
 	}
 	for index, id := range result {
-		if id.Kind() != kind || index > 0 && result[index-1] == id {
+		if !slices.Contains(kinds, id.Kind()) || index > 0 && result[index-1] == id {
 			return nil, errors.New("invalid or duplicate identity")
 		}
 	}
@@ -268,6 +286,8 @@ func objectiveSignatureValid(kind ObjectiveKind, signature recipecontract.Modali
 		return input == recipecontract.ModalityText && output == recipecontract.ModalityAudio
 	case ObjectiveForecast:
 		return input == recipecontract.ModalityTimeSeries && output == recipecontract.ModalityTimeSeries
+	case ObjectiveTablePrediction:
+		return input == recipecontract.ModalityTable && output == recipecontract.ModalityTable
 	case ObjectiveOCR:
 		return input == recipecontract.ModalityImage && output == recipecontract.ModalityText
 	case ObjectiveFlowMatching:

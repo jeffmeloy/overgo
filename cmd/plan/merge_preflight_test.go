@@ -68,7 +68,7 @@ func TestSnapshotReusePreflight(t *testing.T) {
 
 func TestMergePreflightOwnedDocuments(t *testing.T) {
 	t.Parallel()
-	for _, path := range []string{apiManifestJSONPath, "source conflict.txt"} {
+	for _, path := range []string{apiManifestJSONPath, harnessSurfaceBaselinePath, "source conflict.txt"} {
 		t.Run(path, func(t *testing.T) {
 			root, git := mergeTestRepository(t)
 			branch := git("branch", "--show-current")
@@ -107,5 +107,54 @@ func TestMergePreflightOwnedDocuments(t *testing.T) {
 				t.Fatal("preflight changed target state")
 			}
 		})
+	}
+}
+
+// TestMergeHarnessBaselineConflictResolution proves a generated harness
+// ratchet conflict stays on the lane's reviewed baseline until gate repair.
+func TestMergeHarnessBaselineConflictResolution(t *testing.T) {
+	root, git := mergeTestRepository(t)
+	branch := git("branch", "--show-current")
+	for _, path := range []string{harnessSurfaceBaselinePath, modernGoBaselinePath} {
+		file := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("base\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	git("add", ".")
+	git("commit", "-m", "base baselines")
+	git("checkout", "-b", "topic")
+	harness := filepath.Join(root, filepath.FromSlash(harnessSurfaceBaselinePath))
+	if err := os.WriteFile(harness, []byte("source\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("commit", "-am", "source baseline")
+	git("checkout", branch)
+	if err := os.WriteFile(harness, []byte("target\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("commit", "-am", "target baseline")
+	head := git("rev-parse", "HEAD")
+	if err := preflightMergeConflicts(root, head, "topic"); err != nil {
+		t.Fatalf("generated conflict was rejected: %v", err)
+	}
+	if _, err := commandOutput(root, "git", "merge", "--no-commit", "topic"); err == nil {
+		t.Fatal("fixture did not create the expected baseline conflict")
+	}
+	if err := restoreMergeTargetBaselines(root, head); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(harness)
+	if err != nil || string(raw) != "target\n" {
+		t.Fatalf("lane baseline = %q, %v", raw, err)
+	}
+	if _, err := commandOutput(root, "git", "add", "--", harnessSurfaceBaselinePath); err != nil {
+		t.Fatal(err)
+	}
+	if unmerged := git("ls-files", "-u"); unmerged != "" {
+		t.Fatalf("generated conflict remains: %s", unmerged)
 	}
 }

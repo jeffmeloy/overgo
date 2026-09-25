@@ -160,4 +160,11 @@ func TestAutomationROIProjection(t *testing.T) {
 	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {
 		t.Fatalf("deletion-only wave rejected: %v", err)
 	}
+	tested, err := candidate.Overlay(map[string][]byte{"internal/q/q_test.go": []byte("package q\n\nfunc helper() {}\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withTest, err := codeprofile.MeasureProductionMovement(base, tested); err != nil || withTest != movement {
+		t.Fatalf("a test file moved the production measure: %+v, %v; want %+v", withTest, err, movement)
+	}
 }

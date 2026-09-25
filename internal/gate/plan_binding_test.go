@@ -1,6 +1,8 @@
 package gate
 
 import (
+	"overgo/internal/worklease"
+
 	"os"
 	"path/filepath"
 	"testing"
@@ -86,4 +88,15 @@ func initializePlanBindingRepo(t *testing.T, repository string) {
 func checkPlanBindingForTest(repo, ref string) error {
 	_, _, _, err := resolvePlanBinding(repo, gateStorePath, ref)
 	return err
+}
+
+// Resolve the claimed ready row, or the legacy current row when unclaimed.
+// Admission and commit share the plan owner's contract and ownership checks.
+func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, *worklease.Lease, error) {
+	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
+	if err != nil {
+		return plan.CompletionAuthority{}, "", nil, err
+	}
+	defer store.Close()
+	return resolvePlanBindingWithStore(repo, ref, store)
 }

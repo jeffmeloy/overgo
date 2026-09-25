@@ -1905,7 +1905,11 @@ func (g *gateContext) sourceEnvironment() ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	environment := append(gitauthority.RepositoryEnvironment(), bindings...)
+	// The operator's maintenance grant authorizes this gate's admission,
+	// never the code under test.
+	environment := append(slices.DeleteFunc(gitauthority.RepositoryEnvironment(), func(entry string) bool {
+		return strings.HasPrefix(entry, plan.AutomationMaintenanceEnvironment+"=")
+	}), bindings...)
 	if os.Getenv(audioReferenceEnv) == "" {
 		environment = append(environment, audioReferenceEnv+"="+audioReferenceStore(roots))
 	}

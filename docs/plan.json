@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-hermetic-test-env",
-      "title": "Strip the operator's maintenance grant from every process the gate runs",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Strip the operator's maintenance grant from every process the gate runs",
-          "status": "open",
-          "verify": "go test ./internal/gate -run '^TestGateTestsStartWithoutOperatorGrant$' -count=1",
-          "rationale": "Merge lesson (2026-09-25): the audio merge gate failed two internal/gate tests (TestPlanBindingRole, TestPlanOnlyPublicationReusesUnchangedPhases) only because the operator's OVERGO_AUTOMATION_MAINTENANCE grant leaked into them: the gate builds every test and verify process's environment from the operator's (gate sourceEnvironment via gitauthority.RepositoryEnvironment). An operator grant authorizes the gate's admission, never the code under test, so the gate strips it from the environment of every process it runs; a test that needs a grant sets its own. Done when TestGateTestsStartWithoutOperatorGrant runs a test process under a gate whose operator holds a maintenance grant and the process sees none."
-        }
-      ]
-    },
-    {
       "id": "automation-merge-one-landing",
       "title": "Land a new row with its first work, and a merge with its own row, in one commit",
       "owner": "master-lead",

@@ -78,17 +78,6 @@ func gateMergeSourceStore(value string, merge bool, projection plan.MergeProject
 	return resolved, nil
 }
 
-// Resolve the claimed ready row, or the legacy current row when unclaimed.
-// Admission and commit share the plan owner's contract and ownership checks.
-func resolvePlanBinding(repo, storePath, ref string) (plan.CompletionAuthority, string, *worklease.Lease, error) {
-	store, err := overgodb.OpenReadOnly(filepath.Join(repo, storePath))
-	if err != nil {
-		return plan.CompletionAuthority{}, "", nil, err
-	}
-	defer store.Close()
-	return resolvePlanBindingWithStore(repo, ref, store)
-}
-
 // resolvePlanBindingWithStore derives plan authority through an already-open
 // gate admission store. A normal gate opens the canonical store once for
 // pending-state validation, plan binding, acceleration, and preparation;

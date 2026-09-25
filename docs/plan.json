@@ -6,64 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "audio2-audio-current-baseline",
-      "title": "Re-establish current-master audio prerequisites before extending capability",
-      "owner": "audio2",
-      "status": "open",
-      "budget": {
-        "nodes": 0,
-        "reason": "Refuse canceled or unbounded recognizer loading before checkpoint metadata I/O in the existing shared loader; six regression cases demonstrated this missing admission check."
-      },
-      "steps": [
-        {
-          "id": "do",
-          "title": "Verify the actual CPU ingest, train, resume, evaluate and serve owners on the new source",
-          "status": "open",
-          "verify": "go test ./internal/speechrecognition -run '^TestRecognizerLoadAdmission$' -count=1 -v \u0026\u0026 go test ./internal/audioparity -parallel=1 -run '^Test(RecognizerReproducesReferenceTranscripts|ASRCPUClosedLoop|ASRProductionTrainingAcceptance)$' -count=1 -v \u0026\u0026 go test ./internal/audioparity -parallel=1 -run '^Test(ASRFrozenAdapterAcceptance|ASRExactResumeAcceptance|AudioPublicationRecoveryAcceptance)$' -count=1 -v \u0026\u0026 go test ./internal/audioparity -parallel=2 -run '^Test(ASRLiveOperationsAcceptance|SecondASRStreamingAcceptance|AudioResourceFitnessAcceptance)$' -count=1 -v",
-          "rationale": "Re-establish CPU inference, adapter training, exact resume, evaluation, serving and recovery on base 39934bd8; old-branch receipts do not establish current-source or GPU completion. Fix LoadRecognizer admission in its existing owner: canceled execution and missing context/memory ceilings must refuse before checkpoint I/O for both recognizer forms. The six regression cases and speechrecognition package passed. Keep an independent evidence store, read-only reference inputs and audio2 outputs. Preserve the same nine integration tests in three sequential processes with their existing timeouts and deterministic repeat judge. Diagnostic groups passed inference/training in 196.657s and adapter/resume/recovery in 119.334s; serving/streaming/fitness passed serially in 274.043s, including two streaming clips and resource-policy refusals. The serving group now explicitly uses two test slots to exercise its two concurrent-request subtests; the serial result does not establish request overlap. Final grouped deterministic gate verification remains pending. Earlier attempts include two resource-pressure interruptions and a 601.048s combined-process failure; retain these failures, including gate preparation evidence:sha256:1b052f0ac0cd067b1c45775877982508cfe54197befa7f369221e8992a79865b. Apply current capacity admission from the doctrine, not historical waits. Standalone diagnostic passes are not completion receipts. Gate preparation evidence:sha256:ab191bb9d814e6bed4d503c6e67925df5f329527e83d26c079e6c387d6294be5 ran both grouped acceptance passes but refused self-amendment of this row's check after 1178.2s. Land the contract revision with audio2-baseline-check-contract/do first; standalone plan-only lane commits are not admitted. The parent check now starts with the load-admission regression so production growth is proved absent at the base, before expensive lifecycle checks.",
-          "depends_on": [
-            "audio2-bootstrap/do",
-            "audio2-baseline-check-contract/do"
-          ],
-          "capabilities": [
-            "current-source-audio-baseline",
-            "cpu-asr-lifecycle",
-            "exact-adapter-resume",
-            "bounded-audio-serving"
-          ],
-          "verification_batch": {
-            "scope": [
-              "internal/audioparity",
-              "internal/speechrecognition",
-              "internal/speechsynth",
-              "internal/trainingprogram",
-              "internal/trainingworkflow",
-              "docs"
-            ],
-            "rationale": "Revalidate existing prerequisite contracts once on current source before expanding them. Focused declaration checks precede real CPU integration.",
-            "reopen_when": "Relevant source, artifact, dataset, transform, protocol or environment changes.",
-            "checkpoints": [
-              {
-                "id": "recognizer-load-admission",
-                "title": "Refuse canceled or unbounded model loading before checkpoint I/O",
-                "verify": "go test ./internal/speechrecognition -run '^TestRecognizerLoadAdmission$' -count=1 -v"
-              },
-              {
-                "id": "declared-audio-contracts",
-                "title": "Verify declaration-backed recognition, activity policy and producer source binding",
-                "verify": "go test ./internal/audioparity -run '^Test(ReviewedRecognizerResolvesEachDeclaredForm|ActivityPolicyIsTheModelsOwnOperatingPoint|AudioProducerSourceBinding)$' -count=1 -v"
-              },
-              {
-                "id": "current-gate-contract",
-                "title": "Verify existing claim, deferred acceptance and batch declaration contracts without introducing a new audio gate",
-                "verify": "go test ./internal/gate -run '^Test(ClaimedGateAdmission|HolderAmendsItsOwnClaim|ModelAcceptanceRunsInItsDeferredLane|GovernedBatchDeclarationAcceptance)$' -count=1 -v"
-              }
-            ]
-          }
-        }
-      ]
-    },
-    {
       "id": "audio2-audio-generation-expansion",
       "title": "Consolidate speech synthesis and admit broader audio generation",
       "owner": "audio2",

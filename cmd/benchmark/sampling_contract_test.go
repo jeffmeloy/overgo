@@ -82,7 +82,9 @@ func TestBenchmarkSamplingContract(t *testing.T) {
 	t.Run("publication refuses unbound or incomplete protocols", func(t *testing.T) {
 		valid := benchmarkResult{EndOfSequenceIgnored: true, SamplingProtocol: greedyBudgetProtocol, TokensPerSequence: 4, RequestedRuns: 1,
 			Residency: recipe.ResidencyDeviceNative, RealizedResidency: recipe.RealizedDeviceNative,
-			Runs: []runMetrics{{OutputTokens: 4, HostLogitTokens: 1, DeviceSelectedTokens: 3, PromptTokens: 2, TotalMilliseconds: 10}}}
+			Prompt: "fixture", PromptSuite: []string{"fixture"}, WorkloadDigest: benchmarkWorkloadDigest([]string{"fixture"}),
+			Runs: []runMetrics{{OutputTokens: 4, OutputDigests: []string{fixtureOutputDigest(4)}, PromptDigest: benchmarkPromptDigest("fixture"), HostLogitTokens: 1, DeviceSelectedTokens: 3, PromptTokens: 2, TotalMilliseconds: 10}}}
+		bindFixtureBenchmarkIdentity(t, &valid, "0123456789abcdef0123456789abcdef01234567")
 		if err := validateBenchmarkResult(valid); err != nil {
 			t.Fatal(err)
 		}

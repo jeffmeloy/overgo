@@ -13,6 +13,7 @@ import (
 	"slices"
 	"time"
 
+	"overgo/internal/artifact"
 	"overgo/internal/clioptions"
 	"overgo/internal/cuda/driver"
 	"overgo/internal/inference"
@@ -21,6 +22,7 @@ import (
 	"overgo/internal/processmeasure"
 	"overgo/internal/recipe"
 	"overgo/internal/remoteprovider"
+	"overgo/internal/runrecord"
 	"overgo/internal/sampling"
 	"overgo/internal/tokenizer"
 )
@@ -44,6 +46,8 @@ type options struct {
 	Model          string
 	Repository     string
 	Prompt         string
+	PromptSuite    string
+	CompareFactor  string
 	Device         int
 	Tokens         int
 	Runs           int
@@ -60,36 +64,40 @@ type options struct {
 	CPUProfile     string
 }
 
+type benchmarkOptions = options
+
 type runMetrics struct {
-	Run                      int     `json:"run"`
-	PromptTokens             int     `json:"prompt_tokens"`
-	CachedPromptTokens       int     `json:"cached_prompt_tokens"`
-	OutputTokens             int     `json:"output_tokens"`
-	HostLogitTokens          int     `json:"host_logit_tokens"`
-	DeviceSelectedTokens     int     `json:"device_selected_tokens"`
-	DeviceTopKTokens         int     `json:"device_top_k_tokens"`
-	PromptMilliseconds       float64 `json:"prompt_ms"`
-	PromptTokensPerSecond    float64 `json:"prompt_tokens_per_second"`
-	TTFTMilliseconds         float64 `json:"ttft_ms"`
-	TotalMilliseconds        float64 `json:"total_ms"`
-	DecodeMilliseconds       float64 `json:"decode_ms"`
-	EndToEndTokensPerSecond  float64 `json:"end_to_end_tokens_per_second"`
-	DecodeTokensPerSecond    float64 `json:"decode_tokens_per_second"`
-	KernelLaunches           uint64  `json:"custom_kernel_launches"`
-	StreamSynchronizations   uint64  `json:"stream_synchronizations"`
-	HostToDeviceCopies       uint64  `json:"host_to_device_copies"`
-	HostToDeviceBytes        uint64  `json:"host_to_device_bytes"`
-	DeviceToHostCopies       uint64  `json:"device_to_host_copies"`
-	DeviceToHostBytes        uint64  `json:"device_to_host_bytes"`
-	DeviceToDeviceCopies     uint64  `json:"device_to_device_copies"`
-	DeviceToDeviceBytes      uint64  `json:"device_to_device_bytes"`
-	DeviceMemsets            uint64  `json:"device_memsets"`
-	DeviceMemsetBytes        uint64  `json:"device_memset_bytes"`
-	GraphInstantiations      uint64  `json:"graph_instantiations"`
-	GraphUpdates             uint64  `json:"graph_updates"`
-	GraphLaunches            uint64  `json:"graph_launches"`
-	KernelLaunchesPerToken   float64 `json:"custom_kernel_launches_per_output_token"`
-	SynchronizationsPerToken float64 `json:"stream_synchronizations_per_output_token"`
+	Run                      int      `json:"run"`
+	PromptDigest             string   `json:"prompt_digest"`
+	OutputDigests            []string `json:"output_digests"`
+	PromptTokens             int      `json:"prompt_tokens"`
+	CachedPromptTokens       int      `json:"cached_prompt_tokens"`
+	OutputTokens             int      `json:"output_tokens"`
+	HostLogitTokens          int      `json:"host_logit_tokens"`
+	DeviceSelectedTokens     int      `json:"device_selected_tokens"`
+	DeviceTopKTokens         int      `json:"device_top_k_tokens"`
+	PromptMilliseconds       float64  `json:"prompt_ms"`
+	PromptTokensPerSecond    float64  `json:"prompt_tokens_per_second"`
+	TTFTMilliseconds         float64  `json:"ttft_ms"`
+	TotalMilliseconds        float64  `json:"total_ms"`
+	DecodeMilliseconds       float64  `json:"decode_ms"`
+	EndToEndTokensPerSecond  float64  `json:"end_to_end_tokens_per_second"`
+	DecodeTokensPerSecond    float64  `json:"decode_tokens_per_second"`
+	KernelLaunches           uint64   `json:"custom_kernel_launches"`
+	StreamSynchronizations   uint64   `json:"stream_synchronizations"`
+	HostToDeviceCopies       uint64   `json:"host_to_device_copies"`
+	HostToDeviceBytes        uint64   `json:"host_to_device_bytes"`
+	DeviceToHostCopies       uint64   `json:"device_to_host_copies"`
+	DeviceToHostBytes        uint64   `json:"device_to_host_bytes"`
+	DeviceToDeviceCopies     uint64   `json:"device_to_device_copies"`
+	DeviceToDeviceBytes      uint64   `json:"device_to_device_bytes"`
+	DeviceMemsets            uint64   `json:"device_memsets"`
+	DeviceMemsetBytes        uint64   `json:"device_memset_bytes"`
+	GraphInstantiations      uint64   `json:"graph_instantiations"`
+	GraphUpdates             uint64   `json:"graph_updates"`
+	GraphLaunches            uint64   `json:"graph_launches"`
+	KernelLaunchesPerToken   float64  `json:"custom_kernel_launches_per_output_token"`
+	SynchronizationsPerToken float64  `json:"stream_synchronizations_per_output_token"`
 }
 
 type summaryMetrics struct {
@@ -102,25 +110,39 @@ type summaryMetrics struct {
 }
 
 type benchmarkResult struct {
-	ModelPath         string                   `json:"model_path"`
-	ModelName         string                   `json:"model_name"`
-	Architecture      string                   `json:"architecture"`
-	FileType          string                   `json:"file_type"`
-	ParameterCount    uint64                   `json:"parameter_count"`
-	ModelBytes        uint64                   `json:"model_bytes"`
-	Residency         recipe.ResidencyPolicy   `json:"residency"`
-	RealizedResidency recipe.RealizedResidency `json:"realized_residency"`
+	ModelID            artifact.ID              `json:"model_id"`
+	RecipeID           artifact.ID              `json:"recipe_id"`
+	TokenizerContainer artifact.ID              `json:"tokenizer_container"`
+	Environment        runrecord.Environment    `json:"environment"`
+	EnvironmentID      artifact.ID              `json:"environment_id"`
+	CodeCommit         string                   `json:"code_commit"`
+	ModuleDigest       string                   `json:"module_digest"`
+	OptionsDigest      string                   `json:"options_digest"`
+	AdapterIDs         []artifact.ID            `json:"adapter_ids,omitempty"`
+	ModelPath          string                   `json:"model_path"`
+	ModelName          string                   `json:"model_name"`
+	Architecture       string                   `json:"architecture"`
+	FileType           string                   `json:"file_type"`
+	ParameterCount     uint64                   `json:"parameter_count"`
+	ModelBytes         uint64                   `json:"model_bytes"`
+	Residency          recipe.ResidencyPolicy   `json:"residency"`
+	RealizedResidency  recipe.RealizedResidency `json:"realized_residency"`
 	// EndOfSequenceIgnored records continuation past EOG. SamplingProtocol
 	// distinguishes this from historical results that banned EOG winners.
 	EndOfSequenceIgnored   bool                    `json:"end_of_sequence_ignored"`
 	SamplingProtocol       string                  `json:"sampling_protocol"`
 	SamplerOrder           []sampling.SamplerStage `json:"sampler_order"`
 	Prompt                 string                  `json:"prompt"`
+	PromptSuite            []string                `json:"prompt_suite"`
+	WorkloadDigest         string                  `json:"workload_digest"`
+	RequestedWarmup        int                     `json:"requested_warmup"`
+	WarmupRuns             []runMetrics            `json:"warmup_runs,omitempty"`
 	TokensPerSequence      int                     `json:"tokens_per_sequence"`
 	RequestedRuns          int                     `json:"requested_runs"`
 	CachePrompt            bool                    `json:"cache_prompt"`
 	BatchSequences         int                     `json:"batch_sequences"`
 	Speculative            bool                    `json:"speculative"`
+	ContextShift           bool                    `json:"context_shift"`
 	Temperature            float64                 `json:"temperature"`
 	TopK                   int                     `json:"top_k"`
 	DeviceTopK             bool                    `json:"device_top_k"`
@@ -144,6 +166,8 @@ func parseOptions(args []string) (options, error) {
 	flags := flag.NewFlagSet("benchmark", flag.ContinueOnError)
 	var result options
 	modelFlags := modelcli.AddModelFlags(flags, "load GGUF LoRA adapter at scale 1; repeatable")
+	flags.StringVar(&result.PromptSuite, "prompt-suite", "", "JSON array of prompts, rotated in order across measured runs")
+	flags.StringVar(&result.CompareFactor, "compare", "", "interleaved lossless comparison factor: cache_prompt or speculative")
 	flags.IntVar(&result.Tokens, "tokens", defaultBenchmarkTokens, "maximum generated tokens per run")
 	flags.IntVar(&result.Runs, "runs", defaultBenchmarkRuns, "measured runs")
 	flags.IntVar(&result.Warmup, "warmup", defaultBenchmarkWarmup, "unmeasured warmup runs")
@@ -162,12 +186,16 @@ func parseOptions(args []string) (options, error) {
 	result.Device = *modelFlags.DeviceOrdinal
 	result.Repository = *modelFlags.Repository
 	result.LoRA = modelFlags.LoRAPaths()
-	if flags.NArg() != 2 {
-		return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
-	}
-	result.Model, result.Prompt = flags.Arg(0), flags.Arg(1)
-	if result.Prompt == "" {
-		return options{}, errors.New("benchmark: prompt must not be empty")
+	if result.PromptSuite == "" {
+		if flags.NArg() != 2 || flags.Arg(1) == "" {
+			return options{}, errors.New("usage: benchmark [options] <model.gguf> <prompt>")
+		}
+		result.Model, result.Prompt = flags.Arg(0), flags.Arg(1)
+	} else {
+		if flags.NArg() != 1 {
+			return options{}, errors.New("usage: benchmark -prompt-suite prompts.json [options] <model.gguf>")
+		}
+		result.Model = flags.Arg(0)
 	}
 	if result.Tokens < minBenchmarkTokens || result.Tokens > maxBenchmarkTokens {
 		return options{}, fmt.Errorf("benchmark: -tokens must be in [%d,%d]", minBenchmarkTokens, maxBenchmarkTokens)
@@ -193,6 +221,14 @@ func parseOptions(args []string) (options, error) {
 	if result.DeviceTopK && (result.BatchSequences == 0 || result.Temperature == 0 || result.TopK == 0) {
 		return options{}, errors.New("benchmark: -device-top-k requires continuous sampling with positive temperature and top-K")
 	}
+	if result.CompareFactor != "" {
+		if result.Publish || result.BatchSequences != 0 || result.Temperature != 0 ||
+			result.CompareFactor != "cache_prompt" && result.CompareFactor != "speculative" ||
+			result.CompareFactor == "cache_prompt" && result.CachePrompt ||
+			result.CompareFactor == "speculative" && result.Speculative {
+			return options{}, errors.New("benchmark: paired comparison requires one disabled lossless factor, single-sequence greedy mode, and no direct publication")
+		}
+	}
 	if result.Publish && result.Repository == "" {
 		return options{}, errors.New("benchmark: -publish requires -repo so the evidence has a store to land in")
 	}
@@ -204,6 +240,10 @@ func parseOptions(args []string) (options, error) {
 
 func run(args []string) error {
 	options, err := parseOptions(args)
+	if err != nil {
+		return err
+	}
+	prompts, err := benchmarkPrompts(options)
 	if err != nil {
 		return err
 	}
@@ -229,7 +269,7 @@ func run(args []string) error {
 	if err := cuda.Init(); err != nil {
 		return err
 	}
-	device, err := cuda.DeviceInfo(options.Device)
+	device, err := cuda.ReserveDevice(options.Device)
 	if err != nil {
 		return err
 	}
@@ -244,6 +284,39 @@ func run(args []string) error {
 		return err
 	}
 	defer runner.Close()
+	codeCommit, err := runrecord.ExecutableCodeCommit(".")
+	if err != nil {
+		return fmt.Errorf("benchmark source identity: %w", err)
+	}
+	moduleDigest, err := benchmarkModuleDigest()
+	if err != nil {
+		return err
+	}
+	adapters, err := benchmarkAdapterIDs(options.LoRA)
+	if err != nil {
+		return fmt.Errorf("benchmark adapter identity: %w", err)
+	}
+	optionsDigest, err := benchmarkOptionsDigest(options, adapters)
+	if err != nil {
+		return err
+	}
+	description, err := runner.RecipeRuntimeDescription(recipe.TaskInference)
+	if err != nil {
+		return err
+	}
+	environment, err := runrecord.CurrentEnvironment(device.UUID, "cuda")
+	if err != nil {
+		return err
+	}
+	driverVersion, err := cuda.DriverVersion()
+	if err != nil {
+		return err
+	}
+	environment.Driver = driverVersion.String()
+	environment, err = runrecord.NewEnvironment(environment)
+	if err != nil {
+		return err
+	}
 	loadDuration, err := loadStarted.Elapsed()
 	if err != nil {
 		return fmt.Errorf("benchmark load measurement: %w", err)
@@ -254,15 +327,21 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	promptIDs, err := runner.TokenizeText(options.Prompt, true, false)
-	if err != nil {
-		return err
-	}
-	execute := func(index int) (runMetrics, error) {
-		if options.BatchSequences > 0 {
-			return executeContinuousBatch(context.Background(), runner, options, promptIDs, index)
+	promptIDs := make([][]tokenizer.TokenID, len(prompts))
+	for index, prompt := range prompts {
+		promptIDs[index], err = runner.TokenizeText(prompt, true, false)
+		if err != nil {
+			return fmt.Errorf("benchmark prompt %d: %w", index, err)
 		}
-		generation, samplerErr := benchmarkGenerationOptions(options)
+	}
+	execute := func(index int, arm benchmarkOptions) (runMetrics, error) {
+		promptIndex := benchmarkPromptIndex(index, len(prompts))
+		prompt := prompts[promptIndex]
+		ids := promptIDs[promptIndex]
+		if arm.BatchSequences > 0 {
+			return executeContinuousBatch(context.Background(), runner, arm, ids, prompt, index)
+		}
+		generation, samplerErr := benchmarkGenerationOptions(arm)
 		if samplerErr != nil {
 			return runMetrics{}, samplerErr
 		}
@@ -273,10 +352,12 @@ func run(args []string) error {
 		timing := startGenerationTiming()
 		promptEvaluation := inference.PromptEvaluation{}
 		outputTokens := 0
+		outputDigest := newTokenDigest()
 		hostLogitTokens, deviceSelectedTokens := 0, 0
 		generation.OnPromptEvaluated = func(evaluation inference.PromptEvaluation) { promptEvaluation = evaluation }
 		generation.OnToken = func(event inference.TokenEvent) error {
 			outputTokens++
+			outputDigest.add(event.ID)
 			if len(event.Logits) == 0 {
 				deviceSelectedTokens++
 			} else {
@@ -284,7 +365,7 @@ func run(args []string) error {
 			}
 			return timing.token()
 		}
-		_, _, generationErr := runner.Generate(context.Background(), options.Prompt, generation)
+		_, _, generationErr := runner.Generate(context.Background(), prompt, generation)
 		total, ttft, decode, timingErr := timing.finish()
 		if generationErr != nil {
 			return runMetrics{}, generationErr
@@ -299,7 +380,9 @@ func run(args []string) error {
 		execution := subtractExecutionStats(afterExecution, beforeExecution)
 		metrics := runMetrics{
 			Run:                    index,
-			PromptTokens:           len(promptIDs),
+			PromptDigest:           benchmarkPromptDigest(prompt),
+			OutputDigests:          []string{outputDigest.sum()},
+			PromptTokens:           len(ids),
 			CachedPromptTokens:     promptEvaluation.Cached,
 			OutputTokens:           outputTokens,
 			HostLogitTokens:        hostLogitTokens,
@@ -338,16 +421,53 @@ func run(args []string) error {
 		}
 		return metrics, nil
 	}
-	for index := 0; index < options.Warmup; index++ {
-		if _, err := execute(-(index + 1)); err != nil {
-			return fmt.Errorf("benchmark warmup %d: %w", index, err)
+	var candidate benchmarkOptions
+	var candidateWarmups, candidateRuns []runMetrics
+	var pairFirst []string
+	if options.CompareFactor != "" {
+		candidate = options
+		switch options.CompareFactor {
+		case "cache_prompt":
+			candidate.CachePrompt = true
+		case "speculative":
+			candidate.Speculative = true
+		}
+		candidateWarmups = make([]runMetrics, options.Warmup)
+		candidateRuns = make([]runMetrics, options.Runs)
+		pairFirst = make([]string, options.Runs)
+	}
+	warmups := make([]runMetrics, options.Warmup)
+	for index := range warmups {
+		warmups[index], err = execute(-(index + 1), options)
+		if err != nil {
+			return fmt.Errorf("benchmark baseline warmup %d: %w", index, err)
+		}
+		if candidateWarmups != nil {
+			candidateWarmups[index], err = execute(-(index + 1), candidate)
+			if err != nil {
+				return fmt.Errorf("benchmark candidate warmup %d: %w", index, err)
+			}
 		}
 	}
 	runs := make([]runMetrics, options.Runs)
 	for index := range runs {
-		runs[index], err = execute(index)
+		if candidateRuns != nil && index%2 == 1 {
+			pairFirst[index] = "candidate"
+			candidateRuns[index], err = execute(index, candidate)
+			if err != nil {
+				return fmt.Errorf("benchmark candidate run %d: %w", index, err)
+			}
+		}
+		runs[index], err = execute(index, options)
 		if err != nil {
-			return fmt.Errorf("benchmark run %d: %w", index, err)
+			return fmt.Errorf("benchmark baseline run %d: %w", index, err)
+		}
+		if candidateRuns != nil && index%2 == 0 {
+			pairFirst[index] = "baseline"
+			candidateRuns[index], err = execute(index, candidate)
+			if err != nil {
+				return fmt.Errorf("benchmark candidate run %d: %w", index, err)
+			}
 		}
 	}
 	var afterRuns runtime.MemStats
@@ -358,6 +478,15 @@ func run(args []string) error {
 	}
 	properties := runner.ModelProperties()
 	result := benchmarkResult{
+		ModelID:                runner.ModelID(),
+		RecipeID:               description.Identity.Recipe,
+		TokenizerContainer:     runner.ModelID(),
+		Environment:            environment,
+		EnvironmentID:          environment.ID,
+		CodeCommit:             codeCommit,
+		ModuleDigest:           moduleDigest,
+		OptionsDigest:          optionsDigest,
+		AdapterIDs:             adapters,
 		ModelPath:              properties.Path,
 		ModelName:              properties.Name,
 		Architecture:           properties.Architecture,
@@ -369,10 +498,15 @@ func run(args []string) error {
 		EndOfSequenceIgnored:   true,
 		SamplingProtocol:       benchmarkProtocol(options.Temperature),
 		SamplerOrder:           benchmarkSamplingConfig(options).Samplers,
-		Prompt:                 options.Prompt,
+		Prompt:                 prompts[0],
+		PromptSuite:            prompts,
+		WorkloadDigest:         benchmarkWorkloadDigest(prompts),
+		RequestedWarmup:        options.Warmup,
+		WarmupRuns:             warmups,
 		TokensPerSequence:      options.Tokens,
 		RequestedRuns:          options.Runs,
 		Speculative:            options.Speculative,
+		ContextShift:           options.ContextShift,
 		CachePrompt:            options.CachePrompt,
 		BatchSequences:         options.BatchSequences,
 		Temperature:            options.Temperature,
@@ -391,6 +525,25 @@ func run(args []string) error {
 	}
 	if err := validateBenchmarkResult(result); err != nil {
 		return err
+	}
+	if candidateRuns != nil {
+		candidateResult := result
+		candidateResult.Runs = candidateRuns
+		candidateResult.WarmupRuns = candidateWarmups
+		candidateResult.Summary = summarizeRuns(candidateRuns)
+		candidateResult.CachePrompt = candidate.CachePrompt
+		candidateResult.Speculative = candidate.Speculative
+		candidateResult.OptionsDigest, err = benchmarkOptionsDigest(candidate, adapters)
+		if err != nil {
+			return err
+		}
+		comparison, compareErr := compareBenchmarkResults(result, candidateResult, options.CompareFactor, pairFirst)
+		if compareErr != nil {
+			return compareErr
+		}
+		return clioptions.WritePrettyJSON(os.Stdout, pairedBenchmarkResult{
+			Baseline: result, Candidate: candidateResult, Comparison: comparison, ComparisonID: comparison.ID,
+		})
 	}
 	if err := clioptions.WritePrettyJSON(os.Stdout, result); err != nil {
 		return err
@@ -425,6 +578,7 @@ func executeContinuousBatch(
 	runner *inference.Runner,
 	options options,
 	prompt []tokenizer.TokenID,
+	promptText string,
 	index int,
 ) (runMetrics, error) {
 	device := runner.DeviceResident()
@@ -480,6 +634,10 @@ func executeContinuousBatch(
 		return tokenizer.TokenID(id), sampleErr
 	}
 	outputTokens := 0
+	outputDigests := make([]*tokenDigest, options.BatchSequences)
+	for index := range outputDigests {
+		outputDigests[index] = newTokenDigest()
+	}
 	for generated := range options.Tokens {
 		if len(outputs) != len(inputs) {
 			return runMetrics{}, errors.New("benchmark: incomplete batch output")
@@ -490,6 +648,7 @@ func executeContinuousBatch(
 				return runMetrics{}, selectErr
 			}
 			inputs[sequence].Tokens = []tokenizer.TokenID{token}
+			outputDigests[sequence].add(token)
 			outputTokens++
 		}
 		if err := timing.token(); err != nil {
@@ -513,8 +672,13 @@ func executeContinuousBatch(
 	}
 	execution := subtractExecutionStats(afterExecution, beforeExecution)
 	promptTokens := len(prompt) * options.BatchSequences
+	digests := make([]string, len(outputDigests))
+	for index, digest := range outputDigests {
+		digests[index] = digest.sum()
+	}
 	metrics := runMetrics{
-		Run: index, PromptTokens: promptTokens, OutputTokens: outputTokens,
+		Run: index, PromptDigest: benchmarkPromptDigest(promptText), OutputDigests: digests,
+		PromptTokens: promptTokens, OutputTokens: outputTokens,
 		PromptMilliseconds: float64(ttft) / float64(time.Millisecond),
 		TTFTMilliseconds:   float64(ttft) / float64(time.Millisecond),
 		TotalMilliseconds:  float64(total) / float64(time.Millisecond),

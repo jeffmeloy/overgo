@@ -27,15 +27,16 @@ import (
 	"overgo/internal/testskip"
 )
 
-// TestAcceptedBaselineEvidence reads immutable measurements, never the latest
-// record or a newly generated self-reference. It establishes the historical
-// guard; -validate-baselines separately requires current-surface admission.
+// TestAcceptedBaselineEvidence audits immutable historical guard records but
+// refuses to promote them without measured realized residency. The old Qwen
+// and E4B results remain diagnostic evidence; a current baseline must be
+// reacquired on the same observed weight path as its comparison.
 func TestAcceptedBaselineEvidence(t *testing.T) {
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
 	if os.Getenv(dataroot.Env) == "" {
-		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT to validate the exact stored guard records; no measurement runs")
+		t.Skip(testskip.Inapplicable + ": integration: set OVERGO_DATA_ROOT to audit the exact stored guard records; no measurement runs")
 	}
 	roots, err := dataroot.Resolve(filepath.Join("..", ".."))
 	if err != nil {
@@ -75,8 +76,6 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 	}
 	requireStoreLineage(t, store, fixtures[0].before)
 	seen := make(map[artifact.ID]bool)
-	var selected []target
-	var ids []string
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
 			before := measuredGuardRecord(t, store, fixture.before)
@@ -96,46 +95,37 @@ func TestAcceptedBaselineEvidence(t *testing.T) {
 					t.Fatalf("invalid, duplicate or self-selected record %s: %v", text, err)
 				}
 				seen[id] = true
-				accepted, err := longform.ReadBaseline(t.Context(), store, id)
-				if err != nil {
-					t.Fatal(err)
-				}
-				fresh := accepted.Result
+				fresh := measuredGuardRecord(t, store, text).Result
 				if fresh.Surface != acceptedSurface || fresh.Commit != acceptedCommit {
 					t.Fatal("record does not identify the committed measured implementation")
 				}
-				if err := validateGuard(fresh); err != nil {
+				if err := validateGuard(fresh); err == nil || !strings.Contains(err.Error(), "comparison lacks matching realized residency") {
 					t.Fatal(err)
 				}
-				if v := longform.Compare(before.Result, fresh, longform.DeclaredFloors(), fresh.Floors.CheckRungCeiling); !v.Passed {
-					t.Fatalf("pre-fix comparison: %s", v)
+				if fresh.RealizedResidency != "" {
+					t.Fatal("historical record unexpectedly declares an observed residency")
+				}
+				if _, err := longform.ReadBaseline(t.Context(), store, id); err == nil || !strings.Contains(err.Error(), "realized residency") {
+					t.Fatalf("legacy record was promoted or refused for another reason: %v", err)
+				}
+				if verdict := longform.Compare(before.Result, fresh, longform.DeclaredFloors(), fresh.Floors.CheckRungCeiling); verdict.Passed || !strings.Contains(strings.Join(verdict.Reasons, " "), "realized residency") {
+					t.Fatalf("legacy pre-fix comparison was promoted: %s", verdict)
 				}
 				if index > 0 {
-					if v := longform.Compare(first, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); !v.Passed {
-						t.Fatalf("repeat comparison: %s", v)
+					if verdict := longform.Compare(first, fresh, fresh.Floors, fresh.Floors.CheckRungCeiling); verdict.Passed || !strings.Contains(strings.Join(verdict.Reasons, " "), "realized residency") {
+						t.Fatalf("legacy repeat comparison was promoted: %s", verdict)
 					}
 				} else {
 					first = fresh
-					selected = append(selected, target{weights: fresh.Inputs.Model, entry: discovery.Entry{Model: fresh.Program.Model, Recipe: fresh.Program.Recipe}})
-					ids = append(ids, text)
 				}
-				t.Logf("record=%s judged_decode=%.1f short=1 rungs=%d; tokens, NLL, rates and allocation non-growth checked", id, fresh.Measure.DecodeTokensPerSecond, len(fresh.Rungs))
+				t.Logf("historical record=%s judged_decode=%.1f short=1 rungs=%d; current comparison requires residency reacquisition", id, fresh.Measure.DecodeTokensPerSecond, len(fresh.Rungs))
 			}
 		})
 	}
-	if len(selected) != len(fixtures) {
-		t.Fatal("missing model from the declared guard denominator")
+	if len(seen) != len(fixtures)*len(fixtures[0].after) {
+		t.Fatal("missing historical model from the declared guard denominator")
 	}
-	opts := options{Repository: roots.Store, Corpus: "testdata/guard-corpus.txt", ValidateBaselines: true, Baselines: ids}
-	if err := bindBaselines(t.Context(), opts, selected); err != nil {
-		t.Fatal(err)
-	}
-	var output strings.Builder
-	if err := validateSelectedBaselines(&output, selected, acceptedSurface); err != nil {
-		t.Fatal(err)
-	}
-	t.Log(output.String())
-	t.Logf("historical guard audit: models=%d repeated_records=%d; chat, full catalog, modalities and fresh performance excluded", len(selected), len(seen))
+	t.Logf("historical guard audit: models=%d repeated_records=%d; immutable results retained but no baseline is promoted without realized residency", len(fixtures), len(seen))
 }
 
 // Failed records are diagnostic counterexamples only. ReadBaseline remains the

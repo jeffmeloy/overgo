@@ -140,8 +140,11 @@ func ReadBaseline(ctx context.Context, store *overgodb.Store, id artifact.ID) (S
 		if err := json.Unmarshal(content.Data, &result); err != nil {
 			return Summary{}, err
 		}
-		if !result.Inputs.valid() || result.Inputs.Model != record.Model || result.Commit != claim.Commit || result.Surface == "" || !result.RealizedResidency.Valid() {
+		if !result.Inputs.valid() || result.Inputs.Model != record.Model || result.Commit != claim.Commit || result.Surface == "" {
 			return Summary{}, errors.New("longform: baseline lacks matching model, input or provenance identity")
+		}
+		if !result.RealizedResidency.Valid() {
+			return Summary{}, errors.New("longform: baseline lacks realized residency")
 		}
 		if !result.Verdict.Passed || len(result.Verdict.Reasons) != 0 || len(result.Rungs) == 0 || len(result.Shape.OutputIDs) == 0 {
 			return Summary{}, errors.New("longform: baseline is failed or incomplete")

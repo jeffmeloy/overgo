@@ -87,9 +87,10 @@ func TestWebUIBrowserWorkspaceRefusal(t *testing.T) {
 
 	// 3. Granting the blocked operation's recovery from the Automations tab succeeds.
 	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'automations'; return true; })()`)
-	settle(`[...document.querySelectorAll('#panel-automations.active .card button')].some((button) => button.textContent.startsWith('Grant'))`)
-	assertBrowserPredicate(t, ctx, browser, `(() => {
-  const grant = [...document.querySelectorAll('#panel-automations .card button')].find((button) => button.textContent.startsWith('Grant'));
+	// The panel re-renders on runtime events, so the button is found and
+	// clicked in one evaluation, polled until a render holds it.
+	settle(`(() => {
+  const grant = [...document.querySelectorAll('#panel-automations.active .card button')].find((button) => button.textContent.startsWith('Grant'));
   if (!grant) return false;
   grant.click();
   return true;

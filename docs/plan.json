@@ -4,6 +4,24 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "hidden-detached-consoles",
+      "title": "Start detached processes with a hidden console",
+      "owner": "master-lead",
+      "status": "open",
+      "budget": {
+        "nodes": 0,
+        "reason": "detached processes take CREATE_NO_WINDOW in place of DETACHED_PROCESS"
+      },
+      "steps": [
+        {
+          "id": "do",
+          "title": "Start detached processes with a hidden console",
+          "status": "open",
+          "verify": "go test ./internal/processcontrol -run '^TestDetachedChildrenOpenNoConsoleWindow$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -1197,7 +1215,9 @@
             "merge-e1ee1326fe2b/do",
             "vae-merge-replan/do",
             "vae-codec-stream-port/do",
-            "vae-port-replan/do"
+            "vae-port-replan/do",
+            "hidden-detached-consoles/do",
+            "hidden-console-replan/do"
           ]
         }
       ]

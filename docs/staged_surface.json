@@ -212,18 +212,6 @@
     },
     {
       "package": "overgo/internal/evaluation",
-      "name": "CompileNumericTargetPlan",
-      "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
-    },
-    {
-      "package": "overgo/internal/evaluation",
-      "name": "ScoreNumericTargets",
-      "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "wire-sft-evaluation/do"
-    },
-    {
-      "package": "overgo/internal/evaluation",
       "name": "CompilePreferenceTargetPlan",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
       "retire_with": "heldout-preference-slice/do"

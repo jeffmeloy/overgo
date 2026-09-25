@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -21,11 +22,21 @@ import (
 )
 
 func main() {
+	storeRoot := flag.String("store", "", "OvergoDB root; with -objective, train under that objective and publish its held-out verdict")
+	objectiveAlias := flag.String("objective", "", "registered forecast objective alias (requires -store): train on its training membership, one light-curve JSON per dataset file, and judge on its held-out one; -dataset and -records are unused")
 	clioptions.TrainProbeMain(
 		"forecast model directory (safetensors + config.json)",
 		"light-curve JSONL shard",
 		"records", "leading record scan bound; omitted scans the shard",
-		run,
+		func(modelDir, datasetPath string, steps, recordLimit int, maxWall time.Duration) error {
+			if *objectiveAlias != "" {
+				if *storeRoot == "" || modelDir == "" || steps <= 0 {
+					return fmt.Errorf("seriesforecast-train-probe: -objective requires -store, a model, and positive steps")
+				}
+				return runObjective(*storeRoot, *objectiveAlias, modelDir, steps, maxWall)
+			}
+			return run(modelDir, datasetPath, steps, recordLimit, maxWall)
+		},
 	)
 }
 

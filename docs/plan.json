@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "wire-sft-evaluation",
-      "title": "Approve forecast objectives on held-out forecasts",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approve forecast objectives on held-out forecasts",
-          "status": "open",
-          "verify": "go test ./cmd/seriesforecast-train-probe -run '^TestForecastObjectiveProbeScoresOnlyHeldoutRecords$' -count=1",
-          "rationale": "Forecast held-out slice (design 2026-09-24). seriesforecast-train-probe never touches the store or an objective. A generic runner, trainingworkflow.RunHeldout (drafted, parked in the session scratchpad), holds everything model-agnostic: it resolves the objective's training and held-out memberships, has the caller train only on training examples and predict held-out ones before and after, records the training session through BootstrapObjectiveRecipe and the Observer, scores both with the numeric target scorer the objective's metric names, judges, and publishes the view, plan, reports and verdict. The probe gains -store \u003croot\u003e -objective \u003calias\u003e: it materializes both memberships of the objective's registered dataset through trainingdata.Materialize with its light-curve processor (now possible after split-record-identities), keys examples by record identity, trains seriesforecast on the training ones, and predicts the point channel of Model.Forecast. The ladder then runs through training-objective -promote and -approve. Done when TestForecastObjectiveProbeScoresOnlyHeldoutRecords walks a registered light-curve dataset from objective to a published verdict, with training shown only training records."
-        }
-      ]
-    },
-    {
       "id": "heldout-tabular-slice",
       "title": "Approve tabular objectives on held-out label accuracy",
       "owner": "master-lead",

@@ -30,6 +30,13 @@ var heldoutNumericScorers = map[trainingprogram.EvaluationMetric]NumericScorer{
 	trainingprogram.MetricTableAccuracy: NumericLabelAccuracy,
 }
 
+// HeldoutNumericScorer names the numeric scorer that measures an objective's
+// declared metric on held-out records, if one does.
+func HeldoutNumericScorer(metric trainingprogram.EvaluationMetric) (NumericScorer, bool) {
+	scorer, found := heldoutNumericScorers[metric]
+	return scorer, found
+}
+
 // HeldoutVerdict judges a trained model against its base model on one
 // objective's held-out view: both are scored by the same numeric target plan,
 // and the verdict passes when the trained model strictly improves the metric

@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "plan-retire-in-one-landing",
-      "title": "Retired: retire several rows in one plan-only landing",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Retired: retire several rows in one plan-only landing",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^(TestSingleCanonicalCampaignPlan|TestStructuralCampaignPolicy)$' -count=1",
-          "rationale": "RETIRED 2026-09-24 after reading the completion authority (internal/plan/completion.go). Each commit proves exactly one row: an Overgo-Plan-Item-Snapshot trailer plus a gate acceptance for that row's own check, verified on every protected revision. Closing several rows per landing would multiply trailers, snapshots and acceptances in the one authority every commit passes. It would save about 90 s per retired row, and retirements happen only on re-plans. Done: the decision is recorded."
-        }
-      ]
-    },
-    {
       "id": "media-delta-one-command",
       "title": "Retired: record a reviewed media delta with one command",
       "owner": "master-lead",

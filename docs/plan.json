@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "merge-f4aa36bccbec",
+      "title": "Merge the audio lane at f4aa36bccbec",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the audio lane at f4aa36bccbec",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/optimizer -run '^TestTensorPackRestoreIsAtomic$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -1152,7 +1166,9 @@
             "automation-pinned-identities-reacquire/do",
             "models-resolve-by-identity/do",
             "consolidation-round-2/do",
-            "tabfm-heldout-proof/do"
+            "tabfm-heldout-proof/do",
+            "merge-f4aa36bccbec/do",
+            "audio-merge-replan/do"
           ]
         }
       ]

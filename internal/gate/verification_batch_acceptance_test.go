@@ -17,7 +17,11 @@ import (
 )
 
 func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
-	t.Parallel()
+	// Run this group before releasing the package-wide parallel queue. Go does
+	// not emit a parent pause while parallel subtests wait for slots; charging
+	// that queue wait exhausted the parent's active budget at two slots even
+	// though all cases completed in 70 seconds in isolation. Keep the cases
+	// parallel without interleaving their parent with unrelated test groups.
 	for _, mode := range []string{"pass", "failure", "skip", "unavailable", "no-match", "mutation"} {
 		t.Run(mode, func(t *testing.T) {
 			t.Parallel()

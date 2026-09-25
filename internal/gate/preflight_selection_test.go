@@ -22,6 +22,16 @@ func TestPreflightRunsAcceptanceAndReportsSelection(t *testing.T) {
 		`{"id":"do","status":"open","verify":"echo verified"},` +
 		`{"id":"broken","status":"open","verify":"exit 3"},` +
 		`{"id":"bare","status":"open"}]}]}`
+	committed := strings.Replace(document, `"id":"bare","status":"open"`, `"id":"bare","status":"open","verify":"echo bare"`, 1)
+	if err := os.WriteFile(filepath.Join(repo, "docs", "plan.json"), []byte(committed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGitFixture(t, repo, "init", "-q")
+	runGitFixture(t, repo, "config", "user.email", "preflight@example.invalid")
+	runGitFixture(t, repo, "config", "user.name", "Preflight Test")
+	runGitFixture(t, repo, "add", "--", "docs/plan.json")
+	runGitFixture(t, repo, "commit", "-q", "-m", "committed verification contracts")
+	// The working fixture still exercises preflight's explicit no-verify case.
 	if err := os.WriteFile(filepath.Join(repo, "docs", "plan.json"), []byte(document), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -129,7 +129,7 @@ func (p Plan) HostStateBytes() (uint64, error) {
 	if p.identity == "" {
 		return 0, errors.New("optimizer plan: host storage requires a compiled plan")
 	}
-	elements, ok := checked.Add64(uint64(p.parameterCount), uint64(p.maxMatrix), uint64(p.maxMatrix), uint64(p.maxSquare), uint64(p.maxSquare))
+	elements, ok := checked.Add64(uint64(p.parameterCount), uint64(p.maxMatrix), uint64(p.maxMatrix), uint64(p.maxMatrix), uint64(p.maxSquare), uint64(p.maxSquare))
 	if !ok {
 		return 0, errors.New("optimizer plan: host state count overflows")
 	}

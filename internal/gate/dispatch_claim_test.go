@@ -189,8 +189,8 @@ func TestPersistentGateStop(t *testing.T) {
 // TestHolderAmendsItsOwnClaim binds claim renewal: the worker holding a row
 // amends that row's contract in place -- another worker still needs a
 // handoff -- the amended row is not admitted under the old claim, and the
-// holder's next dispatch renews the claim, derived from the one it replaces,
-// to the contract the gate then admits.
+// holder's next dispatch renews the claim, derived from the one it replaces.
+// Renewal does not authorize a landing to change its own committed judge.
 func TestHolderAmendsItsOwnClaim(t *testing.T) {
 	if isolatedProcess(t) {
 		return
@@ -241,7 +241,7 @@ func TestHolderAmendsItsOwnClaim(t *testing.T) {
 	if err != nil || renewed.Claim == nil || renewed.Claim.ID == claimed.Claim.ID || renewed.Claim.Previous != claimed.Claim.ID {
 		t.Fatalf("renewal=%+v %v", renewed, err)
 	}
-	if _, _, admitted, err := resolvePlanBinding(root, gateStorePath, "row/do"); err != nil || admitted == nil || admitted.ID != renewed.Claim.ID {
-		t.Fatalf("renewed claim admission=%+v %v", admitted, err)
+	if _, _, admitted, err := resolvePlanBinding(root, gateStorePath, "row/do"); err == nil || !strings.Contains(err.Error(), "changes its own check") || admitted != nil {
+		t.Fatalf("renewed claim bypassed committed-check admission=%+v %v", admitted, err)
 	}
 }

@@ -3,6 +3,8 @@ package optimizer
 import (
 	"fmt"
 	"slices"
+
+	"overgo/internal/checked"
 )
 
 // TensorGeometry: named tensor matrix geometry.
@@ -106,6 +108,37 @@ func (p *TensorPack) Scatter() {
 		group := p.plan.Groups()[index]
 		copy(values, p.weights[group.Start:group.End])
 	}
+}
+
+// RestoreWeights validates every replacement before changing packed or bound
+// weights. The caller retains ownership of the replacement tensors.
+func (p *TensorPack) RestoreWeights(tensors map[string][]float32) error {
+	if p == nil || p.plan.Identity() == "" || len(tensors) != p.plan.GroupCount() {
+		return fmt.Errorf("optimizer tensor pack: restored tensor set differs")
+	}
+	for index := range p.plan.GroupCount() {
+		group, _ := p.plan.Group(index)
+		values, found := tensors[group.Name]
+		if !found || len(values) != group.End-group.Start {
+			return fmt.Errorf("optimizer tensor pack: %s restored shape differs", group.Name)
+		}
+		for _, value := range values {
+			if !checked.Finite32(value) {
+				return fmt.Errorf("optimizer tensor pack: %s restored value is non-finite", group.Name)
+			}
+		}
+	}
+	// Stage before publishing: replacement views may alias packed or bound
+	// storage, including another group's range.
+	restored := make([]float32, len(p.weights))
+	for index := range p.plan.GroupCount() {
+		group, _ := p.plan.Group(index)
+		copy(restored[group.Start:group.End], tensors[group.Name])
+	}
+	copy(p.weights, restored)
+	clear(p.gradients)
+	p.Scatter()
+	return nil
 }
 
 // GatherGradients replaces the complete packed gradient slab.

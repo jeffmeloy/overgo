@@ -30,7 +30,7 @@ func TestHostStateBytesMatchesAllocations(t *testing.T) {
 			t.Fatal(err)
 		}
 		state.Step()
-		actual := uint64(cap(state.momentum)+cap(state.scratch.input)+cap(state.scratch.output)+cap(state.scratch.gram)+cap(state.scratch.square)) * binaryschema.Uint64Bytes
+		actual := uint64(cap(state.momentum)+cap(state.scratch.input)+cap(state.scratch.transposed)+cap(state.scratch.output)+cap(state.scratch.gram)+cap(state.scratch.square)) * binaryschema.Uint64Bytes
 		if admitted != actual {
 			t.Fatalf("frozen=%v admitted=%d, actual numeric storage=%d", frozen, admitted, actual)
 		}

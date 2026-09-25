@@ -1670,6 +1670,9 @@ func (g *gateContext) stepAcceptance() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if err := requireCommittedCheck(g.repo, g.planRef, contract.verify); err != nil {
+		return false, err
+	}
 	if err := g.verifyAcceptedCandidate(contract.verify, true); err != nil {
 		return false, err
 	}

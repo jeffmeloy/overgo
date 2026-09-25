@@ -1,13 +1,62 @@
 package gate
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"overgo/internal/plan"
 	"overgo/internal/planverify"
 )
+
+// Changed verification must refuse before executing even a passing command.
+// Preflight uses an on-disk execution witness; the frozen path must refuse
+// before asking for candidate preparation or recording acceptance.
+func TestChangedCheckRefusesBeforeExecution(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"preflight", "frozen"} {
+		t.Run(mode, func(t *testing.T) {
+			g, _, _ := verificationBatchFixture(t, "pass")
+			document, err := plan.Load(filepath.Join(g.repo, plan.Path))
+			if err != nil {
+				t.Fatal(err)
+			}
+			document.Items[0].Steps[0].Verify = "go test . -run '^TestExecutionWitness$' -count=1 -v"
+			if err := plan.Save(filepath.Join(g.repo, plan.Path), document); err != nil {
+				t.Fatal(err)
+			}
+			source := `package batchfixture
+import ("os"; "testing")
+func TestExecutionWitness(t *testing.T) {
+    if err := os.WriteFile("witness", []byte("executed"), 0600); err != nil { t.Fatal(err) }
+}
+`
+			if err := os.WriteFile(filepath.Join(g.repo, "unit_test.go"), []byte(source), 0600); err != nil {
+				t.Fatal(err)
+			}
+			g, _, _ = verificationBatchContext(t, g.repo)
+			var output bytes.Buffer
+			if mode == "preflight" {
+				err = g.preflightAcceptance(t.Context(), &output)
+			} else {
+				_, err = g.stepAcceptance()
+			}
+			if err == nil || !strings.Contains(err.Error(), "changes its own check") {
+				t.Errorf("changed check was not refused before execution: %v; output=%s", err, output.String())
+			}
+			if _, err := os.Stat(filepath.Join(g.repo, "witness")); !errors.Is(err, os.ErrNotExist) {
+				t.Errorf("changed acceptance command ran: %v", err)
+			}
+			if g.acceptedTree != "" || g.stepEvidence["acceptance"] != "" {
+				t.Fatal("refused check recorded acceptance")
+			}
+		})
+	}
+}
 
 // TestGrowingLandingNeedsACheckThatFailsWithoutIt holds the proof rule to its
 // cases. A landing that adds production code is refused when its check

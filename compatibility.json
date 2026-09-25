@@ -934,7 +934,7 @@
      "contains": "func NewGBNFGrammar(",
      "path": "internal/sampling/gbnf.go",
      "role": "source",
-     "identity": "file:sha256:51213732f6441cb06deeadefa470638680d1848241180e9ed5c32a9032871f07"
+     "identity": "file:sha256:0aaf3632a58e3f9cd4642e31c1002fc86084151be0be5203c858e16e16334638"
     },
     {
      "contains": "func TestJSONSchemaGrammarMatchesPinnedUpstreamCorpus(",

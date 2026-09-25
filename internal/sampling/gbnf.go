@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"overgo/internal/binaryschema"
@@ -72,6 +73,12 @@ type GBNFVocabulary struct {
 	pieces   [][]byte
 	eos      []bool
 	tokenIDs map[string]int
+
+	signatureMu    sync.Mutex
+	signatures     map[[32]byte]uint64
+	signatureOrder [gbnfSignatureCacheCapacity][32]byte
+	signatureUsed  int
+	signatureNext  int
 }
 
 // NewGBNFVocabulary copies caller-owned vocabulary data once for reuse.
@@ -254,10 +261,10 @@ func (v *GBNFVocabulary) Compile(source, root string, lazy GBNFLazyOptions) (*GB
 		len(grammar.triggerPatterns) == 0 {
 		return nil, errors.New("lazy GBNF needs at least one trigger")
 	}
-	grammar.signature = grammarSignature(source, root, v.pieces, v.eos, grammar)
 	if _, err := grammar.initialState(); err != nil {
 		return nil, err
 	}
+	grammar.signature = v.cachedGrammarSignature(source, root, lazy, grammar)
 	return grammar, nil
 }
 

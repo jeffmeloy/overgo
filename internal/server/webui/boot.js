@@ -881,7 +881,9 @@
     const modelPill = document.getElementById("model-pill");
     try {
       // The proxy names its child in the header; an empty name is the proxy with no child (the cold start).
+      let proxied = false;
       const health = await api.get("/health", { onHeaders: (headers) => { if (attempt !== statusAttempt) return; const via = headers.get("X-Overgo-Swap-Proxy");
+        proxied = via != null;
         dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
       if (attempt !== statusAttempt) return;
       statusPill.textContent = "online";
@@ -889,9 +891,9 @@
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
-      // The pill names the served file (the swap proxy reports it); a directly served model reports its
-      // API identifier ("overgo"), which names no model, so the manifest's name stands in for it.
-      const apiIdentifier = capabilityDocument && health.model === capabilityDocument.id;
+      // The pill names the served file, which the swap proxy reports; a model served directly reports its
+      // API identifier ("overgo"), which names no model, so there the manifest's name stands in for it.
+      const apiIdentifier = !proxied && capabilityDocument && health.model === capabilityDocument.id;
       servedName = (apiIdentifier && capabilityDocument.name) || health.model || 'Choose a model';
       servedEntry = null;
       servedEvidence = '';

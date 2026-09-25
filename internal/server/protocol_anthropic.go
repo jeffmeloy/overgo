@@ -184,7 +184,8 @@ func (h *Handler) anthropicMessages(response http.ResponseWriter, request *http.
 			return
 		}
 	}
-	content, err := h.anthropicBlocks(message, "toolu_"+strings.TrimPrefix(messageID, "msg_"))
+	h.issueToolCalls(message.ToolCalls, anthropicCallIdentity(messageID))
+	content, err := h.anthropicBlocks(message, "")
 	if err != nil {
 		writeGenerationError(response, err)
 		return
@@ -269,7 +270,7 @@ func (h *Handler) streamAnthropicMessages(
 		})
 	}
 	emitToolPiece := func(piece string) error {
-		idPrefix := "toolu_" + strings.TrimPrefix(messageID, "msg_")
+		identity := anthropicCallIdentity(messageID)
 		return toolStream.route(piece, toolDeltaSink{
 			Content: emitText,
 			Tool: func(delta inference.ChatToolCallDelta) error {
@@ -289,7 +290,7 @@ func (h *Handler) streamAnthropicMessages(
 					if err := writeEvent("content_block_start", anthropicStreamEvent{
 						Type: "content_block_start", Index: new(blockIndex),
 						ContentBlock: anthropicContentBlockStart{
-							Type: "tool_use", ID: fmt.Sprintf("%s_%d", idPrefix, delta.Index),
+							Type: "tool_use", ID: identity(delta.Index),
 							Name: delta.Name, Input: new(map[string]any{}),
 						},
 					}); err != nil {
@@ -411,10 +412,8 @@ func (h *Handler) streamAnthropicMessages(
 			_ = emitNamedGenerationError(writeEvent, "error", parseErr)
 			return
 		}
-		blocks, blockErr := h.anthropicBlocks(
-			message,
-			"toolu_"+strings.TrimPrefix(messageID, "msg_"),
-		)
+		h.issueToolCalls(message.ToolCalls, anthropicCallIdentity(messageID))
+		blocks, blockErr := h.anthropicBlocks(message, "")
 		if blockErr != nil {
 			_ = emitNamedGenerationError(writeEvent, "error", blockErr)
 			return
@@ -615,4 +614,10 @@ func parseAnthropicContent(raw json.RawMessage, label string) (string, error) {
 		result.WriteString(block.Text)
 	}
 	return result.String(), nil
+}
+
+// anthropicCallIdentity names a message's unnamed tool uses by the message and the call's position.
+func anthropicCallIdentity(messageID string) func(int) string {
+	prefix := "toolu_" + strings.TrimPrefix(messageID, "msg_")
+	return func(index int) string { return fmt.Sprintf("%s_%d", prefix, index) }
 }

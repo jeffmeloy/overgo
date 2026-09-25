@@ -270,7 +270,7 @@ func (h *Handler) responses(response http.ResponseWriter, request *http.Request)
 		}
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	h.assignResponseCallIDs(&message, idSuffix)
+	h.issueToolCalls(message.ToolCalls, responseCallIdentity(idSuffix))
 	status, reason := responseCompletion(result.pump, plan.maxTokens, message)
 	outputItems := responseItems(message, messageID, idSuffix, reasoningSummary, status)
 	promptTokens := result.promptTokens()
@@ -457,7 +457,7 @@ func (h *Handler) streamResponses(
 					outputIndex++
 				}
 				itemID := fmt.Sprintf("fc_%s_%d", idSuffix, delta.Index)
-				callID := fmt.Sprintf("call_%s_%d", idSuffix, delta.Index)
+				callID := responseCallIdentity(idSuffix)(delta.Index)
 				if delta.Started {
 					if err := writeEvent(
 						"response.output_item.added",
@@ -634,7 +634,7 @@ func (h *Handler) streamResponses(
 		outputItems = append(outputItems, item)
 	}
 	idSuffix := strings.TrimPrefix(responseID, "resp_")
-	h.assignResponseCallIDs(&parsedMessage, idSuffix)
+	h.issueToolCalls(parsedMessage.ToolCalls, responseCallIdentity(idSuffix))
 	callItems := responseItems(
 		inference.ChatMessage{
 			Role:      inference.ChatRoleAssistant,

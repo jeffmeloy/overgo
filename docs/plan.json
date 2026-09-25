@@ -6,17 +6,58 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "arch-turn-pipeline",
-      "title": "Serve every text protocol through one turn pipeline: one prompt build, one output parse, one usage and tool-call rule, each protocol only decoding its request and encoding its events",
+      "id": "arch-turn-count",
+      "title": "One text turn, stage 2: one input-token count for chat, Responses and Anthropic in place of three handlers",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Serve every text protocol through one turn pipeline: one prompt build, one output parse, one usage and tool-call rule, each protocol only decoding its request and encoding its events",
+          "title": "One text turn, stage 2: one input-token count for chat, Responses and Anthropic in place of three handlers",
           "status": "open",
-          "verify": "go test ./internal/server -run '^TestTextProtocolsShareOneTurn$' -count=1",
-          "rationale": "Survey: eight text routes (/v1/completions, /completion, /infill, /v1/chat/completions, /v1/responses, /v1/messages, /agents/chat, /generation/enhance) all end in Handler.generate, but prompt building, output parsing, tool-call ids (four separate generators in chat alone), usage, finish reasons and non-streaming paths are built per protocol above it; /v1/completions skips tokenization and the context check; the native completion route runs its own loop; infill and agents/chat re-encode JSON to call another handler; only Responses stores interactions. One runTurn with a sink interface serves them all, each protocol keeping only its request decoder and event encoder. Estimated 1,400 lines out, 830 in."
+          "verify": "go test ./internal/server -run '^TestTextTurnCountsOnce$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "arch-turn-batch",
+      "title": "One text turn, stage 3: serve /v1/completions through the shared generation plan, with its context check, and delete the batch plan",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One text turn, stage 3: serve /v1/completions through the shared generation plan, with its context check, and delete the batch plan",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestCompletionsShareThePlan$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "arch-turn-native",
+      "title": "One text turn, stage 4: run the native completion engine on the shared generation pump, deleting its own stop filter and accounting",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One text turn, stage 4: run the native completion engine on the shared generation pump, deleting its own stop filter and accounting",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestNativeCompletionUsesThePump$' -count=1"
+        }
+      ]
+    },
+    {
+      "id": "arch-turn-encoders",
+      "title": "One text turn, stage 5: one turn run and outcome for chat, Responses and Anthropic, leaving each protocol only its event encoder",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "One text turn, stage 5: one turn run and outcome for chat, Responses and Anthropic, leaving each protocol only its event encoder",
+          "status": "open",
+          "verify": "go test ./internal/server -run '^TestProtocolsEncodeOneOutcome$' -count=1"
         }
       ]
     },

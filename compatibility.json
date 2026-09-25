@@ -1061,7 +1061,7 @@
      "contains": "func (h *Handler) executePendingTools(",
      "path": "internal/server/tool_execution.go",
      "role": "source",
-     "identity": "file:sha256:634bd2de5eb3708c203cfb3f7d17e6ce9041920be7a7b1abe6fff523bdac5a7e"
+     "identity": "file:sha256:5f4e135ed0fa4ca41f1070e2493ed953da884fefeaa56c1254c18ff9223e941c"
     },
     {
      "contains": "func TestProtocolToolExecutionParity(",
@@ -1103,7 +1103,7 @@
      "contains": "func (h *Handler) responsesInputTokens(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:bac1cfebdd11a239dbe27c5e601862bf7b3908068a3c10a3031f1767fa47694a"
+     "identity": "file:sha256:2f640640ff3b57f7e7dde8ef84f0dda580fc68f282012a5da0480ab4f1f4559c"
     },
     {
      "contains": "func TestMultimodalInputTokenCounting(",
@@ -1172,7 +1172,7 @@
      "contains": "promptTools []inference.ChatTool",
      "path": "internal/server/protocol_chat.go",
      "role": "source",
-     "identity": "file:sha256:9698a55ce8b9976cd35e26f9da0f211ea660f6a37bef2cdf07f806603d0f13c7"
+     "identity": "file:sha256:43312a310c379e8f9f6acb51d238850906d1f5e1b04ee1e8e261b8c817f352f6"
     },
     {
      "contains": "func TestChatAndResponsesMultimodalFunctionTools(",
@@ -1256,7 +1256,7 @@
      "contains": "func validateResponsesReasoning(",
      "path": "internal/server/protocol_responses.go",
      "role": "source",
-     "identity": "file:sha256:bac1cfebdd11a239dbe27c5e601862bf7b3908068a3c10a3031f1767fa47694a"
+     "identity": "file:sha256:2f640640ff3b57f7e7dde8ef84f0dda580fc68f282012a5da0480ab4f1f4559c"
     },
     {
      "contains": "func TestResponsesReasoningItemsBufferedAndStreaming(",

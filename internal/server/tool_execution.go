@@ -36,6 +36,19 @@ func issuedCallDigest(call inference.ChatToolCall) [sha256.Size]byte {
 	return key
 }
 
+// issueToolCalls is every text protocol's one tool-call rule: a call the
+// model left unnamed takes the protocol's identity for its position, and
+// every call a turn returns is recorded as issued, so the client's replay of
+// it executes whichever protocol it arrives on.
+func (h *Handler) issueToolCalls(calls []inference.ChatToolCall, identity func(index int) string) {
+	for index := range calls {
+		if calls[index].ID == "" {
+			calls[index].ID = identity(index)
+		}
+	}
+	h.issuedCalls.record(calls...)
+}
+
 func (r *issuedCallRegistry) record(calls ...inference.ChatToolCall) {
 	if r == nil || len(calls) == 0 {
 		return

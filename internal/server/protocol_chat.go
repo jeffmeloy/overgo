@@ -706,17 +706,7 @@ func (h *Handler) completeChat(
 				writeGenerationError(response, err)
 				return
 			}
-			for callIndex := range message.ToolCalls {
-				if message.ToolCalls[callIndex].ID == "" {
-					message.ToolCalls[callIndex].ID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						callIndex,
-					)
-				}
-			}
-			h.issuedCalls.record(message.ToolCalls...)
+			h.issueToolCalls(message.ToolCalls, chatCallIdentity(id, choiceIndex))
 			if len(message.ToolCalls) != 0 {
 				finishReason = "tool_calls"
 			}
@@ -839,12 +829,7 @@ func (h *Handler) streamChatCompletion(
 						},
 					}
 					if delta.Started {
-						call.ID = fmt.Sprintf(
-							"call_%s_%d_%d",
-							strings.TrimPrefix(id, "chatcmpl-"),
-							choiceIndex,
-							delta.Index,
-						)
+						call.ID = chatCallIdentity(id, choiceIndex)(delta.Index)
 						call.Type = inference.ChatToolTypeFunction
 						call.Function.Name = delta.Name
 					}
@@ -910,12 +895,7 @@ func (h *Handler) streamChatCompletion(
 				}
 				callID := call.ID
 				if callID == "" {
-					callID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						callIndex,
-					)
+					callID = chatCallIdentity(id, choiceIndex)(callIndex)
 				}
 				if err := writeChunk(choiceIndex, chatStreamDelta{
 					ToolCalls: []chatStreamToolCall{{
@@ -933,18 +913,7 @@ func (h *Handler) streamChatCompletion(
 			}
 			// Issue every parsed call under the same identity rule the
 			// stream used, whether it went out incrementally or here.
-			issued := slices.Clone(message.ToolCalls)
-			for callIndex := range issued {
-				if issued[callIndex].ID == "" {
-					issued[callIndex].ID = fmt.Sprintf(
-						"call_%s_%d_%d",
-						strings.TrimPrefix(id, "chatcmpl-"),
-						choiceIndex,
-						callIndex,
-					)
-				}
-			}
-			h.issuedCalls.record(issued...)
+			h.issueToolCalls(slices.Clone(message.ToolCalls), chatCallIdentity(id, choiceIndex))
 			if len(message.ToolCalls) != 0 {
 				reason = "tool_calls"
 			}
@@ -961,4 +930,11 @@ func (h *Handler) streamChatCompletion(
 		_ = writeChunk(choiceIndex, chatStreamDelta{}, &reason)
 	}
 	_ = stream.done()
+}
+
+// chatCallIdentity names a chat turn's unnamed calls by the completion, the
+// choice and the call's position.
+func chatCallIdentity(completion string, choice int) func(int) string {
+	suffix := strings.TrimPrefix(completion, "chatcmpl-")
+	return func(index int) string { return fmt.Sprintf("call_%s_%d_%d", suffix, choice, index) }
 }

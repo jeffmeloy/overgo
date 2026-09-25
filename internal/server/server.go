@@ -461,6 +461,7 @@ type Handler struct {
 	modelArtifact      artifact.ID
 	observationErrors  atomic.Uint64
 	servingEvents      servingEvents
+	events             *eventHub
 	servingWorkspace
 	operatorWorkspace
 	agentWorkspace
@@ -604,7 +605,9 @@ func New(config Config, generator Generator) (*Handler, error) {
 	}
 	// Each workspace receives exactly its dependencies; the handler is
 	// their assembly beside the shared core.
+	events := newEventHub()
 	handler := &Handler{
+		events:      events,
 		config:      config,
 		started:     time.Now(),
 		repository:  repository,
@@ -625,7 +628,7 @@ func New(config Config, generator Generator) (*Handler, error) {
 			issuedCalls: newIssuedCallRegistry(config.MaxTokens),
 		},
 		hubWorkspace: hubWorkspace{
-			downloads: newDownloadRegistry(config.MaxConcurrent, config.MaxStoredResponses),
+			downloads: newDownloadRegistry(config.MaxConcurrent, config.MaxStoredResponses, events.publish),
 		},
 		workbenchWorkspace: workbenchWorkspace{
 			catalogMemo:      catalogMemo,
@@ -646,6 +649,8 @@ func New(config Config, generator Generator) (*Handler, error) {
 		_ = handler.Close()
 		return nil, err
 	}
+	handler.operations.Notify(events.observeOperation)
+	events.pump(handler.runtimeSessionsSnapshot)
 	if config.ToolAdapter != nil {
 		if repository == nil {
 			_ = handler.Close()
@@ -682,6 +687,8 @@ func (h *Handler) Close() error {
 	if h.operations != nil {
 		h.operations.Close()
 	}
+	// Every stream's queue closes after the last operation transition.
+	h.events.close()
 	if tools, ok := h.tools.(*workflowruntime.ToolExecutor); ok {
 		tools.Close()
 	}
@@ -777,8 +784,12 @@ func (h *Handler) ServeHTTP(response http.ResponseWriter, request *http.Request)
 		writeError(response, http.StatusMethodNotAllowed, "method_not_allowed", strings.Join(route.Methods, " or ")+" required")
 		return
 	}
+	if routed && route.Inventory {
+		h.serveInventoryChange(route, response, request)
+		return
+	}
 	if routed {
-		route.serve(h, response, request)
+		route.Handler(h, response, request)
 		return
 	}
 	h.serveWebUI(response, request)

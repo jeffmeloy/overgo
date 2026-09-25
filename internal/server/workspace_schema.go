@@ -50,9 +50,6 @@ type workspaceSchemaCatalog struct {
 }
 
 func (h *Handler) workspaceSchema(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	catalog, err := parseWorkspaceSchema()
 	if err != nil {
 		writeGenerationError(response, err)

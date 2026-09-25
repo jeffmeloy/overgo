@@ -21,7 +21,7 @@ type providerKeyResponse struct {
 // catalog lists the model servable from the next listing.
 func (h *Handler) providerKey(response http.ResponseWriter, request *http.Request) {
 	var body providerKeyRequest
-	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	if h.config.Repository == nil || h.config.ProviderKeys == nil {

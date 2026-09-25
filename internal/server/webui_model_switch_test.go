@@ -29,7 +29,7 @@ func TestFrontPageModelSwitch(t *testing.T) {
 	}
 	// A stale entry is never offered a serve control: the button is created
 	// only for servable entries.
-	if strings.Index(boot, "item.stale") > strings.Index(boot, `text: "serve"`) {
+	if strings.Index(boot, "item.stale") > strings.Index(boot, `text: "Serve"`) {
 		t.Error("boot.js decides the serve control before reading the entry's staleness")
 	}
 }

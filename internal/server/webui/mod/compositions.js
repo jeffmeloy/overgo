@@ -14,7 +14,7 @@
       ["production-active", state.production_active],
     ];
     return overgo.el("div", { class: "row" }, ...labels.map(([label, passed]) =>
-      overgo.el("span", { class: "tag " + (passed ? "user_defined" : ""), text: (passed ? "✓ " : "○ ") + label })));
+      overgo.el("span", { class: "tag " + (passed ? "user_defined" : ""), text: label + (passed ? " passed" : " pending") })));
   }
 
   function graph(overgo, value) {
@@ -41,7 +41,6 @@
         status.textContent = "activating " + fmt.shortID(recipe);
         try {
           await overgo.api.post("/compositions/activate", { recipe });
-          await load();
         } catch (err) { status.textContent = overgo.friendlyError(err); }
       }
 

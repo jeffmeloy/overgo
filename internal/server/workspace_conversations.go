@@ -64,7 +64,7 @@ type conversationLabelRequest struct {
 // is reported once, by its latest response, with the title its label holds
 // or the first line of its first user message.
 func (h *Handler) conversations(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) || !h.conversationRepository(response, request) {
+	if !h.conversationRepository(response, request) {
 		return
 	}
 	values := request.URL.Query()
@@ -202,7 +202,7 @@ func (h *Handler) conversationTitle(ctx context.Context, root runrecord.Interact
 // conversationMessages materializes one chain's visible messages up to the
 // named response, the transcript a resumed conversation renders.
 func (h *Handler) conversationMessages(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) || !h.conversationRepository(response, request) {
+	if !h.conversationRepository(response, request) {
 		return
 	}
 	responseID := request.URL.Query().Get("response")
@@ -247,7 +247,7 @@ func (h *Handler) conversationMessages(response http.ResponseWriter, request *ht
 // rooted at the named response.
 func (h *Handler) conversationLabel(response http.ResponseWriter, request *http.Request) {
 	var body conversationLabelRequest
-	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	if !h.conversationRepository(response, request) {
@@ -385,8 +385,7 @@ func (h *Handler) conversationCancel(response http.ResponseWriter, request *http
 		Response string `json:"response"`
 		Model    string `json:"model"`
 	}
-	if !requireMethod(response, request, http.MethodPost) ||
-		!h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
+	if !h.decodeProtocolJSON(response, request, &body, func() string { return body.Model }) {
 		return
 	}
 	if body.Response == "" || body.Model == "" {
@@ -414,7 +413,7 @@ func (h *Handler) conversationCancel(response http.ResponseWriter, request *http
 // conversationFollow replays the current turn, then follows it to a confirmed
 // terminal event. It never starts a new generation.
 func (h *Handler) conversationFollow(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) || !h.requireModel(response, request.URL.Query().Get("model")) {
+	if !h.requireModel(response, request.URL.Query().Get("model")) {
 		return
 	}
 	responseID := request.URL.Query().Get("response")

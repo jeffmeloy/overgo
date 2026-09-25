@@ -111,82 +111,73 @@ type agentChatRequest struct {
 	Messages []inference.ChatMessage `json:"messages"`
 }
 
-func (h *Handler) agentControl(response http.ResponseWriter, request *http.Request) {
-	if h.repository == nil || h.agentCoordinator == nil {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "agent control workspace is unavailable")
+// The agent routes: each serves one path of the route table under the agent runtime (agentRoute).
+
+func (h *Handler) agentList(response http.ResponseWriter, request *http.Request) {
+	inventory, err := h.agentInventory(request.Context())
+	writeAgentResult(response, http.StatusOK, inventory, err)
+}
+
+func (h *Handler) agentDefine(response http.ResponseWriter, request *http.Request) {
+	var body AgentDefinitionInput
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
-	switch request.URL.Path {
-	case "/agents":
-		if !requireMethod(response, request, http.MethodGet) {
-			return
-		}
-		inventory, err := h.agentInventory(request.Context())
-		writeAgentResult(response, http.StatusOK, inventory, err)
-	case "/agents/create":
-		h.agentSimpleCreate(response, request)
-	case "/agents/definitions":
-		var body AgentDefinitionInput
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		definition, err := h.publishAgentDefinition(request.Context(), body)
-		writeAgentResult(response, http.StatusCreated, struct {
-			ID         artifact.ID            `json:"id"`
-			Definition recipe.AgentDefinition `json:"definition"`
-		}{definition.ID, definition}, err)
-	case "/agents/activate":
-		var body agentDefinitionRequest
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		active, err := h.activateAgent(request.Context(), body.Definition)
-		writeAgentResult(response, http.StatusOK, active, err)
-	case "/agents/state":
-		var body agentStateRequest
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		active, err := h.transitionAgent(request.Context(), body.Name, body.State)
-		writeAgentResult(response, http.StatusOK, active, err)
-	case "/agents/step":
-		h.agentStep(response, request)
-	case "/agents/approval":
-		h.agentApprovalPreview(response, request)
-	case "/agents/chat":
-		h.agentChat(response, request)
-	case "/agents/retrieval":
-		var body agentRetrievalRequest
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		retrieval, err := h.agentRetrieval(request.Context(), body)
-		if err == nil {
-			response.Header().Set(agentRetrievalReceiptHeader, retrieval.Receipt.ID.String())
-			response.Header().Set(agentRetrievalTraceHeader, retrieval.Trace.ID.String())
-		}
-		writeAgentResult(response, http.StatusOK, retrieval.Search.Results, err)
-	case "/agents/automation":
-		var body agentAutomationRequest
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		execution, err := h.runAgentAutomation(context.WithoutCancel(request.Context()), body)
-		writeAgentResult(response, http.StatusAccepted, execution, err)
-	case "/agents/evidence":
-		if !requireMethod(response, request, http.MethodGet) {
-			return
-		}
-		value, err := h.agentEvidence(request.Context(), request.URL.Query().Get("session"))
-		writeAgentResult(response, http.StatusOK, value, err)
-	default:
-		writeError(response, http.StatusNotFound, "not_found", "agent route is absent")
+	definition, err := h.publishAgentDefinition(request.Context(), body)
+	writeAgentResult(response, http.StatusCreated, struct {
+		ID         artifact.ID            `json:"id"`
+		Definition recipe.AgentDefinition `json:"definition"`
+	}{definition.ID, definition}, err)
+}
+
+func (h *Handler) agentActivate(response http.ResponseWriter, request *http.Request) {
+	var body agentDefinitionRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
 	}
+	active, err := h.activateAgent(request.Context(), body.Definition)
+	writeAgentResult(response, http.StatusOK, active, err)
+}
+
+func (h *Handler) agentTransition(response http.ResponseWriter, request *http.Request) {
+	var body agentStateRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	active, err := h.transitionAgent(request.Context(), body.Name, body.State)
+	writeAgentResult(response, http.StatusOK, active, err)
+}
+
+func (h *Handler) agentRetrieve(response http.ResponseWriter, request *http.Request) {
+	var body agentRetrievalRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	retrieval, err := h.agentRetrieval(request.Context(), body)
+	if err == nil {
+		response.Header().Set(agentRetrievalReceiptHeader, retrieval.Receipt.ID.String())
+		response.Header().Set(agentRetrievalTraceHeader, retrieval.Trace.ID.String())
+	}
+	writeAgentResult(response, http.StatusOK, retrieval.Search.Results, err)
+}
+
+func (h *Handler) agentAutomate(response http.ResponseWriter, request *http.Request) {
+	var body agentAutomationRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	execution, err := h.runAgentAutomation(context.WithoutCancel(request.Context()), body)
+	writeAgentResult(response, http.StatusAccepted, execution, err)
+}
+
+func (h *Handler) agentObservables(response http.ResponseWriter, request *http.Request) {
+	value, err := h.agentEvidence(request.Context(), request.URL.Query().Get("session"))
+	writeAgentResult(response, http.StatusOK, value, err)
 }
 
 func (h *Handler) agentChat(response http.ResponseWriter, request *http.Request) {
 	var body agentChatRequest
-	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	active, err := (runrecord.AgentAuthority{Repository: h.repository}).RequireActive(request.Context(), body.Agent)
@@ -223,58 +214,38 @@ func (h *Handler) agentChat(response http.ResponseWriter, request *http.Request)
 	h.chatCompletions(response, forwarded)
 }
 
-// aliasNamesUnder pages the store's alias projection to every alias under a
-// root: a bounded first page hid every agent once the store grew past it.
-func (h *Handler) aliasNamesUnder(ctx context.Context, kind artifact.Kind, root string) ([]string, error) {
-	query := overgodb.Query{Kind: kind, MaxResults: h.config.MaxStoredResponses, Projection: overgodb.ProjectAliases}
+// aliasNamesUnder lists the names bound under an alias root, reading the
+// aliases under it alone: paging the catalog to reach them took tens of
+// seconds per call on a real store, and decoding each bound document read
+// what a name list never shows. With kinds, a name counts only when its
+// target's descriptor is one of them (a stray alias under the root stays out).
+func aliasNamesUnder(ctx context.Context, store *overgodb.Store, root string, kinds ...artifact.DocumentContract) ([]string, error) {
 	var names []string
-	for {
-		result, err := h.repository.Query(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		for _, alias := range result.Aliases {
-			if name, found := strings.CutPrefix(alias.Name, root); found {
-				names = append(names, name)
+	err := store.VisitAliases(ctx, root, func(alias overgodb.AliasView) error {
+		if len(kinds) != 0 {
+			descriptor, found, err := store.Artifact(ctx, alias.Target)
+			if err != nil || !found || !slices.ContainsFunc(kinds, func(kind artifact.DocumentContract) bool {
+				return alias.Target.Kind() == kind.Kind && descriptor.MediaType == kind.MediaType && descriptor.Schema == kind.Schema
+			}) {
+				return err
 			}
 		}
-		if result.Next == nil {
-			return names, nil
-		}
-		query.Cursor = result.Next
-	}
-}
-
-// documentAliasNames lists the names under root bound to documents of one
-// contract, in one exact-contract pass over those documents. A catalog query
-// paging every artifact to reach its aliases took tens of seconds per call on
-// a real store: on every page load (active agents), at every server start and
-// on every Agent tab session list (stored responses).
-func documentAliasNames(ctx context.Context, store *overgodb.Store, contract artifact.DocumentContract, root string) ([]string, error) {
-	var names []string
-	_, err := store.VisitDocuments(ctx, overgodb.DocumentQuery{
-		Contracts: []artifact.DocumentContract{contract}, AliasPrefixes: []string{root}, Order: overgodb.DocumentOldestFirst,
-	}, func(document overgodb.DocumentView) error {
-		for _, alias := range document.Aliases {
-			if name, found := strings.CutPrefix(alias, root); found {
-				names = append(names, name)
-			}
-		}
+		names = append(names, strings.TrimPrefix(alias.Name, root))
 		return nil
 	})
 	return names, err
 }
 
-// activeAgentNames lists the agents the active root binds to their activation (runrecord owns the contract).
+// activeAgentNames lists the agents the active root binds to their activation.
 func (h *Handler) activeAgentNames(ctx context.Context) ([]string, error) {
-	activation := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema}
-	return documentAliasNames(ctx, h.repository, activation, runrecord.AgentActiveAliasRoot)
+	return aliasNamesUnder(ctx, h.repository, runrecord.AgentActiveAliasRoot,
+		artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.AgentActivationMediaType, Schema: runrecord.AgentActivationSchema})
 }
 
 // responseInteractionNames lists the stored responses the response root binds to their interaction.
 func responseInteractionNames(ctx context.Context, store *overgodb.Store) ([]string, error) {
-	interaction := artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema}
-	return documentAliasNames(ctx, store, interaction, runrecord.InteractionResponseAliasRoot)
+	return aliasNamesUnder(ctx, store, runrecord.InteractionResponseAliasRoot,
+		artifact.DocumentContract{Kind: artifact.KindEvidence, MediaType: runrecord.InteractionMediaType, Schema: runrecord.InteractionSchema})
 }
 
 func (h *Handler) agentInventory(ctx context.Context) ([]AgentInventoryEntry, error) {
@@ -331,13 +302,6 @@ type agentSimpleCreateRequest struct {
 // manuals, and the default agent policy profile grounds the required
 // policy set.
 func (h *Handler) agentSimpleCreate(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodPost) {
-		return
-	}
-	if h.repository == nil {
-		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
-		return
-	}
 	var body agentSimpleCreateRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return

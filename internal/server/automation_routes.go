@@ -13,66 +13,62 @@ type automationActivationRequest struct {
 	Definition artifact.ID `json:"definition"`
 }
 
-func (h *Handler) automationWorkspace(response http.ResponseWriter, request *http.Request) {
-	workspace, ok := h.generator.(AutomationWorkspaceAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, "automation workspace is unavailable")
+// The automation routes: each serves one path of the route table over the automation workspace (automationRoute).
+
+func (h *Handler) automationInventory(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	inventory, err := workspace.AutomationInventory(request.Context())
+	if err != nil {
+		writeGenerationError(response, err)
 		return
 	}
-	switch request.URL.Path {
-	case "/automations":
-		if !requireMethod(response, request, http.MethodGet) {
-			return
-		}
-		inventory, err := workspace.AutomationInventory(request.Context())
-		if err != nil {
-			writeGenerationError(response, err)
-			return
-		}
-		writeJSON(response, http.StatusOK, inventory)
-	case "/automations/definitions":
-		var body AutomationDefinitionInput
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		definition, err := workspace.PublishAutomationDefinition(request.Context(), body)
-		writeAutomationResult(response, http.StatusCreated, struct {
-			ID         artifact.ID                 `json:"id"`
-			Definition recipe.AutomationDefinition `json:"definition"`
-		}{ID: definition.ID, Definition: definition}, err)
-	case "/automations/activate":
-		var body automationActivationRequest
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		active, err := workspace.ActivateAutomation(request.Context(), body.Definition)
-		writeAutomationResult(response, http.StatusOK, active, err)
-	case "/automations/run":
-		var body AutomationExecutionInput
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		execution, err := workspace.RunAutomation(context.WithoutCancel(request.Context()), h.operations, body)
-		writeAutomationResult(response, http.StatusAccepted, execution, err)
-	case "/automations/schedule":
-		var body AutomationExecutionInput
-		if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
-			return
-		}
-		execution, fired, err := workspace.ScheduleAutomation(context.WithoutCancel(request.Context()), h.operations, body)
-		writeAutomationResult(response, http.StatusAccepted, struct {
-			Execution workflowruntime.AutomationExecution `json:"execution"`
-			Fired     bool                                `json:"fired"`
-		}{Execution: execution, Fired: fired}, err)
-	case "/automations/history":
-		if !requireMethod(response, request, http.MethodGet) {
-			return
-		}
-		history, err := workspace.AutomationHistory(request.Context())
-		writeAutomationResult(response, http.StatusOK, history, err)
-	default:
-		writeError(response, http.StatusNotFound, "not_found", "automation route is absent")
+	writeJSON(response, http.StatusOK, inventory)
+}
+
+func (h *Handler) automationDefine(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body AutomationDefinitionInput
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
 	}
+	definition, err := workspace.PublishAutomationDefinition(request.Context(), body)
+	writeAutomationResult(response, http.StatusCreated, struct {
+		ID         artifact.ID                 `json:"id"`
+		Definition recipe.AutomationDefinition `json:"definition"`
+	}{ID: definition.ID, Definition: definition}, err)
+}
+
+func (h *Handler) automationActivate(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body automationActivationRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	active, err := workspace.ActivateAutomation(request.Context(), body.Definition)
+	writeAutomationResult(response, http.StatusOK, active, err)
+}
+
+func (h *Handler) automationRun(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body AutomationExecutionInput
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	execution, err := workspace.RunAutomation(context.WithoutCancel(request.Context()), h.operations, body)
+	writeAutomationResult(response, http.StatusAccepted, execution, err)
+}
+
+func (h *Handler) automationSchedule(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	var body AutomationExecutionInput
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	execution, fired, err := workspace.ScheduleAutomation(context.WithoutCancel(request.Context()), h.operations, body)
+	writeAutomationResult(response, http.StatusAccepted, struct {
+		Execution workflowruntime.AutomationExecution `json:"execution"`
+		Fired     bool                                `json:"fired"`
+	}{Execution: execution, Fired: fired}, err)
+}
+
+func (h *Handler) automationHistory(workspace AutomationWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+	history, err := workspace.AutomationHistory(request.Context())
+	writeAutomationResult(response, http.StatusOK, history, err)
 }
 
 func writeAutomationResult(response http.ResponseWriter, status int, value any, err error) {

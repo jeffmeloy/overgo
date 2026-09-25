@@ -21,7 +21,6 @@ type State string
 
 const (
 	operationSequenceStep = 1
-	operationEventBuffer  = 1
 
 	StateAdmitted   State = "admitted"
 	StatePreparing  State = "preparing"
@@ -94,9 +93,9 @@ type Manager struct {
 	sequence atomic.Uint64
 	wait     sync.WaitGroup
 	closed   bool
-	watchers map[uint64]chan Event
-	watchID  uint64
-	eventID  uint64
+	// notify receives every transition in order, under mu; it only queues.
+	notify  func(Event)
+	eventID uint64
 }
 
 type entry struct {
@@ -118,7 +117,7 @@ func NewManager(limit int) (*Manager, error) {
 	if limit <= 0 {
 		return nil, errors.New("operation: retention limit must be positive")
 	}
-	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit, watchers: make(map[uint64]chan Event)}
+	manager := &Manager{entries: make(map[artifact.ID]*entry), limit: limit}
 	if _, err := rand.Read(manager.salt[:]); err != nil {
 		return nil, fmt.Errorf("operation: initialize identity: %w", err)
 	}
@@ -318,28 +317,13 @@ func (manager *Manager) List() []Status {
 	return result
 }
 
-// Subscribe returns latest-only operation events.
-func (manager *Manager) Subscribe() (<-chan Event, func(), error) {
-	if manager == nil {
-		return nil, nil, errors.New("operation: nil manager")
-	}
+// Notify hands every later transition, in order, to one observer: the one
+// fan-out its owner runs. The observer is called under the manager's lock,
+// so it must only queue.
+func (manager *Manager) Notify(observe func(Event)) {
 	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	if manager.closed || len(manager.watchers) >= manager.limit {
-		return nil, nil, errors.New("operation: event subscription unavailable")
-	}
-	manager.watchID++
-	id := manager.watchID
-	events := make(chan Event, operationEventBuffer)
-	manager.watchers[id] = events
-	return events, func() {
-		manager.mu.Lock()
-		if current := manager.watchers[id]; current != nil {
-			delete(manager.watchers, id)
-			close(current)
-		}
-		manager.mu.Unlock()
-	}, nil
+	manager.notify = observe
+	manager.mu.Unlock()
 }
 
 func (manager *Manager) Wait(ctx context.Context, id artifact.ID) (Status, error) {
@@ -390,10 +374,6 @@ func (manager *Manager) Close() {
 			current.cancel()
 		}
 	}
-	for id, watcher := range manager.watchers {
-		delete(manager.watchers, id)
-		close(watcher)
-	}
 	manager.mu.Unlock()
 	manager.wait.Wait()
 }
@@ -408,25 +388,11 @@ func (manager *Manager) setState(id artifact.ID, state State) {
 }
 
 func (manager *Manager) publishLocked(status Status) {
-	if len(manager.watchers) == 0 {
+	if manager.notify == nil {
 		return
 	}
 	manager.eventID++
-	for _, target := range manager.watchers {
-		event := Event{Sequence: manager.eventID, Status: cloneStatus(status)}
-		select {
-		case target <- event:
-		default:
-			select {
-			case <-target:
-			default:
-			}
-			select {
-			case target <- event:
-			default:
-			}
-		}
-	}
+	manager.notify(Event{Sequence: manager.eventID, Status: cloneStatus(status)})
 }
 
 func (manager *Manager) trimLocked() {

@@ -251,15 +251,19 @@ func (browser *Browser) Eventually(ctx context.Context, expression string) error
 }
 
 // predicateWait wraps a predicate in a promise the page resolves once it
-// holds; a throwing predicate reads as not yet holding, and a hidden page
-// checks on its task queue where animation frames stop.
+// holds; a predicate that answers a promise (a fetch) holds on what the
+// promise settles to, never on the promise itself; a throwing or rejecting
+// predicate reads as not yet holding, and a hidden page checks on its task
+// queue where animation frames stop.
 func predicateWait(expression string) string {
 	return `new Promise((resolve) => {
 	const check = () => {
-		let ready = false;
-		try { ready = !!(` + expression + `); } catch (_) { ready = false; }
-		if (ready) { resolve(true); return; }
-		if (document.visibilityState === "visible") requestAnimationFrame(check); else setTimeout(check);
+		let answer = false;
+		try { answer = (` + expression + `); } catch (_) { answer = false; }
+		Promise.resolve(answer).then((ready) => ready, () => false).then((ready) => {
+			if (ready) { resolve(true); return; }
+			if (document.visibilityState === "visible") requestAnimationFrame(check); else setTimeout(check);
+		});
 	};
 	check();
 })`

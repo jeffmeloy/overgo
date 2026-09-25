@@ -4,20 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "merge-79180f0ca8b9",
-      "title": "Merge the GUI cleanup lane at 79180f0ca8b9",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Merge the GUI cleanup lane at 79180f0ca8b9",
-          "status": "open",
-          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/server -run '^TestEventHubFansOutOnce$' -count=1"
-        }
-      ]
-    },
-    {
       "id": "wire-sft-evaluation",
       "title": "Approve forecast objectives on held-out forecasts",
       "owner": "master-lead",

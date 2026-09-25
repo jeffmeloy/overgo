@@ -152,9 +152,10 @@
         }
         for (const th of head.children) {
           const c = COLUMNS[Array.prototype.indexOf.call(head.children, th)];
-          let marker = "";
-          if (c.key === sortKey) marker = sortAsc ? " ▲" : " ▼";
-          th.textContent = c.label + marker;
+          // The sorted column says so to assistive technology and draws its direction.
+          th.textContent = c.label;
+          if (c.key === sortKey) th.setAttribute("aria-sort", sortAsc ? "ascending" : "descending");
+          else th.removeAttribute("aria-sort");
         }
       }
       draw();

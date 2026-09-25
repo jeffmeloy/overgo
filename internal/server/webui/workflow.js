@@ -9,6 +9,9 @@
   function publish(name, value) {
     if (name === "operation") {
       const operations = new Map((latest.get("operation.snapshot") || []).map((item) => [item.id, item]));
+      // A transition queued before a snapshot can arrive after it; a finished operation stays finished.
+      const known = operations.get(value.status.id);
+      if (known && terminal(known.state) && !terminal(value.status.state)) return;
       operations.set(value.status.id, value.status);
       latest.set("operation.snapshot", [...operations.values()]);
       const activity = latest.get("runtime.activity");
@@ -27,7 +30,7 @@
       };
       name = "runtime.activity";
       latest.set(name, value);
-    } else {
+    } else if (name !== "workspace.changed") { // a change happened once; replaying it would refresh again
       latest.set(name, value);
       if (name === "operation.snapshot") {
         const activity = latest.get("runtime.activity");
@@ -168,31 +171,30 @@
     return { input, missing };
   };
 
+  // waitOperation follows one operation on the runtime stream to its end: the
+  // server's hub never drops a transition (a stream that falls behind takes
+  // fresh snapshots), and a reconnect's snapshot that no longer holds the
+  // operation means the server retired it.
   window.overgo.waitOperation = function (id, observe, signal) {
     return new Promise((resolve, reject) => {
-      let unsubscribe = function () {}, finished = false, fallback = null;
-      function cleanup() { finished = true; unsubscribe(); if (fallback) fallback.abort(); if (signal) signal.removeEventListener('abort', abort); }
+      let unsubscribe = function () {}, finished = false, live = false, reconnected = false;
+      function cleanup() { finished = true; unsubscribe(); if (signal) signal.removeEventListener('abort', abort); }
       function abort() { if (finished) return; cleanup(); reject(new DOMException('aborted', 'AbortError')); }
       function finish(current) { if (finished) return; if (observe) observe(current); if (!terminal(current.state)) return; cleanup(); resolve(current); }
-      function waitForReceipt() {
-        if (finished || fallback) return;
-        const request = new AbortController(); fallback = request;
-        window.overgo.api.get("/operations/wait?id=" + encodeURIComponent(id), { signal: request.signal }).then(finish, err => {
-          if (!finished && err.status === 404) { cleanup(); reject(err); }
-        }).finally(() => { if (fallback === request) fallback = null; });
-      }
       if (signal && signal.aborted) { abort(); return; }
       unsubscribe = subscribe((name, value) => {
         if (finished) return;
+        if (name === "stream.ready" && live) reconnected = true;
         if (name === "operation" && value.status.id === id) finish(value.status);
-        if (name === "operation.snapshot") { const current = value.find((item) => item.id === id); if (current) finish(current); }
-        if (name === "stream.error" || name === "stream.ready") waitForReceipt();
+        if (name === "operation.snapshot") {
+          const current = value.find((item) => item.id === id);
+          if (current) finish(current);
+          else if (reconnected) { cleanup(); reject(Object.assign(new Error("operation not found"), { status: 404 })); }
+        }
       });
+      // The replay of the latest state runs first; a connection opened after it is a reconnect.
+      queueMicrotask(() => { live = true; });
       if (signal) signal.addEventListener('abort', abort, { once: true });
-      // Activity is latest-only across operations, so a healthy stream may
-      // omit this operation's completion. Await its receipt independently;
-      // activity still supplies progress and recovery decisions.
-      waitForReceipt();
     });
   };
   window.overgo.workflowWorkspace = function (definition) {
@@ -209,9 +211,11 @@
         const evidence = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
+        // The task first, then its inputs, then the action that runs them.
         panel.append(
-          el("div", { class: "section-title", text: definition.label }),
-          el("div", { class: "row" }, capabilitySelect, run, cancel), controls, status,
+          el("div", { class: "section-title", text: overgo.title }),
+          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls,
+          el("div", { class: "row" }, run, cancel), status,
           progress, metrics, evidence);
 
         let capabilities;

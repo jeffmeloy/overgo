@@ -70,7 +70,11 @@ func (h *Handler) publishServing(ctx context.Context, observation runrecord.Serv
 		h.observationErrors.Add(1)
 		return artifact.ID{}
 	}
-	h.servingEvents.publishLocked(published, h.observationErrors.Load())
+	h.servingEvents.cursor++
+	h.events.publish("runtime.serving", runtimeServingEvent{
+		Cursor: h.servingEvents.cursor, PublishFail: h.observationErrors.Load(),
+		Activity: &servingActivity{ID: published.ID, ServingObservation: published},
+	})
 	return published.ID
 }
 

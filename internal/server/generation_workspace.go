@@ -217,12 +217,14 @@ func validateWorkflowSources(ctx context.Context, repository *overgodb.Store, so
 	return nil
 }
 
-func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, string(kind)+" workspace is unavailable")
-		return
-	}
+// workflowRoute serves one workflow kind's route over the workflow workspace.
+func workflowRoute(kind WorkflowKind, serve func(*Handler, WorkflowWorkspaceAPI, http.ResponseWriter, *http.Request, WorkflowKind)) routeHandler {
+	return generatorWorkspace(string(kind)+" workspace is unavailable", func(h *Handler, workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request) {
+		serve(h, workspace, response, request, kind)
+	})
+}
+
+func (h *Handler) workflowCapabilities(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
 	capabilities, err := workspace.WorkflowCapabilities(request.Context(), kind)
 	if err != nil {
 		writeGenerationError(response, err)
@@ -239,12 +241,7 @@ func (h *Handler) workflowCapabilities(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, capabilities)
 }
 
-func (h *Handler) workflowRun(response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
-	workspace, ok := h.generator.(WorkflowWorkspaceAPI)
-	if !ok {
-		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, string(kind)+" workspace is unavailable")
-		return
-	}
+func (h *Handler) workflowRun(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
 	var body workflowRequest
 	if !h.decodeBoundedJSON(response, request, &body) {
 		return

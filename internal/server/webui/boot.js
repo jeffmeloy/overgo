@@ -58,9 +58,13 @@
     inFlight++;
     try { return await request; } finally { inFlight--; }
   }
+  // readPaths: the paths each workspace read fetched, keyed by its signal, so a changed inventory refreshes it.
+  const readPaths = new WeakMap();
   const api = {
     inFlight() { return inFlight; },
     async get(path, opts) {
+      const paths = opts && opts.signal && readPaths.get(opts.signal);
+      if (paths) paths.add(path);
       const response = await tracked(fetch(path, { headers: authHeaders(), signal: opts && opts.signal }));
       if (opts && opts.onHeaders) opts.onHeaders(response.headers);
       return readJSON(response);
@@ -332,10 +336,12 @@
   // workspace: the one lifecycle a mounted tab runs under. The shell opens one per mount and releases it
   // with the tab (a remount, a key change, a superseded or failed mount); the tab reads, subscribes and
   // listens through it, so everything it opened ends with it. It stands in for window.overgo, which it extends.
+  const refreshing = Symbol("refreshing");
   function workspace(host, parent) {
     const lifetime = new AbortController();
     const releases = [];
     const shown = [];
+    const reads = [];
     let active = false;
     const stopOf = (started) => typeof started === "function" ? started : null;
     const disposed = (surface) => { life.onRelease(() => surface.dispose()); return surface; };
@@ -357,16 +363,28 @@
         }
       },
       // read: host shows one load's answer; the newest read wins, an empty answer shows options.empty's
-      // words, and a failure offers to read again.
+      // words, and a failure offers to read again. A call that changes an inventory the read fetched
+      // from (workspace.changed) reads it again, so no action refreshes what it changed by hand.
       read(host, load, render, options) {
         const { loading = "Loading…", empty = null } = options || {};
-        let current = null;
-        return async function run() {
+        let current = null, fetched = new Set();
+        if (!reads.length) life.subscribe((name, value) => {
+          if (name !== "workspace.changed") return;
+          const inventory = value.inventory;
+          for (const entry of reads) if ([...entry.fetched()].some((path) => path === inventory || path.startsWith(inventory + "/") || path.startsWith(inventory + "?"))) entry.run(refreshing);
+        });
+        reads.push({ run, fetched: () => fetched });
+        return run;
+        // A refresh keeps the shown answer until the new one replaces it.
+        async function run(how) {
           if (current) current.abort();
           const attempt = new AbortController();
           current = attempt;
           const signal = AbortSignal.any([lifetime.signal, attempt.signal]);
-          if (loading) host.replaceChildren(el("div", { class: "note", text: loading }));
+          const paths = new Set();
+          readPaths.set(signal, paths);
+          fetched = paths;
+          if (loading && how !== refreshing) host.replaceChildren(el("div", { class: "note", text: loading }));
           try {
             const value = await load(signal);
             if (signal.aborted) return;
@@ -377,7 +395,7 @@
             if (signal.aborted || (err && err.name === "AbortError")) return;
             host.replaceChildren(failure(err, el("button", { class: "link-button", text: "Try again", onclick: run })));
           }
-        };
+        }
       },
       // subscribe: runtime stream events until the workspace ends; options.whileShown: only while the tab shows.
       subscribe(handler, options) {
@@ -422,6 +440,7 @@
         host.workspace = null;
         if (!tabSupported(tab)) { renderRefusal(tab, host); return undefined; }
         host.workspace = workspace(host, life);
+        host.workspace.title = tab.label;
         clear(host);
         return tab.mount(host, host.workspace, seed);
       },
@@ -440,7 +459,16 @@
   function tableRow(cells, attrs) {
     return el("tr", attrs || {}, ...cells.map((cell, index) => cell instanceof Node ? el("td", {}, cell) : el("td", { class: index ? "mono" : "", text: String(cell == null ? "" : cell) })));
   }
-  function table(headers, rows, cls) { return el("table", { class: "grid " + (cls || "") }, headerRow(headers), ...rows.map((row) => tableRow(row))); }
+  // table: a grid of rows under their headers; each cell carries its header, so a phone stacks a row as
+  // label and value. With no rows it says so in words (options.empty) rather than showing bare headers.
+  function table(headers, rows, cls, empty) {
+    if (!rows.length) return el("p", { class: "note empty-table", text: empty || "Nothing recorded yet." });
+    return el("table", { class: "grid stack " + (cls || "") }, headerRow(headers), ...rows.map((row) => {
+      const line = tableRow(row);
+      [...line.children].forEach((cell, index) => { cell.dataset.label = headers[index] || ""; });
+      return line;
+    }));
+  }
 
   // evidenceLine: a catalog entry's committed evidence, shown by the header and the picker alike.
   function evidenceLine(item) {
@@ -585,25 +613,35 @@
   let historyQuery = '', historyArchived = false, historyNext = '', historyPaged = false, historyAttempt = 0, historyController = null;
   const historyReload = el('button', { class: 'link-button', text: 'Reload history', hidden: true, onclick: () => refreshConversations({ force: true }) });
   const historyMore = el('button', { class: 'tab', text: 'Load older conversations', hidden: true, onclick: () => refreshConversations({ more: true }) });
-  const historyArchive = el('button', { class: 'link-button', text: 'Archived', 'aria-pressed': 'false', onclick: () => {
+  const historyArchive = el('button', { class: 'chip', text: 'Archived', 'aria-pressed': 'false', onclick: () => {
     historyArchived = !historyArchived; historyArchive.setAttribute('aria-pressed', String(historyArchived)); searchHistory();
   } });
   function searchHistory() { historyQuery = historySearch.value.trim(); refreshConversations({ force: true }); }
   historyHost.append(el('button', { class: 'tab', text: 'New conversation', onclick: () => openConversation(null) }),
     el('form', { class: 'history-search', role: 'search', onsubmit: event => { event.preventDefault(); searchHistory(); } }, historySearch,
-      el('button', { class: 'link-button', type: 'submit', text: 'Search' })),
+      el('button', { class: 'icon-button', type: 'submit', 'aria-label': 'Search', title: 'Search titles' }, icon('search'))),
     el('div', { class: 'row' }, historyArchive, historyReload), historyStatus, historyError, historyRows, historyMore);
 
+  // icon: one drawn stroke icon from the shell's set, the same weight as the header's.
+  function icon(name) {
+    const iconPaths = { more: 'M6 12h.01M12 12h.01M18 12h.01', search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4' };
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'ui-icon'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', iconPaths[name]);
+    svg.append(path);
+    return svg;
+  }
   function historyRow(item) {
     const row = el('div', { class: 'conversation', 'data-latest': item.latest });
     const open = el('button', { class: 'tab conversation-open', 'data-latest': item.latest,
       title: item.title + '\nConversation: ' + item.root + '\nResponse: ' + item.latest + '\nModel: ' + item.model + '\nRecipe: ' + (item.recipe || ''),
       onclick: () => openConversation(item) }, el('span', { class: 'conversation-title', text: item.title }),
-      el('span', { class: 'note', text: item.turns + ' turn' + (item.turns === 1 ? '' : 's') + ' · ' + shortID(item.latest) }));
+      el('span', { class: 'note', text: item.turns + ' turn' + (item.turns === 1 ? '' : 's') }));
     const failure = el('div', { class: 'note', role: 'alert', hidden: true });
     const actions = el('div', { class: 'history-actions', hidden: true, id: 'history-actions-' + crypto.randomUUID() });
-    const more = el('button', { class: 'link-button history-options', text: 'Actions', 'aria-label': 'Actions for ' + item.title,
-      'aria-expanded': 'false', 'aria-controls': actions.id, onclick: () => { actions.hidden = !actions.hidden; more.setAttribute('aria-expanded', String(!actions.hidden)); } });
+    const more = el('button', { class: 'icon-button history-options', 'aria-label': 'Actions for ' + item.title, title: 'Rename or archive',
+      'aria-expanded': 'false', 'aria-controls': actions.id, onclick: () => { actions.hidden = !actions.hidden; more.setAttribute('aria-expanded', String(!actions.hidden)); } }, icon('more'));
     let saving = false;
     const label = async (patch) => {
       if (saving) return false;
@@ -804,20 +842,29 @@
     const attempt = {};
     tab.mountAttempt = attempt;
     tab.life = workspace(tab.panel);
+    tab.life.title = tab.label;
     tab.panel.replaceChildren();
     const failed = (err) => { if (tab.mountAttempt === attempt) renderMountError(tab, err); return false; };
     try {
       tab.ready = Promise.resolve(tab.mount(tab.panel, tab.life)).then(() => tab.mountAttempt === attempt, failed);
     } catch (err) { tab.ready = Promise.resolve(failed(err)); }
   }
+  // releaseTab: the tab's workspace ends and its panel empties, so a released tab never shows a workspace
+  // that no longer listens; its next activation mounts it again.
   function releaseTab(tab) {
     const life = tab.life;
     tab.life = null;
     tab.mounted = false;
     if (life) life.release();
+    tab.panel.replaceChildren();
   }
   function renderMountError(tab, err) { tab.panel.replaceChildren(failure(err)); }
-  function refusalLine(tab) { return tab.refusal + (tab.action ? " " + tab.action : ""); }
+  // refusalLine: the reason as a sentence, then the action that enables the workspace.
+  function refusalLine(tab) {
+    const reason = String(tab.refusal || "").trim();
+    const sentence = !reason || reason.endsWith(".") ? reason : reason + ".";
+    return sentence + (tab.action ? " " + tab.action : "");
+  }
   // renderRefusal: a refused workspace answers a click or a fragment with its reason and the action that enables it.
   function renderRefusal(tab, host) { (host || tab.panel).replaceChildren(el("p", { class: "note workspace-refusal", role: "status", text: refusalLine(tab) })); }
 
@@ -834,7 +881,9 @@
     const modelPill = document.getElementById("model-pill");
     try {
       // The proxy names its child in the header; an empty name is the proxy with no child (the cold start).
+      let proxied = false;
       const health = await api.get("/health", { onHeaders: (headers) => { if (attempt !== statusAttempt) return; const via = headers.get("X-Overgo-Swap-Proxy");
+        proxied = via != null;
         dot("proxy-dot", via == null ? "off" : "ok", via ? "swap proxy serving " + via : via == null ? "no swap proxy: served directly" : "swap proxy running; no model serves"); } });
       if (attempt !== statusAttempt) return;
       statusPill.textContent = "online";
@@ -842,7 +891,10 @@
       statusPill.className = "pill ok";
       dot("server-dot", "ok", "server online");
       dot("device-dot", health.device ? "ok" : "off", health.device ? "device peak " + window.overgo.fmt.bytes(health.device.peak_bytes) + " · current " + window.overgo.fmt.bytes(health.device.current_bytes) : "no device");
-      servedName = health.model || 'Choose a model';
+      // The pill names the served file, which the swap proxy reports; a model served directly reports its
+      // API identifier ("overgo"), which names no model, so there the manifest's name stands in for it.
+      const apiIdentifier = !proxied && capabilityDocument && health.model === capabilityDocument.id;
+      servedName = (apiIdentifier && capabilityDocument.name) || health.model || 'Choose a model';
       servedEntry = null;
       servedEvidence = '';
       renderModelSelection();
@@ -869,14 +921,14 @@
   // on its form (the local registration row, the hosted provider form) once the tab has mounted.
   function libraryStarters() {
     const open = (selector) => { location.hash = "#library"; const focus = () => { const field = document.querySelector(selector); if (field) field.focus(); else setTimeout(focus, focusRetryMS); }; focus(); };
-    return [el("button", { class: "btn alt", text: "add a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
-      el("button", { class: "btn alt", text: "declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
+    return [el("button", { class: "btn alt", text: "Add a local model", onclick: () => open("input[placeholder='model GGUF or directory on disk']") }),
+      el("button", { class: "btn alt", text: "Declare a hosted provider", onclick: () => open("input[aria-label='provider name']") })];
   }
   function wireModelPicker() {
     const modelPill = document.getElementById("model-pill");
     if (!modelPill) return;
     let panel = null; modelPill.classList.add("clickable");
-    modelPill.title = "click to switch the served model";
+    modelPill.title = "Switch the served model";
     // close: the picker leaves after a served swap and on Escape; a click on the pill toggles it.
     const close = () => { if (panel) { panel.close(); panel.remove(); panel = null; modelPill.focus(); } };
 
@@ -948,7 +1000,7 @@
           el("button", { class: "btn alt", text: "Choose model again", onclick: () => { close(); modelPill.click(); } }), el("button", { class: "btn alt", text: "Close", onclick: close }));
       } finally {
         modelSwitchPending = false;
-        clearInterval(timer); button.textContent = "serve";
+        clearInterval(timer); button.textContent = "Serve";
         if (panel) for (const choice of panel.querySelectorAll('[data-serve]')) choice.disabled = false;
       }
     }
@@ -976,12 +1028,12 @@
         }
         let remembered = "";
         try { remembered = localStorage.getItem(MODEL_STORAGE) || ""; } catch (_) { /* storage unavailable */ }
-        panel.replaceChildren(el("div", { class: "note", text: "switch the served model; the load can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
+        panel.replaceChildren(el("div", { class: "note", text: "Switch the served model; loading one can take a minute" + (remembered && remembered !== modelPill.textContent ? " · last time you served " + remembered : "") }),
           ...entries.map((item) => {
             const name = item.location ? item.location.split(/[\\/]/).pop() : item.model;
             // Keyboard path: a focused row serves on Enter; the arrows move between rows.
             const row = el("div", { class: "row", tabindex: "0", onkeydown: (event) => {
-              if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "serve"); if (serve) serve.click(); }
+              if (event.key === "Enter" && event.target === row) { const serve = [...row.querySelectorAll("button")].find((button) => button.textContent === "Serve"); if (serve) serve.click(); }
               else if (event.key === "ArrowDown" || event.key === "ArrowUp") { const rows = [...currentPanel.querySelectorAll(".row[tabindex]")], next = rows[rows.indexOf(row) + (event.key === "ArrowDown" ? 1 : -1)]; if (next) { event.preventDefault(); next.focus(); } }
             } }, el("span", { class: "mono", text: name }));
             const facts = el("details", { class: "picker-facts" }, el("summary", { text: "Details" })); row.appendChild(facts);
@@ -990,20 +1042,22 @@
             if ((item.location || "").startsWith("remote://")) facts.appendChild(el("span", { class: "tag", title: "served at a hosted provider through the relay", text: "remote" }));
             const evidence = evidenceLine(item);
             if (evidence) facts.appendChild(el("span", { class: "note", text: evidence }));
-            for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier ? " · " + capability.tier : "") }));
+            for (const capability of item.capabilities || []) facts.appendChild(el("span", { class: "tag", text: capability.task + (capability.tier && capability.tier !== "verified" ? " · " + capability.tier : "") }));
             if (item.stale) {
               facts.open = true;
               facts.appendChild(el("span", { class: "tag tag-danger", title: item.stale, text: "unservable: " + item.stale }));
               // A keyless hosted model takes its key here; the proxy and the served child hold it in memory only, and the picker relists.
               if (item.key_environment) {
                 const key = el("input", { class: "keyfield", type: "password", placeholder: item.key_environment, "aria-label": "provider key" });
-                facts.append(key, el("button", { class: "btn alt", text: "use key", onclick: async () => {
+                facts.append(key, el("button", { class: "btn alt", text: "Use key", onclick: async () => {
                   try { await api.post("/providers/key", { location: item.location, key: key.value }); if (panel === currentPanel) { close(); modelPill.click(); } } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }
                 } }));
               }
               return row;
             }
-            row.appendChild(el("button", { class: "btn alt", text: "serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
+            // The model already serving says so in place of an offer to serve it again.
+            if (name === modelPill.textContent) { row.appendChild(el("span", { class: "tag user_defined", text: "Serving" })); return row; }
+            row.appendChild(el("button", { class: "btn alt", text: "Serve", "data-serve": "", disabled: modelSwitchPending, onclick: (event) => swapModel(item, name, event.currentTarget) })); return row;
           }));
         const first = panel.querySelector(".row"); if (first) first.focus();
       } catch (err) { if (panel === currentPanel) panel.textContent = friendlyError(err); }

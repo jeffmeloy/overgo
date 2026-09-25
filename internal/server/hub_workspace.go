@@ -219,44 +219,33 @@ type downloadRegistry struct {
 	// returns only after the last one unwound; closed refuses new work.
 	transfers sync.WaitGroup
 	closed    bool
-	// changed closes when a job changes as a reader shows it (its state,
-	// file or whole percent), so the runtime stream publishes jobs only
-	// when they read differently.
-	changed chan struct{}
+	// publish carries every job to the runtime streams when a job changes
+	// as a reader shows it (its state, file or whole percent).
+	publish func(string, any)
 }
 
-// watch answers the jobs and the signal that closes on their next change.
-func (r *downloadRegistry) watch() ([]DownloadJob, <-chan struct{}) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.changed == nil {
-		r.changed = make(chan struct{})
-	}
-	return r.snapshotLocked(), r.changed
-}
-
-// observe records a transfer's progress; watchers wake only when the job
+// observe records a transfer's progress; the jobs publish only when this one
 // reads differently (another file, another whole percent), so a transfer
 // publishes at most one change per percent of each file.
 func (r *downloadRegistry) observe(job *DownloadJob, progress hfhub.Progress) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if job.File != progress.Path || wholePercent(job.Received, job.Total) != wholePercent(progress.Received, progress.Total) {
+	changed := job.File != progress.Path || wholePercent(job.Received, job.Total) != wholePercent(progress.Received, progress.Total)
+	job.File, job.Received, job.Total = progress.Path, progress.Received, progress.Total
+	if changed {
 		r.changedLocked()
 	}
-	job.File, job.Received, job.Total = progress.Path, progress.Received, progress.Total
 }
 
-// changedLocked wakes every watcher; the caller holds mu.
+// changedLocked publishes every job; the caller holds mu.
 func (r *downloadRegistry) changedLocked() {
-	if r.changed != nil {
-		close(r.changed)
-		r.changed = nil
+	if r.publish != nil {
+		r.publish("hub.downloads", r.snapshotLocked())
 	}
 }
 
-func newDownloadRegistry(maxRunning, maxRetained int) downloadRegistry {
-	return downloadRegistry{maxRunning: maxRunning, maxRetained: maxRetained}
+func newDownloadRegistry(maxRunning, maxRetained int, publish func(string, any)) downloadRegistry {
+	return downloadRegistry{maxRunning: maxRunning, maxRetained: maxRetained, publish: publish}
 }
 
 // admit registers a new job under the concurrency and retention

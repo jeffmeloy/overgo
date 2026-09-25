@@ -90,13 +90,10 @@ func TestServingAttemptEvidenceRemainsOrderedAndUnique(t *testing.T) {
 	}
 }
 
-func TestOperationEventStreamKeepsLatestBoundedState(t *testing.T) {
+func TestOperationTransitionsReachTheObserverInOrder(t *testing.T) {
 	manager := newTestManager(t)
-	events, unsubscribe, err := manager.Subscribe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer unsubscribe()
+	var events []Event
+	manager.Notify(func(event Event) { events = append(events, event) })
 	recipeID := testutil.ArtifactID(t, artifact.KindRecipe, "operation event recipe")
 	runID := testutil.ArtifactID(t, artifact.KindRun, "operation event run")
 	outputID := testutil.ArtifactID(t, artifact.KindOutput, "operation event output")
@@ -113,10 +110,18 @@ func TestOperationEventStreamKeepsLatestBoundedState(t *testing.T) {
 	if _, err := manager.Wait(t.Context(), id); err != nil {
 		t.Fatal(err)
 	}
-	if cap(events) != operationEventBuffer || len(events) != operationEventBuffer {
-		t.Fatalf("event queue capacity=%d length=%d", cap(events), len(events))
+	// Every transition arrives, each after the one before it, ending in the terminal one.
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	for index := range events {
+		if events[index].Sequence != uint64(index+1) {
+			t.Fatalf("transition %d carries sequence %d", index, events[index].Sequence)
+		}
 	}
-	event := <-events
+	if len(events) < 3 {
+		t.Fatalf("observer saw %d transitions", len(events))
+	}
+	event := events[len(events)-1]
 	if event.Sequence == 0 || event.Status.State != StateCompleted || event.Status.Run == nil ||
 		*event.Status.Run != runID || !slices.Equal(event.Status.Outputs, []artifact.ID{outputID}) || len(event.Status.Attempts) != 1 {
 		t.Fatalf("latest event = %+v", event)

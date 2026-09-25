@@ -52,11 +52,7 @@ func (s *agentSessions) get(ctx context.Context, coordinator *agentloop.Coordina
 // classes and publication coverage; the GUI reads effect to badge
 // mutation tools and drives the approval control from it.
 func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request) {
-	if h.repository == nil || h.agentCoordinator == nil {
-		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
-		return
-	}
-	names, err := h.aliasNamesUnder(request.Context(), artifact.KindRecipe, agenttool.RegisteredAliasPrefix)
+	names, err := aliasNamesUnder(request.Context(), h.repository, agenttool.RegisteredAliasPrefix)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
 		return
@@ -83,10 +79,6 @@ func (h *Handler) agentTools(response http.ResponseWriter, request *http.Request
 // admit it under the coordinator's rules, and encode the durable
 // result or the typed refusal.
 func (h *Handler) agentStep(response http.ResponseWriter, request *http.Request) {
-	if h.agentCoordinator == nil {
-		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
-		return
-	}
 	var body agentStepRequest
 	if err := strictjson.Decode(request.Body, &body); err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
@@ -177,10 +169,6 @@ type agentStepRequest struct {
 // exact argument bytes a grant would bind, any committed decision, and
 // whether it binds these facts. It publishes and executes nothing.
 func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *http.Request) {
-	if h.agentCoordinator == nil {
-		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
-		return
-	}
 	var body agentStepRequest
 	if err := strictjson.Decode(request.Body, &body); err != nil {
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error())
@@ -229,10 +217,6 @@ func (h *Handler) agentApprovalPreview(response http.ResponseWriter, request *ht
 // path a restart uses -- its inspection state against the step bound.
 // A restarted server lists exactly what the ledger remembers.
 func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.Request) {
-	if h.repository == nil || h.agentCoordinator == nil {
-		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no agent runtime is configured")
-		return
-	}
 	names, err := responseInteractionNames(request.Context(), h.repository)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, "agent_error", err.Error())
@@ -276,10 +260,6 @@ func (h *Handler) agentSessionList(response http.ResponseWriter, request *http.R
 // artifact identity the operator can open. The walk reads what the
 // step durably wrote; it derives nothing.
 func (h *Handler) agentProvenance(response http.ResponseWriter, request *http.Request) {
-	if h.repository == nil || h.agentCoordinator == nil {
-		writeError(response, http.StatusServiceUnavailable, "agent_unavailable", "no evidence repository is configured")
-		return
-	}
 	session := request.URL.Query().Get("session")
 	step := request.URL.Query().Get("step")
 	if session == "" || step == "" {

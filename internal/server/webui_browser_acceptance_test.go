@@ -79,7 +79,7 @@ func TestWebUIBrowserAcceptance(t *testing.T) {
 	}
 	assertChatAttachmentModeReset(t, ctx, browser)
 	assertBrowserPredicate(t, ctx, browser, `(() => { const add = [...document.querySelectorAll("#panel-chat .card.front-empty button")].find((b) => b.textContent === "Choose a model"); if (add) add.click(); return !!add; })()`)
-	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "add a local model|declare a hosted provider"`); err != nil {
+	if err := browser.Eventually(ctx, `[...document.querySelectorAll(".topbar .card .row button")].map((b) => b.textContent).join("|") === "Add a local model|Declare a hosted provider"`); err != nil {
 		t.Fatal(err)
 	}
 	// The picker over an empty store, captured and audited at both viewports.
@@ -307,12 +307,13 @@ func publishBrowserLaneOperations(t *testing.T, handler *Handler) (artifact.ID, 
 	return running, blocked
 }
 
-// waitBrowserOperationState follows the operation manager's own events
+// waitBrowserOperationState follows the event hub's operation transitions
 // until the operation reaches the state, subscribing before the first look
-// so no transition between the look and the events is lost.
+// so no transition between the look and the events is lost; a resync looks
+// again.
 func waitBrowserOperationState(t *testing.T, handler *Handler, id artifact.ID, state operation.State) {
 	t.Helper()
-	events, stop, err := handler.operations.Subscribe()
+	events, stop, err := handler.events.subscribe(handler.config.MaxStoredResponses)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +334,12 @@ func waitBrowserOperationState(t *testing.T, handler *Handler, id artifact.ID, s
 	for {
 		select {
 		case event := <-events:
-			if event.Status.ID == id && reached(event.Status) {
+			if event.name == hubResync {
+				if current, found := handler.operations.Status(id); found && reached(current) {
+					return
+				}
+			}
+			if transition, ok := event.value.(operation.Event); ok && transition.Status.ID == id && reached(transition.Status) {
 				return
 			}
 		case <-t.Context().Done():

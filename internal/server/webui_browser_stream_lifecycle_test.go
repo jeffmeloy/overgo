@@ -58,7 +58,7 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		path := request.URL.Path
 		if path == "/__lifecycle" {
 			mu.Lock()
-			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"],
+			counts := map[string]int{"health": hits["/health"], "catalog": hits["/catalog/models"], "runtime": hits["/runtime/activity/stream"], "peers": hits["/peers"],
 				"retired": hits["/automations/stream"] + hits["/peers/stream"] + hits["/agents/stream"] + hits["/hub/downloads"]}
 			mu.Unlock()
 			_ = json.NewEncoder(response).Encode(counts)
@@ -101,7 +101,11 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
   window.laneAnswered = new WeakSet();
   window.laneEvidence = 0;
   window.laneOperations = 0;
-  overgo.runtimeEvents.subscribe((event) => { if (event === 'operation') window.laneOperations++; });
+  window.laneSeen = new Set();
+  overgo.runtimeEvents.subscribe((event, value) => {
+    if (event === 'operation') { window.laneOperations++; window.laneSeen.add(value.status.id); if (value.status.state === 'completed') window.laneSeen.add('completed:' + value.status.id); }
+    if (event === 'operation.snapshot') for (const status of value) window.laneSeen.add(status.id);
+  });
   const original = window.fetch;
   window.fetch = function (path) {
     const signal = arguments[1] && arguments[1].signal;
@@ -136,6 +140,9 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	const remounts = 3
 	for range remounts {
 		assertBrowserPredicate(t, ctx, browser, `(() => { const key = document.getElementById('api-key'); key.value = key.value === '' ? 'lane-remount' : ''; key.dispatchEvent(new Event('change')); return true; })()`)
+		// The remount reads the manifest, then releases every tab; tabs visited before it
+		// settles would be released under the visit.
+		settle(`overgo.api.inFlight() === 0`)
 		visit()
 	}
 	// The runtime stream is the page's only stream: every one a remount replaced was aborted and
@@ -151,7 +158,9 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	}
 	// One finished operation reaches the page through the shared runtime stream. The server
 	// subscribes a stream before answering it, so the operation waits for the latest stream's
-	// answer; one submitted while a remount reopens the stream reaches no subscriber.
+	// answer. A transition while a remount reopens the stream arrives in the new stream's
+	// snapshot instead of as an event, so the operation finishes only once the page has seen it:
+	// its last transition is then always an event.
 	settle(`(() => { const latest = (window.laneStreams['/runtime/activity/stream'] || []).at(-1); return !!latest && !latest.aborted && window.laneAnswered.has(latest); })()`)
 	var readsBefore, eventsBefore int
 	if err := browser.Evaluate(ctx, "window.laneEvidence", &readsBefore); err != nil {
@@ -160,15 +169,48 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 	if err := browser.Evaluate(ctx, "window.laneOperations", &eventsBefore); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stream-lifecycle")},
-		func(context.Context, operation.Reporter) (operation.Completion, error) {
+	seen := make(chan struct{})
+	submitted, err := handler.operations.Submit(ctx, operation.Request{Task: recipe.TaskGeneration, Recipe: testutil.ArtifactID(t, artifact.KindRecipe, "stream-lifecycle")},
+		func(ctx context.Context, _ operation.Reporter) (operation.Completion, error) {
+			select {
+			case <-seen:
+			case <-ctx.Done():
+				return operation.Completion{}, context.Cause(ctx)
+			}
 			return operation.Completion{Run: testutil.ArtifactID(t, artifact.KindRun, "stream-lifecycle-run")}, nil
-		}); err != nil {
+		})
+	if err != nil {
 		t.Fatal(err)
 	}
+	settle(`window.laneSeen.has(` + strconv.Quote(submitted.String()) + `)`)
+	close(seen)
 	// Each operation event the page receives reads its evidence exactly once; a listener a remount
-	// leaked reads it again in the same dispatch, so reads and events would never agree.
-	settle("window.laneOperations > " + strconv.Itoa(eventsBefore) + " && window.laneEvidence - " + strconv.Itoa(readsBefore) + " === window.laneOperations - " + strconv.Itoa(eventsBefore))
+	// leaked reads it again in the same dispatch, so reads and events would disagree. The counts
+	// are compared once the finished operation's last event arrived and its reads were made.
+	settle(`window.laneSeen.has(` + strconv.Quote("completed:"+submitted.String()) + `) && overgo.api.inFlight() === 0`)
+	var delivered struct {
+		Events, Reads int
+		Page          string
+	}
+	if err := browser.Evaluate(ctx, `({Events: window.laneOperations, Reads: window.laneEvidence, Page: JSON.stringify({hash: location.hash, peers: (document.querySelector('#panel-peers') || {innerText: 'absent'}).innerText.slice(0, 200), errors: overgo.errors})})`, &delivered); err != nil {
+		t.Fatal(err)
+	}
+	if events, reads := delivered.Events-eventsBefore, delivered.Reads-readsBefore; events == 0 || reads != events {
+		t.Errorf("the page read peer evidence %d times for %d operation events; page %s", reads, events, delivered.Page)
+	}
+	// A changed inventory reads again in the open tab that shows it, with no reload and no
+	// action of its own; a change to another inventory leaves that tab's read alone.
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'peers'; return true; })()`)
+	settle(`!!document.querySelector('#panel-peers.active') && overgo.api.inFlight() === 0`)
+	peersBefore := lifecycle()["peers"]
+	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/datasets"})
+	handler.events.publish("workspace.changed", workspaceChange{Inventory: "/peers"})
+	settle(`fetch('/__lifecycle').then((answer) => answer.json()).then((counts) => counts.peers > ` + strconv.FormatFloat(peersBefore, 'f', -1, 64) + `)`)
+	settle(`overgo.api.inFlight() === 0`)
+	if peersAfter := lifecycle()["peers"]; peersAfter != peersBefore+1 {
+		t.Errorf("an inventory change read the peers %v times, want once", peersAfter-peersBefore)
+	}
+	assertBrowserPredicate(t, ctx, browser, `(() => { location.hash = 'chat'; return true; })()`)
 	// A hidden page does not probe health or the catalog through a whole status interval.
 	// Requests a remount started finish first, so what follows is the hidden page alone.
 	settle(`overgo.api.inFlight() === 0`)
@@ -209,5 +251,5 @@ func TestWebUIBrowserStreamLifecycle(t *testing.T) {
 		t.Errorf("a page shown again did not probe health: hidden %v, shown %v", hidden, resumed)
 	}
 	assertBrowserPredicate(t, ctx, browser, `overgo.errors.length === 0`)
-	t.Logf("one event stream leg: the automations, peers, inbox and library tabs remounted %d times over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a hidden page stopped probing, and a page shown again resumes probing", remounts)
+	t.Logf("one event stream leg: the automations, peers, inbox and library tabs remounted %d times, each remount settled before its tabs were visited, over the runtime stream alone (no tab stream, no download poll), every replaced stream aborted, a cleanly ended stream reconnected, each operation read its evidence once, a peers change read the open peers tab again once and another inventory's change left it alone, a hidden page stopped probing, and a page shown again resumes probing", remounts)
 }

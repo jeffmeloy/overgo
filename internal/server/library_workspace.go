@@ -188,7 +188,7 @@ func writeLibraryError(response http.ResponseWriter, err error) {
 // libraryRegister answers POST /library/register for a model or a dataset.
 func (h *Handler) libraryRegister(response http.ResponseWriter, request *http.Request) {
 	var body libraryRegisterRequest
-	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	libraryRegisterRoute(response, request, h.repository, h.config.LibraryIntake, body)
@@ -304,7 +304,7 @@ func libraryProviderModelsRoute(response http.ResponseWriter, request *http.Requ
 // the catalog and the picker stop offering it.
 func (h *Handler) libraryProviderRetire(response http.ResponseWriter, request *http.Request) {
 	var body providerRetireRequest
-	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	libraryProviderRetireRoute(response, request, h.repository, h.config.LibraryIntake.RetireProvider, body)
@@ -335,7 +335,7 @@ func libraryProviderRetireRoute(response http.ResponseWriter, request *http.Requ
 // the activation binds.
 func (h *Handler) libraryValidate(response http.ResponseWriter, request *http.Request) {
 	var body libraryValidateRequest
-	if !requireMethod(response, request, http.MethodPost) || !h.decodeBoundedJSON(response, request, &body) {
+	if !h.decodeBoundedJSON(response, request, &body) {
 		return
 	}
 	intake := h.config.LibraryIntake

@@ -63,7 +63,6 @@
         await api.post("/automations/activate", { definition: created.id });
         definitionForm.markSaved(); triggerForm.markSaved(); deliveryForm.markSaved();
         status.textContent = "activated / " + fmt.shortID(created.id);
-        await refreshInventory();
       }));
 
       function renderOperations(operations) {

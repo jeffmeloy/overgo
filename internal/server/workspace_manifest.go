@@ -109,9 +109,6 @@ type workspaceManifestResponse struct {
 }
 
 func (h *Handler) workspaceManifest(response http.ResponseWriter, request *http.Request) {
-	if !requireMethod(response, request, http.MethodGet) {
-		return
-	}
 	declaration, err := parseWorkspaceManifest()
 	if err != nil {
 		writeGenerationError(response, err)

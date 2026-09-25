@@ -50,7 +50,7 @@ func run(args []string, output io.Writer) error {
 	metricText := flags.String("metric", "", "evaluation metric")
 	datasetName := flags.String("dataset", "", "registered dataset catalog name the objective trains on")
 	evidenceNote := flags.String("evidence", "", "evidence note identifying why this objective is approved")
-	splitGroupText := flags.String("split-group", "", "unit the training/held-out split keeps whole: asset (one per asset file) or record (one per row)")
+	splitGroupText := flags.String("split-group", "", "unit the training/held-out split keeps whole: asset (all of an asset's records together) or record (each record alone)")
 	splitWeightsText := flags.String("split-weights", "", "declared partition weights, train=<w>,heldout=<w>")
 	promote := flags.String("promote", "", "registered objective alias to promote from declared to adaptive-evidence (with -observations)")
 	observationsText := flags.String("observations", "", "comma-separated succeeded training session observation IDs grounding the promotion")

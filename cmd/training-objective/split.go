@@ -19,9 +19,11 @@ const (
 	heldoutPartition = "heldout"
 )
 
-// splitGroup is the unit a split keeps whole: an asset (one record per asset
-// file, so membership stays small for large corpora) or a record (one per
-// row, which a single-file dataset needs).
+// splitGroup is the unit a split keeps whole: an asset (all of one asset's
+// records land in one partition, so related records never straddle it) or a
+// record (each record assigned alone, which a single-asset dataset needs).
+// Either way the membership lists every record by the identity the
+// materializer reads it under.
 type splitGroup string
 
 const (
@@ -70,18 +72,18 @@ func splitDataset(ctx context.Context, reader artifact.Reader, datasetID artifac
 	if !found || len(document.Assets) == 0 {
 		return dataset.SplitPlan{}, dataset.Membership{}, fmt.Errorf("training-objective: dataset %s holds no assets to split", datasetID)
 	}
+	if group != splitByAsset && group != splitByRecord {
+		return dataset.SplitPlan{}, dataset.Membership{}, fmt.Errorf("training-objective: -split-group %q: want asset or record", group)
+	}
 	var records []dataset.Record
 	for _, asset := range document.Assets {
-		switch group {
-		case splitByAsset:
-			records = append(records, dataset.Record{ID: asset.Name, Group: asset.Name})
-		case splitByRecord:
-			for ordinal := range asset.Records {
-				id := asset.Name + "/" + strconv.FormatUint(ordinal, 10)
-				records = append(records, dataset.Record{ID: id, Group: id})
+		for ordinal := range asset.Records {
+			id := dataset.RecordID(datasetID, asset.Name, ordinal)
+			unit := id
+			if group == splitByAsset {
+				unit = asset.Name
 			}
-		default:
-			return dataset.SplitPlan{}, dataset.Membership{}, fmt.Errorf("training-objective: -split-group %q: want asset or record", group)
+			records = append(records, dataset.Record{ID: id, Group: unit})
 		}
 	}
 	digest := sha256.Sum256([]byte(datasetID.String()))

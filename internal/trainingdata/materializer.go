@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 
 	"overgo/internal/artifact"
 	"overgo/internal/checked"
@@ -412,11 +414,14 @@ func (state *materializeState) openAsset(
 			}
 			return nil, fmt.Errorf("training data: asset %q: %w", asset.Name, err)
 		}
+		if descriptor.MediaType == dataset.InventoryMediaType {
+			return state.openInventoryAsset(ctx, datasetID, asset, processor, fields)
+		}
 		locations, err := state.reader.Locations(ctx, asset.Artifact)
 		if err != nil {
 			return nil, err
 		}
-		path := fileLocation(locations)
+		path := localLocation(locations, artifact.LocationFile)
 		if path == "" {
 			content, found, readErr := artifact.ReadContent(ctx, state.reader, asset.Artifact)
 			if readErr != nil {
@@ -439,13 +444,124 @@ func (state *materializeState) openAsset(
 	}
 	records := make([]recordRef, len(indexed.spans))
 	for index, span := range indexed.spans {
-		id := fmt.Sprintf("%s/%s/%d", datasetID, asset.Name, index)
+		id := dataset.RecordID(datasetID, asset.Name, uint64(index))
 		records[index] = recordRef{
 			id: id, group: id, fields: slices.Clone(fields), processor: processor,
 			file: indexed, offset: span.offset, length: span.length, digest: span.digest,
 		}
 	}
 	return records, nil
+}
+
+// openInventoryAsset reads a directory dataset's inventory asset as the files
+// it lists: record i is the i-th file, read whole. Each record's identity is
+// the content digest registration recorded, so deduplication needs no read;
+// the file opens on first use and is refused if its bytes changed since.
+func (state *materializeState) openInventoryAsset(
+	ctx context.Context,
+	datasetID artifact.ID,
+	asset dataset.Asset,
+	processor artifact.ID,
+	fields []string,
+) ([]recordRef, error) {
+	inventory, found, err := dataset.LoadInventory(ctx, state.reader, asset.Artifact)
+	if err != nil {
+		return nil, err
+	}
+	if !found || uint64(len(inventory.Files)) != asset.Records {
+		return nil, fmt.Errorf("training data: inventory %q does not list the %d files its asset declares", asset.Name, asset.Records)
+	}
+	// Inventory paths are relative to the directory the dataset version was
+	// registered from, recorded as its location.
+	locations, err := state.reader.Locations(ctx, datasetID)
+	if err != nil {
+		return nil, err
+	}
+	root := localLocation(locations, artifact.LocationDirectory)
+	if root == "" {
+		return nil, fmt.Errorf("training data: dataset %s records no directory its inventory is relative to", datasetID)
+	}
+	records := make([]recordRef, len(inventory.Files))
+	for index, file := range inventory.Files {
+		if !filepath.IsLocal(filepath.FromSlash(file.Path)) {
+			return nil, fmt.Errorf("training data: inventory path %q leaves its dataset directory", file.Path)
+		}
+		path := filepath.Join(root, filepath.FromSlash(file.Path))
+		digest, err := hex.DecodeString(file.Digest)
+		if err != nil || len(digest) != sha256.Size {
+			return nil, fmt.Errorf("training data: inventory file %q records no content digest; register the dataset again", file.Path)
+		}
+		size, ok := checked.Int(file.Bytes)
+		if !ok || size == 0 {
+			return nil, fmt.Errorf("training data: inventory file %q is empty or too large", file.Path)
+		}
+		length := int64(size)
+		lazy := newLazyFile(path, length, [sha256.Size]byte(digest))
+		indexed := &indexedFile{file: lazy, closer: lazy}
+		state.files = append(state.files, indexed)
+		id := dataset.RecordID(datasetID, asset.Name, uint64(index))
+		records[index] = recordRef{
+			id: id, group: id, fields: slices.Clone(fields), processor: processor,
+			file: indexed, length: length, digest: lazy.digest,
+		}
+	}
+	return records, nil
+}
+
+// lazyFile opens one inventory file on first read and refuses it when its
+// size or content digest differs from the inventory's record of it.
+type lazyFile struct {
+	path   string
+	size   int64
+	digest [sha256.Size]byte
+	open   func() (*os.File, error)
+	file   *os.File
+}
+
+func newLazyFile(path string, size int64, digest [sha256.Size]byte) *lazyFile {
+	lazy := &lazyFile{path: path, size: size, digest: digest}
+	lazy.open = sync.OnceValues(lazy.openVerified)
+	return lazy
+}
+
+// ReadAt reads from the file, opening and verifying it on first use.
+func (f *lazyFile) ReadAt(data []byte, offset int64) (int, error) {
+	file, err := f.open()
+	if err != nil {
+		return 0, err
+	}
+	return file.ReadAt(data, offset)
+}
+
+func (f *lazyFile) openVerified() (*os.File, error) {
+	file, err := os.Open(f.path)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err == nil && (!info.Mode().IsRegular() || info.Size() != f.size) {
+		err = fmt.Errorf("training data: %s size differs from its inventory entry", f.path)
+	}
+	if err == nil {
+		var digest [sha256.Size]byte
+		if digest, err = hashSection(file, 0, f.size); err == nil && digest != f.digest {
+			err = fmt.Errorf("training data: %s changed since its dataset was registered", f.path)
+		}
+	}
+	if err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	f.file = file
+	return file, nil
+}
+
+// Close closes the file if a read opened it.
+func (f *lazyFile) Close() error {
+	if f.file == nil {
+		return nil
+	}
+	return f.file.Close()
 }
 
 type indexedFile struct {
@@ -553,10 +669,10 @@ func hashSection(file io.ReaderAt, offset, length int64) ([sha256.Size]byte, err
 	return digest, nil
 }
 
-func fileLocation(locations []artifact.Location) string {
+func localLocation(locations []artifact.Location, kind artifact.LocationKind) string {
 	paths := make([]string, 0, len(locations))
 	for _, location := range locations {
-		if location.Kind == artifact.LocationFile {
+		if location.Kind == kind {
 			paths = append(paths, location.Value)
 		}
 	}

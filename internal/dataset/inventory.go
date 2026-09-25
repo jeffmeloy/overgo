@@ -64,7 +64,8 @@ func NewInventory(files []InventoryFile) (Inventory, error) {
 	return inventoryCodec.NewInitial(Inventory{Files: slices.Clone(files)})
 }
 
-func loadInventory(ctx context.Context, reader artifact.Reader, id artifact.ID) (Inventory, bool, error) {
+// LoadInventory reads one committed dataset inventory.
+func LoadInventory(ctx context.Context, reader artifact.Reader, id artifact.ID) (Inventory, bool, error) {
 	return inventoryCodec.Read(ctx, reader, id)
 }
 

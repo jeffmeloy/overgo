@@ -108,32 +108,7 @@ func TestObjectiveApprovalAcceptsHeldOutTargetReports(t *testing.T) {
 	defer store.Close()
 	derived := derivedIdentity(t, "overgo/heldout-approval-test/")
 	source := derived(artifact.KindDataset, "dataset")
-	var records []dataset.Record
-	for index := range 12 {
-		records = append(records, dataset.Record{ID: fmt.Sprintf("series/%02d", index), Group: fmt.Sprintf("series-%02d", index)})
-	}
-	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	memberships := map[string]dataset.Membership{}
-	for _, membership := range split.Memberships {
-		memberships[membership.Partition] = membership
-	}
-	training, heldout := memberships["train"], memberships["heldout"]
-	if len(training.Records) == 0 || len(heldout.Records) == 0 {
-		t.Fatalf("split left a partition empty: train=%d heldout=%d", len(training.Records), len(heldout.Records))
-	}
-	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "test-dataset", Artifacts: []artifact.Descriptor{{ID: source}}}); err != nil {
-		t.Fatal(err)
-	}
-	splitBatch, err := split.PublicationBatch("test-split", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
-		t.Fatal(err)
-	}
+	training, heldout := commitSeriesSplit(t, ctx, store, source, 12)
 	spec := trainingprogram.ObjectiveSpec{
 		Name: "forecast-heldout", Kind: trainingprogram.ObjectiveForecast,
 		Signature: recipecontract.ModalitySignature{
@@ -283,11 +258,34 @@ func derivedIdentity(t *testing.T, prefix string) func(artifact.Kind, string) ar
 	}
 }
 
-// observedTraining registers objective under alias, with a stand-in
-// descriptor for each identity it names that the store does not hold, and
-// records one succeeded training session grounded in it; it returns the
-// session's observation.
+// observedTraining registers objective under alias and records one
+// succeeded training session grounded in it; it returns the session's
+// observation.
 func observedTraining(t *testing.T, ctx context.Context, store *overgodb.Store, root string, objective trainingprogram.ObjectiveDocument, alias string) artifact.ID {
+	t.Helper()
+	modelPath, modelID := registerObjective(t, ctx, store, root, objective, alias)
+	recipeID, err := BootstrapObjectiveRecipe(ctx, store, modelPath, alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer, err := NewObserver(store, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
+		t.Fatal(err)
+	}
+	observation, err := observer.Finish(ctx, modelID, recipeID, nil, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return observation
+}
+
+// registerObjective registers objective under alias, with a stand-in
+// descriptor for each identity it names that the store does not hold, and
+// writes a model file to train; it returns the model's path and identity.
+func registerObjective(t *testing.T, ctx context.Context, store *overgodb.Store, root string, objective trainingprogram.ObjectiveDocument, alias string) (string, artifact.ID) {
 	t.Helper()
 	modelPath := filepath.Join(root, "model.gguf")
 	if err := os.WriteFile(modelPath, []byte("model"), 0o600); err != nil {
@@ -330,22 +328,40 @@ func observedTraining(t *testing.T, ctx context.Context, store *overgodb.Store, 
 	}); err != nil {
 		t.Fatal(err)
 	}
-	recipeID, err := BootstrapObjectiveRecipe(ctx, store, modelPath, alias)
+	return modelPath, modelID
+}
+
+// commitSeriesSplit commits a stand-in dataset of count one-record series
+// and its train/held-out group split, returning both memberships.
+func commitSeriesSplit(t *testing.T, ctx context.Context, store *overgodb.Store, source artifact.ID, count int) (dataset.Membership, dataset.Membership) {
+	t.Helper()
+	var records []dataset.Record
+	for index := range count {
+		records = append(records, dataset.Record{ID: fmt.Sprintf("series/%02d", index), Group: fmt.Sprintf("series-%02d", index)})
+	}
+	split, err := dataset.BuildGroupSplit(source, records, 17, []dataset.SplitPartition{{Name: "heldout", Weight: 1}, {Name: "train", Weight: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	observer, err := NewObserver(store, false)
+	memberships := map[string]dataset.Membership{}
+	for _, membership := range split.Memberships {
+		memberships[membership.Partition] = membership
+	}
+	training, heldout := memberships["train"], memberships["heldout"]
+	if len(training.Records) == 0 || len(heldout.Records) == 0 {
+		t.Fatalf("split left a partition empty: train=%d heldout=%d", len(training.Records), len(heldout.Records))
+	}
+	if _, err := artifact.CommitBatch(ctx, store, artifact.Batch{Key: "test-dataset", Artifacts: []artifact.Descriptor{{ID: source}}}); err != nil {
+		t.Fatal(err)
+	}
+	splitBatch, err := split.PublicationBatch("test-split", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := observer.Admit(ctx, modelID, recipeID); err != nil {
+	if _, err := artifact.CommitBatch(ctx, store, splitBatch); err != nil {
 		t.Fatal(err)
 	}
-	observation, err := observer.Finish(ctx, modelID, recipeID, nil, 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return observation
+	return training, heldout
 }
 
 // commitBenchmarkReport commits one minimal typed campaign report so the

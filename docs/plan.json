@@ -14,7 +14,7 @@
           "title": "Approve forecast objectives on held-out forecasts",
           "status": "open",
           "verify": "go test ./cmd/seriesforecast-train-probe -run '^TestForecastObjectiveProbeScoresOnlyHeldoutRecords$' -count=1",
-          "rationale": "Forecast held-out slice, the first end-to-end use (design 2026-09-24). seriesforecast-train-probe never touches the store or an objective, so no TimesFM objective can reach adaptive-evidence, let alone approved. Add -store \u003croot\u003e -objective \u003calias\u003e: check the -dataset file is one of the objective dataset's assets, train only on training-membership records, run BootstrapObjectiveRecipe and Observer Admit/Finish for the observation, forecast the held-out records with the base weights and again with the trained weights (seriesforecast.NewTrainer updates Model.Weights in place), score both with CompileNumericTargetPlan and ScoreNumericTargets (absolute error), judge with JudgeHeldout, publish the view, plan, reports and verdict, and print their identities. The ladder then runs through training-objective -promote and -approve. Transformers layout only; the native layout refuses training. Done when TestForecastObjectiveProbeScoresOnlyHeldoutRecords walks a synthetic model from objective to approved and proves no held-out record reached training."
+          "rationale": "Forecast held-out slice (design 2026-09-24). seriesforecast-train-probe never touches the store or an objective. A generic runner, trainingworkflow.RunHeldout (drafted, parked in the session scratchpad), holds everything model-agnostic: it resolves the objective's training and held-out memberships, has the caller train only on training examples and predict held-out ones before and after, records the training session through BootstrapObjectiveRecipe and the Observer, scores both with the numeric target scorer the objective's metric names, judges, and publishes the view, plan, reports and verdict. The probe gains -store \u003croot\u003e -objective \u003calias\u003e: it materializes both memberships of the objective's registered dataset through trainingdata.Materialize with its light-curve processor (now possible after split-record-identities), keys examples by record identity, trains seriesforecast on the training ones, and predicts the point channel of Model.Forecast. The ladder then runs through training-objective -promote and -approve. Done when TestForecastObjectiveProbeScoresOnlyHeldoutRecords walks a registered light-curve dataset from objective to a published verdict, with training shown only training records."
         }
       ]
     },
@@ -1016,7 +1016,8 @@
             "heldout-text-slice/do",
             "heldout-preference-slice/do",
             "heldout-media-slice/do",
-            "heldout-approval-authority/do"
+            "heldout-approval-authority/do",
+            "split-record-identities/do"
           ]
         }
       ]

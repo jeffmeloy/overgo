@@ -569,7 +569,7 @@
      "contains": "func AudioProcessor(",
      "path": "internal/trainingdata/audio.go",
      "role": "source",
-     "identity": "file:sha256:e4e61b1eec204e42181548fd7e9b539c73091bf0eeb1a4a903c84b3ba54ae9c5"
+     "identity": "file:sha256:d75414777bfb74ebf75a8502a72c3e093a93f7ec73f2ab2e327f9a80a2ca0740"
     },
     {
      "contains": "func TestMultimodalTrainingMatrix(",

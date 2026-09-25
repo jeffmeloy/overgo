@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 	"sort"
+	"strconv"
 
 	"overgo/internal/artifact"
 )
@@ -32,6 +33,13 @@ var membershipCodec = artifact.JSONDocumentCodec(
 type Record struct {
 	ID    string `json:"id"`
 	Group string `json:"group"`
+}
+
+// RecordID names the index-th record of a dataset asset: the one identity
+// the training data materializer resolves records by, so a membership built
+// from it selects the records training reads.
+func RecordID(dataset artifact.ID, asset string, index uint64) string {
+	return dataset.String() + "/" + asset + "/" + strconv.FormatUint(index, 10)
 }
 
 type SplitPartition struct {

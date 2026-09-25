@@ -60,7 +60,7 @@ func MaterializeSpeechDataset(ctx context.Context, repository artifact.Repositor
 	if !found || source.Type != TypeVersion || len(source.Assets) != 1 || source.Assets[0].Name != InventoryAssetName {
 		return SpeechMaterialization{}, errors.New("dataset: speech source must be an existing inventory version")
 	}
-	inventory, found, err := loadInventory(ctx, repository, source.Assets[0].Artifact)
+	inventory, found, err := LoadInventory(ctx, repository, source.Assets[0].Artifact)
 	if err != nil {
 		return SpeechMaterialization{}, err
 	}

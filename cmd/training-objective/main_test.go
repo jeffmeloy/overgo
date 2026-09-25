@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,6 +17,7 @@ import (
 	"overgo/internal/optimizer"
 	"overgo/internal/overgodb"
 	"overgo/internal/recipecontract"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
@@ -156,7 +159,10 @@ func registerClipCorpus(t *testing.T) string {
 	}
 	corpus := t.TempDir()
 	for index := range clipCorpusFiles - 1 {
-		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("clip-%02d.mp4", index)), make([]byte, 2048), 0o600); err != nil {
+		// Distinct bytes per clip: identical files deduplicate to one record.
+		clip := make([]byte, 2048)
+		clip[0] = byte(index + 1)
+		if err := os.WriteFile(filepath.Join(corpus, fmt.Sprintf("clip-%02d.mp4", index)), clip, 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -191,6 +197,52 @@ func clipObjectiveArgs(repository, datasetName, group, weights string) []string 
 		args = append(args, "-split-weights", weights)
 	}
 	return args
+}
+
+// TestObjectiveSplitResolvesThroughTheMaterializer holds a published split to
+// the identities training reads records by: materializing the objective's
+// dataset under its training membership selects exactly that membership's
+// records. Record names of the split's own invention resolved none.
+func TestObjectiveSplitResolvesThroughTheMaterializer(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	repository := registerClipCorpus(t)
+	if err := run(clipObjectiveArgs(repository, "clip-corpus", "record", "train=3,heldout=1"), io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	store, err := overgodb.OpenReadOnly(repository)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	objectiveID, found, err := store.ResolveAlias(ctx, "objective.registered.text-video")
+	if err != nil || !found {
+		t.Fatalf("objective alias = (%t, %v)", found, err)
+	}
+	objective, err := trainingprogram.LoadObjective(ctx, store, objectiveID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	training, found, err := dataset.LoadMembership(ctx, store, objective.Split)
+	if err != nil || !found {
+		t.Fatalf("training membership = (%t, %v)", found, err)
+	}
+	processor := objective.Processors[0]
+	materialized, err := trainingdata.Materialize(ctx, store, trainingdata.Authority{
+		Dataset: objective.Dataset, Split: objective.Split, Processors: []artifact.ID{processor}, Signature: objective.Signature,
+	}, []trainingdata.ProcessorBinding{{
+		Artifact: processor, Modalities: slices.Concat(objective.Signature.Inputs, objective.Signature.Outputs),
+		Process: func(_ context.Context, record trainingdata.RawRecord) (trainingdata.Example, error) {
+			return trainingdata.Example{ID: record.ID, Group: record.Group}, nil
+		},
+	}})
+	if err != nil {
+		t.Fatalf("materializing the objective's training membership: %v", err)
+	}
+	defer materialized.Close()
+	if records := materialized.Records(); records != len(training.Records) {
+		t.Fatalf("materialized %d records, want the training membership's %d", records, len(training.Records))
+	}
 }
 
 func mustChildren(t *testing.T, store *overgodb.Store, id artifact.ID) []artifact.ID {

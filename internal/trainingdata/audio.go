@@ -66,7 +66,7 @@ func AudioTextProcessor(repository artifact.Repository, source *dataset.AudioPay
 		if err != nil {
 			return Example{}, err
 		}
-		data, err := source.Read(ctx, dataset.AudioPayloadReference{Path: fileLocation(locations), Audio: pair.Audio, Origin: pair.Origin}, policy.MaximumEncodedBytes)
+		data, err := source.Read(ctx, dataset.AudioPayloadReference{Path: localLocation(locations, artifact.LocationFile), Audio: pair.Audio, Origin: pair.Origin}, policy.MaximumEncodedBytes)
 		if err != nil {
 			return Example{}, err
 		}

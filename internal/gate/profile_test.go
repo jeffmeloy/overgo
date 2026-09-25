@@ -160,6 +160,9 @@ func TestAutomationROIProjection(t *testing.T) {
 	if _, err := automationROIAdmission("deletion", codeprofile.ProductionMovement{Deleted: 1, GoLinesDeleted: 1}); err != nil {
 		t.Fatalf("deletion-only wave rejected: %v", err)
 	}
+	if _, err := automationROIAdmission("table", codeprofile.ProductionMovement{Added: 300, GoLinesAdded: 90, GoLinesDeleted: 91}); err != nil {
+		t.Fatalf("a declarative table that removes lines was rejected: %v", err)
+	}
 	tested, err := candidate.Overlay(map[string][]byte{"internal/q/q_test.go": []byte("package q\n\nfunc helper() {}\n")})
 	if err != nil {
 		t.Fatal(err)

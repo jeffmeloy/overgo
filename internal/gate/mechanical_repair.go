@@ -228,22 +228,11 @@ func (g *gateContext) fileDigests(files []string) (map[string]string, error) {
 
 // repairFormatting formats the planned Go files gofmt lists as unformatted.
 func (g *gateContext) repairFormatting() error {
-	files := g.changedGoFiles()
-	if len(files) == 0 {
-		return nil
-	}
-	var unformatted []string
-	for _, chunk := range chunkByArgBudget(files) {
-		out, err := command(g.repo, "gofmt", append([]string{"-l"}, chunk...)...)
-		if err != nil {
-			return err
-		}
-		unformatted = append(unformatted, strings.Fields(out)...)
+	unformatted, err := g.unformattedGoFiles()
+	if err != nil {
+		return err
 	}
 	for _, chunk := range chunkByArgBudget(unformatted) {
-		if len(chunk) == 0 {
-			continue
-		}
 		if _, err := command(g.repo, "gofmt", append([]string{"-w"}, chunk...)...); err != nil {
 			return err
 		}

@@ -66,22 +66,16 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		defer release()
 		return runJourney(ctx, invocation)
 	}
-	// The store writer among the static checks (the magics phase may rebind
-	// the closure ledger) declares the store exclusively; the store readers
-	// declare it shared, so the writer never overlaps a reader's replay.
-	storeWriter := []automationcheck.Resource{{Name: "store", Exclusive: true}}
-	storeReader := []automationcheck.Resource{{Name: "store"}}
-	published.Descriptor.Resources = storeReader
 	checks := []automationcheck.Check{
 		gateCheck("protection", runrecord.PhaseValidate, g.stepProtection), gateCheck("scope", runrecord.PhaseValidate, g.stepScope),
-		withResources(gateCheck("magics", runrecord.PhaseValidate, g.stepMagics), storeWriter),
-		{Descriptor: automationcheck.Descriptor{Name: modernCensusCheckName, Phase: runrecord.PhaseValidate, Always: true, Resources: storeReader}, Run: g.computeModernGo},
+		gateCheck("magics", runrecord.PhaseValidate, g.stepMagics),
+		{Descriptor: automationcheck.Descriptor{Name: modernCensusCheckName, Phase: runrecord.PhaseValidate, Always: true}, Run: g.computeModernGo},
 		gateCheck("modern-go", runrecord.PhaseValidate, g.stepModernGoRatchet),
 		gateCheck("architecture", runrecord.PhaseValidate, g.stepArchitectureRatchet),
 		gateCheck("profile", runrecord.PhaseValidate, g.stepProfile), gateCheck("fmt", runrecord.PhaseValidate, g.stepFmt),
 		gateCheck("style", runrecord.PhaseValidate, g.stepStyle), gateCheck("surface", runrecord.PhaseValidate, g.stepSurface),
 		generated[0], generated[1], generated[2],
-		withResources(gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), storeReader), published,
+		gateCheck("docs", runrecord.PhaseValidate, g.stepDocumentation), published,
 		gateCheck("vet", runrecord.PhaseVet, g.stepVet),
 		gateCheck("acceptance", runrecord.PhaseTest, g.stepAcceptance),
 		gateTestCheck(testPlanCheckName, g.stepTestPlan),
@@ -90,64 +84,104 @@ func (g *gateContext) pipelineChecks(devicePackages ...string) []automationcheck
 		gateTestCheck(testRestCheckName, g.stepTestRest),
 		device, webui, journeys, gateCheck("commit", runrecord.PhasePackage, g.stepCommit),
 	}
-	// Protection and scope admit the candidate first
-	dependencies := map[string][]string{"scope": {"protection"}}
-	for _, name := range validateWave {
-		dependencies[name] = []string{"scope"}
-	}
-	dependencies["modern-go"] = []string{modernCensusCheckName}
-	dependencies["vet"] = slices.Clone(validateWave)
-	dependencies["acceptance"] = []string{"vet"}
-	// Changed owners precede shared dependency tests and browser correctness.
-	// The device lane and remaining host tests follow the dependency tests.
-	// Shared device admission and waiting store locks protect overlap.
-	dependencies[testPlanCheckName] = []string{"acceptance"}
-	dependencies[testOwnersCheckName] = []string{testPlanCheckName}
-	dependencies[testDeviceCheckName] = []string{testOwnersCheckName}
-	dependencies[testRestCheckName] = []string{testDeviceCheckName}
-	dependencies["device"] = []string{testDeviceCheckName}
-	dependencies[automationcheck.WebUICheckName] = []string{testOwnersCheckName}
-	dependencies[automationcheck.ModelJourneyCheckName] = []string{testOwnersCheckName}
-	if g.serializeLanes {
-		// A merge or failed-lane replay already costs a full inline run.
-		// Keep browser, model and CUDA waves apart: shared device leases
-		// admit both even when their combined VRAM does not fit.
-		dependencies[automationcheck.ModelJourneyCheckName] = []string{automationcheck.WebUICheckName}
-		dependencies[testDeviceCheckName] = []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}
-	}
-	dependencies["commit"] = []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName}
 	for index := range checks {
-		checks[index].Descriptor.Dependencies = dependencies[checks[index].Descriptor.Name]
-		if requirements, declared := gateCheckRequirements[checks[index].Descriptor.Name]; declared {
-			checks[index].Descriptor.Requirements = requirements
+		gateRuleNamed(checks[index].Descriptor.Name).declare(&checks[index].Descriptor)
+		if g.serializeLanes {
+			// A merge or failed-lane replay already costs a full inline run.
+			// Keep browser, model and CUDA waves apart: shared device leases
+			// admit both even when their combined VRAM does not fit.
+			switch checks[index].Descriptor.Name {
+			case automationcheck.ModelJourneyCheckName:
+				checks[index].Descriptor.Dependencies = []string{automationcheck.WebUICheckName}
+			case testDeviceCheckName:
+				checks[index].Descriptor.Dependencies = []string{testOwnersCheckName, automationcheck.ModelJourneyCheckName}
+			}
 		}
 	}
 	return checks
 }
 
-// gateCheckRequirements declares what the gate's own checks need beyond the
-// working tree; constructed checks carry their declaration from their owner.
-// Undeclared checks run in process and are static.
-var gateCheckRequirements = map[string]automationcheck.Requirements{
-	modernCensusCheckName: {Intermediate: true},
-	"docs":                {Process: automationcheck.ProcessToolchain},
-	"vet":                 {Process: automationcheck.ProcessToolchain},
-	"acceptance":          {Candidate: true, Process: automationcheck.ProcessSuite},
-	testPlanCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
-	testOwnersCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
-	testDeviceCheckName:   {Candidate: true, Process: automationcheck.ProcessSuite},
-	testRestCheckName:     {Candidate: true, Process: automationcheck.ProcessSuite},
-	"commit":              {Candidate: true},
+// gateRule: one check's policy, in pipeline order. Store-coupled checks are
+// never reused (each attempt moves their store); receipts own test reuse.
+type gateRule struct {
+	name                                               string
+	after                                              []string
+	needs                                              automationcheck.Requirements
+	store                                              *automationcheck.Resource
+	static, afterStatic, reuse, deferrable, cumulative bool
 }
 
-// validateWave lists the static prerequisites of build and vet. Independent
-// checks run together; census output precedes modern-Go admission.
-var validateWave = []string{"magics", modernCensusCheckName, "modern-go", "architecture", "profile", "fmt", "style", "surface", "manifest", "sbom", "claims", "docs", "published"}
+var (
+	afterScope = []string{"scope"}
+	suite      = automationcheck.Requirements{Candidate: true, Process: automationcheck.ProcessSuite}
+	toolchain  = automationcheck.Requirements{Process: automationcheck.ProcessToolchain}
+	// Magics may rebind the closure ledger, so it never overlaps a reader.
+	readStore, writeStore = &automationcheck.Resource{Name: "store"}, &automationcheck.Resource{Name: "store", Exclusive: true}
+)
 
-func withResources(check automationcheck.Check, resources []automationcheck.Resource) automationcheck.Check {
-	check.Descriptor.Resources = resources
-	return check
+// Admission, then the static wave (census before modern-Go), vet, changed
+// owners, then shared dependency tests, browser and device lanes.
+var gateRules = []gateRule{
+	{name: "protection", reuse: true}, {name: "scope", after: []string{"protection"}, reuse: true},
+	{name: "magics", after: afterScope, store: writeStore, static: true},
+	{name: modernCensusCheckName, after: afterScope, needs: automationcheck.Requirements{Intermediate: true}, store: readStore, static: true, reuse: true},
+	{name: "modern-go", after: []string{modernCensusCheckName}, static: true},
+	{name: "architecture", after: afterScope, static: true, reuse: true}, {name: "profile", after: afterScope, static: true, reuse: true},
+	{name: "fmt", after: afterScope, static: true, reuse: true}, {name: "style", after: afterScope, static: true, reuse: true},
+	{name: "surface", after: afterScope, static: true}, {name: "manifest", after: afterScope, static: true, reuse: true},
+	{name: "sbom", after: afterScope, static: true, reuse: true}, {name: "claims", after: afterScope, static: true, reuse: true},
+	{name: "docs", after: afterScope, needs: toolchain, store: readStore, static: true, reuse: true},
+	{name: "published", after: afterScope, store: readStore, static: true},
+	{name: "vet", afterStatic: true, needs: toolchain, reuse: true},
+	{name: "acceptance", after: []string{"vet"}, needs: suite, cumulative: true},
+	{name: testPlanCheckName, after: []string{"acceptance"}, needs: suite}, {name: testOwnersCheckName, after: []string{testPlanCheckName}, needs: suite},
+	{name: testDeviceCheckName, after: []string{testOwnersCheckName}, needs: suite, deferrable: true, cumulative: true},
+	{name: testRestCheckName, after: []string{testDeviceCheckName}, needs: suite, cumulative: true},
+	{name: "device", after: []string{testDeviceCheckName}, deferrable: true, cumulative: true},
+	{name: automationcheck.WebUICheckName, after: []string{testOwnersCheckName}, deferrable: true, cumulative: true},
+	{name: automationcheck.ModelJourneyCheckName, after: []string{testOwnersCheckName}, deferrable: true},
+	{name: "commit", after: []string{testRestCheckName, "device", automationcheck.WebUICheckName, automationcheck.ModelJourneyCheckName},
+		needs: automationcheck.Requirements{Candidate: true}, cumulative: true},
 }
+
+var (
+	validateWave       = gateRuleNames(func(rule gateRule) bool { return rule.static })
+	deferredLaneChecks = gateRuleNames(func(rule gateRule) bool { return rule.deferrable })
+)
+
+func gateRuleNames(keep func(gateRule) bool) (names []string) {
+	for _, rule := range gateRules {
+		if keep(rule) {
+			names = append(names, rule.name)
+		}
+	}
+	return names
+}
+
+func gateRuleNamed(name string) gateRule {
+	if index := slices.IndexFunc(gateRules, func(rule gateRule) bool { return rule.name == name }); index >= 0 {
+		return gateRules[index]
+	}
+	return gateRule{}
+}
+
+// declare applies the rule; an owner-constructed check keeps its own needs.
+func (rule gateRule) declare(descriptor *automationcheck.Descriptor) {
+	descriptor.Dependencies = slices.Clone(rule.after)
+	if rule.afterStatic {
+		descriptor.Dependencies = slices.Clone(validateWave)
+	}
+	if rule.needs != (automationcheck.Requirements{}) {
+		descriptor.Requirements = rule.needs
+	}
+	if rule.store != nil {
+		descriptor.Resources = []automationcheck.Resource{*rule.store}
+	}
+}
+
+// phaseReusesEvidence reports whether a check's terminal evidence may be
+// reused across attempts whose manifest-bound input fingerprint is identical.
+func phaseReusesEvidence(phase string) bool { return gateRuleNamed(phase).reuse }
 
 // joins every failed check
 func checkFailures(results []automationcheck.DAGResult) error {
@@ -669,12 +703,12 @@ func (g *gateContext) automationPlan() bool {
 
 func automationROIAdmission(scope string, movement codeprofile.ProductionMovement) (string, error) {
 	summary := fmt.Sprintf(
-		"automation ROI %s: production_ast=%d-%d net=%+d go_lines=%d-%d net=%+d; admission=net-negative",
+		"automation ROI %s: production_ast=%d-%d net=%+d go_lines=%d-%d net=%+d; admission=net-negative lines",
 		scope, movement.Added, movement.Deleted, movement.Added-movement.Deleted,
 		movement.GoLinesAdded, movement.GoLinesDeleted, movement.GoLinesAdded-movement.GoLinesDeleted,
 	)
-	if movement.Added > 0 && movement.Added >= movement.Deleted ||
-		movement.GoLinesAdded > 0 && movement.GoLinesAdded >= movement.GoLinesDeleted {
+	// Owner 2026-09-25: lines enforced; nodes reported (tables spend nodes on data).
+	if movement.GoLinesAdded > 0 && movement.GoLinesAdded >= movement.GoLinesDeleted {
 		return summary, fmt.Errorf("automation surface is not net-negative: %s", summary)
 	}
 	return summary, nil
@@ -906,23 +940,6 @@ func phaseOwnsPath(phase, path string) bool {
 	}
 }
 
-// phaseReusesEvidence reports whether a check's terminal evidence may be
-// reused across consecutive gate attempts when its exact manifest-bound input
-// fingerprint is byte-identical. Store-coupled checks (magics, acceptance,
-// published) stay excluded because every attempt's preparation commit moves
-// the store their verdicts read; device stays excluded because hardware is
-// not a fingerprintable input; the commit check is never reused.
-func phaseReusesEvidence(phase string) bool {
-	switch phase {
-	case "vet", "fmt", "style", "profile", "architecture", "scope", "protection", modernCensusCheckName,
-		"manifest", "sbom", "claims", "docs":
-		return true
-	default:
-		// Package receipts own test reuse; a passed phase may contain uncredited skips.
-		return false
-	}
-}
-
 func (g *gateContext) changedGoFiles() []string {
 	var out []string
 	for _, p := range g.paths {
@@ -974,28 +991,26 @@ func chunkByArgBudget(files []string) [][]string {
 }
 
 func (g *gateContext) stepFmt() (bool, error) {
-	files := g.changedGoFiles()
-	if len(files) == 0 {
+	if len(g.changedGoFiles()) == 0 {
 		return true, nil
 	}
-	var unformatted []string
-	for _, chunk := range chunkByArgBudget(files) {
+	files, err := g.unformattedGoFiles()
+	if err == nil && len(files) > 0 {
+		err = fmt.Errorf("unformatted: %s; remediate with `gofmt -w %s`", strings.Join(files, " "), strings.Join(files, " "))
+	}
+	return false, err
+}
+
+// unformattedGoFiles lists the changed Go files gofmt would rewrite.
+func (g *gateContext) unformattedGoFiles() (unformatted []string, err error) {
+	for _, chunk := range chunkByArgBudget(g.changedGoFiles()) {
 		out, err := command(g.repo, "gofmt", append([]string{"-l"}, chunk...)...)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		if s := strings.TrimSpace(out); s != "" {
-			unformatted = append(unformatted, s)
-		}
+		unformatted = append(unformatted, strings.Fields(out)...)
 	}
-	if len(unformatted) > 0 {
-		files := strings.Fields(strings.Join(unformatted, "\n"))
-		return false, fmt.Errorf(
-			"unformatted: %s; remediate with `gofmt -w %s`",
-			strings.Join(files, " "), strings.Join(files, " "),
-		)
-	}
-	return false, nil
+	return unformatted, nil
 }
 
 func (g *gateContext) stepStyle() (bool, error) {

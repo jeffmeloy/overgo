@@ -4,6 +4,20 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "merge-ab335708de08",
+      "title": "Merge the Colibri2 lane at ab335708de08",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Merge the Colibri2 lane at ab335708de08",
+          "status": "open",
+          "verify": "go run ./cmd/compatibility -check \u0026\u0026 go test ./internal/tokenizer -run '^TestKimiDeclaredSplit$' -count=1"
+        }
+      ]
+    },
+    {
       "id": "automation-gate-rule-registry",
       "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
@@ -464,7 +478,7 @@
           "title": "Track golden generators and keep golden provenance in the store",
           "status": "open",
           "verify": "go test ./internal/repoanalysis -run '^TestGoldensHaveProvenance$' -count=1",
-          "rationale": "Golden outputs are tracked (testdata, fixtures), but their generators and inputs (timesfm3_golden.py, dinov2_golden.py, their input and spec JSON) exist only in tmp. Put generators in one tracked directory, the only place Python is allowed. Record each golden in the store with its reference commit, checkpoint identity, generator and inputs, and have the test check its testdata file against that record. Large goldens live only in the store."
+          "rationale": "Golden outputs are tracked (testdata, fixtures), but their generators and inputs (timesfm3_golden.py, dinov2_golden.py, generate_kimi_k3_rank_reference.py, their input and spec JSON) exist only in tmp, and internal/parity/testdata/make_olmoe_tiny.py is the one generator still in the tree. Put generators in one tracked directory, the only place Python is allowed. Record each golden in the store with its reference commit, checkpoint identity, generator and inputs, and have the test check its testdata file against that record. Large goldens live only in the store. The Colibri2 merge (2026-09-25) moved the Kimi K3 rank generator from internal/hfbpe/testdata to tmp, consistent with the others; its fixture kimi_k3_rank_reference.json keeps its source provenance (repository, commit, sha256)."
         }
       ]
     },
@@ -1154,7 +1168,9 @@
             "consolidation-round-2/do",
             "tabfm-heldout-proof/do",
             "merge-f4aa36bccbec/do",
-            "audio-merge-replan/do"
+            "audio-merge-replan/do",
+            "merge-ab335708de08/do",
+            "colibri2-merge-replan/do"
           ]
         }
       ]

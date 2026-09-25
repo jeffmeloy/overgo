@@ -8,6 +8,11 @@
       "title": "Merge the Colibri2 lane at ab335708de08",
       "owner": "master-lead",
       "status": "open",
+      "budget": {
+        "nodes": 0,
+        "paydown": "automation-one-record-table",
+        "reason": "the Colibri2 merge records realized weight residency in serving observations and resource fitness (runrecord); automation-one-record-table consolidates those record families"
+      },
       "steps": [
         {
           "id": "do",
@@ -1170,7 +1175,8 @@
             "merge-f4aa36bccbec/do",
             "audio-merge-replan/do",
             "merge-ab335708de08/do",
-            "colibri2-merge-replan/do"
+            "colibri2-merge-replan/do",
+            "colibri2-merge-budget/do"
           ]
         }
       ]

@@ -48,3 +48,17 @@ func TestPrepareMergeLaneProjection(t *testing.T) {
 		t.Fatalf("finalize arguments = %q, %v", arguments, err)
 	}
 }
+
+// insertMergeRow puts the merge row at the top of the plan; a lane's row is
+// owned by the lane, since the lane dispatches only rows it owns, and is
+// proven by the build.
+func insertMergeRow(document plan.Plan, mergeID, title, owner string, lane bool) (plan.Plan, error) {
+	merged, err := insertItem(document, mergeID, title, "", mergeVerify(lane), false)
+	if err != nil {
+		return plan.Plan{}, err
+	}
+	if lane {
+		merged.Items[0].Owner = owner
+	}
+	return merged, nil
+}

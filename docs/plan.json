@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-merge-one-landing",
-      "title": "Land a new row with its first work, and a merge with its own row, in one commit",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Land a new row with its first work, and a merge with its own row, in one commit",
-          "status": "open",
-          "verify": "go test ./internal/plan -run '^TestMergeDeclaresItsOwnRow$' -count=1",
-          "rationale": "Merge lesson (2026-09-25, audio, Colibri2 and VAE lanes), generalised: the proof rule judges a row by the check it held at the base commit, so every new row needed a separate plan-only vehicle landing before its work -- eight vehicles on 2026-09-25 alone (three merge rows, a Colibri2 budget, the VAE port row, the hidden-console row, the merge-lesson rows), each a full gate plus lanes. Keep the property the rule protects (a landing cannot write the check that judges it) by admitting a row that first appears in its own landing when its check is absent or fails at the base, which already holds for new rows; a merge likewise declares its own row, verify and budget in the merge landing. One landing then carries a new row with its first work, and a merge is one landing. Also: row ids beginning with merge- count as merge boundaries (TestRSICampaignRatchetAndParallelStructure allows one), which refused a vehicle named merge-lessons-replan; derive a merge boundary from the landing, not the id. Pairs with automation-derived-ledgers taking row status out of the committed plan. Done when TestMergeDeclaresItsOwnRow lands a merge whose row first appears in that merge, and a new row lands with its first work in one commit."
-        }
-      ]
-    },
-    {
       "id": "automation-gate-git-lock-per-worktree",
       "title": "Wait out a transient foreign index lock instead of refusing a landing",
       "owner": "master-lead",

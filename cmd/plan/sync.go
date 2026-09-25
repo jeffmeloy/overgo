@@ -131,9 +131,13 @@ func prepareMergeWithProjection(
 		}
 		mergeID := "merge-" + snapshot[:12]
 		lane := laneMerge(projection, local)
-		merged, err = insertMergeRow(merged, mergeID, "Merge "+source+" at "+snapshot[:12], local.Lane, lane)
+		// The lane dispatches only rows it owns; the build proves a lane's row.
+		merged, err = insertItem(merged, mergeID, "Merge "+source+" at "+snapshot[:12], "", mergeVerify(lane), false)
 		if err != nil {
 			return err
+		}
+		if lane {
+			merged.Items[0].Owner = local.Lane
 		}
 		if projection == plan.MergeProjectionFirstParentTarget {
 			if err := verifyFirstParentTargetMergeSources(
@@ -282,20 +286,6 @@ func abortMerge(root string) {
 // that names its lane.
 func laneMerge(projection plan.MergeProjection, local plan.Plan) bool {
 	return projection == plan.MergeProjectionFirstParentTarget && local.Lane != ""
-}
-
-// insertMergeRow puts the merge row at the top of the plan; a lane's row is
-// owned by the lane, since the lane dispatches only rows it owns, and is
-// proven by the build.
-func insertMergeRow(document plan.Plan, mergeID, title, owner string, lane bool) (plan.Plan, error) {
-	merged, err := insertItem(document, mergeID, title, "", mergeVerify(lane))
-	if err != nil {
-		return plan.Plan{}, err
-	}
-	if lane {
-		merged.Items[0].Owner = owner
-	}
-	return merged, nil
 }
 
 // mergeVerify names the merge row's verify: a lane's merge row is proven by

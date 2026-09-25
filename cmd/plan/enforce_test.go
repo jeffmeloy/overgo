@@ -19,7 +19,7 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 		{ID: "a", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 		{ID: "b", Status: "open", Steps: []plan.Step{{ID: "s", Status: "open", Verify: "go test ./..."}}},
 	}}
-	top, err := insertItem(base, "new", "do the thing", "", "go test ./...")
+	top, err := insertItem(base, "new", "do the thing", "", "go test ./...", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,17 +30,17 @@ func TestEnforceAddInsertsTask(t *testing.T) {
 	if it, st, ok := plan.Current(top, worklease.UnassignedRole, authority); !ok || it.ID != "new" || st.ID != "do" {
 		t.Fatalf("new item must be the current step, got %s/%s", it.ID, st.ID)
 	}
-	mid, err := insertItem(base, "x", "t", "b", "")
+	mid, err := insertItem(base, "x", "t", "b", "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if mid.Items[1].ID != "x" {
 		t.Fatalf("insert -before b should land at index 1, got %s", mid.Items[1].ID)
 	}
-	if _, err := insertItem(base, "a", "t", "", ""); err == nil {
+	if _, err := insertItem(base, "a", "t", "", "", true); err == nil {
 		t.Fatal("duplicate id must be rejected")
 	}
-	if _, err := insertItem(base, "z", "t", "nope", ""); err == nil {
+	if _, err := insertItem(base, "z", "t", "nope", "", true); err == nil {
 		t.Fatal("unknown -before must be rejected")
 	}
 }
@@ -52,15 +52,15 @@ func TestAddOwnsCloseoutDependency(t *testing.T) {
 	t.Parallel()
 	waits := []plan.Step{{ID: "do", Status: "open", DependsOn: []string{"earlier/do"}}}
 	base := plan.Plan{Items: []plan.Item{{ID: "earlier", Status: "open"}, {ID: "campaign-closeout", Status: "open", Steps: waits}}}
-	added, err := insertItem(base, "new-row", "title", "campaign-closeout", "go test ./...")
+	added, err := insertItem(base, "new-row", "title", "campaign-closeout", "go test ./...", true)
 	if err != nil || !slices.Equal(added.Items[2].Steps[0].DependsOn, []string{"earlier/do", "new-row/do"}) {
 		t.Fatalf("closeout after adding a row = %+v, %v", added.Items, err)
 	}
 	if len(base.Items) != 2 || !slices.Equal(waits[0].DependsOn, []string{"earlier/do"}) {
 		t.Fatalf("adding a row rewrote the caller's plan: %+v", base.Items)
 	}
-	grown, err := insertItem(plan.Plan{}, "lone", "title", "", "")
-	if _, refused := insertItem(plan.Plan{}, "lone", "title", "absent", ""); err != nil || len(grown.Items) != 1 || refused == nil {
+	grown, err := insertItem(plan.Plan{}, "lone", "title", "", "", true)
+	if _, refused := insertItem(plan.Plan{}, "lone", "title", "absent", "", true); err != nil || len(grown.Items) != 1 || refused == nil {
 		t.Fatalf("an empty plan took a row: %v; refused -before an absent row: %v", err, refused)
 	}
 }

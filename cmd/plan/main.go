@@ -593,7 +593,7 @@ func authoritativeReviewPriority(
 // a first-class dispatched/verified/advanced task without hand-editing plan.json.
 func addItem(root, id, title, before, verifyCmd, role string) error {
 	return withPlanMutation(root, false, func(document plan.Plan) error {
-		updated, err := insertItem(document, id, title, before, verifyCmd)
+		updated, err := insertItem(document, id, title, before, verifyCmd, true)
 		if err != nil {
 			return err
 		}
@@ -745,9 +745,11 @@ func relocateItem(document plan.Plan, id, before string) (plan.Plan, error) {
 }
 
 // insertItem is the pure core of addItem: returns a plan with a new open item
-// (one step "do") inserted before `before` (or at the top when empty), and the
-// campaign closeout waiting for it, as the structure policy requires. No I/O.
-func insertItem(document plan.Plan, id, title, before, verifyCmd string) (plan.Plan, error) {
+// (one step "do") inserted before `before` (or at the top when empty), and,
+// when awaited, the campaign closeout waiting for it, as the structure policy
+// requires. A merge's own row is not awaited: the merge completes it, so the
+// merged plan equals the first-parent plan. No I/O.
+func insertItem(document plan.Plan, id, title, before, verifyCmd string, awaited bool) (plan.Plan, error) {
 	pos, err := positionBefore(document.Items, before)
 	switch {
 	case slices.ContainsFunc(document.Items, itemNamed(id)):
@@ -759,7 +761,7 @@ func insertItem(document plan.Plan, id, title, before, verifyCmd string) (plan.P
 		ID: id, Title: title, Status: "open",
 		Steps: []plan.Step{{ID: "do", Title: title, Status: "open", Verify: verifyCmd}},
 	})
-	if closeout := slices.IndexFunc(document.Items, itemNamed("campaign-closeout")); closeout >= 0 {
+	if closeout := slices.IndexFunc(document.Items, itemNamed("campaign-closeout")); awaited && closeout >= 0 {
 		steps := slices.Clone(document.Items[closeout].Steps)
 		for index := range steps {
 			steps[index].DependsOn = append(slices.Clone(steps[index].DependsOn), id+"/do")

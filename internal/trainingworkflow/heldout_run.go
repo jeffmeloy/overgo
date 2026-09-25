@@ -10,12 +10,16 @@ import (
 	"overgo/internal/dataset"
 	"overgo/internal/evaluation"
 	"overgo/internal/overgodb"
+	"overgo/internal/trainingdata"
 	"overgo/internal/trainingprogram"
 )
 
 // HeldoutExample is one dataset record a model trains on or is judged on:
 // its input, and its target values or label.
 type HeldoutExample struct {
+	// Record is the dataset record the example was read from; the runner
+	// sets it before handing the example to Train or Predict.
+	Record string
 	Input  []float64
 	Target []float64
 	Label  string
@@ -178,6 +182,7 @@ func membershipExamples(membership dataset.Membership, examples map[string]Heldo
 		if !found {
 			return nil, fmt.Errorf("training workflow: training record %q has no example", record.ID)
 		}
+		example.Record = record.ID
 		selected = append(selected, example)
 	}
 	return selected, nil
@@ -186,11 +191,35 @@ func membershipExamples(membership dataset.Membership, examples map[string]Heldo
 func predictHeldout(plan evaluation.NumericTargetPlan, run HeldoutRun) (evaluation.NumericTargetReport, error) {
 	observations := make([]evaluation.NumericTargetObservation, 0, len(plan.Cases))
 	for _, target := range plan.Cases {
-		prediction, err := run.Predict(run.Examples[target.Record])
+		example := run.Examples[target.Record]
+		example.Record = target.Record
+		prediction, err := run.Predict(example)
 		if err != nil {
 			return evaluation.NumericTargetReport{}, fmt.Errorf("training workflow: held-out record %q: %w", target.Record, err)
 		}
 		observations = append(observations, evaluation.NumericTargetObservation{Record: target.Record, Values: prediction.Values, Label: prediction.Label})
 	}
 	return evaluation.ScoreNumericTargets(plan, observations)
+}
+
+// readAllDecodeWorkers decodes a one-time read sequentially: ReadAll serves
+// evaluation and small splits, where parallel decode buys nothing.
+const readAllDecodeWorkers = 1
+
+// ReadAll reads every record of a materialized dataset once, processed, in
+// stream order: the stream cycles epochs, so one batch the size of the
+// dataset holds each record exactly once. It suits evaluation and small
+// splits; training streams through a trainingdata.Batcher.
+func ReadAll(ctx context.Context, materialized *trainingdata.Dataset) ([]trainingdata.Example, error) {
+	stream, err := trainingdata.NewStream(materialized, nil)
+	if err != nil {
+		return nil, err
+	}
+	records := materialized.Records()
+	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: records, MicrobatchExamples: records, DecodeWorkers: readAllDecodeWorkers})
+	if err != nil {
+		return nil, err
+	}
+	batch, err := batcher.Next(ctx)
+	return batch.Examples, err
 }

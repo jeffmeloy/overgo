@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"overgo/internal/cuda/driver"
 	"overgo/internal/processcontrol"
 	"overgo/internal/testevidence"
 )
@@ -18,6 +19,30 @@ type testRunner func(ctx context.Context, packages []string, short bool, observe
 // lease, so leased is ignored.
 func (g *gateContext) runHostTests(ctx context.Context, packages []string, short bool, observe func(string, bool) error, _ bool) (testevidence.GoTestReport, error) {
 	return g.runGoTests(ctx, packages, short, observe)
+}
+
+// testDevice names the device a refused package waits on: the one the
+// batch lease admitted, or, for a host batch that held no lease, device
+// zero read from the driver, the ordinal every trainer's optimizer stepper
+// opens (device.New(0)).
+func (g *gateContext) testDevice() (string, error) {
+	if g.deviceResource != "" {
+		return g.deviceResource, nil
+	}
+	library, err := driver.Open()
+	if err != nil {
+		return "", err
+	}
+	defer library.Close()
+	if err := library.Init(); err != nil {
+		return "", err
+	}
+	info, err := library.DeviceInfo(0)
+	if err != nil {
+		return "", err
+	}
+	g.deviceResource = info.UUID
+	return info.UUID, nil
 }
 
 // runContendedBatch runs one batch (a device batch under the shared lease)
@@ -37,13 +62,17 @@ func (g *gateContext) runContendedBatch(ctx context.Context, batch []string, sho
 	contended := report.Contended
 	g.note(fmt.Sprintf("device contention: %d package(s) refused an exclusive device claim [%s]; each runs again alone, outside any lease, once the device's holder releases",
 		len(contended), strings.Join(contended, ",")))
+	resource, err := g.testDevice()
+	if err != nil {
+		return report, fmt.Errorf("device contention: the refused device cannot be named to wait on: %w", err)
+	}
 	for _, pkg := range contended {
 		attempts := 0
 		err := processcontrol.AwaitResource(ctx, func() error {
 			attempts++
 			report, err = run(ctx, []string{pkg}, short, observe, false)
 			if err != nil && report.ContentionOnly() {
-				return &processcontrol.ResourceBusyError{Name: g.deviceResource}
+				return &processcontrol.ResourceBusyError{Name: resource}
 			}
 			return err
 		})

@@ -27,7 +27,8 @@ const (
 	NumericAbsoluteError NumericScorer = "absolute-error"
 	// NumericQuantileLoss scores mean pinball loss at the spec quantile; minimized.
 	NumericQuantileLoss NumericScorer = "quantile-loss"
-	// NumericLabelAccuracy scores exact label match as 1 or 0; maximized.
+	// NumericLabelAccuracy scores exact label match as 1 or 0, or for a record
+	// of several rows given as class ids the fraction of rows matched; maximized.
 	NumericLabelAccuracy NumericScorer = "label-accuracy"
 )
 
@@ -192,10 +193,24 @@ func (report NumericTargetReport) Batch(key string) (artifact.Batch, error) {
 
 func scoreNumericRecord(scorer NumericScorerSpec, target NumericTargetCase, observation NumericTargetObservation) (float64, error) {
 	if scorer.Kind == NumericLabelAccuracy {
-		if target.Label == observation.Label {
-			return 1, nil
+		if target.Label != "" {
+			if target.Label == observation.Label {
+				return 1, nil
+			}
+			return 0, nil
 		}
-		return 0, nil
+		// A record of several rows scores the fraction whose predicted
+		// class matches.
+		if len(observation.Values) != len(target.Values) {
+			return 0, errors.New("evaluation: predicted class count differs from the record's rows")
+		}
+		matched := 0
+		for index, class := range target.Values {
+			if observation.Values[index] == class {
+				matched++
+			}
+		}
+		return float64(matched) / float64(len(target.Values)), nil
 	}
 	if len(target.Values) == 0 || len(target.Values) != len(observation.Values) {
 		return 0, errors.New("evaluation: numeric value cardinality differs")
@@ -259,11 +274,20 @@ func validNumericCase(target NumericTargetCase, scorers []NumericScorerSpec) boo
 		}
 	}
 	for _, scorer := range scorers {
-		if scorer.Kind == NumericLabelAccuracy && target.Label == "" || scorer.Kind != NumericLabelAccuracy && len(target.Values) == 0 {
+		if scorer.Kind == NumericLabelAccuracy && target.Label == "" && !classIDs(target.Values) ||
+			scorer.Kind != NumericLabelAccuracy && len(target.Values) == 0 {
 			return false
 		}
 	}
 	return true
+}
+
+// classIDs reports whether values name one class per row: non-empty, and
+// each a non-negative integer.
+func classIDs(values []float64) bool {
+	return len(values) != 0 && !slices.ContainsFunc(values, func(value float64) bool {
+		return !checked.Finite64(value) || value < 0 || value != math.Trunc(value)
+	})
 }
 
 func canonicalizeNumericTargetReport(report *NumericTargetReport) error {

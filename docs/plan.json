@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "heldout-tabular-slice",
-      "title": "Approve tabular objectives on held-out label accuracy",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Approve tabular objectives on held-out label accuracy",
-          "status": "open",
-          "verify": "go test ./cmd/tabular-train-probe -run '^TestTabularObjectiveProbeApprovesOnLabelAccuracyGain$' -count=1",
-          "rationale": "Tabular held-out slice (design 2026-09-24): tabular-train-probe gains the same -store -objective mode as the forecast probe. Train tabularicl on training-membership rows, predict held-out rows with Model.Predict before and after, score with NumericLabelAccuracy, judge, publish. TabFM-1.0 objectives can then be approved. Done when TestTabularObjectiveProbeApprovesOnLabelAccuracyGain walks a synthetic table model from objective to approved."
-        }
-      ]
-    },
-    {
       "id": "heldout-text-slice",
       "title": "Approve text objectives on held-out token accuracy",
       "owner": "master-lead",

@@ -30,7 +30,15 @@ func run() (err error) {
 	task := flag.String("task", "", "classification or regression")
 	input := flag.String("input", "", "training request JSON")
 	steps := clioptions.IntOverride(flag.CommandLine, "steps", "required decoder update steps")
+	storeRoot := flag.String("store", "", "OvergoDB root; with -objective, train under that objective and publish its held-out verdict")
+	objectiveAlias := flag.String("objective", "", "registered table-prediction objective alias (requires -store): train on its training membership, one request JSON per dataset file, and judge its held-out requests' query rows; -input is unused")
 	flag.Parse()
+	if *objectiveAlias != "" {
+		if *storeRoot == "" || *model == "" || *task == "" || *steps <= 0 {
+			return fmt.Errorf("-objective requires -store, model, task, and positive steps")
+		}
+		return runObjective(*storeRoot, *objectiveAlias, *model, *task, *steps)
+	}
 	if *model == "" || *task == "" || *input == "" || *steps <= 0 {
 		return fmt.Errorf("model, task, input, and positive steps required")
 	}

@@ -238,8 +238,13 @@ func canonicalizeNumericTargetPlan(plan *NumericTargetPlan) error {
 		len(plan.Scorers) == 0 || len(plan.Cases) == 0 {
 		return errors.New("evaluation: invalid numeric target plan")
 	}
+	// Text scores only as label accuracy over token ids: the fraction of
+	// next tokens predicted. A numeric error has no meaning over token ids.
 	modality := plan.Signature.Outputs[0]
-	if modality != recipecontract.ModalityTimeSeries && modality != recipecontract.ModalityTable {
+	tokenAccuracy := modality == recipecontract.ModalityText && !slices.ContainsFunc(plan.Scorers, func(scorer NumericScorerSpec) bool {
+		return scorer.Kind != NumericLabelAccuracy
+	})
+	if modality != recipecontract.ModalityTimeSeries && modality != recipecontract.ModalityTable && !tokenAccuracy {
 		return errors.New("evaluation: unsupported numeric target modality")
 	}
 	slices.SortFunc(plan.Scorers, func(a, b NumericScorerSpec) int { return cmp.Compare(a.Kind, b.Kind) })

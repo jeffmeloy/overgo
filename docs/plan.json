@@ -4,17 +4,17 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "heldout-text-slice",
-      "title": "Approve text objectives on held-out token accuracy",
+      "id": "text-objective-command",
+      "title": "Train a text objective from cmd/train",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Approve text objectives on held-out token accuracy",
+          "title": "Train a text objective from cmd/train",
           "status": "open",
-          "verify": "go test ./internal/trainingworkflow -run '^TestTextObjectiveApprovesOnHeldOutGain$' -count=1",
-          "rationale": "Text held-out slice (design 2026-09-24): the text target scorers (CompileTextTargetPlan, ScoreTextTargets) need a production caller, and token-accuracy objectives need a scorer. Add a token-accuracy TextScorer, make trainingworkflow's data authority use the objective's training membership instead of the all split (session authority identities change, so migrate them), and score the checkpoint cmd/train writes against its base on the held-out view. Done when TestTextObjectiveApprovesOnHeldOutGain approves a tiny text objective on a held-out token-accuracy gain."
+          "verify": "go test ./cmd/train -run '^TestTrainObjectiveModeRefusesRawDatasetInputs$' -count=1",
+          "rationale": "cmd/train -store \u003croot\u003e -objective \u003calias\u003e calls trainingworkflow.RunTextHeldout and prints the verdict line the probes print. It refuses -dataset, -recipe, -resume, -reference, -audio-manifest, -bootstrap-recipe and -out: the raw-file path and its session-authority identities are unchanged. Writing the trained weights (safetensors.Save, not publishCheckpoint, which needs recipe session authority) follows. Done when TestTrainObjectiveModeRefusesRawDatasetInputs holds the conflict check and the mode runs a tiny model end to end."
         }
       ]
     },
@@ -105,6 +105,21 @@
           "status": "open",
           "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
           "rationale": "Declare a caller for every command, owner directive 2026-09-24: a command nothing refers to is not deleted. From consolidation-inventory: 20 cmd/ commands have no reference in code, docs, scripts or the plan (seam-align, audio-inspect, latentvideo-run, mechanism-census, coverage-lanes, buildscrub, hf-hub, activation-cases, inspect-safetensors, dataset-catalog, remote-provider, sealed-authority, tool-workflow, model-config, router-observation, model-build, profile-catalog, rerank). Record each one's audience and purpose in commanddoc. Wire the training and model ones where their workflow starts: dataset-catalog behind wire-dataset-mixture, and model-build, hf-hub and latentvideo-run from the model onboarding and run paths. Delete only a command a named wired command supersedes. Done when TestEveryCommandHasACaller holds."
+        }
+      ]
+    },
+    {
+      "id": "heldout-generation-slice",
+      "title": "Judge text generation objectives on held-out text targets",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Judge text generation objectives on held-out text targets",
+          "status": "open",
+          "verify": "go test ./internal/trainingworkflow -run '^TestGenerationObjectiveApprovesOnHeldOutAnswers$' -count=1",
+          "rationale": "The text target scorers (CompileTextTargetPlan, ScoreTextTargets: continuation likelihood, generated answer, structured validity, OCR fields, VQA rules) restored in c99544b6 judge what a text model generates, not next-token accuracy, so token-accuracy objectives do not use them. Wire them for objectives whose output is generated text: run the base and trained model's generation over held-out prompts, score with the scorer the objective declares, and judge through a text target verdict. Unlimited-OCR (OCR fields) and a generated-answer objective are the first users. Done when TestGenerationObjectiveApprovesOnHeldOutAnswers approves a tiny generation objective on a held-out answer gain."
         }
       ]
     },
@@ -990,7 +1005,9 @@
             "split-record-identities/do",
             "merge-79180f0ca8b9/do",
             "gui-merge-replan/do",
-            "guards-at-e3c53b28/do"
+            "guards-at-e3c53b28/do",
+            "heldout-generation-slice/do",
+            "text-objective-command/do"
           ]
         }
       ]

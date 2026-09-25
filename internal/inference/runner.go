@@ -179,6 +179,7 @@ type preparedModel struct {
 	spec                model.Spec
 	program             modelrecipe.Plan
 	runtimePolicy       modelrecipe.RuntimePolicy
+	realizedResidency   recipe.RealizedResidency
 	evidenceTier        recipe.EvidenceTier
 	weights             model.Weights
 	vocab               *tokenizer.Vocab
@@ -281,6 +282,15 @@ func (r *Runner) RuntimePolicy() modelrecipe.RuntimePolicy {
 		return modelrecipe.RuntimePolicy{}
 	}
 	return r.runtimePolicy
+}
+
+// RealizedResidency reports the weight path selected after model open.
+// An empty outcome is unobserved and cannot support a matched comparison.
+func (r *Runner) RealizedResidency() recipe.RealizedResidency {
+	if r == nil {
+		return ""
+	}
+	return r.realizedResidency
 }
 
 // DeviceResident: all execution weights have device residency.

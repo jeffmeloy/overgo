@@ -10,12 +10,14 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/automationcheck"
+	"overgo/internal/gitauthority"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/testutil"
 )
 
 func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
-	t.Parallel()
+	// Keep parallel child cases within this group, ahead of the package-wide
+	// queue. Go emits no parent pause while its children wait for test slots.
 	for _, run := range []func() (bool, error){
 		func() (bool, error) { return (&gateContext{}).stepTestOwners(t.Context()) },
 		func() (bool, error) { return (&gateContext{}).stepTestDevice(t.Context()) },
@@ -55,6 +57,9 @@ func assertOwnerReuseRetainsDependentChecks(t *testing.T, missingMethod string) 
 	}
 	runGitFixture(t, root, "init", "-q")
 	runGitFixture(t, root, "add", ".")
+	if err := gitauthority.RequireRepositoryRoot(t.Context(), root); err != nil {
+		t.Fatalf("owner-reuse fixture repository %s: %v", root, err)
+	}
 	environment := mustGateValue(discoverEnvironment(root))
 	attempt := func() (*gateContext, map[string]automationcheck.DAGResult) {
 		snapshot := mustGateValue(repoanalysis.DiscoverGo(root, "app", "dep", "other", "third"))
@@ -98,7 +103,7 @@ func assertOwnerReuseRetainsDependentChecks(t *testing.T, missingMethod string) 
 		t.Fatal(results[testRestCheckName].Err)
 	}
 	if first.testPlan == nil {
-		t.Fatal("first attempt lost its package obligations")
+		t.Fatalf("first attempt lost its package obligations: %+v", results)
 	}
 	if !slices.Contains(first.testPlan.dependent, "example/other") || !slices.Contains(first.testPlan.dependent, "example/third") {
 		t.Fatal("fixture did not exercise complete-profile dependent checks")

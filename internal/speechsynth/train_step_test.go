@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"overgo/internal/optimizer"
 	"overgo/internal/testskip"
 	"overgo/internal/trainingprogram"
 )
@@ -26,7 +28,7 @@ func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
 	if nFlow >= nJoint || lrJoint >= baseLR || lrJoint <= 0 {
 		t.Fatalf("scale law violated: nFlow=%d nJoint=%d lrJoint=%g", nFlow, nJoint, lrJoint)
 	}
-	trainer, err := NewJointTrainer(m, 1, baseLR, 0.95)
+	trainer, err := NewJointTrainer(m, optimizer.Config{Steps: 1, BaseLearningRate: baseLR, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,6 +51,15 @@ func TestJointMuonStepTinyDecreasesLoss(t *testing.T) {
 }
 
 func TestRealArtifactJointMuonTraining(t *testing.T) {
+	testRealArtifactJointMuonTraining(t, false)
+}
+
+func TestRealArtifactCPUJointMuonTraining(t *testing.T) {
+	testRealArtifactJointMuonTraining(t, true)
+}
+
+func testRealArtifactJointMuonTraining(t *testing.T, host bool) {
+	t.Helper()
 	if testing.Short() {
 		t.Skip(testskip.ShortIntegration)
 	}
@@ -86,12 +97,14 @@ func TestRealArtifactJointMuonTraining(t *testing.T) {
 	tensors, _ := m.TrainedTensors(true)
 	probe := tensors["flow_lm.flow_net.final_layer.linear.weight"]
 	probeBefore := append([]float32(nil), probe...)
-	trainer, err := NewJointTrainer(m, 1, baseLR, 0.95)
+	trainer, err := NewJointTrainer(m, optimizer.Config{Steps: 1, BaseLearningRate: baseLR, Momentum: 0.95, Schedule: optimizer.ScheduleConstant}, host)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer trainer.Close()
+	started := time.Now()
 	stepLoss, err := trainer.Step(TrainingExample{TextIDs: ids, Latents: latents, Frames: frames, Seed: golden.Seed})
+	stepWall := time.Since(started)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +118,7 @@ func TestRealArtifactJointMuonTraining(t *testing.T) {
 			changed++
 		}
 	}
-	t.Logf("real native-latent Muon: text=%q frames=%d nFlow=%d nJoint=%d lrJoint=%.3e loss %.6f -> %.6f changed=%d/%d", golden.Text, frames, nFlow, nJoint, lrJoint, before, after, changed, len(probe))
+	t.Logf("real native-latent Muon: host=%t text=%q traced_frames=%d generated_frames=%d nFlow=%d nJoint=%d lrJoint=%.3e loss %.6f -> %.6f changed=%d/%d update_wall=%s; traced frames do not establish full-utterance quality", host, golden.Text, frames, golden.NQuantizerCalls, nFlow, nJoint, lrJoint, before, after, changed, len(probe), stepWall)
 	if stepLoss != before || !(after < before) || changed == 0 {
 		t.Fatalf("loss did not decrease: before %.6f step %.6f after %.6f changed=%d", before, stepLoss, after, changed)
 	}

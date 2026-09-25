@@ -127,7 +127,7 @@ func objectiveExamples(ctx context.Context, store *overgodb.Store, objective tra
 		if err != nil {
 			return nil, err
 		}
-		batch, err := collectExamples(ctx, materialized)
+		batch, err := trainingworkflow.ReadAll(ctx, materialized)
 		closeErr := materialized.Close()
 		if err != nil || closeErr != nil {
 			return nil, fmt.Errorf("seriesforecast-train-probe: %s membership: %w", membership.Partition, errors.Join(err, closeErr))
@@ -141,22 +141,6 @@ func objectiveExamples(ctx context.Context, store *overgodb.Store, objective tra
 		}
 	}
 	return examples, nil
-}
-
-// collectExamples reads every record of a materialized membership once: the
-// stream cycles epochs, so one batch the size of the membership holds each.
-func collectExamples(ctx context.Context, materialized *trainingdata.Dataset) ([]trainingdata.Example, error) {
-	stream, err := trainingdata.NewStream(materialized, nil)
-	if err != nil {
-		return nil, err
-	}
-	records := materialized.Records()
-	batcher, err := trainingdata.NewBatcher(stream, trainingdata.BatchPolicy{Examples: records, MicrobatchExamples: records, DecodeWorkers: 1})
-	if err != nil {
-		return nil, err
-	}
-	batch, err := batcher.Next(ctx)
-	return batch.Examples, err
 }
 
 // trainForecast takes updates optimizer steps over the training examples in

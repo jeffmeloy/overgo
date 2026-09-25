@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"overgo/internal/artifact"
+	"overgo/internal/recipe"
 	"overgo/internal/tokenizer"
 )
 
@@ -57,7 +58,7 @@ func TestGuardGenerationProtocol(t *testing.T) {
 			t.Fatal("unbound stored protocol accepted")
 		}
 	}
-	reference := Result{Inputs: rawInputs, Floors: DeclaredFloors()}
+	reference := Result{Inputs: rawInputs, Floors: DeclaredFloors(), RealizedResidency: recipe.RealizedHostReference}
 	fresh := reference
 	fresh.Inputs = guardInputs
 	if verdict := Compare(reference, fresh, reference.Floors, reference.Floors.CheckRungCeiling); verdict.Passed ||

@@ -8,6 +8,7 @@ import (
 
 	"overgo/internal/artifact"
 	"overgo/internal/overgodb"
+	"overgo/internal/recipe"
 	"overgo/internal/runrecord"
 )
 
@@ -20,14 +21,18 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	ctx := t.Context()
 	result := benchmarkResult{
 		ModelName: "fixture-model", DevicePeakBytes: 512,
+		Residency: recipe.ResidencyDeviceNative, RealizedResidency: recipe.RealizedDeviceNative,
 		EndOfSequenceIgnored: true, SamplingProtocol: greedyBudgetProtocol,
 		TokensPerSequence: 32, RequestedRuns: 2,
+		Prompt: "fixture prompt", PromptSuite: []string{"fixture prompt"},
+		WorkloadDigest: benchmarkWorkloadDigest([]string{"fixture prompt"}),
 		Runs: []runMetrics{
-			{Run: 0, PromptTokens: 7, OutputTokens: 32, DeviceSelectedTokens: 32, TotalMilliseconds: 100},
-			{Run: 1, PromptTokens: 7, OutputTokens: 32, DeviceSelectedTokens: 32, TotalMilliseconds: 120},
+			{Run: 0, PromptDigest: benchmarkPromptDigest("fixture prompt"), OutputDigests: []string{fixtureOutputDigest(32)}, PromptTokens: 7, OutputTokens: 32, DeviceSelectedTokens: 32, TotalMilliseconds: 100},
+			{Run: 1, PromptDigest: benchmarkPromptDigest("fixture prompt"), OutputDigests: []string{fixtureOutputDigest(32)}, PromptTokens: 7, OutputTokens: 32, DeviceSelectedTokens: 32, TotalMilliseconds: 120},
 		},
 	}
 	commit := "0123456789abcdef0123456789abcdef01234567"
+	bindFixtureBenchmarkIdentity(t, &result, commit)
 	claim, evidenceData, evidence, err := benchmarkClaim(result, commit)
 	if err != nil {
 		t.Fatal(err)
@@ -93,5 +98,42 @@ func TestBenchmarkClaimCommits(t *testing.T) {
 	locations, err := store.Locations(ctx, model)
 	if err != nil || len(locations) == 0 {
 		t.Fatalf("model locations = (%+v, %v), want the registered weights file", locations, err)
+	}
+}
+
+func fixtureOutputDigest(count int) string {
+	digest := newTokenDigest()
+	for range count {
+		digest.add(7)
+	}
+	return digest.sum()
+}
+
+func bindFixtureBenchmarkIdentity(t *testing.T, result *benchmarkResult, commit string) {
+	t.Helper()
+	var err error
+	result.ModelID, err = artifact.IdentifyBytes(artifact.KindModel, []byte("weights fixture bytes"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.RecipeID, err = artifact.IdentifyBytes(artifact.KindRecipe, []byte("fixture recipe"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.TokenizerContainer = result.ModelID
+	result.Device.UUID = "fixture-device"
+	result.Environment, err = runrecord.CurrentEnvironment(result.Device.UUID, "cuda")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result.EnvironmentID = result.Environment.ID
+	result.CodeCommit = commit
+	result.ModuleDigest = benchmarkPromptDigest("fixture module")
+	result.OptionsDigest, err = benchmarkOptionsDigest(options{Tokens: result.TokensPerSequence,
+		Runs: result.RequestedRuns, Warmup: result.RequestedWarmup, CachePrompt: result.CachePrompt,
+		BatchSequences: result.BatchSequences, ContextShift: result.ContextShift, Speculative: result.Speculative,
+		Temperature: result.Temperature, TopK: result.TopK, DeviceTopK: result.DeviceTopK}, result.AdapterIDs)
+	if err != nil {
+		t.Fatal(err)
 	}
 }

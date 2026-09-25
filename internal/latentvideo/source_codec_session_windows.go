@@ -53,9 +53,15 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 		!checked.Equal(s.Plan.LatentChannels, plan.Latent.Channels) || !checked.Equal(s.Plan.Stride, plan.Profile.Stride) {
 		return nil, stats, errors.New("source codec CUDA session: contract mismatch")
 	}
+	if err := validateSourceCodecPlan(plan); err != nil {
+		return nil, stats, err
+	}
 	started := time.Now()
 	s.codec.ctx = ctx
-	states := make([]vaeDeviceOpState, len(s.Plan.Operations))
+	stream, err := media.NewCodecChunkStream[pytorchzip.TensorBinding, vaeDeviceOpState](s.Plan.CodecProgram)
+	if err != nil {
+		return nil, stats, err
+	}
 	latentElements, err := plan.LatentElements()
 	if err != nil {
 		return nil, stats, err
@@ -85,9 +91,9 @@ func (s *VAEEncoderCUDASession) Encode(ctx context.Context, plan SourceCodecPlan
 				return copyErr
 			}
 			actIndex := tensor.FirstOffset
-			volume, runErr := media.ExecuteCodecProgram("source codec CUDA", s.Plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
+			volume, _, runErr := media.ExecuteCodecChunk("source codec CUDA", stream, chunkIndex, sourceFrame, media.CodecVolume[driver.DevicePtr]{
 				Storage: x, Channels: plan.Source.Channels, Frames: chunkFrames, Height: plan.Source.Height, Width: plan.Source.Width,
-			}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
+			}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
 				actIndex = tensor.SingletonExtent - actIndex
 				next, frames, height, width, stepErr := s.codec.runOp(state, index, chunkIndex, operation, s.codec.weights[index], opState, current.Storage, media.ProgramCodecWorkspace(media.CodecWorkspaceActivation, actIndex), current.Frames, current.Height, current.Width)
 				return media.CodecVolume[driver.DevicePtr]{Storage: next, Channels: operation.OutputChannels, Frames: frames, Height: height, Width: width}, stepErr

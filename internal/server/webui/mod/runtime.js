@@ -43,6 +43,9 @@
             present(timing && timing.predicted_per_second, (v) => Number(v).toFixed(2) + " tok/s"), present(elapsed, (v) => v.toFixed(2) + " ms")]));
         }
         slots.replaceChildren(table);
+        summary.append(
+          overgo.stat("Requested residency", authority ? authority.residency : "unknown"),
+          overgo.stat("Actual residency", authority ? (authority.realized_residency || "unknown") : "unknown"));
       }
 
       // The sessions view listens only while it shows.

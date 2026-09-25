@@ -45,15 +45,10 @@ func (g *gateContext) profilePair() (codeprofile.Profile, codeprofile.Profile, e
 	return candidate, base, nil
 }
 
-// proveCheck holds a row's check to meaning something about the landing it
-// accepts. The check is the one the row held at the base commit, so a landing
-// cannot rewrite what it is judged by. And a landing that adds production
-// code must carry a check that fails or is absent without it: one that
-// already passes at the base commit proves nothing about the code added. A
-// landing that removes or holds production code only has to pass, because
-// what it has to show is that nothing broke.
-func (g *gateContext) proveCheck(verify string) error {
-	data, err := command(g.repo, "git", "show", "HEAD:"+plan.Path)
+// requireCommittedCheck refuses a changed judge before admission or execution.
+// It reads the committed plan, not the candidate's mutable contract.
+func requireCommittedCheck(repo, reference, verify string) error {
+	data, err := command(repo, "git", "show", "HEAD:"+plan.Path)
 	if err != nil {
 		return err
 	}
@@ -61,9 +56,12 @@ func (g *gateContext) proveCheck(verify string) error {
 	if err != nil {
 		return err
 	}
-	if err := checkUnchangedSinceBase(base, g.planRef, verify); err != nil {
-		return err
-	}
+	return checkUnchangedSinceBase(base, reference, verify)
+}
+
+// proveCheck requires a growing landing's already-admitted check to fail or
+// be absent at the base. Non-growing changes only need candidate acceptance.
+func (g *gateContext) proveCheck(verify string) error {
 	if len(g.plannedGoFiles()) == 0 {
 		return nil
 	}
@@ -73,6 +71,11 @@ func (g *gateContext) proveCheck(verify string) error {
 	}
 	growth := candidate.Runtime.Nodes + candidate.Automation.Nodes - baseProfile.Runtime.Nodes - baseProfile.Automation.Nodes
 	if growth <= 0 {
+		return nil
+	}
+	if covered, err := g.sourceProvenMergeGo(); err != nil {
+		return err
+	} else if covered {
 		return nil
 	}
 	return requireProvenCheck(growth, g.runAtBase(verify))

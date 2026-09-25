@@ -585,7 +585,10 @@ func (s *VAEDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELate
 	}
 	spatial := geometry.spatial
 	started := time.Now()
-	states := make([]vaeDeviceOpState, len(plan.Operations))
+	stream, err := media.NewCodecChunkStream[pytorchzip.TensorBinding, vaeDeviceOpState](plan.CodecProgram)
+	if err != nil {
+		return decodeStats, err
+	}
 	staging := make([]float32, plan.ZDim*spatial)
 	var frameScratch []float32
 	frameIndex := tensor.FirstOffset
@@ -600,9 +603,9 @@ func (s *VAEDecoderCUDASession) DecodeContext(ctx context.Context, stats VAELate
 				return err
 			}
 			actIndex := tensor.FirstOffset
-			volume, runErr := media.ExecuteCodecProgram("vae cuda decode", plan.CodecProgram, states, media.CodecVolume[driver.DevicePtr]{
+			volume, _, runErr := media.ExecuteCodecChunk("vae cuda decode", stream, chunkIndex, chunkIndex, media.CodecVolume[driver.DevicePtr]{
 				Storage: x, Channels: plan.ZDim, Frames: tensor.SingletonExtent, Height: latentH, Width: latentW,
-			}, chunkIndex > tensor.FirstOffset, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
+			}, func(index int, operation media.CodecOperation[pytorchzip.TensorBinding], opState *vaeDeviceOpState, current media.CodecVolume[driver.DevicePtr]) (media.CodecVolume[driver.DevicePtr], error) {
 				if err := ctx.Err(); err != nil {
 					return media.CodecVolume[driver.DevicePtr]{}, err
 				}

@@ -38,12 +38,20 @@ func run() error {
 	bootstrapRecipe := flag.String("bootstrap-recipe", "", "publish, verify, and activate a token-training recipe for the model weights file at this path, then exit")
 	previewDataset := flag.String("preview-dataset", "", "validate one speech training example from a source/split/policy JSON manifest without loading a model or updating parameters")
 	audioManifest := flag.String("audio-manifest", "", "CPU CTC adapter source-processing manifest; the active training recipe owns the registered dataset and split")
+	objective := flag.String("objective", "", "registered text objective alias: train on its training split and publish the held-out verdict")
 	flag.Parse()
 	store, err := overgodb.Open(*storePath)
 	if err != nil {
 		return err
 	}
 	defer store.Close()
+	if *objective != "" {
+		set := map[string]bool{}
+		flag.Visit(func(given *flag.Flag) { set[given.Name] = true })
+		return runObjectiveMode(ctx, store, objectiveRun{
+			Alias: *objective, Model: *model, Steps: *steps, Sequence: *maximumSequence, Host: *host, MaxWall: *maxWall,
+		}, set, os.Stdout)
+	}
 	if *previewDataset != "" {
 		if *bootstrapRecipe != "" || *recipeID != "" || *model != "" || *output != "" || *resume != "" || *audioManifest != "" {
 			return fmt.Errorf("train: -preview-dataset cannot be combined with model execution or recipe bootstrap")

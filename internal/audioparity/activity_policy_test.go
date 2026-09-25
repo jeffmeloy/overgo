@@ -9,8 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"overgo/internal/testutil"
 )
 
 // TestActivityPolicyIsTheModelsOwnOperatingPoint holds the reviewed default
@@ -39,7 +37,7 @@ func TestActivityPolicyIsTheModelsOwnOperatingPoint(t *testing.T) {
 	// it never skips. The cited sources are the model's own repository, which
 	// is not part of this one: where it is present the digests must still
 	// match, and where it is absent there is nothing to compare.
-	repository := filepath.Join(testutil.RepoRoot(t), "models", "FireRedVAD", "FireRedVAD")
+	repository := filepath.Join(resolveReferenceRoots(t).models, "FireRedVAD", "FireRedVAD")
 	switch err := policySourcesMatch(policy, repository); {
 	case errors.Is(err, fs.ErrNotExist):
 		t.Log("policy sources are not present here; the values above are unchecked against them")

@@ -11,6 +11,7 @@ import (
 	"overgo/internal/artifact"
 	"overgo/internal/dataroot"
 	"overgo/internal/gosource"
+	"overgo/internal/jsonfile"
 	"overgo/internal/overgodb"
 	"overgo/internal/testutil"
 )
@@ -59,6 +60,31 @@ func resolveReferenceRoots(t *testing.T) referenceRoots {
 	}
 	store := cmp.Or(os.Getenv("OVERGO_AUDIO_REFERENCE_STORE"), roots.AudioReference)
 	return referenceRoots{store: store, datasets: roots.Datasets, models: filepath.Join(filepath.Dir(store), "models")}
+}
+
+func TestAudioReferenceRootsUseDeclaredStore(t *testing.T) {
+	root := t.TempDir()
+	declared := filepath.Join(root, "reference", "overgodb-store")
+	datasets := filepath.Join(root, "corpus")
+	if err := jsonfile.Write(filepath.Join(root, dataroot.ConfigFile), dataroot.Roots{
+		AudioReference: declared, Datasets: datasets,
+	}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(dataroot.Env, root)
+	for _, test := range []struct{ name, override string }{
+		{"declared", ""},
+		{"override", filepath.Join(root, "override", "overgodb-store")},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("OVERGO_AUDIO_REFERENCE_STORE", test.override)
+			got := resolveReferenceRoots(t)
+			store := cmp.Or(test.override, declared)
+			if got.store != store || got.models != filepath.Join(filepath.Dir(store), "models") || got.datasets != datasets {
+				t.Fatalf("reference roots = %+v; want store %s and dataset root %s", got, store, datasets)
+			}
+		})
+	}
 }
 
 // librispeechPath locates one LibriSpeech clean shard under the datasets root.

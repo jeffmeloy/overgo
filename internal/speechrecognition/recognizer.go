@@ -49,6 +49,12 @@ type RecognizerSpec struct {
 // LoadRecognizer assembles a recognizer from a checkpoint directory and the
 // declarations that describe it. The tokenizer is the checkpoint's own.
 func LoadRecognizer(ctx context.Context, directory string, spec RecognizerSpec, memoryBytes uint64) (*Recognizer, error) {
+	if ctx == nil || memoryBytes == 0 {
+		return nil, errors.New("speechrecognition: context and host memory ceiling required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if spec.Blank < 0 {
 		return nil, errors.New("speechrecognition: the blank vocabulary entry is not declared")
 	}

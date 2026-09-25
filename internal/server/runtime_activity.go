@@ -22,14 +22,15 @@ type runtimeSessionsResponse struct {
 }
 
 type runtimeAuthority struct {
-	Model     artifact.ID            `json:"model"`
-	Recipe    artifact.ID            `json:"recipe"`
-	Task      recipe.Task            `json:"task"`
-	Runtime   modelrecipe.Runtime    `json:"runtime,omitempty"`
-	Placement recipe.Placement       `json:"placement,omitempty"`
-	Residency recipe.ResidencyPolicy `json:"residency,omitempty"`
-	Stages    int                    `json:"stages"`
-	Evidence  []artifact.ID          `json:"evidence,omitempty"`
+	Model             artifact.ID              `json:"model"`
+	Recipe            artifact.ID              `json:"recipe"`
+	Task              recipe.Task              `json:"task"`
+	Runtime           modelrecipe.Runtime      `json:"runtime,omitempty"`
+	Placement         recipe.Placement         `json:"placement,omitempty"`
+	Residency         recipe.ResidencyPolicy   `json:"residency,omitempty"`
+	RealizedResidency recipe.RealizedResidency `json:"realized_residency,omitempty"`
+	Stages            int                      `json:"stages"`
+	Evidence          []artifact.ID            `json:"evidence,omitempty"`
 }
 
 type servingActivity struct {
@@ -65,6 +66,11 @@ func (h *Handler) runtimeSessionsSnapshot() runtimeSessionsResponse {
 				Model: description.Identity.Model, Recipe: description.Identity.Recipe, Task: description.Task,
 				Runtime: description.Identity.Runtime, Placement: description.Identity.Placement,
 				Residency: description.Identity.Residency, Stages: len(description.Stages), Evidence: description.Evidence,
+			}
+			if observer, ok := h.generator.(interface {
+				RealizedResidency() recipe.RealizedResidency
+			}); ok {
+				authority.RealizedResidency = observer.RealizedResidency()
 			}
 		}
 	}

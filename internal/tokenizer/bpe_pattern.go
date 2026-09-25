@@ -14,6 +14,9 @@ const (
 	rxCJKClass          = "一-龥぀-ゟ゠-ヿ"
 	bpePatternRxCJK     = "[" + rxCJKClass + "]+"
 	bpePatternRxUnicode = "[!\"#$%&'()*+,\\-./:;<=>?@\\[\\\\\\]^_`{|}~][A-Za-z]+|[^\r\n\\p{L}\\p{P}\\p{S}]?[\\p{L}\\p{M}]+| ?[\\p{P}\\p{S}]+[\r\n]*|\\s*[\r\n]+|\\s+(?!\\S)|\\s+"
+	// BPEPatternKimi is the exact Split declaration used by Colibri's
+	// tiktoken-derived Kimi tokenizer. It also selects its rank-vocabulary BPE.
+	BPEPatternKimi = `[\p{Han}]+|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]*[\p{Ll}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]+(?i:'s|'t|'re|'ve|'m|'ll|'d)?|[^\r\n\p{L}\p{N}]?[\p{Lu}\p{Lt}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]+[\p{Ll}\p{Lm}\p{Lo}\p{M}&&[^\p{Han}]]*(?i:'s|'t|'re|'ve|'m|'ll|'d)?|\p{N}{1,3}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+`
 )
 
 // CompileBPESplit returns an exact native scanner and whether its matches
@@ -32,6 +35,8 @@ func CompileBPESplit(pattern string) (func(string) []string, bool, error) {
 		return preTokenizeRxCJK, false, nil
 	case bpePatternRxUnicode:
 		return preTokenizeRxUnicode, false, nil
+	case BPEPatternKimi:
+		return preTokenizeKimi, false, nil
 	default:
 		return nil, false, errors.New("unsupported BPE split expression")
 	}

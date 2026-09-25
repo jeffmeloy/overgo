@@ -103,7 +103,7 @@ func TestDeclaredPipeline(t *testing.T) {
 	}
 	for _, option := range []string{
 		`"dropout":0.1`, `"unk_token":"<unk>"`, `"continuing_subword_prefix":"##"`,
-		`"end_of_word_suffix":"</w>"`, `"fuse_unk":true`, `"ignore_merges":true`,
+		`"end_of_word_suffix":"</w>"`, `"fuse_unk":true`,
 		`"byte_fallback":true`,
 	} {
 		directory := t.TempDir()

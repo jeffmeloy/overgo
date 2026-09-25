@@ -30,6 +30,9 @@ type Tokenizer struct {
 	id2tok            map[int]string
 	spaceMarker       string
 	byteFallback      bool
+	ignoreMerges      bool
+	rankBPE           bool
+	rankBPEEligible   bool
 	decodeMarker      string
 	stripDecodePrefix bool
 	omitSpecial       map[int]bool
@@ -84,6 +87,7 @@ func Load(dir string) (*Tokenizer, error) {
 		mergeRank:    make(map[string]int, len(tj.Model.Merges)),
 		special:      map[string]int{},
 		byteFallback: tj.Model.ByteFallback,
+		ignoreMerges: tj.Model.IgnoreMerges,
 		omitSpecial:  make(map[int]bool),
 	}
 	if tj.Decoder.Type == "Metaspace" {
@@ -96,10 +100,17 @@ func Load(dir string) (*Tokenizer, error) {
 	}
 	t.configureNormalizer(tj.Normalizer)
 	t.configurePreTokenizer(tj.PreTokenizer)
+	if tj.Model.IgnoreMerges && len(tj.Model.Merges) == 0 && t.preTokenizerErr == nil {
+		if !t.rankBPEEligible {
+			t.preTokenizerErr = fmt.Errorf("empty-merge rank BPE requires the declared Kimi Split")
+		} else {
+			t.rankBPE = true
+		}
+	}
 	if t.preTokenizerErr == nil && t.preTokenize != nil &&
 		(tj.Model.ByteFallback || tj.Model.Dropout != nil || tj.Model.UnkToken != nil ||
 			(tj.Model.ContinuingSubwordPrefix != nil && *tj.Model.ContinuingSubwordPrefix != "") || (tj.Model.EndOfWordSuffix != nil && *tj.Model.EndOfWordSuffix != "") ||
-			tj.Model.FuseUnk || tj.Model.IgnoreMerges) {
+			tj.Model.FuseUnk) {
 		t.preTokenizerErr = fmt.Errorf("declared BPE options require an unsupported encoding path")
 	}
 	for i, raw := range tj.Model.Merges {
@@ -166,8 +177,18 @@ func (t *Tokenizer) buildByteAlphabet() {
 	}
 }
 
-// Encode: text -> token ids under the declared scheme.
+// Encode: text -> token ids under the declared scheme, recognizing added tokens.
 func (t *Tokenizer) Encode(text string) ([]int, error) {
+	return t.encode(text, true)
+}
+
+// EncodeLiteral treats text as data, even when it spells an added token.
+// Callers assembling prompts should insert intended control IDs separately.
+func (t *Tokenizer) EncodeLiteral(text string) ([]int, error) {
+	return t.encode(text, false)
+}
+
+func (t *Tokenizer) encode(text string, parseAdded bool) ([]int, error) {
 	if t.decodeMarker != "" {
 		return nil, fmt.Errorf("metaspace decoding is supported; its normalization and encoding pipeline is not compiled")
 	}
@@ -181,8 +202,12 @@ func (t *Tokenizer) Encode(text string) ([]int, error) {
 		return nil, fmt.Errorf("declared tokenizer encoding requires valid UTF-8 input")
 	}
 	var ids []int
-	for _, seg := range t.splitOnSpecials(text) {
-		if id, ok := t.special[seg]; ok {
+	segments := []string{text}
+	if parseAdded {
+		segments = t.splitOnSpecials(text)
+	}
+	for _, seg := range segments {
+		if id, ok := t.special[seg]; ok && parseAdded {
 			ids = append(ids, id)
 			continue
 		}
@@ -393,6 +418,19 @@ func (t *Tokenizer) splitOnSpecials(text string) []string {
 }
 
 func (t *Tokenizer) bpe(word string) []string {
+	// Hugging Face ignore_merges emits a whole pre-tokenized piece directly
+	// when it already has a vocabulary ID; otherwise ranked BPE still runs.
+	if t.ignoreMerges {
+		if _, found := t.vocab[word]; found {
+			return []string{word}
+		}
+	}
+	if t.rankBPE {
+		return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
+			rank, ok := t.vocab[left+right]
+			return rank, ok
+		})
+	}
 	return tokenizer.MergeBPE(strings.Split(word, ""), func(left, right string) (int, bool) {
 		rank, ok := t.mergeRank[left+" "+right]
 		return rank, ok

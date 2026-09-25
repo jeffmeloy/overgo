@@ -1,7 +1,7 @@
 {
   "version": 2,
   "doc": "Reviewed staged surface: each exported symbol without a statically visible production consumer names either one exact canonical open plan step that retires it or a closed evidence-bound retained classification. A lane projection may retain an unchanged foreign declaration through inherited_from, an exact ancestor with that foreign open step; it grants neither dispatch nor completion credit. Missing, blocked, historical, duplicate, and free-text future-work entries otherwise refuse. Undeclared new unconsumed surface still blocks the gate.",
-  "inherited_from": "829fcdd1023ec67f19a28dd93d0f74c02e6c789a",
+  "inherited_from": "152578ec9b67366f4ae73dd8d0359385ba0318f0",
   "staged": [
     {
       "package": "overgo/internal/modelrecipetest",
@@ -226,13 +226,13 @@
       "package": "overgo/internal/evaluation",
       "name": "CompileTextTargetPlan",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "heldout-text-slice/do"
+      "retire_with": "heldout-generation-slice/do"
     },
     {
       "package": "overgo/internal/evaluation",
       "name": "ScoreTextTargets",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
-      "retire_with": "heldout-text-slice/do"
+      "retire_with": "heldout-generation-slice/do"
     }
   ]
 }

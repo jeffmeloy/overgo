@@ -77,7 +77,8 @@ func TestLaneServerEndsWithRun(t *testing.T) {
 		}
 		return
 	}
-	t.Parallel()
+	// Keep parallel lifecycle cases together; their parent must not consume
+	// its active-test budget while children wait behind unrelated groups.
 	for _, tc := range []struct {
 		name              string
 		blocking, refusal bool

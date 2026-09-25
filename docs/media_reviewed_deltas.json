@@ -418,6 +418,50 @@
         ]
       },
       "scope": "Test-only entry points leave the pinned media packages' production files: device training wrappers in devicemath, program and shape helpers in latentimage and latentvideo, and a window helper in routedlm move unchanged into their packages' tests. No function a media path calls is added, removed or changed. The receipt re-runs the four packages on the device, naming tests of the moved wrappers beside the media tests."
+    },
+    {
+      "changes": {
+        "internal/latentvideo/source_codec.go": {
+          "after_sha256": "fd1b1a3e9f7a296475cbed804a6fb8b35ff1f08880c0cbef7d17d3917bd915ef",
+          "before_sha256": "177384b36964912ea8a061aba6ad553327107f21a21229b09e082b4d7dc4ef49",
+          "reason": "the host source encoder runs its chunks through one media.CodecChunkStream instead of a hand-rolled state slice, validates the plan against its compiled boundary before reading the checkpoint, honours cancellation between operations, and advances frame offsets from the stream's reported lineage; the arithmetic of every operation is unchanged."
+        },
+        "internal/latentvideo/source_codec_session_windows.go": {
+          "after_sha256": "45ed39d498d49cfd917bae2376bf365a14a2caabc52e4fe636f69d0694016702",
+          "before_sha256": "f303f5c98b0fea7a50dd0029d52f991094c4eca5c2ab39d14ec849adae036011",
+          "reason": "the CUDA source encoder session validates the plan against its compiled boundary and runs its chunks through media.CodecChunkStream instead of a hand-rolled state slice; device operations are unchanged."
+        },
+        "internal/latentvideo/vae_session.go": {
+          "after_sha256": "77fdaf225f0676d573b89119a54264fd51c0f7c4e365c72a11fc800c6b6719e4",
+          "before_sha256": "64fc8981f809c4635b8b1ce56f0b81528c9cb76bf66d67567b4fffbd227787c1",
+          "reason": "the CUDA decoder session runs its chunks through media.CodecChunkStream instead of a hand-rolled state slice; device operations and cancellation are unchanged."
+        },
+        "internal/media/codec_stream.go": {
+          "after_sha256": "d9a3464f54f5c99cb11770fde5fd960255598993c02678968160acd8cdf5cc6a",
+          "before_sha256": "",
+          "reason": "new: CodecChunkStream owns per-operation causal state for one immutable codec program, refuses a duplicate or out-of-order chunk, poisons continuation after a failed operation until Reset, and reports each chunk's input and output lineage; ExecuteCodecChunk runs one chunk through the existing ExecuteCodecProgram."
+        }
+      },
+      "evidence": "evidence:sha256:c1229e3a1afba3fa2b346d1b97798ac4964831989c937534b01e8cd1fd571e70",
+      "id": "vae-codec-chunk-stream",
+      "receipt": "go-test-json",
+      "required_tests": {
+        "overgo/internal/latentvideo": [
+          "TestVAEDecodeCUDAGoldenG3",
+          "TestVAEDecodeCUDAGoldenG4",
+          "TestVAEDecodeCUDAProduction",
+          "TestVAETemporalCacheSemantics",
+          "TestLiveEditSourceCodec",
+          "TestLiveEditSourceCodecBoundary",
+          "TestLiveEditDeviceRuntime",
+          "TestLiveEditCancellationRecovery",
+          "TestWanLifecycleAcceptance"
+        ],
+        "overgo/internal/media": [
+          "TestCodecChunkStreamOwnsCausalState"
+        ]
+      },
+      "scope": "Ported from the overgo_vae lane (codex/overgo_vae at e1ee1326fe2b): the Wan VAE source encode (host and CUDA) and decode (CUDA) run their chunks through one media.CodecChunkStream that owns causal codec state. The receipt runs internal/media and internal/latentvideo on the device with the integration tag and the real Wan2.1-T2V-1.3B checkpoint, naming the CUDA decode goldens, the production CUDA decode, the source codec and its boundary, device runtime, cancellation recovery and the Wan lifecycle acceptance."
     }
   ],
   "paths": [

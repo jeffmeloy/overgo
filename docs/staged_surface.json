@@ -233,12 +233,6 @@
       "name": "ScoreTextTargets",
       "reason": "restored held-out evaluation targets (owner directive: wire training code in, never delete it); wire-sft-evaluation calls them from objective approval",
       "retire_with": "heldout-generation-slice/do"
-    },
-    {
-      "package": "overgo/internal/trainingworkflow",
-      "name": "RunTextHeldout",
-      "reason": "the text held-out runner lands before its command; cmd/train -objective calls it",
-      "retire_with": "text-objective-command/do"
     }
   ]
 }

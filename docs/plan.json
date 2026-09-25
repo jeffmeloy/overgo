@@ -4,17 +4,152 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "text-objective-command",
-      "title": "Train a text objective from cmd/train",
+      "id": "automation-gate-rule-registry",
+      "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Train a text objective from cmd/train",
+          "title": "Run every gate check as a rule in one registry over one parse, fixing mechanical findings",
           "status": "open",
-          "verify": "go test ./cmd/train -run '^TestTrainObjectiveModeRefusesRawDatasetInputs$' -count=1",
-          "rationale": "cmd/train -store \u003croot\u003e -objective \u003calias\u003e calls trainingworkflow.RunTextHeldout and prints the verdict line the probes print. It refuses -dataset, -recipe, -resume, -reference, -audio-manifest, -bootstrap-recipe and -out: the raw-file path and its session-authority identities are unchanged. Writing the trained weights (safetensors.Save, not publishCheckpoint, which needs recipe session authority) follows. Done when TestTrainObjectiveModeRefusesRawDatasetInputs holds the conflict check and the mode runs a tiny model end to end."
+          "verify": "go test ./internal/gate -run '^TestGateRulesRunFromOneRegistry$' -count=1",
+          "rationale": "Consolidation round 1, refactor 1 (owner 2026-09-25: two or more birds with one stone; minimize to the maximum practical extent; no ledgers where construction can prevent the object). Measured: 1560 landing attempts, 844 succeeded; of 1055 failed steps about 73% (excluding the retired remote-provider check) were static or bookkeeping -- magics 276, profile 107, style 59, protection 43, claims 41, modern-go 23, scope 15, architecture 15, docs 13, fmt 12, sbom 10. internal/gate grew from 0 to 16k production and 26k test lines in 40 days, about 170 test files one per incident. Make every static check a rule in one registry (name, applies-to change set, check, and a fix for mechanical findings) run over one parse of the candidate tree, in parallel by package, each rule still reporting its own finding and evidence. Mechanical findings are fixed by the same pass in the developer loop (preflight), so the gate only confirms and the preflight result is the gate's static result. Fold closurescan, closureledger and cmd/closure-scan in as a rule; merge automationcheck, testevidence and testscope into the gate's selection. Replace the per-incident test files with one corpus of example change sets (extend false_negative_corpus_test.go). Net-negative is enforced by the automation- prefix. Done when TestGateRulesRunFromOneRegistry proves every static check runs from the registry over one parse and a mechanical finding is fixed, not refused."
+        }
+      ]
+    },
+    {
+      "id": "automation-lanes-one-process",
+      "title": "Run every deferred lane from one build under one device claim",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run every deferred lane from one build under one device claim",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestDeferredLanesShareOneBuild$' -count=1",
+          "rationale": "Consolidation round 1. The device, test-device, model-journey and webui lanes each set up their own environment, compile their own binaries and take the GPU separately, so every landing builds about four near-duplicate trees (the Go build cache reached 759 GB and filled C: on 2026-09-25) and our own lanes contend for the device. Run every deferred lane in one process: one build of the candidate (with -trimpath, so worktrees share cache entries instead of each embedding its own path), one device claim, the suites in sequence, one verdict, each suite still reporting its own result. Absorbs device-claim-everywhere's lane half. Done when TestDeferredLanesShareOneBuild proves the lanes run from one build under one claim."
+        }
+      ]
+    },
+    {
+      "id": "automation-derived-ledgers",
+      "title": "Prevent ledgered objects by construction and derive the remaining ledgers at gate time",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Prevent ledgered objects by construction and derive the remaining ledgers at gate time",
+          "status": "open",
+          "verify": "go test ./internal/ledger -run '^TestLedgersDeriveFromTheTree$' -count=1",
+          "rationale": "Consolidation round 1, refactor 2. About 48k Go lines maintain 40 committed JSON ledgers; 78% of commits touch a generated file and plan.json changed in 543 of the last 552 commits. Owner rule: no ledger where construction can prevent the object -- literals come only from one typed policy/config source, shared operations live in one package, a new export arrives with its consumer. Where construction cannot prevent it, derive the document from the tree at gate time (one internal/ledger mechanism, one cmd/census -kind command replacing modern-census, rsi-census, clone-census, mechanism-census, api-manifest, code-manifest, profile-catalog, coverage-lanes, block-check, store-check, store-precheck) and commit only reviewed floors and exceptions. Take row status out of plan.json (the commit trailer and the store already hold it). Stop committing .ptx and media_report.json. Done when TestLedgersDeriveFromTheTree proves the derived documents equal the committed ones they replace and no landing writes them."
+        }
+      ]
+    },
+    {
+      "id": "automation-one-record-table",
+      "title": "Declare every store record kind in one table",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Declare every store record kind in one table",
+          "status": "open",
+          "verify": "go test ./internal/artifact -run '^TestRecordKindsDeclaredInOneTable$' -count=1",
+          "rationale": "Consolidation round 1, refactor 3. The store has 453 distinct schema strings, 330 media-type constants, 231 contract literals, 31 codecs and 23 hand-written mirror structs (0 -\u003e 453 schemas from Aug 5 to Sep 25), mostly in runrecord and evaluation: one schema per claim. Declare every record kind once in a single kind/version table with a generic artifact.Record[T]; derive schema string and media type from it; decode and encode through struct tags and strictjson instead of hand-written mirrors and closures; merge runrecord's attempt_*, automation_*, peer_*, lane_* and resource_fitness* families into a few general records. Stored documents stay readable (versioned decode). Done when TestRecordKindsDeclaredInOneTable proves every stored kind resolves from the table and no schema literal lives outside it."
+        }
+      ]
+    },
+    {
+      "id": "automation-one-evidence-validator",
+      "title": "Validate evidence through one schema-driven validator and one parity runner",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Validate evidence through one schema-driven validator and one parity runner",
+          "status": "open",
+          "verify": "go test ./internal/parity -run '^TestParityRunsFromFixtureManifest$' -count=1",
+          "rationale": "Consolidation round 1, refactor 4. cmd/compatibility is 4k production and 12.1k test lines, largely per-modality assertion tests; internal/audioparity (8.4k test lines) and internal/adaptiveparity (4.9k) are two golden-comparison harnesses; 20 docs/image_video_*.json files each carry their own shape. One schema-driven evidence validator replaces the per-modality assertion tests; internal/parity runs every golden comparison from the fixtures manifest; the image/video documents fold into the media report or the store. Held-out verdicts, validation and guards share one scorer set and verdict. Done when TestParityRunsFromFixtureManifest runs the audio and adaptive goldens through one runner."
+        }
+      ]
+    },
+    {
+      "id": "automation-command-route-tables",
+      "title": "Fold per-modality commands into route tables",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Fold per-modality commands into route tables",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTrainRoutesEveryProbe$' -count=1",
+          "rationale": "Consolidation round 1, refactor 5. 102 commands (25 at the start): 10 train probes, 9 lanes, 6 parity or oracle commands, 14 model-file tools, 5 store tools. Fold them into route tables: the probes become routes of cmd/train -route (docs/training_routes.json, one objective mode for every objective kind: forecast, tabular and text fold into cmd/train -objective), the lanes become cmd/gate -lane, parity tools become cmd/validate -parity, the gguf and inspect tools become cmd/gguf subcommands, the overgodb tools cmd/overgodb subcommands. One model loader and one registry lookup for training, inference and validation. Every trainer stays reachable (capabilities are not dead code); only entry points collapse. Absorbs simplify-command-surface's command half. Done when TestTrainRoutesEveryProbe proves each former probe trains through cmd/train."
+        }
+      ]
+    },
+    {
+      "id": "automation-pinned-identities-reacquire",
+      "title": "Re-acquire pinned identities automatically when the surface moves",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-acquire pinned identities automatically when the surface moves",
+          "status": "open",
+          "verify": "go test ./cmd/loop -run '^TestSurfaceMoveReacquiresPinnedIdentities$' -count=1",
+          "rationale": "Consolidation round 1, refactor 6. The inference-surface digest and the media runtime hash turn every file move into a delta and a re-acquisition: 35 commits were manual re-acquire or refresh work. Key guards and media deltas by the surface digest held in the store and re-acquire them automatically when the surface moves (cmd/loop surface move), in the same landing. Absorbs surface-move-preflight. Done when TestSurfaceMoveReacquiresPinnedIdentities proves a surface move lands with its identities re-acquired and no manual row."
+        }
+      ]
+    },
+    {
+      "id": "models-resolve-by-identity",
+      "title": "Find a moved model by its content identity",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Find a moved model by its content identity",
+          "status": "open",
+          "verify": "go test ./internal/discovery -run '^TestMovedModelResolvesByIdentity$' -count=1",
+          "rationale": "Owner 2026-09-25: a model's location should not matter. Moving TabFM from adaptive_new/models to overgo/models made discovery report it absent (store file locations are recorded paths) and failed the lanes; tmp/relocate_models.go re-recorded the five artifacts by hand after verifying content identity. When a recorded location is gone, discovery looks for the same bytes under the data root's model directories (matching the recorded relative tail, verifying identity and size) and records the new location, removing the dead one. Done when TestMovedModelResolvesByIdentity moves a registered model's files and discovery reports it present at the new path."
+        }
+      ]
+    },
+    {
+      "id": "consolidation-round-2",
+      "title": "Re-measure growth and gate failures, then file the next consolidation round",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Re-measure growth and gate failures, then file the next consolidation round",
+          "status": "open",
+          "verify": "go run ./cmd/census -kind consolidation -round 2",
+          "rationale": "Owner 2026-09-25: after refactor 6, step back and run the whole consolidation loop again, a few rounds, until a round finds little left to merge. Re-measure growth by pattern, gate failure causes by rule, duplicates and churn (from the rule registry, the derived ledgers and store history rather than a manual analysis), rank the patterns, file round 3's rows, and record the round's before/after counts (landing wall, rules, commands, packages, schemas, lines). Done when cmd/census -kind consolidation -round 2 prints the recorded round and its filed rows."
+        }
+      ]
+    },
+    {
+      "id": "tabfm-heldout-proof",
+      "title": "Approve a TabFM objective on held-out rows of a real table",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Approve a TabFM objective on held-out rows of a real table",
+          "status": "open",
+          "verify": "go test ./cmd/train -run '^TestTabFMObjectiveApprovesOnHeldOutRows$' -count=1",
+          "rationale": "Owner 2026-09-25: prove held-out approval on real checkpoints one model at a time, smallest first; TabFM-1.0 classification is first (staged at models/tabfm-1.0.0-pytorch; its location is resolved by identity, not assumed). One run is the row's acceptance, the device-lane evidence, the model-journey check and the training-validation verdict at once. Register a tabular objective over a real table dataset with a group split, train through cmd/train -objective, and approve on held-out label accuracy. Follows the consolidation rounds. Done when TestTabFMObjectiveApprovesOnHeldOutRows records a passed verdict on the real checkpoint."
         }
       ]
     },
@@ -1007,7 +1142,17 @@
             "gui-merge-replan/do",
             "guards-at-e3c53b28/do",
             "heldout-generation-slice/do",
-            "text-objective-command/do"
+            "text-objective-command/do",
+            "automation-gate-rule-registry/do",
+            "automation-lanes-one-process/do",
+            "automation-derived-ledgers/do",
+            "automation-one-record-table/do",
+            "automation-one-evidence-validator/do",
+            "automation-command-route-tables/do",
+            "automation-pinned-identities-reacquire/do",
+            "models-resolve-by-identity/do",
+            "consolidation-round-2/do",
+            "tabfm-heldout-proof/do"
           ]
         }
       ]

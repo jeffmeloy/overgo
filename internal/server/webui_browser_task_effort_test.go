@@ -36,7 +36,7 @@ type effortTask struct {
 // the effort a task takes only falls.
 var effortCeilings = map[string]taskEffort{
 	"ask a question":            {Fields: 1, Keys: 1},
-	"decide a pending approval": {Clicks: 2, TabSwitches: 1},
+	"decide a pending approval": {Clicks: 1},
 	"inspect the served model":  {Clicks: 2, TabSwitches: 1},
 	"add a model from the hub":  {Clicks: 1, Fields: 1, Keys: 1},
 }
@@ -49,9 +49,8 @@ var commonTasks = []effortTask{
 		{"key", "Enter", ""},
 	}, `!!document.querySelector(".chat-log .msg.assistant .body") && document.querySelector(".chat-log .msg.assistant .body").textContent.trim().length > 0`},
 	{"decide a pending approval", []effortStep{
-		{"click", "#inbox-count", ""},
-		{"click", "#panel-inbox button", "Grant retry-browser"},
-	}, `document.querySelector("#panel-inbox").textContent.includes("grant recorded")`},
+		{"click", ".operation-decisions button", "Grant retry-browser"},
+	}, `document.getElementById("inbox-count").hidden && !document.querySelector(".operation-decisions button")`},
 	{"inspect the served model", []effortStep{
 		{"click", "#workbench-toggle", ""},
 		{"click", "button.tab", "Inspect"},

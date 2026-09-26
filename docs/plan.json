@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-approve-in-place",
-      "title": "Decide pending operations where they surface, and several at once",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Decide pending operations where they surface, and several at once",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserApproveInPlace$' -leg 'approve in place leg'",
-          "rationale": "A pending decision is decided only from Inbox or Automations. The status line and the operation's own view offer Grant and Decline where the decision surfaces, and several pending decisions are decided together. Judged by the effort leg's count for the decide task."
-        }
-      ]
-    },
-    {
       "id": "gui-remember-settings",
       "title": "Remember the last generation settings per model and capability, keep named presets, and start a new run from a past run's recipe",
       "owner": "overgo_gui_cleanup",

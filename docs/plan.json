@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-path-surface-catalog",
-      "title": "Classify every path once in one surface catalog",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Classify every path once in one surface catalog",
-          "status": "open",
-          "verify": "go test ./internal/codeprofile -run '^TestPathSurfaceCatalogClassifiesEveryPath$' -count=1",
-          "rationale": "Owner 2026-09-25 classification directive. Which checks own a path, which evidence a phase may reuse, and which paths count as automation, device or web UI surface are decided by separate prefix lists: phaseOwnsPath and phaseReusesEvidence (verification.go:887-926), automationcheck webui.go:26,56 and device.go:102-138, and codeprofile profile.go:113, which counts every cmd/ file as automation so cmd/server is misclassified and the automation ROI admission is skewed. One path-surface catalog classifies every path once (production, test, generated, automation, device, browser, media runtime, inference surface), and each check's Descriptor declares its inputs and reusable evidence against those classes. The prefix switches are deleted. GUI lane survey items 5 and 6. Done when TestPathSurfaceCatalogClassifiesEveryPath classifies every tracked path to exactly one class set and phase ownership reads only the catalog."
-        }
-      ]
-    },
-    {
       "id": "automation-declared-row-class",
       "title": "Dispatch rows by a declared class, not their id",
       "owner": "master-lead",
@@ -285,6 +270,21 @@
           "status": "open",
           "verify": "go test ./internal/inferencesurface -run '^TestCapabilityEditLeavesTheSurfaceUnchanged$' -count=1",
           "rationale": "internal/modelrecipe is itself a surface root and holds every capability's tables, so a capability edit expires every text model's guard (e7ee897a expired nine; dinov2-embedding-capability did it again). Measured 2026-09-23: the split (a capabilityrecipe package modelrecipe does not import, with the text path compiling against a text-only catalog) renames symbols in 79 files, several on pinned media runtime paths, so it waits on reviewed-delta-registry. It still cannot keep a NEW task off the surface: recipe/schema.go (task constants, validateTask) and recipecontract/modality.go stay reachable from inference. Adding RAE's modules would be protected; adding a task would not."
+        }
+      ]
+    },
+    {
+      "id": "profile-runtime-commands",
+      "title": "Split the profile's commands into runtime and automation by declaration",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Split the profile's commands into runtime and automation by declaration",
+          "status": "open",
+          "verify": "go test ./internal/codeprofile -run '^TestProfilePartitionsDeclaredCommands$' -count=1",
+          "rationale": "Deferred from automation-path-surface-catalog (2026-09-26): codeprofile counts every cmd/ Go file in the Automation partition, so product commands (server, swap, train, generate, the gguf and hf converters, embedding, rerank, tokenize, ...) inflate the automation figure the delta advisory reports and skew any ROI read of it. The split is a per-command owner decision: declare it once in the path catalog (codeprofile.Classify's Automation class) as the harness command set -- gate, loop, plan, the censuses, the lanes, closure-scan, finding, guard and the like -- rather than inferring it from names. Done when TestProfilePartitionsDeclaredCommands classifies cmd/server as runtime and cmd/gate as automation from the declared set."
         }
       ]
     },
@@ -1332,7 +1332,8 @@
             "typed-skip-kinds/do",
             "modeltest-tag-compiles/do",
             "lanes-repair-real-text-pin/do",
-            "pinned-bytes-preflight/do"
+            "pinned-bytes-preflight/do",
+            "profile-runtime-commands/do"
           ]
         }
       ]

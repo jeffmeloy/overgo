@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"overgo/internal/codeprofile"
 )
 
 // TestWebUIPathsCoverWorkspaceDeclarations derives the lane's path obligations
@@ -67,12 +69,12 @@ func TestWebUIPathsCoverWorkspaceDeclarations(t *testing.T) {
 	}
 	for _, document := range embedded {
 		// A directory embeds everything beneath it; one file under it stands for the rest.
-		if !WebUIPaths([]string{document}) && !WebUIPaths([]string{document + "/index.html"}) {
+		if !codeprofile.Holds([]string{document}, codeprofile.WebUI) && !codeprofile.Holds([]string{document + "/index.html"}, codeprofile.WebUI) {
 			t.Errorf("changing embedded %s selects no browser lane", document)
 		}
 	}
 	for _, leg := range browserLegs {
-		if !WebUIPaths([]string{leg}) && !ModelJourneyPaths([]string{leg}) {
+		if !codeprofile.Holds([]string{leg}, codeprofile.WebUI) && !codeprofile.Holds([]string{leg}, codeprofile.ModelJourney) {
 			t.Errorf("changing browser leg %s selects no browser lane; name it webui_browser_*", leg)
 		}
 	}

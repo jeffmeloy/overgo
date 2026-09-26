@@ -100,7 +100,7 @@ func Build(snapshot repoanalysis.SourceSnapshot) (Profile, error) {
 			partition = &profile.Generated
 		case source.Test:
 			partition = &profile.Test
-		case strings.HasPrefix(filepath.ToSlash(source.Path), "cmd/"):
+		case Classify(filepath.ToSlash(source.Path))&Automation != 0:
 			partition = &profile.Automation
 		}
 		partition.Files++

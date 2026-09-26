@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"overgo/internal/codeprofile"
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
@@ -199,7 +200,7 @@ func (g *gateContext) stepScope() (bool, error) {
 	var verificationInputs []string
 	for _, path := range unplanned {
 		g.advise(noteWarning, "unplanned dirty (not shipped): "+path)
-		if unplannedVerificationInput(path) {
+		if codeprofile.Classify(path)&codeprofile.GoInput != 0 {
 			verificationInputs = append(verificationInputs, path)
 		}
 	}
@@ -231,12 +232,6 @@ func (g *gateContext) dirtyStatus() ([]repoanalysis.DirtyPath, error) {
 // of Git's rename presentation settings. Both affect verification and commit scope.
 func stagedPaths(repo string) ([]string, error) {
 	return gitLines(repo, "diff", "--cached", "--no-renames", "--name-only")
-}
-
-func unplannedVerificationInput(path string) bool {
-	return path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go") ||
-		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/") || strings.HasPrefix(path, "kernels/")) &&
-			!strings.HasSuffix(path, ".md")
 }
 
 // deriveShipPaths is the ship set of a run that names no -paths: every dirty

@@ -3,7 +3,6 @@ package automationcheck
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"overgo/internal/runrecord"
 )
@@ -19,14 +18,6 @@ const (
 	// WebUIImpact is the fact a web UI change contributes to the manifest plan.
 	WebUIImpact Fact = "capability:webui"
 )
-
-// webuiPathPrefixes are the changed-path prefixes that own the web UI: its
-// assets, its tests (a browser leg is named webui_browser_), the lane, and
-// the embedded declarations the page is built from.
-var webuiPathPrefixes = []string{
-	"internal/server/webui/", "internal/server/webui_", "cmd/webui-lane/", "internal/webuilane/",
-	"internal/server/workspace_manifest.json", "internal/server/workspace_schema.json",
-}
 
 // WebUICheck returns the real-browser lane as a gate check: it runs when
 // the web UI fact is present. The full journey shares device admission.
@@ -59,14 +50,6 @@ const (
 	ModelJourneyImpact Fact = "capability:model-journey"
 )
 
-// modelJourneyPathPrefixes are the changed-path prefixes that own the journeys
-// beyond their packages' symbols: the journey sources and the server command.
-var modelJourneyPathPrefixes = []string{
-	"cmd/server/", "internal/server/webui_browser_firstrun", "internal/server/webui_browser_library_validation",
-	"internal/server/webui_browser_preparation", "internal/server/webui_browser_store_test.go", "internal/server/webui_served_projector",
-	"internal/audioparity/webui_microphone",
-}
-
 // ModelJourneyCheck returns the model journeys as a gate check: the lane's
 // -journeys mode, sharing device admission with the other lanes.
 func ModelJourneyCheck(root string, command LaneCommand) Check {
@@ -85,23 +68,6 @@ func ModelJourneyCheck(root string, command LaneCommand) Check {
 			return false, receipt, err
 		},
 	}
-}
-
-// ModelJourneyPaths reports whether any changed path belongs to the journeys.
-func ModelJourneyPaths(paths []string) bool {
-	return pathsHavePrefix(paths, modelJourneyPathPrefixes)
-}
-
-// WebUIPaths reports whether any changed path belongs to the web UI.
-func WebUIPaths(paths []string) bool {
-	return pathsHavePrefix(paths, webuiPathPrefixes)
-}
-
-func pathsHavePrefix(paths, prefixes []string) bool {
-	return slices.ContainsFunc(paths, func(changed string) bool {
-		normalized := strings.ReplaceAll(changed, "\\", "/")
-		return slices.ContainsFunc(prefixes, func(prefix string) bool { return strings.HasPrefix(normalized, prefix) })
-	})
 }
 
 // Trigger adds one fact to the impact and withdraws the exclusion of the

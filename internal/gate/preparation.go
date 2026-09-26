@@ -238,12 +238,12 @@ func (g *gateContext) planPipeline() (plannedPipeline, error) {
 	}
 	// The shell's assets are not Go symbols: a changed web UI path triggers
 	// the browser lane that the symbol closure could not select.
-	if automationcheck.WebUIPaths(g.paths) {
+	if codeprofile.Holds(g.paths, codeprofile.WebUI) {
 		impact = impact.Trigger(automationcheck.WebUIImpact, automationcheck.WebUICheckName)
 	}
 	// A journey source or the server command is likewise no symbol the
 	// closure sees; its change triggers the model journeys.
-	if automationcheck.ModelJourneyPaths(g.paths) {
+	if codeprofile.Holds(g.paths, codeprofile.ModelJourney) {
 		impact = impact.Trigger(automationcheck.ModelJourneyImpact, automationcheck.ModelJourneyCheckName)
 	}
 	impact, err = g.retainLaneObligations(impact, definitions)

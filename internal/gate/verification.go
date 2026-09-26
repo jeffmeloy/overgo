@@ -32,7 +32,6 @@ import (
 	"overgo/internal/planverify"
 	"overgo/internal/processcontrol"
 	"overgo/internal/processmeasure"
-	"overgo/internal/protection"
 	"overgo/internal/repoanalysis"
 	"overgo/internal/runrecord"
 	"overgo/internal/testevidence"
@@ -108,13 +107,16 @@ type gateRule struct {
 	after                                              []string
 	needs                                              automationcheck.Requirements
 	store                                              *automationcheck.Resource
+	owns                                               codeprofile.Surface
 	static, afterStatic, reuse, deferrable, cumulative bool
 }
 
 var (
 	afterScope = []string{"scope"}
-	suite      = automationcheck.Requirements{Candidate: true, Process: automationcheck.ProcessSuite}
-	toolchain  = automationcheck.Requirements{Process: automationcheck.ProcessToolchain}
+	// A check owns evidence for the path classes its verdict reads.
+	governed, published, tested = codeprofile.GoInput | codeprofile.Harness, codeprofile.GoInput | codeprofile.Document, codeprofile.GoInput | codeprofile.TestData
+	suite                       = automationcheck.Requirements{Candidate: true, Process: automationcheck.ProcessSuite}
+	toolchain                   = automationcheck.Requirements{Process: automationcheck.ProcessToolchain}
 	// Magics may rebind the closure ledger, so it never overlaps a reader.
 	readStore, writeStore = &automationcheck.Resource{Name: "store"}, &automationcheck.Resource{Name: "store", Exclusive: true}
 )
@@ -122,21 +124,21 @@ var (
 // Admission, then the static wave (census before modern-Go), vet, changed
 // owners, then shared dependency tests, browser and device lanes.
 var gateRules = []gateRule{
-	{name: "protection", reuse: true}, {name: "scope", after: []string{"protection"}, reuse: true},
+	{name: "protection", owns: governed, reuse: true}, {name: "scope", after: []string{"protection"}, owns: governed, reuse: true},
 	{name: "magics", after: afterScope, store: writeStore, static: true},
-	{name: modernCensusCheckName, after: afterScope, needs: automationcheck.Requirements{Intermediate: true}, store: readStore, static: true, reuse: true},
+	{name: modernCensusCheckName, after: afterScope, owns: codeprofile.GoInput, needs: automationcheck.Requirements{Intermediate: true}, store: readStore, static: true, reuse: true},
 	{name: "modern-go", after: []string{modernCensusCheckName}, static: true},
-	{name: "architecture", after: afterScope, static: true, reuse: true}, {name: "profile", after: afterScope, static: true, reuse: true},
-	{name: "fmt", after: afterScope, static: true, reuse: true}, {name: "style", after: afterScope, static: true, reuse: true},
-	{name: "surface", after: afterScope, static: true}, {name: "manifest", after: afterScope, static: true, reuse: true},
-	{name: "sbom", after: afterScope, static: true, reuse: true}, {name: "claims", after: afterScope, static: true, reuse: true},
-	{name: "docs", after: afterScope, needs: toolchain, store: readStore, static: true, reuse: true},
+	{name: "architecture", after: afterScope, owns: codeprofile.GoInput | codeprofile.Plan | codeprofile.Budget, static: true, reuse: true}, {name: "profile", after: afterScope, owns: codeprofile.GoInput, static: true, reuse: true},
+	{name: "fmt", after: afterScope, owns: codeprofile.GoInput, static: true, reuse: true}, {name: "style", after: afterScope, owns: codeprofile.GoInput, static: true, reuse: true},
+	{name: "surface", after: afterScope, static: true}, {name: "manifest", after: afterScope, owns: published, static: true, reuse: true},
+	{name: "sbom", after: afterScope, owns: published, static: true, reuse: true}, {name: "claims", after: afterScope, owns: published, static: true, reuse: true},
+	{name: "docs", after: afterScope, owns: published, needs: toolchain, store: readStore, static: true, reuse: true},
 	{name: "published", after: afterScope, store: readStore, static: true},
-	{name: "vet", afterStatic: true, needs: toolchain, reuse: true},
+	{name: "vet", afterStatic: true, owns: codeprofile.GoInput, needs: toolchain, reuse: true},
 	{name: "acceptance", after: []string{"vet"}, needs: suite, cumulative: true},
-	{name: testPlanCheckName, after: []string{"acceptance"}, needs: suite}, {name: testOwnersCheckName, after: []string{testPlanCheckName}, needs: suite},
-	{name: testDeviceCheckName, after: []string{testOwnersCheckName}, needs: suite, deferrable: true, cumulative: true},
-	{name: testRestCheckName, after: []string{testDeviceCheckName}, needs: suite, cumulative: true},
+	{name: testPlanCheckName, after: []string{"acceptance"}, needs: suite}, {name: testOwnersCheckName, after: []string{testPlanCheckName}, owns: tested, needs: suite},
+	{name: testDeviceCheckName, after: []string{testOwnersCheckName}, owns: tested, needs: suite, deferrable: true, cumulative: true},
+	{name: testRestCheckName, after: []string{testDeviceCheckName}, owns: tested, needs: suite, cumulative: true},
 	{name: "device", after: []string{testDeviceCheckName}, deferrable: true, cumulative: true},
 	{name: automationcheck.WebUICheckName, after: []string{testOwnersCheckName}, deferrable: true, cumulative: true},
 	{name: automationcheck.ModelJourneyCheckName, after: []string{testOwnersCheckName}, deferrable: true},
@@ -833,7 +835,7 @@ func sourceAtHEAD(repo string, candidate repoanalysis.SourceSnapshot) (repoanaly
 	paths := map[string]bool{}
 	for _, entry := range dirty {
 		for _, path := range []string{entry.Path, entry.OriginalPath} {
-			if !strings.HasSuffix(path, ".go") || !strings.HasPrefix(path, "internal/") && !strings.HasPrefix(path, "cmd/") {
+			if codeprofile.Classify(path)&codeprofile.GoSource == 0 {
 				continue
 			}
 			paths[path] = true
@@ -895,7 +897,7 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, er
 	var selected []string
 	for _, path := range paths {
 		path = filepath.ToSlash(path)
-		if phaseOwnsPath(phase, path) {
+		if gateRuleNamed(phase).owns&codeprofile.Classify(path) != 0 {
 			selected = append(selected, path)
 		}
 	}
@@ -918,53 +920,18 @@ func fingerprintPhaseInputs(root, phase string, paths []string) (artifact.ID, er
 	return artifact.IdentifyBytes(artifact.KindEvidence, hasher.Sum(nil))
 }
 
-func phaseOwnsPath(phase, path string) bool {
-	goSource := path == "go.mod" || path == "go.sum" || strings.HasSuffix(path, ".go")
-	goInput := goSource ||
-		(strings.HasPrefix(path, "internal/") || strings.HasPrefix(path, "cmd/")) && !strings.HasSuffix(path, ".md")
-	documentation := strings.HasSuffix(path, ".md") || strings.HasPrefix(path, "docs/") ||
-		path == "compatibility.json" || path == "SBOM.cdx.json"
-	switch phase {
-	case "architecture":
-		return goInput || path == plan.Path || path == "docs/staged_surface.json" || path == repoanalysis.StructureBudgetsFile
-	case "vet", "fmt", "style", "profile", modernCensusCheckName:
-		return goInput
-	case "scope", "protection":
-		return goInput || strings.HasPrefix(path, "scripts/") || strings.HasPrefix(path, protection.HarnessConfigDirectory)
-	case "manifest", "sbom", "claims", "docs":
-		return goInput || documentation
-	case testRestCheckName, testOwnersCheckName, testDeviceCheckName:
-		return goInput || path == "README.md" || strings.HasPrefix(path, "docs/") && path != plan.Path
-	default:
-		return false
-	}
-}
-
+// changedGoFiles skips planned .go paths no longer on disk (a rename/delete
+// staged in this commit): gofmt cannot stat a removed file, and the scope step
+// already validated the deletion is tracked.
 func (g *gateContext) changedGoFiles() []string {
-	var out []string
-	for _, p := range g.paths {
-		if !strings.HasSuffix(p, ".go") {
-			continue
-		}
-		// Skip planned .go paths no longer on disk (a rename/delete staged in
-		// this commit): gofmt cannot stat a removed file, and the scope step
-		// already validated the deletion is tracked.
-		if _, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(p))); err != nil {
-			continue
-		}
-		out = append(out, p)
-	}
-	return out
+	return slices.DeleteFunc(slices.Clone(g.paths), func(path string) bool {
+		_, err := os.Stat(filepath.Join(g.repo, filepath.FromSlash(path)))
+		return !strings.HasSuffix(path, ".go") || err != nil
+	})
 }
 
 func (g *gateContext) plannedGoFiles() []string {
-	var out []string
-	for _, path := range g.paths {
-		if strings.HasSuffix(path, ".go") && (strings.HasPrefix(path, "cmd/") || strings.HasPrefix(path, "internal/")) {
-			out = append(out, path)
-		}
-	}
-	return out
+	return slices.DeleteFunc(slices.Clone(g.paths), func(path string) bool { return codeprofile.Classify(path)&codeprofile.GoSource == 0 })
 }
 
 // argBudget bounds the cumulative path-argument bytes per spawned
@@ -1070,20 +1037,11 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 // only add files, so one tagged pass also compiles the tests no default run
 // builds.
 func (g *gateContext) stepVet() (bool, error) {
-	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
+	if !codeprofile.Holds(g.paths, codeprofile.GoInput) && !g.pathsTouchAny("cmd/", "internal/") {
 		return true, nil
 	}
 	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "-tags", "modeltest,integration", "./...")
 	return false, err
-}
-
-func (g *gateContext) pathsTouchGo() bool {
-	for _, p := range g.paths {
-		if strings.HasSuffix(p, ".go") || p == "go.mod" || p == "go.sum" {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *gateContext) pathsTouchAny(prefixes ...string) bool {

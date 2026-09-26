@@ -4,6 +4,8 @@ import (
 	"context"
 	"slices"
 	"testing"
+
+	"overgo/internal/codeprofile"
 )
 
 // TestWebUICheckSelection pins the lane's selection: a changed web UI
@@ -16,7 +18,7 @@ func TestWebUICheckSelection(t *testing.T) {
 		"internal/server/webui_static_test.go": true, "cmd/webui-lane/main.go": true, "internal/webuilane/browser.go": true,
 		"internal/server/routes.go": false, "docs/plan.json": false,
 	} {
-		if WebUIPaths([]string{path}) != owned {
+		if codeprofile.Holds([]string{path}, codeprofile.WebUI) != owned {
 			t.Errorf("WebUIPaths(%q) = %v, want %v", path, !owned, owned)
 		}
 	}

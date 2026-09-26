@@ -5,13 +5,27 @@ import (
 	"testing"
 
 	"overgo/internal/automationcheck"
+	"overgo/internal/codeprofile"
+	"overgo/internal/plan"
+	"overgo/internal/protection"
+	"overgo/internal/repoanalysis"
 )
+
+// phaseOwnsPath reports whether a check's evidence covers a path's classes.
+func phaseOwnsPath(phase, path string) bool {
+	return gateRuleNamed(phase).owns&codeprofile.Classify(path) != 0
+}
 
 // TestGateRulesDeclareEveryPipelineCheckOnce holds the pipeline to one rule
 // table: every check the gate builds has exactly one rule, in the table's
 // order, and its waits, needs and store use come from that rule alone.
 func TestGateRulesDeclareEveryPipelineCheckOnce(t *testing.T) {
 	t.Parallel()
+	// The catalog names these paths itself; their owners' names must agree.
+	if !phaseOwnsPath("architecture", plan.Path) || !phaseOwnsPath("architecture", repoanalysis.StructureBudgetsFile) ||
+		!phaseOwnsPath("scope", protection.HarnessConfigDirectory+"settings.json") || phaseOwnsPath(testRestCheckName, plan.Path) {
+		t.Fatal("path ownership disagrees with the plan, budget or harness owners")
+	}
 	g := &gateContext{repo: t.TempDir(), paths: []string{"internal/gate/gate.go"}}
 	checks := g.pipelineChecks()
 	names := make([]string, 0, len(checks))

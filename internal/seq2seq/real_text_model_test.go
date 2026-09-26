@@ -4,7 +4,6 @@ package seq2seq
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 

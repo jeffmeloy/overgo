@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "modeltest-tag-compiles",
-      "title": "Compile every test under the modeltest tag",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Compile every test under the modeltest tag",
-          "status": "open",
-          "verify": "go vet -tags modeltest ./...",
-          "rationale": "Found 2026-09-26 while vetting the typed-skip migration under every build tag: go vet -tags modeltest ./... fails in files no recent change touched -- internal/seq2seq/real_text_model_test.go (unused path/filepath import), internal/hybridtrain/resident_layout_test.go (undefined smallHybrid), internal/cuda/executor/executor_windows_bf16_prefill_test.go (undefined patternedValue) -- so the modeltest-tagged real-model proofs cannot run at all; helpers they used were moved or deleted without the tagged consumers being compiled. Fix each consumer (restore the helper next to it or use its successor), then decide whether a gate check should compile tagged test files so this rot cannot recur. Done when go vet -tags modeltest ./... exits 0."
-        }
-      ]
-    },
-    {
       "id": "automation-path-surface-catalog",
       "title": "Classify every path once in one surface catalog",
       "owner": "master-lead",

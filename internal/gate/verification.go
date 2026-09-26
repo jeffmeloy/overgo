@@ -1066,12 +1066,14 @@ func (g *gateContext) stepModernGoRatchet() (bool, error) {
 // gate runs: a separate build refused nothing in 865 landings, because a
 // compile error fails here first. It runs for any Go-owned source or asset,
 // not only a changed .go file, so an embedded file that goes missing is still
-// caught before the tests.
+// caught before the tests. The opt-in real-model and integration test tags
+// only add files, so one tagged pass also compiles the tests no default run
+// builds.
 func (g *gateContext) stepVet() (bool, error) {
 	if !g.pathsTouchGo() && !g.pathsTouchAny("cmd/", "internal/") {
 		return true, nil
 	}
-	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "./...")
+	_, err := g.runGateCommand(g.sourceRoot(), "go", "vet", "-tags", "modeltest,integration", "./...")
 	return false, err
 }
 

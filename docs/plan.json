@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-library",
-      "title": "Behaviour tests, stage 7f: a browser leg drives dataset onboarding in the library (a downloaded dataset registered and previewed, validation offered only once registered), retiring the library needles",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 7f: a browser leg drives dataset onboarding in the library (a downloaded dataset registered and previewed, validation offered only once registered), retiring the library needles",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserDatasetLibrary$' -leg 'dataset library leg'",
-          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Library group over the hub download fixture: a downloaded dataset registered and previewed, and validation offered only once an entry is registered. Retires TestFrontPageLibrary, keeping its register and validate API checks."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-compositions",
       "title": "Behaviour tests, stage 5c: a browser leg drives the compositions tab over a published composition authority (bridge training, evaluation and promotion history, memory and latency evidence, activation), retiring its source needle",
       "owner": "overgo_gui_cleanup",

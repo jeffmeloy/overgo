@@ -1022,7 +1022,8 @@ func newTestHandlerWithRepository(t testing.TB, generator Generator) *Handler {
 	return handler
 }
 
-func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, generator Generator) *Handler {
+// newTestHandlerForRepository: configure adjusts the config before the handler is built.
+func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, generator Generator, configure ...func(*Config)) *Handler {
 	t.Helper()
 	if inspector, ok := generator.(interface {
 		RecipeRuntimeDescription(recipe.Task) (modelrecipe.RuntimeDescription, error)
@@ -1037,12 +1038,16 @@ func newTestHandlerForRepository(t testing.TB, repository *overgodb.Store, gener
 			}
 		}
 	}
-	handler, err := New(Config{
+	config := Config{
 		ModelID: testModelID, MaxTokens: testMaxTokens,
 		DefaultTemperature: testNeutralTemperature, DefaultTopP: testFullTopP,
 		Analysis: testAnalysisPolicy, Repository: repository,
 		LibraryIntake: LibraryIntake{ModelFiles: libraryintake.ModelFiles, Register: libraryintake.Register, Validate: libraryintake.Validate},
-	}, generator)
+	}
+	for _, adjust := range configure {
+		adjust(&config)
+	}
+	handler, err := New(config, generator)
 	if err != nil {
 		t.Fatal(err)
 	}

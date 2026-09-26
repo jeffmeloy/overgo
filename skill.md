@@ -1,287 +1,249 @@
 ---
 name: overgo-iteration
-description: Guide Overgo implementation and repository doctrine toward recursive self-improvement, robustness, and efficiency. Use for development work and explicit continue/resume/loop requests; autonomous continuation stays within the user's requested scope.
+description: Guide Overgo development toward recursive self-improvement, robustness, and efficiency. Use for implementation and explicit continue/resume/loop requests; keep autonomy within user scope.
 ---
 
 # Intent
 
-Build one Go-native system that serves, trains, evaluates, and composes models
-on consumer hardware. Recursive self-improvement means using measured outcomes
-to improve both task capability and the mechanisms that propose, execute, and
-evaluate later work.
+Build one Go-native system to serve, train, evaluate, and compose models on
+consumer hardware. Use measured outcomes to improve capability and the process
+that proposes, executes, and evaluates work.
 
-Humans or models propose changes. Operators set goals, constraints, budgets,
-and stop conditions. Executable policy admits work and controls activation;
-OvergoDB retains the state and results needed for the next iteration.
-
-Build toward autonomous selection and execution of the next useful experiment
-within that operator-defined scope. Make observation-to-proposal feedback a
-durable part of the existing driver, with implementation tracked in the plan.
+Humans or models propose. Operators set goals, constraints, budgets, and stops.
+Executable policy admits work and controls activation. OvergoDB retains state
+and results. Build durable observation-to-proposal feedback through the existing
+driver; track implementation in the plan.
 
 ## Goals
 
-| Goal | What to improve |
+| Goal | Improve |
 | --- | --- |
-| Robustness | Correct results, preserved data, predictable failure behavior, exact resume, reliable cancellation, and recovery with fewer operator interventions |
-| Efficiency | Time and resources per useful outcome, adapting to available RAM, VRAM, CPU and GPU capacity while reducing repeated work and maintenance cost |
-| Capability | Quality, supported tasks, model coverage, and training results on fixed external workloads |
+| Robustness | Correctness, data preservation, predictable failure, exact resume, cancellation, recovery, fewer interventions |
+| Efficiency | Cost per useful outcome, capacity adaptation, less repeated work and maintenance |
+| Capability | Quality, task and model coverage, training results on fixed external workloads |
 
-Evaluate these goals together. Preserve required correctness and quality while
-reducing cost. Prefer a simpler implementation when it retains behavior and
-makes execution or recovery easier to understand.
+Optimize together. Preserve required correctness and quality. Prefer simpler
+implementations with clearer execution and recovery.
+
+## Fewer components
+
+The repository should shrink while its capability grows.
+
+- Make each change remove something: one change that retires two mechanisms
+  beats two changes. Fold parallel commands, tables, and paths into one owner
+  (per-family trainers become `cmd/train -route` entries; lanes, parity tools,
+  and file tools follow).
+- Refactor the pattern that causes growth, not only its latest instance.
+- Enforce by construction. A rule that matters becomes code the gate runs; this
+  document states intent and never substitutes for a check. A ledger that
+  records objects exists only until the code makes invalid objects impossible
+  to add.
+- Classify once, at the owner, from typed facts. No regex over structured data;
+  no second copy of a classification.
+- Capabilities are not dead code. A trainer, server path, or converter that
+  only tests reach is unwired: give it an entry point. Product capability
+  shrinks by deduplication; tooling that only checks or records the repo may
+  also be deleted.
 
 ## Autonomous feedback
 
-Use outcomes to identify improvements in capability, robustness, and efficiency,
-then generate the next proposal. Identify the limiting capability, recurring
-failure, or avoidable cost and explain how the proposed change addresses it.
-Apply this reasoning to both the model system and its improvement process;
-carry lessons from successful, rejected, and failed attempts into the next choice.
+Robustness governs autonomy; efficiency guides selection. Stay within operator
+scope and resource ceilings. Learn from successful, rejected, and failed work.
 
-Robustness determines how independently the loop can operate. Efficiency guides
-what it attempts. Increase autonomy as recovery becomes reliable and useful
-outcomes require less compute, repeated work, and operator intervention;
-remain within operator-set scope and resource ceilings.
-
-- Turn completed runs, regressions, recovery failures, and recurring costs into
-  durable follow-up obligations. Coalesce related observations and reconsider
-  the next action at meaningful boundaries, while respecting plan dependencies
-  and active work. Proposal generation should not depend on an empty plan or
-  another human prompt.
-- Assemble focused context from the objective, relevant measurements, prior
-  attempts, existing implementation owners, and remaining budget. Generate
-  candidates with a causal hypothesis, expected benefit, affected components,
-  estimated cost, acceptance comparison, and rollback. A targeted measurement
-  or a decision to take no action is also a valid outcome.
-- Apply existing admission rules and select eligible candidates using recorded
-  outcomes and total expected cost. Retain a bounded exploration allowance for
-  unfamiliar approaches. Rejection feeds the next decision; unavailable
-  resources become waiting obligations with explicit resumption conditions,
-  while independent eligible work continues.
-- Persist the observation position, candidate disposition, outstanding checks,
-  and cumulative budget. Resume the unfinished transition after interruption
-  without duplicating proposals, completed acquisitions, or budget allowances.
-- Compare predicted benefit and cost with actual results. Improve retrieval,
-  prompts, candidate ranking, and experiment selection through the same cycle.
-  Keep each experiment's acceptance criteria fixed and evaluate changes to the
-  evaluation policy against an independently retained task set and judge.
-
-Connect existing loop, run-record, candidate, and plan owners. Validate a
-complete observation-to-next-proposal cycle, including rejection, duplicate
-events, restart, result reuse, and budget exhaustion. Compare task improvement,
-total cost, recovery success, repeated acquisition, and operator interventions
-on the same workloads and budgets.
+- Coalesce runs, regressions, recovery failures, and recurring costs into durable
+  follow-up obligations. Reconsider at meaningful boundaries; respect active
+  work and dependencies. Do not wait for an empty plan or another prompt.
+- Retrieve objective, measurements, prior attempts, owner, and remaining budget.
+  Propose a causal hypothesis, benefit, affected components, cost, acceptance
+  comparison, and rollback. A targeted measurement or no action is valid.
+- Rank eligible candidates by recorded outcomes and total expected cost; retain
+  bounded exploration. Feed rejection into the next decision. Give missing
+  resources explicit resumption conditions; continue independent eligible work.
+- Persist observation position, candidate disposition, outstanding checks, and
+  cumulative budget. Resume unfinished transitions without duplicating proposals,
+  acquisitions, or budget allowances.
+- Compare predictions with results. Improve retrieval, prompts, ranking, and
+  experiment selection through the same cycle. Freeze each experiment's
+  acceptance; evaluate policy changes against an independent task set and judge.
 
 ## Working loop
 
-1. Read `git status --short`, the relevant plan row, the owning code, and its
-   stored results. Re-read touched files after interruption or concurrent work;
-   preserve changes made by others.
-2. Follow the user's task. During an authorized campaign, obtain the dispatched
-   step with `go run ./cmd/plan -prompt` and respect its dependencies, lane
-   ownership, acceptance criteria, and stop conditions.
-3. State the change, the outcome it should improve, and the comparison that
-   will decide it. Use a bounded probe when uncertainty could change the design.
-4. Fix the cause in its existing owner. Make a coherent change, migrate affected
-   callers, and remove displaced implementation as part of the same work.
-5. Run the required checks, preserve their results, and resolve failures.
-   Checkpoints retain unfinished obligations across retries and restart.
-6. Commit campaign work through
-   `go run ./cmd/gate -plan <item>/<step> -message-file <file> -paths <csv>`.
-   The gate owns acceptance and plan advancement; do not bypass it with a raw
-   commit. Record the reason, measured results, and remaining work.
+1. Read `git status --short`, the plan row, owning code, and stored results.
+   Re-read after interruption or concurrent edits; preserve others' work.
+2. Follow user scope. For authorized campaigns, take the next row from
+   `go run ./cmd/plan -next`; respect dependencies, lane ownership, acceptance,
+   and stops.
+3. State change, expected outcome, and deciding comparison. Probe only
+   uncertainty that could change the design.
+4. Fix the cause in its owner. Migrate callers; remove displaced implementation.
+5. Run required checks, retain results, resolve failures. Preserve unfinished
+   obligations across checkpoints, retries, and restart.
+6. Land with `go run ./cmd/loop -land <item>/<step> -message-file -`, the
+   message on standard input stating `Cause:` and `Predicted effect:`. It
+   claims, preflights, gates, confirms from Git, and awaits the deferred lanes;
+   the gate owns acceptance and removes the completed row. No raw commits.
+   A lane merge is `git merge --no-ff --no-commit <branch>`, then
+   `go run ./cmd/gate -merge -plan-projection first-parent-target
+   -merge-source-store <lane store> -plan merge-<head12>/do -message-file <f>`.
 
-When changing `docs/plan.json`, the implementation agent reads
-`docs/sqa_findings.json` and replaces its `implementation_review` after the
-final plan edit. Record `agent`, `reviewed_at`, `findings_reviewed_at`,
-`plan_path` and `plan_sha256` (SHA-256 of the saved plan bytes). In `comments`,
-address each open or deferred finding by `finding_id`, `disposition`
-(`planned`, `deferred`, `declined`, `disputed` or `resolved`), a concise `comment`, and
-`plan_steps` or `evidence` references. Name the next action or reason; deferred
-work needs a reconsideration condition, and resolution needs evidence.
-The lead developer owns adoption, scope and sequencing. Weigh contribution to
-Overgo, compounding benefits, cost, dependencies, risk and current plan conflicts.
-SQA rankings and proposed sequences are advisory. A high-priority `user_finding`
-requires consideration and a reasoned response, not automatic implementation or
-a new plan row. The lead may combine, defer or decline recommendations; declining
-an approach does not refute its evidence. Record the decision without a new gate.
-If findings are absent, record that explicitly rather than inventing a review.
-The SQA reviewer assesses these responses; it never authors them for the
-implementation agent. Keep one current findings file and one current response,
-without archives or response history. Re-read before writing, preserve the
-other writer's fields, and validate JSON. This belongs to the plan edit, not a
-new gate, worker, or periodic task.
+Continue/resume/loop requests return to dispatch after each landing. Landings do
+not complete campaigns. A user prompt is answered, then work continues; only an
+explicit user stop (`go run ./cmd/plan -stop user-stop:<detail>`) pauses. Use
+plan stops for required external prerequisites or irreversible actions.
 
-Under a continue/resume/loop request, return to dispatch after a completed
-slice. A checkpoint alone does not complete the campaign. Respect operator
-stops and declared budgets; use the plan's stop mechanism for a required
-external prerequisite or irreversible action. A bounded user task ends when
-that task is complete.
+### Plan and SQA
 
-Launch campaigns through `go run ./cmd/loop -config docs/loop.json`; individual
-`plan -prompt` and `gate` commands do not start supervision. The launcher owns
-one worktree's process lock and passes its fresh session to every worker.
-Configured campaign worktrees require that live session at dispatch and commit
-admission. Do not copy a session token into an unrelated interactive process.
-Worker exit is a driver event: it waits for or recovers deferred validation,
-then dispatches again. Keep each worktree's launcher and console separate.
-Read `.overgo-runtime/loop_supervisor.json` for the owner PID, and the launcher's log for
-worker progress; a retained locator without its live lock requires a restart.
+[docs/sqa_findings.json](docs/sqa_findings.json) is an independent review. After
+the final `docs/plan.json` edit, the implementation agent replaces its
+`implementation_review`, bound to the saved plan (`agent`, `reviewed_at`,
+`findings_reviewed_at`, `plan_path`, `plan_sha256`), with one comment per open
+or deferred finding: `finding_id`, `disposition` (`planned`, `deferred`,
+`declined`, `disputed`, `resolved`), a concise `comment`, and `plan_steps` or
+`evidence`. Deferral names its reconsideration condition; resolution names its
+evidence.
+
+The lead owns adoption, scope, and sequence; SQA rankings are advisory. Answer a
+high-priority `user_finding` substantively. Declining an approach does not
+refute its evidence. The reviewer never authors the responses. Keep one current
+file; re-read before writing and preserve the other writer's fields.
+
+### Campaign supervision
+
+`go run ./cmd/loop` supervises unattended work from its machine-local
+configuration (`.overgo-runtime/loop.json`); single dispatch and gate commands
+start no supervision. The launcher owns one worktree's process lock and passes a
+fresh session to workers; never copy its token into unrelated processes. Worker
+exit triggers deferred-validation recovery, then redispatch. Owner PID:
+`.overgo-runtime/loop_supervisor.json`. A locator without its live lock
+requires restart.
 
 ## Robustness
 
-- Preserve exact identities for source, models, data, recipes, policies, and
-  execution environments. Reuse or resume only when the relevant inputs and
-  contracts still match.
-- Persist completed work and outstanding obligations. Make publication and
-  retries idempotent; recover from durable state after interruption. A failed
-  result remains a failed result, even when recording it requires a retry.
-- Give resource ownership and concurrency one implementation. Bound worker
-  lifetimes; handle cancellation, errors, process death, and release. Use the
-  existing OS lock owner for contention; do not infer abandonment from elapsed
-  time or steal another process's lock.
-- Keep model, dataset, and source checkpoint artifacts immutable. Publish new
-  outputs through their lifecycle owners. Validate relocation and rollback
-  before retiring an original; preserve content identity and provenance.
-- Keep execution, verification, and activation distinct. Retain predecessors
-  for rollback and test failure and recovery paths alongside successful runs.
-  Missing inputs, invalid state, and partial execution must remain explicit.
-- Use the repository's command guard and mutation authorization. Repair must
-  preserve evidence and concurrent work; it must not silently reset state,
-  change semantics, or weaken acceptance to obtain a pass.
+- Bind source, model, data, recipe, policy, and environment identities exactly.
+  Reuse/resume only matching relevant inputs and contracts.
+- Persist results and obligations. Make publication/retries idempotent; recover
+  from durable state. Retrying a failed-result write cannot turn failure into pass.
+- Use one resource/concurrency owner. Bound workers; handle cancellation, errors,
+  process death, and release. Use existing OS locks; never infer abandonment
+  from elapsed time or steal another process's lock.
+- Keep model, dataset, and source checkpoints immutable. Publish through lifecycle
+  owners. Validate relocation and rollback before retiring originals; preserve
+  content identity and provenance.
+- Separate execution, verification, activation. Retain rollback predecessors.
+  Test failure/recovery alongside success; expose missing, invalid, partial state.
+- Honor command guards and mutation authorization. Preserve evidence and
+  concurrent work. No silent resets, semantic changes, or weakened acceptance
+  to obtain a pass; a failing check is fixed, never relabeled.
 
 ## Efficiency
 
-- Measure complete attempts, including proposal generation, failures, waiting,
-  acquisition, verification, recovery, and finalization. Report elapsed time
-  separately from summed parallel durations. Count repeated model loads,
-  executed and reused checks, outstanding work, and operator interventions
-  when they drive the cost.
+- Measure whole attempts: proposal, failure, wait, acquisition, verification,
+  recovery, finalization. Separate elapsed time from summed parallel durations.
+  Count repeated loads, executed/reused checks, outstanding work, and interventions
+  where material.
 - Reuse valid artifacts, analyses, checkpoints, and independent check results.
-  Reacquire only what changed inputs or a demonstrated defect invalidates.
-  Check selection and reuse must follow the same resolved dependencies.
-- Run cheap checks before expensive work. Scope verification through existing
-  dependency owners; unresolved dependencies retain the broader required
-  scope. Changes to verification policy must pass the existing acceptance
-  criteria before reduced scope is adopted.
-- Share resources when independent work fits and ownership permits it.
-  Serialize conflicting mutations and measurements that need isolation.
-  CPU work holds no GPU reservation. Add concurrency, pooling, caching, or
-  fusion for measured benefit under the resource policy below.
-- Repetition triggers an ownership review. Extend an existing command or
-  workflow when that removes recurring work. Add a new mechanism only for a
-  demonstrated gap, with a comparison of its benefit and ongoing cost.
-- Compare simplification, reuse, and direct measurement before adding
-  abstractions. Remove unused flags, wrappers, state, and exports with their
-  callers. An inconclusive optimization needs a new hypothesis or a stop,
-  not repeated runs until a favorable result appears.
+  Reacquire only invalidated work. Selection and reuse share resolved dependencies.
+- Drive selection, ordering, reuse, recovery, and reporting from shared typed
+  facts: AST/types, parsed commands, typed results, declared capabilities.
+  Normalize external text at its boundary; retain unknowns, independent
+  selection reasons, and domain acceptance.
+- Feed true dependencies, effects, resource demand, reuse conditions, and measured
+  cost into the existing scheduler. Run cheap informative checks first where
+  dependencies permit; dispatch independent work within capacity; resume waiting
+  work on state change. Classification must reduce total work.
+- Scope verification through dependency owners. Unknown dependencies retain
+  required broader scope. Verify policy changes against existing acceptance
+  before adopting reductions.
+- Share resources where capacity and ownership permit. Serialize conflicting
+  mutations and measurements requiring isolation. CPU work holds no GPU claim.
+  Add concurrency, pooling, caching, or fusion only for measured benefit.
+- Extend existing workflows; add mechanisms only for demonstrated gaps with
+  justified ongoing cost. Remove unused flags, wrappers, state, exports, and
+  callers. Inconclusive optimization requires a new hypothesis or stop; never
+  rerun merely to obtain a favorable result.
 
 ## Scale to available compute
 
-Resolve usable host RAM, per-device VRAM, effective CPU capacity, and GPU
-compute capabilities through the existing resource owners. Account for current
-load, other reservations, and operator limits; installed capacity alone is not
-an execution budget. Avoid assumptions about a particular machine, core count,
-GPU count, or memory size.
-
-Derive placement, batch and chunk sizes, worker counts, cache residency, and
-transfer plans from actual workload dimensions, measured costs, and available
-resources. Include transient and retained allocations, host/device transfers,
-and contention. Justify reserve margins from measurements or declared limits;
-an arbitrary fraction of RAM or VRAM is still a magic number.
-
-Scale down through supported streaming, tiling, and bounded concurrency; scale
-up when additional resources improve measured outcomes. Recheck capacity at
-admission and replan through the existing owner when conditions change. Preserve
-the numerical contract, checkpoint identity, and cumulative budget; record the
-resolved execution choices. If no supported plan fits, retain a resumable
-waiting obligation or report the limit. Verify constrained and larger resource
-profiles, including contention and cancellation.
+- Resolve usable RAM, per-device VRAM, effective CPU capacity, and GPU capabilities
+  through resource owners. Include current load, reservations, operator limits.
+  Installed capacity is not an execution budget; avoid machine-specific defaults.
+- Derive placement, batches, chunks, workers, residency, and transfers from
+  workload dimensions, measurements, and availability. Include transient/retained
+  allocations, transfers, contention. Justify reserves from measurements or
+  declared limits; arbitrary RAM/VRAM fractions remain magic numbers.
+- Scale down through supported streaming, tiling, bounded concurrency; scale up
+  for measured benefit. Recheck admission capacity; replan through its owner.
+  Preserve numerical contracts, checkpoint identity, cumulative budget; record
+  resolved choices. If nothing fits, retain a resumable wait or report the limit.
+- Verify constrained and larger profiles, contention, and cancellation.
 
 ## Derived values and justified assumptions
 
-Actively eliminate magic numbers and unnecessary literals in implementation,
-automation, and evaluation. Derive dimensions, thresholds, tolerances, sample
-requirements, optimizer settings, timeouts, and resource choices from artifact
-declarations, runtime observations, or mathematical constraints. A named
-constant, configuration flag, or fitted correction does not by itself resolve
-an arbitrary assumption; derive the quantity or remove the mechanism needing it.
-
-Retain literal values when they express exact mathematical identities, external
-format or ABI requirements, or an explicitly justified policy. Record their
-source, applicable scope, and validation in the owning contract. Necessary
-conventions and unresolved assumptions belong in the existing decision or
-closure authority with a reason and a condition for revisiting them. Keep
-caller controls focused on goals, data, and resource limits.
-
-Prefer methods with minimal assumptions about data shape, distribution, and
-geometry. Derive tensor dimensions and sequence lengths from declarations and
-inputs; validate required layouts instead of embedding model-specific shapes.
-Do not assume Gaussianity, independence, stationarity, finite variance, or a
-particular sample-size rule without justification for the actual observations.
-Choose estimators and uncertainty methods whose assumptions fit the data;
-robust or nonparametric methods still require their own assumptions to be checked.
-
-Treat Euclidean distance, linear interpolation, inner-product similarity, and
-isotropic noise as modeling choices that need justification from the declared
-model or the representation and task. Storing data in vectors does not establish
-Euclidean geometry. Use the metric and operations the domain supports; compare
-alternatives where the choice affects results. Preserve model-defined numerical
-operations while making their assumptions explicit.
+- Eliminate arbitrary literals in implementation, automation, and evaluation.
+  Derive dimensions, thresholds, tolerances, sample requirements, optimizer
+  settings, timeouts, and resource choices from declarations, observations, or
+  mathematical constraints. Naming, configuring, or fitting a value does not
+  justify it; derive it or remove the mechanism needing it.
+- Retain exact identities, external format/ABI requirements, and justified policy.
+  Record source, scope, validation in the owning contract. Record necessary
+  conventions/unresolved assumptions with rationale and reconsideration condition
+  in existing decision/closure authority. Keep caller controls on goals, data,
+  and resource limits.
+- Minimize distribution, shape, and geometry assumptions. Derive dimensions and
+  sequence lengths; validate layouts. Justify Gaussianity, independence,
+  stationarity, finite variance, and sample-size rules for actual observations.
+  Check estimator and uncertainty assumptions, including robust/nonparametric ones.
+- Justify Euclidean distance, linear interpolation, inner products, and isotropic
+  noise from the model, representation, and task. Vectors do not imply Euclidean
+  geometry. Use supported metrics/operations; compare consequential alternatives.
+  Preserve model-defined operations; expose their assumptions.
 
 ## Implementation
 
-Go owns runtime behavior and orchestration; CUDA kernels enter through the
-kernel manifest. Keep runtime code free of cgo. Use Go or bash for repository
-automation and keep development scratch under `tmp/`; `bin/` is for executables.
-
-Port capabilities through shared typed contracts and recipe-selected consumers.
-Start from an existing verified implementation when available: llama.cpp
-provides pinned behavioral references; adaptive_new provides source capabilities.
-Preserve source commits, licenses, artifact identities, and reference outputs.
-Keep model-family facts in artifacts and recipes rather than new executor branches.
-
-Use small cohesive owners, clear error and cancellation paths, and reusable
-hot-path buffers. Add interfaces and shared abstractions where real consumers
-need them. Apply `gofmt`, `go vet`, and the required repository checks to code
-changes. Numerical or gradient changes require the affected reference comparisons.
+- Go owns runtime, orchestration, and tooling; no runtime cgo, no Python in the
+  tree. CUDA enters through the kernel manifest. Scratch lives in `tmp/`,
+  executables in `bin/`.
+- Port through shared typed contracts and recipe-selected consumers. Prefer
+  verified implementations: llama.cpp for pinned behavior; adaptive_new for
+  source capabilities. Preserve commits, licenses, artifact identities, outputs.
+  Model-family facts belong in artifacts/recipes, never in model-specific code.
+- Keep owners cohesive, errors/cancellation clear, hot-path buffers reusable.
+  Add interfaces/abstractions for real consumers. Apply `gofmt`, `go vet`, and
+  required checks to code changes; affected reference comparisons to numerical
+  or gradient changes.
 
 ## Verification
 
-Freeze acceptance inputs and criteria before candidate generation. A candidate
-that changes evaluation policy cannot redefine its own judge. Compare the same
-tasks, artifacts, protocols, and total budgets; use ablations where needed to
-attribute a gain. An aggregate improvement cannot hide a required regression.
-
-Exercise relevant variations in shape, distribution, geometry, and resource
-availability. Check assumptions and invariances against the declared contract.
-Keep negative and inconclusive results; report denominators, exclusions,
-measurement scope, and the resolved compute environment.
-
-Tests exercise observable contracts and failure modes using controlled inputs.
-Missing, skipped, incomplete, and zero-match checks do not count as passes.
-Resolve required prerequisites or report the exact outstanding work.
-
-Use the existing lanes: `cmd/test-lane`, `cmd/device-lane`, `cmd/smoke-lane`,
-`cmd/race-lane`, and `cmd/webui-lane`. The gate owns change-specific selection,
-compatibility, manifest, and other required checks.
+- Freeze acceptance before candidates. Evaluation-policy changes cannot redefine
+  their own judge. Compare identical tasks, artifacts, protocols, total budgets;
+  use ablations for attribution. Aggregate gains cannot hide required regressions.
+- Exercise relevant shape, distribution, geometry, resource variations. Check
+  declared assumptions/invariances. Retain negative/inconclusive results; report
+  denominators, exclusions, scope, resolved compute environment.
+- Test observable contracts and failure modes with controlled inputs. Missing,
+  skipped, incomplete, zero-match checks earn no pass. Resolve prerequisites or
+  report exact outstanding work.
+- Prove real models one at a time, smallest first. Parity goldens keep the
+  upstream output itself in Git with its provenance (repository, commit,
+  checkpoint, input); comparing overgo with its own earlier output stacks
+  tolerances.
+- Use `cmd/test-lane`, `cmd/device-lane`, `cmd/smoke-lane`, `cmd/race-lane`,
+  `cmd/webui-lane`. The gate owns change-specific selection, compatibility,
+  manifests, and required checks.
 
 ## Sources of truth
 
 | Surface | Owner |
 | --- | --- |
-| [skill.md](skill.md) | Repository intent and operating principles; the sole root agent-instruction document |
-| [docs/plan.json](docs/plan.json) | Current priorities, dependencies, lane ownership, acceptance, and outstanding work |
-| OvergoDB | Artifacts, lineage, runs, decisions, findings, and receipts; query through `cmd/overgodb-query` |
-| [compatibility.json](compatibility.json) | Model and capability verification contracts |
-| [kernels/manifest.json](kernels/manifest.json) | Kernel ABI and source/binary identities |
-| [API manifest](docs/api_manifest.json) | Public commands, routes, and document contracts |
+| [skill.md](skill.md) | Intent and operating principles; sole root agent-instruction document |
+| [docs/plan.json](docs/plan.json) | Priorities, dependencies, lanes, acceptance, outstanding work |
+| OvergoDB | Artifacts, lineage, runs, decisions, findings, receipts; query via `cmd/overgodb-query` |
+| [compatibility.json](compatibility.json) | Model/capability verification contracts |
+| [kernels/manifest.json](kernels/manifest.json) | Kernel ABI, source/binary identities |
+| [API manifest](docs/api_manifest.json) | Public commands, routes, document contracts |
 
-Use existing owners rather than parallel plans, ledgers, schedulers, or
-recovery mechanisms. Campaign-specific constraints remain in the active plan;
-this skill does not override them. Keep durable technical contracts in docs,
-measurements in the store, and development history in Git.
+Use existing owners; avoid parallel plans, ledgers, schedulers, recovery paths.
+The active plan retains campaign constraints. Durable contracts live in docs,
+measurements in the store, development history in Git.
 
-Communicate concisely: outcome, material measurements, checks run, and any
-remaining obligation. Keep instructions focused on decisions that improve
-capability, robustness, or efficiency.
+Report outcome, material measurements, checks, and remaining obligations.

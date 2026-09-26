@@ -26,7 +26,7 @@ func pendingLeg(row string) webuiSourceClass {
 
 // webuiPendingCeiling bounds the needle tests that still stand in for a
 // browser leg; each leg row that lands lowers it.
-const webuiPendingCeiling = 12
+const webuiPendingCeiling = 8
 
 // webuiSourceReaders declares every server test that reads the served UI
 // source; internal/gate's census holds the declaration to the tests.
@@ -73,17 +73,13 @@ var webuiSourceReaders = map[string]webuiSourceClass{
 
 	"TestAgentWorkspaceNoHiddenReasoning": sourceBan,
 
-	"TestFrontPage":                       pendingLeg("gui-legs-front"),
-	"TestFrontPageModelSwitch":            pendingLeg("gui-legs-front"),
-	"TestFrontPageAgent":                  pendingLeg("gui-legs-front"),
-	"TestFrontPageGenerationDeclarations": pendingLeg("gui-legs-front"),
-	"TestFrontPageImport":                 pendingLeg("gui-legs-front"),
-	"TestFrontPageInspect":                pendingLeg("gui-legs-front"),
-	"TestFrontPageLibrary":                pendingLeg("gui-legs-front"),
-	"TestFrontPageMediaRoundtrip":         pendingLeg("gui-legs-front"),
-	"TestFrontPageModalities":             pendingLeg("gui-legs-front"),
-	"TestFrontPageOperations":             pendingLeg("gui-legs-front"),
-	"TestFrontPageRemoteTurns":            pendingLeg("gui-legs-front"),
+	"TestFrontPageModelSwitch":            pendingLeg("gui-legs-picker"),
+	"TestFrontPageAgent":                  pendingLeg("gui-legs-agent-thread"),
+	"TestFrontPageGenerationDeclarations": pendingLeg("gui-legs-media"),
+	"TestFrontPageLibrary":                pendingLeg("gui-legs-library"),
+	"TestFrontPageMediaRoundtrip":         pendingLeg("gui-legs-media"),
+	"TestFrontPageModalities":             pendingLeg("gui-legs-media"),
+	"TestFrontPageRemoteTurns":            pendingLeg("gui-legs-remote"),
 }
 
 // TestWebUITestsDriveBehaviourNotSource holds the tests that read the

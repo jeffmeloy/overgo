@@ -6,17 +6,77 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-front",
-      "title": "Behaviour tests, stage 7: a browser leg drives the front page's composer and chat surfaces (agent, generation declarations, import, inspect, library, media round trip, modalities, operations, remote turns, model evidence and the picker's stale entries), retiring their source needles",
+      "id": "gui-legs-picker",
+      "title": "Behaviour tests, stage 7b: a browser leg drives the model picker and header evidence (row and header evidence lines, capability tags, a stale row without Serve, the remembered model, and a switch's progress chip), retiring the model switch needles",
       "owner": "overgo_gui_cleanup",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Behaviour tests, stage 7: a browser leg drives the front page's composer and chat surfaces (agent, generation declarations, import, inspect, library, media round trip, modalities, operations, remote turns, model evidence and the picker's stale entries), retiring their source needles",
+          "title": "Behaviour tests, stage 7b: a browser leg drives the model picker and header evidence (row and header evidence lines, capability tags, a stale row without Serve, the remembered model, and a switch's progress chip), retiring the model switch needles",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserFrontSurfaces$' -leg 'front surfaces leg'",
-          "rationale": "Stage 1's census (2026-09-25) found eleven front-page tests the first survey missed, reading the served source through local helpers: TestFrontPage, TestFrontPageModelSwitch, TestFrontPageAgent, TestFrontPageGenerationDeclarations, TestFrontPageImport, TestFrontPageInspect, TestFrontPageLibrary, TestFrontPageMediaRoundtrip, TestFrontPageModalities, TestFrontPageOperations and TestFrontPageRemoteTurns. Their API checks stay; their composer, chat and boot needles give way to one leg over the front page's surfaces, including the two the first survey found no leg for: the model-evidence line, and the picker's stale entry without a Serve control and its tokens-per-second evidence."
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserModelPicker$' -leg 'model picker leg'",
+          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Picker group over declared remote and keyless providers: each row's evidence (prompt and decode tokens per second, accuracies) and capability tags, a stale row with its reason and no Serve, the remembered last-served note, and a switch's model-switch chip with its elapsed progress. Retires TestFrontPageModelSwitch, keeping its stale-before-Serve order check."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-media",
+      "title": "Behaviour tests, stage 7c: a browser leg drives generated media (a speech run to an artifact card with provenance, its output reused into an artifact slot, embeddings and rerank turns, and the operations' live events), retiring the generation, media round trip and modalities needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 7c: a browser leg drives generated media (a speech run to an artifact card with provenance, its output reused into an artifact slot, embeddings and rerank turns, and the operations' live events), retiring the generation, media round trip and modalities needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserGeneratedMedia$' -leg 'generated media leg'",
+          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Media group over the native media protocol fixture (image and speech declared, video refused): a speech run to an artifact card with its provenance link, that output reused into an artifact slot, embeddings and rerank turns, and the operation strip's live events. Retires TestFrontPageGenerationDeclarations, TestFrontPageMediaRoundtrip and TestFrontPageModalities, keeping their API checks and endpoint bans."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-agent-thread",
+      "title": "Behaviour tests, stage 7d: a browser leg drives agent mode in the front thread and a mutation's preview and approval card, retiring the front agent needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 7d: a browser leg drives agent mode in the front thread and a mutation's preview and approval card, retiring the front agent needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserAgentThread$' -leg 'agent thread leg'",
+          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Agent group over the agent workspace fixture: agent mode in the front thread with its tool cards and remaining steps, and a mutation previewed and approved against its bound operation. Retires TestFrontPageAgent, keeping its step and session API checks and its approval-route ban."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-remote",
+      "title": "Behaviour tests, stage 7e: a browser leg drives a hosted provider's turns (the remote tag, the remote marker on a turn, and the provider's usage), retiring the remote turn needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 7e: a browser leg drives a hosted provider's turns (the remote tag, the remote marker on a turn, and the provider's usage), retiring the remote turn needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRemoteTurns$' -leg 'remote turns leg'",
+          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Remote group over the relay generator (it sets the process environment, so the leg runs serially): the remote tag in the picker, the remote marker on a turn, and the provider's own usage where the count route refuses. Retires TestFrontPageRemoteTurns."
+        }
+      ]
+    },
+    {
+      "id": "gui-legs-library",
+      "title": "Behaviour tests, stage 7f: a browser leg drives dataset onboarding in the library (a downloaded dataset registered and previewed, validation offered only once registered), retiring the library needles",
+      "owner": "overgo_gui_cleanup",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Behaviour tests, stage 7f: a browser leg drives dataset onboarding in the library (a downloaded dataset registered and previewed, validation offered only once registered), retiring the library needles",
+          "status": "open",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserDatasetLibrary$' -leg 'dataset library leg'",
+          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Library group over the hub download fixture: a downloaded dataset registered and previewed, and validation offered only once an entry is registered. Retires TestFrontPageLibrary, keeping its register and validate API checks."
         }
       ]
     },
@@ -263,7 +323,7 @@
           "id": "do",
           "title": "Accept the cleaned workbench: every page acceptance, every leg this lane added, and zero layout findings",
           "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg' -leg 'runtime records leg' -leg 'analysis views leg' -leg 'peer workspace leg' -leg 'standalone tabs leg' -leg 'agent tab leg' -leg 'front surfaces leg' -leg 'training evidence leg' -leg 'compositions leg'",
+          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowser' -leg 'screens leg' -leg 'artifact links leg' -leg 'hardened states leg' -leg 'typeset leg' -leg 'session continuation leg' -leg 'agent recovery leg' -leg 'speculative decoding leg' -leg 'model merge leg' -leg 'conversation control leg' -leg 'mobile interaction leg' -leg 'unoffered task leg' -leg 'one event stream leg' -leg 'training live leg' -leg 'training preview leg' -leg 'remembered settings leg' -leg 'approve in place leg' -leg 'adapter compare leg' -leg 'copy command leg' -leg 'memory estimate leg' -leg 'dataset import leg' -leg 'runtime records leg' -leg 'analysis views leg' -leg 'peer workspace leg' -leg 'standalone tabs leg' -leg 'agent tab leg' -leg 'front surfaces leg' -leg 'training evidence leg' -leg 'compositions leg' -leg 'model picker leg' -leg 'generated media leg' -leg 'agent thread leg' -leg 'remote turns leg' -leg 'dataset library leg'",
           "rationale": "Final acceptance for the lane before an owner-authorized merge to master.",
           "depends_on": [
             "webui-client-contract/do",

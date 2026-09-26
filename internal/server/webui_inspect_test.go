@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -62,32 +61,5 @@ func TestFrontPageInspect(t *testing.T) {
 	}
 	if len(chain.Messages) != 2 || chain.Messages[1].Role != "assistant" || chain.Messages[1].Response != stored.ID {
 		t.Fatalf("chain = %+v", chain.Messages)
-	}
-
-	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
-	for _, needle := range []string{`id="inspector"`} {
-		if !strings.Contains(get("/"), needle) {
-			t.Errorf("shell missing %q", needle)
-		}
-	}
-	chat := get("/mod/chat.js")
-	for _, needle := range []string{`"/interactions/inspect?response="`, "overgo.embed(", "record.statuses", "assistant.response = latest", ".response = message.response", `"lens"`, `"states"`, `"attention"`, `"model"`, `"vocab"`, `"tensors"`} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("chat missing %q", needle)
-		}
-	}
-	if !strings.Contains(get("/composer.js"), "overgo.inspectTurn(message.response)") {
-		t.Error("the thread does not offer inspection on an assistant turn")
-	}
-	if !strings.Contains(get("/boot.js"), "embed(id, host, seed) {") {
-		t.Error("boot.js cannot embed a tab's inspector into another host")
-	}
-	for _, module := range []string{"/mod/analyze_logits.js", "/mod/analyze_states.js", "/mod/analyze_attention.js"} {
-		if !strings.Contains(get(module), "overgo.analysisSurface(panel, seed,") {
-			t.Errorf("%s does not accept a seeded prompt", module)
-		}
-	}
-	if !strings.Contains(get("/style.css"), ".inspector") {
-		t.Error("style lacks the side panel")
 	}
 }

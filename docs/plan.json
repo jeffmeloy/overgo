@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-training",
-      "title": "Behaviour tests, stage 5b: a browser leg drives the training page's preference-training evidence (loss series, pair inspector, checkpoint comparison) over a stored run and its trace, retiring its source needle",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 5b: a browser leg drives the training page's preference-training evidence (loss series, pair inspector, checkpoint comparison) over a stored run and its trace, retiring its source needle",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserTrainingEvidence$' -leg 'training evidence leg'",
-          "rationale": "Stage 5 split 2026-09-25 by fixture cost: the recipe inspector and evaluations have fixtures, the training evidence needs a stored run and its trace, and the compositions tab needs a whole composition authority (contracts, bridge, execution recipe, promotion), which only internal/composition's own tests build today. This stage replaces TestRLWorkspaceRendersMeasuredEvidence's needles (keeping its no-smoothing ban) with a leg over a stored run whose child evidence is a DPO trace: the loss and margin series, the chosen / rejected pair inspector, and a checkpoint comparison against a pinned baseline."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-compositions",
       "title": "Behaviour tests, stage 5c: a browser leg drives the compositions tab over a published composition authority (bridge training, evaluation and promotion history, memory and latency evidence, activation), retiring its source needle",
       "owner": "overgo_gui_cleanup",

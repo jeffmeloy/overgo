@@ -229,7 +229,7 @@ func Run(options Options) (runErr error) {
 			return err
 		}
 		if err := reportGateAdmissionPhase("validate deferred lanes", func() error {
-			laneDebt, err = requireLaneObligationsResolved(repo, admissionStore)
+			laneDebt, err = requireLaneObligationsResolved(context.Background(), repo, admissionStore)
 			return err
 		}); err != nil {
 			return err

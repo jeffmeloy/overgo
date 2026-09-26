@@ -4,6 +4,81 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
+      "id": "admission-before-tests",
+      "title": "Check commit admission before the gate's expensive phases",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Check commit admission before the gate's expensive phases",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestAdmissionRunsBeforeTests$' -count=1",
+          "rationale": "  Automation brittleness (owner 2026-09-26). Commit-admission refusals -- a merge's completion audit without the source store (needs -plan-projection first-parent-target -merge-source-store), resolve-undo index metadata after a manual conflict resolution, the merge boundary shape -- surfaced only at the commit phase, after the full test and lane run (one merge gate failed after 16 minutes). Run the admission audit on the prepared candidate before the tests, clear resolve-undo metadata where the gate stages a merge, and choose the lane projection and its source store without being told."
+        }
+      ]
+    },
+    {
+      "id": "device-lease-host-tests-inline",
+      "title": "Run the host-only tests of device-leased packages before the commit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Run the host-only tests of device-leased packages before the commit",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestHostTestsRunBeforeTheCommit$' -count=1",
+          "rationale": " Automation brittleness (owner 2026-09-26). Packages under the device lease (internal/gate, internal/repoanalysis, cmd/compatibility, ...) run their tests only in the deferred test-device lane, so their host-only failures surfaced after the commit and needed repair commits twice today (the direct-trainer rule for ba617e6aa, the reader census for 53971a368). Run the tests of those packages that need no device inline, so the commit is refused instead of repaired."
+        }
+      ]
+    },
+    {
+      "id": "deleted-files-select-by-readers",
+      "title": "Select a deleted file's former readers instead of every lane",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Select a deleted file's former readers instead of every lane",
+          "status": "open",
+          "verify": "go test ./internal/gate -run '^TestDeletedDocumentSelectsItsReaders$' -count=1",
+          "rationale": " Automation brittleness (owner 2026-09-26). dependencyResolver answers true for every lane when any changed path is absent (internal/gate/impact_fallback.go: the candidate alone cannot establish a removed input's former readers), so each deletion landing today ran the device, browser and journey lanes (~10 extra minutes, four times). The reader census (tracked-files-need-readers) and the base commit's package graph name a removed file's readers; select those."
+        }
+      ]
+    },
+    {
+      "id": "journey-child-failure-cause",
+      "title": "Carry a served child's own failure into the model-swap error, and fix the projector journey's child exit",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Carry a served child's own failure into the model-swap error, and fix the projector journey's child exit",
+          "status": "open",
+          "verify": "go test ./internal/modelswap -run '^TestChildFailureCarriesItsOwnError$' -count=1",
+          "rationale": " Automation brittleness (owner 2026-09-26: a failure is fixed in code, never by rerunning). The deferred lane of 8b09aa9c5 failed TestModelJourneyServedProjector with model_load_failed: \"gemma-4-E4B-it-bf16.gguf did not become ready: child server exited before becoming ready: server exited with status 1\"; the child's own stderr was not captured, so the cause is unknown, and it passed on the next run. Capture the child's last output in the swap error and the lane record, then find and fix why the Gemma projector child exited."
+        }
+      ]
+    },
+    {
+      "id": "plan-rows-retire-by-decision",
+      "title": "Retire or re-scope a committed row by a recorded owner decision",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Retire or re-scope a committed row by a recorded owner decision",
+          "status": "open",
+          "verify": "go test ./internal/plan -run '^TestOwnerDecisionRetiresRow$' -count=1",
+          "rationale": " Automation brittleness (owner 2026-09-26: fix it in code; it is the biggest time waster). A committed row leaves the plan only by landing, and a row's check cannot change in its own landing, so every re-scope today needed a second row and left the originals open as declined (ratchets-one-document, verification-specs-into-compatibility) for the owner to retire. Let a recorded owner decision retire a row, and let a row's check be corrected with a recorded reason, both as typed plan evidence the completion audit accepts, instead of workaround rows."
+        }
+      ]
+    },
+    {
       "id": "ratchets-one-document",
       "title": "Hold the gate's ratchets and baselines in one document (declined; owner to retire)",
       "class": "consolidation",
@@ -1255,7 +1330,13 @@
             "ratchet-ledgers-retired/do",
             "verification-unread-removed/do",
             "verification-fixture-orphans/do",
-            "readme-carries-main-edit/do"
+            "readme-carries-main-edit/do",
+            "plan-rows-retire-by-decision/do",
+            "journey-child-failure-cause/do",
+            "deleted-files-select-by-readers/do",
+            "device-lease-host-tests-inline/do",
+            "lanes-never-refuse/do",
+            "admission-before-tests/do"
           ]
         }
       ]

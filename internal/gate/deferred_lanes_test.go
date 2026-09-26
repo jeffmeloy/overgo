@@ -224,7 +224,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if debt, err := requireLaneObligationsResolved(repo, store); debt != nil || err != nil {
+	if debt, err := requireLaneObligationsResolved(t.Context(), repo, store); debt != nil || err != nil {
 		t.Fatalf("empty store: debt=%v err=%v", debt, err)
 	}
 	commit := strings.Repeat("c", 40)
@@ -247,27 +247,6 @@ func TestDeferredLaneObligations(t *testing.T) {
 		}
 	}
 	publish(pending, nil)
-	if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "-lanes") {
-		t.Fatalf("pending obligation without a runner: %v", err)
-	}
-	locator := gateLanesLocator{Version: artifact.InitialDocumentVersion, State: runrecord.LaneObligationRunning, Obligation: pending.ID, CodeCommit: commit, PID: os.Getpid(), Updated: now}
-	if err := writeJSON(repo, gateLanesLocatorFile, locator, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "-lanes") {
-		t.Fatalf("stale locator with a live unrelated PID blocked recovery: %v", err)
-	}
-	guard, err := acquireLaneRunner(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer guard.Close()
-	if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "still running") {
-		t.Fatalf("pending obligation with a live runner: %v", err)
-	}
-	if err := guard.Close(); err != nil {
-		t.Fatal(err)
-	}
 	running, err := pending.Transition(runrecord.LaneObligationRunning, artifact.ID{}, now.Add(time.Second))
 	if err != nil {
 		t.Fatal(err)
@@ -286,7 +265,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 		t.Fatal(err)
 	}
 	publish(failed, &running.ID)
-	debt, err := requireLaneObligationsResolved(repo, store)
+	debt, err := requireLaneObligationsResolved(t.Context(), repo, store)
 	if err != nil || debt == nil || debt.ID != failed.ID {
 		t.Fatalf("failed obligation: debt=%v err=%v", debt, err)
 	}
@@ -307,7 +286,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err != nil || !found || current.State != runrecord.LaneObligationSuperseded || current.Outcome != result {
 		t.Fatalf("after the inline lanes passed: %+v found=%v %v", current, found, err)
 	}
-	if debt, err := requireLaneObligationsResolved(repo, store); debt != nil || err != nil {
+	if debt, err := requireLaneObligationsResolved(t.Context(), repo, store); debt != nil || err != nil {
 		t.Fatalf("superseded obligation still blocks: debt=%v err=%v", debt, err)
 	}
 	deferring := &gateContext{repo: repo, store: store, paths: []string{"docs/plan.json", "internal/gate/run.go"}, preparation: lifecycle, deferredLanes: []string{"device", testDeviceCheckName}}
@@ -322,7 +301,7 @@ func TestDeferredLaneObligations(t *testing.T) {
 	if err != nil || current.State != runrecord.LaneObligationPending || !slices.Equal(current.Checks, []string{"device", testDeviceCheckName}) || deferring.laneObligation == nil || deferring.laneObligation.ID != current.ID {
 		t.Fatalf("recorded obligation: %+v %v", current, err)
 	}
-	if _, err := requireLaneObligationsResolved(repo, store); err == nil || !strings.Contains(err.Error(), "-lanes") {
-		t.Fatalf("new pending obligation without its runner: %v", err)
+	if debt, err := requireLaneObligationsResolved(t.Context(), repo, store); err != nil || debt == nil || debt.ID != current.ID {
+		t.Fatalf("new pending obligation without its runner: debt=%v err=%v", debt, err)
 	}
 }

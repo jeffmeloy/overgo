@@ -275,9 +275,9 @@ func (w *execWorld) awaitValidation() error {
 		w.validationDebt = laneFailure(w.stopStore, obligation)
 		return nil
 	}
-	if w.Paused() {
-		return nil
-	}
+	// A stop pauses new work; the lanes a landed commit owes finish it, so
+	// they run under a stop too, and a landing never reports ready with its
+	// lanes unrun.
 	out, err := runTool("go", "run", "./cmd/gate", "-lanes")
 	if err != nil {
 		// A recorded lane failure is work for the next repair invocation, not

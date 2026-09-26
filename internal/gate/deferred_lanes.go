@@ -85,31 +85,44 @@ func (g *gateContext) rewireDeferredLanes(definitions []automationcheck.Check) [
 }
 
 // requireLaneObligationsResolved admits a gate against the store's current
-// lane obligation: none or a resolved one admits; a failed one admits with
-// the debt returned so the gate runs its lanes inline; an open one refuses
-// until its runner finishes or is resumed.
-func requireLaneObligationsResolved(repo string, store *overgodb.Store) (*runrecord.GateLaneObligation, error) {
-	current, found, err := runrecord.CurrentGateLaneObligation(context.Background(), store)
+// lane obligation and never refuses on its bookkeeping: none or a resolved
+// one admits; a live runner is awaited on its own lock and its recorded
+// outcome read again; an open obligation no runner holds -- its runner was
+// ended before it recorded an outcome -- is debt like a failed one, so this
+// gate runs those lanes inline and supersedes it.
+func requireLaneObligationsResolved(ctx context.Context, repo string, store *overgodb.Store) (*runrecord.GateLaneObligation, error) {
+	current, found, err := runrecord.CurrentGateLaneObligation(ctx, store)
+	if err != nil {
+		return nil, fmt.Errorf("gate: resolve lane obligation: %w", err)
+	}
+	if !found || current.Resolved() || current.State == runrecord.LaneObligationFailed {
+		if !found || current.Resolved() {
+			return nil, nil
+		}
+		return &current, nil
+	}
+	path := filepath.Join(repo, filepath.FromSlash(gateLanesLockFile))
+	if err := processlock.EnsureStateDirectory(repo); err != nil {
+		return nil, err
+	}
+	// Held while a runner works: acquiring it waits for that runner, and
+	// holding it keeps a new one from starting while this gate decides.
+	guard, err := processlock.AcquireContext(ctx, path, gatePrivateFileMode)
+	if err != nil {
+		return nil, fmt.Errorf("gate: await lane runner: %w", err)
+	}
+	defer guard.Close()
+	if err := store.Refresh(ctx); err != nil {
+		return nil, err
+	}
+	current, found, err = runrecord.CurrentGateLaneObligation(ctx, store)
 	if err != nil {
 		return nil, fmt.Errorf("gate: resolve lane obligation: %w", err)
 	}
 	if !found || current.Resolved() {
 		return nil, nil
 	}
-	if current.State == runrecord.LaneObligationFailed {
-		return &current, nil
-	}
-	guard, err := acquireLaneRunner(repo)
-	if errors.Is(err, processlock.ErrBusy) {
-		return nil, fmt.Errorf("gate: deferred lanes of %.12s are still running (log %s); wait for them before another gate", current.CodeCommit, gateLanesLogFile)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("gate: inspect lane ownership: %w", err)
-	}
-	if err := guard.Close(); err != nil {
-		return nil, err
-	}
-	return nil, fmt.Errorf("gate: deferred lanes of %.12s did not finish; run `go run ./cmd/gate -lanes` before another gate", current.CodeCommit)
+	return &current, nil
 }
 
 // appendLaneObligation records the lanes a successful commit still owes in

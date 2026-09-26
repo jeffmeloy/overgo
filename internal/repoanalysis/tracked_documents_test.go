@@ -9,14 +9,13 @@ import (
 	"testing"
 )
 
-// TestTrackedDocumentsAreClassified holds every document at the repository
-// root and beneath docs -- tracked, or untracked and not ignored -- to one
-// reviewed family, and each family's kind to what was measured: a generated
-// document is handed to a file writer by the tool that names it, and every
-// document a person does not author is read by something -- a package, a test,
-// or a document that is itself read. A stray document fails here until a plan
-// row classifies it, and so does one that loses its last reader.
-func TestTrackedDocumentsAreClassified(t *testing.T) {
+// TestEveryTrackedFileHasAReader holds every document in the checkout --
+// tracked, or untracked and not ignored, wherever it is -- to a reader: a
+// package or test that names or embeds it, the tool that writes it, a read
+// document that names it, or being an entry document or license notice a
+// person opens. A stray document fails here, and so does one that loses its
+// last reader.
+func TestEveryTrackedFileHasAReader(t *testing.T) {
 	t.Parallel()
 	root := "../.."
 	snapshot, err := DiscoverGo(root, "internal", "cmd")
@@ -27,7 +26,7 @@ func TestTrackedDocumentsAreClassified(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	census, err := TrackedDocumentCensus(snapshot, documents, TrackedDocumentFamilies)
+	census, err := TrackedDocumentCensus(snapshot, documents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,14 +36,10 @@ func TestTrackedDocumentsAreClassified(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ValidateTrackedDocuments(census, TrackedDocumentFamilies); err != nil {
+	if err := ValidateTrackedDocuments(census); err != nil {
 		t.Fatal(err)
 	}
-	kinds := map[DocumentKind]int{}
-	for _, document := range census {
-		kinds[document.Family.Kind]++
-	}
-	t.Logf("documents=%d by kind: %v", len(census), kinds)
+	t.Logf("documents=%d all read", len(census))
 }
 
 // TestTrackedDocumentCensusFollowsTheName pins how a document's name reaches
@@ -53,11 +48,13 @@ func TestTrackedDocumentsAreClassified(t *testing.T) {
 // literal, through a package-level constant declared in another file, through
 // an imported package's constant, or through a local variable. Every other
 // naming is a read, a test's included: a test that opens a document reads it,
-// and what a test writes makes no writer. A name inside a longer file name, a
-// variable of another function, an import path and a classification of
-// documents name nothing, and a directory names what is beneath it only in
-// production source, which may walk it -- a test joins a directory to a file
-// name of its own, and the directory alone would pass off a stray as read.
+// and what a test writes makes no writer. A go:embed pattern reads what it
+// matches, and a test's bare word reads the document whose file name it is
+// without its extension. A name inside a longer file name, a variable of
+// another function and an import path name nothing, and a directory names
+// what is beneath it only in production source, which may walk it -- a test
+// joins a directory to a file name of its own, and the directory alone would
+// pass off a stray as read.
 func TestTrackedDocumentCensusFollowsTheName(t *testing.T) {
 	t.Parallel()
 	snapshot, err := SourceSnapshot{}.Overlay(map[string][]byte{
@@ -77,21 +74,26 @@ func other() { target := "docs/baseline.json"; _ = target }
 func stream(w io.Writer) { w.Write([]byte("see docs/notes.md")) ; load("docs/model_report.json") }
 `),
 		"internal/owner/owner.go":   []byte("package owner\nconst LedgerPath = \"docs/ledger.json\"\nfunc Load() { read(LedgerPath) }\n"),
-		"internal/reader/reader.go": []byte("package reader\nimport _ \"docs/imported.json\"\nvar pattern = \"docs/receipts/*.json\"\nvar samples = \"docs/samples\"\nvar families = []DocumentFamily{{\"docs/classified.json\", \"receipt\"}}\n"),
+		"internal/reader/reader.go": []byte("package reader\nimport _ \"docs/imported.json\"\nvar pattern = \"docs/receipts/*.json\"\nvar samples = \"docs/samples\"\n"),
 		"internal/reader/reader_test.go": []byte(`package reader
 import "os"
 func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("docs/tested.json"); join("docs/receipts", row.Name) }
 `),
+		"internal/policy/policy.go":            []byte("package policy\nimport _ \"embed\"\n//go:embed rules.json\nvar rules []byte\n"),
+		"internal/fixtures/fixtures_test.go":   []byte("package fixtures\nfunc TestBlocks(t *testing.T) { for _, name := range []string{\"resblock\", \"rope\"} { load(name + \".json\") } }\n"),
+		"internal/fixtures/stray_name_test.go": []byte("package fixtures\nvar _ = \"a sentence mentioning unused\"\n"),
+		"internal/production/production.go":    []byte("package production\nvar word = \"orphan\"\n"),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	documents := []string{
-		"docs/REPORT.md", "docs/baseline.json", "docs/classified.json", "docs/golden.json", "docs/imported.json",
+		"docs/REPORT.md", "docs/baseline.json", "docs/golden.json", "docs/imported.json",
 		"docs/ledger.json", "docs/model_report.json", "docs/notes.md", "docs/receipts/run.json", "docs/receipts/stray.txt", "docs/samples/a.png",
-		"docs/tested.json", "report.json",
+		"docs/tested.json", "fixtures/blocks/resblock.json", "fixtures/blocks/unused.json", "fixtures/orphan.json",
+		"internal/policy/rules.json", "report.json",
 	}
-	census, err := TrackedDocumentCensus(snapshot, documents, nil)
+	census, err := TrackedDocumentCensus(snapshot, documents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +104,6 @@ func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("
 	want := []string{
 		"docs/REPORT.md W=cmd/report R=",
 		"docs/baseline.json W= R=cmd/report",
-		"docs/classified.json W= R=",
 		"docs/golden.json W= R=internal/reader",
 		"docs/imported.json W= R=",
 		"docs/ledger.json W=cmd/report R=internal/owner",
@@ -112,6 +113,10 @@ func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("
 		"docs/receipts/stray.txt W= R=",
 		"docs/samples/a.png W= R=internal/reader",
 		"docs/tested.json W= R=internal/reader",
+		"fixtures/blocks/resblock.json W= R=internal/fixtures",
+		"fixtures/blocks/unused.json W= R=",
+		"fixtures/orphan.json W= R=",
+		"internal/policy/rules.json W= R=internal/policy",
 		"report.json W= R=",
 	}
 	if !slices.Equal(measured, want) {
@@ -120,49 +125,40 @@ func TestGolden(t *testing.T) { os.WriteFile("docs/golden.json", nil, 0); open("
 }
 
 // TestNoTrackedDocumentIsUnread holds the census to refusing a document that
-// nothing reads, whatever kind it is declared, and to seeing the reads source
-// syntax cannot: a specification a tool reads lists its evidence files, and
-// the tool then opens each one, so a document is read when a document that is
-// read names it -- by its repository path, or by its path from the naming
-// document's own directory, as a report writes a link. Reading is followed to
-// a fixed point and starts only from what is read: two documents that name
-// only each other are both unread. A name that is the tail of a longer file
-// name is no reference, a document a person authors needs no reader, and an
-// unclassified document, a generated one no tool writes and a family that
-// matches nothing are each refused.
+// nothing reads and to seeing the reads source syntax cannot: a specification
+// a tool reads lists its evidence files, and the tool then opens each one, so a
+// document is read when a document that is read names it -- by its repository
+// path, or by its path from the naming document's own directory, as a report
+// writes a link. Reading is followed to a fixed point and starts only from
+// what is read: two documents that name only each other are both unread. The
+// entry documents and the license notices need no reader; a work record such
+// as the plan names what a row will delete and keeps nothing; a name that is
+// the tail of a longer file name is no reference.
 func TestNoTrackedDocumentIsUnread(t *testing.T) {
 	t.Parallel()
 	texts := map[string]string{
-		"docs/spec.json":             `{"evidence_files": ["docs/runs/evidence.txt"]}`,
-		"docs/runs/evidence.txt":     "continued in nested.txt; unrelated: other_orphan.txt",
-		"docs/runs/nested.txt":       "end of the chain",
-		"docs/REPORT.md":             "see the [protocol](protocol.json)",
-		"docs/protocol.json":         "{}",
-		"docs/runs/orphan.txt":       "see docs/runs/twin.txt",
-		"docs/runs/twin.txt":         "see docs/runs/orphan.txt",
-		"docs/GUIDE.md":              "a person reads this",
-		"docs/unwritten_report.json": "{}",
-		"stray.json":                 "{}",
-	}
-	families := []DocumentFamily{
-		{"docs/spec.json", DocumentFixture}, {"docs/REPORT.md", DocumentGenerated}, {"docs/GUIDE.md", DocumentAuthored},
-		{"docs/unwritten_report.json", DocumentGenerated}, {"docs/", DocumentReceipt}, {"stale/", DocumentFixture},
+		"README.md":              "see the [guide](docs/GUIDE.md)",
+		"licenses/tool.txt":      "license terms",
+		"docs/plan.json":         `{"rationale": "delete docs/stale.md"}`,
+		"docs/stale.md":          "old notes",
+		"docs/spec.json":         `{"evidence_files": ["docs/runs/evidence.txt"]}`,
+		"docs/runs/evidence.txt": "continued in nested.txt; unrelated: other_orphan.txt",
+		"docs/runs/nested.txt":   "end of the chain",
+		"docs/REPORT.md":         "see the [protocol](protocol.json)",
+		"docs/protocol.json":     "{}",
+		"docs/runs/orphan.txt":   "see docs/runs/twin.txt",
+		"docs/runs/twin.txt":     "see docs/runs/orphan.txt",
+		"docs/GUIDE.md":          "a person reads this",
+		"stray.json":             "{}",
 	}
 	census := make([]TrackedDocument, 0, len(texts))
 	for document := range texts {
-		tracked := TrackedDocument{Path: document}
-		for _, family := range families {
-			if family.matches(document) {
-				tracked.Family = family
-				break
-			}
-		}
-		census = append(census, tracked)
+		census = append(census, TrackedDocument{Path: document})
 	}
 	slices.SortFunc(census, func(left, right TrackedDocument) int { return strings.Compare(left.Path, right.Path) })
 	for index := range census {
 		switch census[index].Path {
-		case "docs/spec.json", "docs/unwritten_report.json":
+		case "docs/spec.json", "docs/plan.json":
 			census[index].Readers = []string{"cmd/tool"}
 		case "docs/REPORT.md":
 			census[index].Writers = []string{"cmd/tool"}
@@ -173,16 +169,15 @@ func TestNoTrackedDocumentIsUnread(t *testing.T) {
 		t.Fatal(err)
 	}
 	var refused []string
-	for _, finding := range unwrapFindings(ValidateTrackedDocuments(census, families)) {
+	for _, finding := range unwrapFindings(ValidateTrackedDocuments(census)) {
 		refused = append(refused, finding.Error())
 	}
 	slices.Sort(refused)
 	want := []string{
-		"document family stale/ matches no tracked document",
-		"tracked document docs/runs/orphan.txt is declared receipt and nothing reads it",
-		"tracked document docs/runs/twin.txt is declared receipt and nothing reads it",
-		"tracked document docs/unwritten_report.json is declared generated and no package that names it writes a file",
-		"tracked document stray.json belongs to no family",
+		"tracked document docs/runs/orphan.txt has no reader",
+		"tracked document docs/runs/twin.txt has no reader",
+		"tracked document docs/stale.md has no reader",
+		"tracked document stray.json has no reader",
 	}
 	if len(refused) != len(want) {
 		t.Fatalf("findings:\n%s\nwant:\n%s", strings.Join(refused, "\n"), strings.Join(want, "\n"))

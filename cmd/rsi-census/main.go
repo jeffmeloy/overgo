@@ -72,7 +72,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	documents, err := repoanalysis.TrackedDocumentCensus(snapshot, tracked, repoanalysis.TrackedDocumentFamilies)
+	documents, err := repoanalysis.TrackedDocumentCensus(snapshot, tracked)
 	if err != nil {
 		return err
 	}
@@ -80,11 +80,11 @@ func run() error {
 		return err
 	}
 	for _, tracked := range documents {
-		if kind := tracked.Family.Kind; kind == repoanalysis.DocumentGenerated {
-			fmt.Printf("document %s %s writers=%v readers=%v referenced_by=%d\n", kind, tracked.Path, tracked.Writers, tracked.Readers, len(tracked.ReferencedBy))
+		if len(tracked.Writers) != 0 {
+			fmt.Printf("document generated %s writers=%v readers=%v referenced_by=%d\n", tracked.Path, tracked.Writers, tracked.Readers, len(tracked.ReferencedBy))
 		}
 	}
-	if err := repoanalysis.ValidateTrackedDocuments(documents, repoanalysis.TrackedDocumentFamilies); err != nil {
+	if err := repoanalysis.ValidateTrackedDocuments(documents); err != nil {
 		return err
 	}
 	document := struct {

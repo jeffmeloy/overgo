@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,49 +18,37 @@ import (
 )
 
 // The tracked document census answers, for every document the repository
-// tracks beside its source, why it is tracked: which production packages name
-// it, which of them write it, which documents name it in their own text, and
-// which family of documents it belongs to. Both namings are measured -- from
+// tracks, why it is tracked: which packages name it, embed it or write it, and
+// which documents name it in their own text. Both namings are measured -- from
 // syntax, and from the text of the documents -- and neither alone is enough: a
 // specification that lists its evidence files is read by a tool that then
-// opens each one, and no source literal ever names them. The family's kind is
-// a reviewed judgement, and the census holds it to the measurement, so a
-// document nothing reads cannot pass as an input and a new document cannot
-// arrive unclassified.
+// opens each one, and no source literal ever names them. A document is kept
+// only by what is measured, never by a classification of it: one that nothing
+// reads cannot pass as kept, so no ledger of documents is needed.
 
-// DocumentKind says why a family of documents is tracked.
-type DocumentKind string
-
-const (
-	// DocumentAuthored is written by a person and reviewed in diffs.
-	DocumentAuthored DocumentKind = "authored"
-	// DocumentBaseline is a ratchet's reviewed threshold.
-	DocumentBaseline DocumentKind = "baseline"
-	// DocumentGenerated is rewritten by a tool from state held elsewhere.
-	DocumentGenerated DocumentKind = "generated"
-	// DocumentReceipt is the evidence of one run, written once.
-	DocumentReceipt DocumentKind = "receipt"
-	// DocumentFixture is an input a tool or a test consumes.
-	DocumentFixture DocumentKind = "fixture"
-)
-
-// DocumentFamily classifies the documents its pattern matches. A pattern that
-// ends in a slash matches everything beneath that directory; any other is a
-// path.Match pattern over the whole repository-relative path.
-type DocumentFamily struct {
-	Pattern string       `json:"pattern"`
-	Kind    DocumentKind `json:"kind"`
-}
-
-// TrackedDocument is one document's measured naming and declared family.
+// TrackedDocument is one document's measured naming.
 type TrackedDocument struct {
-	Path    string         `json:"path"`
-	Family  DocumentFamily `json:"family,omitzero"`
-	Writers []string       `json:"writers,omitempty"`
-	Readers []string       `json:"readers,omitempty"`
+	Path    string   `json:"path"`
+	Writers []string `json:"writers,omitempty"`
+	Readers []string `json:"readers,omitempty"`
 	// ReferencedBy are the documents whose text names this one.
 	ReferencedBy []string `json:"referenced_by,omitempty"`
 }
+
+// entryDocuments are the documents a person opens first, which no tool reads:
+// the repository's own description, its agent instructions, its security
+// policy, and the license notices beneath licensesRoot that its terms keep.
+var entryDocuments = []string{"README.md", "skill.md", "SECURITY.md"}
+
+// licensesRoot holds the license notices the repository carries.
+const licensesRoot = "licenses/"
+
+// workRecords name documents they are about -- ones a row will delete among
+// them -- without reading any, so their text keeps nothing.
+var workRecords = []string{"docs/plan.json", "docs/sqa_findings.json", "docs/api_manifest.json"}
+
+// embedDirective opens a go:embed line; the patterns after it are read.
+const embedDirective = "//go:embed "
 
 // fileWriterCalls are the lower-case prefixes of a function that puts a file
 // on disk, whichever package owns it: a call counts only when its arguments
@@ -69,46 +59,54 @@ var fileWriterCalls = []string{"write", "create", "openfile", "replace", "compar
 // every document is beneath it, so a walk of it reads no one of them.
 const documentsRoot = "docs"
 
-// familyTypeName is the element type of a classification of documents.
-const familyTypeName = "DocumentFamily"
-
 // modulePrefix turns an import path of this module into a package directory.
 const modulePrefix = "overgo/"
 
 // fileNameRunes are the characters a file name continues through.
 const fileNameRunes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-."
 
-// TrackedDocumentCensus measures which production packages name each document
-// and classifies it by the first family that matches. The first family wins,
-// so a specific pattern is listed before the general one that contains it.
-func TrackedDocumentCensus(snapshot SourceSnapshot, documents []string, families []DocumentFamily) ([]TrackedDocument, error) {
+// TrackedDocumentCensus measures which packages name, embed or write each
+// document.
+func TrackedDocumentCensus(snapshot SourceSnapshot, documents []string) ([]TrackedDocument, error) {
 	census := make([]TrackedDocument, len(documents))
 	for index, document := range documents {
 		census[index].Path = document
-		for _, family := range families {
-			if family.matches(document) {
-				census[index].Family = family
-				break
-			}
-		}
 	}
 	// A test that opens a document reads it as surely as a tool does, so its
 	// literals name documents; it is never the tool that generates one, so
 	// what it writes -- a golden file it refreshes -- makes no writer. A test
 	// names a file or a pattern, never a directory: it joins a directory to a
 	// file name from its own table, the file name is what it reads, and the
-	// directory alone would pass off every stray beneath it as read.
-	packages, literals := map[string][]*ast.File{}, map[string][]string{}
+	// directory alone would pass off every stray beneath it as read. A test's
+	// bare word names the document whose file name it is without the
+	// extension, the stem a fixture table joins to one. A go:embed pattern
+	// reads what it matches, relative to its package.
+	packages, literals, stems := map[string][]*ast.File{}, map[string][]string{}, map[string]map[string]bool{}
 	for _, file := range snapshot.Files {
 		syntax, err := file.Syntax()
 		if err != nil {
 			return nil, err
 		}
 		pkg, names := path.Dir(file.Path), stringLiterals(syntax)
+		for _, group := range syntax.Comments {
+			for _, comment := range group.List {
+				if patterns, found := strings.CutPrefix(comment.Text, embedDirective); found {
+					for pattern := range strings.FieldsSeq(patterns) {
+						names = append(names, path.Join(pkg, pattern))
+					}
+				}
+			}
+		}
 		if file.Test {
 			names = slices.DeleteFunc(names, func(name string) bool {
 				return path.Ext(name) == "" && !strings.ContainsRune(name, '*')
 			})
+			if stems[pkg] == nil {
+				stems[pkg] = map[string]bool{}
+			}
+			for _, word := range bareWords(syntax) {
+				stems[pkg][word] = true
+			}
 		} else {
 			packages[pkg] = append(packages[pkg], syntax)
 		}
@@ -121,11 +119,12 @@ func TrackedDocumentCensus(snapshot SourceSnapshot, documents []string, families
 			written = append(written, writtenNames(pkg, syntax, constants)...)
 		}
 		for index := range census {
-			names := func(name string) bool { return namesDocument(name, census[index].Path) }
+			document := census[index].Path
+			names := func(name string) bool { return namesDocument(name, document) }
 			switch {
 			case slices.ContainsFunc(written, names):
 				census[index].Writers = append(census[index].Writers, pkg)
-			case slices.ContainsFunc(named, names):
+			case slices.ContainsFunc(named, names) || stems[pkg][strings.TrimSuffix(path.Base(document), path.Ext(document))]:
 				census[index].Readers = append(census[index].Readers, pkg)
 			}
 		}
@@ -137,12 +136,19 @@ func TrackedDocumentCensus(snapshot SourceSnapshot, documents []string, families
 	return census, nil
 }
 
-func (f DocumentFamily) matches(document string) bool {
-	if strings.HasSuffix(f.Pattern, "/") {
-		return strings.HasPrefix(document, f.Pattern)
-	}
-	matched, err := path.Match(f.Pattern, document)
-	return err == nil && matched
+// bareWords returns the string literals beneath node that carry no path
+// separator or extension: in a test, the file stems a fixture table joins to
+// a directory and an extension.
+func bareWords(node ast.Node) (words []string) {
+	ast.Inspect(node, func(node ast.Node) bool {
+		if literal, isLiteral := node.(*ast.BasicLit); isLiteral && literal.Kind == token.STRING {
+			if value, err := strconv.Unquote(literal.Value); err == nil && value != "" && !strings.ContainsAny(value, "./ ") {
+				words = append(words, value)
+			}
+		}
+		return true
+	})
+	return words
 }
 
 // stringLiterals returns the string literals beneath node that could name a
@@ -152,13 +158,6 @@ func stringLiterals(node ast.Node) (names []string) {
 		switch typed := node.(type) {
 		case *ast.ImportSpec:
 			return false
-		case *ast.CompositeLit:
-			// A classification names documents without reading them.
-			if list, isList := typed.Type.(*ast.ArrayType); isList {
-				if element, isIdent := list.Elt.(*ast.Ident); isIdent && element.Name == familyTypeName {
-					return false
-				}
-			}
 		case *ast.BasicLit:
 			if value, err := strconv.Unquote(typed.Value); typed.Kind == token.STRING && err == nil && strings.ContainsAny(value, "./") {
 				names = append(names, value)
@@ -336,9 +335,9 @@ func DocumentReferences(census []TrackedDocument, read func(document string) ([]
 	return nil
 }
 
-// liveDocuments returns the documents something reads: one a production
-// package names, one a person reads, and -- to a fixed point -- one that a
-// live document names.
+// liveDocuments returns the documents something reads: an entry document or a
+// license notice a person opens, one a package names, embeds or writes, and --
+// to a fixed point -- one that a live document other than a work record names.
 func liveDocuments(census []TrackedDocument) map[string]bool {
 	live := map[string]bool{}
 	for grew := true; grew; {
@@ -347,8 +346,11 @@ func liveDocuments(census []TrackedDocument) map[string]bool {
 			if live[document.Path] {
 				continue
 			}
-			if len(document.Writers)+len(document.Readers) > 0 || document.Family.Kind == DocumentAuthored ||
-				slices.ContainsFunc(document.ReferencedBy, func(referrer string) bool { return live[referrer] }) {
+			if slices.Contains(entryDocuments, document.Path) || strings.HasPrefix(document.Path, licensesRoot) ||
+				len(document.Writers)+len(document.Readers) > 0 ||
+				slices.ContainsFunc(document.ReferencedBy, func(referrer string) bool {
+					return live[referrer] && !slices.Contains(workRecords, referrer)
+				}) {
 				live[document.Path], grew = true, true
 			}
 		}
@@ -356,76 +358,25 @@ func liveDocuments(census []TrackedDocument) map[string]bool {
 	return live
 }
 
-// ValidateTrackedDocuments holds each document's declared family to what was
-// measured, and the families to the documents: none unclassified, none stale.
-func ValidateTrackedDocuments(census []TrackedDocument, families []DocumentFamily) error {
+// ValidateTrackedDocuments refuses every tracked document nothing reads.
+func ValidateTrackedDocuments(census []TrackedDocument) error {
 	var findings []error
-	matched := map[DocumentFamily]bool{}
 	live := liveDocuments(census)
 	for _, document := range census {
-		matched[document.Family] = true
-		switch kind := document.Family.Kind; {
-		case kind == "":
-			findings = append(findings, fmt.Errorf("tracked document %s belongs to no family: a document enters through a plan row that classifies it", document.Path))
-		case kind == DocumentGenerated && len(document.Writers) == 0:
-			findings = append(findings, fmt.Errorf("tracked document %s is declared generated and no package that names it writes a file", document.Path))
-		case !live[document.Path]:
-			findings = append(findings, fmt.Errorf("tracked document %s is declared %s and nothing reads it: no package, no test and no document that is read names it; give it a reader or delete it", document.Path, kind))
-		}
-	}
-	for _, family := range families {
-		if !matched[family] {
-			findings = append(findings, fmt.Errorf("document family %s matches no tracked document", family.Pattern))
+		if !live[document.Path] {
+			findings = append(findings, fmt.Errorf("tracked document %s has no reader: no package, test, embed or read document names it; give it a reader or delete it", document.Path))
 		}
 	}
 	return errors.Join(findings...)
-}
-
-// TrackedDocumentFamilies is the reviewed classification of every document
-// tracked at the repository root and beneath docs. The first match wins, so a
-// document named exactly stands before the pattern that would also take it.
-var TrackedDocumentFamilies = []DocumentFamily{
-	{"README.md", DocumentAuthored},
-	{"SECURITY.md", DocumentAuthored},
-	{"skill.md", DocumentAuthored},
-	{"compatibility.json", DocumentAuthored},
-	{"library_validation.json", DocumentAuthored},
-	{"media_policy.json", DocumentAuthored},
-	{"resource_policy.json", DocumentAuthored},
-	{"SBOM.cdx.json", DocumentGenerated},
-	{"docs/plan.json", DocumentAuthored},
-	{"docs/COLIBRI2_REVIEW.md", DocumentAuthored},
-	{"docs/training_routes.json", DocumentAuthored},
-	{"docs/OVERGODB_IMPORT.md", DocumentAuthored},
-	{"docs/gui/", DocumentAuthored},
-	{"docs/assets/", DocumentAuthored},
-	{"docs/image_video_protocol.json", DocumentFixture},
-	{"docs/image_video_validation.json", DocumentFixture},
-	{"docs/image_video_assertions.json", DocumentFixture},
-	{"docs/image_video_*.json", DocumentReceipt},
-	{"docs/media_reviewed_deltas.json", DocumentReceipt},
-	{"docs/*_baseline.json", DocumentBaseline},
-	{"docs/structure_budgets.json", DocumentBaseline},
-	{"docs/staged_surface.json", DocumentBaseline},
-	{"docs/published_debt.json", DocumentBaseline},
-	{"docs/plan_proof_horizon.json", DocumentBaseline},
-	{"docs/*.md", DocumentGenerated},
-	{"docs/*.json", DocumentGenerated},
-	{"docs/media_samples/", DocumentReceipt},
-	{"docs/verification/smoke-oracles.json", DocumentFixture},
-	{"docs/verification/wan-dit-training-stimulus.txt", DocumentFixture},
-	{"docs/verification/rxbrain-mot-training-stimulus.txt", DocumentFixture},
-	{"docs/verification/e4b-validation.md", DocumentAuthored},
-	{"docs/verification/", DocumentReceipt},
 }
 
 // documentPathspecs select what the census covers: documents by their
 // extension wherever they are, and everything beneath docs whatever it is.
 var documentPathspecs = []string{"*.json", "*.md", "*.txt", "*.jsonl", documentsRoot}
 
-// TrackedDocuments lists the documents of the checkout at root, at the
-// repository root and beneath docs: what git tracks and what it would track if
-// added, so a stray document is measured before it is committed.
+// TrackedDocuments lists the documents of the checkout at root: what git
+// tracks and what it would track if added, so a stray document is measured
+// before it is committed.
 func TrackedDocuments(ctx context.Context, root string) ([]string, error) {
 	var output, failure bytes.Buffer
 	receipt, err := processcontrol.Run(ctx, processcontrol.Command{
@@ -438,11 +389,14 @@ func TrackedDocuments(ctx context.Context, root string) ([]string, error) {
 	if receipt.ExitCode != 0 {
 		return nil, fmt.Errorf("tracked documents: git ls-files: exit=%d: %s", receipt.ExitCode, strings.TrimSpace(failure.String()))
 	}
+	// The index still lists a document the checkout has deleted and not yet
+	// committed; the census measures what the checkout holds.
 	var documents []string
 	for line := range strings.Lines(output.String()) {
-		document := strings.TrimSpace(line)
-		if directory := path.Dir(document); directory == "." || directory == documentsRoot || strings.HasPrefix(directory, documentsRoot+"/") {
-			documents = append(documents, document)
+		if document := strings.TrimSpace(line); document != "" {
+			if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(document))); err == nil {
+				documents = append(documents, document)
+			}
 		}
 	}
 	slices.Sort(documents)

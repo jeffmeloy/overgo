@@ -4,21 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "tracked-files-need-readers",
-      "title": "Refuse a tracked document or fixture that nothing reads",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Refuse a tracked document or fixture that nothing reads",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestEveryTrackedFileHasAReader$' -count=1",
-          "rationale": "File consolidation first, since it makes the rest enforceable (owner priority 2026-09-26: git tracks only what a person authors plus test fixtures; enforce by construction). An audit of the 296 tracked .md and .json files found 17 orphans nothing reads, links or pins (four qwen-twentyseven diagnostics, COLIBRI2_REVIEW.md, docs/gui/INTEGRATION.md, e4b-validation.md, eight unreferenced fixtures including the superseded carbon_golden and minicpm5_golden, and probably audioparity's firered_stream_vad_execution recipe). The document census missed them because it credits every file under a globbed directory as read and covers only the root and docs/. Make the census name each file's reader -- an embed, an exact path, a digest pin, a link from a human document, or a glob whose consumer keeps the file -- across docs/, fixtures/ and testdata, and delete what it then refuses. The same reader map is the selection index for non-prose documents: a changed file with named readers already selects only them (attributeNamedDocuments); an opaque reader (a package reading a path its source does not name, 197 today) must name its inputs instead of binding to every file. The prose selection fix is its own row, selection-prose-per-path. Done when TestEveryTrackedFileHasAReader refuses a tracked file with no reader and the orphans are gone."
-        }
-      ]
-    },
-    {
       "id": "ratchets-one-document",
       "title": "Hold the gate's ratchets and baselines in one document",
       "class": "consolidation",

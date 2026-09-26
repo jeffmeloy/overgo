@@ -362,21 +362,6 @@
       ]
     },
     {
-      "id": "retire-unreferenced-commands",
-      "title": "Declare a caller for every command",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Declare a caller for every command",
-          "status": "open",
-          "verify": "go test ./internal/commanddoc -run '^TestEveryCommandHasACaller$' -count=1",
-          "rationale": "Declare a caller for every command, owner directive 2026-09-24: a command nothing refers to is not deleted. From consolidation-inventory: 20 cmd/ commands have no reference in code, docs, scripts or the plan (seam-align, audio-inspect, latentvideo-run, mechanism-census, coverage-lanes, buildscrub, hf-hub, activation-cases, inspect-safetensors, dataset-catalog, remote-provider, sealed-authority, tool-workflow, model-config, router-observation, model-build, profile-catalog, rerank). Record each one's audience and purpose in commanddoc. Wire the training and model ones where their workflow starts: dataset-catalog behind wire-dataset-mixture, and model-build, hf-hub and latentvideo-run from the model onboarding and run paths. Delete only a command a named wired command supersedes. Done when TestEveryCommandHasACaller holds."
-        }
-      ]
-    },
-    {
       "id": "heldout-generation-slice",
       "title": "Judge text generation objectives on held-out text targets",
       "owner": "master-lead",
@@ -492,7 +477,7 @@
           "title": "Declare storage class and retention on the document contract",
           "status": "open",
           "verify": "go test ./internal/overgodb -run '^TestStoragePolicyIsDeclaredOnContracts$' -count=1",
-          "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy."
+          "rationale": "Storage classes are chosen by schema-name substrings (heartbeat, wakeup, poll, partial-output, liveness in storage_classes.go:34), a parallel registry that drifts from the contracts. Declare storage class, retention and publication owner beside each document contract, and delete the substring list. Retention separates required acceptance and recovery evidence from replaceable summaries and diagnostic detail, derives reports from retained results, and keeps explicit roots for outstanding work. Backup pruning stays operator policy. Measured 2026-09-26: declaring the class beside each document contract edits internal/artifact, which is on the inference surface, so the landing expires every model's long-form guard record; batch it with the next guard re-acquisition."
         }
       ]
     },

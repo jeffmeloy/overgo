@@ -21,17 +21,17 @@
     },
     {
       "id": "verification-specs-into-compatibility",
-      "title": "Fold the per-model verification specs into compatibility.json and their run logs into the store",
+      "title": "Fold the per-model verification specs into compatibility.json (declined; owner to retire)",
       "class": "consolidation",
       "owner": "master-lead",
       "status": "open",
       "steps": [
         {
           "id": "do",
-          "title": "Fold the per-model verification specs into compatibility.json and their run logs into the store",
+          "title": "Fold the per-model verification specs into compatibility.json (declined; owner to retire)",
           "status": "open",
           "verify": "go test ./cmd/compatibility -run '^TestModelClaimsLiveInCompatibility$' -count=1",
-          "rationale": " File consolidation (owner priority 2026-09-26). docs/verification holds about 60 per-model spec JSONs (inference, -training and external-benchmark specs per model) and 58 run logs pinned by digest; compatibility -record-verification already copies the evidence into the store (cmd/compatibility/main.go ground()). Fold each model's claims into compatibility.json, which already holds the capability contracts, and keep the run logs and request inputs only in the store under their recorded identities; the four qwen-twentyseven diagnostics with no claims and no pin go. Done when TestModelClaimsLiveInCompatibility finds every model claim in compatibility.json and docs/verification empty."
+          "rationale": "Declined 2026-09-26 after mapping the readers; kept open only because a committed row leaves the plan by landing, so the owner decides whether to retire it. Model claims cannot move into compatibility.json: its models section is keyed by architecture prototype and must equal model.SupportedArchitectures() exactly (cmd/compatibility/main.go:613-641), its claims need a failable test command, and refreshEvidenceIdentities byte-patches the file. The run logs are live inputs, not only records: compatibility -check requires each training claim's local evidence file (training.go:127), the DiT and MoT probes default to the stimulus texts, and one log is reachable only through a stimulus. Folding them into the store would move checks from the tree to a store the gate candidate does not hold. What did shrink landed as verification-unread-removed. The tiered-support direction (a support tier per model instead of per-model proof files) is the better route to fewer verification files, filed separately if the owner adopts it."
         }
       ]
     },
@@ -1252,7 +1252,8 @@
             "ratchets-one-document/do",
             "tracked-files-need-readers/do",
             "selection-prose-per-path/do",
-            "ratchet-ledgers-retired/do"
+            "ratchet-ledgers-retired/do",
+            "verification-unread-removed/do"
           ]
         }
       ]

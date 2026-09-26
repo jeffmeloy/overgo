@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-remote",
-      "title": "Behaviour tests, stage 7e: a browser leg drives a hosted provider's turns (the remote tag, the remote marker on a turn, and the provider's usage), retiring the remote turn needles",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 7e: a browser leg drives a hosted provider's turns (the remote tag, the remote marker on a turn, and the provider's usage), retiring the remote turn needles",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserRemoteTurns$' -leg 'remote turns leg'",
-          "rationale": "Stage 7 split 2026-09-25 by fixture: a survey of the eleven front-page needle tests found each needle's behaviour either driven by an existing leg (those needles go in the row that retires the test) or driven by no hermetic leg, and the gaps group by the fixture they need. Remote group over the relay generator (it sets the process environment, so the leg runs serially): the remote tag in the picker, the remote marker on a turn, and the provider's own usage where the count route refuses. Retires TestFrontPageRemoteTurns."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-library",
       "title": "Behaviour tests, stage 7f: a browser leg drives dataset onboarding in the library (a downloaded dataset registered and previewed, validation offered only once registered), retiring the library needles",
       "owner": "overgo_gui_cleanup",

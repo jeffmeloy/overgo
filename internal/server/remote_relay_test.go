@@ -44,12 +44,12 @@ func newRelayGenerator(t *testing.T, pieces []string) (*remoterelay.Generator, r
 	return generator, environment, received
 }
 
-// TestResponsesRelayStoresInteraction: repository-backed handler stores a
-// relayed response's interaction (relay description carries the relay
-// node's interaction scope); the front page's remote turns depend on it.
-func TestResponsesRelayStoresInteraction(t *testing.T) {
-	// Serial: a helper it calls sets the process environment.
-	generator, environment, _ := newRelayGenerator(t, []string{"Hello"})
+// newRelayHandler: a repository-backed handler serving the relay over a
+// fake provider answering pieces, with the served recipe declared in its
+// store; the handler and store close with the test.
+func newRelayHandler(t *testing.T, pieces []string) (*Handler, *overgodb.Store) {
+	t.Helper()
+	generator, environment, _ := newRelayGenerator(t, pieces)
 	policy, supported, err := modelrecipe.CatalogRuntimePolicy(recipe.TaskInference)
 	if err != nil || !supported {
 		t.Fatalf("inference runtime policy = %v supported=%v", err, supported)
@@ -76,7 +76,16 @@ func TestResponsesRelayStoresInteraction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer handler.Close()
+	t.Cleanup(func() { _ = handler.Close() })
+	return handler, repository
+}
+
+// TestResponsesRelayStoresInteraction: repository-backed handler stores a
+// relayed response's interaction (relay description carries the relay
+// node's interaction scope); the front page's remote turns depend on it.
+func TestResponsesRelayStoresInteraction(t *testing.T) {
+	// Serial: a helper it calls sets the process environment.
+	handler, repository := newRelayHandler(t, []string{"Hello"})
 	response := serveTestRequest(handler, http.MethodPost, "/v1/responses", `{"model":"`+testModelID+`","input":"hi","max_output_tokens":4}`)
 	var stored struct {
 		ID string `json:"id"`
@@ -138,27 +147,5 @@ func TestChatCompletionsRelayToRemoteProvider(t *testing.T) {
 	manifest := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
 	if manifest.Code != http.StatusOK || !strings.Contains(manifest.Body.String(), `"remote":true`) {
 		t.Fatalf("manifest status=%d body=%s", manifest.Code, manifest.Body.String())
-	}
-}
-
-// TestFrontPageRemoteTurns: page remote marks (picker entry, welcome card,
-// assistant turns) + turn proceeds when the count route refuses (provider
-// tokenizes).
-func TestFrontPageRemoteTurns(t *testing.T) {
-	t.Parallel()
-	handler := newTestHandlerWithRepository(t, responseRecipeGenerator(t, &fakeGenerator{}))
-	defer handler.Close()
-	get := func(path string) string { return serveTestRequest(handler, http.MethodGet, path, "").Body.String() }
-	if boot := get("/boot.js"); !strings.Contains(boot, `startsWith("remote://")`) || !strings.Contains(boot, `text: "remote"`) {
-		t.Error("the picker does not mark remote entries")
-	}
-	if composer := get("/composer.js"); !strings.Contains(composer, "options.marker") {
-		t.Error("the thread renders no turn marker")
-	}
-	chat := get("/mod/chat.js")
-	for _, needle := range []string{`marker: capabilities.remote ? "remote" : ""`, `.catch(() => null)`, `count ? count.input_tokens : null`, `usage.prompt_tokens`} {
-		if !strings.Contains(chat, needle) {
-			t.Errorf("the chat page lacks %q", needle)
-		}
 	}
 }

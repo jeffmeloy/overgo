@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-training-preview",
-      "title": "Show a dataset record as the trainer sees it: rendered through the model's chat template and tokenizer, trained and masked tokens marked, records paged, with the token-length distribution",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Show a dataset record as the trainer sees it: rendered through the model's chat template and tokenizer, trained and masked tokens marked, records paged, with the token-length distribution",
-          "status": "open",
-          "verify": "test -f internal/server/training_preview_test.go \u0026\u0026 go test ./internal/server -run '^TestDatasetPreviewShowsTrainedTokens$' -count=1 \u0026\u0026 go run ./cmd/webui-lane -run '^TestWebUIBrowser(TrainingPreview|LayoutAudit)$' -leg 'training preview leg'",
-          "rationale": "LlamaFactory review 2026-09-25: it previews dataset rows; the dataset page shows one record. The preview renders a record through the served model's chat template and tokenizer, marks the tokens the objective trains and the prompt tokens it masks, pages records, and draws the token-length distribution, reusing the vocabulary analysis rather than a second tokenizer view."
-        }
-      ]
-    },
-    {
       "id": "gui-chat-sessions",
       "title": "Continue a stopped or resumed conversation exactly: keep the decoded tokens in the prompt cache, store each turn's token context, and continue after Stop with the tokens an uninterrupted greedy run produces, without re-prefill",
       "owner": "overgo_gui_cleanup",
@@ -523,6 +508,10 @@
     {
       "key": "surface-move:production-nodes:490d85f6260422ba9139cd21efdfb2295950a066",
       "reason": "two production nodes: the lane role constant re-exported by the plan and the census alias re-exported by the scanner, declared through the harness paydown row when the landing was budgeted"
+    },
+    {
+      "key": "surface-move:production-nodes:4b6c0b37294496119a717c1dc5907d86aea5a382",
+      "row": "harness-trend-paydown"
     },
     {
       "key": "surface-move:production-nodes:4e87eb1e0a20f326a18e5e7f4cc95eec7b5357ad",

@@ -114,7 +114,41 @@ type WorkflowWorkspaceAPI interface {
 	ExecuteWorkflow(context.Context, WorkflowKind, recipe.Task, artifact.ID, json.RawMessage, operation.Reporter) (operation.Completion, error)
 }
 
+// WorkflowPreviewAPI is a workflow workspace that shows one page of a run's
+// input as the run would read it, before any run.
+type WorkflowPreviewAPI interface {
+	PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error)
+}
+
 type WorkflowWorkspaceSet []WorkflowWorkspaceAPI
+
+// PreviewWorkflow asks the workspace that admits the task and recipe.
+func (set WorkflowWorkspaceSet) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+	for _, workspace := range set {
+		capabilities, err := workspace.WorkflowCapabilities(ctx, kind)
+		if err != nil {
+			return nil, err
+		}
+		if _, err = selectWorkflowCapability(capabilities, task, recipeID); err != nil {
+			continue
+		}
+		return PreviewWorkflowIn(ctx, workspace, kind, task, recipeID, raw, position, limit)
+	}
+	return nil, errors.New("workflow workspace: task and recipe are not admitted")
+}
+
+// errWorkflowPreviewUnavailable: the workflow reads its input only when it runs.
+var errWorkflowPreviewUnavailable = errors.New("workflow workspace: this workflow has no input preview")
+
+// PreviewWorkflowIn asks a workspace for a preview, as a runtime that wraps
+// its workspaces forwards it.
+func PreviewWorkflowIn(ctx context.Context, workspace WorkflowWorkspaceAPI, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+	previewer, ok := workspace.(WorkflowPreviewAPI)
+	if !ok {
+		return nil, errWorkflowPreviewUnavailable
+	}
+	return previewer.PreviewWorkflow(ctx, kind, task, recipeID, raw, position, limit)
+}
 
 func failWorkflow(ctx context.Context, store artifact.Repository, recipeID artifact.ID, inputs []artifact.ID, failure string, cause error) (operation.Completion, error) {
 	outcome := runrecord.OutcomeFailed
@@ -270,6 +304,37 @@ func (h *Handler) workflowRun(workspace WorkflowWorkspaceAPI, response http.Resp
 		return
 	}
 	writeJSON(response, http.StatusAccepted, workflowResponse{Operation: id})
+}
+
+type workflowPreviewRequest struct {
+	Task     recipe.Task     `json:"task"`
+	Recipe   artifact.ID     `json:"recipe"`
+	Input    json.RawMessage `json:"input"`
+	Position int             `json:"position"`
+	Limit    int             `json:"limit"`
+}
+
+// workflowPreview answers one page of a run's input as the workflow reads it;
+// the input need hold only what the preview reads.
+func (h *Handler) workflowPreview(workspace WorkflowWorkspaceAPI, response http.ResponseWriter, request *http.Request, kind WorkflowKind) {
+	var body workflowPreviewRequest
+	if !h.decodeBoundedJSON(response, request, &body) {
+		return
+	}
+	if body.Position < 0 || body.Limit <= 0 || body.Limit > h.config.MaxStoredResponses {
+		writeInvalidRequestMessage(response, "invalid workflow preview page")
+		return
+	}
+	preview, err := PreviewWorkflowIn(request.Context(), workspace, kind, body.Task, body.Recipe, body.Input, body.Position, body.Limit)
+	if errors.Is(err, errWorkflowPreviewUnavailable) {
+		writeError(response, http.StatusNotImplemented, errorCodeUnsupportedOperation, err.Error())
+		return
+	}
+	if err != nil {
+		writeInvalidRequest(response, err)
+		return
+	}
+	writeJSON(response, http.StatusOK, preview)
 }
 
 func (h *Handler) submitWorkflow(

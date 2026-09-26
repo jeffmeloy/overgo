@@ -225,12 +225,14 @@
         const trends = el("div");
         const metrics = el("div");
         const evidence = el("div");
+        // previewHost: the run's input as the workflow reads it, when the tab declares a preview.
+        const previewHost = el("div");
         const run = el("button", { class: "btn", text: "Run" });
         const cancel = el("button", { class: "btn alt", text: "Cancel", hidden: true });
         // The task first, then its inputs, then the action that runs them.
         panel.append(
           el("div", { class: "section-title", text: overgo.title }),
-          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls,
+          el("label", { class: "control" }, el("span", { text: "Task and model" }), capabilitySelect), controls, previewHost,
           el("div", { class: "row" }, run, cancel), status,
           el("div", { class: "row" }, progress, remaining), trends, metrics, evidence);
 
@@ -250,6 +252,7 @@
         function renderControls() { const capability = selected(); fields = overgo.controlInputs(controls, capability ? capability.controls : []); }
         capabilitySelect.addEventListener("change", renderControls);
         renderControls();
+        if (definition.preview) definition.preview(previewHost, () => ({ task: selected().task, recipe: selected().recipe, input: overgo.controlValues(fields).input }), overgo);
 
         let operation = null;
         cancel.addEventListener("click", async () => {

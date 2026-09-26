@@ -109,7 +109,8 @@ func newDPOTrainingFixture(t *testing.T) dpoTrainingFixture {
 	referencePath := filepath.Join(roots.Models, "reference")
 	policy := writeWorkspaceModel(t, policyPath, weights, shapes)
 	reference := writeWorkspaceModel(t, referencePath, referenceWeights, referenceShapes)
-	datasetData := []byte("{\"id\":\"pair\",\"prompt\":\"ab\",\"chosen\":\"c\",\"rejected\":\"d\"}\n")
+	datasetData := []byte("{\"id\":\"pair\",\"prompt\":\"ab\",\"chosen\":\"c\",\"rejected\":\"d\"}\n" +
+		"{\"id\":\"pair-2\",\"prompt\":\"ba\",\"chosen\":\"dc\",\"rejected\":\"cd\"}\n")
 	if err := os.MkdirAll(roots.Datasets, 0o755); err != nil {
 		t.Fatal(err)
 	}

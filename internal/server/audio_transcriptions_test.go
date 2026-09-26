@@ -77,6 +77,11 @@ type workspaceTestRuntime struct {
 	WorkflowWorkspaceAPI
 }
 
+// PreviewWorkflow forwards to the served workspaces, as the server's runtime does.
+func (runtime *workspaceTestRuntime) PreviewWorkflow(ctx context.Context, kind WorkflowKind, task recipe.Task, recipeID artifact.ID, raw json.RawMessage, position, limit int) (any, error) {
+	return PreviewWorkflowIn(ctx, runtime.WorkflowWorkspaceAPI, kind, task, recipeID, raw, position, limit)
+}
+
 type transcriptionHTTPFixture struct {
 	handler   *Handler
 	workspace *TranscriptionWorkspace

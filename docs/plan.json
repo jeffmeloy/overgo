@@ -4,36 +4,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "automation-typed-failure-kinds",
-      "title": "Classify failures as typed kinds at their owner, not by message text",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Classify failures as typed kinds at their owner, not by message text",
-          "status": "open",
-          "verify": "go test ./internal/testevidence -run '^TestOutcomesClassifyFromTypedEvents$' -count=1",
-          "rationale": "Owner 2026-09-25: classify facts once at their owner and derive decisions from typed facts; avoid brittle string matching. Measured: 11 production decisions match error-message text and 25 scrape test or lane output. Examples: gate staleClosureAuthorityFailure (verification.go:1555) picks remediation by strings.Contains on 'stale active binding'; impact_fallback.go:29 does the same for manifest uncertainty; testevidence classifies skip kind (evidence.go:254), device contention through ErrResourceBusy text (:261) and panic cause (:318) from output substrings; VerifyOutput (:465-486) judges verify commands by text; output 'UNAVAILABLE' markers decide credit. Owners return typed kinds instead: closurescan ErrStaleBinding and ErrUncatalogued, a codemanifest uncertainty kind, and testevidence reading go test -json events plus a structured outcome record (skip kind, resource contention with holder, panic) rather than prose. Each replaced matcher is deleted. GUI lane survey items 3 and 7. Done when TestOutcomesClassifyFromTypedEvents classifies skip, contention and panic outcomes from typed events with no output substring."
-        }
-      ]
-    },
-    {
-      "id": "automation-gate-git-lock-per-worktree",
-      "title": "Re-land after a vanished transient Git lock instead of refusing",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Re-land after a vanished transient Git lock instead of refusing",
-          "status": "open",
-          "verify": "go test ./cmd/loop -run '^TestLandRetriesAfterTransientGitLock$' -count=1",
-          "rationale": "Hurdle (2026-09-25): three landings (the audio merge-row vehicle and lessons-replan twice) passed every check and were refused at the commit step with 'Git lock index has partial or foreign ownership; automatic recovery refused'. The index lock is this worktree's own (gateIndexPath); withGateGitStateLock's residue check refuses any index.lock that is not the gate's exact marker, so a transient lock from another process in the same worktree (a git status refreshing the index) refuses a landing that passed every check. A retry is already cheap -- passed phases are reused (the lessons-replan retry ran 4 steps in 67 s) -- and the repository fails fast rather than waiting, and a timed wait would be an arbitrary timer. So classify instead: the gate reports the foreign lock as a typed transient refusal naming the lock's identity (path, size, modification time), and cmd/loop -land re-lands only when that exact lock has since disappeared -- a logical condition, no timer -- and refuses when it persists. Builds on automation-typed-failure-kinds. Done when TestLandRetriesAfterTransientGitLock re-lands after a vanished foreign lock and refuses a persisting one."
-        }
-      ]
-    },
-    {
       "id": "automation-typed-audit-notes",
       "title": "Emit typed gate notes and one structured verdict",
       "owner": "master-lead",
@@ -45,6 +15,21 @@
           "status": "open",
           "verify": "go test ./cmd/loop -run '^TestLandReadsStructuredVerdict$' -count=1",
           "rationale": "Owner 2026-09-25 classification directive. The gate's g.note emits free text that compactAudit (gate.go:663-693), appendGateAdvisoryFinding, the commit message's Measured block (commit_message.go:14,30) and preflightRepairs (preflight.go:354) each re-parse by prefix, and cmd/loop recovers the gate's verdict with a verdictLine regex (land.go:159,180). Notes become typed records (kind: measured, advisory, warning, reuse or repair, with typed fields), rendered to text only at the edge, and the gate and plan emit one structured verdict (outcome, blocker, findings) that cmd/loop reads directly. The prefix parsers and the verdict regex are deleted. GUI lane survey items 1 and 2. Done when TestLandReadsStructuredVerdict proves cmd/loop takes its outcome from the gate's typed verdict with no text parsing."
+        }
+      ]
+    },
+    {
+      "id": "automation-typed-failure-kinds",
+      "title": "Classify failures as typed kinds at their owner, not by message text",
+      "owner": "master-lead",
+      "status": "open",
+      "steps": [
+        {
+          "id": "do",
+          "title": "Classify failures as typed kinds at their owner, not by message text",
+          "status": "open",
+          "verify": "go test ./internal/testevidence -run '^TestOutcomesClassifyFromTypedEvents$' -count=1",
+          "rationale": "Owner 2026-09-25: classify facts once at their owner and derive decisions from typed facts; avoid brittle string matching. Measured: 11 production decisions match error-message text and 25 scrape test or lane output. Examples: gate staleClosureAuthorityFailure (verification.go:1555) picks remediation by strings.Contains on 'stale active binding'; impact_fallback.go:29 does the same for manifest uncertainty; testevidence classifies skip kind (evidence.go:254), device contention through ErrResourceBusy text (:261) and panic cause (:318) from output substrings; VerifyOutput (:465-486) judges verify commands by text; output 'UNAVAILABLE' markers decide credit. Owners return typed kinds instead: closurescan ErrStaleBinding and ErrUncatalogued, a codemanifest uncertainty kind, and testevidence reading go test -json events plus a structured outcome record (skip kind, resource contention with holder, panic) rather than prose. Each replaced matcher is deleted. GUI lane survey items 3 and 7. Done when TestOutcomesClassifyFromTypedEvents classifies skip, contention and panic outcomes from typed events with no output substring."
         }
       ]
     },

@@ -407,21 +407,6 @@
       ]
     },
     {
-      "id": "census-split-one-pass",
-      "title": "Split and join the modern-Go census without re-copying site lists",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Split and join the modern-Go census without re-copying site lists",
-          "status": "open",
-          "verify": "go test ./internal/repoanalysis -run '^TestCensusSplitCopiesEachSiteOnce$' -count=1",
-          "rationale": "SQA-011, in 00dfd63d's code: ModernGoCensus.SplitByPackage and JoinModernGoCensus (internal/repoanalysis) clone and filter the whole site list once per package and clip on every append, so splitting is quadratic in packages times sites and runs on every landing. Group sites by package and finding in one pass with stable package and finding order, and join with counted final capacity. Keep the per-package content identities and deterministic order, and do not mutate caller-owned slices. Done when TestCensusSplitCopiesEachSiteOnce bounds allocations for a split and join round trip to linear in sites and the round trip is identical."
-        }
-      ]
-    },
-    {
       "id": "store-multi-schema-paging",
       "title": "Page across several schemas by reading only the page",
       "owner": "master-lead",

@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-peers",
-      "title": "Behaviour tests, stage 4: a browser leg drives the peers workspace's enrollment form, saved state and global operations, retiring its three source needles",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 4: a browser leg drives the peers workspace's enrollment form, saved state and global operations, retiring its three source needles",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserPeerWorkspace$' -leg 'peer workspace leg'",
-          "rationale": "Survey 2026-09-25: 52 server tests assert needles in the served UI source; 14 are structural ratchets, 21 stand in for behaviour a browser leg already drives (stage 1 deletes their needles, keeping their bans), and 17 stand in for behaviour no leg drives. This stage replaces TestPeerWorkspaceVertical, TestPeerWorkspaceUsesCommonForm and TestPeerWorkspaceUsesGlobalOperations (peer_workspace_gui_test.go) with a leg that enrolls a peer through the shared form and follows its operation into the global shell."
-        }
-      ]
-    },
-    {
       "id": "gui-legs-tabs",
       "title": "Behaviour tests, stage 5: a browser leg drives the compositions, recipe inspector, evaluations and preference-training evidence tabs, retiring their four source needles",
       "owner": "overgo_gui_cleanup",

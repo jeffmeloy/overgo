@@ -452,21 +452,6 @@
       ]
     },
     {
-      "id": "release-claim-by-item",
-      "title": "Release a claim by its row",
-      "owner": "master-lead",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Release a claim by its row",
-          "status": "open",
-          "verify": "go test ./cmd/plan -run '^TestReleaseClaimByItem$' -count=1",
-          "rationale": "Automation friction: switching rows needs plan -release-claim \u003cfull claim id\u003e, copied from plan -next -json, and a stale claim once blocked a prompt until the lead dug out its id. Accept the item id when this worker holds exactly one claim on that item, still requiring -release-reason, and refuse with the ids when the item is ambiguous or held by another worker. Done when TestReleaseClaimByItem releases a held claim by item id and refuses another worker's claim."
-        }
-      ]
-    },
-    {
       "id": "e4b-full-parameter-trainer",
       "title": "Train Gemma-4 E4B with full-parameter gradients",
       "owner": "master-lead",

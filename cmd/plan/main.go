@@ -102,7 +102,7 @@ func main() {
 	verifyCmd := flag.String("vcmd", "", "with -add: the step's verify command (a shell command that exits 0 iff accepted)")
 	role := flag.String("role", "", "lane role for dispatch and context (default OVERGO_AUTOMATION_ROLE, then unassigned)")
 	worker := flag.String("worker", "", "stable session identity for dispatch claims (default OVERGO_AUTOMATION_WORKER); inherit the same identity in gate subprocesses")
-	releaseClaim := flag.String("release-claim", "", "release this worker's exact claim ID; requires -release-reason cancelled or handoff")
+	releaseClaim := flag.String("release-claim", "", "release this worker's claim, by its ID or by the item (or item/step) it holds; requires -release-reason cancelled or handoff")
 	releaseReason := flag.String("release-reason", "", "with -release-claim: cancelled or handoff; retained checks survive release")
 	handled, err := commanddoc.Plan.Command.ParseCommandLine(flag.CommandLine, os.Stdout)
 	if err == nil && !handled {

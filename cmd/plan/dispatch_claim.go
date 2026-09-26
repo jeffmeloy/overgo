@@ -45,13 +45,42 @@ func saveCapturedPlanMutation(root string, before, document plan.Plan) error {
 	return plan.Save(filepath.Join(root, filepath.FromSlash(plan.Path)), document)
 }
 
+// claimNamed reads a claim id, or an item or item/step reference, which names
+// the one claim its steps' task aliases bind; more or none is refused with
+// what was found.
+func claimNamed(ctx context.Context, store artifact.Reader, root, raw string) (artifact.ID, error) {
+	if id, err := artifact.ParseID(raw); err == nil {
+		return id, nil
+	}
+	document, err := plan.Load(filepath.Join(root, filepath.FromSlash(plan.Path)))
+	if err != nil {
+		return artifact.ID{}, err
+	}
+	item, step, stepNamed := strings.Cut(raw, "/")
+	var held []artifact.ID
+	for _, row := range document.Items {
+		for _, candidate := range row.Steps {
+			if row.ID != item || stepNamed && candidate.ID != step {
+				continue
+			}
+			id, found, err := artifact.ResolveAlias(ctx, store, worklease.Alias(worklease.TaskAliasRoot, row.ID+"/"+candidate.ID))
+			if err != nil {
+				return artifact.ID{}, err
+			}
+			if found {
+				held = append(held, id)
+			}
+		}
+	}
+	if len(held) != 1 {
+		return artifact.ID{}, fmt.Errorf("plan: %s names %d claims %v; release one by its claim id", raw, len(held), held)
+	}
+	return held[0], nil
+}
+
 func releaseDispatchClaim(root, rawID, worker, reason string, output io.Writer) (err error) {
 	if reason != "cancelled" && reason != "handoff" {
 		return errors.New("plan: -release-claim requires -release-reason cancelled or handoff; completion belongs to the gate")
-	}
-	id, err := artifact.ParseID(rawID)
-	if err != nil {
-		return err
 	}
 	lock, err := authoritylock.Acquire(root)
 	if err != nil {
@@ -63,6 +92,10 @@ func releaseDispatchClaim(root, rawID, worker, reason string, output io.Writer) 
 		return err
 	}
 	defer func() { err = errors.Join(err, store.Close()) }()
+	id, err := claimNamed(context.Background(), store, root, rawID)
+	if err != nil {
+		return err
+	}
 	lease, found, err := worklease.Read(context.Background(), store, id)
 	if err != nil {
 		return err

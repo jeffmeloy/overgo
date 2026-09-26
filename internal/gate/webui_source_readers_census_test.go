@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"overgo/internal/plan"
 )
 
 // TestServerTestsDeclareEveryWebUISourceRead holds the server's tests to
@@ -36,7 +34,6 @@ func TestServerTestsDeclareEveryWebUISourceRead(t *testing.T) {
 	files := token.NewFileSet()
 	functions := map[string]*ast.FuncDecl{}
 	var inventory []string
-	var pending map[string]string
 	for _, entry := range entries {
 		if !strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
@@ -59,7 +56,7 @@ func TestServerTestsDeclareEveryWebUISourceRead(t *testing.T) {
 					}
 					for index, name := range value.Names {
 						if name.Name == "webuiSourceReaders" {
-							inventory, pending = inventoryEntries(t, value.Values[index])
+							inventory = inventoryEntries(t, value.Values[index])
 						}
 					}
 				}
@@ -93,46 +90,24 @@ func TestServerTestsDeclareEveryWebUISourceRead(t *testing.T) {
 			t.Errorf("webuiSourceReaders declares %s, which no longer reads the served source", declared)
 		}
 	}
-	// A pending needle names the open row whose leg replaces it.
-	document, err := plan.Load(filepath.Join(root, "docs", "plan.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	open := map[string]bool{}
-	for _, item := range document.Items {
-		open[item.ID] = item.Status == plan.StatusOpen
-	}
-	for test, row := range pending {
-		if !open[row] {
-			t.Errorf("%s is pending %s, which is not an open plan row", test, row)
-		}
-	}
 }
 
-// inventoryEntries answers the inventory literal's test names and, for each
-// entry pending a leg row, the row its pendingLeg call names.
-func inventoryEntries(t *testing.T, value ast.Expr) ([]string, map[string]string) {
+// inventoryEntries answers the inventory literal's test names.
+func inventoryEntries(t *testing.T, value ast.Expr) []string {
 	t.Helper()
 	literal, ok := value.(*ast.CompositeLit)
 	if !ok {
 		t.Fatal("webuiSourceReaders is not a map literal")
 	}
 	var keys []string
-	pending := map[string]string{}
 	for _, element := range literal.Elts {
 		pair, ok := element.(*ast.KeyValueExpr)
 		if !ok {
 			t.Fatal("webuiSourceReaders holds an element that is not a key and value")
 		}
-		name := stringLiteral(t, pair.Key)
-		keys = append(keys, name)
-		if call, ok := pair.Value.(*ast.CallExpr); ok {
-			if function, ok := call.Fun.(*ast.Ident); ok && function.Name == "pendingLeg" && len(call.Args) == 1 {
-				pending[name] = stringLiteral(t, call.Args[0])
-			}
-		}
+		keys = append(keys, stringLiteral(t, pair.Key))
 	}
-	return keys, pending
+	return keys
 }
 
 // stringLiteral answers a string literal's value.
@@ -140,7 +115,7 @@ func stringLiteral(t *testing.T, expression ast.Expr) string {
 	t.Helper()
 	literal, ok := expression.(*ast.BasicLit)
 	if !ok || literal.Kind != token.STRING {
-		t.Fatal("webuiSourceReaders names a test or a row other than by a string literal")
+		t.Fatal("webuiSourceReaders names a test other than by a string literal")
 	}
 	value, err := strconv.Unquote(literal.Value)
 	if err != nil {

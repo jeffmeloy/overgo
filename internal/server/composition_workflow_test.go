@@ -42,24 +42,11 @@ func TestCompositionAPIWorkflow(t *testing.T) {
 	}
 }
 
+// TestCompositionGUIWorkflow: the workbench shell declares the compositions
+// tab; the compositions leg drives it over a published authority.
 func TestCompositionGUIWorkflow(t *testing.T) {
 	t.Parallel()
 	handler := newTestHandler(t, &fakeGenerator{})
-	module := serveTestRequest(handler, http.MethodGet, "/mod/compositions.js", "")
-	if module.Code != http.StatusOK {
-		t.Fatalf("composition module status = %d", module.Code)
-	}
-	for _, token := range []string{
-		`api.get("/compositions", { signal })`, `api.post("/compositions/activate"`,
-		`api.post("/compositions/generate"`, "Open promoted generation",
-		"compatible", "recipe graph", "Bridge training",
-		"Evaluation and promotion history", "Runtime memory and latency evidence",
-		"contract-tested", "cuda-verified", "production-active",
-	} {
-		if !strings.Contains(module.Body.String(), token) {
-			t.Errorf("composition GUI missing %q", token)
-		}
-	}
 	shell := serveTestRequest(handler, http.MethodGet, "/workspace/manifest", "")
 	if !strings.Contains(shell.Body.String(), `"id":"compositions"`) {
 		t.Fatal("workbench shell does not load composition module")

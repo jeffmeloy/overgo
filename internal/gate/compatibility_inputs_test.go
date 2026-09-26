@@ -29,15 +29,18 @@ func TestCompatibilityInputBindingRatchet(t *testing.T) {
 		}
 		found = true
 		// The legacy opaque binding reached 269 packages after the image
-		// embedding owner arrived. Colibri's shared benchmarkrecord is one
-		// reviewed addition outside the capped harness. It must stay bound
+		// embedding owner arrived. Colibri's shared benchmarkrecord and the
+		// composition authority fixture the compositions leg shares are
+		// reviewed additions outside the capped harness. They must stay bound
 		// while the remaining opaque reach keeps its original ceiling.
 		const ceiling = 269
-		const reviewedAddition = "overgo/internal/benchmarkrecord"
-		if !slices.Contains(node.inputDependencies, reviewedAddition) {
-			t.Errorf("%s lost its reviewed benchmark-record source binding", target)
+		reviewedAdditions := []string{"overgo/internal/benchmarkrecord", "overgo/internal/composition/compositiontest"}
+		for _, addition := range reviewedAdditions {
+			if !slices.Contains(node.inputDependencies, addition) {
+				t.Errorf("%s lost its reviewed source binding %s", target, addition)
+			}
 		}
-		legacyBound := len(node.inputDependencies) - 1
+		legacyBound := len(node.inputDependencies) - len(reviewedAdditions)
 		if legacyBound > ceiling {
 			t.Errorf("%s binds %d legacy packages, ceiling %d", target, legacyBound, ceiling)
 		}

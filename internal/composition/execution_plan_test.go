@@ -1,6 +1,8 @@
-package composition
+package composition_test
 
 import (
+	"overgo/internal/composition"
+	"overgo/internal/composition/compositiontest"
 	"testing"
 
 	"overgo/internal/artifact"
@@ -12,10 +14,10 @@ import (
 )
 
 func TestCompositionResidencyPlan(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
+	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
-	compile := func() (CompositionExecutionPlan, error) {
-		return CompileCompositionExecutionPlan(
+	compile := func() (composition.CompositionExecutionPlan, error) {
+		return composition.CompileCompositionExecutionPlan(
 			ctx, store,
 			authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 		)
@@ -73,13 +75,13 @@ func TestCompositionResidencyPlan(t *testing.T) {
 	if err != nil || content.Descriptor.ID != plan.ID {
 		t.Fatalf("plan content = %+v, %v", content.Descriptor, err)
 	}
-	if _, err := CompileCompositionExecutionPlan(
+	if _, err := composition.CompileCompositionExecutionPlan(
 		ctx, store, authority.Recipe.SourceModel,
 		artifact.ID{}, authority.Recipe.Task,
 	); err == nil {
 		t.Fatal("invalid target scope compiled")
 	}
-	if _, err := CompileCompositionExecutionPlan(
+	if _, err := composition.CompileCompositionExecutionPlan(
 		ctx, store, authority.Recipe.SourceModel,
 		authority.Recipe.TargetModel, recipe.TaskEmbedding,
 	); err == nil {
@@ -88,7 +90,7 @@ func TestCompositionResidencyPlan(t *testing.T) {
 }
 
 func TestTransformedRepresentationCacheIdentity(t *testing.T) {
-	store, authority := compositionAuthorityFixture(t)
+	store, authority := compositiontest.Authority(t)
 	ctx := t.Context()
 	batch, err := authority.Recipe.ActivationBatch(ctx, store, "fixture/composition/cache-activate", nil)
 	if err != nil {
@@ -97,7 +99,7 @@ func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	if _, err := store.Commit(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := CompileCompositionExecutionPlan(
+	plan, err := composition.CompileCompositionExecutionPlan(
 		ctx, store, authority.Recipe.SourceModel, authority.Recipe.TargetModel, authority.Recipe.Task,
 	)
 	if err != nil {
@@ -127,7 +129,7 @@ func TestTransformedRepresentationCacheIdentity(t *testing.T) {
 	changed.Sessions.Components = append([]modelrecipe.ComponentSession(nil), plan.Sessions.Components...)
 	changed.Sessions.Components[tensor.FirstOffset].Session = recipe.SessionRequest
 	changed.ID = artifact.ID{}
-	changed.CacheIdentity, err = compositionCacheIdentity(changed)
+	changed.CacheIdentity, err = composition.CompositionCacheIdentity(changed)
 	if err != nil || changed.CacheIdentity == plan.CacheIdentity {
 		t.Fatalf("lifetime-specific cache authority = %s, original %s: %v", changed.CacheIdentity, plan.CacheIdentity, err)
 	}

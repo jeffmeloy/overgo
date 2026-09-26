@@ -6,21 +6,6 @@
   "census_evidence": "evidence:sha256:4757a6529e4ca6a47ae01f4ad94978209e5c94188ed2f0f04714c9adf36ec7ff",
   "items": [
     {
-      "id": "gui-legs-compositions",
-      "title": "Behaviour tests, stage 5c: a browser leg drives the compositions tab over a published composition authority (bridge training, evaluation and promotion history, memory and latency evidence, activation), retiring its source needle",
-      "owner": "overgo_gui_cleanup",
-      "status": "open",
-      "steps": [
-        {
-          "id": "do",
-          "title": "Behaviour tests, stage 5c: a browser leg drives the compositions tab over a published composition authority (bridge training, evaluation and promotion history, memory and latency evidence, activation), retiring its source needle",
-          "status": "open",
-          "verify": "go run ./cmd/webui-lane -run '^TestWebUIBrowserCompositions$' -leg 'compositions leg'",
-          "rationale": "Stage 5 split 2026-09-25 by fixture cost: the recipe inspector and evaluations have fixtures, the training evidence needs a stored run and its trace, and the compositions tab needs a whole composition authority (contracts, bridge, execution recipe, promotion), which only internal/composition's own tests build today. This stage replaces TestCompositionGUIWorkflow with a leg over a published composition authority: the recipe graph and compatibility, bridge training, the evaluation and promotion history, memory and latency evidence and activation; the fixture it needs is shared from internal/composition rather than rebuilt. Moved behind gui-legs-agent and gui-legs-front 2026-09-25: the composition authority fixture lives in internal/composition's internal tests (eleven uses), so a helper package importing composition cannot serve them without an import cycle, and a copy in the server tests would be a large clone; the fixture moves to one exported place (a composition test-support package the composition tests reach as an external test package) before this leg can share it."
-        }
-      ]
-    },
-    {
       "id": "gui-training-live",
       "title": "Stream training step metrics over the event hub and draw progress, time remaining and loss live on the training page, re-attaching after a reload",
       "owner": "overgo_gui_cleanup",

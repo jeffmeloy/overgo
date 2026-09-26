@@ -5,9 +5,11 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -15,6 +17,7 @@ import (
 	"overgo/internal/gitauthority"
 	"overgo/internal/overgodb"
 	"overgo/internal/plan"
+	"overgo/internal/processcontrol"
 	"overgo/internal/runrecord"
 )
 
@@ -101,7 +104,17 @@ func landRow(world rowWorld, reference, messageFile string) (landOutcome, error)
 	}{
 		{phaseClaim, func() (string, error) { return world.Claim(reference) }},
 		{phasePreflight, func() (string, error) { return world.Preflight(reference) }},
-		{phaseGate, func() (string, error) { return world.Gate(reference, messageFile) }},
+		{phaseGate, func() (string, error) {
+			for {
+				// Another process held the Git index at the commit; the
+				// passed checks are reused, so the gate runs again.
+				refusal, err := world.Gate(reference, messageFile)
+				if !errors.Is(err, processcontrol.ErrResourceBusy) {
+					return refusal, err
+				}
+				fmt.Fprintf(os.Stderr, "loop: %s: the gate met a busy resource; landing again\n", reference)
+			}
+		}},
 	} {
 		outcome.Phase = step.phase
 		refusal, err := step.run()
@@ -213,13 +226,21 @@ func (w execRowWorld) Preflight(reference string) (string, error) {
 	return "", nil
 }
 
-// Gate commits the row over the ship set the gate derives.
+// Gate commits the row over the ship set the gate derives. The gate runs
+// built, not through go run, so its resource-busy status reaches the loop.
 func (w execRowWorld) Gate(reference, messageFile string) (string, error) {
-	out, err := w.tool("go", "run", "./cmd/gate", "-plan", reference, "-message-file", messageFile)
-	if err != nil {
-		return refusalOf(out), nil
+	gate := filepath.Join(loopWorktree, "bin", "gate.exe")
+	out, err := w.tool("go", "build", "-o", gate, "./cmd/gate")
+	if err == nil {
+		out, err = w.tool(gate, "-plan", reference, "-message-file", messageFile)
 	}
-	return "", nil
+	switch {
+	case err == nil:
+		return "", nil
+	case errors.Is(err, processcontrol.ErrResourceBusy):
+		return refusalOf(out), err
+	}
+	return refusalOf(out), nil
 }
 
 // Landed confirms from git that HEAD is the completion of reference.

@@ -533,9 +533,21 @@ func runToolEnv(environment []string, input io.Reader, echo io.Writer, arguments
 		Stderr: captured,
 	})
 	if err == nil && receipt.ExitCode != 0 {
-		err = fmt.Errorf("exit status %d", receipt.ExitCode)
+		err = toolExit(receipt.ExitCode)
 	}
 	return combined.String(), err
+}
+
+// toolExit is a tool's nonzero exit status; the resource-busy status is
+// processcontrol.ErrResourceBusy, so a caller tells contention from failure.
+type toolExit int
+
+// Error reads as the process status.
+func (code toolExit) Error() string { return fmt.Sprintf("exit status %d", int(code)) }
+
+// Is reports the resource-busy status as processcontrol.ErrResourceBusy.
+func (code toolExit) Is(target error) bool {
+	return target == processcontrol.ErrResourceBusy && int(code) == processcontrol.ResourceBusyExitCode
 }
 
 func tailOf(value string, limit int) string {

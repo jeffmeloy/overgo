@@ -502,6 +502,10 @@
       "row": "harness-trend-paydown"
     },
     {
+      "key": "surface-move:production-nodes:0d41ac6e0149fc766399bf4ea14807a7d0b3e758",
+      "row": "harness-trend-paydown"
+    },
+    {
       "key": "surface-move:production-nodes:38f8a354ac0fefbec2051a7905eb7d32dafcf028",
       "reason": "the growth is master's merged code (75b235e356b5), owned and reviewed on master; the lane's paydown row arch-route-dispatch carries the lane's own reduction"
     },

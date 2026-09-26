@@ -16,8 +16,9 @@ import (
 )
 
 func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
-	// Keep parallel child cases within this group, ahead of the package-wide
-	// queue. Go emits no parent pause while its children wait for test slots.
+	// Parallel phase, cases in sequence: queued parallel children would charge
+	// their slot wait to this parent's budget (Go emits no parent pause).
+	t.Parallel()
 	for _, run := range []func() (bool, error){
 		func() (bool, error) { return (&gateContext{}).stepTestOwners(t.Context()) },
 		func() (bool, error) { return (&gateContext{}).stepTestDevice(t.Context()) },
@@ -32,7 +33,6 @@ func TestOwnerReuseRetainsDependentChecks(t *testing.T) {
 	}
 	for _, missingMethod := range []string{"Fatal", "Skip"} {
 		t.Run(missingMethod, func(t *testing.T) {
-			t.Parallel()
 			assertOwnerReuseRetainsDependentChecks(t, missingMethod)
 		})
 	}

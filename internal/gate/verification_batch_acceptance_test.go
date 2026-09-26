@@ -17,14 +17,13 @@ import (
 )
 
 func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
-	// Run this group before releasing the package-wide parallel queue. Go does
-	// not emit a parent pause while parallel subtests wait for slots; charging
-	// that queue wait exhausted the parent's active budget at two slots even
-	// though all cases completed in 70 seconds in isolation. Keep the cases
-	// parallel without interleaving their parent with unrelated test groups.
+	// The group runs in the parallel phase with its cases in sequence: Go emits
+	// no parent pause while parallel subtests wait for slots, so queued cases
+	// charged their wait to the parent's active budget, and a serial parent
+	// held the suite's serial phase. In sequence the cases never queue.
+	t.Parallel()
 	for _, mode := range []string{"pass", "failure", "skip", "unavailable", "no-match", "mutation"} {
 		t.Run(mode, func(t *testing.T) {
-			t.Parallel()
 			g, batch, tree := verificationBatchFixture(t, mode)
 			before, err := os.ReadFile(filepath.Join(g.repo, plan.Path))
 			if err != nil {
@@ -138,7 +137,6 @@ func TestGovernedBatchDeclarationAcceptance(t *testing.T) {
 }
 
 func testBatchCompletionRecovery(t *testing.T) {
-	t.Parallel()
 	for _, complete := range []bool{false, true} {
 		batch := &plan.VerificationBatch{
 			Scope: []string{"candidate.go"}, Rationale: "Prove exact recovery.", ReopenWhen: "The accepted tree changes.",

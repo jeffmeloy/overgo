@@ -1356,7 +1356,8 @@
             "automation-typed-gate-notes/do",
             "gate-busy-index-relands/do",
             "automation-typed-remediation-kinds/do",
-            "consumer-graph-sort-keys/do"
+            "consumer-graph-sort-keys/do",
+            "gate-suite-serial-phase/do"
           ]
         }
       ]
